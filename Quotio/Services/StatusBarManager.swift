@@ -2,7 +2,8 @@
 //  StatusBarManager.swift
 //  Quotio
 //
-//  Custom NSStatusBar manager with single combined status item using NSHostingView
+//  Custom NSStatusBar manager with single combined status item using NSPanel
+//  Uses NSPanel instead of NSPopover to support full-screen mode
 //
 
 import AppKit
@@ -14,8 +15,9 @@ final class StatusBarManager {
     static let shared = StatusBarManager()
     
     private var statusItem: NSStatusItem?
-    private var popover: NSPopover?
-    private var eventMonitor: Any?
+    private var menuPanel: StatusBarPanel?
+    private var globalEventMonitor: Any?
+    private var localEventMonitor: Any?
     
     private init() {}
     
@@ -36,12 +38,11 @@ final class StatusBarManager {
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         }
         
-        if popover == nil {
-            popover = NSPopover()
-            popover?.behavior = .transient
-            popover?.animates = true
+        // Create or update panel
+        if menuPanel == nil {
+            menuPanel = StatusBarPanel()
         }
-        popover?.contentViewController = NSHostingController(rootView: menuContentProvider())
+        menuPanel?.updateContent(menuContentProvider())
         
         guard let button = statusItem?.button else { return }
         
@@ -75,33 +76,139 @@ final class StatusBarManager {
     }
     
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
-        guard let popover = popover else { return }
+        guard let panel = menuPanel else { return }
         
-        if popover.isShown {
-            closePopover()
+        if panel.isVisible {
+            closePanel()
         } else {
-            popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
-            
-            eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-                self?.closePopover()
-            }
+            showPanel(relativeTo: sender)
         }
     }
     
-    private func closePopover() {
-        popover?.close()
-        if let monitor = eventMonitor {
+    private func showPanel(relativeTo button: NSStatusBarButton) {
+        guard let panel = menuPanel else { return }
+        
+        // Get button's screen position
+        guard let buttonWindow = button.window else { return }
+        let buttonRect = button.convert(button.bounds, to: nil)
+        let screenRect = buttonWindow.convertToScreen(buttonRect)
+        
+        // Position panel below the button, aligned to the right edge
+        let panelSize = panel.frame.size
+        let panelX = screenRect.maxX - panelSize.width
+        let panelY = screenRect.minY - panelSize.height - 4
+        
+        panel.setFrameOrigin(NSPoint(x: panelX, y: panelY))
+        panel.makeKeyAndOrderFront(nil)
+        
+        // Add global event monitor for clicks outside
+        globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            self?.closePanel()
+        }
+        
+        // Add local event monitor for escape key
+        localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // Escape key
+                self?.closePanel()
+                return nil
+            }
+            return event
+        }
+    }
+    
+    private func closePanel() {
+        menuPanel?.orderOut(nil)
+        
+        if let monitor = globalEventMonitor {
             NSEvent.removeMonitor(monitor)
-            eventMonitor = nil
+            globalEventMonitor = nil
+        }
+        if let monitor = localEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            localEventMonitor = nil
         }
     }
     
     func removeStatusItem() {
-        closePopover()
+        closePanel()
         if let item = statusItem {
             NSStatusBar.system.removeStatusItem(item)
             statusItem = nil
         }
+    }
+}
+
+// MARK: - StatusBarPanel
+
+/// Custom NSPanel that works across all Spaces including full-screen mode
+final class StatusBarPanel: NSPanel {
+    private var hostingView: NSHostingView<AnyView>?
+    
+    init() {
+        super.init(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 400),
+            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        
+        // Panel configuration for menu bar behavior
+        self.level = .statusBar
+        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        self.isOpaque = false
+        self.backgroundColor = .clear
+        self.hasShadow = true
+        self.hidesOnDeactivate = false
+        self.isMovableByWindowBackground = false
+        self.isFloatingPanel = true
+        
+        // Create hosting view with placeholder
+        let placeholderView = AnyView(EmptyView())
+        hostingView = NSHostingView(rootView: placeholderView)
+        hostingView?.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Create visual effect view for background
+        let visualEffect = NSVisualEffectView()
+        visualEffect.translatesAutoresizingMaskIntoConstraints = false
+        visualEffect.material = .popover
+        visualEffect.state = .active
+        visualEffect.wantsLayer = true
+        visualEffect.layer?.cornerRadius = 10
+        visualEffect.layer?.masksToBounds = true
+        
+        self.contentView = visualEffect
+        
+        if let hosting = hostingView {
+            visualEffect.addSubview(hosting)
+            NSLayoutConstraint.activate([
+                hosting.topAnchor.constraint(equalTo: visualEffect.topAnchor),
+                hosting.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
+                hosting.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
+                hosting.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor)
+            ])
+        }
+    }
+    
+    func updateContent(_ content: AnyView) {
+        hostingView?.rootView = content
+        
+        // Resize panel to fit content
+        if let hosting = hostingView {
+            let fittingSize = hosting.fittingSize
+            let newSize = NSSize(
+                width: max(320, fittingSize.width),
+                height: min(600, max(100, fittingSize.height))
+            )
+            self.setContentSize(newSize)
+        }
+    }
+    
+    override var canBecomeKey: Bool { true }
+    
+    override func resignKey() {
+        super.resignKey()
+        // Close panel when it loses key status (user clicked elsewhere in app)
+        self.orderOut(nil)
     }
 }
 
