@@ -409,6 +409,15 @@ final class QuotaViewModel {
         pruneMenuBarItems()
     }
     
+    /// Refresh all auto-detected providers (those that don't support manual auth)
+    func refreshAutoDetectedProviders() async {
+        let autoDetectedProviders = AIProvider.allCases.filter { !$0.supportsManualAuth }
+        
+        for provider in autoDetectedProviders {
+            await refreshQuotaForProvider(provider)
+        }
+    }
+    
     func refreshLogs() async {
         guard let client = apiClient else { return }
         

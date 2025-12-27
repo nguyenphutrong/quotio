@@ -125,7 +125,7 @@ struct ProvidersScreen: View {
                     
                     Button {
                         Task { 
-                            await viewModel.refreshQuotaForProvider(.cursor)
+                            await viewModel.refreshAutoDetectedProviders()
                         }
                     } label: {
                         if viewModel.isLoadingQuotas {
