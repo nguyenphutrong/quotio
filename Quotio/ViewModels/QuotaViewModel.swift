@@ -623,11 +623,16 @@ final class QuotaViewModel {
     /// Remove menu bar items that no longer have valid quota data
     private func pruneMenuBarItems() {
         var validItems: [MenuBarQuotaItem] = []
+        var seen = Set<String>()
         
         // Collect valid items from current quota data
         for (provider, accountQuotas) in providerQuotas {
             for (accountKey, _) in accountQuotas {
-                validItems.append(MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey))
+                let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey)
+                if !seen.contains(item.id) {
+                    seen.insert(item.id)
+                    validItems.append(item)
+                }
             }
         }
         
@@ -635,12 +640,20 @@ final class QuotaViewModel {
         for file in authFiles {
             guard let provider = file.providerType else { continue }
             let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
-            validItems.append(MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey))
+            let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey)
+            if !seen.contains(item.id) {
+                seen.insert(item.id)
+                validItems.append(item)
+            }
         }
         
         // Add items from direct auth files (quota-only mode)
         for file in directAuthFiles {
-            validItems.append(MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.email ?? file.filename))
+            let item = MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.email ?? file.filename)
+            if !seen.contains(item.id) {
+                seen.insert(item.id)
+                validItems.append(item)
+            }
         }
         
         menuBarSettings.pruneInvalidItems(validItems: validItems)
