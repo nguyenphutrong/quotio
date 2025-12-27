@@ -5,6 +5,24 @@ All notable changes to Quotio will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2025-12-27
+
+### Fixed
+
+- **Proxy Connection Leak**: Fix URLSession connection leak in ManagementAPIClient with proper lifecycle management (#11)
+- **Menu Bar Sync**: Fix menu bar not updating when accounts are removed or logged out (#11)
+- **Quota Calculation**: Filter out unknown percentages when calculating lowest quota for menu bar display (#8)
+- **ForEach Duplicate ID**: Add uniqueId field combining provider+email to prevent duplicate ID warnings (#11)
+- **Race Condition**: Avoid race condition in stopProxy by capturing client reference before invalidation (#11)
+
+### Added
+
+- **Refresh Button**: Manual refresh button for auto-detected providers section to detect logout changes (#11)
+
+### Changed
+
+- Increase auto-refresh interval from 5s to 15s to reduce connection pressure (#11)
+
 ## [0.2.1] - 2025-12-27
 
 ### Added
