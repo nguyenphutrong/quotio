@@ -480,7 +480,7 @@ struct DashboardScreen: View {
                         ProviderChip(provider: provider, count: viewModel.authFilesByProvider[provider]?.count ?? 0)
                     }
                     
-                    ForEach(viewModel.disconnectedProviders) { provider in
+                    ForEach(viewModel.disconnectedProviders.filter { $0.supportsManualAuth }) { provider in
                         Button {
                             if provider == .vertex {
                                 isImporterPresented = true
