@@ -205,6 +205,15 @@ final class StatusBarPanel: NSPanel {
     
     override var canBecomeKey: Bool { true }
     
+    // Prevent auto-focus on first responder when panel opens
+    override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+        // Only allow the panel itself or nil as first responder, not buttons
+        if responder == nil || responder === self.contentView {
+            return super.makeFirstResponder(responder)
+        }
+        return super.makeFirstResponder(self.contentView)
+    }
+    
     override func resignKey() {
         super.resignKey()
         // Close panel when it loses key status (user clicked elsewhere in app)
