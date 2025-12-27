@@ -37,29 +37,37 @@ actor AgentConfigurationService {
         }
     }
     
+    /// Generates Claude Code configuration with smart merge behavior
+    ///
+    /// **Merge Strategy:**
+    /// - Reads existing settings.json if present
+    /// - Preserves ALL user configuration: permissions, hooks, mcpServers, statusLine, plugins, etc.
+    /// - Merges env object: keeps user's env keys (MCP_API_KEY, etc.), updates only Quotio's ANTHROPIC_* keys
+    /// - Updates model field with current selection
+    ///
+    /// **Backup Behavior:**
+    /// - Creates timestamped backup on each reconfigure: settings.json.backup.{unix_timestamp}
+    /// - Each backup is unique and never overwritten
+    /// - All previous backups are preserved
     private func generateClaudeCodeConfig(config: AgentConfiguration, mode: ConfigurationMode, storageOption: ConfigStorageOption) -> AgentConfigResult {
         let home = fileManager.homeDirectoryForCurrentUser.path
         let configDir = "\(home)/.claude"
         let configPath = "\(configDir)/settings.json"
-        
+
         let opusModel = config.modelSlots[.opus] ?? "gemini-claude-opus-4-5-thinking"
         let sonnetModel = config.modelSlots[.sonnet] ?? "gemini-claude-sonnet-4-5"
         let haikuModel = config.modelSlots[.haiku] ?? "gemini-3-flash-preview"
         let baseURL = config.proxyURL.replacingOccurrences(of: "/v1", with: "")
-        
-        let envConfig: [String: String] = [
+
+        // Quotio-managed env keys (will be updated/added)
+        let quotioEnvConfig: [String: String] = [
             "ANTHROPIC_BASE_URL": baseURL,
             "ANTHROPIC_AUTH_TOKEN": config.apiKey,
             "ANTHROPIC_DEFAULT_OPUS_MODEL": opusModel,
             "ANTHROPIC_DEFAULT_SONNET_MODEL": sonnetModel,
             "ANTHROPIC_DEFAULT_HAIKU_MODEL": haikuModel
         ]
-        
-        let settingsJSON: [String: Any] = [
-            "env": envConfig,
-            "model": opusModel
-        ]
-        
+
         let shellExports = """
         # CLIProxyAPI Configuration for Claude Code
         export ANTHROPIC_BASE_URL="\(baseURL)"
@@ -68,9 +76,31 @@ actor AgentConfigurationService {
         export ANTHROPIC_DEFAULT_SONNET_MODEL="\(sonnetModel)"
         export ANTHROPIC_DEFAULT_HAIKU_MODEL="\(haikuModel)"
         """
-        
+
         do {
-            let jsonData = try JSONSerialization.data(withJSONObject: settingsJSON, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            // Read existing settings.json to preserve user configuration
+            // This preserves: permissions, hooks, mcpServers, statusLine, plugins, etc.
+            var existingConfig: [String: Any] = [:]
+            if fileManager.fileExists(atPath: configPath),
+               let existingData = fileManager.contents(atPath: configPath),
+               let parsed = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
+                existingConfig = parsed
+            }
+
+            // Merge env object: preserve user's existing env keys, update only Quotio-managed keys
+            // User keys like MCP_API_KEY, DISABLE_INTERLEAVED_THINKING are preserved
+            // Quotio keys (ANTHROPIC_*) are updated with new values
+            var mergedEnv = existingConfig["env"] as? [String: String] ?? [:]
+            for (key, value) in quotioEnvConfig {
+                mergedEnv[key] = value
+            }
+            existingConfig["env"] = mergedEnv
+
+            // Update model field (other top-level keys are automatically preserved)
+            existingConfig["model"] = opusModel
+
+            // Generate JSON from merged config
+            let jsonData = try JSONSerialization.data(withJSONObject: existingConfig, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
             let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
             
             let rawConfigs = [
