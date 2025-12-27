@@ -279,12 +279,15 @@ final class QuotaViewModel {
         proxyManager.stop()
         
         // Invalidate URLSession to close all connections
-        if let client = apiClient {
+        // Capture client reference before setting to nil to avoid race condition
+        let clientToInvalidate = apiClient
+        apiClient = nil
+        
+        if let client = clientToInvalidate {
             Task {
                 await client.invalidate()
             }
         }
-        apiClient = nil
     }
     
     func toggleProxy() async {
