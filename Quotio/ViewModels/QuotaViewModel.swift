@@ -168,7 +168,12 @@ final class QuotaViewModel {
     /// Refresh Claude Code quota using CLI
     private func refreshClaudeCodeQuotasInternal() async {
         let quotas = await claudeCodeFetcher.fetchAsProviderQuota()
-        if !quotas.isEmpty {
+        if quotas.isEmpty {
+            // Only remove if in quota-only mode (proxy doesn't manage Claude)
+            if modeManager.isQuotaOnlyMode {
+                providerQuotas.removeValue(forKey: .claude)
+            }
+        } else {
             providerQuotas[.claude] = quotas
         }
     }
@@ -176,7 +181,10 @@ final class QuotaViewModel {
     /// Refresh Cursor quota using browser cookies
     private func refreshCursorQuotasInternal() async {
         let quotas = await cursorFetcher.fetchAsProviderQuota()
-        if !quotas.isEmpty {
+        if quotas.isEmpty {
+            // No Cursor auth found - remove from providerQuotas
+            providerQuotas.removeValue(forKey: .cursor)
+        } else {
             providerQuotas[.cursor] = quotas
         }
     }
@@ -269,6 +277,13 @@ final class QuotaViewModel {
         refreshTask?.cancel()
         refreshTask = nil
         proxyManager.stop()
+        
+        // Invalidate URLSession to close all connections
+        if let client = apiClient {
+            Task {
+                await client.invalidate()
+            }
+        }
         apiClient = nil
     }
     
@@ -291,7 +306,8 @@ final class QuotaViewModel {
         refreshTask?.cancel()
         refreshTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                // Increased from 5 to 15 seconds to reduce connection pressure
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
                 await refreshData()
             }
         }
@@ -313,6 +329,9 @@ final class QuotaViewModel {
             self.apiKeys = try await keys
             
             checkAccountStatusChanges()
+            
+            // Prune menu bar items for accounts that no longer exist
+            pruneMenuBarItems()
             
             let shouldRefreshQuotas = lastQuotaRefresh == nil || 
                 Date().timeIntervalSince(lastQuotaRefresh!) >= quotaRefreshInterval
@@ -385,6 +404,9 @@ final class QuotaViewModel {
         default:
             break
         }
+        
+        // Prune menu bar items after refresh to remove deleted accounts
+        pruneMenuBarItems()
     }
     
     func refreshLogs() async {
@@ -568,10 +590,51 @@ final class QuotaViewModel {
         
         do {
             try await client.deleteAuthFile(name: file.name)
+            
+            // Remove quota data for this account
+            if let provider = file.providerType {
+                let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
+                providerQuotas[provider]?.removeValue(forKey: accountKey)
+                
+                // Also try with email if different
+                if let email = file.email, email != accountKey {
+                    providerQuotas[provider]?.removeValue(forKey: email)
+                }
+            }
+            
+            // Prune menu bar items that no longer exist
+            pruneMenuBarItems()
+            
             await refreshData()
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+    
+    /// Remove menu bar items that no longer have valid quota data
+    private func pruneMenuBarItems() {
+        var validItems: [MenuBarQuotaItem] = []
+        
+        // Collect valid items from current quota data
+        for (provider, accountQuotas) in providerQuotas {
+            for (accountKey, _) in accountQuotas {
+                validItems.append(MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey))
+            }
+        }
+        
+        // Add items from auth files
+        for file in authFiles {
+            guard let provider = file.providerType else { continue }
+            let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
+            validItems.append(MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey))
+        }
+        
+        // Add items from direct auth files (quota-only mode)
+        for file in directAuthFiles {
+            validItems.append(MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.email ?? file.filename))
+        }
+        
+        menuBarSettings.pruneInvalidItems(validItems: validItems)
     }
 
     func importVertexServiceAccount(url: URL) async {

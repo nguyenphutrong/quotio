@@ -10,12 +10,13 @@ struct MenuBarView: View {
     @Environment(\.openWindow) private var openWindow
     private let modeManager = AppModeManager.shared
     
-    private var allQuotas: [(provider: AIProvider, email: String, data: ProviderQuotaData)] {
-        var result: [(provider: AIProvider, email: String, data: ProviderQuotaData)] = []
+    private var allQuotas: [(provider: AIProvider, email: String, data: ProviderQuotaData, uniqueId: String)] {
+        var result: [(provider: AIProvider, email: String, data: ProviderQuotaData, uniqueId: String)] = []
         
         for (provider, quotas) in viewModel.providerQuotas {
             for (email, data) in quotas where !data.models.isEmpty {
-                result.append((provider: provider, email: email, data: data))
+                let uniqueId = "\(provider.rawValue)_\(email)"
+                result.append((provider: provider, email: email, data: data, uniqueId: uniqueId))
             }
         }
         
@@ -226,7 +227,7 @@ struct MenuBarView: View {
                 }
             }
             
-            ForEach(allQuotas.prefix(4), id: \.email) { item in
+            ForEach(Array(allQuotas.prefix(4)), id: \.uniqueId) { item in
                 QuotaAccountRow(provider: item.provider, email: item.email, data: item.data)
             }
             

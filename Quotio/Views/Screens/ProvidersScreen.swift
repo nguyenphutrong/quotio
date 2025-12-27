@@ -118,7 +118,27 @@ struct ProvidersScreen: View {
                     AutoDetectedAccountRow(provider: account.provider, accountKey: account.accountKey)
                 }
             } header: {
-                Label("providers.autoDetected".localized() + " (\(autoDetectedProviderAccounts.count))", systemImage: "sparkle.magnifyingglass")
+                HStack {
+                    Label("providers.autoDetected".localized() + " (\(autoDetectedProviderAccounts.count))", systemImage: "sparkle.magnifyingglass")
+                    
+                    Spacer()
+                    
+                    Button {
+                        Task { 
+                            await viewModel.refreshQuotaForProvider(.cursor)
+                        }
+                    } label: {
+                        if viewModel.isLoadingQuotas {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption)
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(viewModel.isLoadingQuotas)
+                }
             } footer: {
                 MenuBarHintView()
             }

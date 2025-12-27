@@ -9,6 +9,7 @@ actor ManagementAPIClient {
     private let baseURL: String
     private let authKey: String
     private let session: URLSession
+    private let sessionDelegate: SessionDelegate
     
     init(baseURL: String, authKey: String) {
         self.baseURL = baseURL
@@ -16,7 +17,19 @@ actor ManagementAPIClient {
         
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 10
-        self.session = URLSession(configuration: config)
+        config.timeoutIntervalForResource = 30
+        // Limit concurrent connections to prevent connection accumulation
+        config.httpMaximumConnectionsPerHost = 2
+        // Disable connection caching to prevent stale connections
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        
+        self.sessionDelegate = SessionDelegate()
+        self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
+    }
+    
+    func invalidate() {
+        session.invalidateAndCancel()
     }
     
     private func makeRequest(_ endpoint: String, method: String = "GET", body: Data? = nil) async throws -> Data {
@@ -171,6 +184,16 @@ actor ManagementAPIClient {
         _ = try await makeRequest("/api-keys?index=\(index)", method: "DELETE")
     }
 }
+
+// MARK: - URLSession Delegate
+
+private final class SessionDelegate: NSObject, URLSessionDelegate, Sendable {
+    func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) {
+        // Session invalidated - cleanup handled by URLSession
+    }
+}
+
+// MARK: - Response Types
 
 struct LogsResponse: Codable, Sendable {
     let lines: [String]?
