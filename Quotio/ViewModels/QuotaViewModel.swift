@@ -683,7 +683,11 @@ final class QuotaViewModel {
             for (account, quotaData) in accountQuotas {
                 guard !quotaData.models.isEmpty else { continue }
                 
-                let minRemainingPercent = quotaData.models.map(\.percentage).min() ?? 100.0
+                // Filter out models with unknown percentage (-1 means unavailable/unknown)
+                let validPercentages = quotaData.models.map(\.percentage).filter { $0 >= 0 }
+                guard !validPercentages.isEmpty else { continue }
+                
+                let minRemainingPercent = validPercentages.min() ?? 100.0
                 
                 if minRemainingPercent <= notificationManager.quotaAlertThreshold {
                     notificationManager.notifyQuotaLow(
@@ -721,7 +725,9 @@ final class QuotaViewModel {
             if let accountQuotas = providerQuotas[provider],
                let quotaData = accountQuotas[selectedItem.accountKey],
                !quotaData.models.isEmpty {
-                let lowestPercent = quotaData.models.map(\.percentage).min() ?? 0
+                // Filter out -1 (unknown) percentages when calculating lowest
+                let validPercentages = quotaData.models.map(\.percentage).filter { $0 >= 0 }
+                let lowestPercent = validPercentages.min() ?? (quotaData.models.first?.percentage ?? -1)
                 items.append(MenuBarQuotaDisplayItem(
                     id: selectedItem.id,
                     providerSymbol: provider.menuBarSymbol,

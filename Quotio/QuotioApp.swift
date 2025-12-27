@@ -42,7 +42,9 @@ struct QuotioApp: App {
             if let accountQuotas = viewModel.providerQuotas[provider],
                let quotaData = accountQuotas[selectedItem.accountKey],
                !quotaData.models.isEmpty {
-                let lowestPercent = quotaData.models.map(\.percentage).min() ?? 0
+                // Filter out -1 (unknown) percentages when calculating lowest
+                let validPercentages = quotaData.models.map(\.percentage).filter { $0 >= 0 }
+                let lowestPercent = validPercentages.min() ?? (quotaData.models.first?.percentage ?? -1)
                 items.append(MenuBarQuotaDisplayItem(
                     id: selectedItem.id,
                     providerSymbol: provider.menuBarSymbol,
