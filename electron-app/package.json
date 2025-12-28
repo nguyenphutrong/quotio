@@ -1,0 +1,141 @@
+{
+  "name": "quotio",
+  "version": "1.0.0",
+  "description": "Command Center for AI Coding Assistants - Manage quotas and accounts for multiple AI providers",
+  "main": "dist/main/main.js",
+  "author": {
+    "name": "Quotio Team",
+    "email": "contact@quotio.app"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/nguyenphutrong/quotio",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nguyenphutrong/quotio"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
+    "dev:main": "tsc -p tsconfig.main.json --watch",
+    "dev:renderer": "vite",
+    "build": "npm run build:main && npm run build:renderer",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "vite build",
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:dmg": "electron-builder --mac dmg",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "typecheck": "tsc --noEmit",
+    "security:audit": "npm audit && npm run security:deps",
+    "security:deps": "npx better-npm-audit audit",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "clean": "rm -rf dist build node_modules/.vite"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.1.7",
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.6",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "@electron/notarize": "^2.2.1",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.16",
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.18",
+    "@types/uuid": "^9.0.8",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "concurrently": "^8.2.2",
+    "electron": "^28.2.1",
+    "electron-builder": "^24.9.1",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-security": "^2.1.0",
+    "postcss": "^8.4.35",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.0",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.0",
+    "vite-plugin-electron": "^0.28.4",
+    "vitest": "^1.2.2"
+  },
+  "build": {
+    "appId": "io.quotio.app",
+    "productName": "Quotio",
+    "copyright": "Copyright © 2024 Quotio Team",
+    "asar": true,
+    "asarUnpack": [
+      "resources/**"
+    ],
+    "directories": {
+      "output": "build",
+      "buildResources": "resources"
+    },
+    "files": [
+      "dist/**/*",
+      "resources/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "resources/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "resources/entitlements.mac.plist",
+      "entitlementsInherit": "resources/entitlements.mac.plist",
+      "notarize": false,
+      "extendInfo": {
+        "LSUIElement": true,
+        "NSAppleEventsUsageDescription": "This app needs to control other apps for automation.",
+        "NSSystemAdministrationUsageDescription": "This app needs admin access to manage system settings."
+      }
+    },
+    "dmg": {
+      "sign": false,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 400
+      },
+      "title": "Quotio Installer"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "nguyenphutrong",
+      "repo": "quotio"
+    }
+  }
+}
