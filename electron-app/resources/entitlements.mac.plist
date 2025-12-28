@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Required for running on macOS Catalina and later with hardened runtime -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+
+    <!-- Allow loading of unsigned executable memory (required for V8/Electron) -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+
+    <!-- Network access for proxy functionality -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Network server for local proxy -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+
+    <!-- File access for reading auth files and configs -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- Access to Downloads folder for proxy binary -->
+    <key>com.apple.security.files.downloads.read-write</key>
+    <true/>
+
+    <!-- Disable library validation to allow Electron to work properly -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

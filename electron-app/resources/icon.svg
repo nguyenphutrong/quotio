@@ -1,0 +1,22 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="200" fill="url(#gradient)"/>
+
+  <!-- Q Letter stylized -->
+  <circle cx="512" cy="480" r="200" stroke="white" stroke-width="60" fill="none"/>
+  <line x1="620" y1="580" x2="750" y2="750" stroke="white" stroke-width="60" stroke-linecap="round"/>
+
+  <!-- AI dots representing quota -->
+  <circle cx="350" cy="750" r="30" fill="white" opacity="0.9"/>
+  <circle cx="450" cy="750" r="30" fill="white" opacity="0.7"/>
+  <circle cx="550" cy="750" r="30" fill="white" opacity="0.5"/>
+  <circle cx="650" cy="750" r="30" fill="white" opacity="0.3"/>
+
+  <!-- Gradient -->
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="1024" y2="1024">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+</svg>
