@@ -24,6 +24,7 @@ final class QuotaViewModel {
     private let cursorFetcher = CursorQuotaFetcher()
     private let codexCLIFetcher = CodexCLIQuotaFetcher()
     private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
+    private let traeFetcher = TraeQuotaFetcher()
     
     private var lastKnownAccountStatuses: [String: String] = [:]
     
@@ -80,6 +81,9 @@ final class QuotaViewModel {
     
     /// Initialize for Full Mode (with proxy)
     private func initializeFullMode() async {
+        // Refresh auto-detected providers (Cursor, Trae) that don't need proxy
+        await refreshAutoDetectedProviders()
+        
         let autoStartProxy = UserDefaults.standard.bool(forKey: "autoStartProxy")
         if autoStartProxy && proxyManager.isBinaryInstalled {
             await startProxy()
@@ -121,8 +125,9 @@ final class QuotaViewModel {
         async let cursor: () = refreshCursorQuotasInternal()
         async let codexCLI: () = refreshCodexCLIQuotasInternal()
         async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
+        async let trae: () = refreshTraeQuotasInternal()
         
-        _ = await (antigravity, openai, copilot, claudeCode, cursor, codexCLI, geminiCLI)
+        _ = await (antigravity, openai, copilot, claudeCode, cursor, codexCLI, geminiCLI, trae)
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -224,6 +229,16 @@ final class QuotaViewModel {
             } else {
                 providerQuotas[.gemini] = quotas
             }
+        }
+    }
+    
+    /// Refresh Trae quota using SQLite database
+    private func refreshTraeQuotasInternal() async {
+        let quotas = await traeFetcher.fetchAsProviderQuota()
+        if quotas.isEmpty {
+            providerQuotas.removeValue(forKey: .trae)
+        } else {
+            providerQuotas[.trae] = quotas
         }
     }
     
@@ -362,8 +377,9 @@ final class QuotaViewModel {
         async let copilot: () = refreshCopilotQuotasInternal()
         async let cursor: () = refreshCursorQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
+        async let trae: () = refreshTraeQuotasInternal()
         
-        _ = await (antigravity, openai, copilot, cursor, claudeCode)
+        _ = await (antigravity, openai, copilot, cursor, claudeCode, trae)
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -404,6 +420,8 @@ final class QuotaViewModel {
             await refreshCursorQuotasInternal()
         case .gemini:
             await refreshGeminiCLIQuotasInternal()
+        case .trae:
+            await refreshTraeQuotasInternal()
         default:
             break
         }

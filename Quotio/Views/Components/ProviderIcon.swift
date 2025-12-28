@@ -4,16 +4,27 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ProviderIcon: View {
     let provider: AIProvider
     var size: CGFloat = 24
     
     var body: some View {
-        Image(provider.logoAssetName, bundle: .main)
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .frame(width: size, height: size)
+        Group {
+            if let nsImage = NSImage(named: provider.logoAssetName) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                // Fallback to SF Symbol if image not found
+                Image(systemName: provider.iconName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(provider.color)
+            }
+        }
+        .frame(width: size, height: size)
     }
 }
 

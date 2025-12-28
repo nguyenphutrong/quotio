@@ -19,6 +19,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
     case kiro = "kiro"
     case copilot = "github-copilot"
     case cursor = "cursor"
+    case trae = "trae"
     
     var id: String { rawValue }
     
@@ -34,6 +35,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .kiro: return "Kiro (CodeWhisperer)"
         case .copilot: return "GitHub Copilot"
         case .cursor: return "Cursor"
+        case .trae: return "Trae"
         }
     }
     
@@ -49,6 +51,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .kiro: return "cloud.fill"
         case .copilot: return "chevron.left.forwardslash.chevron.right"
         case .cursor: return "cursorarrow.rays"
+        case .trae: return "cursorarrow.rays"
         }
     }
     
@@ -65,6 +68,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .kiro: return "kiro"
         case .copilot: return "copilot"
         case .cursor: return "cursor"
+        case .trae: return "trae"
         }
     }
     
@@ -80,6 +84,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .kiro: return Color(hex: "9046FF") ?? .purple
         case .copilot: return Color(hex: "238636") ?? .green
         case .cursor: return Color(hex: "00D4AA") ?? .teal
+        case .trae: return Color(hex: "00B4D8") ?? .cyan
         }
     }
     
@@ -95,6 +100,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .kiro: return ""  // Uses CLI-based auth like Copilot
         case .copilot: return ""
         case .cursor: return ""  // Uses browser session
+        case .trae: return ""  // Uses browser session
         }
     }
     
@@ -111,6 +117,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .kiro: return "K"
         case .copilot: return "CP"
         case .cursor: return "CR"
+        case .trae: return "TR"
         }
     }
     
@@ -128,13 +135,14 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .iflow: return "iflow-menubar"
         case .vertex: return "vertex-menubar"
         case .cursor: return "cursor-menubar"
+        case .trae: return "trae-menubar"
         }
     }
     
     /// Whether this provider supports quota tracking in quota-only mode
     var supportsQuotaOnlyMode: Bool {
         switch self {
-        case .claude, .codex, .cursor, .gemini, .antigravity, .copilot:
+        case .claude, .codex, .cursor, .gemini, .antigravity, .copilot, .trae:
             return true
         case .qwen, .iflow, .vertex, .kiro:
             return false
@@ -144,7 +152,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
     /// Whether this provider uses browser cookies for auth
     var usesBrowserAuth: Bool {
         switch self {
-        case .cursor:
+        case .cursor, .trae:
             return true
         default:
             return false
@@ -162,11 +170,11 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
     }
     
     /// Whether this provider can be added manually (via OAuth, CLI login, or file import)
-    /// Cursor is excluded because it only reads from local Cursor app database for quota tracking
+    /// Cursor, Trae, Windsurf are excluded because they only read from local app databases
     var supportsManualAuth: Bool {
         switch self {
-        case .cursor:
-            return false  // Only reads from local Cursor database, not a real provider
+        case .cursor, .trae:
+            return false  // Only reads from local app database, not a real provider
         default:
             return true
         }
@@ -175,8 +183,8 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
     /// Whether this provider is quota-tracking only (not a real provider that can route requests)
     var isQuotaTrackingOnly: Bool {
         switch self {
-        case .cursor:
-            return true  // Only for tracking Cursor usage, not a provider
+        case .cursor, .trae:
+            return true  // Only for tracking usage, not a provider
         default:
             return false
         }

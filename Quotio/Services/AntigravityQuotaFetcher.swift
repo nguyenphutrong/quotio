@@ -170,6 +170,14 @@ struct ModelQuota: Codable, Identifiable, Sendable {
         case "sonnet-only": return "Sonnet Only"
         // Gemini CLI
         case "gemini-quota": return "Gemini"
+        // Trae quota names
+        case "trae-usage": return "Usage"
+        case "premium-fast": return "Fast Requests"
+        case "premium-slow": return "Slow Requests"
+        case "advanced-model": return "Advanced"
+        case "auto-completion": return "Completions"
+        // Windsurf quota names
+        case "windsurf-usage": return "Usage"
         default: return name
         }
     }
