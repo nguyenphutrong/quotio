@@ -829,6 +829,9 @@ extension CLIProxyManager {
                 let versionInfo = ProxyVersionInfo(from: release, asset: asset)
                 upgradeAvailable = true
                 availableUpgrade = versionInfo
+                
+                // Send notification about available upgrade
+                NotificationManager.shared.notifyUpgradeAvailable(version: latestVersion)
             } else {
                 upgradeAvailable = false
                 availableUpgrade = nil

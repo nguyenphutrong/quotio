@@ -426,6 +426,11 @@ struct NotificationSettingsSection: View {
                     set: { manager.notifyOnProxyCrash = $0 }
                 ))
                 
+                Toggle("settings.notifications.upgradeAvailable".localized(), isOn: Binding(
+                    get: { manager.notifyOnUpgradeAvailable },
+                    set: { manager.notifyOnUpgradeAvailable = $0 }
+                ))
+                
                 HStack {
                     Text("settings.notifications.threshold".localized())
                     Spacer()

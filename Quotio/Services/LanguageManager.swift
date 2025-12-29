@@ -278,8 +278,9 @@ struct LocalizedStrings {
         "settings.notifications.quotaLow": [.english: "Quota Low Warning", .vietnamese: "Cảnh báo hạn mức thấp"],
         "settings.notifications.cooling": [.english: "Account Cooling Alert", .vietnamese: "Cảnh báo tài khoản đang nghỉ"],
         "settings.notifications.proxyCrash": [.english: "Proxy Crash Alert", .vietnamese: "Cảnh báo proxy bị lỗi"],
+        "settings.notifications.upgradeAvailable": [.english: "Proxy Update Available", .vietnamese: "Có bản cập nhật Proxy"],
         "settings.notifications.threshold": [.english: "Alert Threshold", .vietnamese: "Ngưỡng cảnh báo"],
-        "settings.notifications.help": [.english: "Get notified when quota is low, accounts enter cooling, or proxy crashes", .vietnamese: "Nhận thông báo khi hạn mức thấp, tài khoản đang nghỉ, hoặc proxy bị lỗi"],
+        "settings.notifications.help": [.english: "Get notified when quota is low, accounts enter cooling, proxy crashes, or updates are available", .vietnamese: "Nhận thông báo khi hạn mức thấp, tài khoản đang nghỉ, proxy bị lỗi, hoặc có bản cập nhật"],
         "settings.notifications.notAuthorized": [.english: "Notifications not authorized. Enable in System Settings.", .vietnamese: "Thông báo chưa được cấp quyền. Bật trong Cài đặt hệ thống."],
         
         "notification.quotaLow.title": [.english: "⚠️ Quota Low", .vietnamese: "⚠️ Hạn mức thấp"],
@@ -290,6 +291,8 @@ struct LocalizedStrings {
         "notification.proxyCrash.body": [.english: "Proxy process exited with code %d", .vietnamese: "Tiến trình proxy đã thoát với mã %d"],
         "notification.proxyStarted.title": [.english: "✅ Proxy Started", .vietnamese: "✅ Proxy đã khởi động"],
         "notification.proxyStarted.body": [.english: "Proxy server is now running", .vietnamese: "Máy chủ proxy đang chạy"],
+        "notification.upgradeAvailable.title": [.english: "🆕 Proxy Update Available", .vietnamese: "🆕 Có bản cập nhật Proxy"],
+        "notification.upgradeAvailable.body": [.english: "CLIProxyAPI v%@ is available. Open Settings to update.", .vietnamese: "CLIProxyAPI v%@ đã có. Mở Cài đặt để cập nhật."],
         
         // Agent Setup
         "nav.agents": [.english: "Agents", .vietnamese: "Agent"],
