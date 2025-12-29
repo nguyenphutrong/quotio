@@ -108,6 +108,8 @@ struct LocalizedStrings {
         "providers.projectIdOptional": [.english: "Project ID (optional)", .vietnamese: "ID dự án (tùy chọn)"],
         "providers.disabled": [.english: "Disabled", .vietnamese: "Đã tắt"],
         "providers.autoDetected": [.english: "Auto-detected", .vietnamese: "Tự động phát hiện"],
+        "providers.proxyRequired.title": [.english: "Proxy Required", .vietnamese: "Cần khởi động Proxy"],
+        "providers.proxyRequired.message": [.english: "The proxy server must be running to add new provider accounts.", .vietnamese: "Cần khởi động proxy để thêm tài khoản nhà cung cấp mới."],
         
         // Settings
         "settings.proxyServer": [.english: "Proxy Server", .vietnamese: "Máy chủ proxy"],
@@ -160,6 +162,7 @@ struct LocalizedStrings {
         "apiKeys.edit": [.english: "Edit", .vietnamese: "Sửa"],
         "apiKeys.empty": [.english: "No API Keys", .vietnamese: "Chưa có khóa API"],
         "apiKeys.emptyDescription": [.english: "Add API keys to authenticate clients with the proxy", .vietnamese: "Thêm khóa API để xác thực client với proxy"],
+        "apiKeys.proxyRequired": [.english: "Start the proxy to manage API keys", .vietnamese: "Khởi động proxy để quản lý khóa API"],
         
         // Logs
         "logs.clearLogs": [.english: "Clear Logs", .vietnamese: "Xóa nhật ký"],
@@ -337,6 +340,8 @@ struct LocalizedStrings {
         "agents.instructions.env": [.english: "Add these environment variables to your shell profile:", .vietnamese: "Thêm các biến môi trường này vào shell profile:"],
         "agents.instructions.file": [.english: "Configuration files have been created:", .vietnamese: "Các tệp cấu hình đã được tạo:"],
         "agents.proxyNotRunning": [.english: "Start the proxy to configure agents", .vietnamese: "Khởi động proxy để cấu hình agent"],
+        "agents.proxyRequired.title": [.english: "Proxy Required", .vietnamese: "Cần khởi động Proxy"],
+        "agents.proxyRequired.message": [.english: "The proxy server must be running to configure agents. Start the proxy first.", .vietnamese: "Cần khởi động proxy để cấu hình agent. Hãy khởi động proxy trước."],
         
         // Auth Modes
         "agents.oauthMode": [.english: "Use OAuth Authentication", .vietnamese: "Sử dụng xác thực OAuth"],

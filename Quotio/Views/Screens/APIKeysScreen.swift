@@ -15,6 +15,45 @@ struct APIKeysScreen: View {
     @State private var showingAddKey: Bool = false
     
     var body: some View {
+        Group {
+            if !viewModel.proxyManager.proxyStatus.running {
+                proxyNotRunningView
+            } else {
+                apiKeysListView
+            }
+        }
+        .navigationTitle("nav.apiKeys".localized())
+        .toolbar {
+            if viewModel.proxyManager.proxyStatus.running {
+                ToolbarItemGroup {
+                    Button {
+                        newAPIKey = generateRandomKey()
+                        showingAddKey = true
+                    } label: {
+                        Label("apiKeys.generate".localized(), systemImage: "wand.and.stars")
+                    }
+                    .help("apiKeys.generateHelp".localized())
+                    
+                    Button {
+                        showingAddKey = true
+                    } label: {
+                        Label("apiKeys.add".localized(), systemImage: "plus")
+                    }
+                    .help("apiKeys.addHelp".localized())
+                }
+            }
+        }
+    }
+    
+    private var proxyNotRunningView: some View {
+        ProxyRequiredView(
+            description: "apiKeys.proxyRequired".localized()
+        ) {
+            await viewModel.startProxy()
+        }
+    }
+    
+    private var apiKeysListView: some View {
         List {
             Section {
                 ForEach(Array(viewModel.apiKeys.enumerated()), id: \.offset) { index, key in
@@ -70,25 +109,6 @@ struct APIKeysScreen: View {
                 }
             } footer: {
                 Text("apiKeys.description".localized())
-            }
-        }
-        .navigationTitle("nav.apiKeys".localized())
-        .toolbar {
-            ToolbarItemGroup {
-                Button {
-                    newAPIKey = generateRandomKey()
-                    showingAddKey = true
-                } label: {
-                    Label("apiKeys.generate".localized(), systemImage: "wand.and.stars")
-                }
-                .help("apiKeys.generateHelp".localized())
-                
-                Button {
-                    showingAddKey = true
-                } label: {
-                    Label("apiKeys.add".localized(), systemImage: "plus")
-                }
-                .help("apiKeys.addHelp".localized())
             }
         }
         .overlay {

@@ -81,12 +81,15 @@ final class QuotaViewModel {
     
     /// Initialize for Full Mode (with proxy)
     private func initializeFullMode() async {
-        // Refresh auto-detected providers (Cursor, Trae) that don't need proxy
-        await refreshAutoDetectedProviders()
+        // Always refresh quotas directly first (works without proxy)
+        await refreshQuotasUnified()
         
         let autoStartProxy = UserDefaults.standard.bool(forKey: "autoStartProxy")
         if autoStartProxy && proxyManager.isBinaryInstalled {
             await startProxy()
+        } else {
+            // If not auto-starting proxy, start quota auto-refresh
+            startQuotaAutoRefreshWithoutProxy()
         }
     }
     
@@ -174,12 +177,20 @@ final class QuotaViewModel {
     private func refreshClaudeCodeQuotasInternal() async {
         let quotas = await claudeCodeFetcher.fetchAsProviderQuota()
         if quotas.isEmpty {
-            // Only remove if in quota-only mode (proxy doesn't manage Claude)
-            if modeManager.isQuotaOnlyMode {
+            // Only remove if no other source has Claude data
+            if providerQuotas[.claude]?.isEmpty ?? true {
                 providerQuotas.removeValue(forKey: .claude)
             }
         } else {
-            providerQuotas[.claude] = quotas
+            // Merge with existing data (don't overwrite proxy data)
+            if var existing = providerQuotas[.claude] {
+                for (email, quota) in quotas {
+                    existing[email] = quota
+                }
+                providerQuotas[.claude] = existing
+            } else {
+                providerQuotas[.claude] = quotas
+            }
         }
     }
     
@@ -250,6 +261,20 @@ final class QuotaViewModel {
                 // Refresh every 60 seconds in quota-only mode
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
                 await refreshQuotasDirectly()
+            }
+        }
+    }
+    
+    /// Start auto-refresh for quota when proxy is not running (Full Mode)
+    private func startQuotaAutoRefreshWithoutProxy() {
+        refreshTask?.cancel()
+        refreshTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60_000_000_000) // 60 seconds
+                // Only refresh if proxy is still not running
+                if !proxyManager.proxyStatus.running {
+                    await refreshQuotasUnified()
+                }
             }
         }
     }
@@ -380,6 +405,39 @@ final class QuotaViewModel {
         async let trae: () = refreshTraeQuotasInternal()
         
         _ = await (antigravity, openai, copilot, cursor, claudeCode, trae)
+        
+        checkQuotaNotifications()
+        autoSelectMenuBarItems()
+        
+        isLoadingQuotas = false
+    }
+    
+    /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
+    /// In Full Mode: uses direct fetchers (works without proxy)
+    /// In Quota-Only Mode: uses direct fetchers + CLI fetchers
+    func refreshQuotasUnified() async {
+        guard !isLoadingQuotas else { return }
+        
+        isLoadingQuotas = true
+        lastQuotaRefreshTime = Date()
+        lastQuotaRefresh = Date()
+        
+        // Always refresh direct fetchers (these don't need proxy)
+        async let antigravity: () = refreshAntigravityQuotasInternal()
+        async let openai: () = refreshOpenAIQuotasInternal()
+        async let copilot: () = refreshCopilotQuotasInternal()
+        async let claudeCode: () = refreshClaudeCodeQuotasInternal()
+        async let cursor: () = refreshCursorQuotasInternal()
+        async let trae: () = refreshTraeQuotasInternal()
+        
+        // In Quota-Only Mode, also include CLI fetchers
+        if modeManager.isQuotaOnlyMode {
+            async let codexCLI: () = refreshCodexCLIQuotasInternal()
+            async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
+            _ = await (antigravity, openai, copilot, claudeCode, cursor, trae, codexCLI, geminiCLI)
+        } else {
+            _ = await (antigravity, openai, copilot, claudeCode, cursor, trae)
+        }
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()

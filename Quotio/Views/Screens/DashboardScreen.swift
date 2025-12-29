@@ -60,21 +60,18 @@ struct DashboardScreen: View {
         .navigationTitle("nav.dashboard".localized())
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                if modeManager.isQuotaOnlyMode {
-                    Button {
-                        Task { await viewModel.refreshQuotasDirectly() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
+                Button {
+                    Task {
+                        if modeManager.isFullMode && viewModel.proxyManager.proxyStatus.running {
+                            await viewModel.refreshData()
+                        } else {
+                            await viewModel.refreshQuotasUnified()
+                        }
                     }
-                    .disabled(viewModel.isLoadingQuotas)
-                } else {
-                    Button {
-                        Task { await viewModel.refreshData() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .disabled(!viewModel.proxyManager.proxyStatus.running)
+                } label: {
+                    Image(systemName: "arrow.clockwise")
                 }
+                .disabled(viewModel.isLoadingQuotas)
             }
         }
         .sheet(item: $selectedProvider) { provider in
@@ -317,16 +314,10 @@ struct DashboardScreen: View {
     // MARK: - Start Proxy
     
     private var startProxySection: some View {
-        ContentUnavailableView {
-            Label("empty.proxyNotRunning".localized(), systemImage: "power")
-        } description: {
-            Text("dashboard.startToBegin".localized())
-        } actions: {
-            Button("action.startProxy".localized()) {
-                Task { await viewModel.startProxy() }
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
+        ProxyRequiredView(
+            description: "dashboard.startToBegin".localized()
+        ) {
+            await viewModel.startProxy()
         }
         .frame(maxWidth: .infinity, minHeight: 300)
     }

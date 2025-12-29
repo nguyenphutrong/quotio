@@ -29,10 +29,8 @@ struct QuotioApp: App {
     private var quotaItems: [MenuBarQuotaDisplayItem] {
         guard menuBarSettings.showQuotaInMenuBar else { return [] }
         
-        // In quota-only mode, show quota even without proxy running
-        if modeManager.isFullMode && !viewModel.proxyManager.proxyStatus.running {
-            return []
-        }
+        // Show quota in menu bar regardless of proxy status
+        // Quota fetching works independently via CLI/cookies/auth files
         
         var items: [MenuBarQuotaDisplayItem] = []
         
@@ -67,12 +65,14 @@ struct QuotioApp: App {
     }
     
     private func updateStatusBar() {
-        let isRunning = modeManager.isFullMode ? viewModel.proxyManager.proxyStatus.running : true
+        // Menu bar should show quota data regardless of proxy status
+        // The quota is fetched directly and doesn't need proxy
+        let hasQuotaData = !viewModel.providerQuotas.isEmpty
         
         statusBarManager.updateStatusBar(
             items: quotaItems,
             colorMode: menuBarSettings.colorMode,
-            isRunning: isRunning,
+            isRunning: hasQuotaData,
             showMenuBarIcon: menuBarSettings.showMenuBarIcon,
             showQuota: menuBarSettings.showQuotaInMenuBar,
             menuContentProvider: {
@@ -130,6 +130,9 @@ struct QuotioApp: App {
                     updateStatusBar()
                 }
                 .onChange(of: modeManager.currentMode) {
+                    updateStatusBar()
+                }
+                .onChange(of: viewModel.providerQuotas.count) {
                     updateStatusBar()
                 }
                 .sheet(isPresented: $showOnboarding) {

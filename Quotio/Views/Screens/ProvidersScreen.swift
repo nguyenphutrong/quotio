@@ -12,6 +12,7 @@ struct ProvidersScreen: View {
     @State private var isImporterPresented = false
     @State private var selectedProvider: AIProvider?
     @State private var projectId: String = ""
+    @State private var showProxyRequiredAlert = false
     private let modeManager = AppModeManager.shared
     
     /// Check if we should show content
@@ -24,20 +25,11 @@ struct ProvidersScreen: View {
     
     var body: some View {
         List {
-            if modeManager.isFullMode && !viewModel.proxyManager.proxyStatus.running {
-                // Full mode: Proxy not running
-                Section {
-                    ContentUnavailableView {
-                        Label("empty.proxyNotRunning".localized(), systemImage: "exclamationmark.triangle")
-                    } description: {
-                        Text("providers.startProxyFirst".localized())
-                    }
-                }
-            } else if modeManager.isQuotaOnlyMode {
+            if modeManager.isQuotaOnlyMode {
                 // Quota-only mode: Show direct auth files and add providers
                 quotaOnlyContent
             } else {
-                // Full mode: Show connected accounts
+                // Full mode: Show all content (works with or without proxy)
                 fullModeContent
             }
         }
@@ -73,6 +65,14 @@ struct ProvidersScreen: View {
                 await viewModel.loadDirectAuthFiles()
             }
         }
+        .alert("providers.proxyRequired.title".localized(), isPresented: $showProxyRequiredAlert) {
+            Button("action.startProxy".localized()) {
+                Task { await viewModel.startProxy() }
+            }
+            Button("action.cancel".localized(), role: .cancel) {}
+        } message: {
+            Text("providers.proxyRequired.message".localized())
+        }
     }
     
     // MARK: - Full Mode Content
@@ -91,27 +91,60 @@ struct ProvidersScreen: View {
     
     @ViewBuilder
     private var fullModeContent: some View {
-        // Connected Accounts
-        Section {
-            if viewModel.authFiles.isEmpty {
-                Text("providers.noAccountsYet".localized())
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(viewModel.authFiles, id: \.id) { file in
-                    AuthFileRow(file: file) {
-                        Task { await viewModel.deleteAuthFile(file) }
+        // Connected Accounts section
+        if viewModel.proxyManager.proxyStatus.running {
+            // Proxy running: Show from API with full status info
+            Section {
+                if viewModel.authFiles.isEmpty {
+                    Text("providers.noAccountsYet".localized())
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(viewModel.authFiles, id: \.id) { file in
+                        AuthFileRow(file: file) {
+                            Task { await viewModel.deleteAuthFile(file) }
+                        }
                     }
                 }
+            } header: {
+                Label("providers.connectedAccounts".localized() + " (\(viewModel.authFiles.count))", systemImage: "checkmark.seal.fill")
+            } footer: {
+                if !viewModel.authFiles.isEmpty {
+                    MenuBarHintView()
+                }
             }
-        } header: {
-            Label("providers.connectedAccounts".localized() + " (\(viewModel.authFiles.count))", systemImage: "checkmark.seal.fill")
-        } footer: {
-            if !viewModel.authFiles.isEmpty {
-                MenuBarHintView()
+        } else {
+            // Proxy not running: Show from direct auth files on disk
+            Section {
+                if viewModel.directAuthFiles.isEmpty {
+                    Text("providers.noAccountsYet".localized())
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(viewModel.directAuthFiles) { file in
+                        DirectAuthFileRow(file: file)
+                    }
+                }
+            } header: {
+                HStack {
+                    Label("providers.connectedAccounts".localized() + " (\(viewModel.directAuthFiles.count))", systemImage: "checkmark.seal.fill")
+                    
+                    Spacer()
+                    
+                    Button {
+                        Task { await viewModel.loadDirectAuthFiles() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                }
+            } footer: {
+                if !viewModel.directAuthFiles.isEmpty {
+                    MenuBarHintView()
+                }
             }
         }
         
-        // Auto-detected Accounts (like Cursor)
+        // Auto-detected Accounts (like Cursor, Trae, Claude) - always show
         if !autoDetectedProviderAccounts.isEmpty {
             Section {
                 ForEach(autoDetectedProviderAccounts, id: \.accountKey) { account in
@@ -218,6 +251,12 @@ struct ProvidersScreen: View {
         Section {
             ForEach(addableProviders) { provider in
                 Button {
+                    // In Full Mode, require proxy to be running for OAuth
+                    if modeManager.isFullMode && !viewModel.proxyManager.proxyStatus.running {
+                        showProxyRequiredAlert = true
+                        return
+                    }
+                    
                     if provider == .vertex {
                         isImporterPresented = true
                     } else {

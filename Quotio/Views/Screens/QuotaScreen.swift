@@ -80,13 +80,7 @@ struct QuotaScreen: View {
     
     var body: some View {
         Group {
-            if modeManager.isFullMode && !viewModel.proxyManager.proxyStatus.running {
-                ContentUnavailableView(
-                    "empty.proxyNotRunning".localized(),
-                    systemImage: "bolt.slash",
-                    description: Text("empty.startProxyToView".localized())
-                )
-            } else if !hasAnyData {
+            if !hasAnyData {
                 ContentUnavailableView(
                     "empty.noAccounts".localized(),
                     systemImage: "person.crop.circle.badge.questionmark",
@@ -101,16 +95,12 @@ struct QuotaScreen: View {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     Task {
-                        if modeManager.isQuotaOnlyMode {
-                            await viewModel.refreshQuotasDirectly()
-                        } else {
-                            await viewModel.refreshAllQuotas()
-                        }
+                        await viewModel.refreshQuotasUnified()
                     }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .disabled(viewModel.isLoadingQuotas || (modeManager.isFullMode && !viewModel.proxyManager.proxyStatus.running))
+                .disabled(viewModel.isLoadingQuotas)
             }
         }
         .onAppear {

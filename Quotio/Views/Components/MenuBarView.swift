@@ -251,11 +251,7 @@ struct MenuBarView: View {
                 isLoading: viewModel.isLoadingQuotas
             ) {
                 Task {
-                    if modeManager.isQuotaOnlyMode {
-                        await viewModel.refreshQuotasDirectly()
-                    } else {
-                        await viewModel.refreshData()
-                    }
+                    await viewModel.refreshQuotasUnified()
                 }
             }
             .disabled(viewModel.isLoadingQuotas)

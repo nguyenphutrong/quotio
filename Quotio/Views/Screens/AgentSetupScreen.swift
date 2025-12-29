@@ -34,11 +34,7 @@ struct AgentSetupScreen: View {
     
     var body: some View {
         Group {
-            if !quotaViewModel.proxyManager.proxyStatus.running {
-                proxyNotRunningView
-            } else {
-                agentListView
-            }
+            agentListView
         }
         .navigationTitle("agents.title".localized())
         .toolbar {
@@ -68,19 +64,6 @@ struct AgentSetupScreen: View {
                 .onDisappear {
                     viewModel.dismissConfiguration()
                 }
-        }
-    }
-    
-    private var proxyNotRunningView: some View {
-        ContentUnavailableView {
-            Label("empty.proxyNotRunning".localized(), systemImage: "bolt.slash")
-        } description: {
-            Text("agents.proxyNotRunning".localized())
-        } actions: {
-            Button("action.startProxy".localized()) {
-                Task { await quotaViewModel.startProxy() }
-            }
-            .buttonStyle(.borderedProminent)
         }
     }
     

@@ -28,10 +28,10 @@ struct LogsScreen: View {
     var body: some View {
         Group {
             if !viewModel.proxyManager.proxyStatus.running {
-                ContentUnavailableView {
-                    Label("empty.proxyNotRunning".localized(), systemImage: "doc.text")
-                } description: {
-                    Text("logs.startProxy".localized())
+                ProxyRequiredView(
+                    description: "logs.startProxy".localized()
+                ) {
+                    await viewModel.startProxy()
                 }
             } else if filteredLogs.isEmpty {
                 ContentUnavailableView {
