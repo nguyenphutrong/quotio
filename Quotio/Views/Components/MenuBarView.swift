@@ -3,6 +3,7 @@
 //  Quotio
 //
 //  Redesigned menu bar panel with provider-first layout
+//  Updated for Liquid Glass compatibility (macOS 15/26)
 //
 
 import SwiftUI
@@ -91,6 +92,7 @@ struct MenuBarView: View {
         }
         .padding(12)
         .frame(width: 300)
+        .background(.clear)  // Ensure transparent background for NSVisualEffectView
     }
     
     // MARK: - Header Section
@@ -191,8 +193,8 @@ struct MenuBarView: View {
             .buttonStyle(.plain)
             .padding(.vertical, 6)
             .padding(.horizontal, 8)
-            .background(.quaternary.opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .background(.quaternary)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             
             Divider()
                 .padding(.vertical, 4)
@@ -248,12 +250,8 @@ private struct ProviderPickerButton: View {
         } label: {
             ProviderIcon(provider: provider, size: 20)
                 .padding(6)
-                .background(isSelected ? provider.color.opacity(0.15) : .clear)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(isSelected ? provider.color.opacity(0.5) : .clear, lineWidth: 1.5)
-                )
+                .background(isSelected ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
@@ -312,10 +310,10 @@ private struct QuotaAccountRow: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .padding(.horizontal, 8)
-        .background(.quaternary.opacity(0.3))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .background(.quaternary)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -352,8 +350,9 @@ private struct QuotaModelBadge: View {
                         Capsule()
                             .fill(.quaternary)
                         Capsule()
-                            .fill(tintColor.gradient)
+                            .fill(tintColor)
                             .frame(width: proxy.size.width * min(1, remainingPercent / 100))
+                            .animation(.smooth(duration: 0.3), value: remainingPercent)
                     }
                 }
                 .frame(height: 4)
@@ -407,8 +406,9 @@ private struct GroupedQuotaModelBadge: View {
                         Capsule()
                             .fill(.quaternary)
                         Capsule()
-                            .fill(tintColor.gradient)
+                            .fill(tintColor)
                             .frame(width: proxy.size.width * min(1, remainingPercent / 100))
+                            .animation(.smooth(duration: 0.3), value: remainingPercent)
                     }
                 }
                 .frame(height: 4)

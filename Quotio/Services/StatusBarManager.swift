@@ -141,13 +141,15 @@ final class StatusBarManager {
 // MARK: - StatusBarPanel
 
 /// Custom NSPanel that works across all Spaces including full-screen mode
+/// Uses NSVisualEffectView for consistent Liquid Glass appearance on macOS 15/26
 final class StatusBarPanel: NSPanel {
-    private var hostingView: NSHostingView<AnyView>?
+    private var hostingView: TransparentHostingView?
+    private var visualEffectView: NSVisualEffectView?
     
     init() {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
-            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -162,29 +164,66 @@ final class StatusBarPanel: NSPanel {
         self.isMovableByWindowBackground = false
         self.isFloatingPanel = true
         
-        // Create hosting view with placeholder
-        let placeholderView = AnyView(EmptyView())
-        hostingView = NSHostingView(rootView: placeholderView)
-        hostingView?.translatesAutoresizingMaskIntoConstraints = false
+        // Important: Make the window fully transparent
+        self.titlebarAppearsTransparent = true
+        self.titleVisibility = .hidden
         
-        // Create visual effect view for background
+        // Create the visual effect view for background
         let visualEffect = NSVisualEffectView()
         visualEffect.translatesAutoresizingMaskIntoConstraints = false
         visualEffect.material = .popover
         visualEffect.state = .active
         visualEffect.wantsLayer = true
-        visualEffect.layer?.cornerRadius = 10
         visualEffect.layer?.masksToBounds = true
         
-        self.contentView = visualEffect
+        // Adjust corner radius for OS version
+        if #available(macOS 26.0, *) {
+            visualEffect.layer?.cornerRadius = 18
+        } else {
+            visualEffect.layer?.cornerRadius = 10
+        }
         
+        self.visualEffectView = visualEffect
+        
+        // Create transparent hosting view
+        let placeholderView = AnyView(EmptyView())
+        hostingView = TransparentHostingView(rootView: placeholderView)
+        hostingView?.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Create a container view that clips to the rounded rect
+        let containerView = ClippingContainerView()
+        containerView.translatesAutoresizingMaskIntoConstraints = false
+        containerView.wantsLayer = true
+        containerView.layer?.masksToBounds = true
+        containerView.layer?.backgroundColor = .clear
+        
+        if #available(macOS 26.0, *) {
+            containerView.layer?.cornerRadius = 18
+        } else {
+            containerView.layer?.cornerRadius = 10
+        }
+        
+        self.contentView = containerView
+        
+        // Add visual effect as background
+        containerView.addSubview(visualEffect)
+        
+        // Add hosting view on top
         if let hosting = hostingView {
-            visualEffect.addSubview(hosting)
+            containerView.addSubview(hosting)
+            
             NSLayoutConstraint.activate([
-                hosting.topAnchor.constraint(equalTo: visualEffect.topAnchor),
-                hosting.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
-                hosting.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
-                hosting.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor)
+                // Visual effect fills container
+                visualEffect.topAnchor.constraint(equalTo: containerView.topAnchor),
+                visualEffect.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+                visualEffect.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+                visualEffect.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+                
+                // Hosting view fills container
+                hosting.topAnchor.constraint(equalTo: containerView.topAnchor),
+                hosting.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+                hosting.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+                hosting.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
             ])
         }
     }
@@ -195,10 +234,12 @@ final class StatusBarPanel: NSPanel {
         // Resize panel to fit content with dynamic height
         if let hosting = hostingView {
             let fittingSize = hosting.fittingSize
-            let newSize = NSSize(
-                width: 300,  // Fixed width for menu bar panel
-                height: fittingSize.height  // Dynamic height based on content
-            )
+            
+            // Validate dimensions to avoid "Invalid frame dimension" errors
+            let width: CGFloat = 300
+            let height = max(50, fittingSize.height.isFinite ? fittingSize.height : 200)
+            
+            let newSize = NSSize(width: width, height: height)
             self.setContentSize(newSize)
         }
     }
@@ -218,6 +259,61 @@ final class StatusBarPanel: NSPanel {
         super.resignKey()
         // Close panel when it loses key status (user clicked elsewhere in app)
         self.orderOut(nil)
+    }
+}
+
+/// Container view that clips content to its bounds with rounded corners
+private final class ClippingContainerView: NSView {
+    override var wantsUpdateLayer: Bool { true }
+    override var allowsVibrancy: Bool { true }
+    
+    override func updateLayer() {
+        super.updateLayer()
+        layer?.backgroundColor = .clear
+    }
+}
+
+/// Custom NSHostingView that ensures transparent background
+private final class TransparentHostingView: NSHostingView<AnyView> {
+    
+    required init(rootView: AnyView) {
+        super.init(rootView: rootView)
+        setupTransparency()
+    }
+    
+    @MainActor required dynamic init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        setupTransparency()
+    }
+    
+    private func setupTransparency() {
+        wantsLayer = true
+        layer?.backgroundColor = .clear
+    }
+    
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        
+        // Ensure the view and all layers are transparent
+        wantsLayer = true
+        layer?.backgroundColor = .clear
+        
+        // Clear any intermediate layer backgrounds
+        func clearLayerBackgrounds(in view: NSView) {
+            view.wantsLayer = true
+            view.layer?.backgroundColor = .clear
+            for subview in view.subviews {
+                clearLayerBackgrounds(in: subview)
+            }
+        }
+        clearLayerBackgrounds(in: self)
+    }
+    
+    override var allowsVibrancy: Bool { true }
+    
+    override func updateLayer() {
+        super.updateLayer()
+        layer?.backgroundColor = .clear
     }
 }
 

@@ -22,8 +22,9 @@ struct QuotaProgressBar: View {
                 Capsule()
                     .fill(.quaternary)
                 Capsule()
-                    .fill(tint.gradient)
+                    .fill(tint)
                     .frame(width: fillWidth)
+                    .animation(.smooth(duration: 0.3), value: clamped)
             }
         }
         .frame(height: height)

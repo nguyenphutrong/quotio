@@ -255,8 +255,9 @@ private struct QuotaSection: View {
                     Capsule()
                         .fill(.quaternary)
                     Capsule()
-                        .fill(tint.gradient)
+                        .fill(tint)
                         .frame(width: proxy.size.width * min(1, progressWidth))
+                        .animation(.smooth(duration: 0.3), value: progressWidth)
                 }
             }
             .frame(height: 8)
