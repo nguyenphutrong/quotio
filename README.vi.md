@@ -1,6 +1,10 @@
 # Quotio
 
-![Quotio Banner](screenshots/menu_bar.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/menu_bar.png" />
+  <img alt="Quotio Banner" src="screenshots/menu_bar.png" />
+</picture>
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey.svg?style=flat" alt="Platform macOS" />
@@ -30,13 +34,40 @@ Quotio là ứng dụng macOS để quản lý **CLIProxyAPI** - máy chủ prox
 
 ## 📸 Hình ảnh
 
-| Bảng điều khiển | Nhà cung cấp |
-|:---:|:---:|
-| ![Bảng điều khiển](screenshots/dashboard.png) | ![Nhà cung cấp](screenshots/providers.png) |
-| **Cài đặt Agent** | **Giám sát Hạn mức** |
-| ![Cài đặt Agent](screenshots/agent_setup.png) | ![Giám sát Hạn mức](screenshots/quota.png) |
-| **Menu Bar** | |
-| ![Menu Bar](screenshots/menu_bar.png) | |
+### Bảng điều khiển
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/dashboard_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/dashboard.png" />
+  <img alt="Bảng điều khiển" src="screenshots/dashboard.png" />
+</picture>
+
+### Nhà cung cấp
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/provider_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/provider.png" />
+  <img alt="Nhà cung cấp" src="screenshots/provider.png" />
+</picture>
+
+### Cài đặt Agent
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/agent_setup_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/agent_setup.png" />
+  <img alt="Cài đặt Agent" src="screenshots/agent_setup.png" />
+</picture>
+
+### Giám sát Hạn mức
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/quota_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/quota.png" />
+  <img alt="Giám sát Hạn mức" src="screenshots/quota.png" />
+</picture>
+
+### Menu Bar
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/menu_bar.png" />
+  <img alt="Menu Bar" src="screenshots/menu_bar.png" />
+</picture>
 
 ## 🤖 Hệ sinh thái hỗ trợ
 

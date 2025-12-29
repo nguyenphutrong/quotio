@@ -1,6 +1,10 @@
 # Quotio
 
-![Quotio Banner](screenshots/menu_bar.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/menu_bar.png" />
+  <img alt="Quotio Banner" src="screenshots/menu_bar.png" />
+</picture>
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey.svg?style=flat" alt="Platform macOS" />
@@ -30,13 +34,40 @@ Quotio is a native macOS application for managing **CLIProxyAPI** - a local prox
 
 ## 📸 Screenshots
 
-| Dashboard | Providers |
-|:---:|:---:|
-| ![Dashboard](screenshots/dashboard.png) | ![Providers](screenshots/providers.png) |
-| **Agent Setup** | **Quota Monitoring** |
-| ![Agent Setup](screenshots/agent_setup.png) | ![Quota Monitoring](screenshots/quota.png) |
-| **Menu Bar** | |
-| ![Menu Bar](screenshots/menu_bar.png) | |
+### Dashboard
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/dashboard_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/dashboard.png" />
+  <img alt="Dashboard" src="screenshots/dashboard.png" />
+</picture>
+
+### Providers
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/provider_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/provider.png" />
+  <img alt="Providers" src="screenshots/provider.png" />
+</picture>
+
+### Agent Setup
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/agent_setup_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/agent_setup.png" />
+  <img alt="Agent Setup" src="screenshots/agent_setup.png" />
+</picture>
+
+### Quota Monitoring
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/quota_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/quota.png" />
+  <img alt="Quota Monitoring" src="screenshots/quota.png" />
+</picture>
+
+### Menu Bar
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/menu_bar.png" />
+  <img alt="Menu Bar" src="screenshots/menu_bar.png" />
+</picture>
 
 ## 🤖 Supported Ecosystem
 
