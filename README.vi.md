@@ -1,10 +1,12 @@
 # Quotio
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/menu_bar.png" />
-  <img alt="Quotio Banner" src="screenshots/menu_bar.png" height="500" />
-</picture>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="screenshots/menu_bar.png" />
+    <img alt="Quotio Banner" src="screenshots/menu_bar.png" height="600" />
+  </picture>
+</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey.svg?style=flat" alt="Platform macOS" />
@@ -66,7 +68,7 @@ Quotio là ứng dụng macOS để quản lý **CLIProxyAPI** - máy chủ prox
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
   <source media="(prefers-color-scheme: light)" srcset="screenshots/menu_bar.png" />
-  <img alt="Menu Bar" src="screenshots/menu_bar.png" height="500" />
+  <img alt="Menu Bar" src="screenshots/menu_bar.png" height="600" />
 </picture>
 
 ## 🤖 Hệ sinh thái hỗ trợ
