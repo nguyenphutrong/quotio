@@ -19,8 +19,8 @@ enum AppMode: String, Codable, CaseIterable, Identifiable {
     
     var displayName: String {
         switch self {
-        case .full: return "Full Mode"
-        case .quotaOnly: return "Quota Monitor"
+        case .full: return "Proxy + Quota"
+        case .quotaOnly: return "Quota Only"
         }
     }
     

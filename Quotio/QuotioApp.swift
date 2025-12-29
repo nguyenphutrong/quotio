@@ -267,9 +267,17 @@ struct ContentView: View {
                     }
                 }
                 
-                // Status section at bottom - different per mode
+                // Control section at bottom - mode switcher + status
                 VStack(spacing: 0) {
                     Divider()
+                    
+                    // Mode Switcher
+                    ModeSwitcherRow()
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                        .padding(.bottom, 6)
+                    
+                    // Status row - different per mode
                     Group {
                         if modeManager.isFullMode {
                             ProxyStatusRow(viewModel: viewModel)
@@ -278,7 +286,7 @@ struct ContentView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                    .padding(.bottom, 10)
                 }
                 .background(.regularMaterial)
             }
@@ -330,6 +338,149 @@ struct ContentView: View {
                 AboutScreen()
             }
         }
+    }
+}
+
+// MARK: - Sidebar Mode Switcher
+
+/// Compact mode switcher for sidebar with custom toggle buttons
+struct ModeSwitcherRow: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @State private var modeManager = AppModeManager.shared
+    @State private var showConfirmation = false
+    @State private var pendingMode: AppMode?
+    
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            // Horizontal layout (preferred when space allows)
+            HStack(spacing: 6) {
+                modeButtons
+            }
+            
+            // Vertical layout (fallback when sidebar is narrow)
+            VStack(spacing: 6) {
+                modeButtons
+            }
+        }
+        .alert("settings.appMode.switchConfirmTitle".localized(), isPresented: $showConfirmation) {
+            Button("action.cancel".localized(), role: .cancel) {
+                pendingMode = nil
+            }
+            Button("action.switch".localized()) {
+                if let mode = pendingMode {
+                    switchToMode(mode)
+                }
+                pendingMode = nil
+            }
+        } message: {
+            Text("settings.appMode.switchConfirmMessage".localized())
+        }
+    }
+    
+    @ViewBuilder
+    private var modeButtons: some View {
+        ModeButton(
+            label: "Proxy + Quota",
+            icon: "server.rack",
+            color: .blue,
+            isSelected: modeManager.currentMode == .full
+        ) {
+            handleModeSelection(.full)
+        }
+        
+        ModeButton(
+            label: "Quota Only",
+            icon: "chart.bar.fill",
+            color: .green,
+            isSelected: modeManager.currentMode == .quotaOnly
+        ) {
+            handleModeSelection(.quotaOnly)
+        }
+    }
+    
+    private func handleModeSelection(_ mode: AppMode) {
+        guard mode != modeManager.currentMode else { return }
+        
+        if modeManager.isFullMode && mode == .quotaOnly {
+            // Confirm before switching from full to quota-only
+            pendingMode = mode
+            showConfirmation = true
+        } else {
+            switchToMode(mode)
+        }
+    }
+    
+    private func switchToMode(_ mode: AppMode) {
+        modeManager.switchMode(to: mode) {
+            viewModel.stopProxy()
+        }
+        
+        Task {
+            await viewModel.initialize()
+        }
+    }
+}
+
+// MARK: - Mode Button
+
+/// Custom toggle button for mode selection
+private struct ModeButton: View {
+    let label: String
+    let icon: String
+    let color: Color
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption)
+                Text(label)
+                    .font(.caption)
+                    .fontWeight(isSelected ? .medium : .regular)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .background(background)
+            .foregroundStyle(foregroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(borderColor, lineWidth: isSelected ? 1.5 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
+    }
+    
+    private var background: Color {
+        if isSelected {
+            return color.opacity(0.15)
+        } else if isHovered {
+            return Color.secondary.opacity(0.08)
+        }
+        return Color.clear
+    }
+    
+    private var foregroundColor: Color {
+        isSelected ? color : .secondary
+    }
+    
+    private var borderColor: Color {
+        if isSelected {
+            return color.opacity(0.5)
+        } else if isHovered {
+            return Color.secondary.opacity(0.3)
+        }
+        return Color.secondary.opacity(0.15)
     }
 }
 
