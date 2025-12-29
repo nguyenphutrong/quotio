@@ -36,6 +36,25 @@ This project currently has no automated tests. When implementing features:
 - Test menu bar functionality by running the app
 - Check localization for both English and Vietnamese
 
+## Git Workflow
+
+**Important**: Never commit changes directly to the `master` branch. Always create a new branch appropriate for the type of work:
+
+- `feature/<feature-name>` - New features
+- `bugfix/<bug-description>` - Bug fixes
+- `refactor/<scope>` - Code refactoring
+- `docs/<content>` - Documentation updates
+- `chore/<content>` - Maintenance tasks, dependency updates
+
+```bash
+# Example branch creation
+git checkout -b feature/add-new-provider
+git checkout -b bugfix/fix-quota-display
+git checkout -b refactor/simplify-auth-flow
+```
+
+After completing the work, create a Pull Request to merge into `master`.
+
 ## Linting / Type Checking
 
 Swift compiler handles type checking during build. No separate linting tool is configured.
