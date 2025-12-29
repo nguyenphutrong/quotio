@@ -127,6 +127,27 @@ Vào tab **Agents** → Chọn agent đã cài → Nhấn **Configure** → Ch�
 4. Push (`git push origin feature/tinh-nang-moi`)
 5. Mở Pull Request
 
+## ⭐ Star History
+
+<picture>
+  <source
+    media="(prefers-color-scheme: dark)"
+    srcset="
+      https://api.star-history.com/svg?repos=nguyenphutrong/quotio&type=Date&theme=dark
+    "
+  />
+  <source
+    media="(prefers-color-scheme: light)"
+    srcset="
+      https://api.star-history.com/svg?repos=nguyenphutrong/quotio&type=Date
+    "
+  />
+  <img
+    alt="Star History Chart"
+    src="https://api.star-history.com/svg?repos=nguyenphutrong/quotio&type=Date"
+  />
+</picture>
+
 ## 📄 Giấy phép
 
 MIT License. Xem file `LICENSE` để biết thêm.

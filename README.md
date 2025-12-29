@@ -127,6 +127,27 @@ Go to **Agents** tab → Select an installed agent → Click **Configure** → C
 4. Push to the Branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## ⭐ Star History
+
+<picture>
+  <source
+    media="(prefers-color-scheme: dark)"
+    srcset="
+      https://api.star-history.com/svg?repos=nguyenphutrong/quotio&type=Date&theme=dark
+    "
+  />
+  <source
+    media="(prefers-color-scheme: light)"
+    srcset="
+      https://api.star-history.com/svg?repos=nguyenphutrong/quotio&type=Date
+    "
+  />
+  <img
+    alt="Star History Chart"
+    src="https://api.star-history.com/svg?repos=nguyenphutrong/quotio&type=Date"
+  />
+</picture>
+
 ## 📄 License
 
 MIT License. See `LICENSE` for details.
