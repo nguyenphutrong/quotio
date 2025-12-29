@@ -188,7 +188,7 @@ struct SettingsScreen: View {
             if modeManager.isFullMode {
                 Section {
                     LabeledContent("settings.binary".localized()) {
-                        PathLabel(path: viewModel.proxyManager.binaryPath)
+                        PathLabel(path: viewModel.proxyManager.effectiveBinaryPath)
                     }
                     
                     LabeledContent("settings.config".localized()) {
@@ -536,6 +536,7 @@ struct ProxyUpdateSettingsSection: View {
     @State private var isCheckingForUpdate = false
     @State private var isUpgrading = false
     @State private var upgradeError: String?
+    @State private var showAdvancedSheet = false
     
     private var proxyManager: CLIProxyManager {
         viewModel.proxyManager
@@ -631,10 +632,28 @@ struct ProxyUpdateSettingsSection: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            
+            // Advanced button
+            Button {
+                showAdvancedSheet = true
+            } label: {
+                HStack {
+                    Label("settings.proxyUpdate.advanced".localized(), systemImage: "gearshape.2")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
         } header: {
             Label("settings.proxyUpdate".localized(), systemImage: "shippingbox.and.arrow.backward")
         } footer: {
             Text("settings.proxyUpdate.help".localized())
+        }
+        .sheet(isPresented: $showAdvancedSheet) {
+            ProxyVersionManagerSheet()
+                .environment(viewModel)
         }
     }
     
@@ -661,6 +680,386 @@ struct ProxyUpdateSettingsSection: View {
                 isUpgrading = false
             }
         }
+    }
+}
+
+// MARK: - Proxy Version Manager Sheet
+
+struct ProxyVersionManagerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(QuotaViewModel.self) private var viewModel
+    
+    @State private var availableReleases: [GitHubRelease] = []
+    @State private var installedVersions: [InstalledProxyVersion] = []
+    @State private var isLoading = false
+    @State private var loadError: String?
+    @State private var installingVersion: String?
+    @State private var installError: String?
+    
+    private var proxyManager: CLIProxyManager {
+        viewModel.proxyManager
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("settings.proxyUpdate.advanced.title".localized())
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("settings.proxyUpdate.advanced.description".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            
+            Divider()
+            
+            // Content
+            if isLoading {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("settings.proxyUpdate.advanced.loading".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = loadError {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundStyle(.orange)
+                    Text("settings.proxyUpdate.advanced.fetchError".localized())
+                        .font(.headline)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("action.refresh".localized()) {
+                        Task { await loadReleases() }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        // Installed Versions Section
+                        if !installedVersions.isEmpty {
+                            sectionHeader("settings.proxyUpdate.advanced.installedVersions".localized())
+                            
+                            ForEach(installedVersions) { installed in
+                                InstalledVersionRow(
+                                    version: installed,
+                                    onActivate: { activateVersion(installed.version) },
+                                    onDelete: { deleteVersion(installed.version) }
+                                )
+                                Divider().padding(.leading, 16)
+                            }
+                        }
+                        
+                        // Available Versions Section
+                        sectionHeader("settings.proxyUpdate.advanced.availableVersions".localized())
+                        
+                        if availableReleases.isEmpty {
+                            HStack {
+                                Text("settings.proxyUpdate.advanced.noReleases".localized())
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                        } else {
+                            ForEach(availableReleases, id: \.tagName) { release in
+                                AvailableVersionRow(
+                                    release: release,
+                                    isInstalled: isVersionInstalled(release.versionString),
+                                    isInstalling: installingVersion == release.versionString,
+                                    onInstall: { installVersion(release) }
+                                )
+                                Divider().padding(.leading, 16)
+                            }
+                        }
+                    }
+                    .padding(.bottom)
+                }
+            }
+            
+            // Error footer
+            if let error = installError {
+                Divider()
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        installError = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding()
+                .background(Color.orange.opacity(0.1))
+            }
+        }
+        .frame(width: 500, height: 500)
+        .task {
+            await loadReleases()
+        }
+    }
+    
+    @ViewBuilder
+    private func sectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .windowBackgroundColor).opacity(0.5))
+    }
+    
+    private func isVersionInstalled(_ version: String) -> Bool {
+        installedVersions.contains { $0.version == version }
+    }
+    
+    private func refreshInstalledVersions() {
+        installedVersions = proxyManager.installedVersions
+    }
+    
+    private func loadReleases() async {
+        isLoading = true
+        loadError = nil
+        
+        do {
+            availableReleases = try await proxyManager.fetchAvailableReleases(limit: 15)
+            refreshInstalledVersions()
+            isLoading = false
+        } catch {
+            loadError = error.localizedDescription
+            isLoading = false
+        }
+    }
+    
+    private func installVersion(_ release: GitHubRelease) {
+        guard let versionInfo = proxyManager.versionInfo(from: release) else {
+            installError = "No compatible binary found for this release"
+            return
+        }
+        
+        installingVersion = release.versionString
+        installError = nil
+        
+        Task {
+            do {
+                try await proxyManager.performManagedUpgrade(to: versionInfo)
+                installingVersion = nil
+                refreshInstalledVersions()
+            } catch {
+                installError = error.localizedDescription
+                installingVersion = nil
+            }
+        }
+    }
+    
+    private func activateVersion(_ version: String) {
+        Task {
+            do {
+                let wasRunning = proxyManager.proxyStatus.running
+                if wasRunning {
+                    proxyManager.stop()
+                }
+                try proxyManager.storageManager.setCurrentVersion(version)
+                if wasRunning {
+                    try await proxyManager.start()
+                }
+                refreshInstalledVersions()
+            } catch {
+                installError = error.localizedDescription
+            }
+        }
+    }
+    
+    private func deleteVersion(_ version: String) {
+        do {
+            try proxyManager.storageManager.deleteVersion(version)
+            refreshInstalledVersions()
+        } catch {
+            installError = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - Installed Version Row
+
+private struct InstalledVersionRow: View {
+    let version: InstalledProxyVersion
+    let onActivate: () -> Void
+    let onDelete: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Version info
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("v\(version.version)")
+                        .font(.system(.body, design: .monospaced))
+                        .fontWeight(.medium)
+                    
+                    if version.isCurrent {
+                        Text("settings.proxyUpdate.advanced.current".localized())
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green)
+                            .clipShape(Capsule())
+                    }
+                }
+                
+                Text(version.installedAt, style: .relative)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            // Actions
+            if !version.isCurrent {
+                Button("settings.proxyUpdate.advanced.activate".localized()) {
+                    onActivate()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                
+                Button {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .foregroundStyle(.red)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - Available Version Row
+
+private struct AvailableVersionRow: View {
+    let release: GitHubRelease
+    let isInstalled: Bool
+    let isInstalling: Bool
+    let onInstall: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Version info
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("v\(release.versionString)")
+                        .font(.system(.body, design: .monospaced))
+                        .fontWeight(.medium)
+                    
+                    if release.prerelease {
+                        Text("settings.proxyUpdate.advanced.prerelease".localized())
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                    
+                    if isInstalled {
+                        Text("settings.proxyUpdate.advanced.installed".localized())
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                }
+                
+                if let publishedAt = release.publishedAt {
+                    Text(formatDate(publishedAt))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            // Install button
+            if !isInstalled {
+                Button {
+                    onInstall()
+                } label: {
+                    if isInstalling {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("settings.proxyUpdate.advanced.install".localized())
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isInstalling)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+    
+    private func formatDate(_ isoString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        if let date = formatter.date(from: isoString) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            displayFormatter.timeStyle = .none
+            return displayFormatter.string(from: date)
+        }
+        
+        // Try without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: isoString) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            displayFormatter.timeStyle = .none
+            return displayFormatter.string(from: date)
+        }
+        
+        return isoString
     }
 }
 

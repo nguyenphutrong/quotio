@@ -203,7 +203,11 @@ final class CLIProxyManager {
     }
     
     var isBinaryInstalled: Bool {
-        FileManager.default.fileExists(atPath: binaryPath)
+        // Check versioned storage first, then legacy path
+        if let _ = storageManager.currentBinaryPath {
+            return true
+        }
+        return FileManager.default.fileExists(atPath: binaryPath)
     }
     
     func downloadAndInstallBinary() async throws {
@@ -437,10 +441,13 @@ final class CLIProxyManager {
         
         syncSecretKeyInConfig()
         
+        // Use effectiveBinaryPath to support versioned storage
+        let activeBinaryPath = effectiveBinaryPath
+        
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: binaryPath)
+        process.executableURL = URL(fileURLWithPath: activeBinaryPath)
         process.arguments = ["-config", configPath]
-        process.currentDirectoryURL = URL(fileURLWithPath: binaryPath).deletingLastPathComponent()
+        process.currentDirectoryURL = URL(fileURLWithPath: activeBinaryPath).deletingLastPathComponent()
         
         // Keep process output - prevents early termination
         let outputPipe = Pipe()
@@ -842,6 +849,35 @@ extension CLIProxyManager {
     /// Save installed version to UserDefaults.
     private func saveInstalledVersion(_ version: String) {
         UserDefaults.standard.set(version, forKey: "installedProxyVersion")
+    }
+    
+    // MARK: - Fetch All Releases (for Advanced Mode)
+    
+    /// Fetch all available releases from GitHub.
+    /// Used by Advanced Mode to allow users to select a specific version.
+    func fetchAvailableReleases(limit: Int = 10) async throws -> [GitHubRelease] {
+        let urlString = "https://api.github.com/repos/\(Self.githubRepo)/releases?per_page=\(limit)"
+        guard let url = URL(string: urlString) else {
+            throw ProxyError.networkError("Invalid URL")
+        }
+        
+        var request = URLRequest(url: url)
+        request.addValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ProxyError.networkError("Failed to fetch releases")
+        }
+        
+        return try JSONDecoder().decode([GitHubRelease].self, from: data)
+    }
+    
+    /// Convert a GitHubRelease to ProxyVersionInfo for a compatible asset.
+    func versionInfo(from release: GitHubRelease) -> ProxyVersionInfo? {
+        guard let asset = findCompatibleAsset(from: release) else { return nil }
+        return ProxyVersionInfo(from: release, asset: asset)
     }
     
     /// Fetch GitHub release info for a specific tag.

@@ -393,6 +393,23 @@ struct LocalizedStrings {
         "settings.proxyUpdate.proxyMustRun": [.english: "Proxy must be running to check for updates", .vietnamese: "Proxy phải đang chạy để kiểm tra cập nhật"],
         "settings.proxyUpdate.help": [.english: "Managed updates with dry-run validation ensure safe upgrades", .vietnamese: "Cập nhật có kiểm soát với xác thực thử nghiệm đảm bảo nâng cấp an toàn"],
         
+        // Proxy Updates - Advanced Mode
+        "settings.proxyUpdate.advanced": [.english: "Advanced", .vietnamese: "Nâng cao"],
+        "settings.proxyUpdate.advanced.title": [.english: "Version Manager", .vietnamese: "Quản lý phiên bản"],
+        "settings.proxyUpdate.advanced.description": [.english: "Install a specific proxy version", .vietnamese: "Cài đặt phiên bản proxy cụ thể"],
+        "settings.proxyUpdate.advanced.availableVersions": [.english: "Available Versions", .vietnamese: "Phiên bản khả dụng"],
+        "settings.proxyUpdate.advanced.installedVersions": [.english: "Installed Versions", .vietnamese: "Phiên bản đã cài"],
+        "settings.proxyUpdate.advanced.current": [.english: "Current", .vietnamese: "Hiện tại"],
+        "settings.proxyUpdate.advanced.install": [.english: "Install", .vietnamese: "Cài đặt"],
+        "settings.proxyUpdate.advanced.activate": [.english: "Activate", .vietnamese: "Kích hoạt"],
+        "settings.proxyUpdate.advanced.delete": [.english: "Delete", .vietnamese: "Xóa"],
+        "settings.proxyUpdate.advanced.prerelease": [.english: "Pre-release", .vietnamese: "Thử nghiệm"],
+        "settings.proxyUpdate.advanced.loading": [.english: "Loading releases...", .vietnamese: "Đang tải danh sách..."],
+        "settings.proxyUpdate.advanced.noReleases": [.english: "No releases found", .vietnamese: "Không tìm thấy phiên bản"],
+        "settings.proxyUpdate.advanced.installed": [.english: "Installed", .vietnamese: "Đã cài"],
+        "settings.proxyUpdate.advanced.installing": [.english: "Installing...", .vietnamese: "Đang cài đặt..."],
+        "settings.proxyUpdate.advanced.fetchError": [.english: "Failed to fetch releases", .vietnamese: "Không thể tải danh sách phiên bản"],
+        
         // About Screen
         "about.tagline": [.english: "Your AI Coding Command Center", .vietnamese: "Trung tâm điều khiển AI Coding của bạn"],
         "about.description": [.english: "Quotio is a native macOS application for managing CLIProxyAPI - a local proxy server that powers your AI coding agents. Manage multiple AI accounts, track quotas, and configure CLI tools in one place.", .vietnamese: "Quotio là ứng dụng macOS để quản lý CLIProxyAPI - máy chủ proxy cục bộ hỗ trợ các AI coding agent. Quản lý nhiều tài khoản AI, theo dõi hạn mức và cấu hình các công cụ CLI tại một nơi."],
