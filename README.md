@@ -34,43 +34,6 @@ Quotio is a native macOS application for managing **CLIProxyAPI** - a local prox
 - **🔄 Auto-Update**: Built-in Sparkle updater for seamless updates.
 - **🌍 Bilingual**: English and Vietnamese support.
 
-## 📸 Screenshots
-
-### Dashboard
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/dashboard_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/dashboard.png" />
-  <img alt="Dashboard" src="screenshots/dashboard.png" />
-</picture>
-
-### Providers
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/provider_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/provider.png" />
-  <img alt="Providers" src="screenshots/provider.png" />
-</picture>
-
-### Agent Setup
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/agent_setup_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/agent_setup.png" />
-  <img alt="Agent Setup" src="screenshots/agent_setup.png" />
-</picture>
-
-### Quota Monitoring
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/quota_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/quota.png" />
-  <img alt="Quota Monitoring" src="screenshots/quota.png" />
-</picture>
-
-### Menu Bar
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/menu_bar.png" />
-  <img alt="Menu Bar" src="screenshots/menu_bar.png" height="600" />
-</picture>
-
 ## 🤖 Supported Ecosystem
 
 ### AI Providers
@@ -84,8 +47,15 @@ Quotio is a native macOS application for managing **CLIProxyAPI** - a local prox
 | iFlow | OAuth |
 | Antigravity | OAuth |
 | Kiro | OAuth |
-| Trae | OAuth |
 | GitHub Copilot | OAuth |
+
+### IDE Quota Tracking (Monitor Only)
+| IDE | Description |
+|-----|-------------|
+| Cursor | Auto-detected when installed and logged in |
+| Trae | Auto-detected when installed and logged in |
+
+> **Note**: These IDEs are only used for quota usage monitoring. They cannot be used as providers for the proxy.
 
 ### Compatible CLI Agents
 Quotio can automatically configure these tools to use your centralized proxy:
@@ -151,6 +121,43 @@ Go to **Agents** tab → Select an installed agent → Click **Configure** → C
 - **Routing Strategy**: Round Robin or Fill First
 - **Auto-start**: Launch proxy automatically when Quotio opens
 - **Notifications**: Toggle alerts for various events
+
+## 📸 Screenshots
+
+### Dashboard
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/dashboard_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/dashboard.png" />
+  <img alt="Dashboard" src="screenshots/dashboard.png" />
+</picture>
+
+### Providers
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/provider_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/provider.png" />
+  <img alt="Providers" src="screenshots/provider.png" />
+</picture>
+
+### Agent Setup
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/agent_setup_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/agent_setup.png" />
+  <img alt="Agent Setup" src="screenshots/agent_setup.png" />
+</picture>
+
+### Quota Monitoring
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/quota_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/quota.png" />
+  <img alt="Quota Monitoring" src="screenshots/quota.png" />
+</picture>
+
+### Menu Bar
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/menu_bar.png" />
+  <img alt="Menu Bar" src="screenshots/menu_bar.png" height="600" />
+</picture>
 
 ## 🤝 Contributing
 
