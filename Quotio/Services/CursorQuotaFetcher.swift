@@ -101,8 +101,12 @@ actor CursorQuotaFetcher {
             return nil
         }
         
+        // Use URI with immutable=1 to avoid WAL file requirement
+        // This prevents errors when Cursor is not running and .vscdb-wal doesn't exist
+        let uri = "file://\(expandedPath)?mode=ro&immutable=1"
+        
         var db: OpaquePointer?
-        guard sqlite3_open_v2(expandedPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
             return nil
         }
         defer { sqlite3_close(db) }
