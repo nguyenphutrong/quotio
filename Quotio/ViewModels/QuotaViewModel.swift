@@ -539,12 +539,12 @@ final class QuotaViewModel {
             await startKiroAuth(method: authMethod ?? .kiroGoogleLogin)
             return
         }
-        
+
         guard let client = apiClient else {
-            errorMessage = "Proxy not running"
+            oauthState = OAuthState(provider: provider, status: .error, error: "Proxy not running. Please start the proxy first.")
             return
         }
-        
+
         oauthState = OAuthState(provider: provider, status: .waiting)
         
         do {

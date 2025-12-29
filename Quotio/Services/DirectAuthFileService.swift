@@ -182,30 +182,88 @@ actor DirectAuthFileService {
     }
     
     // MARK: - Native CLI Auth Locations
-    
-    /// Scan Claude Code native auth (~/.claude/)
+
+    /// Scan Claude Code native auth from macOS Keychain
+    /// Claude Code 2.0+ stores credentials in Keychain instead of ~/.claude/.credentials.json
     private func scanClaudeCodeAuth() async -> DirectAuthFile? {
-        // Claude Code stores credentials in ~/.claude/.credentials.json
-        let credPath = expandPath("~/.claude/.credentials.json")
-        guard fileManager.fileExists(atPath: credPath) else { return nil }
-        
-        var email: String? = nil
-        
-        if let data = fileManager.contents(atPath: credPath),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            email = json["email"] as? String ?? json["account_email"] as? String
+        // Try multiple credential names (Claude Code may use different names)
+        let credentialNames = [
+            "Claude Code-credentials",
+            "claude-credentials",
+            "Claude-credentials",
+            "claudecode-credentials"
+        ]
+
+        for credName in credentialNames {
+            if let authFile = getClaudeAuthFromKeychain(serviceName: credName) {
+                return authFile
+            }
         }
-        
-        return DirectAuthFile(
-            id: "claude-code-native",
-            provider: .claude,
-            email: email,
-            filePath: credPath,
-            source: .claudeCode,
-            filename: ".credentials.json"
-        )
+
+        // Fallback: check legacy file location for older versions
+        let credPath = expandPath("~/.claude/.credentials.json")
+        if fileManager.fileExists(atPath: credPath) {
+            var email: String? = nil
+            if let data = fileManager.contents(atPath: credPath),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                email = json["email"] as? String ?? json["account_email"] as? String
+            }
+            return DirectAuthFile(
+                id: "claude-code-native",
+                provider: .claude,
+                email: email,
+                filePath: credPath,
+                source: .claudeCode,
+                filename: ".credentials.json"
+            )
+        }
+
+        return nil
     }
-    
+
+    /// Get Claude Code auth from macOS Keychain
+    private func getClaudeAuthFromKeychain(serviceName: String) -> DirectAuthFile? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-s", serviceName, "-w"]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            guard process.terminationStatus == 0 else { return nil }
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let jsonString = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !jsonString.isEmpty,
+                  let jsonData = jsonString.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+                return nil
+            }
+
+            // Extract email from the credential JSON
+            var email: String? = nil
+            if let claudeAiOauth = json["claudeAiOauth"] as? [String: Any] {
+                email = claudeAiOauth["email"] as? String
+            }
+
+            return DirectAuthFile(
+                id: "claude-code-keychain",
+                provider: .claude,
+                email: email ?? "Claude Code User",
+                filePath: "keychain://\(serviceName)",
+                source: .claudeCode,
+                filename: serviceName
+            )
+        } catch {
+            return nil
+        }
+    }
+
     /// Scan Codex CLI native auth (~/.codex/)
     private func scanCodexAuth() async -> DirectAuthFile? {
         let authPath = expandPath("~/.codex/auth.json")
