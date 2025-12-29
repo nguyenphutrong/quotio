@@ -179,6 +179,11 @@ struct SettingsScreen: View {
             // Updates
             UpdateSettingsSection()
             
+            // Proxy Updates - Only in Full Mode
+            if modeManager.isFullMode {
+                ProxyUpdateSettingsSection()
+            }
+            
             // Paths - Only in Full Mode
             if modeManager.isFullMode {
                 Section {
@@ -520,6 +525,141 @@ struct UpdateSettingsSection: View {
             #endif
         } header: {
             Label("settings.updates".localized(), systemImage: "arrow.down.circle")
+        }
+    }
+}
+
+// MARK: - Proxy Update Settings Section
+
+struct ProxyUpdateSettingsSection: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @State private var isCheckingForUpdate = false
+    @State private var isUpgrading = false
+    @State private var upgradeError: String?
+    
+    private var proxyManager: CLIProxyManager {
+        viewModel.proxyManager
+    }
+    
+    var body: some View {
+        Section {
+            // Current version
+            LabeledContent("settings.proxyUpdate.currentVersion".localized()) {
+                if let version = proxyManager.currentVersion ?? proxyManager.installedProxyVersion {
+                    Text("v\(version)")
+                        .font(.system(.body, design: .monospaced))
+                } else {
+                    Text("settings.proxyUpdate.unknown".localized())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // Upgrade status
+            if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label {
+                            Text("settings.proxyUpdate.available".localized())
+                        } icon: {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                        
+                        Text("v\(upgrade.version)")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        performUpgrade(to: upgrade)
+                    } label: {
+                        if isUpgrading {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("action.update".localized())
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isUpgrading || !proxyManager.proxyStatus.running)
+                }
+            } else {
+                HStack {
+                    Label {
+                        Text("settings.proxyUpdate.upToDate".localized())
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        checkForUpdate()
+                    } label: {
+                        if isCheckingForUpdate {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("settings.proxyUpdate.checkNow".localized())
+                        }
+                    }
+                    .disabled(isCheckingForUpdate || !proxyManager.proxyStatus.running)
+                }
+            }
+            
+            // Error message
+            if let error = upgradeError {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // Proxy must be running hint
+            if !proxyManager.proxyStatus.running {
+                HStack {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.blue)
+                    Text("settings.proxyUpdate.proxyMustRun".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Label("settings.proxyUpdate".localized(), systemImage: "shippingbox.and.arrow.backward")
+        } footer: {
+            Text("settings.proxyUpdate.help".localized())
+        }
+    }
+    
+    private func checkForUpdate() {
+        isCheckingForUpdate = true
+        upgradeError = nil
+        
+        Task {
+            await proxyManager.checkForUpgrade()
+            isCheckingForUpdate = false
+        }
+    }
+    
+    private func performUpgrade(to version: ProxyVersionInfo) {
+        isUpgrading = true
+        upgradeError = nil
+        
+        Task {
+            do {
+                try await proxyManager.performManagedUpgrade(to: version)
+                isUpgrading = false
+            } catch {
+                upgradeError = error.localizedDescription
+                isUpgrading = false
+            }
         }
     }
 }

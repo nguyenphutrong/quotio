@@ -44,12 +44,42 @@ final class CLIProxyManager {
     }
     
     private var process: Process?
+    private var testProcess: Process?
     private var authProcess: Process?
     private(set) var proxyStatus = ProxyStatus()
     private(set) var isStarting = false
     private(set) var isDownloading = false
     private(set) var downloadProgress: Double = 0
     private(set) var lastError: String?
+    
+    // MARK: - Managed Upgrade State
+    
+    /// Current state of the proxy manager.
+    private(set) var managerState: ProxyManagerState = .idle
+    
+    /// Version currently being tested (during dry-run).
+    private(set) var testingVersion: String?
+    
+    /// Port used for dry-run testing.
+    private(set) var testPort: UInt16?
+    
+    /// The active proxy version (if using versioned storage).
+    private(set) var activeVersion: String?
+    
+    /// Last upgrade error message.
+    private(set) var upgradeError: String?
+    
+    /// Whether an upgrade is available.
+    private(set) var upgradeAvailable: Bool = false
+    
+    /// Available upgrade version info.
+    private(set) var availableUpgrade: ProxyVersionInfo?
+    
+    /// Compatibility checker instance.
+    private let compatibilityChecker = CompatibilityChecker()
+    
+    /// Storage manager for versioned binaries.
+    var storageManager: ProxyStorageManager { ProxyStorageManager.shared }
     
     let binaryPath: String
     let configPath: String
@@ -195,6 +225,13 @@ final class CLIProxyManager {
             downloadProgress = 0.7
             
             try await extractAndInstall(data: binaryData, assetName: asset.name)
+            downloadProgress = 0.9
+            
+            // Save installed version
+            let version = releaseInfo.tagName.hasPrefix("v")
+                ? String(releaseInfo.tagName.dropFirst())
+                : releaseInfo.tagName
+            saveInstalledVersion(version)
             downloadProgress = 1.0
             
         } catch {
@@ -715,5 +752,495 @@ extension CLIProxyManager {
         }
         
         return nil
+    }
+}
+
+// MARK: - Managed Proxy Upgrade
+
+extension CLIProxyManager {
+    
+    /// The effective binary path - uses versioned storage if available, otherwise legacy path.
+    var effectiveBinaryPath: String {
+        if let path = storageManager.currentBinaryPath {
+            return path
+        }
+        return binaryPath
+    }
+    
+    /// Check if versioned storage is being used.
+    var isUsingVersionedStorage: Bool {
+        storageManager.hasInstalledVersion
+    }
+    
+    /// Get the currently installed version.
+    var currentVersion: String? {
+        storageManager.getCurrentVersion()
+    }
+    
+    /// List all installed versions.
+    var installedVersions: [InstalledProxyVersion] {
+        storageManager.listInstalledVersions()
+    }
+    
+    // MARK: - Upgrade Flow
+    
+    /// Check if an upgrade is available by asking the running proxy for latest version.
+    /// This does not automatically start the upgrade.
+    func checkForUpgrade() async {
+        guard proxyStatus.running else {
+            upgradeAvailable = false
+            availableUpgrade = nil
+            return
+        }
+        
+        // Create API client to talk to running proxy
+        let apiClient = ManagementAPIClient(baseURL: managementURL, authKey: managementKey)
+        
+        do {
+            // Get latest version from proxy (it fetches from GitHub)
+            let latestResponse = try await apiClient.fetchLatestVersion()
+            await apiClient.invalidate()
+            
+            let latestTag = latestResponse.latestVersion // e.g., "v6.6.68-0"
+            
+            // Extract version without 'v' prefix
+            let latestVersion = latestTag.hasPrefix("v") ? String(latestTag.dropFirst()) : latestTag
+            
+            // Compare with current version
+            let current = currentVersion ?? installedProxyVersion
+            
+            if current == nil || current != latestVersion {
+                // Fetch release info from GitHub to get checksum and download URL
+                let release = try await fetchGitHubRelease(tag: latestTag)
+                
+                guard let asset = findCompatibleAsset(from: release) else {
+                    upgradeAvailable = false
+                    availableUpgrade = nil
+                    return
+                }
+                
+                let versionInfo = ProxyVersionInfo(from: release, asset: asset)
+                upgradeAvailable = true
+                availableUpgrade = versionInfo
+            } else {
+                upgradeAvailable = false
+                availableUpgrade = nil
+            }
+        } catch {
+            await apiClient.invalidate()
+            upgradeAvailable = false
+            availableUpgrade = nil
+        }
+    }
+    
+    /// Stored version from UserDefaults (for legacy single-binary installs).
+    /// Public accessor for the settings screen.
+    var installedProxyVersion: String? {
+        UserDefaults.standard.string(forKey: "installedProxyVersion")
+    }
+    
+    /// Save installed version to UserDefaults.
+    private func saveInstalledVersion(_ version: String) {
+        UserDefaults.standard.set(version, forKey: "installedProxyVersion")
+    }
+    
+    /// Fetch GitHub release info for a specific tag.
+    private func fetchGitHubRelease(tag: String) async throws -> GitHubRelease {
+        let urlString = "https://api.github.com/repos/\(Self.githubRepo)/releases/tags/\(tag)"
+        guard let url = URL(string: urlString) else {
+            throw ProxyError.networkError("Invalid URL")
+        }
+        
+        var request = URLRequest(url: url)
+        request.addValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ProxyError.networkError("Failed to fetch release info")
+        }
+        
+        return try JSONDecoder().decode(GitHubRelease.self, from: data)
+    }
+    
+    /// Find compatible asset from GitHub release.
+    private func findCompatibleAsset(from release: GitHubRelease) -> GitHubAsset? {
+        #if arch(arm64)
+        let arch = "arm64"
+        #else
+        let arch = "amd64"
+        #endif
+        
+        let platform = "darwin"
+        let targetPattern = "\(platform)_\(arch)"
+        let skipPatterns = ["windows", "linux", "checksum"]
+        
+        for asset in release.assets {
+            let lowercaseName = asset.name.lowercased()
+            
+            let shouldSkip = skipPatterns.contains { lowercaseName.contains($0) }
+            if shouldSkip { continue }
+            
+            if lowercaseName.contains(targetPattern) {
+                return asset
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Perform a managed upgrade with dry-run validation.
+    /// This is the main entry point for upgrades.
+    /// 
+    /// Flow:
+    /// 1. Download and verify new version
+    /// 2. Start dry-run on test port
+    /// 3. Validate compatibility via /meta
+    /// 4. If valid: promote to active; if not: rollback
+    func performManagedUpgrade(to version: ProxyVersionInfo) async throws {
+        guard managerState == .active || managerState == .idle else {
+            throw ProxyUpgradeError.dryRunFailed("Cannot upgrade while in \(managerState) state")
+        }
+        
+        upgradeError = nil
+        
+        // Step 1: Download and install to versioned storage
+        let installed = try await downloadAndInstallVersion(version)
+        
+        // Step 2: Perform dry-run
+        do {
+            try await startDryRun(version: installed.version)
+        } catch {
+            // Dry-run failed, cleanup
+            try? storageManager.deleteVersion(installed.version)
+            throw error
+        }
+        
+        // Step 3: Validate compatibility
+        guard let testPort = testPort else {
+            try? stopTestProxy()
+            try? storageManager.deleteVersion(installed.version)
+            throw ProxyUpgradeError.dryRunFailed("Test port not available")
+        }
+        
+        let compatResult = await compatibilityChecker.fullCheck(port: testPort)
+        
+        if !compatResult.isCompatible {
+            // Compatibility failed, rollback
+            try? stopTestProxy()
+            try? storageManager.deleteVersion(installed.version)
+            upgradeError = compatResult.description
+            NotificationManager.shared.notifyUpgradeFailed(version: installed.version, reason: compatResult.description)
+            throw ProxyUpgradeError.compatibilityCheckFailed(compatResult)
+        }
+        
+        // Step 4: Promote the new version
+        try await promote(version: installed.version)
+        
+        // Cleanup old versions
+        storageManager.cleanupOldVersions(keepLast: 2)
+        
+        // Reset upgrade state - no longer available since we just installed it
+        upgradeAvailable = false
+        availableUpgrade = nil
+        
+        // Save the installed version
+        saveInstalledVersion(installed.version)
+        
+        NotificationManager.shared.notifyUpgradeSuccess(version: installed.version)
+    }
+    
+    /// Download and install a specific version.
+    private func downloadAndInstallVersion(_ versionInfo: ProxyVersionInfo) async throws -> InstalledProxyVersion {
+        isDownloading = true
+        downloadProgress = 0
+        
+        defer { isDownloading = false }
+        
+        // Determine download URL
+        let downloadURL: String
+        if let url = versionInfo.downloadURL {
+            downloadURL = url
+        } else {
+            // Fall back to GitHub release
+            let release = try await fetchLatestRelease()
+            guard let asset = findCompatibleAsset(in: release) else {
+                throw ProxyUpgradeError.downloadFailed("No compatible binary found")
+            }
+            downloadURL = asset.downloadURL
+        }
+        
+        downloadProgress = 0.1
+        
+        // Download the binary
+        let binaryData = try await downloadAsset(url: downloadURL)
+        downloadProgress = 0.6
+        
+        // Verify checksum
+        try ChecksumVerifier.verifyOrThrow(data: binaryData, expected: versionInfo.sha256)
+        downloadProgress = 0.7
+        
+        // Determine asset name for extraction
+        let assetName = URL(string: downloadURL)?.lastPathComponent ?? "CLIProxyAPI"
+        
+        // Install to versioned storage
+        let installed = try await storageManager.installVersion(
+            version: versionInfo.version,
+            binaryData: binaryData,
+            assetName: assetName
+        )
+        downloadProgress = 1.0
+        
+        return installed
+    }
+    
+    /// Start a dry-run of a specific version on a test port.
+    private func startDryRun(version: String) async throws {
+        guard let binaryPath = storageManager.getBinaryPath(for: version) else {
+            throw ProxyUpgradeError.dryRunFailed("Version \(version) not installed")
+        }
+        
+        managerState = .testing
+        testingVersion = version
+        
+        // Find an unused port for testing
+        let port = try findUnusedPort()
+        testPort = port
+        
+        // Create a temporary config for the test
+        let testConfigPath = createTestConfig(port: port)
+        
+        do {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: binaryPath)
+            process.arguments = ["-config", testConfigPath]
+            process.currentDirectoryURL = URL(fileURLWithPath: binaryPath).deletingLastPathComponent()
+            
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            process.standardOutput = outputPipe
+            process.standardError = errorPipe
+            
+            var environment = ProcessInfo.processInfo.environment
+            environment["TERM"] = "xterm-256color"
+            process.environment = environment
+            
+            try process.run()
+            testProcess = process
+            
+            // Wait for startup
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+            
+            // Check if process is still running
+            guard process.isRunning else {
+                throw ProxyUpgradeError.dryRunFailed("Test proxy exited immediately")
+            }
+            
+            // Verify health
+            let isHealthy = await compatibilityChecker.isHealthy(port: port)
+            guard isHealthy else {
+                stopTestProxy()
+                throw ProxyUpgradeError.dryRunFailed("Test proxy health check failed")
+            }
+            
+        } catch let error as ProxyUpgradeError {
+            managerState = proxyStatus.running ? .active : .idle
+            testingVersion = nil
+            testPort = nil
+            throw error
+        } catch {
+            managerState = proxyStatus.running ? .active : .idle
+            testingVersion = nil
+            testPort = nil
+            throw ProxyUpgradeError.dryRunFailed(error.localizedDescription)
+        }
+    }
+    
+    /// Promote a tested version to active.
+    private func promote(version: String) async throws {
+        guard managerState == .testing else {
+            throw ProxyUpgradeError.dryRunFailed("Not in testing state")
+        }
+        
+        managerState = .promoting
+        
+        // Stop the test proxy
+        stopTestProxy()
+        
+        // Stop the current active proxy if running
+        let wasRunning = proxyStatus.running
+        if wasRunning {
+            stop()
+        }
+        
+        // Update the current symlink
+        try storageManager.setCurrentVersion(version)
+        activeVersion = version
+        
+        // Restart proxy if it was running
+        if wasRunning {
+            try await start()
+        }
+        
+        managerState = proxyStatus.running ? .active : .idle
+        testingVersion = nil
+        testPort = nil
+    }
+    
+    /// Rollback to the previous version.
+    func rollback() async throws {
+        guard let previousVersion = findPreviousVersion() else {
+            throw ProxyUpgradeError.rollbackFailed("No previous version to rollback to")
+        }
+        
+        managerState = .rollingBack
+        
+        // Stop current proxy
+        let wasRunning = proxyStatus.running
+        if wasRunning {
+            stop()
+        }
+        
+        // Delete the problematic current version if different from previous
+        if let current = currentVersion, current != previousVersion {
+            try? storageManager.deleteVersion(current)
+        }
+        
+        // Set previous as current
+        try storageManager.setCurrentVersion(previousVersion)
+        activeVersion = previousVersion
+        
+        // Restart if was running
+        if wasRunning {
+            try await start()
+        }
+        
+        managerState = proxyStatus.running ? .active : .idle
+        
+        NotificationManager.shared.notifyRollback(toVersion: previousVersion)
+    }
+    
+    // MARK: - Private Helpers
+    
+    private func stopTestProxy() {
+        guard let process = testProcess, process.isRunning else {
+            testProcess = nil
+            return
+        }
+        
+        let pid = process.processIdentifier
+        process.terminate()
+        
+        let deadline = Date().addingTimeInterval(2.0)
+        while process.isRunning && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        
+        if process.isRunning {
+            kill(pid, SIGKILL)
+        }
+        
+        testProcess = nil
+        
+        // Also kill anything on test port
+        if let port = testPort {
+            killProcessOnPort(port)
+        }
+    }
+    
+    private func findUnusedPort() throws -> UInt16 {
+        // Try ports in range 18000-18100
+        for port in UInt16(18000)...UInt16(18100) {
+            if !isPortInUse(port) && port != proxyStatus.port {
+                return port
+            }
+        }
+        throw ProxyUpgradeError.dryRunFailed("No available port for testing")
+    }
+    
+    private func isPortInUse(_ port: UInt16) -> Bool {
+        let socket = socket(AF_INET, SOCK_STREAM, 0)
+        guard socket >= 0 else { return true }
+        defer { close(socket) }
+        
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        
+        let bindResult = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(socket, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        
+        return bindResult != 0
+    }
+    
+    private func createTestConfig(port: UInt16) -> String {
+        let tempDir = FileManager.default.temporaryDirectory
+        let testConfigPath = tempDir.appendingPathComponent("quotio-test-config-\(port).yaml").path
+        
+        let testConfig = """
+        host: "127.0.0.1"
+        port: \(port)
+        auth-dir: "\(authDir)"
+        
+        api-keys:
+          - "quotio-test-\(UUID().uuidString.prefix(8))"
+        
+        remote-management:
+          allow-remote: false
+          secret-key: "\(UUID().uuidString)"
+        
+        debug: false
+        logging-to-file: false
+        usage-statistics-enabled: false
+        
+        routing:
+          strategy: "round-robin"
+        """
+        
+        try? testConfig.write(toFile: testConfigPath, atomically: true, encoding: .utf8)
+        return testConfigPath
+    }
+    
+    private func findPreviousVersion() -> String? {
+        let versions = installedVersions
+        let current = currentVersion
+        
+        // Find the most recent version that isn't current
+        return versions
+            .filter { $0.version != current }
+            .sorted { $0.installedAt > $1.installedAt }
+            .first?.version
+    }
+    
+    /// Migrate from legacy single-binary to versioned storage.
+    func migrateToVersionedStorage() async throws {
+        guard !isUsingVersionedStorage else { return }
+        guard isBinaryInstalled else { return }
+        
+        // Read the existing binary
+        let legacyBinaryURL = URL(fileURLWithPath: binaryPath)
+        let binaryData = try Data(contentsOf: legacyBinaryURL)
+        
+        // Determine version (use "legacy" if unknown)
+        let version = "legacy"
+        
+        // Install to versioned storage (skip checksum for legacy migration)
+        _ = try await storageManager.installVersion(
+            version: version,
+            binaryData: binaryData,
+            assetName: "CLIProxyAPI"
+        )
+        
+        // Set as current
+        try storageManager.setCurrentVersion(version)
+        activeVersion = version
+        
+        // Optionally remove legacy binary
+        try? FileManager.default.removeItem(atPath: binaryPath)
     }
 }

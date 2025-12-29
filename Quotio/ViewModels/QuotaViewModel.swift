@@ -87,10 +87,18 @@ final class QuotaViewModel {
         let autoStartProxy = UserDefaults.standard.bool(forKey: "autoStartProxy")
         if autoStartProxy && proxyManager.isBinaryInstalled {
             await startProxy()
+            
+            // Check for proxy upgrade after starting
+            await checkForProxyUpgrade()
         } else {
             // If not auto-starting proxy, start quota auto-refresh
             startQuotaAutoRefreshWithoutProxy()
         }
+    }
+    
+    /// Check for proxy upgrade (non-blocking)
+    private func checkForProxyUpgrade() async {
+        await proxyManager.checkForUpgrade()
     }
     
     /// Initialize for Quota-Only Mode (no proxy)

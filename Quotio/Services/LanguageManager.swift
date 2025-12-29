@@ -383,6 +383,16 @@ struct LocalizedStrings {
         "settings.checkNow": [.english: "Check Now", .vietnamese: "Kiểm tra ngay"],
         "settings.version": [.english: "Version", .vietnamese: "Phiên bản"],
         
+        // Proxy Updates
+        "settings.proxyUpdate": [.english: "Proxy Updates", .vietnamese: "Cập nhật Proxy"],
+        "settings.proxyUpdate.currentVersion": [.english: "Current Version", .vietnamese: "Phiên bản hiện tại"],
+        "settings.proxyUpdate.unknown": [.english: "Unknown", .vietnamese: "Không xác định"],
+        "settings.proxyUpdate.available": [.english: "Update Available", .vietnamese: "Có bản cập nhật"],
+        "settings.proxyUpdate.upToDate": [.english: "Up to date", .vietnamese: "Đã cập nhật"],
+        "settings.proxyUpdate.checkNow": [.english: "Check for Updates", .vietnamese: "Kiểm tra cập nhật"],
+        "settings.proxyUpdate.proxyMustRun": [.english: "Proxy must be running to check for updates", .vietnamese: "Proxy phải đang chạy để kiểm tra cập nhật"],
+        "settings.proxyUpdate.help": [.english: "Managed updates with dry-run validation ensure safe upgrades", .vietnamese: "Cập nhật có kiểm soát với xác thực thử nghiệm đảm bảo nâng cấp an toàn"],
+        
         // About Screen
         "about.tagline": [.english: "Your AI Coding Command Center", .vietnamese: "Trung tâm điều khiển AI Coding của bạn"],
         "about.description": [.english: "Quotio is a native macOS application for managing CLIProxyAPI - a local proxy server that powers your AI coding agents. Manage multiple AI accounts, track quotas, and configure CLI tools in one place.", .vietnamese: "Quotio là ứng dụng macOS để quản lý CLIProxyAPI - máy chủ proxy cục bộ hỗ trợ các AI coding agent. Quản lý nhiều tài khoản AI, theo dõi hạn mức và cấu hình các công cụ CLI tại một nơi."],
@@ -449,6 +459,7 @@ struct LocalizedStrings {
         // Actions - New
         "action.refreshQuota": [.english: "Refresh Quota", .vietnamese: "Làm mới Quota"],
         "action.switch": [.english: "Switch", .vietnamese: "Chuyển"],
+        "action.update": [.english: "Update", .vietnamese: "Cập nhật"],
         
         // Status - New
         "status.refreshing": [.english: "Refreshing...", .vietnamese: "Đang làm mới..."],

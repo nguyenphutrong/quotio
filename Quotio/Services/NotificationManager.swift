@@ -13,6 +13,9 @@ enum NotificationType: String {
     case proxyCrashed = "proxyCrashed"
     case proxyStarted = "proxyStarted"
     case proxyStopped = "proxyStopped"
+    case upgradeSuccess = "upgradeSuccess"
+    case upgradeFailed = "upgradeFailed"
+    case rollback = "rollback"
 }
 
 /// Manages macOS notifications for quota alerts, cooling status, and proxy crashes
@@ -216,5 +219,69 @@ final class NotificationManager {
     /// Remove all delivered notifications
     func removeAllDeliveredNotifications() {
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+    }
+    
+    // MARK: - Upgrade Notifications
+    
+    /// Send notification when proxy upgrade succeeds
+    /// - Parameter version: The new version that was installed
+    func notifyUpgradeSuccess(version: String) {
+        guard notificationsEnabled && isAuthorized else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Proxy Upgraded"
+        content.body = "CLIProxyAPI has been upgraded to version \(version)"
+        content.sound = .default
+        content.categoryIdentifier = NotificationType.upgradeSuccess.rawValue
+        
+        let request = UNNotificationRequest(
+            identifier: "upgrade_success_\(version)",
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request)
+    }
+    
+    /// Send notification when proxy upgrade fails
+    /// - Parameters:
+    ///   - version: The version that failed to install
+    ///   - reason: The reason for failure
+    func notifyUpgradeFailed(version: String, reason: String) {
+        guard notificationsEnabled && isAuthorized else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Proxy Upgrade Failed"
+        content.body = "Failed to upgrade to version \(version): \(reason)"
+        content.sound = .defaultCritical
+        content.categoryIdentifier = NotificationType.upgradeFailed.rawValue
+        
+        let request = UNNotificationRequest(
+            identifier: "upgrade_failed_\(version)",
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request)
+    }
+    
+    /// Send notification when rollback occurs
+    /// - Parameter toVersion: The version that was restored
+    func notifyRollback(toVersion: String) {
+        guard notificationsEnabled && isAuthorized else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Proxy Rollback"
+        content.body = "Rolled back to version \(toVersion) due to upgrade failure"
+        content.sound = .default
+        content.categoryIdentifier = NotificationType.rollback.rawValue
+        
+        let request = UNNotificationRequest(
+            identifier: "rollback_\(toVersion)",
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request)
     }
 }

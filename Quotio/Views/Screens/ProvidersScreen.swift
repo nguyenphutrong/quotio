@@ -89,6 +89,11 @@ struct ProvidersScreen: View {
         return accounts
     }
     
+    /// Create a unique ID for auto-detected accounts (provider + accountKey)
+    private func autoDetectedAccountId(_ account: (provider: AIProvider, accountKey: String)) -> String {
+        "\(account.provider.rawValue)_\(account.accountKey)"
+    }
+    
     @ViewBuilder
     private var fullModeContent: some View {
         // Connected Accounts section
@@ -147,8 +152,9 @@ struct ProvidersScreen: View {
         // Auto-detected Accounts (like Cursor, Trae, Claude) - always show
         if !autoDetectedProviderAccounts.isEmpty {
             Section {
-                ForEach(autoDetectedProviderAccounts, id: \.accountKey) { account in
+                ForEach(Array(autoDetectedProviderAccounts.enumerated()), id: \.offset) { index, account in
                     AutoDetectedAccountRow(provider: account.provider, accountKey: account.accountKey)
+                        .id(autoDetectedAccountId(account))
                 }
             } header: {
                 HStack {
