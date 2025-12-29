@@ -2,8 +2,8 @@
 //  StatusBarManager.swift
 //  Quotio
 //
-//  Custom NSStatusBar manager with single combined status item using NSPanel
-//  Uses NSPanel instead of NSPopover to support full-screen mode
+//  Custom NSStatusBar manager with native NSMenu for Liquid Glass appearance.
+//  Uses NSMenu with SwiftUI hosting views for native macOS styling.
 //
 
 import AppKit
@@ -11,15 +11,18 @@ import SwiftUI
 
 @MainActor
 @Observable
-final class StatusBarManager {
+final class StatusBarManager: NSObject, NSMenuDelegate {
     static let shared = StatusBarManager()
     
     private var statusItem: NSStatusItem?
-    private var menuPanel: StatusBarPanel?
-    private var globalEventMonitor: Any?
-    private var localEventMonitor: Any?
+    private var menu: NSMenu?
+    private var menuContentProvider: (() -> AnyView)?
+    private var menuContentVersion: Int = 0
+    private let menuWidth: CGFloat = 300
     
-    private init() {}
+    private override init() {
+        super.init()
+    }
     
     func updateStatusBar(
         items: [MenuBarQuotaDisplayItem],
@@ -38,11 +41,19 @@ final class StatusBarManager {
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         }
         
-        // Create or update panel
-        if menuPanel == nil {
-            menuPanel = StatusBarPanel()
+        // Store content provider for menu refresh
+        self.menuContentProvider = menuContentProvider
+        self.menuContentVersion += 1
+        
+        // Create or update menu
+        if menu == nil {
+            menu = NSMenu()
+            menu?.autoenablesItems = false
+            menu?.delegate = self
         }
-        menuPanel?.updateContent(menuContentProvider())
+        
+        // Attach menu to status item
+        statusItem?.menu = menu
         
         guard let button = statusItem?.button else { return }
         
@@ -70,220 +81,155 @@ final class StatusBarManager {
         
         button.addSubview(containerView)
         button.frame = NSRect(origin: .zero, size: hostingView.intrinsicContentSize)
-        
-        button.action = #selector(statusItemClicked(_:))
-        button.target = self
     }
     
-    @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
-        guard let panel = menuPanel else { return }
-        
-        if panel.isVisible {
-            closePanel()
-        } else {
-            showPanel(relativeTo: sender)
-        }
+    // MARK: - NSMenuDelegate
+    
+    func menuWillOpen(_ menu: NSMenu) {
+        populateMenu()
     }
     
-    private func showPanel(relativeTo button: NSStatusBarButton) {
-        guard let panel = menuPanel else { return }
+    func menuDidClose(_ menu: NSMenu) {
+        // Cleanup
+    }
+    
+    private func populateMenu() {
+        guard let menu = menu, let contentProvider = menuContentProvider else { return }
         
-        // Get button's screen position
-        guard let buttonWindow = button.window else { return }
-        let buttonRect = button.convert(button.bounds, to: nil)
-        let screenRect = buttonWindow.convertToScreen(buttonRect)
+        // Clear existing items
+        menu.removeAllItems()
         
-        // Position panel below the button, aligned to the right edge
-        let panelSize = panel.frame.size
-        let panelX = screenRect.maxX - panelSize.width
-        let panelY = screenRect.minY - panelSize.height - 4
+        // Create the SwiftUI content wrapped with fixed width
+        let content = contentProvider()
+        let wrappedContent = MenuContentWrapper(content: content, width: menuWidth)
+        let hostingView = MenuHostingView(rootView: wrappedContent, fixedWidth: menuWidth)
         
-        panel.setFrameOrigin(NSPoint(x: panelX, y: panelY))
-        panel.makeKeyAndOrderFront(nil)
+        // Use Auto Layout for proper sizing
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
         
-        // Add global event monitor for clicks outside
-        globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.closePanel()
-        }
+        // Create container that will use Auto Layout
+        let containerView = MenuContainerView()
+        containerView.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(hostingView)
         
-        // Add local event monitor for escape key
-        localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 { // Escape key
-                self?.closePanel()
-                return nil
+        // Pin hosting view to container with fixed width
+        NSLayoutConstraint.activate([
+            hostingView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+            hostingView.widthAnchor.constraint(equalToConstant: menuWidth)
+        ])
+        
+        // Force layout pass to calculate intrinsic size
+        containerView.layoutSubtreeIfNeeded()
+        
+        // Get the fitting size and set frame
+        let fittingSize = containerView.fittingSize
+        let height = max(50, fittingSize.height.isFinite ? fittingSize.height : 300)
+        containerView.frame = NSRect(origin: .zero, size: NSSize(width: menuWidth, height: height))
+        
+        let contentItem = NSMenuItem()
+        contentItem.view = containerView
+        contentItem.representedObject = "menuContent"
+        menu.addItem(contentItem)
+        
+        // Deferred layout pass for dynamic content
+        DispatchQueue.main.async { [weak containerView, weak menu] in
+            guard let containerView, let menu else { return }
+            containerView.layoutSubtreeIfNeeded()
+            let newSize = containerView.fittingSize
+            let newHeight = max(50, newSize.height.isFinite ? newSize.height : containerView.frame.height)
+            if abs(newHeight - containerView.frame.height) > 1 {
+                containerView.frame = NSRect(origin: .zero, size: NSSize(width: 300, height: newHeight))
+                menu.update()
             }
-            return event
         }
     }
     
-    private func closePanel() {
-        menuPanel?.orderOut(nil)
-        
-        if let monitor = globalEventMonitor {
-            NSEvent.removeMonitor(monitor)
-            globalEventMonitor = nil
-        }
-        if let monitor = localEventMonitor {
-            NSEvent.removeMonitor(monitor)
-            localEventMonitor = nil
-        }
+    // MARK: - Menu Actions
+    
+    /// Force refresh menu content on next open
+    func invalidateMenuContent() {
+        menuContentVersion += 1
     }
     
     func removeStatusItem() {
-        closePanel()
         if let item = statusItem {
             NSStatusBar.system.removeStatusItem(item)
             statusItem = nil
         }
+        menu = nil
     }
 }
 
-// MARK: - StatusBarPanel
+// MARK: - Menu Content Wrapper
 
-/// Custom NSPanel that works across all Spaces including full-screen mode
-/// Uses NSVisualEffectView for consistent Liquid Glass appearance on macOS 15/26
-final class StatusBarPanel: NSPanel {
-    private var hostingView: TransparentHostingView?
-    private var visualEffectView: NSVisualEffectView?
+/// Wrapper view that enforces fixed width for proper height calculation
+private struct MenuContentWrapper: View {
+    let content: AnyView
+    let width: CGFloat
     
-    init() {
-        super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        
-        // Panel configuration for menu bar behavior
-        self.level = .statusBar
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        self.isOpaque = false
-        self.backgroundColor = .clear
-        self.hasShadow = true
-        self.hidesOnDeactivate = false
-        self.isMovableByWindowBackground = false
-        self.isFloatingPanel = true
-        
-        // Important: Make the window fully transparent
-        self.titlebarAppearsTransparent = true
-        self.titleVisibility = .hidden
-        
-        // Create the visual effect view for background
-        let visualEffect = NSVisualEffectView()
-        visualEffect.translatesAutoresizingMaskIntoConstraints = false
-        visualEffect.material = .popover
-        visualEffect.state = .active
-        visualEffect.wantsLayer = true
-        visualEffect.layer?.masksToBounds = true
-        
-        // Adjust corner radius for OS version
-        if #available(macOS 26.0, *) {
-            visualEffect.layer?.cornerRadius = 18
-        } else {
-            visualEffect.layer?.cornerRadius = 10
-        }
-        
-        self.visualEffectView = visualEffect
-        
-        // Create transparent hosting view
-        let placeholderView = AnyView(EmptyView())
-        hostingView = TransparentHostingView(rootView: placeholderView)
-        hostingView?.translatesAutoresizingMaskIntoConstraints = false
-        
-        // Create a container view that clips to the rounded rect
-        let containerView = ClippingContainerView()
-        containerView.translatesAutoresizingMaskIntoConstraints = false
-        containerView.wantsLayer = true
-        containerView.layer?.masksToBounds = true
-        containerView.layer?.backgroundColor = .clear
-        
-        if #available(macOS 26.0, *) {
-            containerView.layer?.cornerRadius = 18
-        } else {
-            containerView.layer?.cornerRadius = 10
-        }
-        
-        self.contentView = containerView
-        
-        // Add visual effect as background
-        containerView.addSubview(visualEffect)
-        
-        // Add hosting view on top
-        if let hosting = hostingView {
-            containerView.addSubview(hosting)
-            
-            NSLayoutConstraint.activate([
-                // Visual effect fills container
-                visualEffect.topAnchor.constraint(equalTo: containerView.topAnchor),
-                visualEffect.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-                visualEffect.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-                visualEffect.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
-                
-                // Hosting view fills container
-                hosting.topAnchor.constraint(equalTo: containerView.topAnchor),
-                hosting.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-                hosting.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-                hosting.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
-            ])
-        }
-    }
-    
-    func updateContent(_ content: AnyView) {
-        hostingView?.rootView = content
-        
-        // Resize panel to fit content with dynamic height
-        if let hosting = hostingView {
-            let fittingSize = hosting.fittingSize
-            
-            // Validate dimensions to avoid "Invalid frame dimension" errors
-            let width: CGFloat = 300
-            let height = max(50, fittingSize.height.isFinite ? fittingSize.height : 200)
-            
-            let newSize = NSSize(width: width, height: height)
-            self.setContentSize(newSize)
-        }
-    }
-    
-    override var canBecomeKey: Bool { true }
-    
-    // Prevent auto-focus on first responder when panel opens
-    override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
-        // Only allow the panel itself or nil as first responder, not buttons
-        if responder == nil || responder === self.contentView {
-            return super.makeFirstResponder(responder)
-        }
-        return super.makeFirstResponder(self.contentView)
-    }
-    
-    override func resignKey() {
-        super.resignKey()
-        // Close panel when it loses key status (user clicked elsewhere in app)
-        self.orderOut(nil)
+    var body: some View {
+        content
+            .frame(width: width)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-/// Container view that clips content to its bounds with rounded corners
-private final class ClippingContainerView: NSView {
-    override var wantsUpdateLayer: Bool { true }
+// MARK: - Menu Container View
+
+/// Container view for menu items that supports vibrancy
+private final class MenuContainerView: NSView {
     override var allowsVibrancy: Bool { true }
     
-    override func updateLayer() {
-        super.updateLayer()
-        layer?.backgroundColor = .clear
+    override var intrinsicContentSize: NSSize {
+        // Return fitting size based on subviews
+        guard let hostingView = subviews.first else {
+            return NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+        }
+        return hostingView.fittingSize
+    }
+    
+    override func layout() {
+        super.layout()
+        invalidateIntrinsicContentSize()
     }
 }
 
-/// Custom NSHostingView that ensures transparent background
-private final class TransparentHostingView: NSHostingView<AnyView> {
+// MARK: - Menu Hosting View
+
+/// Custom NSHostingView that enables vibrancy and provides accurate height measurement
+private final class MenuHostingView<Content: View>: NSHostingView<Content> {
     
-    required init(rootView: AnyView) {
+    private let fixedWidth: CGFloat
+    
+    override var allowsVibrancy: Bool { true }
+    
+    /// Override intrinsicContentSize to provide accurate sizing for NSMenu
+    override var intrinsicContentSize: NSSize {
+        // Use sizeThatFits for accurate measurement
+        let controller = NSHostingController(rootView: self.rootView)
+        let measured = controller.sizeThatFits(in: CGSize(width: fixedWidth, height: CGFloat.greatestFiniteMagnitude))
+        let height = measured.height.isFinite ? measured.height : 300
+        return NSSize(width: fixedWidth, height: max(50, height))
+    }
+    
+    init(rootView: Content, fixedWidth: CGFloat) {
+        self.fixedWidth = fixedWidth
         super.init(rootView: rootView)
         setupTransparency()
     }
     
-    @MainActor required dynamic init?(coder aDecoder: NSCoder) {
-        super.init(coder: aDecoder)
+    required init(rootView: Content) {
+        self.fixedWidth = 300
+        super.init(rootView: rootView)
         setupTransparency()
+    }
+    
+    @available(*, unavailable)
+    @MainActor @preconcurrency required dynamic init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
     
     private func setupTransparency() {
@@ -293,23 +239,9 @@ private final class TransparentHostingView: NSHostingView<AnyView> {
     
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        
-        // Ensure the view and all layers are transparent
         wantsLayer = true
         layer?.backgroundColor = .clear
-        
-        // Clear any intermediate layer backgrounds
-        func clearLayerBackgrounds(in view: NSView) {
-            view.wantsLayer = true
-            view.layer?.backgroundColor = .clear
-            for subview in view.subviews {
-                clearLayerBackgrounds(in: subview)
-            }
-        }
-        clearLayerBackgrounds(in: self)
     }
-    
-    override var allowsVibrancy: Bool { true }
     
     override func updateLayer() {
         super.updateLayer()
@@ -317,7 +249,9 @@ private final class TransparentHostingView: NSHostingView<AnyView> {
     }
 }
 
-class StatusBarContainerView: NSView {
+// MARK: - Status Bar Container View
+
+final class StatusBarContainerView: NSView {
     override var allowsVibrancy: Bool { true }
     
     override func mouseDown(with event: NSEvent) {
@@ -329,6 +263,8 @@ class StatusBarContainerView: NSView {
     }
 }
 
+// MARK: - Status Bar Default View
+
 struct StatusBarDefaultView: View {
     let isRunning: Bool
     
@@ -338,6 +274,8 @@ struct StatusBarDefaultView: View {
             .frame(height: 22)
     }
 }
+
+// MARK: - Status Bar Quota View
 
 struct StatusBarQuotaView: View {
     let items: [MenuBarQuotaDisplayItem]
@@ -354,6 +292,8 @@ struct StatusBarQuotaView: View {
         .fixedSize()
     }
 }
+
+// MARK: - Status Bar Quota Item View
 
 struct StatusBarQuotaItemView: View {
     let item: MenuBarQuotaDisplayItem

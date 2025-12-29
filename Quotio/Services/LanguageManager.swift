@@ -182,6 +182,8 @@ struct LocalizedStrings {
         "action.delete": [.english: "Delete", .vietnamese: "Xóa"],
         "action.refresh": [.english: "Refresh", .vietnamese: "Làm mới"],
         "action.copyCode": [.english: "Copy Code", .vietnamese: "Sao chép mã"],
+        "action.quit": [.english: "Quit Quotio", .vietnamese: "Thoát Quotio"],
+        "action.openApp": [.english: "Open Quotio", .vietnamese: "Mở Quotio"],
         
         // Empty states
         "empty.proxyNotRunning": [.english: "Proxy Not Running", .vietnamese: "Proxy chưa chạy"],
@@ -434,6 +436,10 @@ struct LocalizedStrings {
         "menubar.trackedAccounts": [.english: "Tracked Accounts", .vietnamese: "Tài khoản theo dõi"],
         "menubar.noAccountsFound": [.english: "No accounts found", .vietnamese: "Không tìm thấy tài khoản"],
         "menubar.noData": [.english: "No quota data available", .vietnamese: "Chưa có dữ liệu quota"],
+        
+        // Menu Bar - Tooltips
+        "menubar.tooltip.openApp": [.english: "Open main window (⌘O)", .vietnamese: "Mở cửa sổ chính (⌘O)"],
+        "menubar.tooltip.quit": [.english: "Quit Quotio (⌘Q)", .vietnamese: "Thoát Quotio (⌘Q)"],
         
         // Actions - New
         "action.refreshQuota": [.english: "Refresh Quota", .vietnamese: "Làm mới Quota"],
