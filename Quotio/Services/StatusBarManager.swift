@@ -146,7 +146,7 @@ final class StatusBarPanel: NSPanel {
     
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -192,12 +192,12 @@ final class StatusBarPanel: NSPanel {
     func updateContent(_ content: AnyView) {
         hostingView?.rootView = content
         
-        // Resize panel to fit content
+        // Resize panel to fit content with dynamic height
         if let hosting = hostingView {
             let fittingSize = hosting.fittingSize
             let newSize = NSSize(
-                width: max(320, fittingSize.width),
-                height: min(600, max(100, fittingSize.height))
+                width: 300,  // Fixed width for menu bar panel
+                height: fittingSize.height  // Dynamic height based on content
             )
             self.setContentSize(newSize)
         }

@@ -433,6 +433,7 @@ struct LocalizedStrings {
         "menubar.quotaMode": [.english: "Quota Monitor", .vietnamese: "Theo dõi Quota"],
         "menubar.trackedAccounts": [.english: "Tracked Accounts", .vietnamese: "Tài khoản theo dõi"],
         "menubar.noAccountsFound": [.english: "No accounts found", .vietnamese: "Không tìm thấy tài khoản"],
+        "menubar.noData": [.english: "No quota data available", .vietnamese: "Chưa có dữ liệu quota"],
         
         // Actions - New
         "action.refreshQuota": [.english: "Refresh Quota", .vietnamese: "Làm mới Quota"],
