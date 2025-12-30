@@ -1,4 +1,4 @@
-# Quotio Release Guide
+# CKota Release Guide
 
 ## Prerequisites (One-time Setup)
 
@@ -13,13 +13,13 @@ gh auth login
 # Run once to generate EdDSA keys (stored in Keychain)
 ./.sparkle/bin/generate_keys
 
-# Copy the public key to Quotio/Info.plist -> SUPublicEDKey
+# Copy the public key to CKota/Info.plist -> SUPublicEDKey
 ```
 
 ### 3. (Optional) Setup Notarization
 ```bash
 # Only if you have Apple Developer ID
-xcrun notarytool store-credentials "quotio-notarization" \
+xcrun notarytool store-credentials "ckota-notarization" \
     --apple-id "your@email.com" \
     --team-id "YOUR_TEAM_ID"
 ```
@@ -63,15 +63,15 @@ xcrun notarytool store-credentials "quotio-notarization" \
 
 #### 5. Create GitHub Release
 ```bash
-VERSION=$(grep -m1 "MARKETING_VERSION" Quotio.xcodeproj/project.pbxproj | sed 's/.*= \(.*\);/\1/')
+VERSION=$(grep -m1 "MARKETING_VERSION" CKota.xcodeproj/project.pbxproj | sed 's/.*= \(.*\);/\1/')
 
 git tag -a "v${VERSION}" -m "Release ${VERSION}"
 git push origin "v${VERSION}"
 
 gh release create "v${VERSION}" \
-    --title "Quotio ${VERSION}" \
+    --title "CKota ${VERSION}" \
     --generate-notes \
-    build/release/Quotio-${VERSION}.zip \
+    build/release/CKota-${VERSION}.zip \
     build/release/appcast.xml
 ```
 

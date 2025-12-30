@@ -1,130 +1,101 @@
-# Quotio
+# CKota
 
-![Quotio Banner](screenshots/menu_bar.png)
+<p align="center">
+  <img src="screenshots/home.png" width="600" alt="CKota Home" />
+</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey.svg?style=flat" alt="Platform macOS" />
-  <img src="https://img.shields.io/badge/language-Swift-orange.svg?style=flat" alt="Language Swift" />
+  <img src="https://img.shields.io/badge/Swift_6-F05138.svg?style=flat" alt="Swift 6" />
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" alt="License MIT" />
   <a href="README.md"><img src="https://img.shields.io/badge/lang-English-blue.svg?style=flat" alt="English" /></a>
 </p>
 
+Ứng dụng menu bar macOS để quản lý tài khoản AI coding. CKota bọc [CLIProxyAPI](https://github.com/synh/CLIProxyAPI) - proxy cục bộ phân phối request qua nhiều tài khoản provider.
+
+Theo dõi quota của Claude Code, Antigravity, Gemini, Codex, Copilot và nhiều hơn nữa. Xem ngay tài khoản nào sẵn sàng, đang nghỉ, hay đã hết quota.
+
+**v0.2.2** | macOS 15.0+ | [Tài liệu](./docs/)
+
+## Cài đặt
+
+Tải [bản release mới nhất](https://github.com/synh/CKota/releases) hoặc build từ source:
+
+```bash
+git clone https://github.com/synh/CKota.git
+cd CKota && open CKota.xcodeproj
+# Cmd + R để build và chạy
+```
+
+Binary proxy tự động tải về khi chạy lần đầu.
+
+## Ảnh chụp màn hình
+
+| Trang chủ | Phân tích |
+|-----------|-----------|
+| ![Trang chủ](screenshots/home.png) | ![Phân tích](screenshots/analytics.png) |
+
+| Tài khoản | Cài đặt |
+|-----------|---------|
+| ![Tài khoản](screenshots/accounts.png) | ![Cài đặt](screenshots/settings.png) |
+
 <p align="center">
-  <strong>Trung tâm điều khiển cho các trợ lý lập trình AI trên macOS.</strong>
+  <img src="screenshots/MenuBar.png" width="300" alt="Menu Bar" />
 </p>
 
-Quotio là ứng dụng macOS để quản lý **CLIProxyAPI** - máy chủ proxy cục bộ cung cấp sức mạnh cho các agent lập trình AI. Quotio giúp bạn quản lý nhiều tài khoản AI, theo dõi hạn mức sử dụng và cấu hình các công cụ CLI tại một nơi.
+## Chức năng
 
-## ✨ Tính năng
+**Hai chế độ:**
+- **Full Mode** - Chạy proxy server, quản lý tài khoản, cấu hình CLI agent
+- **Quota Monitor** - Chỉ theo dõi quota, không chạy proxy (nhẹ hơn)
 
-- **🔌 Hỗ trợ Đa nhà cung cấp**: Kết nối tài khoản từ Gemini, Claude, OpenAI Codex, Qwen, Vertex AI, iFlow, Antigravity, Kiro, và GitHub Copilot qua OAuth hoặc API key.
-- **🚀 Cấu hình Agent Một chạm**: Tự động phát hiện và cấu hình các công cụ như Claude Code, OpenCode, Gemini CLI.
-- **📊 Dashboard Thời gian thực**: Giám sát lưu lượng, token sử dụng và tỷ lệ thành công.
-- **📉 Quản lý Hạn mức**: Theo dõi quota từng tài khoản với chiến lược chuyển đổi tự động (Round Robin / Fill First).
-- **🔑 Quản lý API Key**: Tạo và quản lý các khóa API cho proxy.
-- **🖥️ Menu Bar**: Truy cập nhanh trạng thái, tổng quan quota và biểu tượng provider tùy chỉnh từ thanh menu.
-- **🔔 Thông báo**: Cảnh báo khi hạn mức thấp, tài khoản đang nghỉ, hoặc lỗi dịch vụ.
-- **🔄 Tự động Cập nhật**: Tích hợp Sparkle updater để cập nhật liền mạch.
-- **🌍 Đa ngôn ngữ**: Hỗ trợ tiếng Anh và tiếng Việt.
+**Quản lý tài khoản:**
+- Đăng nhập OAuth cho các provider được hỗ trợ (Claude, Antigravity, v.v.)
+- Trạng thái: Sẵn sàng (xanh), Đang nghỉ (cam), Hết quota (đỏ)
+- Chi tiết quota từng tài khoản kèm thời gian reset
 
-## 📸 Hình ảnh
+**Menu bar:**
+- Xem nhanh các tài khoản quota thấp nhất
+- Icon màu hoặc đơn sắc tùy chọn
 
-| Bảng điều khiển | Nhà cung cấp |
-|:---:|:---:|
-| ![Bảng điều khiển](screenshots/dashboard.png) | ![Nhà cung cấp](screenshots/providers.png) |
-| **Cài đặt Agent** | **Giám sát Hạn mức** |
-| ![Cài đặt Agent](screenshots/agent_setup.png) | ![Giám sát Hạn mức](screenshots/quota.png) |
-| **Menu Bar** | |
-| ![Menu Bar](screenshots/menu_bar.png) | |
+## Provider
 
-## 🤖 Hệ sinh thái hỗ trợ
+Claude Code, Antigravity
 
-### Nhà cung cấp AI
-| Provider | Phương thức xác thực |
-|----------|----------------------|
-| Google Gemini | OAuth |
-| Anthropic Claude | OAuth |
-| OpenAI Codex | OAuth |
-| Qwen Code | OAuth |
-| Vertex AI | Service Account JSON |
-| iFlow | OAuth |
-| Antigravity | OAuth |
-| Kiro | OAuth |
-| GitHub Copilot | OAuth |
+## Cách dùng
 
-### Agent tương thích
-Quotio có thể tự động cấu hình các công cụ sau:
-- Claude Code
-- Codex CLI
-- Gemini CLI
-- Amp CLI
-- OpenCode
-- Factory Droid
+1. Khởi động CKota, chọn Full Mode hoặc Quota Monitor
+2. Vào **Accounts** và thêm tài khoản provider qua OAuth
+3. Xem **Analytics** để theo dõi chi tiết quota từng tài khoản
+4. Menu bar hiển thị các tài khoản hàng đầu
 
-## 🚀 Cài đặt
+Cài đặt cho phép cấu hình ngôn ngữ (EN/VI), giao diện, khởi động cùng hệ thống, và thông báo.
 
-### Yêu cầu
-- macOS 15.0 (Sequoia) trở lên
-- Kết nối internet để xác thực OAuth
+## Kiến trúc
 
-### Tải xuống
-Tải file `.dmg` mới nhất từ trang [Releases](https://github.com/nguyenphutrong/quotio/releases).
+SwiftUI + MVVM với async/await. Ứng dụng giao tiếp với CLIProxyAPI qua REST để quản lý tài khoản và lấy quota.
 
-> ⚠️ **Lưu ý**: Ứng dụng chưa được ký bằng chứng chỉ Apple Developer. Nếu macOS chặn ứng dụng, chạy lệnh sau:
-> ```bash
-> xattr -cr /Applications/Quotio.app
-> ```
+```
+Views → ViewModels (@Observable) → Services → CLIProxyAPI
+```
 
-### Build từ source
+File quan trọng:
+- `CKotaApp.swift` - Entry point, setup menu bar
+- `ViewModels/QuotaViewModel.swift` - State trung tâm
+- `Services/CLIProxyManager.swift` - Quản lý vòng đời proxy
+- `Services/*QuotaFetcher.swift` - API quota theo provider
 
-1. **Clone repo:**
-   ```bash
-   git clone https://github.com/nguyenphutrong/quotio.git
-   cd Quotio
-   ```
+## Tài liệu
 
-2. **Mở trong Xcode:**
-   ```bash
-   open Quotio.xcodeproj
-   ```
+- [Tổng quan dự án](docs/project-overview-pdr.md)
+- [Quy chuẩn code](docs/code-standards.md)
+- [Kiến trúc hệ thống](docs/system-architecture.md)
+- [Tóm tắt codebase](docs/codebase-summary.md)
 
-3. **Build và chạy:**
-   - Chọn scheme "Quotio"
-   - Nhấn `Cmd + R`
+## Đóng góp
 
-> Ứng dụng sẽ tự động tải binary `CLIProxyAPI` trong lần chạy đầu tiên.
+Fork, tạo nhánh, PR. Tuân thủ [quy chuẩn code](docs/code-standards.md). Xem [CLAUDE.md](CLAUDE.md) cho quy trình phát triển.
 
-## 📖 Hướng dẫn sử dụng
+## Giấy phép
 
-### 1. Khởi động Server
-Mở Quotio và nhấn **Start** trên dashboard để khởi động proxy server.
-
-### 2. Kết nối Tài khoản
-Vào tab **Providers** → Chọn provider → Xác thực qua OAuth hoặc import credentials.
-
-### 3. Cấu hình Agent
-Vào tab **Agents** → Chọn agent đã cài → Nhấn **Configure** → Chọn Automatic hoặc Manual.
-
-### 4. Giám sát
-- **Dashboard**: Tình trạng chung và lưu lượng
-- **Quota**: Chi tiết sử dụng từng tài khoản
-- **Logs**: Nhật ký request/response để debug
-
-## ⚙️ Cài đặt
-
-- **Port**: Đổi cổng proxy
-- **Chiến lược định tuyến**: Round Robin hoặc Fill First
-- **Auto-start**: Tự động khởi động proxy khi mở app
-- **Notifications**: Bật/tắt thông báo
-
-## 🤝 Đóng góp
-
-1. Fork dự án
-2. Tạo nhánh (`git checkout -b feature/tinh-nang-moi`)
-3. Commit (`git commit -m 'Thêm tính năng mới'`)
-4. Push (`git push origin feature/tinh-nang-moi`)
-5. Mở Pull Request
-
-## 📄 Giấy phép
-
-MIT License. Xem file `LICENSE` để biết thêm.
+MIT

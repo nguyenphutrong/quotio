@@ -1,0 +1,30 @@
+# SwiftFormat configuration for CKota
+# Install: brew install swiftformat
+# Run: swiftformat .
+
+# Swift version
+--swiftversion 5.9
+
+# File options
+--exclude Pods,Build,.build,DerivedData
+
+# Formatting rules
+--indent 4
+--indentcase false
+--trimwhitespace always
+--linebreaks lf
+--maxwidth 120
+
+# Enable specific rules
+--enable trailingSpace
+--enable blankLinesAtEndOfScope
+--enable blankLinesAtStartOfScope
+--enable consecutiveBlankLines
+--enable consecutiveSpaces
+
+# Trailing space handling (main request)
+--trimwhitespace always
+
+# Preserve structure
+--self init-only
+--importgrouping testable-last

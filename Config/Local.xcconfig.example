@@ -12,13 +12,13 @@
 // ========================
 
 // Development Bundle Identifier (separate from production)
-PRODUCT_BUNDLE_IDENTIFIER = proseek.io.vn.Quotio.dev
+PRODUCT_BUNDLE_IDENTIFIER = proseek.io.vn.ckota.dev
 
 // Development App Name (to distinguish in Dock/Finder)
-PRODUCT_NAME = Quotio Dev
+PRODUCT_NAME = CKota Dev
 
 // Display name shown under app icon
-INFOPLIST_KEY_CFBundleDisplayName = Quotio Dev
+INFOPLIST_KEY_CFBundleDisplayName = CKota Dev
 
 // Development App Icon (uses AppIconDev instead of AppIcon)
 ASSETCATALOG_COMPILER_APPICON_NAME = AppIconDev
@@ -26,16 +26,16 @@ ASSETCATALOG_COMPILER_APPICON_NAME = AppIconDev
 // ========================
 // CREATING USER SCHEME IN XCODE:
 // ========================
-// 1. Open Quotio.xcodeproj in Xcode
+// 1. Open CKota.xcodeproj in Xcode
 // 2. Click on scheme selector (top left, next to Stop button)
 // 3. Click "Manage Schemes..."
-// 4. Select "Quotio" scheme → Click "Duplicate" (or press Cmd+D)
-// 5. Rename to "Quotio Dev"
+// 4. Select "CKota" scheme → Click "Duplicate" (or press Cmd+D)
+// 5. Rename to "CKota Dev"
 // 6. IMPORTANT: Uncheck "Shared" checkbox (this makes it user-only, not tracked by git)
 // 7. Click "Close"
 //
-// Now use "Quotio Dev" scheme for development!
-// The production "Quotio" scheme remains unchanged.
+// Now use "CKota Dev" scheme for development!
+// The production "CKota" scheme remains unchanged.
 // ========================
 
 // Optional: You can also override other settings here
