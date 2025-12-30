@@ -8,6 +8,38 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Privacy String Extension
+
+extension String {
+    /// Masks sensitive information with asterisks (*)
+    /// Email: `john.doe@gmail.com` → `********@*****.com`
+    /// Other: `account-name` → `************`
+    func masked() -> String {
+        // Check if it's an email
+        if self.contains("@") {
+            let components = self.split(separator: "@", maxSplits: 1)
+            if components.count == 2 {
+                let localPart = String(repeating: "*", count: min(components[0].count, 8))
+                let domainParts = components[1].split(separator: ".", maxSplits: 1)
+                if domainParts.count == 2 {
+                    let domainName = String(repeating: "*", count: min(domainParts[0].count, 5))
+                    return "\(localPart)@\(domainName).\(domainParts[1])"
+                }
+                return "\(localPart)@\(String(repeating: "*", count: 5))"
+            }
+        }
+        
+        // For non-email strings, mask entirely but keep reasonable length
+        let maskedLength = min(self.count, 12)
+        return String(repeating: "*", count: max(maskedLength, 4))
+    }
+    
+    /// Conditionally masks the string based on a flag
+    func masked(if shouldMask: Bool) -> String {
+        shouldMask ? masked() : self
+    }
+}
+
 // MARK: - Menu Bar Quota Item
 
 /// Represents a single item selected for menu bar display
@@ -176,6 +208,7 @@ final class MenuBarSettingsManager {
     private let showMenuBarIconKey = "showMenuBarIcon"
     private let showQuotaKey = "menuBarShowQuota"
     private let quotaDisplayModeKey = "quotaDisplayMode"
+    private let hideSensitiveInfoKey = "hideSensitiveInfo"
     
     /// Whether to show menu bar icon at all
     var showMenuBarIcon: Bool {
@@ -202,6 +235,11 @@ final class MenuBarSettingsManager {
         didSet { defaults.set(quotaDisplayMode.rawValue, forKey: quotaDisplayModeKey) }
     }
     
+    /// Whether to hide sensitive information (emails, account names)
+    var hideSensitiveInfo: Bool {
+        didSet { defaults.set(hideSensitiveInfo, forKey: hideSensitiveInfoKey) }
+    }
+    
     /// Threshold for warning when adding more items
     let warningThreshold = 3
     
@@ -226,6 +264,7 @@ final class MenuBarSettingsManager {
         self.colorMode = MenuBarColorMode(rawValue: defaults.string(forKey: colorModeKey) ?? "") ?? .colored
         self.quotaDisplayMode = QuotaDisplayMode(rawValue: defaults.string(forKey: quotaDisplayModeKey) ?? "") ?? .used
         self.selectedItems = Self.loadSelectedItems(from: defaults, key: selectedItemsKey)
+        self.hideSensitiveInfo = defaults.bool(forKey: hideSensitiveInfoKey)
     }
     
     private func saveSelectedItems() {

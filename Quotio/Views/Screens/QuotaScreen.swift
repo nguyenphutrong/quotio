@@ -359,6 +359,7 @@ private struct AccountInfo {
 
 private struct AccountQuotaCardV2: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @State private var settings = MenuBarSettingsManager.shared
     let provider: AIProvider
     let account: AccountInfo
     let isLoading: Bool
@@ -368,6 +369,10 @@ private struct AccountQuotaCardV2: View {
     private var hasQuotaData: Bool {
         guard let data = account.quotaData else { return false }
         return !data.models.isEmpty
+    }
+    
+    private var displayEmail: String {
+        account.email.masked(if: settings.hideSensitiveInfo)
     }
     
     var body: some View {
@@ -405,7 +410,7 @@ private struct AccountQuotaCardV2: View {
             
             // Email
             VStack(alignment: .leading, spacing: 2) {
-                Text(account.email)
+                Text(displayEmail)
                     .font(.headline)
                     .lineLimit(1)
                 

@@ -74,6 +74,9 @@ struct SettingsScreen: View {
             // Appearance
             AppearanceSettingsSection()
             
+            // Privacy
+            PrivacySettingsSection()
+            
             // Proxy Server - Only in Full Mode
             if modeManager.isFullMode {
                 Section {
@@ -1173,6 +1176,29 @@ struct AppearanceSettingsSection: View {
             Label("settings.appearance.title".localized(), systemImage: "paintbrush")
         } footer: {
             Text("settings.appearance.help".localized())
+        }
+    }
+}
+
+// MARK: - Privacy Settings Section
+
+struct PrivacySettingsSection: View {
+    @State private var settings = MenuBarSettingsManager.shared
+    
+    private var hideSensitiveBinding: Binding<Bool> {
+        Binding(
+            get: { settings.hideSensitiveInfo },
+            set: { settings.hideSensitiveInfo = $0 }
+        )
+    }
+    
+    var body: some View {
+        Section {
+            Toggle("settings.privacy.hideSensitive".localized(), isOn: hideSensitiveBinding)
+        } header: {
+            Label("settings.privacy".localized(), systemImage: "eye.slash")
+        } footer: {
+            Text("settings.privacy.hideSensitiveHelp".localized())
         }
     }
 }

@@ -286,6 +286,12 @@ private struct StatusBadge: View {
 private struct AccountRow: View {
     let account: AuthFile
     var quotaData: ProviderQuotaData?
+    @State private var settings = MenuBarSettingsManager.shared
+    
+    private var displayName: String {
+        let name = account.email ?? account.name
+        return name.masked(if: settings.hideSensitiveInfo)
+    }
     
     var body: some View {
         HStack(spacing: 8) {
@@ -293,7 +299,7 @@ private struct AccountRow: View {
                 .fill(account.statusColor)
                 .frame(width: 8, height: 8)
             
-            Text(account.email ?? account.name)
+            Text(displayName)
                 .font(.caption)
                 .lineLimit(1)
             

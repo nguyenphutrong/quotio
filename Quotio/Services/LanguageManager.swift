@@ -533,6 +533,11 @@ struct LocalizedStrings {
         "settings.proxyUpdate.deleteWarning.title": [.english: "Old Versions Will Be Deleted", .vietnamese: "Phiên bản cũ sẽ bị xóa", .chinese: "旧版本将被删除"],
         "settings.proxyUpdate.deleteWarning.message": [.english: "Installing this version will delete the following old versions to keep only %d most recent: %@", .vietnamese: "Cài đặt phiên bản này sẽ xóa các phiên bản cũ sau để chỉ giữ lại %d phiên bản gần nhất: %@", .chinese: "安装此版本将删除以下旧版本，仅保留最近的 %d 个：%@"],
         "settings.proxyUpdate.deleteWarning.confirm": [.english: "Install Anyway", .vietnamese: "Vẫn cài đặt", .chinese: "仍然安装"],
+        
+        // Privacy Settings
+        "settings.privacy": [.english: "Privacy", .vietnamese: "Riêng tư", .chinese: "隐私"],
+        "settings.privacy.hideSensitive": [.english: "Hide Sensitive Information", .vietnamese: "Ẩn thông tin nhạy cảm", .chinese: "隐藏敏感信息"],
+        "settings.privacy.hideSensitiveHelp": [.english: "Masks emails and account names with ● characters across the app", .vietnamese: "Che email và tên tài khoản bằng ký tự ● trong toàn bộ ứng dụng", .chinese: "在应用中使用 ● 字符隐藏邮箱和账户名称"],
     ]
     
     static func get(_ key: String, language: AppLanguage) -> String {

@@ -377,6 +377,11 @@ private struct MenuBarQuotaCard: View {
     let provider: AIProvider
     
     @State private var isHovered = false
+    @State private var settings = MenuBarSettingsManager.shared
+    
+    private var displayEmail: String {
+        email.masked(if: settings.hideSensitiveInfo)
+    }
     
     // For Antigravity: use grouped models
     private var isAntigravity: Bool {
@@ -443,7 +448,7 @@ private struct MenuBarQuotaCard: View {
     
     private var cardHeader: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(email)
+            Text(displayEmail)
                 .font(.system(size: 12, weight: .medium))
                 .lineLimit(1)
             

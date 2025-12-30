@@ -385,6 +385,11 @@ struct DirectAuthFileRow: View {
         settings.isSelected(menuBarItem)
     }
     
+    private var displayName: String {
+        let name = file.email ?? file.filename
+        return name.masked(if: settings.hideSensitiveInfo)
+    }
+    
     private func handleToggle() {
         if isSelected {
             settings.toggleItem(menuBarItem)
@@ -400,7 +405,7 @@ struct DirectAuthFileRow: View {
             ProviderIcon(provider: file.provider, size: 24)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(file.email ?? file.filename)
+                Text(displayName)
                     .fontWeight(.medium)
                 
                 HStack(spacing: 6) {
@@ -466,6 +471,11 @@ struct AuthFileRow: View {
         return settings.isSelected(item)
     }
     
+    private var displayName: String {
+        let name = file.email ?? file.name
+        return name.masked(if: settings.hideSensitiveInfo)
+    }
+    
     private func handleToggle() {
         guard let item = menuBarItem else { return }
         if isSelected {
@@ -489,7 +499,7 @@ struct AuthFileRow: View {
             }
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(file.email ?? file.name)
+                Text(displayName)
                     .fontWeight(.medium)
                 
                 HStack(spacing: 6) {
@@ -584,6 +594,10 @@ struct AutoDetectedAccountRow: View {
         settings.isSelected(menuBarItem)
     }
     
+    private var displayAccountKey: String {
+        accountKey.masked(if: settings.hideSensitiveInfo)
+    }
+    
     private func handleToggle() {
         if isSelected {
             settings.toggleItem(menuBarItem)
@@ -599,7 +613,7 @@ struct AutoDetectedAccountRow: View {
             ProviderIcon(provider: provider, size: 24)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(accountKey)
+                Text(displayAccountKey)
                     .fontWeight(.medium)
                 
                 HStack(spacing: 6) {
