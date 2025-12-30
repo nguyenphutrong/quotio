@@ -323,4 +323,5 @@ struct IDEScanSheet: View {
 
 #Preview {
     IDEScanSheet(onScanComplete: {})
+        .environment(QuotaViewModel())
 }

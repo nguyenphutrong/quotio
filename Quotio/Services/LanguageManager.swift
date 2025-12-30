@@ -514,8 +514,6 @@ struct LocalizedStrings {
         "ideScan.complete": [.english: "Scan Complete", .vietnamese: "Quét hoàn tất"],
         "ideScan.notFound": [.english: "Not found", .vietnamese: "Không tìm thấy"],
         "ideScan.error": [.english: "Scan Error", .vietnamese: "Lỗi quét"],
-        "ideScan.button": [.english: "Scan for IDEs", .vietnamese: "Quét IDE"],
-        "ideScan.button.hint": [.english: "Detect Cursor, Trae, and CLI tools", .vietnamese: "Phát hiện Cursor, Trae và công cụ CLI"],
         "ideScan.buttonSubtitle": [.english: "Detect Cursor, Trae, and CLI tools", .vietnamese: "Phát hiện Cursor, Trae và công cụ CLI"],
         "ideScan.sectionTitle": [.english: "Detect IDEs", .vietnamese: "Phát hiện IDE"],
         "ideScan.sectionFooter": [.english: "Scan for installed IDEs and CLI tools to track their quotas", .vietnamese: "Quét IDE và công cụ CLI đã cài đặt để theo dõi quota"],

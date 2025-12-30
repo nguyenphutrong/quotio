@@ -901,6 +901,9 @@ final class QuotaViewModel {
                 cursorFound = true
                 cursorEmail = quotas.keys.first
                 providerQuotas[.cursor] = quotas
+            } else {
+                // Clear stale data when not found (consistent with refreshCursorQuotasInternal)
+                providerQuotas.removeValue(forKey: .cursor)
             }
         }
         
@@ -911,6 +914,9 @@ final class QuotaViewModel {
                 traeFound = true
                 traeEmail = quotas.keys.first
                 providerQuotas[.trae] = quotas
+            } else {
+                // Clear stale data when not found (consistent with refreshTraeQuotasInternal)
+                providerQuotas.removeValue(forKey: .trae)
             }
         }
         

@@ -83,9 +83,8 @@ struct ProvidersScreen: View {
             Text("providers.proxyRequired.message".localized())
         }
         .sheet(isPresented: $showIDEScanSheet) {
-            IDEScanSheet {
-                Task { await viewModel.refreshQuotasUnified() }
-            }
+            // Quotas are already updated by scanIDEsWithConsent() inside IDEScanSheet
+            IDEScanSheet {}
             .environment(viewModel)
         }
     }
