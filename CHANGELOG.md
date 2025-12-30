@@ -12,8 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Privacy**: Reduce file system access to address macOS privacy warnings (#29)
   - Remove Cursor and Trae from auto-refresh - require explicit user scan
   - Add "Scan for IDEs" button with consent dialog on Providers screen
-  - Simplify binary detection to use `which` command + 2 fallback paths
   - No persistent storage of scan consent - cleared on app restart
+
+- **Agent Detection**: Restore CLI binary paths for proper detection
+  - Issue: GUI apps don't inherit user's shell PATH, causing `which` to fail
+  - Re-add common paths: ~/.local/bin, ~/.bun/bin, ~/.cargo/bin, ~/.deno/bin
+  - Add tool-specific: ~/.opencode/bin
+  - Add version manager support: nvm, fnm, Volta, asdf, mise
+  - Note: Binary detection only checks file existence (metadata), not content
 
 ### Added
 

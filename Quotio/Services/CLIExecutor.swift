@@ -29,11 +29,26 @@ actor CLIExecutor {
     
     private init() {}
     
-    /// Common CLI binary paths to search (simplified to reduce file system access)
-    /// Addresses issue #29 - only check common system paths after 'which'
+    /// Common CLI binary paths to search
+    /// NOTE: Only checks file existence (metadata), does NOT read file content
     private let searchPaths = [
+        // System paths
         "/usr/local/bin",
-        "/opt/homebrew/bin"
+        "/opt/homebrew/bin",
+        "/usr/bin",
+        // User local
+        "~/.local/bin",
+        // Package managers
+        "~/.cargo/bin",          // Rust/Cargo
+        "~/.bun/bin",            // Bun (gemini-cli)
+        "~/.deno/bin",           // Deno
+        "~/.npm-global/bin",     // npm global
+        // Tool-specific
+        "~/.opencode/bin",       // OpenCode
+        // Version managers (static shim paths)
+        "~/.volta/bin",          // Volta
+        "~/.asdf/shims",         // asdf
+        "~/.local/share/mise/shims", // mise
     ]
     
     // MARK: - Binary Detection
@@ -46,12 +61,47 @@ actor CLIExecutor {
             return whichResult.output.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         
-        // Search common paths
+        // Search common static paths
         for searchPath in searchPaths {
             let expandedPath = NSString(string: searchPath).expandingTildeInPath
             let binaryPath = (expandedPath as NSString).appendingPathComponent(name)
             if FileManager.default.isExecutableFile(atPath: binaryPath) {
                 return binaryPath
+            }
+        }
+        
+        // Search version manager paths (nvm, fnm)
+        if let path = findInVersionManagerPaths(named: name) {
+            return path
+        }
+        
+        return nil
+    }
+    
+    /// Find binary in version managers with versioned subdirectories
+    private func findInVersionManagerPaths(named name: String) -> String? {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let fileManager = FileManager.default
+        
+        // nvm: ~/.nvm/versions/node/v*/bin/
+        let nvmBase = "\(home)/.nvm/versions/node"
+        if let versions = try? fileManager.contentsOfDirectory(atPath: nvmBase) {
+            for version in versions.sorted().reversed() {
+                let binPath = "\(nvmBase)/\(version)/bin/\(name)"
+                if fileManager.isExecutableFile(atPath: binPath) {
+                    return binPath
+                }
+            }
+        }
+        
+        // fnm: ~/.fnm/node-versions/v*/installation/bin/
+        let fnmBase = "\(home)/.fnm/node-versions"
+        if let versions = try? fileManager.contentsOfDirectory(atPath: fnmBase) {
+            for version in versions.sorted().reversed() {
+                let binPath = "\(fnmBase)/\(version)/installation/bin/\(name)"
+                if fileManager.isExecutableFile(atPath: binPath) {
+                    return binPath
+                }
             }
         }
         
