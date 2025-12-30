@@ -29,14 +29,11 @@ actor CLIExecutor {
     
     private init() {}
     
-    /// Common CLI binary paths to search
+    /// Common CLI binary paths to search (simplified to reduce file system access)
+    /// Addresses issue #29 - only check common system paths after 'which'
     private let searchPaths = [
         "/usr/local/bin",
-        "/opt/homebrew/bin",
-        "/usr/bin",
-        "~/.local/bin",
-        "~/.cargo/bin",
-        "/opt/local/bin"
+        "/opt/homebrew/bin"
     ]
     
     // MARK: - Binary Detection

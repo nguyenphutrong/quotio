@@ -57,37 +57,25 @@ actor AgentDetectionService {
         )
     }
     
+    /// Find binary using 'which' command + fallback to common paths
+    /// Simplified to reduce file system access (addresses issue #29)
     private func findBinary(names: [String]) async -> (found: Bool, path: String?) {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        
         for name in names {
-            let commonPaths = [
-                // System paths
+            // Primary: use which (respects user's $PATH)
+            if let path = await whichCommand(name) {
+                return (true, path)
+            }
+            
+            // Fallback: only 2 common system paths
+            let fallbackPaths = [
                 "/usr/local/bin/\(name)",
-                "/opt/homebrew/bin/\(name)",
-                "/usr/bin/\(name)",
-                // User local paths
-                "\(home)/.local/bin/\(name)",
-                // Package manager paths
-                "\(home)/.cargo/bin/\(name)",
-                "\(home)/.npm-global/bin/\(name)",
-                "\(home)/.bun/bin/\(name)",
-                // Tool-specific paths
-                "\(home)/.opencode/bin/\(name)",
-                "\(home)/.droid/bin/\(name)",
-                // Node global paths
-                "/usr/local/lib/node_modules/.bin/\(name)",
-                "\(home)/.nvm/versions/node/*/bin/\(name)"
+                "/opt/homebrew/bin/\(name)"
             ]
             
-            for path in commonPaths {
+            for path in fallbackPaths {
                 if FileManager.default.isExecutableFile(atPath: path) {
                     return (true, path)
                 }
-            }
-            
-            if let path = await whichCommand(name) {
-                return (true, path)
             }
         }
         return (false, nil)

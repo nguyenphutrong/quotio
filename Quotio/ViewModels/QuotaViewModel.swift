@@ -44,6 +44,10 @@ final class QuotaViewModel {
     /// Last quota refresh time (for quota-only mode display)
     var lastQuotaRefreshTime: Date?
     
+    /// IDE Scan state
+    var showIDEScanSheet = false
+    private let ideScanSettings = IDEScanSettingsManager.shared
+    
     private var _agentSetupViewModel: AgentSetupViewModel?
     var agentSetupViewModel: AgentSetupViewModel {
         if let vm = _agentSetupViewModel {
@@ -113,24 +117,24 @@ final class QuotaViewModel {
     }
     
     /// Refresh quotas directly without proxy (for Quota-Only Mode)
+    /// Note: Cursor and Trae are NOT auto-refreshed - user must use "Scan for IDEs" (issue #29)
     func refreshQuotasDirectly() async {
         guard !isLoadingQuotas else { return }
         
         isLoadingQuotas = true
         lastQuotaRefreshTime = Date()
         
-        // Fetch from all available fetchers in parallel
-        // These fetchers use CLI commands or browser cookies directly
+        // Fetch from available fetchers in parallel
+        // Note: Cursor and Trae removed from auto-refresh to address privacy concerns (issue #29)
+        // User must explicitly scan for IDEs to detect Cursor/Trae quotas
         async let antigravity: () = refreshAntigravityQuotasInternal()
         async let openai: () = refreshOpenAIQuotasInternal()
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        async let cursor: () = refreshCursorQuotasInternal()
         async let codexCLI: () = refreshCodexCLIQuotasInternal()
         async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-        async let trae: () = refreshTraeQuotasInternal()
         
-        _ = await (antigravity, openai, copilot, claudeCode, cursor, codexCLI, geminiCLI, trae)
+        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI)
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -397,14 +401,14 @@ final class QuotaViewModel {
         isLoadingQuotas = true
         lastQuotaRefresh = Date()
         
+        // Note: Cursor and Trae removed from auto-refresh (issue #29)
+        // User must use "Scan for IDEs" to detect these
         async let antigravity: () = refreshAntigravityQuotasInternal()
         async let openai: () = refreshOpenAIQuotasInternal()
         async let copilot: () = refreshCopilotQuotasInternal()
-        async let cursor: () = refreshCursorQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        async let trae: () = refreshTraeQuotasInternal()
         
-        _ = await (antigravity, openai, copilot, cursor, claudeCode, trae)
+        _ = await (antigravity, openai, copilot, claudeCode)
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -415,6 +419,7 @@ final class QuotaViewModel {
     /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
     /// In Full Mode: uses direct fetchers (works without proxy)
     /// In Quota-Only Mode: uses direct fetchers + CLI fetchers
+    /// Note: Cursor and Trae require explicit user scan (issue #29)
     func refreshQuotasUnified() async {
         guard !isLoadingQuotas else { return }
         
@@ -422,21 +427,20 @@ final class QuotaViewModel {
         lastQuotaRefreshTime = Date()
         lastQuotaRefresh = Date()
         
-        // Always refresh direct fetchers (these don't need proxy)
+        // Refresh direct fetchers (these don't need proxy)
+        // Note: Cursor and Trae removed - require explicit scan (issue #29)
         async let antigravity: () = refreshAntigravityQuotasInternal()
         async let openai: () = refreshOpenAIQuotasInternal()
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        async let cursor: () = refreshCursorQuotasInternal()
-        async let trae: () = refreshTraeQuotasInternal()
         
         // In Quota-Only Mode, also include CLI fetchers
         if modeManager.isQuotaOnlyMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
             async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-            _ = await (antigravity, openai, copilot, claudeCode, cursor, trae, codexCLI, geminiCLI)
+            _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI)
         } else {
-            _ = await (antigravity, openai, copilot, claudeCode, cursor, trae)
+            _ = await (antigravity, openai, copilot, claudeCode)
         }
         
         checkQuotaNotifications()
@@ -867,6 +871,65 @@ final class QuotaViewModel {
                 }
             }
         }
+    }
+    
+    // MARK: - IDE Scan with Consent
+    
+    /// Scan IDEs with explicit user consent - addresses issue #29
+    /// Only scans what the user has opted into
+    func scanIDEsWithConsent(options: IDEScanOptions) async {
+        ideScanSettings.setScanningState(true)
+        
+        var cursorFound = false
+        var cursorEmail: String?
+        var traeFound = false
+        var traeEmail: String?
+        var cliToolsFound: [String] = []
+        
+        // Scan Cursor if opted in
+        if options.scanCursor {
+            let quotas = await cursorFetcher.fetchAsProviderQuota()
+            if !quotas.isEmpty {
+                cursorFound = true
+                cursorEmail = quotas.keys.first
+                providerQuotas[.cursor] = quotas
+            }
+        }
+        
+        // Scan Trae if opted in
+        if options.scanTrae {
+            let quotas = await traeFetcher.fetchAsProviderQuota()
+            if !quotas.isEmpty {
+                traeFound = true
+                traeEmail = quotas.keys.first
+                providerQuotas[.trae] = quotas
+            }
+        }
+        
+        // Scan CLI tools if opted in
+        if options.scanCLITools {
+            let cliNames = ["claude", "codex", "gemini", "gh"]
+            for name in cliNames {
+                if await CLIExecutor.shared.isCLIInstalled(name: name) {
+                    cliToolsFound.append(name)
+                }
+            }
+        }
+        
+        let result = IDEScanResult(
+            cursorFound: cursorFound,
+            cursorEmail: cursorEmail,
+            traeFound: traeFound,
+            traeEmail: traeEmail,
+            cliToolsFound: cliToolsFound,
+            timestamp: Date()
+        )
+        
+        ideScanSettings.updateScanResult(result)
+        ideScanSettings.setScanningState(false)
+        
+        // Update menu bar items
+        autoSelectMenuBarItems()
     }
     
     // MARK: - Menu Bar Quota Items

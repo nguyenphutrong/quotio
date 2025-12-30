@@ -467,6 +467,27 @@ struct LocalizedStrings {
         "settings.appearance.light": [.english: "Light", .vietnamese: "Sáng"],
         "settings.appearance.dark": [.english: "Dark", .vietnamese: "Tối"],
         "settings.appearance.help": [.english: "Choose how the app looks. System will automatically match your Mac's appearance.", .vietnamese: "Chọn giao diện cho ứng dụng. Hệ thống sẽ tự động theo giao diện của Mac."],
+        
+        // IDE Scan (Issue #29 - Privacy)
+        "ideScan.title": [.english: "Scan for Installed IDEs", .vietnamese: "Quét IDE đã cài đặt"],
+        "ideScan.subtitle": [.english: "Detect IDEs and CLI tools to track their quotas", .vietnamese: "Phát hiện IDE và công cụ CLI để theo dõi quota"],
+        "ideScan.privacyNotice": [.english: "Privacy Notice", .vietnamese: "Thông báo bảo mật"],
+        "ideScan.privacyDescription": [.english: "This will access files from other applications to detect installed IDEs and their authentication status. No data is sent externally.", .vietnamese: "Thao tác này sẽ truy cập file từ các ứng dụng khác để phát hiện IDE đã cài đặt và trạng thái xác thực. Không có dữ liệu nào được gửi ra ngoài."],
+        "ideScan.selectSources": [.english: "Select Data Sources", .vietnamese: "Chọn nguồn dữ liệu"],
+        "ideScan.cursor.detail": [.english: "Reads ~/Library/Application Support/Cursor/", .vietnamese: "Đọc ~/Library/Application Support/Cursor/"],
+        "ideScan.trae.detail": [.english: "Reads ~/Library/Application Support/Trae/", .vietnamese: "Đọc ~/Library/Application Support/Trae/"],
+        "ideScan.cliTools": [.english: "CLI Tools (claude, codex, gemini...)", .vietnamese: "Công cụ CLI (claude, codex, gemini...)"],
+        "ideScan.cliTools.detail": [.english: "Uses 'which' command to find installed tools", .vietnamese: "Sử dụng lệnh 'which' để tìm công cụ đã cài"],
+        "ideScan.scanNow": [.english: "Scan Now", .vietnamese: "Quét ngay"],
+        "ideScan.scanning": [.english: "Scanning...", .vietnamese: "Đang quét..."],
+        "ideScan.complete": [.english: "Scan Complete", .vietnamese: "Quét hoàn tất"],
+        "ideScan.notFound": [.english: "Not found", .vietnamese: "Không tìm thấy"],
+        "ideScan.error": [.english: "Scan Error", .vietnamese: "Lỗi quét"],
+        "ideScan.button": [.english: "Scan for IDEs", .vietnamese: "Quét IDE"],
+        "ideScan.button.hint": [.english: "Detect Cursor, Trae, and CLI tools", .vietnamese: "Phát hiện Cursor, Trae và công cụ CLI"],
+        "ideScan.buttonSubtitle": [.english: "Detect Cursor, Trae, and CLI tools", .vietnamese: "Phát hiện Cursor, Trae và công cụ CLI"],
+        "ideScan.sectionTitle": [.english: "Detect IDEs", .vietnamese: "Phát hiện IDE"],
+        "ideScan.sectionFooter": [.english: "Scan for installed IDEs and CLI tools to track their quotas", .vietnamese: "Quét IDE và công cụ CLI đã cài đặt để theo dõi quota"],
     ]
     
     static func get(_ key: String, language: AppLanguage) -> String {

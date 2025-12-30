@@ -5,6 +5,21 @@ All notable changes to Quotio will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Privacy**: Reduce file system access to address macOS privacy warnings (#29)
+  - Remove Cursor and Trae from auto-refresh - require explicit user scan
+  - Add "Scan for IDEs" button with consent dialog on Providers screen
+  - Simplify binary detection to use `which` command + 2 fallback paths
+  - No persistent storage of scan consent - cleared on app restart
+
+### Added
+
+- **IDE Scan Dialog**: New consent-based IDE scanning with privacy notice
+- **Localization**: Vietnamese translations for IDE scan UI
+
 ## [0.3.0] - 2025-12-29
 
 ### Added

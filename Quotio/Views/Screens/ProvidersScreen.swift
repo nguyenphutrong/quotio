@@ -13,6 +13,7 @@ struct ProvidersScreen: View {
     @State private var selectedProvider: AIProvider?
     @State private var projectId: String = ""
     @State private var showProxyRequiredAlert = false
+    @State private var showIDEScanSheet = false
     private let modeManager = AppModeManager.shared
     
     /// Check if we should show content
@@ -72,6 +73,12 @@ struct ProvidersScreen: View {
             Button("action.cancel".localized(), role: .cancel) {}
         } message: {
             Text("providers.proxyRequired.message".localized())
+        }
+        .sheet(isPresented: $showIDEScanSheet) {
+            IDEScanSheet {
+                Task { await viewModel.refreshQuotasUnified() }
+            }
+            .environment(viewModel)
         }
     }
     
@@ -177,6 +184,9 @@ struct ProvidersScreen: View {
             }
         }
         
+        // Scan for IDEs section
+        ideScanSection
+        
         // Add Provider
         addProviderSection
     }
@@ -229,8 +239,55 @@ struct ProvidersScreen: View {
             }
         }
         
+        // Scan for IDEs section
+        ideScanSection
+        
         // Add Provider (for OAuth)
         addProviderSection
+    }
+    
+    // MARK: - IDE Scan Section
+    
+    private var ideScanSection: some View {
+        Section {
+            Button {
+                showIDEScanSheet = true
+            } label: {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.1))
+                            .frame(width: 32, height: 32)
+                        
+                        Image(systemName: "magnifyingglass.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.blue)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("ideScan.title".localized())
+                            .fontWeight(.medium)
+                        
+                        Text("ideScan.buttonSubtitle".localized())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Label("ideScan.sectionTitle".localized(), systemImage: "sparkle.magnifyingglass")
+        } footer: {
+            Text("ideScan.sectionFooter".localized())
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
     }
     
     // MARK: - Add Provider Section
