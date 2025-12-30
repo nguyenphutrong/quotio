@@ -13,6 +13,10 @@ enum NotificationType: String {
     case proxyCrashed = "proxyCrashed"
     case proxyStarted = "proxyStarted"
     case proxyStopped = "proxyStopped"
+    case upgradeAvailable = "upgradeAvailable"
+    case upgradeSuccess = "upgradeSuccess"
+    case upgradeFailed = "upgradeFailed"
+    case rollback = "rollback"
 }
 
 /// Manages macOS notifications for quota alerts, cooling status, and proxy crashes
@@ -51,6 +55,11 @@ final class NotificationManager {
     var notifyOnProxyCrash: Bool {
         get { UserDefaults.standard.object(forKey: "notifyOnProxyCrash") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "notifyOnProxyCrash") }
+    }
+    
+    var notifyOnUpgradeAvailable: Bool {
+        get { UserDefaults.standard.object(forKey: "notifyOnUpgradeAvailable") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "notifyOnUpgradeAvailable") }
     }
     
     private init() {
@@ -216,5 +225,102 @@ final class NotificationManager {
     /// Remove all delivered notifications
     func removeAllDeliveredNotifications() {
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+    }
+    
+    // MARK: - Upgrade Notifications
+    
+    /// Send notification when a new proxy version is available
+    /// - Parameter version: The new version available for upgrade
+    func notifyUpgradeAvailable(version: String) {
+        guard notificationsEnabled && notifyOnUpgradeAvailable && isAuthorized else { return }
+        
+        // Prevent duplicate notifications for same version
+        let notificationId = "upgrade_available_\(version)"
+        guard !sentNotifications.contains(notificationId) else { return }
+        sentNotifications.insert(notificationId)
+        
+        let title = LanguageManager.shared.localized("notification.upgradeAvailable.title")
+        let bodyFormat = LanguageManager.shared.localized("notification.upgradeAvailable.body")
+        
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = String(format: bodyFormat, version)
+        content.sound = .default
+        content.categoryIdentifier = NotificationType.upgradeAvailable.rawValue
+        
+        let request = UNNotificationRequest(
+            identifier: notificationId,
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request)
+    }
+    
+    /// Clear upgrade available notification tracking (call when user upgrades or dismisses)
+    func clearUpgradeAvailableNotification(version: String) {
+        sentNotifications.remove("upgrade_available_\(version)")
+    }
+    
+    /// Send notification when proxy upgrade succeeds
+    /// - Parameter version: The new version that was installed
+    func notifyUpgradeSuccess(version: String) {
+        guard notificationsEnabled && isAuthorized else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "notification.upgrade.success.title".localized()
+        content.body = String(format: "notification.upgrade.success.body".localized(), version)
+        content.sound = .default
+        content.categoryIdentifier = NotificationType.upgradeSuccess.rawValue
+        
+        let request = UNNotificationRequest(
+            identifier: "upgrade_success_\(version)",
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request)
+    }
+    
+    /// Send notification when proxy upgrade fails
+    /// - Parameters:
+    ///   - version: The version that failed to install
+    ///   - reason: The reason for failure
+    func notifyUpgradeFailed(version: String, reason: String) {
+        guard notificationsEnabled && isAuthorized else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "notification.upgrade.failed.title".localized()
+        content.body = String(format: "notification.upgrade.failed.body".localized(), version, reason)
+        content.sound = .defaultCritical
+        content.categoryIdentifier = NotificationType.upgradeFailed.rawValue
+        
+        let request = UNNotificationRequest(
+            identifier: "upgrade_failed_\(version)",
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request)
+    }
+    
+    /// Send notification when rollback occurs
+    /// - Parameter toVersion: The version that was restored
+    func notifyRollback(toVersion: String) {
+        guard notificationsEnabled && isAuthorized else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "notification.rollback.title".localized()
+        content.body = String(format: "notification.rollback.body".localized(), toVersion)
+        content.sound = .default
+        content.categoryIdentifier = NotificationType.rollback.rawValue
+        
+        let request = UNNotificationRequest(
+            identifier: "rollback_\(toVersion)",
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request)
     }
 }

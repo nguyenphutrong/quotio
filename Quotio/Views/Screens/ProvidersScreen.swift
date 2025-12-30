@@ -7,6 +7,14 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+/// Wrapper for auto-detected account tuple to provide Identifiable conformance
+private struct AutoDetectedAccount: Identifiable {
+    let provider: AIProvider
+    let accountKey: String
+    
+    var id: String { "\(provider.rawValue)_\(accountKey)" }
+}
+
 struct ProvidersScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var isImporterPresented = false

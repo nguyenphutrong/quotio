@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import AppKit
 import ServiceManagement
 
 struct SettingsScreen: View {
@@ -176,14 +177,11 @@ struct SettingsScreen: View {
             // Menu Bar
             MenuBarSettingsSection()
             
-            // Updates
-            UpdateSettingsSection()
-            
             // Paths - Only in Full Mode
             if modeManager.isFullMode {
                 Section {
                     LabeledContent("settings.binary".localized()) {
-                        PathLabel(path: viewModel.proxyManager.binaryPath)
+                        PathLabel(path: viewModel.proxyManager.effectiveBinaryPath)
                     }
                     
                     LabeledContent("settings.config".localized()) {
@@ -421,6 +419,11 @@ struct NotificationSettingsSection: View {
                     set: { manager.notifyOnProxyCrash = $0 }
                 ))
                 
+                Toggle("settings.notifications.upgradeAvailable".localized(), isOn: Binding(
+                    get: { manager.notifyOnUpgradeAvailable },
+                    set: { manager.notifyOnUpgradeAvailable = $0 }
+                ))
+                
                 HStack {
                     Text("settings.notifications.threshold".localized())
                     Spacer()
@@ -521,6 +524,578 @@ struct UpdateSettingsSection: View {
         } header: {
             Label("settings.updates".localized(), systemImage: "arrow.down.circle")
         }
+    }
+}
+
+// MARK: - Proxy Update Settings Section
+
+struct ProxyUpdateSettingsSection: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @State private var isCheckingForUpdate = false
+    @State private var isUpgrading = false
+    @State private var upgradeError: String?
+    @State private var showAdvancedSheet = false
+    
+    private var proxyManager: CLIProxyManager {
+        viewModel.proxyManager
+    }
+    
+    var body: some View {
+        Section {
+            // Current version
+            LabeledContent("settings.proxyUpdate.currentVersion".localized()) {
+                if let version = proxyManager.currentVersion ?? proxyManager.installedProxyVersion {
+                    Text("v\(version)")
+                        .font(.system(.body, design: .monospaced))
+                } else {
+                    Text("settings.proxyUpdate.unknown".localized())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // Upgrade status
+            if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label {
+                            Text("settings.proxyUpdate.available".localized())
+                        } icon: {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                        
+                        Text("v\(upgrade.version)")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        performUpgrade(to: upgrade)
+                    } label: {
+                        if isUpgrading {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("action.update".localized())
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isUpgrading || !proxyManager.proxyStatus.running)
+                }
+            } else {
+                HStack {
+                    Label {
+                        Text("settings.proxyUpdate.upToDate".localized())
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        checkForUpdate()
+                    } label: {
+                        if isCheckingForUpdate {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("settings.proxyUpdate.checkNow".localized())
+                        }
+                    }
+                    .disabled(isCheckingForUpdate || !proxyManager.proxyStatus.running)
+                }
+            }
+            
+            // Error message
+            if let error = upgradeError {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // Proxy must be running hint
+            if !proxyManager.proxyStatus.running {
+                HStack {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.blue)
+                    Text("settings.proxyUpdate.proxyMustRun".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // Advanced button
+            Button {
+                showAdvancedSheet = true
+            } label: {
+                HStack {
+                    Label("settings.proxyUpdate.advanced".localized(), systemImage: "gearshape.2")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Label("settings.proxyUpdate".localized(), systemImage: "shippingbox.and.arrow.backward")
+        } footer: {
+            Text("settings.proxyUpdate.help".localized())
+        }
+        .sheet(isPresented: $showAdvancedSheet) {
+            ProxyVersionManagerSheet()
+                .environment(viewModel)
+        }
+    }
+    
+    private func checkForUpdate() {
+        isCheckingForUpdate = true
+        upgradeError = nil
+        
+        Task { @MainActor in
+            await proxyManager.checkForUpgrade()
+            isCheckingForUpdate = false
+        }
+    }
+    
+    private func performUpgrade(to version: ProxyVersionInfo) {
+        isUpgrading = true
+        upgradeError = nil
+        
+        Task { @MainActor in
+            do {
+                try await proxyManager.performManagedUpgrade(to: version)
+                isUpgrading = false
+            } catch {
+                upgradeError = error.localizedDescription
+                isUpgrading = false
+            }
+        }
+    }
+}
+
+// MARK: - Proxy Version Manager Sheet
+
+struct ProxyVersionManagerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(QuotaViewModel.self) private var viewModel
+    
+    @State private var availableReleases: [GitHubRelease] = []
+    @State private var installedVersions: [InstalledProxyVersion] = []
+    @State private var isLoading = false
+    @State private var loadError: String?
+    @State private var installingVersion: String?
+    @State private var installError: String?
+    
+    // State for deletion warning
+    @State private var showDeleteWarning = false
+    @State private var pendingInstallRelease: GitHubRelease?
+    @State private var versionsToDelete: [String] = []
+    
+    private var proxyManager: CLIProxyManager {
+        viewModel.proxyManager
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("settings.proxyUpdate.advanced.title".localized())
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("settings.proxyUpdate.advanced.description".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            
+            Divider()
+            
+            // Content
+            if isLoading {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("settings.proxyUpdate.advanced.loading".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = loadError {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundStyle(.orange)
+                    Text("settings.proxyUpdate.advanced.fetchError".localized())
+                        .font(.headline)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("action.refresh".localized()) {
+                        Task { await loadReleases() }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        // Installed Versions Section
+                        if !installedVersions.isEmpty {
+                            sectionHeader("settings.proxyUpdate.advanced.installedVersions".localized())
+                            
+                            ForEach(installedVersions) { installed in
+                                InstalledVersionRow(
+                                    version: installed,
+                                    onActivate: { activateVersion(installed.version) },
+                                    onDelete: { deleteVersion(installed.version) }
+                                )
+                                Divider().padding(.leading, 16)
+                            }
+                        }
+                        
+                        // Available Versions Section
+                        sectionHeader("settings.proxyUpdate.advanced.availableVersions".localized())
+                        
+                        if availableReleases.isEmpty {
+                            HStack {
+                                Text("settings.proxyUpdate.advanced.noReleases".localized())
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                        } else {
+                            ForEach(availableReleases, id: \.tagName) { release in
+                                AvailableVersionRow(
+                                    release: release,
+                                    isInstalled: isVersionInstalled(release.versionString),
+                                    isInstalling: installingVersion == release.versionString,
+                                    onInstall: { installVersion(release) }
+                                )
+                                Divider().padding(.leading, 16)
+                            }
+                        }
+                    }
+                    .padding(.bottom)
+                }
+            }
+            
+            // Error footer
+            if let error = installError {
+                Divider()
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        installError = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding()
+                .background(Color.orange.opacity(0.1))
+            }
+        }
+        .frame(width: 500, height: 500)
+        .task {
+            await loadReleases()
+        }
+        .alert("settings.proxyUpdate.deleteWarning.title".localized(), isPresented: $showDeleteWarning) {
+            Button("action.cancel".localized(), role: .cancel) {
+                pendingInstallRelease = nil
+                versionsToDelete = []
+            }
+            Button("settings.proxyUpdate.deleteWarning.confirm".localized(), role: .destructive) {
+                if let release = pendingInstallRelease {
+                    performInstall(release)
+                }
+                pendingInstallRelease = nil
+                versionsToDelete = []
+            }
+        } message: {
+            Text(String(format: "settings.proxyUpdate.deleteWarning.message".localized(), AppConstants.maxInstalledVersions, versionsToDelete.joined(separator: ", ")))
+        }
+    }
+    
+    @ViewBuilder
+    private func sectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .windowBackgroundColor).opacity(0.5))
+    }
+    
+    private func isVersionInstalled(_ version: String) -> Bool {
+        installedVersions.contains { $0.version == version }
+    }
+    
+    private func refreshInstalledVersions() {
+        installedVersions = proxyManager.installedVersions
+    }
+    
+    private func loadReleases() async {
+        isLoading = true
+        loadError = nil
+        
+        do {
+            availableReleases = try await proxyManager.fetchAvailableReleases(limit: 15)
+            refreshInstalledVersions()
+            isLoading = false
+        } catch {
+            loadError = error.localizedDescription
+            isLoading = false
+        }
+    }
+    
+    private func installVersion(_ release: GitHubRelease) {
+        guard proxyManager.versionInfo(from: release) != nil else {
+            installError = "No compatible binary found for this release"
+            return
+        }
+        
+        // Check if installing will delete old versions
+        let toDelete = proxyManager.storageManager.versionsToBeDeleted(keepLast: AppConstants.maxInstalledVersions)
+        if !toDelete.isEmpty {
+            versionsToDelete = toDelete
+            pendingInstallRelease = release
+            showDeleteWarning = true
+            return
+        }
+        
+        performInstall(release)
+    }
+    
+    private func performInstall(_ release: GitHubRelease) {
+        guard let versionInfo = proxyManager.versionInfo(from: release) else {
+            installError = "No compatible binary found for this release"
+            return
+        }
+        
+        installingVersion = release.versionString
+        installError = nil
+        
+        Task { @MainActor in
+            do {
+                try await proxyManager.performManagedUpgrade(to: versionInfo)
+                installingVersion = nil
+                refreshInstalledVersions()
+            } catch {
+                installError = error.localizedDescription
+                installingVersion = nil
+            }
+        }
+    }
+    
+    private func activateVersion(_ version: String) {
+        Task { @MainActor in
+            do {
+                let wasRunning = proxyManager.proxyStatus.running
+                if wasRunning {
+                    proxyManager.stop()
+                }
+                try proxyManager.storageManager.setCurrentVersion(version)
+                if wasRunning {
+                    try await proxyManager.start()
+                }
+                refreshInstalledVersions()
+            } catch {
+                installError = error.localizedDescription
+            }
+        }
+    }
+    
+    private func deleteVersion(_ version: String) {
+        do {
+            try proxyManager.storageManager.deleteVersion(version)
+            refreshInstalledVersions()
+        } catch {
+            installError = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - Installed Version Row
+
+private struct InstalledVersionRow: View {
+    let version: InstalledProxyVersion
+    let onActivate: () -> Void
+    let onDelete: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Version info
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("v\(version.version)")
+                        .font(.system(.body, design: .monospaced))
+                        .fontWeight(.medium)
+                    
+                    if version.isCurrent {
+                        Text("settings.proxyUpdate.advanced.current".localized())
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green)
+                            .clipShape(Capsule())
+                    }
+                }
+                
+                Text(version.installedAt, style: .relative)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            // Actions
+            if !version.isCurrent {
+                Button("settings.proxyUpdate.advanced.activate".localized()) {
+                    onActivate()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                
+                Button {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .foregroundStyle(.red)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - Available Version Row
+
+private struct AvailableVersionRow: View {
+    let release: GitHubRelease
+    let isInstalled: Bool
+    let isInstalling: Bool
+    let onInstall: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Version info
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("v\(release.versionString)")
+                        .font(.system(.body, design: .monospaced))
+                        .fontWeight(.medium)
+                    
+                    if release.prerelease {
+                        Text("settings.proxyUpdate.advanced.prerelease".localized())
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                    
+                    if isInstalled {
+                        Text("settings.proxyUpdate.advanced.installed".localized())
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                }
+                
+                if let publishedAt = release.publishedAt {
+                    Text(formatDate(publishedAt))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            // Install button
+            if !isInstalled {
+                Button {
+                    onInstall()
+                } label: {
+                    if isInstalling {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("settings.proxyUpdate.advanced.install".localized())
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isInstalling)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+    
+    private func formatDate(_ isoString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        if let date = formatter.date(from: isoString) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            displayFormatter.timeStyle = .none
+            return displayFormatter.string(from: date)
+        }
+        
+        // Try without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: isoString) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            displayFormatter.timeStyle = .none
+            return displayFormatter.string(from: date)
+        }
+        
+        return isoString
     }
 }
 
@@ -690,7 +1265,8 @@ struct AboutTab: View {
 // MARK: - About Screen (New Full-Page Version)
 
 struct AboutScreen: View {
-    @State private var showDonationSheet = false
+    @State private var showCopiedToast = false
+    @State private var isHoveringVersion = false
     
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -703,222 +1279,721 @@ struct AboutScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 32) {
-                // App Icon and Title
-                VStack(spacing: 16) {
-                    if let appIcon = NSApp.applicationIconImage {
-                        Image(nsImage: appIcon)
-                            .resizable()
-                            .frame(width: 128, height: 128)
-                            .clipShape(RoundedRectangle(cornerRadius: 24))
-                            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                    }
-                    
-                    VStack(spacing: 8) {
-                        Text("Quotio")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                        
-                        Text("about.tagline".localized())
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                        
-                        Text("Version \(appVersion) (\(buildNumber))")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .padding(.top, 40)
+                // Hero Section
+                heroSection
                 
                 // Description
-                Text("about.description".localized())
-                    .font(.body)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: 500)
-                    .padding(.horizontal)
+                descriptionSection
                 
-                // Feature Badges
-                HStack(spacing: 16) {
-                    FeatureBadge(
-                        icon: "person.2.fill",
-                        title: "about.multiAccount".localized(),
-                        color: .blue
-                    )
-                    
-                    FeatureBadge(
-                        icon: "chart.bar.fill",
-                        title: "about.quotaTracking".localized(),
-                        color: .green
-                    )
-                    
-                    FeatureBadge(
-                        icon: "terminal.fill",
-                        title: "about.agentConfig".localized(),
-                        color: .purple
-                    )
-                }
-                .padding(.vertical, 8)
+                // Updates Grid
+                updatesSection
                 
                 Divider()
-                    .frame(maxWidth: 400)
+                    .frame(maxWidth: 500)
                 
-                // Links
-                VStack(spacing: 12) {
-                    Link(destination: URL(string: "https://github.com/nguyenphutrong/quotio")!) {
-                        HStack {
-                            Image(systemName: "link")
-                            Text("GitHub: Quotio")
-                        }
-                        .frame(width: 200)
-                    }
-                    .buttonStyle(.bordered)
-                    
-                    Link(destination: URL(string: "https://github.com/router-for-me/CLIProxyAPI")!) {
-                        HStack {
-                            Image(systemName: "link")
-                            Text("GitHub: CLIProxyAPI")
-                        }
-                        .frame(width: 200)
-                    }
-                    .buttonStyle(.bordered)
-                    
-                    Button {
-                        showDonationSheet = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "fork.knife")
-                            Text("about.buyMePizza".localized())
-                        }
-                        .frame(width: 200)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                }
+                // Links Grid
+                linksSection
                 
                 Spacer(minLength: 40)
                 
-                // Credits
-                Text("about.madeWith".localized())
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.bottom, 24)
+                // Footer
+                footerSection
             }
             .frame(maxWidth: .infinity)
+            .padding(40)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .overlay {
+            if showCopiedToast {
+                versionCopyToast
+                    .transition(.opacity)
+            }
         }
         .navigationTitle("nav.about".localized())
-        .sheet(isPresented: $showDonationSheet) {
-            DonationSheet()
+    }
+    
+    // MARK: - Hero Section
+    
+    private var heroSection: some View {
+        VStack(spacing: 20) {
+            // App Icon with gradient glow
+            ZStack {
+                // Glow effect
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.blue.opacity(0.2),
+                                Color.purple.opacity(0.1),
+                                Color.clear
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 160, height: 160)
+                    .blur(radius: 40)
+                
+                // App Icon
+                if let appIcon = NSApp.applicationIconImage {
+                    Image(nsImage: appIcon)
+                        .resizable()
+                        .frame(width: 96, height: 96)
+                        .clipShape(RoundedRectangle(cornerRadius: 22))
+                        .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 8)
+                }
+            }
+            
+            // App Name & Tagline
+            VStack(spacing: 8) {
+                Text("Quotio")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                Text("about.tagline".localized())
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            
+            // Version Badges
+            HStack(spacing: 12) {
+                VersionBadge(
+                    label: "Version",
+                    value: appVersion,
+                    icon: "tag"
+                )
+                .onHover { hovering in
+                    isHoveringVersion = hovering
+                }
+                
+                VersionBadge(
+                    label: "Build",
+                    value: buildNumber,
+                    icon: "hammer.fill"
+                )
+            }
         }
+        .padding(.top, 20)
+    }
+    
+    // MARK: - Description Section
+    
+    private var descriptionSection: some View {
+        Text("about.description".localized())
+            .font(.body)
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: 500)
+    }
+    
+    // MARK: - Updates Section
+    
+    private var updatesSection: some View {
+        VStack(spacing: 12) {
+            AboutUpdateCard()
+            
+            if AppModeManager.shared.isFullMode {
+                AboutProxyUpdateCard()
+            }
+        }
+        .frame(maxWidth: 500)
+    }
+    
+    // MARK: - Links Section
+    
+    private var linksSection: some View {
+        VStack(spacing: 16) {
+            Text("Links")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                spacing: 12
+            ) {
+                LinkCard(
+                    title: "GitHub: Quotio",
+                    icon: "link",
+                    color: .blue,
+                    url: URL(string: "https://github.com/nguyenphutrong/quotio")!
+                )
+                
+                LinkCard(
+                    title: "GitHub: CLIProxyAPI",
+                    icon: "link",
+                    color: .purple,
+                    url: URL(string: "https://github.com/router-for-me/CLIProxyAPI")!
+                )
+                
+                LinkCard(
+                    title: "about.support".localized(),
+                    icon: "heart.fill",
+                    color: .pink,
+                    url: URL(string: "https://www.quotio.dev/sponsors")!
+                )
+            }
+        }
+        .frame(maxWidth: 500)
+    }
+    
+    // MARK: - Footer Section
+    
+    private var footerSection: some View {
+        VStack(spacing: 8) {
+            Text("about.madeWith".localized())
+                .font(.footnote)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.bottom, 16)
+    }
+    
+    // MARK: - Version Copy Toast
+    
+    private var versionCopyToast: some View {
+        VStack {
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text("Version copied to clipboard")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.regularMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
+            .padding(.bottom, 40)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
-// MARK: - Feature Badge
+// MARK: - About Update Section
 
-struct FeatureBadge: View {
-    let icon: String
-    let title: String
-    let color: Color
+struct AboutUpdateSection: View {
+    @AppStorage("autoCheckUpdates") private var autoCheckUpdates = true
+    
+    #if canImport(Sparkle)
+    private let updaterService = UpdaterService.shared
+    #endif
     
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-                .frame(width: 44, height: 44)
-                .background(color.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+        VStack(alignment: .leading, spacing: 12) {
+            Label("settings.updates".localized(), systemImage: "arrow.down.circle")
+                .font(.headline)
             
-            Text(title)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(.primary)
+            #if canImport(Sparkle)
+            HStack {
+                Toggle("settings.autoCheckUpdates".localized(), isOn: $autoCheckUpdates)
+                    .onChange(of: autoCheckUpdates) { _, newValue in
+                        updaterService.automaticallyChecksForUpdates = newValue
+                    }
+            }
+            
+            HStack {
+                Text("settings.lastChecked".localized())
+                Spacer()
+                if let date = updaterService.lastUpdateCheckDate {
+                    Text(date, style: .relative)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("settings.never".localized())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.subheadline)
+            
+            Button("settings.checkNow".localized()) {
+                updaterService.checkForUpdates()
+            }
+            .buttonStyle(.bordered)
+            .disabled(!updaterService.canCheckForUpdates)
+            #else
+            Text("settings.version".localized() + ": " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"))
+            #endif
         }
-        .frame(width: 100)
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+// MARK: - About Proxy Update Section
+
+struct AboutProxyUpdateSection: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @State private var isCheckingForUpdate = false
+    @State private var isUpgrading = false
+    @State private var upgradeError: String?
+    @State private var showAdvancedSheet = false
+    
+    private var proxyManager: CLIProxyManager {
+        viewModel.proxyManager
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("settings.proxyUpdate".localized(), systemImage: "shippingbox.and.arrow.backward")
+                .font(.headline)
+            
+            // Current version
+            HStack {
+                Text("settings.proxyUpdate.currentVersion".localized())
+                Spacer()
+                if let version = proxyManager.currentVersion ?? proxyManager.installedProxyVersion {
+                    Text("v\(version)")
+                        .font(.system(.body, design: .monospaced))
+                } else {
+                    Text("settings.proxyUpdate.unknown".localized())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.subheadline)
+            
+            // Upgrade status
+            if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label {
+                            Text("settings.proxyUpdate.available".localized())
+                        } icon: {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                        
+                        Text("v\(upgrade.version)")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        performUpgrade(to: upgrade)
+                    } label: {
+                        if isUpgrading {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("action.update".localized())
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isUpgrading || !proxyManager.proxyStatus.running)
+                }
+            } else {
+                HStack {
+                    Label {
+                        Text("settings.proxyUpdate.upToDate".localized())
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        checkForUpdate()
+                    } label: {
+                        if isCheckingForUpdate {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("settings.proxyUpdate.checkNow".localized())
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isCheckingForUpdate || !proxyManager.proxyStatus.running)
+                }
+            }
+            
+            // Error message
+            if let error = upgradeError {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // Proxy must be running hint
+            if !proxyManager.proxyStatus.running {
+                HStack {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.blue)
+                    Text("settings.proxyUpdate.proxyMustRun".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // Advanced button
+            Button {
+                showAdvancedSheet = true
+            } label: {
+                HStack {
+                    Label("settings.proxyUpdate.advanced".localized(), systemImage: "gearshape.2")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .sheet(isPresented: $showAdvancedSheet) {
+            ProxyVersionManagerSheet()
+                .environment(viewModel)
+        }
+    }
+    
+    private func checkForUpdate() {
+        isCheckingForUpdate = true
+        upgradeError = nil
+        
+        Task { @MainActor in
+            await proxyManager.checkForUpgrade()
+            isCheckingForUpdate = false
+        }
+    }
+    
+    private func performUpgrade(to version: ProxyVersionInfo) {
+        isUpgrading = true
+        upgradeError = nil
+        
+        Task { @MainActor in
+            do {
+                try await proxyManager.performManagedUpgrade(to: version)
+                isUpgrading = false
+            } catch {
+                upgradeError = error.localizedDescription
+                isUpgrading = false
+            }
+        }
     }
 }
 
 // MARK: - Donation Sheet
 
-enum PaymentMethod: String, CaseIterable {
-    case momo = "Momo"
-    case bank = "Bank"
-}
+// MARK: - Version Badge
 
-struct DonationSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var selectedMethod: PaymentMethod = .momo
+struct VersionBadge: View {
+    let label: String
+    let value: String
+    let icon: String
     
-    private let momoQRString = "00020101021138620010A00000072701320006970454011899MM23331M407713670208QRIBFTTA53037045802VN62190515MOMOW2W407713676304BDF8"
-    private let bankQRString = "00020101021138630010A000000727013300069704070119MS00T064330999445710208QRIBFTTA5204601153037045802VN5903TCB6005Hanoi8315T0643309994457163047444"
+    @State private var isHovered = false
     
     var body: some View {
-        VStack(spacing: 24) {
-            // Header
+        Button {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(value, forType: .string)
+        } label: {
+            HStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.caption)
+                        .foregroundStyle(isHovered ? .blue : .secondary)
+                
+                Text(label)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(isHovered ? .blue : .secondary)
+                
+                Text(value)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                isHovered ? Color.blue.opacity(0.1) : Color.secondary.opacity(0.05),
+                in: Capsule()
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(
+                        isHovered ? Color.blue.opacity(0.3) : Color.secondary.opacity(0.2),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+// MARK: - About Update Card
+
+struct AboutUpdateCard: View {
+    @AppStorage("autoCheckUpdates") private var autoCheckUpdates = true
+    @State private var isHovered = false
+    
+    #if canImport(Sparkle)
+    private let updaterService = UpdaterService.shared
+    #endif
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("about.buyMePizza".localized())
-                    .font(.title2)
-                    .fontWeight(.bold)
+                Image(systemName: "arrow.down.circle")
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                Text("settings.updates".localized())
+                    .font(.headline)
                 Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
+            }
+            
+            #if canImport(Sparkle)
+            HStack {
+                Text("settings.autoCheckUpdates".localized())
+                    .font(.subheadline)
+                Spacer()
+                Toggle("", isOn: $autoCheckUpdates)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .onChange(of: autoCheckUpdates) { _, newValue in
+                        updaterService.automaticallyChecksForUpdates = newValue
+                    }
+            }
+            
+            HStack {
+                Text("settings.lastChecked".localized())
+                Spacer()
+                if let date = updaterService.lastUpdateCheckDate {
+                    Text(date, style: .relative)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("settings.never".localized())
                         .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
-            }
-            
-            // Segment Picker
-            Picker("Payment Method", selection: $selectedMethod) {
-                ForEach(PaymentMethod.allCases, id: \.self) { method in
-                    Text(method.rawValue).tag(method)
+                
+                Button("settings.checkNow".localized()) {
+                    updaterService.checkForUpdates()
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-            .pickerStyle(.segmented)
-            
-            // QR Code
-            if let qrImage = generateQRCode(from: selectedMethod == .momo ? momoQRString : bankQRString) {
-                Image(nsImage: qrImage)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 200, height: 200)
-                    .background(Color.white)
-                    .cornerRadius(12)
-                    .shadow(color: .black.opacity(0.1), radius: 5)
-            }
-            
-            // Info text
-            Text(selectedMethod == .momo ? "Scan with Momo app" : "Scan with banking app (TCB)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            #else
+            Text("settings.version".localized() + ": " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"))
                 .font(.caption)
-                .foregroundStyle(.secondary)
-            
-            Spacer()
+            #endif
         }
-        .padding(24)
-        .frame(width: 320, height: 400)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(
+            color: .black.opacity(isHovered ? 0.08 : 0.04),
+            radius: isHovered ? 8 : 4,
+            x: 0,
+            y: isHovered ? 2 : 1
+        )
+        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+// MARK: - About Proxy Update Card
+
+struct AboutProxyUpdateCard: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @State private var isHovered = false
+    @State private var showAdvancedSheet = false
+    
+    private var proxyManager: CLIProxyManager {
+        viewModel.proxyManager
     }
     
-    private func generateQRCode(from string: String) -> NSImage? {
-        guard let data = string.data(using: .utf8),
-              let filter = CIFilter(name: "CIQRCodeGenerator") else {
-            return nil
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "shippingbox.and.arrow.backward")
+                    .font(.title3)
+                    .foregroundStyle(.purple)
+                Text("settings.proxyUpdate".localized())
+                    .font(.headline)
+                Spacer()
+            }
+            
+            HStack {
+                // Current version
+                Text("settings.proxyUpdate.currentVersion".localized())
+                if let version = proxyManager.currentVersion ?? proxyManager.installedProxyVersion {
+                    Text("v\(version)")
+                        .font(.system(.subheadline).monospaced())
+                        .fontWeight(.medium)
+                } else {
+                    Text("settings.proxyUpdate.unknown".localized())
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                // Upgrade status
+                if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+                    Label {
+                        Text("v\(upgrade.version) " + "settings.proxyUpdate.available".localized())
+                    } icon: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    .font(.caption)
+                } else {
+                    Label {
+                        Text("settings.proxyUpdate.upToDate".localized())
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    .font(.caption)
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            
+            HStack {
+                Spacer()
+                
+                Button {
+                    showAdvancedSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("settings.proxyUpdate.advanced".localized())
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
         }
-        
-        filter.setValue(data, forKey: "inputMessage")
-        filter.setValue("H", forKey: "inputCorrectionLevel")
-        
-        guard let ciImage = filter.outputImage else { return nil }
-        
-        // Scale up the QR code
-        let transform = CGAffineTransform(scaleX: 10, y: 10)
-        let scaledImage = ciImage.transformed(by: transform)
-        
-        let rep = NSCIImageRep(ciImage: scaledImage)
-        let nsImage = NSImage(size: rep.size)
-        nsImage.addRepresentation(rep)
-        
-        return nsImage
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(
+            color: .black.opacity(isHovered ? 0.08 : 0.04),
+            radius: isHovered ? 8 : 4,
+            x: 0,
+            y: isHovered ? 2 : 1
+        )
+        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
+        .sheet(isPresented: $showAdvancedSheet) {
+            ProxyVersionManagerSheet()
+                .environment(viewModel)
+        }
+    }
+}
+
+// MARK: - Link Card
+
+struct LinkCard: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let url: URL?
+    let action: (() -> Void)?
+    
+    @State private var isHovered = false
+    
+    init(
+        title: String,
+        icon: String,
+        color: Color,
+        url: URL? = nil,
+        action: (() -> Void)? = nil
+    ) {
+        self.title = title
+        self.icon = icon
+        self.color = color
+        self.url = url
+        self.action = action
+    }
+    
+    var body: some View {
+        Button {
+            if let url = url {
+                NSWorkspace.shared.open(url)
+            } else if let action = action {
+                action()
+            }
+        } label: {
+            HStack(spacing: 12) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(isHovered ? 0.15 : 0.08))
+                        .frame(width: 40, height: 40)
+                    
+                    Image(systemName: icon)
+                        .font(.title3)
+                        .foregroundStyle(isHovered ? color : .secondary)
+                }
+                
+                // Title
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(isHovered ? color : .primary)
+                
+                Spacer()
+                
+                // Arrow icon (for links)
+                if url != nil {
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption)
+                        .foregroundStyle(isHovered ? color : .secondary.opacity(0.5))
+                }
+            }
+            .padding(14)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(
+                        isHovered ? color.opacity(0.3) : Color.clear,
+                        lineWidth: 1.5
+                    )
+            )
+            .shadow(
+                color: .black.opacity(isHovered ? 0.1 : 0.03),
+                radius: isHovered ? 10 : 4,
+                x: 0,
+                y: isHovered ? 3 : 1
+            )
+            .scaleEffect(isHovered ? 1.02 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+        }
     }
 }

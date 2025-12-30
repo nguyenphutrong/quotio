@@ -278,8 +278,9 @@ struct LocalizedStrings {
         "settings.notifications.quotaLow": [.english: "Quota Low Warning", .vietnamese: "Cảnh báo hạn mức thấp"],
         "settings.notifications.cooling": [.english: "Account Cooling Alert", .vietnamese: "Cảnh báo tài khoản đang nghỉ"],
         "settings.notifications.proxyCrash": [.english: "Proxy Crash Alert", .vietnamese: "Cảnh báo proxy bị lỗi"],
+        "settings.notifications.upgradeAvailable": [.english: "Proxy Update Available", .vietnamese: "Có bản cập nhật Proxy"],
         "settings.notifications.threshold": [.english: "Alert Threshold", .vietnamese: "Ngưỡng cảnh báo"],
-        "settings.notifications.help": [.english: "Get notified when quota is low, accounts enter cooling, or proxy crashes", .vietnamese: "Nhận thông báo khi hạn mức thấp, tài khoản đang nghỉ, hoặc proxy bị lỗi"],
+        "settings.notifications.help": [.english: "Get notified when quota is low, accounts enter cooling, proxy crashes, or updates are available", .vietnamese: "Nhận thông báo khi hạn mức thấp, tài khoản đang nghỉ, proxy bị lỗi, hoặc có bản cập nhật"],
         "settings.notifications.notAuthorized": [.english: "Notifications not authorized. Enable in System Settings.", .vietnamese: "Thông báo chưa được cấp quyền. Bật trong Cài đặt hệ thống."],
         
         "notification.quotaLow.title": [.english: "⚠️ Quota Low", .vietnamese: "⚠️ Hạn mức thấp"],
@@ -290,6 +291,8 @@ struct LocalizedStrings {
         "notification.proxyCrash.body": [.english: "Proxy process exited with code %d", .vietnamese: "Tiến trình proxy đã thoát với mã %d"],
         "notification.proxyStarted.title": [.english: "✅ Proxy Started", .vietnamese: "✅ Proxy đã khởi động"],
         "notification.proxyStarted.body": [.english: "Proxy server is now running", .vietnamese: "Máy chủ proxy đang chạy"],
+        "notification.upgradeAvailable.title": [.english: "🆕 Proxy Update Available", .vietnamese: "🆕 Có bản cập nhật Proxy"],
+        "notification.upgradeAvailable.body": [.english: "CLIProxyAPI v%@ is available. Open Settings to update.", .vietnamese: "CLIProxyAPI v%@ đã có. Mở Cài đặt để cập nhật."],
         
         // Agent Setup
         "nav.agents": [.english: "Agents", .vietnamese: "Agent"],
@@ -383,6 +386,33 @@ struct LocalizedStrings {
         "settings.checkNow": [.english: "Check Now", .vietnamese: "Kiểm tra ngay"],
         "settings.version": [.english: "Version", .vietnamese: "Phiên bản"],
         
+        // Proxy Updates
+        "settings.proxyUpdate": [.english: "Proxy Updates", .vietnamese: "Cập nhật Proxy"],
+        "settings.proxyUpdate.currentVersion": [.english: "Current Version", .vietnamese: "Phiên bản hiện tại"],
+        "settings.proxyUpdate.unknown": [.english: "Unknown", .vietnamese: "Không xác định"],
+        "settings.proxyUpdate.available": [.english: "Update Available", .vietnamese: "Có bản cập nhật"],
+        "settings.proxyUpdate.upToDate": [.english: "Up to date", .vietnamese: "Đã cập nhật"],
+        "settings.proxyUpdate.checkNow": [.english: "Check for Updates", .vietnamese: "Kiểm tra cập nhật"],
+        "settings.proxyUpdate.proxyMustRun": [.english: "Proxy must be running to check for updates", .vietnamese: "Proxy phải đang chạy để kiểm tra cập nhật"],
+        "settings.proxyUpdate.help": [.english: "Managed updates with dry-run validation ensure safe upgrades", .vietnamese: "Cập nhật có kiểm soát với xác thực thử nghiệm đảm bảo nâng cấp an toàn"],
+        
+        // Proxy Updates - Advanced Mode
+        "settings.proxyUpdate.advanced": [.english: "Advanced", .vietnamese: "Nâng cao"],
+        "settings.proxyUpdate.advanced.title": [.english: "Version Manager", .vietnamese: "Quản lý phiên bản"],
+        "settings.proxyUpdate.advanced.description": [.english: "Install a specific proxy version", .vietnamese: "Cài đặt phiên bản proxy cụ thể"],
+        "settings.proxyUpdate.advanced.availableVersions": [.english: "Available Versions", .vietnamese: "Phiên bản khả dụng"],
+        "settings.proxyUpdate.advanced.installedVersions": [.english: "Installed Versions", .vietnamese: "Phiên bản đã cài"],
+        "settings.proxyUpdate.advanced.current": [.english: "Current", .vietnamese: "Hiện tại"],
+        "settings.proxyUpdate.advanced.install": [.english: "Install", .vietnamese: "Cài đặt"],
+        "settings.proxyUpdate.advanced.activate": [.english: "Activate", .vietnamese: "Kích hoạt"],
+        "settings.proxyUpdate.advanced.delete": [.english: "Delete", .vietnamese: "Xóa"],
+        "settings.proxyUpdate.advanced.prerelease": [.english: "Pre-release", .vietnamese: "Thử nghiệm"],
+        "settings.proxyUpdate.advanced.loading": [.english: "Loading releases...", .vietnamese: "Đang tải danh sách..."],
+        "settings.proxyUpdate.advanced.noReleases": [.english: "No releases found", .vietnamese: "Không tìm thấy phiên bản"],
+        "settings.proxyUpdate.advanced.installed": [.english: "Installed", .vietnamese: "Đã cài"],
+        "settings.proxyUpdate.advanced.installing": [.english: "Installing...", .vietnamese: "Đang cài đặt..."],
+        "settings.proxyUpdate.advanced.fetchError": [.english: "Failed to fetch releases", .vietnamese: "Không thể tải danh sách phiên bản"],
+        
         // About Screen
         "about.tagline": [.english: "Your AI Coding Command Center", .vietnamese: "Trung tâm điều khiển AI Coding của bạn"],
         "about.description": [.english: "Quotio is a native macOS application for managing CLIProxyAPI - a local proxy server that powers your AI coding agents. Manage multiple AI accounts, track quotas, and configure CLI tools in one place.", .vietnamese: "Quotio là ứng dụng macOS để quản lý CLIProxyAPI - máy chủ proxy cục bộ hỗ trợ các AI coding agent. Quản lý nhiều tài khoản AI, theo dõi hạn mức và cấu hình các công cụ CLI tại một nơi."],
@@ -390,7 +420,7 @@ struct LocalizedStrings {
         "about.quotaTracking": [.english: "Quota Tracking", .vietnamese: "Theo dõi quota"],
         "about.agentConfig": [.english: "Agent Config", .vietnamese: "Cấu hình Agent"],
         "about.buyMeCoffee": [.english: "Buy Me a Coffee", .vietnamese: "Mua cho tôi ly cà phê"],
-        "about.buyMePizza": [.english: "Buy Me a Pizza", .vietnamese: "Mua cho tôi miếng pizza"],
+        "about.support": [.english: "Support Us", .vietnamese: "Ủng hộ"],
         "about.madeWith": [.english: "Made with ❤️ in Vietnam", .vietnamese: "Được tạo với ❤️ tại Việt Nam"],
         
         // Onboarding
@@ -449,6 +479,7 @@ struct LocalizedStrings {
         // Actions - New
         "action.refreshQuota": [.english: "Refresh Quota", .vietnamese: "Làm mới Quota"],
         "action.switch": [.english: "Switch", .vietnamese: "Chuyển"],
+        "action.update": [.english: "Update", .vietnamese: "Cập nhật"],
         
         // Status - New
         "status.refreshing": [.english: "Refreshing...", .vietnamese: "Đang làm mới..."],
@@ -488,6 +519,19 @@ struct LocalizedStrings {
         "ideScan.buttonSubtitle": [.english: "Detect Cursor, Trae, and CLI tools", .vietnamese: "Phát hiện Cursor, Trae và công cụ CLI"],
         "ideScan.sectionTitle": [.english: "Detect IDEs", .vietnamese: "Phát hiện IDE"],
         "ideScan.sectionFooter": [.english: "Scan for installed IDEs and CLI tools to track their quotas", .vietnamese: "Quét IDE và công cụ CLI đã cài đặt để theo dõi quota"],
+        
+        // Upgrade Notifications
+        "notification.upgrade.success.title": [.english: "Proxy Upgraded", .vietnamese: "Đã nâng cấp Proxy"],
+        "notification.upgrade.success.body": [.english: "CLIProxyAPI has been upgraded to version %@", .vietnamese: "CLIProxyAPI đã được nâng cấp lên phiên bản %@"],
+        "notification.upgrade.failed.title": [.english: "Proxy Upgrade Failed", .vietnamese: "Nâng cấp Proxy thất bại"],
+        "notification.upgrade.failed.body": [.english: "Failed to upgrade to version %@: %@", .vietnamese: "Không thể nâng cấp lên phiên bản %@: %@"],
+        "notification.rollback.title": [.english: "Proxy Rollback", .vietnamese: "Khôi phục Proxy"],
+        "notification.rollback.body": [.english: "Rolled back to version %@ due to upgrade failure", .vietnamese: "Đã khôi phục về phiên bản %@ do nâng cấp thất bại"],
+        
+        // Version Manager - Delete Warning
+        "settings.proxyUpdate.deleteWarning.title": [.english: "Old Versions Will Be Deleted", .vietnamese: "Phiên bản cũ sẽ bị xóa"],
+        "settings.proxyUpdate.deleteWarning.message": [.english: "Installing this version will delete the following old versions to keep only %d most recent: %@", .vietnamese: "Cài đặt phiên bản này sẽ xóa các phiên bản cũ sau để chỉ giữ lại %d phiên bản gần nhất: %@"],
+        "settings.proxyUpdate.deleteWarning.confirm": [.english: "Install Anyway", .vietnamese: "Vẫn cài đặt"],
     ]
     
     static func get(_ key: String, language: AppLanguage) -> String {

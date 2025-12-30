@@ -183,6 +183,36 @@ actor ManagementAPIClient {
     func deleteAPIKeyByIndex(_ index: Int) async throws {
         _ = try await makeRequest("/api-keys?index=\(index)", method: "DELETE")
     }
+    
+    // MARK: - Proxy Version & Health
+    
+    /// Fetch the latest proxy version available from the running proxy.
+    /// The proxy fetches this from GitHub releases.
+    func fetchLatestVersion() async throws -> LatestVersionResponse {
+        let data = try await makeRequest("/latest-version")
+        return try JSONDecoder().decode(LatestVersionResponse.self, from: data)
+    }
+    
+    /// Check if proxy is responding by calling the debug endpoint.
+    /// This is simpler than /health which may not exist.
+    func checkProxyResponding() async -> Bool {
+        do {
+            _ = try await makeRequest("/debug")
+            return true
+        } catch {
+            return false
+        }
+    }
+}
+
+// MARK: - Latest Version Response
+
+struct LatestVersionResponse: Codable, Sendable {
+    let latestVersion: String
+    
+    enum CodingKeys: String, CodingKey {
+        case latestVersion = "latest-version"
+    }
 }
 
 // MARK: - URLSession Delegate
