@@ -196,13 +196,10 @@ struct MenuBarView: View {
                 
                 Spacer()
                 
-                Button {
+                CopyButton(title: nil) {
                     let url = "http://localhost:\(portString)"
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(url, forType: .string)
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                        .font(.caption)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)

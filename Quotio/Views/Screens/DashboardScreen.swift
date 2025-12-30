@@ -501,13 +501,11 @@ struct DashboardScreen: View {
                 Text(viewModel.proxyManager.proxyStatus.endpoint)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
-                
+
                 Spacer()
-                
-                Button {
+
+                CopyButton(title: nil) {
                     viewModel.proxyManager.copyEndpointToClipboard()
-                } label: {
-                    Image(systemName: "doc.on.doc")
                 }
                 .buttonStyle(.bordered)
             }

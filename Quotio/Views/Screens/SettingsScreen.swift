@@ -104,11 +104,9 @@ struct SettingsScreen: View {
                             Text(viewModel.proxyManager.proxyStatus.endpoint)
                                 .font(.system(.body, design: .monospaced))
                                 .textSelection(.enabled)
-                            
-                            Button {
+
+                            CopyButton(title: nil) {
                                 viewModel.proxyManager.copyEndpointToClipboard()
-                            } label: {
-                                Image(systemName: "doc.on.doc")
                             }
                             .buttonStyle(.borderless)
                         }

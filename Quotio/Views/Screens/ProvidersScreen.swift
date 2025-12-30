@@ -876,12 +876,9 @@ private struct OAuthStatusView: View {
                                     .background(provider.color.opacity(0.1))
                                     .cornerRadius(8)
                                 
-                                Button {
+                                CopyButton(title: nil) {
                                     NSPasteboard.general.clearContents()
                                     NSPasteboard.general.setString(deviceCode, forType: .string)
-                                } label: {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.title3)
                                 }
                                 .buttonStyle(.borderless)
                                 .help("action.copyCode".localized())

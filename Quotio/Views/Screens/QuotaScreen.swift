@@ -224,6 +224,7 @@ private struct ProviderSegmentButton: View {
             .padding(.vertical, 10)
             .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
             .foregroundStyle(isSelected ? .primary : .secondary)
+            .contentShape(Rectangle())
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
