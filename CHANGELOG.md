@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2025-12-30
+
+### Added
+
+- **Chinese Localization**: Full Simplified Chinese translation for all UI strings (#39)
+
+### Fixed
+
+- **Sparkle Update Loop**: Sync build number to match released version, preventing false update notifications
+
 ## [0.3.1] - 2025-12-30
 
 ### Added
