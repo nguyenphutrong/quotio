@@ -75,12 +75,26 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
         
-        let containerView = StatusBarContainerView(frame: NSRect(origin: .zero, size: hostingView.intrinsicContentSize))
+        // Add horizontal padding to align with native status bar spacing
+        let horizontalPadding: CGFloat = 4
+        let contentSize = hostingView.intrinsicContentSize
+        let containerSize = NSSize(
+            width: contentSize.width + horizontalPadding * 2,
+            height: max(22, contentSize.height)
+        )
+        
+        let containerView = StatusBarContainerView(frame: NSRect(origin: .zero, size: containerSize))
         containerView.addSubview(hostingView)
-        hostingView.frame = containerView.bounds
+        hostingView.frame = NSRect(
+            x: horizontalPadding,
+            y: (containerSize.height - contentSize.height) / 2,
+            width: contentSize.width,
+            height: contentSize.height
+        )
         
         button.addSubview(containerView)
-        button.frame = NSRect(origin: .zero, size: hostingView.intrinsicContentSize)
+        button.frame = NSRect(origin: .zero, size: containerSize)
+        statusItem?.length = containerSize.width
     }
     
     // MARK: - NSMenuDelegate
