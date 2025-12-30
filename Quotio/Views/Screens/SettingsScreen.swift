@@ -21,6 +21,9 @@ struct SettingsScreen: View {
     @AppStorage("loggingToFile") private var loggingToFile = true
     
     @State private var portText: String = ""
+    @State private var showChineseVerification = false
+    @State private var pendingLanguage: AppLanguage?
+    @State private var pickerLanguage: AppLanguage?
     
     var body: some View {
         @Bindable var lang = LanguageManager.shared
@@ -52,8 +55,19 @@ struct SettingsScreen: View {
             // Language
             Section {
                 Picker(selection: Binding(
-                    get: { lang.currentLanguage },
-                    set: { lang.currentLanguage = $0 }
+                    get: { pickerLanguage ?? lang.currentLanguage },
+                    set: { newLanguage in
+                        if newLanguage == .chinese && lang.currentLanguage != .chinese {
+                            // Show verification modal when switching TO Chinese
+                            pendingLanguage = newLanguage
+                            pickerLanguage = newLanguage
+                            showChineseVerification = true
+                        } else {
+                            // Direct change for other languages
+                            lang.currentLanguage = newLanguage
+                            pickerLanguage = nil
+                        }
+                    }
                 )) {
                     ForEach(AppLanguage.allCases) { language in
                         HStack {
@@ -200,6 +214,27 @@ struct SettingsScreen: View {
         .navigationTitle("nav.settings".localized())
         .onAppear {
             portText = String(viewModel.proxyManager.port)
+        }
+        .sheet(isPresented: $showChineseVerification) {
+            ChineseLanguageVerificationView(
+                isPresented: $showChineseVerification,
+                onVerified: {
+                    if let pending = pendingLanguage {
+                        lang.currentLanguage = pending
+                        pendingLanguage = nil
+                        pickerLanguage = nil
+                    }
+                },
+                onCancel: {
+                    // Revert picker to current language
+                    pendingLanguage = nil
+                    pickerLanguage = nil
+                }
+            )
+        }
+        .onChange(of: lang.currentLanguage) {
+            // Reset picker language when language changes externally
+            pickerLanguage = nil
         }
     }
 }
@@ -1181,6 +1216,9 @@ struct GeneralSettingsTab: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showInDock") private var showInDock = true
     @AppStorage("autoStartProxy") private var autoStartProxy = false
+    @State private var showChineseVerification = false
+    @State private var pendingLanguage: AppLanguage?
+    @State private var pickerLanguage: AppLanguage?
     
     var body: some View {
         @Bindable var lang = LanguageManager.shared
@@ -1213,8 +1251,19 @@ struct GeneralSettingsTab: View {
             
             Section {
                 Picker(selection: Binding(
-                    get: { lang.currentLanguage },
-                    set: { lang.currentLanguage = $0 }
+                    get: { pickerLanguage ?? lang.currentLanguage },
+                    set: { newLanguage in
+                        if newLanguage == .chinese && lang.currentLanguage != .chinese {
+                            // Show verification modal when switching TO Chinese
+                            pendingLanguage = newLanguage
+                            pickerLanguage = newLanguage
+                            showChineseVerification = true
+                        } else {
+                            // Direct change for other languages
+                            lang.currentLanguage = newLanguage
+                            pickerLanguage = nil
+                        }
+                    }
                 )) {
                     ForEach(AppLanguage.allCases) { language in
                         HStack {
@@ -1234,6 +1283,27 @@ struct GeneralSettingsTab: View {
         }
         .formStyle(.grouped)
         .padding()
+        .sheet(isPresented: $showChineseVerification) {
+            ChineseLanguageVerificationView(
+                isPresented: $showChineseVerification,
+                onVerified: {
+                    if let pending = pendingLanguage {
+                        lang.currentLanguage = pending
+                        pendingLanguage = nil
+                        pickerLanguage = nil
+                    }
+                },
+                onCancel: {
+                    // Revert picker to current language
+                    pendingLanguage = nil
+                    pickerLanguage = nil
+                }
+            )
+        }
+        .onChange(of: lang.currentLanguage) {
+            // Reset picker language when language changes externally
+            pickerLanguage = nil
+        }
     }
 }
 
@@ -1444,6 +1514,11 @@ struct AboutScreen: View {
             Text("about.madeWith".localized())
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
+            
+            Text("about.territorialStatement".localized())
+                .font(.footnote)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
         }
         .padding(.bottom, 16)
     }
@@ -1994,6 +2069,123 @@ struct LinkCard: View {
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
             }
+        }
+    }
+}
+
+// MARK: - Chinese Language Verification
+
+struct ChineseLanguageVerificationView: View {
+    @Binding var isPresented: Bool
+    let onVerified: () -> Void
+    let onCancel: () -> Void
+    
+    @State private var selectedAnswer: Int? = nil
+    @State private var showError = false
+    
+    private let correctAnswer = 1 // Answer 1 is correct
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            // Title
+            Text("language.chinese.verification.title".localized())
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            // Question
+            Text("language.chinese.verification.question".localized())
+                .font(.body)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            // Answers
+            VStack(spacing: 12) {
+                AnswerButton(
+                    text: "language.chinese.verification.answer1".localized(),
+                    isSelected: selectedAnswer == 1,
+                    action: {
+                        selectedAnswer = 1
+                        showError = false // Reset error when selecting an answer
+                    }
+                )
+                
+                AnswerButton(
+                    text: "language.chinese.verification.answer2".localized(),
+                    isSelected: selectedAnswer == 2,
+                    action: {
+                        selectedAnswer = 2
+                        showError = false // Reset error when selecting an answer
+                    }
+                )
+            }
+            .padding(.horizontal)
+            
+            // Error message
+            if showError {
+                Text("language.chinese.verification.wrongAnswer".localized())
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal)
+            }
+            
+            // Buttons
+            HStack(spacing: 12) {
+                Button("language.chinese.verification.cancel".localized()) {
+                    onCancel()
+                    isPresented = false
+                }
+                .buttonStyle(.bordered)
+                
+                Button("action.submit".localized()) {
+                    if selectedAnswer == correctAnswer {
+                        onVerified()
+                        isPresented = false
+                    } else {
+                        showError = true
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(selectedAnswer == nil)
+            }
+            .padding(.top, 8)
+        }
+        .padding(32)
+        .frame(width: 500)
+    }
+}
+
+private struct AnswerButton: View {
+    let text: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(text)
+                    .multilineTextAlignment(.leading)
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.blue)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color.blue.opacity(0.1) : Color.secondary.opacity(isHovered ? 0.1 : 0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
         }
     }
 }
