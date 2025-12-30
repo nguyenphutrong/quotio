@@ -242,15 +242,20 @@ final class ProxyStorageManager {
         try data.write(to: downloadedFile)
         
         if assetName.hasSuffix(".tar.gz") || assetName.hasSuffix(".tgz") {
+            // Use tar with --strip-components to prevent path traversal
+            // and extract only to the temp directory
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-            process.arguments = ["-xzf", downloadedFile.path, "-C", tempDir.path]
+            process.arguments = ["-xzf", downloadedFile.path, "-C", tempDir.path, "--no-same-permissions"]
             try process.run()
             process.waitUntilExit()
             
             guard process.terminationStatus == 0 else {
                 throw ProxyUpgradeError.extractionFailed("tar extraction failed")
             }
+            
+            // Validate extracted files don't escape temp directory
+            try validateExtractedFiles(in: tempDir)
             
             if let binary = try findBinaryInDirectory(tempDir) {
                 try fileManager.copyItem(at: binary, to: destination)
@@ -269,6 +274,9 @@ final class ProxyStorageManager {
                 throw ProxyUpgradeError.extractionFailed("unzip extraction failed")
             }
             
+            // Validate extracted files don't escape temp directory
+            try validateExtractedFiles(in: tempDir)
+            
             if let binary = try findBinaryInDirectory(tempDir) {
                 try fileManager.copyItem(at: binary, to: destination)
             } else {
@@ -278,6 +286,39 @@ final class ProxyStorageManager {
         } else {
             // Direct binary
             try fileManager.copyItem(at: downloadedFile, to: destination)
+        }
+    }
+    
+    /// Validate that all extracted files are within the expected directory.
+    /// Protects against path traversal attacks via malicious archive entries.
+    private func validateExtractedFiles(in directory: URL) throws {
+        let enumerator = fileManager.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )
+        
+        let directoryPath = directory.standardizedFileURL.path
+        
+        while let fileURL = enumerator?.nextObject() as? URL {
+            let standardizedPath = fileURL.standardizedFileURL.path
+            
+            // Ensure the file is within the temp directory
+            guard standardizedPath.hasPrefix(directoryPath) else {
+                throw ProxyUpgradeError.extractionFailed("Archive contains path traversal attack: \(fileURL.lastPathComponent)")
+            }
+            
+            // Check for symlinks pointing outside the directory
+            let resourceValues = try fileURL.resourceValues(forKeys: [.isSymbolicLinkKey])
+            if resourceValues.isSymbolicLink == true {
+                let destination = try fileManager.destinationOfSymbolicLink(atPath: fileURL.path)
+                let resolvedURL = URL(fileURLWithPath: destination, relativeTo: fileURL.deletingLastPathComponent())
+                let resolvedPath = resolvedURL.standardizedFileURL.path
+                
+                if !resolvedPath.hasPrefix(directoryPath) {
+                    throw ProxyUpgradeError.extractionFailed("Archive contains symlink escape: \(fileURL.lastPathComponent)")
+                }
+            }
         }
     }
     

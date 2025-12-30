@@ -268,8 +268,8 @@ final class NotificationManager {
         guard notificationsEnabled && isAuthorized else { return }
         
         let content = UNMutableNotificationContent()
-        content.title = "Proxy Upgraded"
-        content.body = "CLIProxyAPI has been upgraded to version \(version)"
+        content.title = "notification.upgrade.success.title".localized()
+        content.body = String(format: "notification.upgrade.success.body".localized(), version)
         content.sound = .default
         content.categoryIdentifier = NotificationType.upgradeSuccess.rawValue
         
@@ -290,8 +290,8 @@ final class NotificationManager {
         guard notificationsEnabled && isAuthorized else { return }
         
         let content = UNMutableNotificationContent()
-        content.title = "Proxy Upgrade Failed"
-        content.body = "Failed to upgrade to version \(version): \(reason)"
+        content.title = "notification.upgrade.failed.title".localized()
+        content.body = String(format: "notification.upgrade.failed.body".localized(), version, reason)
         content.sound = .defaultCritical
         content.categoryIdentifier = NotificationType.upgradeFailed.rawValue
         
@@ -310,8 +310,8 @@ final class NotificationManager {
         guard notificationsEnabled && isAuthorized else { return }
         
         let content = UNMutableNotificationContent()
-        content.title = "Proxy Rollback"
-        content.body = "Rolled back to version \(toVersion) due to upgrade failure"
+        content.title = "notification.rollback.title".localized()
+        content.body = String(format: "notification.rollback.body".localized(), toVersion)
         content.sound = .default
         content.categoryIdentifier = NotificationType.rollback.rawValue
         

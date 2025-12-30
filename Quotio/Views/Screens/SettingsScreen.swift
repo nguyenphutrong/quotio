@@ -666,7 +666,7 @@ struct ProxyUpdateSettingsSection: View {
         isCheckingForUpdate = true
         upgradeError = nil
         
-        Task {
+        Task { @MainActor in
             await proxyManager.checkForUpgrade()
             isCheckingForUpdate = false
         }
@@ -676,7 +676,7 @@ struct ProxyUpdateSettingsSection: View {
         isUpgrading = true
         upgradeError = nil
         
-        Task {
+        Task { @MainActor in
             do {
                 try await proxyManager.performManagedUpgrade(to: version)
                 isUpgrading = false
@@ -876,7 +876,7 @@ struct ProxyVersionManagerSheet: View {
         installingVersion = release.versionString
         installError = nil
         
-        Task {
+        Task { @MainActor in
             do {
                 try await proxyManager.performManagedUpgrade(to: versionInfo)
                 installingVersion = nil
@@ -889,7 +889,7 @@ struct ProxyVersionManagerSheet: View {
     }
     
     private func activateVersion(_ version: String) {
-        Task {
+        Task { @MainActor in
             do {
                 let wasRunning = proxyManager.proxyStatus.running
                 if wasRunning {

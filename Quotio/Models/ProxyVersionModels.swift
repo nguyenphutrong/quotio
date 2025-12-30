@@ -78,9 +78,14 @@ struct ProxyVersionInfo: Sendable, Identifiable, Equatable {
     var id: String { version }
     
     /// Create from GitHub release and compatible asset.
-    init(from release: GitHubRelease, asset: GitHubAsset) {
+    /// Note: Returns nil if no valid SHA256 checksum is available.
+    init?(from release: GitHubRelease, asset: GitHubAsset) {
+        guard let checksum = asset.sha256Checksum,
+              !checksum.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
         self.version = release.versionString
-        self.sha256 = asset.sha256Checksum ?? ""
+        self.sha256 = checksum
         self.downloadURL = asset.browserDownloadUrl
         self.releaseNotes = release.body
         self.size = asset.size

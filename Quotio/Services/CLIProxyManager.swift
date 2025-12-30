@@ -63,6 +63,9 @@ final class CLIProxyManager {
     /// Port used for dry-run testing.
     private(set) var testPort: UInt16?
     
+    /// Path to the test config file (for cleanup).
+    private var testConfigPath: String?
+    
     /// The active proxy version (if using versioned storage).
     private(set) var activeVersion: String?
     
@@ -813,10 +816,11 @@ extension CLIProxyManager {
             // Extract version without 'v' prefix
             let latestVersion = latestTag.hasPrefix("v") ? String(latestTag.dropFirst()) : latestTag
             
-            // Compare with current version
+            // Compare with current version using semantic versioning
             let current = currentVersion ?? installedProxyVersion
             
-            if current == nil || current != latestVersion {
+            let needsUpgrade = current == nil || isNewerVersion(latestVersion, than: current!)
+            if needsUpgrade {
                 // Fetch release info from GitHub to get checksum and download URL
                 let release = try await fetchGitHubRelease(tag: latestTag)
                 
@@ -827,8 +831,13 @@ extension CLIProxyManager {
                 }
                 
                 let versionInfo = ProxyVersionInfo(from: release, asset: asset)
+                guard let info = versionInfo else {
+                    upgradeAvailable = false
+                    availableUpgrade = nil
+                    return
+                }
                 upgradeAvailable = true
-                availableUpgrade = versionInfo
+                availableUpgrade = info
                 
                 // Send notification about available upgrade
                 NotificationManager.shared.notifyUpgradeAvailable(version: latestVersion)
@@ -958,7 +967,7 @@ extension CLIProxyManager {
         
         // Step 3: Validate compatibility
         guard let testPort = testPort else {
-            try? stopTestProxy()
+            await stopTestProxy()
             try? storageManager.deleteVersion(installed.version)
             throw ProxyUpgradeError.dryRunFailed("Test port not available")
         }
@@ -967,7 +976,7 @@ extension CLIProxyManager {
         
         if !compatResult.isCompatible {
             // Compatibility failed, rollback
-            try? stopTestProxy()
+            await stopTestProxy()
             try? storageManager.deleteVersion(installed.version)
             upgradeError = compatResult.description
             NotificationManager.shared.notifyUpgradeFailed(version: installed.version, reason: compatResult.description)
@@ -1016,7 +1025,10 @@ extension CLIProxyManager {
         let binaryData = try await downloadAsset(url: downloadURL)
         downloadProgress = 0.6
         
-        // Verify checksum
+        // Verify checksum - fail if no valid checksum is provided
+        guard !versionInfo.sha256.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ProxyUpgradeError.downloadFailed("No valid SHA256 checksum provided for downloaded binary")
+        }
         try ChecksumVerifier.verifyOrThrow(data: binaryData, expected: versionInfo.sha256)
         downloadProgress = 0.7
         
@@ -1048,52 +1060,61 @@ extension CLIProxyManager {
         testPort = port
         
         // Create a temporary config for the test
-        let testConfigPath = createTestConfig(port: port)
+        let configPath = createTestConfig(port: port)
+        testConfigPath = configPath
+        
+        // Track success to determine cleanup behavior
+        var succeeded = false
+        defer {
+            if !succeeded {
+                // Cleanup on any failure path (sync version for defer block)
+                stopTestProxySync()
+                cleanupTestConfig(configPath)
+                testConfigPath = nil
+                managerState = proxyStatus.running ? .active : .idle
+                testingVersion = nil
+                testPort = nil
+            }
+        }
+        
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: binaryPath)
+        process.arguments = ["-config", configPath]
+        process.currentDirectoryURL = URL(fileURLWithPath: binaryPath).deletingLastPathComponent()
+        
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        
+        var environment = ProcessInfo.processInfo.environment
+        environment["TERM"] = "xterm-256color"
+        process.environment = environment
         
         do {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: binaryPath)
-            process.arguments = ["-config", testConfigPath]
-            process.currentDirectoryURL = URL(fileURLWithPath: binaryPath).deletingLastPathComponent()
-            
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-            
-            var environment = ProcessInfo.processInfo.environment
-            environment["TERM"] = "xterm-256color"
-            process.environment = environment
-            
             try process.run()
-            testProcess = process
-            
-            // Wait for startup
-            try await Task.sleep(nanoseconds: 2_000_000_000)
-            
-            // Check if process is still running
-            guard process.isRunning else {
-                throw ProxyUpgradeError.dryRunFailed("Test proxy exited immediately")
-            }
-            
-            // Verify health
-            let isHealthy = await compatibilityChecker.isHealthy(port: port)
-            guard isHealthy else {
-                stopTestProxy()
-                throw ProxyUpgradeError.dryRunFailed("Test proxy health check failed")
-            }
-            
-        } catch let error as ProxyUpgradeError {
-            managerState = proxyStatus.running ? .active : .idle
-            testingVersion = nil
-            testPort = nil
-            throw error
         } catch {
-            managerState = proxyStatus.running ? .active : .idle
-            testingVersion = nil
-            testPort = nil
             throw ProxyUpgradeError.dryRunFailed(error.localizedDescription)
         }
+        
+        testProcess = process
+        
+        // Wait for startup
+        try await Task.sleep(nanoseconds: 2_000_000_000)
+        
+        // Check if process is still running
+        guard process.isRunning else {
+            throw ProxyUpgradeError.dryRunFailed("Test proxy exited immediately")
+        }
+        
+        // Verify health
+        let isHealthy = await compatibilityChecker.isHealthy(port: port)
+        guard isHealthy else {
+            throw ProxyUpgradeError.dryRunFailed("Test proxy health check failed")
+        }
+        
+        // Mark success - defer block will not cleanup
+        succeeded = true
     }
     
     /// Promote a tested version to active.
@@ -1104,8 +1125,12 @@ extension CLIProxyManager {
         
         managerState = .promoting
         
-        // Stop the test proxy
-        stopTestProxy()
+        // Stop the test proxy and clean up test config
+        await stopTestProxy()
+        if let configPath = testConfigPath {
+            cleanupTestConfig(configPath)
+            testConfigPath = nil
+        }
         
         // Stop the current active proxy if running
         let wasRunning = proxyStatus.running
@@ -1162,7 +1187,7 @@ extension CLIProxyManager {
     
     // MARK: - Private Helpers
     
-    private func stopTestProxy() {
+    private func stopTestProxy() async {
         guard let process = testProcess, process.isRunning else {
             testProcess = nil
             return
@@ -1171,6 +1196,35 @@ extension CLIProxyManager {
         let pid = process.processIdentifier
         process.terminate()
         
+        // Wait up to 2 seconds for graceful termination
+        let deadline = Date().addingTimeInterval(2.0)
+        while process.isRunning && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        }
+        
+        if process.isRunning {
+            kill(pid, SIGKILL)
+        }
+        
+        testProcess = nil
+        
+        // Also kill anything on test port
+        if let port = testPort {
+            killProcessOnPort(port)
+        }
+    }
+    
+    /// Synchronous version for use in defer blocks.
+    private func stopTestProxySync() {
+        guard let process = testProcess, process.isRunning else {
+            testProcess = nil
+            return
+        }
+        
+        let pid = process.processIdentifier
+        process.terminate()
+        
+        // Wait up to 2 seconds for graceful termination
         let deadline = Date().addingTimeInterval(2.0)
         while process.isRunning && Date() < deadline {
             Thread.sleep(forTimeInterval: 0.1)
@@ -1243,6 +1297,29 @@ extension CLIProxyManager {
         
         try? testConfig.write(toFile: testConfigPath, atomically: true, encoding: .utf8)
         return testConfigPath
+    }
+    
+    private func cleanupTestConfig(_ configPath: String) {
+        try? FileManager.default.removeItem(atPath: configPath)
+    }
+    
+    /// Compare two semantic version strings.
+    /// Returns true if `newer` is greater than `older`.
+    private func isNewerVersion(_ newer: String, than older: String) -> Bool {
+        let newerParts = newer.split(separator: ".").compactMap { Int($0) }
+        let olderParts = older.split(separator: ".").compactMap { Int($0) }
+        
+        // Pad shorter array with zeros
+        let maxLength = max(newerParts.count, olderParts.count)
+        let paddedNewer = newerParts + Array(repeating: 0, count: maxLength - newerParts.count)
+        let paddedOlder = olderParts + Array(repeating: 0, count: maxLength - olderParts.count)
+        
+        for (n, o) in zip(paddedNewer, paddedOlder) {
+            if n > o { return true }
+            if n < o { return false }
+        }
+        
+        return false // Equal versions
     }
     
     private func findPreviousVersion() -> String? {

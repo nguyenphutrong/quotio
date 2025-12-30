@@ -498,6 +498,14 @@ struct LocalizedStrings {
         "settings.appearance.light": [.english: "Light", .vietnamese: "Sáng"],
         "settings.appearance.dark": [.english: "Dark", .vietnamese: "Tối"],
         "settings.appearance.help": [.english: "Choose how the app looks. System will automatically match your Mac's appearance.", .vietnamese: "Chọn giao diện cho ứng dụng. Hệ thống sẽ tự động theo giao diện của Mac."],
+        
+        // Upgrade Notifications
+        "notification.upgrade.success.title": [.english: "Proxy Upgraded", .vietnamese: "Đã nâng cấp Proxy"],
+        "notification.upgrade.success.body": [.english: "CLIProxyAPI has been upgraded to version %@", .vietnamese: "CLIProxyAPI đã được nâng cấp lên phiên bản %@"],
+        "notification.upgrade.failed.title": [.english: "Proxy Upgrade Failed", .vietnamese: "Nâng cấp Proxy thất bại"],
+        "notification.upgrade.failed.body": [.english: "Failed to upgrade to version %@: %@", .vietnamese: "Không thể nâng cấp lên phiên bản %@: %@"],
+        "notification.rollback.title": [.english: "Proxy Rollback", .vietnamese: "Khôi phục Proxy"],
+        "notification.rollback.body": [.english: "Rolled back to version %@ due to upgrade failure", .vietnamese: "Đã khôi phục về phiên bản %@ do nâng cấp thất bại"],
     ]
     
     static func get(_ key: String, language: AppLanguage) -> String {

@@ -41,13 +41,28 @@ enum ChecksumVerifier {
         }
     }
     
-    /// Calculate SHA256 hash of a file.
+    /// Calculate SHA256 hash of a file using streaming to avoid loading entire file into memory.
     /// - Parameter fileURL: URL to the file
     /// - Returns: Lowercase hex string of the SHA256 hash
     /// - Throws: If file cannot be read
     static func sha256(ofFile fileURL: URL) throws -> String {
-        let data = try Data(contentsOf: fileURL)
-        return sha256(of: data)
+        let handle = try FileHandle(forReadingFrom: fileURL)
+        defer { try? handle.close() }
+        
+        var hasher = SHA256()
+        let bufferSize = 64 * 1024 // 64KB chunks
+        
+        while autoreleasepool(invoking: {
+            let data = handle.readData(ofLength: bufferSize)
+            if data.isEmpty {
+                return false
+            }
+            hasher.update(data: data)
+            return true
+        }) {}
+        
+        let digest = hasher.finalize()
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
     
     /// Verify that a file matches an expected SHA256 checksum.
