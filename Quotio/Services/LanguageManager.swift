@@ -506,6 +506,11 @@ struct LocalizedStrings {
         "notification.upgrade.failed.body": [.english: "Failed to upgrade to version %@: %@", .vietnamese: "Không thể nâng cấp lên phiên bản %@: %@"],
         "notification.rollback.title": [.english: "Proxy Rollback", .vietnamese: "Khôi phục Proxy"],
         "notification.rollback.body": [.english: "Rolled back to version %@ due to upgrade failure", .vietnamese: "Đã khôi phục về phiên bản %@ do nâng cấp thất bại"],
+        
+        // Version Manager - Delete Warning
+        "settings.proxyUpdate.deleteWarning.title": [.english: "Old Versions Will Be Deleted", .vietnamese: "Phiên bản cũ sẽ bị xóa"],
+        "settings.proxyUpdate.deleteWarning.message": [.english: "Installing this version will delete the following old versions to keep only %d most recent: %@", .vietnamese: "Cài đặt phiên bản này sẽ xóa các phiên bản cũ sau để chỉ giữ lại %d phiên bản gần nhất: %@"],
+        "settings.proxyUpdate.deleteWarning.confirm": [.english: "Install Anyway", .vietnamese: "Vẫn cài đặt"],
     ]
     
     static func get(_ key: String, language: AppLanguage) -> String {

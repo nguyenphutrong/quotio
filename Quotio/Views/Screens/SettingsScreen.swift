@@ -701,6 +701,11 @@ struct ProxyVersionManagerSheet: View {
     @State private var installingVersion: String?
     @State private var installError: String?
     
+    // State for deletion warning
+    @State private var showDeleteWarning = false
+    @State private var pendingInstallRelease: GitHubRelease?
+    @State private var versionsToDelete: [String] = []
+    
     private var proxyManager: CLIProxyManager {
         viewModel.proxyManager
     }
@@ -828,6 +833,21 @@ struct ProxyVersionManagerSheet: View {
         .task {
             await loadReleases()
         }
+        .alert("settings.proxyUpdate.deleteWarning.title".localized(), isPresented: $showDeleteWarning) {
+            Button("action.cancel".localized(), role: .cancel) {
+                pendingInstallRelease = nil
+                versionsToDelete = []
+            }
+            Button("settings.proxyUpdate.deleteWarning.confirm".localized(), role: .destructive) {
+                if let release = pendingInstallRelease {
+                    performInstall(release)
+                }
+                pendingInstallRelease = nil
+                versionsToDelete = []
+            }
+        } message: {
+            Text(String(format: "settings.proxyUpdate.deleteWarning.message".localized(), AppConstants.maxInstalledVersions, versionsToDelete.joined(separator: ", ")))
+        }
     }
     
     @ViewBuilder
@@ -868,6 +888,24 @@ struct ProxyVersionManagerSheet: View {
     }
     
     private func installVersion(_ release: GitHubRelease) {
+        guard proxyManager.versionInfo(from: release) != nil else {
+            installError = "No compatible binary found for this release"
+            return
+        }
+        
+        // Check if installing will delete old versions
+        let toDelete = proxyManager.storageManager.versionsToBeDeleted(keepLast: AppConstants.maxInstalledVersions)
+        if !toDelete.isEmpty {
+            versionsToDelete = toDelete
+            pendingInstallRelease = release
+            showDeleteWarning = true
+            return
+        }
+        
+        performInstall(release)
+    }
+    
+    private func performInstall(_ release: GitHubRelease) {
         guard let versionInfo = proxyManager.versionInfo(from: release) else {
             installError = "No compatible binary found for this release"
             return

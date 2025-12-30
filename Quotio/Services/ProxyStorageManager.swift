@@ -203,7 +203,7 @@ final class ProxyStorageManager {
     /// Cleanup old versions, keeping the specified number of recent versions.
     /// Never deletes the current active version.
     /// - Parameter keepLast: Number of versions to keep (including current)
-    func cleanupOldVersions(keepLast: Int = 2) {
+    func cleanupOldVersions(keepLast: Int = AppConstants.maxInstalledVersions) {
         let versions = listInstalledVersions()
         let currentVersion = getCurrentVersion()
         
@@ -226,6 +226,33 @@ final class ProxyStorageManager {
             
             try? deleteVersion(version.version)
         }
+    }
+    
+    /// Get versions that would be deleted if a new version is installed.
+    /// - Parameter keepLast: Number of versions to keep (including current)
+    /// - Returns: List of version strings that will be deleted
+    func versionsToBeDeleted(keepLast: Int = AppConstants.maxInstalledVersions) -> [String] {
+        let versions = listInstalledVersions()
+        let currentVersion = getCurrentVersion()
+        
+        // After installing a new version, we'll have versions.count + 1 versions
+        let futureCount = versions.count + 1
+        let versionsToKeep = max(keepLast, 1)
+        
+        guard futureCount > versionsToKeep else { return [] }
+        
+        // Sort by installation date (newest first), keeping current always
+        let sortedVersions = versions.sorted { v1, v2 in
+            if v1.isCurrent { return true }
+            if v2.isCurrent { return false }
+            return v1.installedAt > v2.installedAt
+        }
+        
+        // The oldest versions (beyond keepLast - 1, since new version takes one slot)
+        let deleteCount = futureCount - versionsToKeep
+        return sortedVersions.suffix(deleteCount)
+            .filter { $0.version != currentVersion }
+            .map { $0.version }
     }
     
     // MARK: - Private Helpers

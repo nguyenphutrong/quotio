@@ -987,7 +987,7 @@ extension CLIProxyManager {
         try await promote(version: installed.version)
         
         // Cleanup old versions
-        storageManager.cleanupOldVersions(keepLast: 2)
+        storageManager.cleanupOldVersions(keepLast: AppConstants.maxInstalledVersions)
         
         // Reset upgrade state - no longer available since we just installed it
         upgradeAvailable = false
