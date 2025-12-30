@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **IDE Scan Dialog**: New consent-based IDE scanning with privacy notice
+- **IDE Quota Persistence**: Cursor and Trae quota data now persists across app restarts
 - **Localization**: Vietnamese translations for IDE scan UI
 
 ## [0.3.0] - 2025-12-29

@@ -68,8 +68,14 @@ final class QuotaViewModel {
     private var refreshTask: Task<Void, Never>?
     private var lastLogTimestamp: Int?
     
+    // MARK: - IDE Quota Persistence Keys
+    
+    private static let ideQuotasKey = "persisted.ideQuotas"
+    private static let ideProvidersToSave: Set<AIProvider> = [.cursor, .trae]
+    
     init() {
         self.proxyManager = CLIProxyManager.shared
+        loadPersistedIDEQuotas()
     }
     
     // MARK: - Mode-Aware Initialization
@@ -942,8 +948,56 @@ final class QuotaViewModel {
         ideScanSettings.updateScanResult(result)
         ideScanSettings.setScanningState(false)
         
+        // Persist IDE quota data for Cursor and Trae
+        savePersistedIDEQuotas()
+        
         // Update menu bar items
         autoSelectMenuBarItems()
+    }
+    
+    // MARK: - IDE Quota Persistence
+    
+    /// Save Cursor and Trae quota data to UserDefaults for persistence across app restarts
+    private func savePersistedIDEQuotas() {
+        var dataToSave: [String: [String: ProviderQuotaData]] = [:]
+        
+        for provider in Self.ideProvidersToSave {
+            if let quotas = providerQuotas[provider], !quotas.isEmpty {
+                dataToSave[provider.rawValue] = quotas
+            }
+        }
+        
+        if dataToSave.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Self.ideQuotasKey)
+            return
+        }
+        
+        do {
+            let encoded = try JSONEncoder().encode(dataToSave)
+            UserDefaults.standard.set(encoded, forKey: Self.ideQuotasKey)
+        } catch {
+            print("Failed to save IDE quotas: \(error)")
+        }
+    }
+    
+    /// Load persisted Cursor and Trae quota data from UserDefaults
+    private func loadPersistedIDEQuotas() {
+        guard let data = UserDefaults.standard.data(forKey: Self.ideQuotasKey) else { return }
+        
+        do {
+            let decoded = try JSONDecoder().decode([String: [String: ProviderQuotaData]].self, from: data)
+            
+            for (providerRaw, quotas) in decoded {
+                if let provider = AIProvider(rawValue: providerRaw),
+                   Self.ideProvidersToSave.contains(provider) {
+                    providerQuotas[provider] = quotas
+                }
+            }
+        } catch {
+            print("Failed to load IDE quotas: \(error)")
+            // Clear corrupted data
+            UserDefaults.standard.removeObject(forKey: Self.ideQuotasKey)
+        }
     }
     
     // MARK: - Menu Bar Quota Items
