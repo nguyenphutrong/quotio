@@ -84,12 +84,13 @@ struct ProvidersScreen: View {
     
     // MARK: - Full Mode Content
     
-    private var autoDetectedProviderAccounts: [(provider: AIProvider, accountKey: String)] {
-        var accounts: [(provider: AIProvider, accountKey: String)] = []
+    private var autoDetectedProviderAccounts: [(id: String, provider: AIProvider, accountKey: String)] {
+        var accounts: [(id: String, provider: AIProvider, accountKey: String)] = []
         for (provider, quotas) in viewModel.providerQuotas {
             if !provider.supportsManualAuth {
                 for (accountKey, _) in quotas {
-                    accounts.append((provider: provider, accountKey: accountKey))
+                    let id = "\(provider.rawValue)_\(accountKey)"
+                    accounts.append((id: id, provider: provider, accountKey: accountKey))
                 }
             }
         }
@@ -154,7 +155,7 @@ struct ProvidersScreen: View {
         // Auto-detected Accounts (like Cursor, Trae, Claude) - always show
         if !autoDetectedProviderAccounts.isEmpty {
             Section {
-                ForEach(autoDetectedProviderAccounts, id: \.accountKey) { account in
+                ForEach(autoDetectedProviderAccounts, id: \.id) { account in
                     AutoDetectedAccountRow(provider: account.provider, accountKey: account.accountKey)
                 }
             } header: {
