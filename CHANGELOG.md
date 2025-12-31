@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2025-12-31
+
+### Added
+
+- **Beta Channel Support**: Opt-in to beta updates via Settings with separate Sparkle appcast feed (#56)
+- **Dynamic App Icon**: App icon automatically switches between production and beta based on update channel (#56)
+- **Privacy Mode**: Option to hide sensitive information (emails, account names) with asterisks across the app (#46)
+
+### Fixed
+
+- **ProgressView Crash**: Fixed Auto Layout constraint conflicts by replacing ProgressView with custom SmallProgressView component (#56)
+- **Version Parsing**: Fixed version check parsing in CLIProxyManager (#56)
+- **About Screen Icon**: Use observable for real-time icon updates when switching update channels (#56)
+- **Menu Bar Spacing**: Adjusted horizontal padding to match native macOS spacing (#50)
+
 ## [0.3.2] - 2025-12-30
 
 ### Added
