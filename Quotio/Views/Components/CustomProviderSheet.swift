@@ -60,8 +60,8 @@ struct CustomProviderSheet: View {
         .onAppear {
             loadProviderData()
         }
-        .alert("Validation Error", isPresented: $showValidationAlert) {
-            Button("OK", role: .cancel) {}
+        .alert("customProviders.validationError".localized(), isPresented: $showValidationAlert) {
+            Button("action.ok".localized(), role: .cancel) {}
         } message: {
             Text(validationErrors.joined(separator: "\n"))
         }
@@ -82,10 +82,10 @@ struct CustomProviderSheet: View {
             }
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(isEditing ? "Edit Custom Provider" : "Add Custom Provider")
+                Text(isEditing ? "customProviders.edit".localized() : "customProviders.add".localized())
                     .font(.headline)
                 
-                Text(providerType.description)
+                Text(providerType.localizedDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -109,11 +109,11 @@ struct CustomProviderSheet: View {
     
     private var basicInfoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Basic Information")
+            Text("customProviders.basicInfo".localized())
                 .font(.headline)
             
             VStack(alignment: .leading, spacing: 8) {
-                Text("Provider Name")
+                Text("customProviders.providerName".localized())
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 
@@ -122,7 +122,7 @@ struct CustomProviderSheet: View {
             }
             
             VStack(alignment: .leading, spacing: 8) {
-                Text("Provider Type")
+                Text("customProviders.providerType".localized())
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 
@@ -130,7 +130,7 @@ struct CustomProviderSheet: View {
                     ForEach(CustomProviderType.allCases) { type in
                         HStack {
                             Image(systemName: type.iconName)
-                            Text(type.displayName)
+                            Text(type.localizedDisplayName)
                         }
                         .tag(type)
                     }
@@ -146,7 +146,7 @@ struct CustomProviderSheet: View {
             
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("Base URL")
+                    Text("customProviders.baseURL".localized())
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     
@@ -171,7 +171,7 @@ struct CustomProviderSheet: View {
     private var apiKeysSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("API Keys")
+                Text("customProviders.apiKeys".localized())
                     .font(.headline)
                 
                 Spacer()
@@ -179,7 +179,7 @@ struct CustomProviderSheet: View {
                 Button {
                     apiKeys.append(CustomAPIKeyEntry(apiKey: ""))
                 } label: {
-                    Label("Add Key", systemImage: "plus.circle")
+                    Label("customProviders.addKey".localized(), systemImage: "plus.circle")
                         .font(.caption)
                 }
                 .buttonStyle(.borderless)
@@ -214,13 +214,13 @@ struct CustomProviderSheet: View {
                 }
             }
             
-            SecureField("API Key", text: Binding(
+            SecureField("customProviders.apiKeys".localized(), text: Binding(
                 get: { apiKeys[safe: index]?.apiKey ?? "" },
                 set: { if index < apiKeys.count { apiKeys[index].apiKey = $0 } }
             ))
             .textFieldStyle(.roundedBorder)
             
-            TextField("Proxy URL (optional)", text: Binding(
+            TextField("customProviders.proxyURL".localized(), text: Binding(
                 get: { apiKeys[safe: index]?.proxyURL ?? "" },
                 set: { if index < apiKeys.count { apiKeys[index].proxyURL = $0.isEmpty ? nil : $0 } }
             ))
@@ -238,10 +238,10 @@ struct CustomProviderSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Model Mapping")
+                    Text("customProviders.modelMapping".localized())
                         .font(.headline)
                     
-                    Text("Map upstream model names to local aliases")
+                    Text("customProviders.modelMappingDesc".localized())
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -251,14 +251,14 @@ struct CustomProviderSheet: View {
                 Button {
                     models.append(ModelMapping(name: "", alias: ""))
                 } label: {
-                    Label("Add Mapping", systemImage: "plus.circle")
+                    Label("customProviders.addMapping".localized(), systemImage: "plus.circle")
                         .font(.caption)
                 }
                 .buttonStyle(.borderless)
             }
             
             if models.isEmpty {
-                Text("No model mappings configured. Models will use their original names.")
+                Text("customProviders.noMappings".localized())
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.vertical, 8)
@@ -274,30 +274,49 @@ struct CustomProviderSheet: View {
     }
     
     private func modelMappingRow(index: Int) -> some View {
-        HStack(spacing: 12) {
-            TextField("Upstream Model", text: Binding(
-                get: { models[safe: index]?.name ?? "" },
-                set: { if index < models.count { models[index].name = $0 } }
-            ))
-            .textFieldStyle(.roundedBorder)
-            
-            Image(systemName: "arrow.right")
-                .foregroundStyle(.secondary)
-            
-            TextField("Local Alias", text: Binding(
-                get: { models[safe: index]?.alias ?? "" },
-                set: { if index < models.count { models[index].alias = $0 } }
-            ))
-            .textFieldStyle(.roundedBorder)
-            
-            Button {
-                models.remove(at: index)
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(.red)
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                TextField("customProviders.upstreamModel".localized(), text: Binding(
+                    get: { models[safe: index]?.name ?? "" },
+                    set: { if index < models.count { models[index].name = $0 } }
+                ))
+                .textFieldStyle(.roundedBorder)
+                
+                Image(systemName: "arrow.right")
+                    .foregroundStyle(.secondary)
+                
+                TextField("customProviders.localAlias".localized(), text: Binding(
+                    get: { models[safe: index]?.alias ?? "" },
+                    set: { if index < models.count { models[index].alias = $0 } }
+                ))
+                .textFieldStyle(.roundedBorder)
+                
+                Button {
+                    models.remove(at: index)
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.borderless)
             }
-            .buttonStyle(.borderless)
+            
+            HStack(spacing: 8) {
+                Text("customProviders.thinkingBudget".localized())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                TextField("customProviders.thinkingBudgetHint".localized(), text: Binding(
+                    get: { models[safe: index]?.thinkingBudget ?? "" },
+                    set: { if index < models.count { models[index].thinkingBudget = $0.isEmpty ? nil : $0 } }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 200)
+                
+                Spacer()
+            }
+            .padding(.leading, 4)
         }
+        .padding(.vertical, 4)
     }
     
     // MARK: - Custom Headers Section
@@ -306,10 +325,10 @@ struct CustomProviderSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Custom Headers")
+                    Text("customProviders.customHeaders".localized())
                         .font(.headline)
                     
-                    Text("Add custom HTTP headers for API requests")
+                    Text("customProviders.customHeadersDesc".localized())
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -319,14 +338,14 @@ struct CustomProviderSheet: View {
                 Button {
                     headers.append(CustomHeader(key: "", value: ""))
                 } label: {
-                    Label("Add Header", systemImage: "plus.circle")
+                    Label("customProviders.addHeader".localized(), systemImage: "plus.circle")
                         .font(.caption)
                 }
                 .buttonStyle(.borderless)
             }
             
             if headers.isEmpty {
-                Text("No custom headers configured.")
+                Text("customProviders.noHeaders".localized())
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.vertical, 8)
@@ -343,7 +362,7 @@ struct CustomProviderSheet: View {
     
     private func customHeaderRow(index: Int) -> some View {
         HStack(spacing: 12) {
-            TextField("Header Name", text: Binding(
+            TextField("customProviders.headerName".localized(), text: Binding(
                 get: { headers[safe: index]?.key ?? "" },
                 set: { if index < headers.count { headers[index].key = $0 } }
             ))
@@ -352,7 +371,7 @@ struct CustomProviderSheet: View {
             Text(":")
                 .foregroundStyle(.secondary)
             
-            TextField("Header Value", text: Binding(
+            TextField("customProviders.headerValue".localized(), text: Binding(
                 get: { headers[safe: index]?.value ?? "" },
                 set: { if index < headers.count { headers[index].value = $0 } }
             ))
@@ -372,12 +391,12 @@ struct CustomProviderSheet: View {
     
     private var enabledSection: some View {
         HStack {
-            Toggle("Enable this provider", isOn: $isEnabled)
+            Toggle("customProviders.enableProvider".localized(), isOn: $isEnabled)
             
             Spacer()
             
             if !isEnabled {
-                Text("Disabled providers are not included in the proxy configuration")
+                Text("customProviders.disabledNote".localized())
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -391,14 +410,14 @@ struct CustomProviderSheet: View {
     
     private var footerView: some View {
         HStack {
-            Button("Cancel") {
+            Button("action.cancel".localized()) {
                 dismiss()
             }
             .keyboardShortcut(.escape)
             
             Spacer()
             
-            Button(isEditing ? "Save Changes" : "Add Provider") {
+            Button(isEditing ? "customProviders.saveChanges".localized() : "customProviders.addProvider".localized()) {
                 saveProvider()
             }
             .keyboardShortcut(.return, modifiers: .command)

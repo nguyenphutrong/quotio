@@ -436,10 +436,10 @@ struct ProvidersScreen: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Add Custom Provider")
+                        Text("customProviders.add".localized())
                             .fontWeight(.medium)
                         
-                        Text("OpenAI-compatible, Claude, Gemini, or Codex APIs")
+                        Text("customProviders.description".localized())
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -454,7 +454,7 @@ struct ProvidersScreen: View {
             .buttonStyle(.plain)
         } header: {
             HStack {
-                Label("Custom Providers (\(customProviderService.providers.count))", systemImage: "puzzlepiece.extension.fill")
+                Label("customProviders.title".localized() + " (\(customProviderService.providers.count))", systemImage: "puzzlepiece.extension.fill")
                 
                 Spacer()
                 
@@ -466,11 +466,11 @@ struct ProvidersScreen: View {
                             .font(.caption)
                     }
                     .buttonStyle(.borderless)
-                    .help("Sync to config")
+                    .help("customProviders.syncConfig".localized())
                 }
             }
         } footer: {
-            Text("Custom providers let you connect OpenRouter, Ollama, LM Studio, or any compatible API endpoint.")
+            Text("customProviders.footer".localized())
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -507,7 +507,7 @@ struct CustomProviderRow: View {
                         .fontWeight(.medium)
                     
                     if !provider.isEnabled {
-                        Text("Disabled")
+                        Text("customProviders.disabled".localized())
                             .font(.caption2)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -518,7 +518,7 @@ struct CustomProviderRow: View {
                 }
                 
                 HStack(spacing: 6) {
-                    Text(provider.type.displayName)
+                    Text(provider.type.localizedDisplayName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
@@ -526,7 +526,8 @@ struct CustomProviderRow: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                     
-                    Text("\(provider.apiKeys.count) key\(provider.apiKeys.count == 1 ? "" : "s")")
+                    let keyCount = provider.apiKeys.count
+                    Text("\(keyCount) \(keyCount == 1 ? "customProviders.key".localized() : "customProviders.keys".localized())")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -542,19 +543,19 @@ struct CustomProviderRow: View {
                     .foregroundStyle(provider.isEnabled ? .green : .secondary)
             }
             .buttonStyle(.borderless)
-            .help(provider.isEnabled ? "Disable provider" : "Enable provider")
+            .help(provider.isEnabled ? "customProviders.disable".localized() : "customProviders.enable".localized())
         }
         .contextMenu {
             Button {
                 onEdit()
             } label: {
-                Label("Edit", systemImage: "pencil")
+                Label("action.edit".localized(), systemImage: "pencil")
             }
             
             Button {
                 onToggle()
             } label: {
-                Label(provider.isEnabled ? "Disable" : "Enable", systemImage: provider.isEnabled ? "xmark.circle" : "checkmark.circle")
+                Label(provider.isEnabled ? "customProviders.disable".localized() : "customProviders.enable".localized(), systemImage: provider.isEnabled ? "xmark.circle" : "checkmark.circle")
             }
             
             Divider()
@@ -562,16 +563,16 @@ struct CustomProviderRow: View {
             Button(role: .destructive) {
                 showDeleteConfirmation = true
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label("action.delete".localized(), systemImage: "trash")
             }
         }
-        .confirmationDialog("Delete Custom Provider", isPresented: $showDeleteConfirmation) {
-            Button("Delete", role: .destructive) {
+        .confirmationDialog("customProviders.deleteConfirm".localized(), isPresented: $showDeleteConfirmation) {
+            Button("action.delete".localized(), role: .destructive) {
                 onDelete()
             }
-            Button("Cancel", role: .cancel) {}
+            Button("action.cancel".localized(), role: .cancel) {}
         } message: {
-            Text("Are you sure you want to delete \"\(provider.name)\"? This action cannot be undone.")
+            Text("customProviders.deleteMessage".localized())
         }
     }
 }

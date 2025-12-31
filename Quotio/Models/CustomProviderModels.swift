@@ -28,6 +28,16 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
     
+    @MainActor
+    var localizedDisplayName: String {
+        switch self {
+        case .openaiCompatibility: return "customProviders.type.openai".localized()
+        case .claudeCompatibility: return "customProviders.type.claude".localized()
+        case .geminiCompatibility: return "customProviders.type.gemini".localized()
+        case .codexCompatibility: return "customProviders.type.codex".localized()
+        }
+    }
+    
     var description: String {
         switch self {
         case .openaiCompatibility:
@@ -38,6 +48,16 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
             return "Google Gemini API or Gemini-compatible providers"
         case .codexCompatibility:
             return "Custom Codex-compatible endpoints"
+        }
+    }
+    
+    @MainActor
+    var localizedDescription: String {
+        switch self {
+        case .openaiCompatibility: return "customProviders.type.openai.desc".localized()
+        case .claudeCompatibility: return "customProviders.type.claude.desc".localized()
+        case .geminiCompatibility: return "customProviders.type.gemini.desc".localized()
+        case .codexCompatibility: return "customProviders.type.codex.desc".localized()
         }
     }
     
@@ -135,20 +155,28 @@ struct CustomAPIKeyEntry: Codable, Identifiable, Hashable, Sendable {
 
 // MARK: - Model Mapping
 
-/// Maps an upstream model name to a local alias
+/// Maps an upstream model name to a local alias with optional thinking budget
 struct ModelMapping: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
-    var name: String      // Upstream model name
-    var alias: String     // Local alias
+    var name: String
+    var alias: String
+    var thinkingBudget: String?
     
-    init(id: UUID = UUID(), name: String, alias: String) {
+    init(id: UUID = UUID(), name: String, alias: String, thinkingBudget: String? = nil) {
         self.id = id
         self.name = name
         self.alias = alias
+        self.thinkingBudget = thinkingBudget
     }
     
     enum CodingKeys: String, CodingKey {
         case id, name, alias
+        case thinkingBudget = "thinking-budget"
+    }
+    
+    var effectiveAlias: String {
+        guard let budget = thinkingBudget, !budget.isEmpty else { return alias }
+        return "\(alias)(\(budget))"
     }
 }
 
@@ -292,7 +320,7 @@ extension CustomProvider {
             yaml += "    models:\n"
             for model in models {
                 yaml += "      - name: \"\(model.name)\"\n"
-                yaml += "        alias: \"\(model.alias)\"\n"
+                yaml += "        alias: \"\(model.effectiveAlias)\"\n"
             }
         }
         
@@ -317,7 +345,7 @@ extension CustomProvider {
                 yaml += "    models:\n"
                 for model in models {
                     yaml += "      - name: \"\(model.name)\"\n"
-                    yaml += "        alias: \"\(model.alias)\"\n"
+                    yaml += "        alias: \"\(model.effectiveAlias)\"\n"
                 }
             }
         }
