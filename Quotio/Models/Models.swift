@@ -349,6 +349,7 @@ struct AppConfig: Codable {
     var host: String = ""
     var port: UInt16 = 8317
     var authDir: String = "~/.cli-proxy-api"
+    var proxyURL: String = ""
     var apiKeys: [String] = []
     var debug: Bool = false
     var loggingToFile: Bool = false
@@ -363,6 +364,7 @@ struct AppConfig: Codable {
     enum CodingKeys: String, CodingKey {
         case host, port, debug, routing
         case authDir = "auth-dir"
+        case proxyURL = "proxy-url"
         case apiKeys = "api-keys"
         case loggingToFile = "logging-to-file"
         case usageStatisticsEnabled = "usage-statistics-enabled"
@@ -478,5 +480,81 @@ extension Int {
             return String(format: "%.1fK", Double(self) / 1_000)
         }
         return "\(self)"
+    }
+}
+
+// MARK: - Proxy URL Validation
+
+enum ProxyURLValidationResult: Equatable {
+    case valid
+    case empty
+    case invalidScheme
+    case invalidURL
+    case missingHost
+    case invalidPort
+    
+    var isValid: Bool {
+        self == .valid || self == .empty
+    }
+    
+    var localizationKey: String? {
+        switch self {
+        case .valid, .empty:
+            return nil
+        case .invalidScheme:
+            return "settings.proxy.error.invalidScheme"
+        case .invalidURL:
+            return "settings.proxy.error.invalidURL"
+        case .missingHost:
+            return "settings.proxy.error.missingHost"
+        case .invalidPort:
+            return "settings.proxy.error.invalidPort"
+        }
+    }
+}
+
+enum ProxyURLValidator {
+    static let supportedSchemes = ["socks5", "http", "https"]
+    
+    static func validate(_ urlString: String) -> ProxyURLValidationResult {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !trimmed.isEmpty else {
+            return .empty
+        }
+        
+        let hasValidScheme = supportedSchemes.contains { scheme in
+            trimmed.lowercased().hasPrefix("\(scheme)://")
+        }
+        
+        guard hasValidScheme else {
+            return .invalidScheme
+        }
+        
+        guard let url = URL(string: trimmed) else {
+            return .invalidURL
+        }
+        
+        guard let host = url.host, !host.isEmpty else {
+            return .missingHost
+        }
+        
+        if let port = url.port {
+            guard port >= 1 && port <= 65535 else {
+                return .invalidPort
+            }
+        }
+        
+        return .valid
+    }
+    
+    static func sanitize(_ urlString: String) -> String {
+        var trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        while trimmed.hasSuffix("/") {
+            trimmed.removeLast()
+        }
+        
+        return trimmed
     }
 }

@@ -19,8 +19,10 @@ struct SettingsScreen: View {
     @AppStorage("switchProjectOnQuotaExceeded") private var switchProject = true
     @AppStorage("switchPreviewModelOnQuotaExceeded") private var switchPreviewModel = true
     @AppStorage("loggingToFile") private var loggingToFile = true
+    @AppStorage("proxyURL") private var proxyURL = ""
     
     @State private var portText: String = ""
+    @State private var proxyURLValidation: ProxyURLValidationResult = .empty
     
     var body: some View {
         @Bindable var lang = LanguageManager.shared
@@ -109,6 +111,32 @@ struct SettingsScreen: View {
                     }
                     
                     Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        LabeledContent("settings.upstreamProxy".localized()) {
+                            TextField("", text: $proxyURL)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 220)
+                                .onChange(of: proxyURL) { _, newValue in
+                                    proxyURLValidation = ProxyURLValidator.validate(newValue)
+                                    applyProxyURLSettings()
+                                }
+                        }
+                        
+                        if proxyURLValidation != .valid && proxyURLValidation != .empty {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                Text((proxyURLValidation.localizationKey ?? "").localized())
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Text("settings.upstreamProxy.placeholder".localized())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 } header: {
                     Label("settings.proxyServer".localized(), systemImage: "server.rack")
                 } footer: {
@@ -194,6 +222,17 @@ struct SettingsScreen: View {
         .navigationTitle("nav.settings".localized())
         .onAppear {
             portText = String(viewModel.proxyManager.port)
+            proxyURLValidation = ProxyURLValidator.validate(proxyURL)
+        }
+    }
+    
+    private func applyProxyURLSettings() {
+        guard viewModel.proxyManager.proxyStatus.running else { return }
+        
+        if proxyURLValidation == .valid {
+            viewModel.proxyManager.updateConfigProxyURL(ProxyURLValidator.sanitize(proxyURL))
+        } else {
+            viewModel.proxyManager.updateConfigProxyURL(nil)
         }
     }
 }

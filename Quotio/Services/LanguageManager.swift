@@ -551,6 +551,17 @@ struct LocalizedStrings {
         "settings.privacy": [.english: "Privacy", .vietnamese: "Riêng tư", .chinese: "隐私"],
         "settings.privacy.hideSensitive": [.english: "Hide Sensitive Information", .vietnamese: "Ẩn thông tin nhạy cảm", .chinese: "隐藏敏感信息"],
         "settings.privacy.hideSensitiveHelp": [.english: "Masks emails and account names with ● characters across the app", .vietnamese: "Che email và tên tài khoản bằng ký tự ● trong toàn bộ ứng dụng", .chinese: "在应用中使用 ● 字符隐藏邮箱和账户名称"],
+        
+        // Upstream Proxy Settings
+        "settings.upstreamProxy": [.english: "Upstream Proxy", .vietnamese: "Proxy thượng nguồn", .chinese: "上游代理"],
+        "settings.upstreamProxy.placeholder": [.english: "socks5://host:port or http://host:port", .vietnamese: "socks5://host:port hoặc http://host:port", .chinese: "socks5://host:port 或 http://host:port"],
+        "settings.upstreamProxy.help": [.english: "Route all proxy traffic through an upstream SOCKS5/HTTP/HTTPS proxy server", .vietnamese: "Định tuyến toàn bộ traffic proxy qua máy chủ proxy SOCKS5/HTTP/HTTPS thượng nguồn", .chinese: "将所有代理流量通过上游 SOCKS5/HTTP/HTTPS 代理服务器路由"],
+        
+        // Proxy URL Validation Errors
+        "settings.proxy.error.invalidScheme": [.english: "Invalid scheme. Use socks5://, http://, or https://", .vietnamese: "Scheme không hợp lệ. Sử dụng socks5://, http://, hoặc https://", .chinese: "无效的协议。使用 socks5://、http:// 或 https://"],
+        "settings.proxy.error.invalidURL": [.english: "Invalid URL format", .vietnamese: "Định dạng URL không hợp lệ", .chinese: "无效的 URL 格式"],
+        "settings.proxy.error.missingHost": [.english: "Missing host", .vietnamese: "Thiếu host", .chinese: "缺少主机"],
+        "settings.proxy.error.invalidPort": [.english: "Invalid port number", .vietnamese: "Số port không hợp lệ", .chinese: "无效的端口号"],
     ]
     
     static func get(_ key: String, language: AppLanguage) -> String {
