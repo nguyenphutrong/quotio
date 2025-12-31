@@ -61,12 +61,12 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
     
-    var iconName: String {
+    var providerIconName: String {
         switch self {
-        case .openaiCompatibility: return "network"
-        case .claudeCompatibility: return "brain.head.profile"
-        case .geminiCompatibility: return "sparkles"
-        case .codexCompatibility: return "chevron.left.forwardslash.chevron.right"
+        case .openaiCompatibility: return "openai"
+        case .claudeCompatibility: return "claude"
+        case .geminiCompatibility: return "gemini"
+        case .codexCompatibility: return "openai"
         }
     }
     

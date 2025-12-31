@@ -76,9 +76,10 @@ struct CustomProviderSheet: View {
                     .fill(providerType.color.opacity(0.15))
                     .frame(width: 44, height: 44)
                 
-                Image(systemName: providerType.iconName)
-                    .font(.title3)
-                    .foregroundStyle(providerType.color)
+                Image(providerType.providerIconName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 24, height: 24)
             }
             
             VStack(alignment: .leading, spacing: 2) {
@@ -129,7 +130,10 @@ struct CustomProviderSheet: View {
                 Picker("Type", selection: $providerType) {
                     ForEach(CustomProviderType.allCases) { type in
                         HStack {
-                            Image(systemName: type.iconName)
+                            Image(type.providerIconName)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 16, height: 16)
                             Text(type.localizedDisplayName)
                         }
                         .tag(type)

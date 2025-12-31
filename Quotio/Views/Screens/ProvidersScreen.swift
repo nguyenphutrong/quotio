@@ -495,9 +495,10 @@ struct CustomProviderRow: View {
                     .fill(provider.type.color.opacity(0.1))
                     .frame(width: 32, height: 32)
                 
-                Image(systemName: provider.type.iconName)
-                    .font(.system(size: 14))
-                    .foregroundStyle(provider.type.color)
+                Image(provider.type.providerIconName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 18, height: 18)
             }
             
             // Provider info
