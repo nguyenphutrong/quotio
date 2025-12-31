@@ -382,6 +382,8 @@ struct LocalizedStrings {
         "action.copyAll": [.english: "Copy All", .vietnamese: "Sao chép tất cả", .chinese: "全部复制"],
         "action.done": [.english: "Done", .vietnamese: "Xong", .chinese: "完成"],
         "action.cancel": [.english: "Cancel", .vietnamese: "Hủy", .chinese: "取消"],
+        "action.edit": [.english: "Edit", .vietnamese: "Sửa", .chinese: "编辑"],
+        "action.ok": [.english: "OK", .vietnamese: "Đồng ý", .chinese: "确定"],
         "agents.saveConfig": [.english: "Save Config", .vietnamese: "Lưu cấu hình", .chinese: "保存配置"],
         
         // Storage Options
