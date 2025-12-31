@@ -191,12 +191,9 @@ struct APIKeyRow: View {
                     .textSelection(.enabled)
                 
                 Spacer()
-                
-                Button(action: onCopy) {
-                    Image(systemName: "doc.on.doc")
-                }
-                .buttonStyle(.borderless)
-                .help("action.copy".localized())
+
+                CopyButton(title: nil, onCopy: onCopy)
+                    .buttonStyle(.borderless)
                 
                 Button(action: onEdit) {
                     Image(systemName: "pencil")

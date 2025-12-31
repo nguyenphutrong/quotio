@@ -253,11 +253,8 @@ struct AgentConfigSheet: View {
                 Spacer()
                 
                 if let config = previewConfig, !config.rawConfigs.isEmpty {
-                    Button {
+                    CopyButton(title: "action.copyAll".localized()) {
                         copyPreviewToClipboard()
-                    } label: {
-                        Label("action.copyAll".localized(), systemImage: "doc.on.doc")
-                            .font(.caption)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -428,11 +425,8 @@ struct AgentConfigSheet: View {
                 
                 Spacer()
                 
-                Button {
+                CopyButton(title: "action.copyAll".localized()) {
                     viewModel.copyAllRawConfigsToClipboard()
-                } label: {
-                    Label("action.copyAll".localized(), systemImage: "doc.on.doc")
-                        .font(.caption)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)

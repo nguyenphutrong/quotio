@@ -185,6 +185,7 @@ struct LocalizedStrings {
         "action.startProxy": [.english: "Start Proxy", .vietnamese: "Khởi động Proxy", .chinese: "启动代理"],
         "action.stopProxy": [.english: "Stop Proxy", .vietnamese: "Dừng Proxy", .chinese: "停止代理"],
         "action.copy": [.english: "Copy", .vietnamese: "Sao chép", .chinese: "复制"],
+        "action.copied": [.english: "Copied", .vietnamese: "Đã sao chép", .chinese: "已复制"],
         "action.delete": [.english: "Delete", .vietnamese: "Xóa", .chinese: "删除"],
         "action.refresh": [.english: "Refresh", .vietnamese: "Làm mới", .chinese: "刷新"],
         "action.copyCode": [.english: "Copy Code", .vietnamese: "Sao chép mã", .chinese: "复制代码"],
