@@ -63,6 +63,9 @@ final class UpdaterService: NSObject {
         updater?.canCheckForUpdates ?? false
     }
     
+    /// Current app icon (observable for SwiftUI views)
+    private(set) var currentAppIcon: NSImage?
+    
     var updateChannel: UpdateChannel {
         get {
             let rawValue = UserDefaults.standard.string(forKey: "updateChannel") ?? "stable"
@@ -123,6 +126,7 @@ final class UpdaterService: NSObject {
             return true
         }
         
+        self.currentAppIcon = roundedIcon
         NSApplication.shared.applicationIconImage = roundedIcon
     }
 }

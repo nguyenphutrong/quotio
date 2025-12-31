@@ -1361,14 +1361,13 @@ struct AboutScreen: View {
                     .frame(width: 160, height: 160)
                     .blur(radius: 40)
                 
-                // App Icon - observes channel changes via NSApp.applicationIconImage
-                if let appIcon = NSApp.applicationIconImage {
+                // App Icon - uses observable currentAppIcon from UpdaterService
+                if let appIcon = UpdaterService.shared.currentAppIcon {
                     Image(nsImage: appIcon)
                         .resizable()
                         .frame(width: 96, height: 96)
                         .clipShape(RoundedRectangle(cornerRadius: 22))
                         .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 8)
-                        .id(updaterService.updateChannel)
                 }
             }
             
