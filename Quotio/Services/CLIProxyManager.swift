@@ -205,6 +205,15 @@ final class CLIProxyManager {
         }
     }
     
+    private func syncCustomProvidersToConfig() {
+        do {
+            try CustomProviderService.shared.syncToConfigFile(configPath: configPath)
+        } catch {
+            // Silent failure - custom providers are optional
+            print("Failed to sync custom providers to config: \(error)")
+        }
+    }
+    
     var isBinaryInstalled: Bool {
         // Check versioned storage first, then legacy path
         if let _ = storageManager.currentBinaryPath {
@@ -443,6 +452,7 @@ final class CLIProxyManager {
         defer { isStarting = false }
         
         syncSecretKeyInConfig()
+        syncCustomProvidersToConfig()
         
         // Use effectiveBinaryPath to support versioned storage
         let activeBinaryPath = effectiveBinaryPath

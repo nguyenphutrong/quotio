@@ -22,7 +22,10 @@ struct ProvidersScreen: View {
     @State private var projectId: String = ""
     @State private var showProxyRequiredAlert = false
     @State private var showIDEScanSheet = false
+    @State private var showCustomProviderSheet = false
+    @State private var editingCustomProvider: CustomProvider?
     private let modeManager = AppModeManager.shared
+    private let customProviderService = CustomProviderService.shared
     
     /// Check if we should show content
     private var shouldShowContent: Bool {
@@ -86,6 +89,28 @@ struct ProvidersScreen: View {
             // Quotas are already updated by scanIDEsWithConsent() inside IDEScanSheet
             IDEScanSheet {}
             .environment(viewModel)
+        }
+        .sheet(isPresented: $showCustomProviderSheet) {
+            CustomProviderSheet(provider: editingCustomProvider) { provider in
+                if editingCustomProvider != nil {
+                    customProviderService.updateProvider(provider)
+                } else {
+                    customProviderService.addProvider(provider)
+                }
+                editingCustomProvider = nil
+                // Sync to config file
+                syncCustomProvidersToConfig()
+            }
+        }
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func syncCustomProvidersToConfig() {
+        do {
+            try customProviderService.syncToConfigFile(configPath: viewModel.proxyManager.configPath)
+        } catch {
+            print("Failed to sync custom providers to config: \(error)")
         }
     }
     
@@ -196,6 +221,9 @@ struct ProvidersScreen: View {
         
         // Add Provider
         addProviderSection
+        
+        // Custom Providers section (Full Mode only)
+        customProvidersSection
     }
     
     // MARK: - Quota-Only Mode Content
@@ -365,6 +393,185 @@ struct ProvidersScreen: View {
             }
         } header: {
             Label("providers.addProvider".localized(), systemImage: "plus.circle.fill")
+        }
+    }
+    
+    // MARK: - Custom Providers Section
+    
+    private var customProvidersSection: some View {
+        Section {
+            // List existing custom providers
+            ForEach(customProviderService.providers) { provider in
+                CustomProviderRow(
+                    provider: provider,
+                    onEdit: {
+                        editingCustomProvider = provider
+                        showCustomProviderSheet = true
+                    },
+                    onDelete: {
+                        customProviderService.deleteProvider(id: provider.id)
+                        syncCustomProvidersToConfig()
+                    },
+                    onToggle: {
+                        customProviderService.toggleProvider(id: provider.id)
+                        syncCustomProvidersToConfig()
+                    }
+                )
+            }
+            
+            // Add new custom provider button
+            Button {
+                editingCustomProvider = nil
+                showCustomProviderSheet = true
+            } label: {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(Color.purple.opacity(0.1))
+                            .frame(width: 32, height: 32)
+                        
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.purple)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Add Custom Provider")
+                            .fontWeight(.medium)
+                        
+                        Text("OpenAI-compatible, Claude, Gemini, or Codex APIs")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        } header: {
+            HStack {
+                Label("Custom Providers (\(customProviderService.providers.count))", systemImage: "puzzlepiece.extension.fill")
+                
+                Spacer()
+                
+                if !customProviderService.providers.isEmpty {
+                    Button {
+                        syncCustomProvidersToConfig()
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Sync to config")
+                }
+            }
+        } footer: {
+            Text("Custom providers let you connect OpenRouter, Ollama, LM Studio, or any compatible API endpoint.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+}
+
+// MARK: - Custom Provider Row
+
+struct CustomProviderRow: View {
+    let provider: CustomProvider
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    let onToggle: () -> Void
+    
+    @State private var showDeleteConfirmation = false
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Provider type icon
+            ZStack {
+                Circle()
+                    .fill(provider.type.color.opacity(0.1))
+                    .frame(width: 32, height: 32)
+                
+                Image(systemName: provider.type.iconName)
+                    .font(.system(size: 14))
+                    .foregroundStyle(provider.type.color)
+            }
+            
+            // Provider info
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(provider.name)
+                        .fontWeight(.medium)
+                    
+                    if !provider.isEnabled {
+                        Text("Disabled")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.2))
+                            .foregroundStyle(.secondary)
+                            .clipShape(Capsule())
+                    }
+                }
+                
+                HStack(spacing: 6) {
+                    Text(provider.type.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    Text("•")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    
+                    Text("\(provider.apiKeys.count) key\(provider.apiKeys.count == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            
+            Spacer()
+            
+            // Toggle button
+            Button {
+                onToggle()
+            } label: {
+                Image(systemName: provider.isEnabled ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(provider.isEnabled ? .green : .secondary)
+            }
+            .buttonStyle(.borderless)
+            .help(provider.isEnabled ? "Disable provider" : "Enable provider")
+        }
+        .contextMenu {
+            Button {
+                onEdit()
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            
+            Button {
+                onToggle()
+            } label: {
+                Label(provider.isEnabled ? "Disable" : "Enable", systemImage: provider.isEnabled ? "xmark.circle" : "checkmark.circle")
+            }
+            
+            Divider()
+            
+            Button(role: .destructive) {
+                showDeleteConfirmation = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .confirmationDialog("Delete Custom Provider", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to delete \"\(provider.name)\"? This action cannot be undone.")
         }
     }
 }
