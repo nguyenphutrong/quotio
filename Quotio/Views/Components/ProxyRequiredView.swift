@@ -74,8 +74,7 @@ struct ProxyRequiredView: View {
             } label: {
                 HStack(spacing: 8) {
                     if isStarting {
-                        ProgressView()
-                            .controlSize(.small)
+                        SmallProgressView()
                             .tint(.white)
                     } else {
                         Image(systemName: "play.fill")

@@ -282,8 +282,7 @@ struct AgentConfigSheet: View {
                 }
             } else {
                 HStack {
-                    ProgressView()
-                        .controlSize(.small)
+                    SmallProgressView()
                     Text("Generating preview...")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -325,8 +324,7 @@ struct AgentConfigSheet: View {
                 } label: {
                     HStack(spacing: 4) {
                         if viewModel.isTesting {
-                            ProgressView()
-                                .controlSize(.small)
+                            SmallProgressView()
                         } else {
                             Image(systemName: "bolt.fill")
                         }
@@ -507,8 +505,7 @@ struct AgentConfigSheet: View {
                 } label: {
                     HStack(spacing: 4) {
                         if viewModel.isConfiguring {
-                            ProgressView()
-                                .controlSize(.small)
+                            SmallProgressView()
                         } else {
                             Image(systemName: viewModel.configurationMode == .automatic ? "gearshape.2" : "square.and.arrow.down")
                         }

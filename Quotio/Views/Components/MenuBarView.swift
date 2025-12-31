@@ -172,8 +172,7 @@ struct MenuBarView: View {
             Spacer()
             
             if viewModel.isLoadingQuotas {
-                ProgressView()
-                    .controlSize(.small)
+                SmallProgressView()
             }
         }
     }

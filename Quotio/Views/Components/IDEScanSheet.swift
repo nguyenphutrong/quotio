@@ -281,8 +281,7 @@ struct IDEScanSheet: View {
                 } label: {
                     if isScanning {
                         HStack(spacing: 8) {
-                            ProgressView()
-                                .controlSize(.small)
+                            SmallProgressView()
                             Text("ideScan.scanning".localized())
                         }
                     } else {

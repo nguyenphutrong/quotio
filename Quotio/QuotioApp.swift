@@ -296,8 +296,7 @@ struct ContentView: View {
                     if modeManager.isFullMode {
                         // Full mode: proxy controls
                         if viewModel.proxyManager.isStarting {
-                            ProgressView()
-                                .controlSize(.small)
+                            SmallProgressView()
                         } else {
                             Button {
                                 Task { await viewModel.toggleProxy() }

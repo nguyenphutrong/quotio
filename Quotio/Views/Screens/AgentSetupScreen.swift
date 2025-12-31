@@ -43,8 +43,7 @@ struct AgentSetupScreen: View {
                     Task { await viewModel.refreshAgentStatuses(forceRefresh: true) }
                 } label: {
                     if viewModel.isLoading {
-                        ProgressView()
-                            .controlSize(.small)
+                        SmallProgressView()
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }

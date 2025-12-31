@@ -218,8 +218,7 @@ struct DashboardScreen: View {
                 Spacer()
                 
                 if viewModel.isLoadingQuotas {
-                    ProgressView()
-                        .controlSize(.small)
+                    SmallProgressView()
                 }
             }
         }

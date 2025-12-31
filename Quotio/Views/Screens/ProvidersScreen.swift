@@ -177,8 +177,7 @@ struct ProvidersScreen: View {
                         }
                     } label: {
                         if viewModel.isLoadingQuotas {
-                            ProgressView()
-                                .controlSize(.small)
+                            SmallProgressView()
                         } else {
                             Image(systemName: "arrow.clockwise")
                                 .font(.caption)
@@ -810,8 +809,7 @@ struct OAuthSheet: View {
                         }
                     } label: {
                         if isPolling {
-                            ProgressView()
-                                .controlSize(.small)
+                            SmallProgressView()
                         } else {
                             Label("oauth.authenticate".localized(), systemImage: "key.fill")
                         }

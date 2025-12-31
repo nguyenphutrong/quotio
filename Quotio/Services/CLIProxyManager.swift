@@ -794,33 +794,52 @@ extension CLIProxyManager {
     
     // MARK: - Upgrade Flow
     
-    /// Check if an upgrade is available by asking the running proxy for latest version.
-    /// This does not automatically start the upgrade.
+    /// Check if an upgrade is available.
+    /// First tries to ask running proxy, then falls back to direct GitHub API fetch.
     func checkForUpgrade() async {
-        guard proxyStatus.running else {
-            upgradeAvailable = false
-            availableUpgrade = nil
-            return
+        // Get latest version - try proxy first, fallback to direct GitHub fetch
+        let latestTag: String
+        
+        if proxyStatus.running {
+            // Try to get version from running proxy first
+            let apiClient = ManagementAPIClient(baseURL: managementURL, authKey: managementKey)
+            do {
+                let latestResponse = try await apiClient.fetchLatestVersion()
+                await apiClient.invalidate()
+                latestTag = latestResponse.latestVersion
+            } catch {
+                await apiClient.invalidate()
+                // Fallback to direct GitHub fetch
+                do {
+                    let release = try await fetchLatestRelease()
+                    latestTag = release.tagName
+                } catch {
+                    upgradeAvailable = false
+                    availableUpgrade = nil
+                    return
+                }
+            }
+        } else {
+            // Proxy not running - fetch directly from GitHub
+            do {
+                let release = try await fetchLatestRelease()
+                latestTag = release.tagName
+            } catch {
+                upgradeAvailable = false
+                availableUpgrade = nil
+                return
+            }
         }
         
-        // Create API client to talk to running proxy
-        let apiClient = ManagementAPIClient(baseURL: managementURL, authKey: managementKey)
+        // Extract version without 'v' prefix
+        let latestVersion = latestTag.hasPrefix("v") ? String(latestTag.dropFirst()) : latestTag
         
-        do {
-            // Get latest version from proxy (it fetches from GitHub)
-            let latestResponse = try await apiClient.fetchLatestVersion()
-            await apiClient.invalidate()
-            
-            let latestTag = latestResponse.latestVersion // e.g., "v6.6.68-0"
-            
-            // Extract version without 'v' prefix
-            let latestVersion = latestTag.hasPrefix("v") ? String(latestTag.dropFirst()) : latestTag
-            
-            // Compare with current version using semantic versioning
-            let current = currentVersion ?? installedProxyVersion
-            
-            let needsUpgrade = current == nil || isNewerVersion(latestVersion, than: current!)
-            if needsUpgrade {
+        // Compare with current version using semantic versioning
+        let current = currentVersion ?? installedProxyVersion
+        
+        let needsUpgrade = current == nil || isNewerVersion(latestVersion, than: current!)
+        if needsUpgrade {
+            do {
                 // Fetch release info from GitHub to get checksum and download URL
                 let release = try await fetchGitHubRelease(tag: latestTag)
                 
@@ -841,12 +860,11 @@ extension CLIProxyManager {
                 
                 // Send notification about available upgrade
                 NotificationManager.shared.notifyUpgradeAvailable(version: latestVersion)
-            } else {
+            } catch {
                 upgradeAvailable = false
                 availableUpgrade = nil
             }
-        } catch {
-            await apiClient.invalidate()
+        } else {
             upgradeAvailable = false
             availableUpgrade = nil
         }
@@ -1305,9 +1323,29 @@ extension CLIProxyManager {
     
     /// Compare two semantic version strings.
     /// Returns true if `newer` is greater than `older`.
+    /// Handles versions like "6.6.73-0" where the suffix after "-" is a build number.
     private func isNewerVersion(_ newer: String, than older: String) -> Bool {
-        let newerParts = newer.split(separator: ".").compactMap { Int($0) }
-        let olderParts = older.split(separator: ".").compactMap { Int($0) }
+        // Parse version string into (major, minor, patch, build) components
+        // Format: "6.6.73-0" -> [6, 6, 73, 0]
+        func parseVersion(_ version: String) -> [Int] {
+            // First split by "-" to separate version from build number
+            let dashParts = version.split(separator: "-")
+            let mainVersion = String(dashParts.first ?? "")
+            let buildNumber = dashParts.count > 1 ? Int(dashParts[1]) : nil
+            
+            // Split main version by "."
+            var parts = mainVersion.split(separator: ".").compactMap { Int($0) }
+            
+            // Append build number if present
+            if let build = buildNumber {
+                parts.append(build)
+            }
+            
+            return parts
+        }
+        
+        let newerParts = parseVersion(newer)
+        let olderParts = parseVersion(older)
         
         // Pad shorter array with zeros
         let maxLength = max(newerParts.count, olderParts.count)

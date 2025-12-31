@@ -11,7 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		78D386942EFBF30400C40FB6 /* Quotio Dev.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Quotio Dev.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		78D386942EFBF30400C40FB6 /* Quotio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Quotio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		78D386B22EFBF30500C40FB6 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		78D386B32EFBF30500C40FB6 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		78D386B42EFBF30500C40FB6 /* Local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig.example; sourceTree = "<group>"; };
@@ -49,7 +49,7 @@
 		78D386952EFBF30400C40FB6 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				78D386942EFBF30400C40FB6 /* Quotio Dev.app */,
+				78D386942EFBF30400C40FB6 /* Quotio.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -87,7 +87,7 @@
 				78D386B12EFBF30500C40FB6 /* Sparkle */,
 			);
 			productName = Quotio;
-			productReference = 78D386942EFBF30400C40FB6 /* Quotio Dev.app */;
+			productReference = 78D386942EFBF30400C40FB6 /* Quotio.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

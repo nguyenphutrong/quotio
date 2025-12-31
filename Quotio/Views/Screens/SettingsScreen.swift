@@ -103,18 +103,9 @@ struct SettingsScreen: View {
                     }
                     
                     LabeledContent("settings.endpoint".localized()) {
-                        HStack {
-                            Text(viewModel.proxyManager.proxyStatus.endpoint)
-                                .font(.system(.body, design: .monospaced))
-                                .textSelection(.enabled)
-                            
-                            Button {
-                                viewModel.proxyManager.copyEndpointToClipboard()
-                            } label: {
-                                Image(systemName: "doc.on.doc")
-                            }
-                            .buttonStyle(.borderless)
-                        }
+                        Text(viewModel.proxyManager.proxyStatus.endpoint)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
                     }
                     
                     Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
@@ -385,9 +376,12 @@ struct PathLabel: View {
                 .textSelection(.enabled)
             
             Button {
-                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: (path as NSString).deletingLastPathComponent)
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(path, forType: .string)
             } label: {
-                Image(systemName: "folder")
+                Image(systemName: "doc.on.doc")
+                    .font(.caption)
             }
             .buttonStyle(.borderless)
         }
@@ -577,11 +571,13 @@ struct ProxyUpdateSettingsSection: View {
                     Button {
                         performUpgrade(to: upgrade)
                     } label: {
-                        if isUpgrading {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
+                        ZStack {
                             Text("action.update".localized())
+                                .opacity(isUpgrading ? 0 : 1)
+                            
+                            if isUpgrading {
+                                SmallProgressView()
+                            }
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -601,14 +597,16 @@ struct ProxyUpdateSettingsSection: View {
                     Button {
                         checkForUpdate()
                     } label: {
-                        if isCheckingForUpdate {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
+                        ZStack {
                             Text("settings.proxyUpdate.checkNow".localized())
+                                .opacity(isCheckingForUpdate ? 0 : 1)
+                            
+                            if isCheckingForUpdate {
+                                SmallProgressView()
+                            }
                         }
                     }
-                    .disabled(isCheckingForUpdate || !proxyManager.proxyStatus.running)
+                    .disabled(isCheckingForUpdate)
                 }
             }
             
@@ -623,8 +621,8 @@ struct ProxyUpdateSettingsSection: View {
                 }
             }
             
-            // Proxy must be running hint
-            if !proxyManager.proxyStatus.running {
+            // Proxy must be running hint (only shown when upgrade available but proxy not running)
+            if proxyManager.upgradeAvailable && !proxyManager.proxyStatus.running {
                 HStack {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.blue)
@@ -1063,8 +1061,7 @@ private struct AvailableVersionRow: View {
                     onInstall()
                 } label: {
                     if isInstalling {
-                        ProgressView()
-                            .controlSize(.small)
+                        SmallProgressView()
                     } else {
                         Text("settings.proxyUpdate.advanced.install".localized())
                     }
@@ -1602,11 +1599,13 @@ struct AboutProxyUpdateSection: View {
                     Button {
                         performUpgrade(to: upgrade)
                     } label: {
-                        if isUpgrading {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
+                        ZStack {
                             Text("action.update".localized())
+                                .opacity(isUpgrading ? 0 : 1)
+                            
+                            if isUpgrading {
+                                SmallProgressView()
+                            }
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -1626,11 +1625,13 @@ struct AboutProxyUpdateSection: View {
                     Button {
                         checkForUpdate()
                     } label: {
-                        if isCheckingForUpdate {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
+                        ZStack {
                             Text("settings.proxyUpdate.checkNow".localized())
+                                .opacity(isCheckingForUpdate ? 0 : 1)
+                            
+                            if isCheckingForUpdate {
+                                SmallProgressView()
+                            }
                         }
                     }
                     .buttonStyle(.bordered)
@@ -1709,8 +1710,6 @@ struct AboutProxyUpdateSection: View {
         }
     }
 }
-
-// MARK: - Donation Sheet
 
 // MARK: - Version Badge
 
@@ -1861,6 +1860,9 @@ struct AboutProxyUpdateCard: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var isHovered = false
     @State private var showAdvancedSheet = false
+    @State private var isCheckingForUpdate = false
+    @State private var isUpgrading = false
+    @State private var upgradeError: String?
     
     private var proxyManager: CLIProxyManager {
         viewModel.proxyManager
@@ -1877,8 +1879,8 @@ struct AboutProxyUpdateCard: View {
                 Spacer()
             }
             
+            // Current version row
             HStack {
-                // Current version
                 Text("settings.proxyUpdate.currentVersion".localized())
                 if let version = proxyManager.currentVersion ?? proxyManager.installedProxyVersion {
                     Text("v\(version)")
@@ -1888,11 +1890,14 @@ struct AboutProxyUpdateCard: View {
                     Text("settings.proxyUpdate.unknown".localized())
                         .foregroundStyle(.secondary)
                 }
-                
                 Spacer()
-                
-                // Upgrade status
-                if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            
+            // Upgrade status with action buttons
+            if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+                HStack {
                     Label {
                         Text("v\(upgrade.version) " + "settings.proxyUpdate.available".localized())
                     } icon: {
@@ -1900,7 +1905,27 @@ struct AboutProxyUpdateCard: View {
                             .foregroundStyle(.green)
                     }
                     .font(.caption)
-                } else {
+                    
+                    Spacer()
+                    
+                    Button {
+                        performUpgrade(to: upgrade)
+                    } label: {
+                        ZStack {
+                            Text("action.update".localized())
+                                .opacity(isUpgrading ? 0 : 1)
+                            
+                            if isUpgrading {
+                                SmallProgressView()
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isUpgrading || !proxyManager.proxyStatus.running)
+                }
+            } else {
+                HStack {
                     Label {
                         Text("settings.proxyUpdate.upToDate".localized())
                     } icon: {
@@ -1908,10 +1933,48 @@ struct AboutProxyUpdateCard: View {
                             .foregroundStyle(.green)
                     }
                     .font(.caption)
+                    
+                    Spacer()
+                    
+                    Button {
+                        checkForUpdate()
+                    } label: {
+                        ZStack {
+                            Text("settings.proxyUpdate.checkNow".localized())
+                                .opacity(isCheckingForUpdate ? 0 : 1)
+                            
+                            if isCheckingForUpdate {
+                                SmallProgressView()
+                            }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isCheckingForUpdate)
                 }
             }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+            
+            // Error message
+            if let error = upgradeError {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // Proxy must be running hint (only for Update action, not Check)
+            if proxyManager.upgradeAvailable && !proxyManager.proxyStatus.running {
+                HStack {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.blue)
+                    Text("settings.proxyUpdate.proxyMustRun".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
             
             HStack {
                 Spacer()
@@ -1948,6 +2011,31 @@ struct AboutProxyUpdateCard: View {
         .sheet(isPresented: $showAdvancedSheet) {
             ProxyVersionManagerSheet()
                 .environment(viewModel)
+        }
+    }
+    
+    private func checkForUpdate() {
+        isCheckingForUpdate = true
+        upgradeError = nil
+        
+        Task { @MainActor in
+            await proxyManager.checkForUpgrade()
+            isCheckingForUpdate = false
+        }
+    }
+    
+    private func performUpgrade(to version: ProxyVersionInfo) {
+        isUpgrading = true
+        upgradeError = nil
+        
+        Task { @MainActor in
+            do {
+                try await proxyManager.performManagedUpgrade(to: version)
+                isUpgrading = false
+            } catch {
+                upgradeError = error.localizedDescription
+                isUpgrading = false
+            }
         }
     }
 }
