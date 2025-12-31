@@ -389,6 +389,19 @@ struct LocalizedStrings {
         "settings.checkNow": [.english: "Check Now", .vietnamese: "Kiểm tra ngay", .chinese: "立即检查"],
         "settings.version": [.english: "Version", .vietnamese: "Phiên bản", .chinese: "版本"],
         
+        // Update Channel
+        "settings.updateChannel": [.english: "Update Channel", .vietnamese: "Kênh cập nhật", .chinese: "更新渠道"],
+        "settings.updateChannel.title": [.english: "Update Channel", .vietnamese: "Kênh cập nhật", .chinese: "更新渠道"],
+        "settings.updateChannel.stable": [.english: "Stable", .vietnamese: "Ổn định", .chinese: "稳定版"],
+        "settings.updateChannel.beta": [.english: "Beta", .vietnamese: "Beta", .chinese: "测试版"],
+        "settings.updateChannel.receiveBeta": [.english: "Receive beta updates", .vietnamese: "Nhận bản cập nhật beta", .chinese: "接收测试版更新"],
+        "settings.updateChannel.betaWarning": [.english: "Beta versions may contain bugs and incomplete features. Use at your own risk.", .vietnamese: "Phiên bản Beta có thể chứa lỗi và tính năng chưa hoàn chỉnh. Sử dụng theo rủi ro của bạn.", .chinese: "测试版可能包含错误和不完整的功能。使用风险自负。"],
+        "settings.updateChannel.help": [.english: "Choose which updates to receive. Beta includes pre-release versions.", .vietnamese: "Chọn loại cập nhật muốn nhận. Beta bao gồm các phiên bản thử nghiệm.", .chinese: "选择要接收的更新类型。测试版包括预发布版本。"],
+        "settings.updateChannel.downgrade.title": [.english: "Switch to Stable?", .vietnamese: "Chuyển sang Ổn định?", .chinese: "切换到稳定版？"],
+        "settings.updateChannel.downgrade.message": [.english: "You're currently on a beta version. Switching to Stable means you won't receive updates until a newer stable version is released.", .vietnamese: "Bạn đang sử dụng phiên bản beta. Chuyển sang Ổn định có nghĩa là bạn sẽ không nhận được cập nhật cho đến khi có phiên bản ổn định mới hơn.", .chinese: "您当前使用的是测试版。切换到稳定版意味着在发布更新的稳定版之前，您将不会收到更新。"],
+        "settings.updateChannel.downgrade.stayBeta": [.english: "Stay on Beta", .vietnamese: "Giữ Beta", .chinese: "保持测试版"],
+        "settings.updateChannel.downgrade.switchStable": [.english: "Switch to Stable", .vietnamese: "Chuyển sang Ổn định", .chinese: "切换到稳定版"],
+        
         // Proxy Updates
         "settings.proxyUpdate": [.english: "Proxy Updates", .vietnamese: "Cập nhật Proxy", .chinese: "代理更新"],
         "settings.proxyUpdate.currentVersion": [.english: "Current Version", .vietnamese: "Phiên bản hiện tại", .chinese: "当前版本"],

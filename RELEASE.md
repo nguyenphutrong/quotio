@@ -37,6 +37,20 @@ xcrun notarytool store-credentials "quotio-notarization" \
 ./scripts/release.sh 1.2.3   # Set specific version
 ```
 
+### Beta/Pre-release
+```bash
+# Create a beta release
+./scripts/release.sh 1.2.0-beta-1              # First beta for 1.2.0
+./scripts/release.sh 1.2.0-beta-2              # Second beta
+./scripts/release.sh 1.2.0-beta-1 --beta       # Explicit beta flag (auto-detected)
+```
+
+Beta releases:
+- Are marked as pre-release on GitHub
+- Include `<sparkle:channel>beta</sparkle:channel>` in appcast.xml
+- Only visible to users who opt-in via Settings → Updates → Update Channel → Beta
+- Use the beta app icon (yellow "BETA" banner)
+
 ### Manual Step-by-Step
 
 #### 1. Bump Version
@@ -96,6 +110,7 @@ Follow [Semantic Versioning](https://semver.org/):
 - **MAJOR** (1.0.0): Breaking changes
 - **MINOR** (0.1.0): New features, backward compatible
 - **PATCH** (0.0.1): Bug fixes
+- **BETA** (1.0.0-beta-1): Pre-release versions for testing
 
 ---
 

@@ -1293,6 +1293,7 @@ struct AboutTab: View {
 struct AboutScreen: View {
     @State private var showCopiedToast = false
     @State private var isHoveringVersion = false
+    @State private var updaterService = UpdaterService.shared
     
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -1360,13 +1361,14 @@ struct AboutScreen: View {
                     .frame(width: 160, height: 160)
                     .blur(radius: 40)
                 
-                // App Icon
+                // App Icon - observes channel changes via NSApp.applicationIconImage
                 if let appIcon = NSApp.applicationIconImage {
                     Image(nsImage: appIcon)
                         .resizable()
                         .frame(width: 96, height: 96)
                         .clipShape(RoundedRectangle(cornerRadius: 22))
                         .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 8)
+                        .id(updaterService.updateChannel)
                 }
             }
             
@@ -1795,6 +1797,20 @@ struct AboutUpdateCard: View {
                     .onChange(of: autoCheckUpdates) { _, newValue in
                         updaterService.automaticallyChecksForUpdates = newValue
                     }
+            }
+            
+            HStack {
+                Text("settings.updateChannel.receiveBeta".localized())
+                    .font(.subheadline)
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { updaterService.updateChannel == .beta },
+                    set: { newValue in
+                        updaterService.updateChannel = newValue ? .beta : .stable
+                    }
+                ))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
             }
             
             HStack {

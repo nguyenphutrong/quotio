@@ -5,8 +5,34 @@
 //  Auto-update service using Sparkle framework
 //
 
+import AppKit
 import Foundation
 import Sparkle
+
+// MARK: - Update Channel
+
+enum UpdateChannel: String, CaseIterable, Identifiable, Sendable {
+    case stable
+    case beta
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .stable: return "settings.updateChannel.stable".localized()
+        case .beta: return "settings.updateChannel.beta".localized()
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .stable: return "checkmark.shield"
+        case .beta: return "flask.fill"
+        }
+    }
+}
+
+// MARK: - UpdaterService
 
 /// Manages application updates using Sparkle framework
 @MainActor
@@ -37,6 +63,18 @@ final class UpdaterService: NSObject {
         updater?.canCheckForUpdates ?? false
     }
     
+    var updateChannel: UpdateChannel {
+        get {
+            let rawValue = UserDefaults.standard.string(forKey: "updateChannel") ?? "stable"
+            return UpdateChannel(rawValue: rawValue) ?? .stable
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "updateChannel")
+            updater?.resetUpdateCycle()
+            updateAppIcon()
+        }
+    }
+    
     // MARK: - Singleton
     
     static let shared = UpdaterService()
@@ -46,12 +84,13 @@ final class UpdaterService: NSObject {
     override init() {
         super.init()
         
-        // Initialize Sparkle updater controller
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: self,
             userDriverDelegate: nil
         )
+        
+        updateAppIcon()
     }
     
     // MARK: - Public Methods
@@ -67,6 +106,25 @@ final class UpdaterService: NSObject {
     func checkForUpdatesInBackground() {
         updater?.checkForUpdatesInBackground()
     }
+    
+    // MARK: - Icon Management
+    
+    func updateAppIcon() {
+        // Use imageset names (not appiconset) for runtime loading
+        let iconName = updateChannel == .beta ? "AppIconBetaImage" : "AppIconImage"
+        
+        guard let iconImage = NSImage(named: iconName) else { return }
+        
+        let size = NSSize(width: 1024, height: 1024)
+        let roundedIcon = NSImage(size: size, flipped: false) { rect in
+            let path = NSBezierPath(roundedRect: rect, xRadius: rect.width * 0.22, yRadius: rect.height * 0.22)
+            path.addClip()
+            iconImage.draw(in: rect)
+            return true
+        }
+        
+        NSApplication.shared.applicationIconImage = roundedIcon
+    }
 }
 
 // MARK: - SPUUpdaterDelegate
@@ -74,8 +132,12 @@ final class UpdaterService: NSObject {
 extension UpdaterService: SPUUpdaterDelegate {
     
     nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
-        // Use GitHub releases for appcast
         return "https://github.com/nguyenphutrong/quotio/releases/latest/download/appcast.xml"
+    }
+    
+    nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        let channel = UserDefaults.standard.string(forKey: "updateChannel") ?? "stable"
+        return channel == "beta" ? Set(["beta"]) : Set()
     }
     
     nonisolated func updaterDidFinishUpdateCycleForUpdateCheck(_ updater: SPUUpdater) throws {

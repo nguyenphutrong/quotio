@@ -3,14 +3,21 @@ set -e
 
 # =============================================================================
 # Full Release Workflow
-# Usage: ./release.sh [version]
-#   version: major, minor, patch, or X.Y.Z (optional)
+# Usage: ./release.sh [version] [--beta]
+#   version: major, minor, patch, X.Y.Z, or X.Y.Z-beta-N (optional)
+#   --beta: Mark as pre-release on GitHub (auto-detected for -beta- versions)
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"
 
 VERSION_ARG="${1:-}"
+BETA_FLAG="${2:-}"
+
+IS_BETA=false
+if [[ "$VERSION_ARG" == *"-beta-"* ]] || [[ "$BETA_FLAG" == "--beta" ]]; then
+    IS_BETA=true
+fi
 
 # Check prerequisites
 check_command xcodebuild
@@ -80,9 +87,17 @@ RELEASE_FILES=""
 
 # Create GitHub release
 log_info "Creating GitHub release..."
+
+RELEASE_FLAGS=""
+if [ "$IS_BETA" = true ]; then
+    RELEASE_FLAGS="--prerelease"
+    log_info "Creating as PRE-RELEASE (beta)"
+fi
+
 gh release create "$TAG_NAME" \
     --title "${PROJECT_NAME} ${NEW_VERSION}" \
     --generate-notes \
+    $RELEASE_FLAGS \
     $RELEASE_FILES
 
 log_info "=========================================="

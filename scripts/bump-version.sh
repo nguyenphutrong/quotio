@@ -4,6 +4,7 @@ set -e
 # =============================================================================
 # Bump Version
 # Usage: ./bump-version.sh [major|minor|patch] or ./bump-version.sh 1.2.3
+#        ./bump-version.sh 1.2.3-beta-1 (for beta versions)
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -43,18 +44,22 @@ case "${1:-}" in
         exit 0
         ;;
     *)
-        # Assume it's a version string
-        if [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$1"
+        # Support both X.Y.Z and X.Y.Z-beta-N formats
+        if [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta-[0-9]+)?$ ]]; then
+            BASE_VERSION=$(echo "$1" | sed 's/-beta-.*//')
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+            if [[ "$1" == *"-beta-"* ]]; then
+                NEW_VERSION="$1"
+            fi
         else
             log_error "Invalid version: $1"
-            log_info "Usage: $0 [major|minor|patch|X.Y.Z]"
+            log_info "Usage: $0 [major|minor|patch|X.Y.Z|X.Y.Z-beta-N]"
             exit 1
         fi
         ;;
 esac
 
-NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+NEW_VERSION="${NEW_VERSION:-${MAJOR}.${MINOR}.${PATCH}}"
 NEW_BUILD=$((CURRENT_BUILD + 1))
 
 log_info "New version: ${NEW_VERSION} (build ${NEW_BUILD})"
