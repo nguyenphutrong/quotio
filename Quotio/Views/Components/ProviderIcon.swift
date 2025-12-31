@@ -10,12 +10,27 @@ struct ProviderIcon: View {
     let provider: AIProvider
     var size: CGFloat = 24
     
+    @Environment(\.colorScheme) private var colorScheme
+    
+    /// Providers that need white icons in dark mode (have dark/black logos)
+    private var needsLightModeInDark: Bool {
+        switch provider {
+        case .cursor, .copilot:
+            return true
+        default:
+            return false
+        }
+    }
+    
     var body: some View {
         Group {
             if let nsImage = NSImage(named: provider.logoAssetName) {
                 Image(nsImage: nsImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+                    .if(needsLightModeInDark && colorScheme == .dark) { view in
+                        view.colorInvert()
+                    }
             } else {
                 // Fallback to SF Symbol if image not found
                 Image(systemName: provider.iconName)
@@ -25,6 +40,19 @@ struct ProviderIcon: View {
             }
         }
         .frame(width: size, height: size)
+    }
+}
+
+// MARK: - View Extension for Conditional Modifier
+
+extension View {
+    @ViewBuilder
+    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
     }
 }
 

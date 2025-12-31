@@ -71,16 +71,10 @@ struct CustomProviderSheet: View {
     
     private var headerView: some View {
         HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(providerType.color.opacity(0.15))
-                    .frame(width: 44, height: 44)
-                
-                Image(providerType.providerIconName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
-            }
+            Image(providerType.menuBarIconName)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 24, height: 24)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(isEditing ? "customProviders.edit".localized() : "customProviders.add".localized())
@@ -130,7 +124,7 @@ struct CustomProviderSheet: View {
                 Picker("Type", selection: $providerType) {
                     ForEach(CustomProviderType.allCases) { type in
                         HStack {
-                            Image(type.providerIconName)
+                            Image(type.menuBarIconName)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 16, height: 16)
@@ -186,7 +180,7 @@ struct CustomProviderSheet: View {
                     Label("customProviders.addKey".localized(), systemImage: "plus.circle")
                         .font(.caption)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.sectionHeader)
             }
             
             ForEach(Array(apiKeys.enumerated()), id: \.offset) { index, _ in
@@ -214,7 +208,7 @@ struct CustomProviderSheet: View {
                         Image(systemName: "trash")
                             .foregroundStyle(.red)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.rowActionDestructive)
                 }
             }
             
@@ -258,7 +252,7 @@ struct CustomProviderSheet: View {
                     Label("customProviders.addMapping".localized(), systemImage: "plus.circle")
                         .font(.caption)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.sectionHeader)
             }
             
             if models.isEmpty {
@@ -301,7 +295,7 @@ struct CustomProviderSheet: View {
                     Image(systemName: "trash")
                         .foregroundStyle(.red)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.rowActionDestructive)
             }
             
             HStack(spacing: 8) {
@@ -345,7 +339,7 @@ struct CustomProviderSheet: View {
                     Label("customProviders.addHeader".localized(), systemImage: "plus.circle")
                         .font(.caption)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.sectionHeader)
             }
             
             if headers.isEmpty {
@@ -387,7 +381,7 @@ struct CustomProviderSheet: View {
                 Image(systemName: "trash")
                     .foregroundStyle(.red)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.rowActionDestructive)
         }
     }
     

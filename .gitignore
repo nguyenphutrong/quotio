@@ -26,3 +26,5 @@ DerivedData/
 
 # Local development configuration (contains dev-specific overrides)
 Config/Local.xcconfig
+
+plans/

@@ -70,6 +70,15 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
     
+    var menuBarIconName: String {
+        switch self {
+        case .openaiCompatibility: return "openai-menubar"
+        case .claudeCompatibility: return "claude-menubar"
+        case .geminiCompatibility: return "gemini-menubar"
+        case .codexCompatibility: return "openai-menubar"
+        }
+    }
+    
     var color: Color {
         switch self {
         case .openaiCompatibility: return Color(hex: "10A37F") ?? .green

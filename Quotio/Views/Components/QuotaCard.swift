@@ -194,7 +194,7 @@ struct QuotaCard: View {
         DisclosureGroup {
             VStack(spacing: 4) {
                 ForEach(accounts) { account in
-                    AccountRow(account: account, quotaData: quotaData?[account.quotaLookupKey])
+                    QuotaAccountRow(account: account, quotaData: quotaData?[account.quotaLookupKey])
                 }
             }
         } label: {
@@ -283,7 +283,7 @@ private struct StatusBadge: View {
     }
 }
 
-private struct AccountRow: View {
+private struct QuotaAccountRow: View {
     let account: AuthFile
     var quotaData: ProviderQuotaData?
     @State private var settings = MenuBarSettingsManager.shared

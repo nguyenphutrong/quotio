@@ -1,0 +1,290 @@
+//
+//  AccountRow.swift
+//  Quotio
+//
+//  Unified account row component for ProvidersScreen.
+//  Replaces: AuthFileRow, DirectAuthFileRow, AutoDetectedAccountRow
+//
+
+import SwiftUI
+
+/// Represents the source/type of an account for display purposes
+enum AccountSource: Equatable {
+    case proxy           // From proxy API (AuthFile)
+    case direct          // From disk auth files (DirectAuthFile)
+    case autoDetected    // Auto-detected from IDE (Cursor, Trae)
+    
+    var displayName: String {
+        switch self {
+        case .proxy: return "providers.source.proxy".localized()
+        case .direct: return "providers.source.disk".localized()
+        case .autoDetected: return "providers.autoDetected".localized()
+        }
+    }
+}
+
+/// Unified data model for account display
+struct AccountRowData: Identifiable, Hashable {
+    let id: String
+    let provider: AIProvider
+    let displayName: String       // Email or account identifier
+    let source: AccountSource
+    let status: String?           // "ready", "cooling", "error", etc.
+    let statusMessage: String?
+    let isDisabled: Bool
+    let canDelete: Bool           // Only proxy accounts can be deleted
+    
+    // For menu bar selection
+    var menuBarItem: MenuBarQuotaItem {
+        MenuBarQuotaItem(provider: provider.rawValue, accountKey: displayName)
+    }
+    
+    // MARK: - Factory Methods
+    
+    /// Create from AuthFile (proxy mode)
+    static func from(authFile: AuthFile) -> AccountRowData {
+        let name = authFile.email ?? authFile.name
+        return AccountRowData(
+            id: authFile.id,
+            provider: authFile.providerType ?? .gemini,
+            displayName: name,
+            source: .proxy,
+            status: authFile.status,
+            statusMessage: authFile.statusMessage,
+            isDisabled: authFile.disabled,
+            canDelete: true
+        )
+    }
+    
+    /// Create from DirectAuthFile (quota-only mode or proxy stopped)
+    static func from(directAuthFile: DirectAuthFile) -> AccountRowData {
+        let name = directAuthFile.email ?? directAuthFile.filename
+        return AccountRowData(
+            id: directAuthFile.id,
+            provider: directAuthFile.provider,
+            displayName: name,
+            source: .direct,
+            status: nil,
+            statusMessage: nil,
+            isDisabled: false,
+            canDelete: false
+        )
+    }
+    
+    /// Create from auto-detected account (Cursor, Trae)
+    static func from(provider: AIProvider, accountKey: String) -> AccountRowData {
+        AccountRowData(
+            id: "\(provider.rawValue)_\(accountKey)",
+            provider: provider,
+            displayName: accountKey,
+            source: .autoDetected,
+            status: nil,
+            statusMessage: nil,
+            isDisabled: false,
+            canDelete: false
+        )
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: AccountRowData, rhs: AccountRowData) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+// MARK: - AccountRow View
+
+struct AccountRow: View {
+    let account: AccountRowData
+    var onDelete: (() -> Void)?
+    
+    @State private var settings = MenuBarSettingsManager.shared
+    @State private var showWarning = false
+    @State private var showDeleteConfirmation = false
+    
+    private var isMenuBarSelected: Bool {
+        settings.isSelected(account.menuBarItem)
+    }
+    
+    private var maskedDisplayName: String {
+        account.displayName.masked(if: settings.hideSensitiveInfo)
+    }
+    
+    private var statusColor: Color {
+        switch account.status {
+        case "ready": return account.isDisabled ? .gray : .green
+        case "cooling": return .orange
+        case "error": return .red
+        default: return .gray
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Provider icon
+            ProviderIcon(provider: account.provider, size: 24)
+            
+            // Account info
+            VStack(alignment: .leading, spacing: 2) {
+                Text(maskedDisplayName)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                
+                HStack(spacing: 6) {
+                    // Provider name
+                    Text(account.provider.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    // Status indicator (only for proxy accounts)
+                    if let status = account.status {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 6, height: 6)
+                        
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(statusColor)
+                    } else {
+                        // Source indicator for non-proxy accounts
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        
+                        Text(account.source.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Disabled badge
+            if account.isDisabled {
+                Text("providers.disabled".localized())
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.secondary.opacity(0.2))
+                    .clipShape(Capsule())
+            }
+            
+            // Menu bar toggle
+            MenuBarBadge(
+                isSelected: isMenuBarSelected,
+                onTap: handleMenuBarToggle
+            )
+            
+            // Delete button (only for proxy accounts)
+            if account.canDelete, let onDelete = onDelete {
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.red.opacity(0.8))
+                }
+                .buttonStyle(.rowActionDestructive)
+                .help("action.delete".localized())
+            }
+        }
+        .contentShape(Rectangle())
+        .contextMenu {
+            // Menu bar toggle
+            Button {
+                handleMenuBarToggle()
+            } label: {
+                if isMenuBarSelected {
+                    Label("menubar.hideFromMenuBar".localized(), systemImage: "chart.bar")
+                } else {
+                    Label("menubar.showOnMenuBar".localized(), systemImage: "chart.bar.fill")
+                }
+            }
+            
+            // Delete option (only for proxy accounts)
+            if account.canDelete, onDelete != nil {
+                Divider()
+                
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    Label("action.delete".localized(), systemImage: "trash")
+                }
+            }
+        }
+        .confirmationDialog("providers.deleteConfirm".localized(), isPresented: $showDeleteConfirmation) {
+            Button("action.delete".localized(), role: .destructive) {
+                onDelete?()
+            }
+            Button("action.cancel".localized(), role: .cancel) {}
+        } message: {
+            Text("providers.deleteMessage".localized())
+        }
+        .alert("menubar.warning.title".localized(), isPresented: $showWarning) {
+            Button("menubar.warning.confirm".localized()) {
+                settings.toggleItem(account.menuBarItem)
+            }
+            Button("menubar.warning.cancel".localized(), role: .cancel) {}
+        } message: {
+            Text("menubar.warning.message".localized())
+        }
+    }
+    
+    private func handleMenuBarToggle() {
+        if isMenuBarSelected {
+            settings.toggleItem(account.menuBarItem)
+        } else if settings.shouldWarnOnAdd {
+            showWarning = true
+        } else {
+            settings.toggleItem(account.menuBarItem)
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    List {
+        AccountRow(
+            account: AccountRowData(
+                id: "1",
+                provider: .gemini,
+                displayName: "user@gmail.com",
+                source: .proxy,
+                status: "ready",
+                statusMessage: nil,
+                isDisabled: false,
+                canDelete: true
+            ),
+            onDelete: {}
+        )
+        
+        AccountRow(
+            account: AccountRowData(
+                id: "2",
+                provider: .claude,
+                displayName: "work@company.com",
+                source: .direct,
+                status: nil,
+                statusMessage: nil,
+                isDisabled: false,
+                canDelete: false
+            )
+        )
+        
+        AccountRow(
+            account: AccountRowData(
+                id: "3",
+                provider: .cursor,
+                displayName: "dev@example.com",
+                source: .autoDetected,
+                status: nil,
+                statusMessage: nil,
+                isDisabled: false,
+                canDelete: false
+            )
+        )
+    }
+}

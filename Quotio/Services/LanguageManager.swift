@@ -111,6 +111,15 @@ struct LocalizedStrings {
         "providers.projectIdOptional": [.english: "Project ID (optional)", .vietnamese: "ID dự án (tùy chọn)", .chinese: "项目 ID（可选）"],
         "providers.disabled": [.english: "Disabled", .vietnamese: "Đã tắt", .chinese: "已禁用"],
         "providers.autoDetected": [.english: "Auto-detected", .vietnamese: "Tự động phát hiện", .chinese: "自动检测"],
+        "providers.source.proxy": [.english: "Proxy", .vietnamese: "Proxy", .chinese: "代理"],
+        "providers.source.disk": [.english: "Disk", .vietnamese: "Đĩa", .chinese: "磁盘"],
+        "providers.yourAccounts": [.english: "Your Accounts", .vietnamese: "Tài khoản của bạn", .chinese: "您的账户"],
+        "providers.addAccount": [.english: "Add Account", .vietnamese: "Thêm tài khoản", .chinese: "添加账户"],
+        "providers.addManually": [.english: "Add Manually", .vietnamese: "Thêm thủ công", .chinese: "手动添加"],
+        "providers.emptyState.title": [.english: "No Accounts", .vietnamese: "Chưa có tài khoản", .chinese: "无账户"],
+        "providers.emptyState.message": [.english: "Scan for installed IDEs or add a provider account to get started.", .vietnamese: "Quét IDE đã cài đặt hoặc thêm tài khoản nhà cung cấp để bắt đầu.", .chinese: "扫描已安装的 IDE 或添加提供商账户以开始。"],
+        "providers.deleteConfirm": [.english: "Delete Account", .vietnamese: "Xóa tài khoản", .chinese: "删除账户"],
+        "providers.deleteMessage": [.english: "Are you sure you want to delete this account?", .vietnamese: "Bạn có chắc muốn xóa tài khoản này?", .chinese: "您确定要删除此账户吗？"],
         "providers.proxyRequired.title": [.english: "Proxy Required", .vietnamese: "Cần khởi động Proxy", .chinese: "需要代理"],
         "providers.proxyRequired.message": [.english: "The proxy server must be running to add new provider accounts.", .vietnamese: "Cần khởi động proxy để thêm tài khoản nhà cung cấp mới.", .chinese: "必须运行代理服务器才能添加新的提供商账户。"],
         
@@ -533,6 +542,7 @@ struct LocalizedStrings {
         "ideScan.buttonSubtitle": [.english: "Detect Cursor, Trae, and CLI tools", .vietnamese: "Phát hiện Cursor, Trae và công cụ CLI", .chinese: "检测 Cursor、Trae 和 CLI 工具"],
         "ideScan.sectionTitle": [.english: "Detect IDEs", .vietnamese: "Phát hiện IDE", .chinese: "检测 IDE"],
         "ideScan.sectionFooter": [.english: "Scan for installed IDEs and CLI tools to track their quotas", .vietnamese: "Quét IDE và công cụ CLI đã cài đặt để theo dõi quota", .chinese: "扫描已安装的 IDE 和 CLI 工具以跟踪其配额"],
+        "ideScan.scanExisting": [.english: "Scan for Existing IDEs", .vietnamese: "Quét IDE đã cài đặt", .chinese: "扫描已安装的 IDE"],
         
         // Upgrade Notifications
         "notification.upgrade.success.title": [.english: "Proxy Upgraded", .vietnamese: "Đã nâng cấp Proxy", .chinese: "代理已升级"],
