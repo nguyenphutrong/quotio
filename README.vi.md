@@ -33,7 +33,7 @@ Quotio là ứng dụng macOS để quản lý **CLIProxyAPI** - máy chủ prox
 - **🖥️ Menu Bar**: Truy cập nhanh trạng thái, tổng quan quota và biểu tượng provider tùy chỉnh từ thanh menu.
 - **🔔 Thông báo**: Cảnh báo khi hạn mức thấp, tài khoản đang nghỉ, hoặc lỗi dịch vụ.
 - **🔄 Tự động Cập nhật**: Tích hợp Sparkle updater để cập nhật liền mạch.
-- **🌍 Đa ngôn ngữ**: Hỗ trợ tiếng Anh và tiếng Việt.
+- **🌍 Đa ngôn ngữ**: Hỗ trợ tiếng Anh, tiếng Việt và tiếng Trung giản thể.
 
 ## 🤖 Hệ sinh thái hỗ trợ
 
