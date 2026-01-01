@@ -493,14 +493,18 @@ private struct AccountQuotaCardV2: View {
                     showSwitchSheet = true
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
                             .font(.caption)
                         Text("Use in IDE")
                             .font(.caption)
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.blue.opacity(0.1))
+                    .foregroundStyle(.blue)
+                    .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.blue)
             }
             
             // Refresh button - inline spinner when loading
@@ -511,14 +515,16 @@ private struct AccountQuotaCardV2: View {
                     isRefreshing = false
                 }
             } label: {
-                if isRefreshing {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                        .frame(width: 16, height: 16)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.subheadline)
+                Group {
+                    if isRefreshing {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.subheadline)
+                    }
                 }
+                .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
@@ -678,22 +684,25 @@ private struct PlanBadgeV2: View {
 private struct SubscriptionBadgeV2: View {
     let info: SubscriptionInfo
     
-    private var tierConfig: (bgColor: Color, textColor: Color) {
+    private var tierConfig: (name: String, bgColor: Color, textColor: Color) {
         switch info.tierId {
         case "g1-ultra-tier":
             // Gold/Yellow for Ultra
-            return (Color(red: 1.0, green: 0.95, blue: 0.8), Color(red: 0.52, green: 0.39, blue: 0.02))
+            return ("Ultra", Color(red: 1.0, green: 0.95, blue: 0.8), Color(red: 0.52, green: 0.39, blue: 0.02))
         case "g1-pro-tier":
             // Blue for Pro
-            return (Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
+            return ("Pro", Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
+        case "standard-tier":
+            // Gray for Standard/Free
+            return ("Free", Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
         default:
-            // Gray for Free/Standard
-            return (Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
+            // Gray for unknown tiers - use actual tier name
+            return (info.tierDisplayName, Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
         }
     }
     
     var body: some View {
-        Text(info.tierDisplayName)
+        Text(tierConfig.name)
             .font(.caption)
             .fontWeight(.medium)
             .foregroundStyle(tierConfig.textColor)

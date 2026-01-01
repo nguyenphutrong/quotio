@@ -176,13 +176,13 @@ struct AccountRow: View {
             
             // Active in IDE badge (Antigravity only)
             if account.provider == .antigravity && isActiveInIDE {
-                Text("antigravity.active".localized())
+                Text("Active")
                     .font(.caption2)
                     .fontWeight(.medium)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Color(red: 0.13, green: 0.55, blue: 0.13))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(.green.opacity(0.15))
+                    .background(Color(red: 0.85, green: 0.95, blue: 0.85))
                     .clipShape(Capsule())
             }
             
@@ -191,10 +191,19 @@ struct AccountRow: View {
                 Button {
                     onSwitch?()
                 } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.caption)
+                    HStack(spacing: 4) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.caption2)
+                        Text("Use in IDE")
+                            .font(.caption2)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.blue.opacity(0.1))
+                    .foregroundStyle(.blue)
+                    .clipShape(Capsule())
                 }
-                .buttonStyle(.rowAction)
+                .buttonStyle(.plain)
                 .help("antigravity.switch.title".localized())
             }
             

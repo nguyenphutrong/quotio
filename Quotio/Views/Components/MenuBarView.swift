@@ -393,15 +393,17 @@ private struct MenuBarQuotaCard: View {
     }
     
     // Tier badge config
-    private var tierConfig: (bgColor: Color, textColor: Color)? {
+    private var tierConfig: (name: String, bgColor: Color, textColor: Color)? {
         guard let info = subscriptionInfo else { return nil }
         switch info.tierId {
         case "g1-ultra-tier":
-            return (Color(red: 1.0, green: 0.95, blue: 0.8), Color(red: 0.52, green: 0.39, blue: 0.02))
+            return ("Ultra", Color(red: 1.0, green: 0.95, blue: 0.8), Color(red: 0.52, green: 0.39, blue: 0.02))
         case "g1-pro-tier":
-            return (Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
+            return ("Pro", Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
+        case "standard-tier":
+            return ("Free", Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
         default:
-            return (Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
+            return (info.tierDisplayName, Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
         }
     }
     
@@ -478,8 +480,8 @@ private struct MenuBarQuotaCard: View {
             // Row 2: Tier badge + Active badge + Switch button
             HStack(spacing: 6) {
                 // Tier badge (Antigravity)
-                if let config = tierConfig, let info = subscriptionInfo {
-                    Text(info.tierDisplayName)
+                if let config = tierConfig {
+                    Text(config.name)
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(config.textColor)
                         .padding(.horizontal, 6)
@@ -512,14 +514,18 @@ private struct MenuBarQuotaCard: View {
                         showSwitchSheet = true
                     } label: {
                         HStack(spacing: 2) {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 9))
-                            Text("Use in IDE")
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 8))
+                            Text("Use")
                                 .font(.system(size: 9))
                         }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundStyle(.blue)
+                        .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.blue)
                 }
             }
         }
