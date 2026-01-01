@@ -301,19 +301,28 @@ struct RequestHistoryStore: Codable, Sendable {
 // MARK: - Formatting Helpers
 
 extension RequestLog {
-    /// Formatted timestamp for display
-    var formattedTimestamp: String {
+    /// Static formatters for performance (avoid recreating on every call)
+    private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
-        return formatter.string(from: timestamp)
-    }
-    
-    /// Formatted date for grouping
-    var formattedDate: String {
+        return formatter
+    }()
+
+    private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
-        return formatter.string(from: timestamp)
+        return formatter
+    }()
+
+    /// Formatted timestamp for display
+    var formattedTimestamp: String {
+        Self.timeFormatter.string(from: timestamp)
+    }
+
+    /// Formatted date for grouping
+    var formattedDate: String {
+        Self.dateFormatter.string(from: timestamp)
     }
     
     /// Formatted duration for display

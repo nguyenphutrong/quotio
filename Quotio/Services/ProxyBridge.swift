@@ -82,8 +82,15 @@ final class ProxyBridge {
     /// This is nonisolated so it can be called from static contexts
     nonisolated static func internalPort(from userPort: UInt16) -> UInt16 {
         // Use offset of 10000, but cap at valid port range
-        let internalPort = UInt32(userPort) + 10000
-        return internalPort > 65535 ? userPort + 1000 : UInt16(internalPort)
+        // For high ports (55536+), use a smaller offset to stay within valid range
+        let preferredPort = UInt32(userPort) + 10000
+        if preferredPort <= 65535 {
+            return UInt16(preferredPort)
+        }
+        // Fallback: use modular offset within high port range (49152-65535)
+        let highPortBase: UInt16 = 49152
+        let offset = userPort % 1000
+        return highPortBase + offset
     }
     
     // MARK: - Lifecycle

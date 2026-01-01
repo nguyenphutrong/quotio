@@ -135,20 +135,19 @@ final class RequestTracker {
     }
     
     private func saveToDisk() {
-        fileQueue.async { [weak self] in
-            guard let self = self else { return }
-            
+        // Capture store snapshot on MainActor to avoid data race
+        let storeSnapshot = self.store
+        let storageURLSnapshot = self.storageURL
+
+        fileQueue.async {
             do {
                 let encoder = JSONEncoder()
                 encoder.dateEncodingStrategy = .iso8601
                 encoder.outputFormatting = .prettyPrinted
-                
-                let data = try encoder.encode(self.store)
-                try data.write(to: self.storageURL)
+
+                let data = try encoder.encode(storeSnapshot)
+                try data.write(to: storageURLSnapshot)
             } catch {
-                Task { @MainActor [weak self] in
-                    self?.lastError = error.localizedDescription
-                }
                 NSLog("[RequestTracker] Failed to save history: \(error)")
             }
         }

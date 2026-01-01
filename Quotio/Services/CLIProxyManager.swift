@@ -163,14 +163,10 @@ final class CLIProxyManager {
         if savedPort > 0 && savedPort < 65536 {
             self.proxyStatus.port = UInt16(savedPort)
         }
-        
-        // Enable bridge mode by default for new installations
-        // This solves the stale connection issue (GitHub #37)
-        if !UserDefaults.standard.bool(forKey: "bridgeModeConfigured") {
-            UserDefaults.standard.set(true, forKey: "useBridgeMode")
-            UserDefaults.standard.set(true, forKey: "bridgeModeConfigured")
-        }
-        
+
+        // Note: Bridge mode default is registered in AppDelegate.applicationDidFinishLaunching()
+        // using UserDefaults.register(defaults:) which is the preferred approach
+
         try? FileManager.default.createDirectory(atPath: authDir, withIntermediateDirectories: true)
         
         ensureConfigExists()
