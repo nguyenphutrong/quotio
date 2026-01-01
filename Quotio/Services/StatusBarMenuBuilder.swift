@@ -762,7 +762,7 @@ private struct MenuModelDetailView: View {
 private struct MenuEmptyStateView: View {
     var body: some View {
         VStack(spacing: 6) {
-            Text("No quota data")
+            Text("menubar.noData".localized())
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }

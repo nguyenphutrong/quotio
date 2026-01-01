@@ -898,7 +898,7 @@ private struct ModelDetailRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 // Model name
-                Text(model.name)
+                Text(model.displayName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
