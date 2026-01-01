@@ -88,9 +88,6 @@ struct QuotioApp: App {
         // Apply saved appearance mode
         appearanceManager.applyAppearance()
         
-        // Set up StatusBarManager with viewModel for native menu building
-        statusBarManager.setViewModel(viewModel)
-        
         // Check if onboarding needed
         if !modeManager.hasCompletedOnboarding {
             showOnboarding = true
