@@ -470,15 +470,20 @@ private struct AccountQuotaCardV2: View {
             
             Spacer()
             
-            // Active in IDE badge (Antigravity only)
+            // Tier badge (Antigravity) - compact inline
+            if let info = account.subscriptionInfo {
+                SubscriptionBadgeV2(info: info)
+            }
+            
+            // Active badge (Antigravity only)
             if isActiveInIDE {
-                Text("antigravity.active".localized())
+                Text("Active")
                     .font(.caption2)
                     .fontWeight(.medium)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Color(red: 0.13, green: 0.55, blue: 0.13))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(.green.opacity(0.12))
+                    .background(Color(red: 0.85, green: 0.95, blue: 0.85))
                     .clipShape(Capsule())
             }
             
@@ -487,15 +492,18 @@ private struct AccountQuotaCardV2: View {
                 Button {
                     showSwitchSheet = true
                 } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.subheadline)
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                        Text("Use in IDE")
+                            .font(.caption)
+                    }
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.blue)
-                .help("antigravity.switch.title".localized())
             }
             
-            // Refresh button
+            // Refresh button - inline spinner when loading
             Button {
                 Task {
                     isRefreshing = true
@@ -503,13 +511,18 @@ private struct AccountQuotaCardV2: View {
                     isRefreshing = false
                 }
             } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.subheadline)
+                if isRefreshing {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 16, height: 16)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.subheadline)
+                }
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .disabled(isRefreshing || isLoading)
-            .opacity(isRefreshing ? 0.5 : 1)
             
             // Forbidden badge
             if let data = account.quotaData, data.isForbidden {
@@ -537,9 +550,9 @@ private struct AccountQuotaCardV2: View {
     
     @ViewBuilder
     private var planSection: some View {
-        if let info = account.subscriptionInfo {
-            SubscriptionBadgeV2(info: info)
-        } else if let planName = account.quotaData?.planDisplayName {
+        // Subscription badge now shown in header for Antigravity
+        // Only show PlanBadgeV2 for other providers without subscriptionInfo
+        if account.subscriptionInfo == nil, let planName = account.quotaData?.planDisplayName {
             PlanBadgeV2(planName: planName)
         }
     }
@@ -665,107 +678,29 @@ private struct PlanBadgeV2: View {
 private struct SubscriptionBadgeV2: View {
     let info: SubscriptionInfo
     
-    private var tierConfig: (color: Color, icon: String) {
+    private var tierConfig: (bgColor: Color, textColor: Color) {
         switch info.tierId {
-        case "g1-pro-tier":
-            return (.purple, "crown.fill")
         case "g1-ultra-tier":
-            return (.orange, "star.fill")
-        case "standard-tier":
-            return (.blue, "star.fill")
+            // Gold/Yellow for Ultra
+            return (Color(red: 1.0, green: 0.95, blue: 0.8), Color(red: 0.52, green: 0.39, blue: 0.02))
+        case "g1-pro-tier":
+            // Blue for Pro
+            return (Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
         default:
-            return (.gray, "person.fill")
+            // Gray for Free/Standard
+            return (Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
         }
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                // Tier badge
-                HStack(spacing: 6) {
-                    Image(systemName: tierConfig.icon)
-                        .font(.subheadline)
-                    Text(info.tierDisplayName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                }
-                .foregroundStyle(tierConfig.color)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(tierConfig.color.opacity(0.12))
-                .clipShape(Capsule())
-                
-                // Project info
-                if let project = info.cloudaicompanionProject {
-                    HStack(spacing: 4) {
-                        Image(systemName: "folder.fill")
-                            .font(.caption)
-                        Text(project)
-                            .font(.caption)
-                    }
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                }
-            }
-            
-            // Upgrade prompt
-            if let paidTier = info.paidTier,
-               let upgradeUri = paidTier.upgradeSubscriptionUri,
-               let url = URL(string: upgradeUri) {
-                UpgradePromptView(paidTier: paidTier, url: url)
-            }
-        }
-    }
-}
-
-// MARK: - Upgrade Prompt
-
-private struct UpgradePromptView: View {
-    let paidTier: SubscriptionTier
-    let url: URL
-    
-    private var tierColor: Color {
-        switch paidTier.id {
-        case "g1-pro-tier": return .purple
-        case "g1-ultra-tier": return .orange
-        default: return .purple
-        }
-    }
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    Image(systemName: "sparkles")
-                        .font(.caption)
-                    Text(paidTier.name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                }
-                .foregroundStyle(tierColor)
-                
-                if let text = paidTier.upgradeSubscriptionText {
-                    Text(text)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-            
-            Spacer()
-            
-            Link(destination: url) {
-                Text("Upgrade")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(tierColor)
-            .controlSize(.small)
-        }
-        .padding(12)
-        .background(tierColor.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        Text(info.tierDisplayName)
+            .font(.caption)
+            .fontWeight(.medium)
+            .foregroundStyle(tierConfig.textColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(tierConfig.bgColor)
+            .clipShape(Capsule())
     }
 }
 
