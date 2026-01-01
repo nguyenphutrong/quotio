@@ -164,7 +164,6 @@ final class StatusBarMenuBuilder {
             email: email,
             data: data,
             provider: provider,
-            hasSubmenu: provider == .antigravity && !data.models.isEmpty,
             subscriptionInfo: subscriptionInfo,
             isActiveInIDE: isActiveInIDE,
             onUseAccount: provider == .antigravity && !isActiveInIDE ? { [weak viewModel] in
@@ -463,7 +462,6 @@ private struct MenuAccountCardView: View {
     let email: String
     let data: ProviderQuotaData
     let provider: AIProvider
-    let hasSubmenu: Bool
     let subscriptionInfo: SubscriptionInfo?
     let isActiveInIDE: Bool
     let onUseAccount: (() -> Void)?
@@ -533,32 +531,11 @@ private struct MenuAccountCardView: View {
         return groups.sorted { $0.percentage < $1.percentage }
     }
     
-    private var heroMetric: ModelQuota? {
-        guard !isAntigravity else { return nil }
-        return data.models.min { $0.percentage < $1.percentage }
-    }
-    
-    private var secondaryMetrics: [ModelQuota] {
-        guard !isAntigravity else { return [] }
-        guard let hero = heroMetric else { return data.models }
-        return data.models.filter { $0.name != hero.name }
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             cardHeader
             
-            if isAntigravity {
-                antigravityModelsSection
-            } else {
-                if let hero = heroMetric {
-                    heroSection(metric: hero)
-                }
-                
-                if !secondaryMetrics.isEmpty {
-                    secondaryMetricsSection
-                }
-            }
+            modelsGridSection
         }
         .padding(10)
         .background(isHovered ? Color.secondary.opacity(0.08) : Color.secondary.opacity(0.05))
@@ -626,79 +603,55 @@ private struct MenuAccountCardView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                
-                // Submenu chevron
-                if hasSubmenu {
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+            }
+        }
+    }
+    
+    // MARK: - Models Grid Section (unified for all providers)
+    
+    private var modelsGridSection: some View {
+        let models: [ModelBadgeData] = {
+            if isAntigravity {
+                return antigravityGroups.map { ModelBadgeData(name: $0.name, percentage: $0.percentage) }
+            } else {
+                return data.models.sorted { $0.percentage < $1.percentage }
+                    .map { ModelBadgeData(name: $0.displayName, percentage: $0.percentage) }
+            }
+        }()
+        let count = models.count
+        
+        return Group {
+            if count == 0 {
+                EmptyView()
+            } else if count == 1 {
+                // 1 model -> 1 column
+                ModelGridBadge(data: models[0])
+            } else if count == 3 {
+                // 3 models -> 3 columns
+                HStack(spacing: 8) {
+                    ForEach(models) { model in
+                        ModelGridBadge(data: model)
+                    }
+                }
+            } else {
+                // 2 or 4+ models -> 2 columns grid
+                VStack(spacing: 6) {
+                    ForEach(0..<min((count + 1) / 2, 2), id: \.self) { rowIndex in
+                        HStack(spacing: 8) {
+                            let firstIndex = rowIndex * 2
+                            ModelGridBadge(data: models[firstIndex])
+                            
+                            if firstIndex + 1 < count {
+                                ModelGridBadge(data: models[firstIndex + 1])
+                            } else {
+                                Spacer()
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
-    
-    // MARK: - Antigravity Groups Section (4 groups)
-    
-    private var antigravityModelsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(antigravityGroups) { group in
-                AntigravityGroupRow(group: group)
-            }
-        }
-    }
-    
-    // MARK: - Hero Section (for non-Antigravity)
-    
-    private func heroSection(metric: ModelQuota) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(metric.displayName)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                
-                Spacer()
-                
-                Text(formatPercentage(metric.percentage))
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .foregroundStyle(quotaColor(for: metric.percentage))
-            }
-            
-            HeroProgressBar(percentage: metric.percentage)
-            
-            if !metric.formattedResetTime.isEmpty && metric.formattedResetTime != "—" {
-                Text("Resets in \(metric.formattedResetTime)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-            }
-        }
-    }
-    
-    // MARK: - Secondary Section (for non-Antigravity)
-    
-    private var secondaryMetricsSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(secondaryMetrics.prefix(3)) { metric in
-                SecondaryMetricRow(
-                    name: metric.displayName,
-                    percentage: metric.percentage
-                )
-            }
-        }
-        .padding(.top, 4)
-    }
-    
-    // MARK: - Helpers
-    
-    private func formatPercentage(_ value: Double) -> String {
-        let remaining = Int(value)
-        return remaining < 0 ? "—" : "\(remaining)%"
-    }
-    
-    private func quotaColor(for percentage: Double) -> Color {
-        let used = 100 - percentage
-        if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
-        if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
-        return Color(red: 0.35, green: 0.68, blue: 0.45)
     }
 }
 
@@ -711,109 +664,54 @@ private struct AntigravityDisplayGroup: Identifiable {
     var id: String { name }
 }
 
-private struct AntigravityGroupRow: View {
-    let group: AntigravityDisplayGroup
-    
-    private func quotaColor(for percentage: Double) -> Color {
-        let used = 100 - percentage
-        if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
-        if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
-        return Color(red: 0.35, green: 0.68, blue: 0.45)
-    }
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(group.name)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.primary)
-                .frame(width: 100, alignment: .leading)
-            
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(.quaternary)
-                    
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(quotaColor(for: group.percentage))
-                        .frame(width: proxy.size.width * min(1, max(0, group.percentage / 100)))
-                }
-            }
-            .frame(height: 6)
-            
-            Text(formatPercentage(group.percentage))
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(quotaColor(for: group.percentage))
-                .frame(width: 36, alignment: .trailing)
-        }
-    }
-    
-    private func formatPercentage(_ value: Double) -> String {
-        let remaining = Int(value)
-        return remaining < 0 ? "—" : "\(remaining)%"
-    }
-}
+// MARK: Model Badge Data (unified)
 
-// MARK: Hero Progress Bar
-
-private struct HeroProgressBar: View {
-    let percentage: Double
-    
-    private func quotaColor(for percentage: Double) -> Color {
-        let used = 100 - percentage
-        if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
-        if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
-        return Color(red: 0.35, green: 0.68, blue: 0.45)
-    }
-    
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(.quaternary)
-                
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(quotaColor(for: percentage))
-                    .frame(width: proxy.size.width * min(1, max(0, percentage / 100)))
-            }
-        }
-        .frame(height: 8)
-    }
-}
-
-// MARK: Secondary Metric Row
-
-private struct SecondaryMetricRow: View {
+private struct ModelBadgeData: Identifiable {
     let name: String
     let percentage: Double
     
-    private func quotaColor(for percentage: Double) -> Color {
-        let used = 100 - percentage
-        if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
-        if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
-        return Color(red: 0.35, green: 0.68, blue: 0.45)
+    var id: String { name }
+}
+
+private struct ModelGridBadge: View {
+    let data: ModelBadgeData
+    
+    private var remainingPercent: Double {
+        data.percentage
+    }
+    
+    private var tintColor: Color {
+        if remainingPercent > 50 { return .green }
+        if remainingPercent > 20 { return .orange }
+        return .red
     }
     
     var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(quotaColor(for: percentage))
-                .frame(width: 6, height: 6)
-            
-            Text(name)
-                .font(.system(size: 11))
+        VStack(alignment: .leading, spacing: 2) {
+            Text(data.name)
+                .font(.system(size: 9))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
             
-            Spacer()
-            
-            Text(formatPercentage(percentage))
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(.primary)
+            HStack(spacing: 4) {
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(.quaternary)
+                        Capsule()
+                            .fill(tintColor.gradient)
+                            .frame(width: proxy.size.width * min(1, remainingPercent / 100))
+                    }
+                }
+                .frame(height: 4)
+                
+                Text(verbatim: "\(Int(remainingPercent))%")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(tintColor)
+                    .frame(width: 28, alignment: .trailing)
+            }
         }
-    }
-    
-    private func formatPercentage(_ value: Double) -> String {
-        let remaining = Int(value)
-        return remaining < 0 ? "—" : "\(remaining)%"
+        .frame(maxWidth: .infinity)
     }
 }
 
