@@ -263,6 +263,18 @@ var color: Color {
 }
 ```
 
+### Port Display
+Always display port numbers as `String` to avoid locale-based number formatting (e.g., "8.217" instead of "8217"):
+
+```swift
+// CORRECT: Use String conversion
+Text("http://localhost:" + String(port))
+Text("Port: " + String(port))
+
+// WRONG: Direct interpolation may apply number formatting
+Text("http://localhost:\(port)")  // Could display as "8.217" in some locales
+```
+
 ### Comments
 - Use `//` for implementation notes
 - Use `///` for documentation comments on public APIs

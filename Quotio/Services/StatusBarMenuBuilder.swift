@@ -136,7 +136,7 @@ final class StatusBarMenuBuilder {
     
     private func buildProxyInfoItem() -> NSMenuItem {
         let proxyView = MenuProxyInfoView(
-            port: Int(viewModel.proxyManager.port),
+            port: String(viewModel.proxyManager.port),
             isRunning: viewModel.proxyManager.proxyStatus.running,
             onToggle: { [weak viewModel] in
                 Task { await viewModel?.toggleProxy() }
@@ -316,7 +316,7 @@ private struct MenuHeaderView: View {
 // MARK: Proxy Info View
 
 private struct MenuProxyInfoView: View {
-    let port: Int
+    let port: String
     let isRunning: Bool
     let onToggle: () -> Void
     let onCopyURL: () -> Void
@@ -329,7 +329,7 @@ private struct MenuProxyInfoView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 
-                Text("http://localhost:\(port)")
+                Text("http://localhost:" + port)
                     .font(.system(.caption, design: .monospaced))
                     .lineLimit(1)
                 
