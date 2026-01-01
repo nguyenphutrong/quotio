@@ -411,36 +411,44 @@ private struct MenuBarQuotaCard: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Header: Email + Plan
-            cardHeader
-            
-            // Hero section (different for Antigravity)
-            if isAntigravity {
-                if let hero = heroGroup {
-                    heroGroupSection(group: hero)
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 10) {
+                cardHeader
+                
+                if isAntigravity {
+                    if let hero = heroGroup {
+                        heroGroupSection(group: hero)
+                    }
+                } else {
+                    if let hero = heroMetric {
+                        heroSection(metric: hero)
+                    }
                 }
-            } else {
-                if let hero = heroMetric {
-                    heroSection(metric: hero)
+                
+                if isAntigravity {
+                    if !secondaryGroups.isEmpty {
+                        secondaryGroupsSection
+                    }
+                } else {
+                    if !secondaryMetrics.isEmpty {
+                        secondaryMetricsSection
+                    }
                 }
             }
             
-            // Secondary section
             if isAntigravity {
-                if !secondaryGroups.isEmpty {
-                    secondaryGroupsSection
-                }
-            } else {
-                if !secondaryMetrics.isEmpty {
-                    secondaryMetricsSection
-                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(10)
         .background(isHovered ? Color.secondary.opacity(0.08) : Color.secondary.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .onHover { isHovered = $0 }
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
     
     // MARK: - Card Header
