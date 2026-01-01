@@ -2,18 +2,16 @@
 //  ProvidersScreen.swift
 //  Quotio
 //
+//  Redesigned ProvidersScreen with improved UI/UX:
+//  - Consolidated from 5-6 sections to 2 main sections
+//  - Accounts grouped by provider using DisclosureGroup
+//  - Add Provider moved to toolbar popover
+//  - IDE Scan integrated into toolbar and empty state
+//
 
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
-
-/// Wrapper for auto-detected account tuple to provide Identifiable conformance
-private struct AutoDetectedAccount: Identifiable {
-    let provider: AIProvider
-    let accountKey: String
-    
-    var id: String { "\(provider.rawValue)_\(accountKey)" }
-}
 
 struct ProvidersScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
@@ -22,27 +20,82 @@ struct ProvidersScreen: View {
     @State private var projectId: String = ""
     @State private var showProxyRequiredAlert = false
     @State private var showIDEScanSheet = false
-    private let modeManager = AppModeManager.shared
+    @State private var showCustomProviderSheet = false
+    @State private var editingCustomProvider: CustomProvider?
+    @State private var showAddProviderPopover = false
     
-    /// Check if we should show content
-    private var shouldShowContent: Bool {
-        if modeManager.isQuotaOnlyMode {
-            return true // Always show in quota-only mode
+    private let modeManager = AppModeManager.shared
+    private let customProviderService = CustomProviderService.shared
+    
+    // MARK: - Computed Properties
+    
+    /// Providers that can be added manually
+    private var addableProviders: [AIProvider] {
+        if modeManager.isFullMode {
+            return AIProvider.allCases.filter { $0.supportsManualAuth }
+        } else {
+            return AIProvider.allCases.filter { $0.supportsQuotaOnlyMode && $0.supportsManualAuth }
         }
-        return viewModel.proxyManager.proxyStatus.running
     }
+    
+    /// All accounts grouped by provider
+    private var groupedAccounts: [AIProvider: [AccountRowData]] {
+        var groups: [AIProvider: [AccountRowData]] = [:]
+        
+        if modeManager.isFullMode && viewModel.proxyManager.proxyStatus.running {
+            // From proxy auth files (proxy running)
+            for file in viewModel.authFiles {
+                guard let provider = file.providerType else { continue }
+                let data = AccountRowData.from(authFile: file)
+                groups[provider, default: []].append(data)
+            }
+        } else {
+            // From direct auth files (proxy not running or quota-only mode)
+            for file in viewModel.directAuthFiles {
+                let data = AccountRowData.from(directAuthFile: file)
+                groups[file.provider, default: []].append(data)
+            }
+        }
+        
+        // Add auto-detected accounts (Cursor, Trae)
+        for (provider, quotas) in viewModel.providerQuotas {
+            if !provider.supportsManualAuth {
+                for (accountKey, _) in quotas {
+                    let data = AccountRowData.from(provider: provider, accountKey: accountKey)
+                    groups[provider, default: []].append(data)
+                }
+            }
+        }
+        
+        return groups
+    }
+    
+    /// Sorted providers for consistent display order
+    private var sortedProviders: [AIProvider] {
+        groupedAccounts.keys.sorted { $0.displayName < $1.displayName }
+    }
+    
+    /// Total account count across all providers
+    private var totalAccountCount: Int {
+        groupedAccounts.values.reduce(0) { $0 + $1.count }
+    }
+    
+    // MARK: - Body
     
     var body: some View {
         List {
-            if modeManager.isQuotaOnlyMode {
-                // Quota-only mode: Show direct auth files and add providers
-                quotaOnlyContent
-            } else {
-                // Full mode: Show all content (works with or without proxy)
-                fullModeContent
+            // Section 1: Your Accounts (grouped by provider)
+            accountsSection
+            
+            // Section 2: Custom Providers (Full Mode only)
+            if modeManager.isFullMode {
+                customProvidersSection
             }
         }
         .navigationTitle(modeManager.isQuotaOnlyMode ? "nav.accounts".localized() : "nav.providers".localized())
+        .toolbar {
+            toolbarContent
+        }
         .sheet(item: $selectedProvider) { provider in
             OAuthSheet(provider: provider, projectId: $projectId) {
                 selectedProvider = nil
@@ -56,23 +109,13 @@ struct ProvidersScreen: View {
             allowedContentTypes: [.json],
             allowsMultipleSelection: false
         ) { result in
-            switch result {
-            case .success(let urls):
-                if let url = urls.first {
-                    Task {
-                        await viewModel.importVertexServiceAccount(url: url)
-                    }
-                }
-            case .failure(let error):
-                print("Import failed: \(error.localizedDescription)")
+            if case .success(let urls) = result, let url = urls.first {
+                Task { await viewModel.importVertexServiceAccount(url: url) }
             }
+            // Failure case is silently ignored - user can retry via UI
         }
         .task {
-            if modeManager.isQuotaOnlyMode {
-                await viewModel.loadDirectAuthFiles()
-            } else {
-                await viewModel.loadDirectAuthFiles()
-            }
+            await viewModel.loadDirectAuthFiles()
         }
         .alert("providers.proxyRequired.title".localized(), isPresented: $showProxyRequiredAlert) {
             Button("action.startProxy".localized()) {
@@ -83,332 +126,244 @@ struct ProvidersScreen: View {
             Text("providers.proxyRequired.message".localized())
         }
         .sheet(isPresented: $showIDEScanSheet) {
-            // Quotas are already updated by scanIDEsWithConsent() inside IDEScanSheet
             IDEScanSheet {}
             .environment(viewModel)
         }
-    }
-    
-    // MARK: - Full Mode Content
-    
-    private var autoDetectedProviderAccounts: [(id: String, provider: AIProvider, accountKey: String)] {
-        var accounts: [(id: String, provider: AIProvider, accountKey: String)] = []
-        for (provider, quotas) in viewModel.providerQuotas {
-            if !provider.supportsManualAuth {
-                for (accountKey, _) in quotas {
-                    let id = "\(provider.rawValue)_\(accountKey)"
-                    accounts.append((id: id, provider: provider, accountKey: accountKey))
+        .sheet(isPresented: $showCustomProviderSheet) {
+            CustomProviderSheet(provider: editingCustomProvider) { provider in
+                if editingCustomProvider != nil {
+                    customProviderService.updateProvider(provider)
+                } else {
+                    customProviderService.addProvider(provider)
                 }
+                editingCustomProvider = nil
+                syncCustomProvidersToConfig()
             }
         }
-        return accounts
+        .sheet(isPresented: $showAddProviderPopover) {
+            AddProviderPopover(
+                providers: addableProviders,
+                onSelectProvider: { provider in
+                    handleAddProvider(provider)
+                },
+                onScanIDEs: {
+                    showIDEScanSheet = true
+                },
+                onAddCustomProvider: {
+                    editingCustomProvider = nil
+                    showCustomProviderSheet = true
+                },
+                onDismiss: {
+                    showAddProviderPopover = false
+                }
+            )
+        }
     }
+    
+    // MARK: - Toolbar
+    
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                showAddProviderPopover = true
+            } label: {
+                Image(systemName: "plus")
+            }
+            .help("providers.addAccount".localized())
+        }
+        
+        ToolbarItem(placement: .automatic) {
+            Button {
+                Task {
+                    if modeManager.isFullMode && viewModel.proxyManager.proxyStatus.running {
+                        await viewModel.refreshData()
+                    } else {
+                        await viewModel.loadDirectAuthFiles()
+                    }
+                    await viewModel.refreshAutoDetectedProviders()
+                }
+            } label: {
+                if viewModel.isLoadingQuotas {
+                    SmallProgressView()
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
+            .disabled(viewModel.isLoadingQuotas)
+            .help("action.refresh".localized())
+        }
+    }
+    
+    // MARK: - Accounts Section
     
     @ViewBuilder
-    private var fullModeContent: some View {
-        // Connected Accounts section
-        if viewModel.proxyManager.proxyStatus.running {
-            // Proxy running: Show from API with full status info
-            Section {
-                if viewModel.authFiles.isEmpty {
-                    Text("providers.noAccountsYet".localized())
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(viewModel.authFiles, id: \.id) { file in
-                        AuthFileRow(file: file) {
-                            Task { await viewModel.deleteAuthFile(file) }
-                        }
-                    }
-                }
-            } header: {
-                Label("providers.connectedAccounts".localized() + " (\(viewModel.authFiles.count))", systemImage: "checkmark.seal.fill")
-            } footer: {
-                if !viewModel.authFiles.isEmpty {
-                    MenuBarHintView()
-                }
-            }
-        } else {
-            // Proxy not running: Show from direct auth files on disk
-            Section {
-                if viewModel.directAuthFiles.isEmpty {
-                    Text("providers.noAccountsYet".localized())
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(viewModel.directAuthFiles) { file in
-                        DirectAuthFileRow(file: file)
-                    }
-                }
-            } header: {
-                HStack {
-                    Label("providers.connectedAccounts".localized() + " (\(viewModel.directAuthFiles.count))", systemImage: "checkmark.seal.fill")
-                    
-                    Spacer()
-                    
-                    Button {
-                        Task { await viewModel.loadDirectAuthFiles() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.borderless)
-                }
-            } footer: {
-                if !viewModel.directAuthFiles.isEmpty {
-                    MenuBarHintView()
-                }
-            }
-        }
-        
-        // Auto-detected Accounts (like Cursor, Trae, Claude) - always show
-        if !autoDetectedProviderAccounts.isEmpty {
-            Section {
-                ForEach(autoDetectedProviderAccounts, id: \.id) { account in
-                    AutoDetectedAccountRow(provider: account.provider, accountKey: account.accountKey)
-                }
-            } header: {
-                HStack {
-                    Label("providers.autoDetected".localized() + " (\(autoDetectedProviderAccounts.count))", systemImage: "sparkle.magnifyingglass")
-                    
-                    Spacer()
-                    
-                    Button {
-                        Task { 
-                            await viewModel.refreshAutoDetectedProviders()
-                        }
-                    } label: {
-                        if viewModel.isLoadingQuotas {
-                            SmallProgressView()
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.caption)
-                        }
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(viewModel.isLoadingQuotas)
-                }
-            } footer: {
-                MenuBarHintView()
-            }
-        }
-        
-        // Scan for IDEs section
-        ideScanSection
-        
-        // Add Provider
-        addProviderSection
-    }
-    
-    // MARK: - Quota-Only Mode Content
-    
-    @ViewBuilder
-    private var quotaOnlyContent: some View {
-        // Tracked Accounts (from direct auth files)
+    private var accountsSection: some View {
         Section {
-            if viewModel.directAuthFiles.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "person.crop.circle.badge.questionmark")
-                        .font(.largeTitle)
-                        .foregroundStyle(.tertiary)
-                    
-                    Text("providers.noAccountsFound".localized())
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    
-                    Text("providers.quotaOnlyHint".localized())
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
+            if groupedAccounts.isEmpty {
+                // Empty state
+                AccountsEmptyState(
+                    onScanIDEs: {
+                        showIDEScanSheet = true
+                    },
+                    onAddProvider: {
+                        showAddProviderPopover = true
+                    }
+                )
             } else {
-                ForEach(viewModel.directAuthFiles) { file in
-                    DirectAuthFileRow(file: file)
+                // Grouped accounts by provider
+                ForEach(sortedProviders, id: \.self) { provider in
+                    ProviderDisclosureGroup(
+                        provider: provider,
+                        accounts: groupedAccounts[provider] ?? [],
+                        onDeleteAccount: { account in
+                            Task { await deleteAccount(account) }
+                        }
+                    )
                 }
             }
         } header: {
             HStack {
-                Label("providers.trackedAccounts".localized() + " (\(viewModel.directAuthFiles.count))", systemImage: "person.2.badge.key")
+                Label("providers.yourAccounts".localized(), systemImage: "person.2.badge.key")
                 
-                Spacer()
-                
-                Button {
-                    Task { await viewModel.loadDirectAuthFiles() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.caption)
+                if totalAccountCount > 0 {
+                    Spacer()
+                    Text("\(totalAccountCount)")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.2))
+                        .clipShape(Capsule())
                 }
-                .buttonStyle(.borderless)
             }
         } footer: {
-            if !viewModel.directAuthFiles.isEmpty {
+            if !groupedAccounts.isEmpty {
                 MenuBarHintView()
             }
         }
-        
-        // Scan for IDEs section
-        ideScanSection
-        
-        // Add Provider (for OAuth)
-        addProviderSection
     }
     
-    // MARK: - IDE Scan Section
+    // MARK: - Custom Providers Section
     
-    private var ideScanSection: some View {
+    @ViewBuilder
+    private var customProvidersSection: some View {
         Section {
-            Button {
-                showIDEScanSheet = true
-            } label: {
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(Color.blue.opacity(0.1))
-                            .frame(width: 32, height: 32)
-                        
-                        Image(systemName: "magnifyingglass.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(.blue)
+            // List existing custom providers
+            ForEach(customProviderService.providers) { provider in
+                CustomProviderRow(
+                    provider: provider,
+                    onEdit: {
+                        editingCustomProvider = provider
+                        showCustomProviderSheet = true
+                    },
+                    onDelete: {
+                        customProviderService.deleteProvider(id: provider.id)
+                        syncCustomProvidersToConfig()
+                    },
+                    onToggle: {
+                        customProviderService.toggleProvider(id: provider.id)
+                        syncCustomProvidersToConfig()
                     }
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("ideScan.title".localized())
-                            .fontWeight(.medium)
-                        
-                        Text("ideScan.buttonSubtitle".localized())
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    
+                )
+            }
+        } header: {
+            HStack {
+                Label("customProviders.title".localized(), systemImage: "puzzlepiece.extension.fill")
+                
+                if !customProviderService.providers.isEmpty {
                     Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                    Text("\(customProviderService.providers.count)")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.2))
+                        .clipShape(Capsule())
                 }
             }
-            .buttonStyle(.plain)
-        } header: {
-            Label("ideScan.sectionTitle".localized(), systemImage: "sparkle.magnifyingglass")
         } footer: {
-            Text("ideScan.sectionFooter".localized())
+            Text("customProviders.footer".localized())
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
     }
     
-    // MARK: - Add Provider Section
+    // MARK: - Helper Functions
     
-    /// Providers that can be added manually (excludes quota-tracking-only providers like Cursor)
-    private var addableProviders: [AIProvider] {
-        if modeManager.isFullMode {
-            // In Full Mode, only show providers that support manual auth
-            return AIProvider.allCases.filter { $0.supportsManualAuth }
+    private func handleAddProvider(_ provider: AIProvider) {
+        // In Full Mode, require proxy to be running for OAuth
+        if modeManager.isFullMode && !viewModel.proxyManager.proxyStatus.running {
+            showProxyRequiredAlert = true
+            return
+        }
+        
+        if provider == .vertex {
+            isImporterPresented = true
         } else {
-            // In Quota-Only mode, show providers that support quota tracking AND can be added manually
-            // Cursor is auto-detected from local database, so it shouldn't be in "Add Provider"
-            return AIProvider.allCases.filter { $0.supportsQuotaOnlyMode && $0.supportsManualAuth }
+            viewModel.oauthState = nil
+            selectedProvider = provider
         }
     }
     
-    private var addProviderSection: some View {
-        Section {
-            ForEach(addableProviders) { provider in
-                Button {
-                    // In Full Mode, require proxy to be running for OAuth
-                    if modeManager.isFullMode && !viewModel.proxyManager.proxyStatus.running {
-                        showProxyRequiredAlert = true
-                        return
-                    }
-                    
-                    if provider == .vertex {
-                        isImporterPresented = true
-                    } else {
-                        viewModel.oauthState = nil
-                        selectedProvider = provider
-                    }
-                } label: {
-                    HStack {
-                        ProviderIcon(provider: provider, size: 24)
-                        
-                        Text(provider.displayName)
-                        
-                        Spacer()
-                        
-                        if modeManager.isFullMode,
-                           let count = viewModel.authFilesByProvider[provider]?.count, count > 0 {
-                            Text("\(count)")
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(provider.color.opacity(0.15))
-                                .foregroundStyle(provider.color)
-                                .clipShape(Capsule())
-                        } else if modeManager.isQuotaOnlyMode {
-                            let count = viewModel.directAuthFiles.filter { $0.provider == provider }.count
-                            if count > 0 {
-                                Text("\(count)")
-                                    .font(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 2)
-                                    .background(provider.color.opacity(0.15))
-                                    .foregroundStyle(provider.color)
-                                    .clipShape(Capsule())
-                            }
-                        }
-                        
-                        Image(systemName: "plus.circle")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        } header: {
-            Label("providers.addProvider".localized(), systemImage: "plus.circle.fill")
+    private func deleteAccount(_ account: AccountRowData) async {
+        // Only proxy accounts can be deleted via API
+        guard account.canDelete else { return }
+        
+        // Find the original AuthFile to delete
+        if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
+            await viewModel.deleteAuthFile(authFile)
         }
+    }
+    
+    private func syncCustomProvidersToConfig() {
+        // Silent failure - custom provider sync is non-critical
+        // Config will be synced on next proxy start
+        try? customProviderService.syncToConfigFile(configPath: viewModel.proxyManager.configPath)
     }
 }
 
-// MARK: - Direct Auth File Row (for Quota-Only Mode)
+// MARK: - Custom Provider Row
 
-struct DirectAuthFileRow: View {
-    let file: DirectAuthFile
-    @State private var settings = MenuBarSettingsManager.shared
-    @State private var showWarning = false
+struct CustomProviderRow: View {
+    let provider: CustomProvider
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    let onToggle: () -> Void
     
-    private var menuBarItem: MenuBarQuotaItem {
-        MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.email ?? file.filename)
-    }
-    
-    private var isSelected: Bool {
-        settings.isSelected(menuBarItem)
-    }
-    
-    private var displayName: String {
-        let name = file.email ?? file.filename
-        return name.masked(if: settings.hideSensitiveInfo)
-    }
-    
-    private func handleToggle() {
-        if isSelected {
-            settings.toggleItem(menuBarItem)
-        } else if settings.shouldWarnOnAdd {
-            showWarning = true
-        } else {
-            settings.toggleItem(menuBarItem)
-        }
-    }
+    @State private var showDeleteConfirmation = false
     
     var body: some View {
         HStack(spacing: 12) {
-            ProviderIcon(provider: file.provider, size: 24)
+            // Provider type icon
+            ZStack {
+                Circle()
+                    .fill(provider.type.color.opacity(0.1))
+                    .frame(width: 32, height: 32)
+                
+                Image(provider.type.providerIconName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 18, height: 18)
+            }
             
+            // Provider info
             VStack(alignment: .leading, spacing: 2) {
-                Text(displayName)
-                    .fontWeight(.medium)
+                HStack(spacing: 6) {
+                    Text(provider.name)
+                        .fontWeight(.medium)
+                    
+                    if !provider.isEnabled {
+                        Text("customProviders.disabled".localized())
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.2))
+                            .foregroundStyle(.secondary)
+                            .clipShape(Capsule())
+                    }
+                }
                 
                 HStack(spacing: 6) {
-                    Text(file.provider.displayName)
+                    Text(provider.type.localizedDisplayName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
@@ -416,7 +371,8 @@ struct DirectAuthFileRow: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                     
-                    Text(file.source.displayName)
+                    let keyCount = provider.apiKeys.count
+                    Text("\(keyCount) \(keyCount == 1 ? "customProviders.key".localized() : "customProviders.keys".localized())")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -424,237 +380,44 @@ struct DirectAuthFileRow: View {
             
             Spacer()
             
-            MenuBarBadge(
-                isSelected: isSelected,
-                onTap: handleToggle
-            )
+            // Toggle button
+            Button {
+                onToggle()
+            } label: {
+                Image(systemName: provider.isEnabled ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(provider.isEnabled ? .green : .secondary)
+            }
+            .buttonStyle(.subtle)
+            .help(provider.isEnabled ? "customProviders.disable".localized() : "customProviders.enable".localized())
         }
         .contextMenu {
             Button {
-                handleToggle()
+                onEdit()
             } label: {
-                if isSelected {
-                    Label("menubar.hideFromMenuBar".localized(), systemImage: "chart.bar")
-                } else {
-                    Label("menubar.showOnMenuBar".localized(), systemImage: "chart.bar.fill")
-                }
-            }
-        }
-        .alert("menubar.warning.title".localized(), isPresented: $showWarning) {
-            Button("menubar.warning.confirm".localized()) {
-                settings.toggleItem(menuBarItem)
-            }
-            Button("menubar.warning.cancel".localized(), role: .cancel) {}
-        } message: {
-            Text("menubar.warning.message".localized())
-        }
-    }
-}
-
-// MARK: - Auth File Row
-
-struct AuthFileRow: View {
-    let file: AuthFile
-    let onDelete: () -> Void
-    @State private var settings = MenuBarSettingsManager.shared
-    @State private var showWarning = false
-    
-    private var menuBarItem: MenuBarQuotaItem? {
-        guard let provider = file.providerType else { return nil }
-        let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
-        return MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey)
-    }
-    
-    private var isSelected: Bool {
-        guard let item = menuBarItem else { return false }
-        return settings.isSelected(item)
-    }
-    
-    private var displayName: String {
-        let name = file.email ?? file.name
-        return name.masked(if: settings.hideSensitiveInfo)
-    }
-    
-    private func handleToggle() {
-        guard let item = menuBarItem else { return }
-        if isSelected {
-            settings.toggleItem(item)
-        } else if settings.shouldWarnOnAdd {
-            showWarning = true
-        } else {
-            settings.toggleItem(item)
-        }
-    }
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            if let provider = file.providerType {
-                ProviderIcon(provider: provider, size: 24)
-            } else {
-                Image(systemName: "questionmark.circle")
-                    .resizable()
-                    .frame(width: 24, height: 24)
-                    .foregroundStyle(.secondary)
+                Label("action.edit".localized(), systemImage: "pencil")
             }
             
-            VStack(alignment: .leading, spacing: 2) {
-                Text(displayName)
-                    .fontWeight(.medium)
-                
-                HStack(spacing: 6) {
-                    Text(file.providerType?.displayName ?? "[\(file.provider)]")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    Circle()
-                        .fill(file.statusColor)
-                        .frame(width: 6, height: 6)
-                    
-                    Text(file.status)
-                        .font(.caption)
-                        .foregroundStyle(file.statusColor)
-                }
+            Button {
+                onToggle()
+            } label: {
+                Label(provider.isEnabled ? "customProviders.disable".localized() : "customProviders.enable".localized(), systemImage: provider.isEnabled ? "xmark.circle" : "checkmark.circle")
             }
             
-            Spacer()
-            
-            if file.disabled {
-                Text("providers.disabled".localized())
-                    .font(.caption2)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.secondary.opacity(0.2))
-                    .clipShape(Capsule())
-            }
-            
-            if menuBarItem != nil {
-                MenuBarBadge(
-                    isSelected: isSelected,
-                    onTap: handleToggle
-                )
-            }
+            Divider()
             
             Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(.red)
-            }
-            .buttonStyle(.borderless)
-            .help("action.delete".localized())
-        }
-        .contextMenu {
-            if menuBarItem != nil {
-                Button {
-                    handleToggle()
-                } label: {
-                    if isSelected {
-                        Label("menubar.hideFromMenuBar".localized(), systemImage: "chart.bar")
-                    } else {
-                        Label("menubar.showOnMenuBar".localized(), systemImage: "chart.bar.fill")
-                    }
-                }
-                
-                Divider()
-            }
-            
-            Button(role: .destructive) {
-                onDelete()
+                showDeleteConfirmation = true
             } label: {
                 Label("action.delete".localized(), systemImage: "trash")
             }
         }
-        .alert("menubar.warning.title".localized(), isPresented: $showWarning) {
-            Button("menubar.warning.confirm".localized()) {
-                if let item = menuBarItem {
-                    settings.toggleItem(item)
-                }
+        .confirmationDialog("customProviders.deleteConfirm".localized(), isPresented: $showDeleteConfirmation) {
+            Button("action.delete".localized(), role: .destructive) {
+                onDelete()
             }
-            Button("menubar.warning.cancel".localized(), role: .cancel) {}
+            Button("action.cancel".localized(), role: .cancel) {}
         } message: {
-            Text("menubar.warning.message".localized())
-        }
-    }
-}
-
-// MARK: - Auto-detected Account Row (for Cursor, etc.)
-
-struct AutoDetectedAccountRow: View {
-    let provider: AIProvider
-    let accountKey: String
-    @State private var settings = MenuBarSettingsManager.shared
-    @State private var showWarning = false
-    
-    private var menuBarItem: MenuBarQuotaItem {
-        MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey)
-    }
-    
-    private var isSelected: Bool {
-        settings.isSelected(menuBarItem)
-    }
-    
-    private var displayAccountKey: String {
-        accountKey.masked(if: settings.hideSensitiveInfo)
-    }
-    
-    private func handleToggle() {
-        if isSelected {
-            settings.toggleItem(menuBarItem)
-        } else if settings.shouldWarnOnAdd {
-            showWarning = true
-        } else {
-            settings.toggleItem(menuBarItem)
-        }
-    }
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            ProviderIcon(provider: provider, size: 24)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(displayAccountKey)
-                    .fontWeight(.medium)
-                
-                HStack(spacing: 6) {
-                    Text(provider.displayName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    Text("•")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    
-                    Text("providers.autoDetected".localized())
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            
-            Spacer()
-            
-            MenuBarBadge(
-                isSelected: isSelected,
-                onTap: handleToggle
-            )
-        }
-        .contextMenu {
-            Button {
-                handleToggle()
-            } label: {
-                if isSelected {
-                    Label("menubar.hideFromMenuBar".localized(), systemImage: "chart.bar")
-                } else {
-                    Label("menubar.showOnMenuBar".localized(), systemImage: "chart.bar.fill")
-                }
-            }
-        }
-        .alert("menubar.warning.title".localized(), isPresented: $showWarning) {
-            Button("menubar.warning.confirm".localized()) {
-                settings.toggleItem(menuBarItem)
-            }
-            Button("menubar.warning.cancel".localized(), role: .cancel) {}
-        } message: {
-            Text("menubar.warning.message".localized())
+            Text("customProviders.deleteMessage".localized())
         }
     }
 }
@@ -664,6 +427,8 @@ struct AutoDetectedAccountRow: View {
 struct MenuBarBadge: View {
     let isSelected: Bool
     let onTap: () -> Void
+    
+    @State private var showTooltip = false
     
     var body: some View {
         Button(action: onTap) {
@@ -679,11 +444,7 @@ struct MenuBarBadge: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            if hovering {
-                showTooltip = true
-            } else {
-                showTooltip = false
-            }
+            showTooltip = hovering
         }
         .popover(isPresented: $showTooltip, arrowEdge: .bottom) {
             Text(isSelected ? "menubar.hideFromMenuBar".localized() : "menubar.showOnMenuBar".localized())
@@ -691,8 +452,6 @@ struct MenuBarBadge: View {
                 .padding(8)
         }
     }
-    
-    @State private var showTooltip = false
 }
 
 // MARK: - Menu Bar Hint View
@@ -895,7 +654,7 @@ private struct OAuthStatusView: View {
                                     Image(systemName: "doc.on.doc")
                                         .font(.title3)
                                 }
-                                .buttonStyle(.borderless)
+                                .buttonStyle(.subtle)
                                 .help("action.copyCode".localized())
                             }
                             

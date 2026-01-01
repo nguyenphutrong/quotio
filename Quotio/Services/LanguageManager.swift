@@ -111,6 +111,15 @@ struct LocalizedStrings {
         "providers.projectIdOptional": [.english: "Project ID (optional)", .vietnamese: "ID dự án (tùy chọn)", .chinese: "项目 ID（可选）"],
         "providers.disabled": [.english: "Disabled", .vietnamese: "Đã tắt", .chinese: "已禁用"],
         "providers.autoDetected": [.english: "Auto-detected", .vietnamese: "Tự động phát hiện", .chinese: "自动检测"],
+        "providers.source.proxy": [.english: "Proxy", .vietnamese: "Proxy", .chinese: "代理"],
+        "providers.source.disk": [.english: "Disk", .vietnamese: "Đĩa", .chinese: "磁盘"],
+        "providers.yourAccounts": [.english: "Your Accounts", .vietnamese: "Tài khoản của bạn", .chinese: "您的账户"],
+        "providers.addAccount": [.english: "Add Account", .vietnamese: "Thêm tài khoản", .chinese: "添加账户"],
+        "providers.addManually": [.english: "Add Manually", .vietnamese: "Thêm thủ công", .chinese: "手动添加"],
+        "providers.emptyState.title": [.english: "No Accounts", .vietnamese: "Chưa có tài khoản", .chinese: "无账户"],
+        "providers.emptyState.message": [.english: "Scan for installed IDEs or add a provider account to get started.", .vietnamese: "Quét IDE đã cài đặt hoặc thêm tài khoản nhà cung cấp để bắt đầu.", .chinese: "扫描已安装的 IDE 或添加提供商账户以开始。"],
+        "providers.deleteConfirm": [.english: "Delete Account", .vietnamese: "Xóa tài khoản", .chinese: "删除账户"],
+        "providers.deleteMessage": [.english: "Are you sure you want to delete this account?", .vietnamese: "Bạn có chắc muốn xóa tài khoản này?", .chinese: "您确定要删除此账户吗？"],
         "providers.proxyRequired.title": [.english: "Proxy Required", .vietnamese: "Cần khởi động Proxy", .chinese: "需要代理"],
         "providers.proxyRequired.message": [.english: "The proxy server must be running to add new provider accounts.", .vietnamese: "Cần khởi động proxy để thêm tài khoản nhà cung cấp mới.", .chinese: "必须运行代理服务器才能添加新的提供商账户。"],
         
@@ -383,6 +392,8 @@ struct LocalizedStrings {
         "action.copyAll": [.english: "Copy All", .vietnamese: "Sao chép tất cả", .chinese: "全部复制"],
         "action.done": [.english: "Done", .vietnamese: "Xong", .chinese: "完成"],
         "action.cancel": [.english: "Cancel", .vietnamese: "Hủy", .chinese: "取消"],
+        "action.edit": [.english: "Edit", .vietnamese: "Sửa", .chinese: "编辑"],
+        "action.ok": [.english: "OK", .vietnamese: "Đồng ý", .chinese: "确定"],
         "agents.saveConfig": [.english: "Save Config", .vietnamese: "Lưu cấu hình", .chinese: "保存配置"],
         
         // Storage Options
@@ -543,6 +554,7 @@ struct LocalizedStrings {
         "ideScan.buttonSubtitle": [.english: "Detect Cursor, Trae, and CLI tools", .vietnamese: "Phát hiện Cursor, Trae và công cụ CLI", .chinese: "检测 Cursor、Trae 和 CLI 工具"],
         "ideScan.sectionTitle": [.english: "Detect IDEs", .vietnamese: "Phát hiện IDE", .chinese: "检测 IDE"],
         "ideScan.sectionFooter": [.english: "Scan for installed IDEs and CLI tools to track their quotas", .vietnamese: "Quét IDE và công cụ CLI đã cài đặt để theo dõi quota", .chinese: "扫描已安装的 IDE 和 CLI 工具以跟踪其配额"],
+        "ideScan.scanExisting": [.english: "Scan for Existing IDEs", .vietnamese: "Quét IDE đã cài đặt", .chinese: "扫描已安装的 IDE"],
         
         // Upgrade Notifications
         "notification.upgrade.success.title": [.english: "Proxy Upgraded", .vietnamese: "Đã nâng cấp Proxy", .chinese: "代理已升级"],
@@ -572,6 +584,60 @@ struct LocalizedStrings {
         "settings.proxy.error.invalidURL": [.english: "Invalid URL format", .vietnamese: "Định dạng URL không hợp lệ", .chinese: "无效的 URL 格式"],
         "settings.proxy.error.missingHost": [.english: "Missing host", .vietnamese: "Thiếu host", .chinese: "缺少主机"],
         "settings.proxy.error.invalidPort": [.english: "Invalid port number", .vietnamese: "Số port không hợp lệ", .chinese: "无效的端口号"],
+        
+        // Custom Providers
+        "customProviders.title": [.english: "Custom Providers", .vietnamese: "Nhà cung cấp tùy chỉnh", .chinese: "自定义提供商"],
+        "customProviders.add": [.english: "Add Custom Provider", .vietnamese: "Thêm nhà cung cấp tùy chỉnh", .chinese: "添加自定义提供商"],
+        "customProviders.edit": [.english: "Edit Custom Provider", .vietnamese: "Sửa nhà cung cấp tùy chỉnh", .chinese: "编辑自定义提供商"],
+        "customProviders.description": [.english: "OpenAI-compatible, Claude, Gemini, or Codex APIs", .vietnamese: "API tương thích OpenAI, Claude, Gemini hoặc Codex", .chinese: "OpenAI 兼容、Claude、Gemini 或 Codex API"],
+        "customProviders.footer": [.english: "Custom providers let you connect OpenRouter, Ollama, LM Studio, or any compatible API endpoint.", .vietnamese: "Nhà cung cấp tùy chỉnh cho phép bạn kết nối OpenRouter, Ollama, LM Studio, hoặc bất kỳ API endpoint tương thích nào.", .chinese: "自定义提供商允许您连接 OpenRouter、Ollama、LM Studio 或任何兼容的 API 端点。"],
+        "customProviders.syncConfig": [.english: "Sync to config", .vietnamese: "Đồng bộ cấu hình", .chinese: "同步配置"],
+        "customProviders.basicInfo": [.english: "Basic Information", .vietnamese: "Thông tin cơ bản", .chinese: "基本信息"],
+        "customProviders.providerName": [.english: "Provider Name", .vietnamese: "Tên nhà cung cấp", .chinese: "提供商名称"],
+        "customProviders.providerType": [.english: "Provider Type", .vietnamese: "Loại nhà cung cấp", .chinese: "提供商类型"],
+        "customProviders.baseURL": [.english: "Base URL", .vietnamese: "URL cơ sở", .chinese: "基础 URL"],
+        "customProviders.apiKeys": [.english: "API Keys", .vietnamese: "Khóa API", .chinese: "API 密钥"],
+        "customProviders.addKey": [.english: "Add Key", .vietnamese: "Thêm khóa", .chinese: "添加密钥"],
+        "customProviders.proxyURL": [.english: "Proxy URL (optional)", .vietnamese: "URL Proxy (tùy chọn)", .chinese: "代理 URL（可选）"],
+        "customProviders.modelMapping": [.english: "Model Mapping", .vietnamese: "Ánh xạ mô hình", .chinese: "模型映射"],
+        "customProviders.modelMappingDesc": [.english: "Map upstream model names to local aliases", .vietnamese: "Ánh xạ tên mô hình upstream sang bí danh local", .chinese: "将上游模型名称映射到本地别名"],
+        "customProviders.addMapping": [.english: "Add Mapping", .vietnamese: "Thêm ánh xạ", .chinese: "添加映射"],
+        "customProviders.noMappings": [.english: "No model mappings configured. Models will use their original names.", .vietnamese: "Chưa cấu hình ánh xạ mô hình. Các mô hình sẽ sử dụng tên gốc.", .chinese: "未配置模型映射。模型将使用其原始名称。"],
+        "customProviders.upstreamModel": [.english: "Upstream Model", .vietnamese: "Mô hình upstream", .chinese: "上游模型"],
+        "customProviders.localAlias": [.english: "Local Alias", .vietnamese: "Bí danh local", .chinese: "本地别名"],
+        "customProviders.customHeaders": [.english: "Custom Headers", .vietnamese: "Headers tùy chỉnh", .chinese: "自定义标头"],
+        "customProviders.customHeadersDesc": [.english: "Add custom HTTP headers for API requests", .vietnamese: "Thêm HTTP headers tùy chỉnh cho các yêu cầu API", .chinese: "为 API 请求添加自定义 HTTP 标头"],
+        "customProviders.addHeader": [.english: "Add Header", .vietnamese: "Thêm header", .chinese: "添加标头"],
+        "customProviders.noHeaders": [.english: "No custom headers configured.", .vietnamese: "Chưa cấu hình headers tùy chỉnh.", .chinese: "未配置自定义标头。"],
+        "customProviders.headerName": [.english: "Header Name", .vietnamese: "Tên header", .chinese: "标头名称"],
+        "customProviders.headerValue": [.english: "Header Value", .vietnamese: "Giá trị header", .chinese: "标头值"],
+        "customProviders.enableProvider": [.english: "Enable this provider", .vietnamese: "Bật nhà cung cấp này", .chinese: "启用此提供商"],
+        "customProviders.disabledNote": [.english: "Disabled providers are not included in the proxy configuration", .vietnamese: "Nhà cung cấp bị tắt sẽ không được bao gồm trong cấu hình proxy", .chinese: "禁用的提供商不会包含在代理配置中"],
+        "customProviders.saveChanges": [.english: "Save Changes", .vietnamese: "Lưu thay đổi", .chinese: "保存更改"],
+        "customProviders.addProvider": [.english: "Add Provider", .vietnamese: "Thêm nhà cung cấp", .chinese: "添加提供商"],
+        "customProviders.validationError": [.english: "Validation Error", .vietnamese: "Lỗi xác thực", .chinese: "验证错误"],
+        "customProviders.disabled": [.english: "Disabled", .vietnamese: "Đã tắt", .chinese: "已禁用"],
+        "customProviders.keys": [.english: "keys", .vietnamese: "khóa", .chinese: "密钥"],
+        "customProviders.key": [.english: "key", .vietnamese: "khóa", .chinese: "密钥"],
+        "customProviders.enable": [.english: "Enable", .vietnamese: "Bật", .chinese: "启用"],
+        "customProviders.disable": [.english: "Disable", .vietnamese: "Tắt", .chinese: "禁用"],
+        "customProviders.deleteConfirm": [.english: "Delete Custom Provider", .vietnamese: "Xóa nhà cung cấp tùy chỉnh", .chinese: "删除自定义提供商"],
+        "customProviders.deleteMessage": [.english: "Are you sure you want to delete this provider? This action cannot be undone.", .vietnamese: "Bạn có chắc muốn xóa nhà cung cấp này? Hành động này không thể hoàn tác.", .chinese: "您确定要删除此提供商吗？此操作无法撤消。"],
+        
+        // Custom Provider Types
+        "customProviders.type.openai": [.english: "OpenAI Compatible", .vietnamese: "Tương thích OpenAI", .chinese: "OpenAI 兼容"],
+        "customProviders.type.openai.desc": [.english: "OpenRouter, Ollama, LM Studio, vLLM, or any OpenAI-compatible API", .vietnamese: "OpenRouter, Ollama, LM Studio, vLLM, hoặc bất kỳ API tương thích OpenAI nào", .chinese: "OpenRouter、Ollama、LM Studio、vLLM 或任何 OpenAI 兼容 API"],
+        "customProviders.type.claude": [.english: "Claude Compatible", .vietnamese: "Tương thích Claude", .chinese: "Claude 兼容"],
+        "customProviders.type.claude.desc": [.english: "Anthropic API or Claude-compatible providers", .vietnamese: "API Anthropic hoặc các nhà cung cấp tương thích Claude", .chinese: "Anthropic API 或 Claude 兼容提供商"],
+        "customProviders.type.gemini": [.english: "Gemini Compatible", .vietnamese: "Tương thích Gemini", .chinese: "Gemini 兼容"],
+        "customProviders.type.gemini.desc": [.english: "Google Gemini API or Gemini-compatible providers", .vietnamese: "API Google Gemini hoặc các nhà cung cấp tương thích Gemini", .chinese: "Google Gemini API 或 Gemini 兼容提供商"],
+        "customProviders.type.codex": [.english: "Codex Compatible", .vietnamese: "Tương thích Codex", .chinese: "Codex 兼容"],
+        "customProviders.type.codex.desc": [.english: "Custom Codex-compatible endpoints", .vietnamese: "Các endpoint tương thích Codex tùy chỉnh", .chinese: "自定义 Codex 兼容端点"],
+        
+        // Thinking Budget
+        "customProviders.thinkingBudget": [.english: "Thinking Budget", .vietnamese: "Ngân sách suy nghĩ", .chinese: "思考预算"],
+        "customProviders.thinkingBudgetDesc": [.english: "Append (value) to model names for reasoning control", .vietnamese: "Thêm (value) vào tên mô hình để kiểm soát suy luận", .chinese: "在模型名称后添加 (value) 以控制推理"],
+        "customProviders.thinkingBudgetHint": [.english: "e.g., claude-sonnet-4(16000) or gemini-2.5-flash(max)", .vietnamese: "ví dụ: claude-sonnet-4(16000) hoặc gemini-2.5-flash(max)", .chinese: "例如：claude-sonnet-4(16000) 或 gemini-2.5-flash(max)"],
     ]
     
     static func get(_ key: String, language: AppLanguage) -> String {
