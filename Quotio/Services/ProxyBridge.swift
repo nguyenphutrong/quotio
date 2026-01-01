@@ -628,14 +628,23 @@ final class ProxyBridge {
             return
         }
         
-        let headers = """
-            HTTP/1.1 \(statusCode) \(message)\r
-            Content-Type: text/plain\r
-            Content-Length: \(bodyData.count)\r
-            Connection: close\r
-            \r
-            
-            """
+        // Map status code to proper HTTP reason phrase
+        let reasonPhrase: String
+        switch statusCode {
+        case 400: reasonPhrase = "Bad Request"
+        case 404: reasonPhrase = "Not Found"
+        case 500: reasonPhrase = "Internal Server Error"
+        case 502: reasonPhrase = "Bad Gateway"
+        case 503: reasonPhrase = "Service Unavailable"
+        default: reasonPhrase = "Error"
+        }
+        
+        // Build HTTP response with proper CRLF line endings (no leading whitespace)
+        let headers = "HTTP/1.1 \(statusCode) \(reasonPhrase)\r\n" +
+            "Content-Type: text/plain\r\n" +
+            "Content-Length: \(bodyData.count)\r\n" +
+            "Connection: close\r\n" +
+            "\r\n"
         
         guard let headerData = headers.data(using: .utf8) else {
             connection.cancel()
