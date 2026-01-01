@@ -45,30 +45,11 @@ final class StatusBarMenuBuilder {
             menu.addItem(NSMenuItem.separator())
         }
         
-        // 3. Provider segment picker + Account cards
+        // 3. Provider picker + Account cards (combined reactive view)
         let providers = providersWithData
         if !providers.isEmpty {
-            // Provider filter buttons
-            menu.addItem(buildProviderPickerItem(providers: providers))
-            menu.addItem(NSMenuItem.separator())
-            
-            // Account cards for selected provider
-            let selectedProvider = resolveSelectedProvider(from: providers)
-            let accounts = accountsForProvider(selectedProvider)
-            
-            for account in accounts {
-                let accountItem = buildAccountCardItem(
-                    email: account.email,
-                    data: account.data,
-                    provider: selectedProvider
-                )
-                menu.addItem(accountItem)
-            }
-            
-            if accounts.isEmpty {
-                menu.addItem(buildEmptyStateItem())
-            }
-            
+            let providerAccountsView = MenuProviderAccountsView(providers: providers)
+            menu.addItem(viewItem(for: providerAccountsView))
             menu.addItem(NSMenuItem.separator())
         } else {
             menu.addItem(buildEmptyStateItem())
@@ -134,24 +115,6 @@ final class StatusBarMenuBuilder {
         return viewItem(for: proxyView)
     }
     
-    // MARK: - Provider Picker Item
-    
-    private func buildProviderPickerItem(providers: [AIProvider]) -> NSMenuItem {
-        let selectedProvider = resolveSelectedProvider(from: providers)
-        let pickerView = MenuProviderPickerView(
-            providers: providers,
-            selectedProvider: selectedProvider,
-            onSelect: { [weak self] provider in
-                self?.selectedProviderRaw = provider.rawValue
-                // Close and reopen menu to refresh
-                if let menu = NSApp.mainMenu?.items.first?.submenu {
-                    menu.cancelTracking()
-                }
-            }
-        )
-        return viewItem(for: pickerView)
-    }
-    
     // MARK: - Account Card Item (with submenu for Antigravity)
     
     private func buildAccountCardItem(
@@ -203,50 +166,18 @@ final class StatusBarMenuBuilder {
     // MARK: - Action Items
     
     private func buildActionItems() -> [NSMenuItem] {
-        var items: [NSMenuItem] = []
-        
-        // Refresh action
-        let refreshItem = NSMenuItem(
-            title: "action.refresh".localized(),
-            action: #selector(MenuActionHandler.refresh),
-            keyEquivalent: "r"
-        )
-        refreshItem.target = MenuActionHandler.shared
-        refreshItem.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
-        refreshItem.isEnabled = !viewModel.isLoadingQuotas
-        items.append(refreshItem)
-        
-        // Open App action
-        let openItem = NSMenuItem(
-            title: "action.openApp".localized(),
-            action: #selector(MenuActionHandler.openApp),
-            keyEquivalent: "o"
-        )
-        openItem.target = MenuActionHandler.shared
-        openItem.image = NSImage(systemSymbolName: "macwindow", accessibilityDescription: nil)
-        items.append(openItem)
-        
-        items.append(NSMenuItem.separator())
-        
-        // Quit action
-        let quitItem = NSMenuItem(
-            title: "action.quit".localized(),
-            action: #selector(MenuActionHandler.quit),
-            keyEquivalent: "q"
-        )
-        quitItem.target = MenuActionHandler.shared
-        quitItem.image = NSImage(systemSymbolName: "xmark.circle", accessibilityDescription: nil)
-        items.append(quitItem)
-        
-        return items
+        let actionsView = MenuActionsView()
+        return [viewItem(for: actionsView)]
     }
     
     // MARK: - Helpers
     
-    /// Create NSMenuItem with SwiftUI view
     private func viewItem<V: View>(for view: V, width: CGFloat? = nil) -> NSMenuItem {
         let effectiveWidth = width ?? menuWidth
-        let hostingView = NSHostingView(rootView: view.frame(width: effectiveWidth))
+        let rootView = view
+            .frame(width: effectiveWidth)
+            .environment(viewModel)
+        let hostingView = NSHostingView(rootView: rootView)
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
         
         let item = NSMenuItem()
@@ -369,26 +300,63 @@ private struct MenuProxyInfoView: View {
     }
 }
 
-// MARK: Provider Picker View
+// MARK: - Provider + Accounts Combined View
 
-private struct MenuProviderPickerView: View {
+private struct MenuProviderAccountsView: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @AppStorage("menuBarSelectedProvider") private var selectedProviderRaw: String = ""
+    
     let providers: [AIProvider]
-    let selectedProvider: AIProvider
-    let onSelect: (AIProvider) -> Void
+    
+    private var selectedProvider: AIProvider {
+        if !selectedProviderRaw.isEmpty,
+           let provider = AIProvider(rawValue: selectedProviderRaw),
+           providers.contains(provider) {
+            return provider
+        }
+        return providers.first ?? .gemini
+    }
+    
+    private var accounts: [(email: String, data: ProviderQuotaData)] {
+        guard let quotas = viewModel.providerQuotas[selectedProvider] else { return [] }
+        return quotas.map { ($0.key, $0.value) }.sorted { $0.email < $1.email }
+    }
     
     var body: some View {
-        FlowLayout(spacing: 6) {
-            ForEach(providers) { provider in
-                ProviderFilterButton(
-                    provider: provider,
-                    isSelected: selectedProvider == provider
-                ) {
-                    onSelect(provider)
+        VStack(spacing: 0) {
+            // Provider Picker
+            FlowLayout(spacing: 6) {
+                ForEach(providers) { provider in
+                    ProviderFilterButton(
+                        provider: provider,
+                        isSelected: selectedProvider == provider
+                    ) {
+                        selectedProviderRaw = provider.rawValue
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            // Account Cards
+            if accounts.isEmpty {
+                MenuEmptyStateView()
+            } else {
+                VStack(spacing: 4) {
+                    ForEach(accounts, id: \.email) { account in
+                        MenuAccountCardView(
+                            email: account.email,
+                            data: account.data,
+                            provider: selectedProvider,
+                            hasSubmenu: false
+                        )
+                    }
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
     }
 }
 
@@ -822,4 +790,114 @@ private extension AIProvider {
     }
 }
 
+// MARK: - Menu Actions View
+
+private struct MenuActionsView: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            MenuBarActionButton(
+                icon: "arrow.clockwise",
+                title: "action.refresh".localized(),
+                isLoading: viewModel.isLoadingQuotas
+            ) {
+                Task { await viewModel.refreshQuotasUnified() }
+            }
+            .disabled(viewModel.isLoadingQuotas)
+            
+            MenuBarActionButton(
+                icon: "macwindow",
+                title: "action.openApp".localized()
+            ) {
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                if let window = NSApplication.shared.windows.first(where: { $0.title == "Quotio" }) {
+                    window.makeKeyAndOrderFront(nil)
+                }
+            }
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            MenuBarActionButton(
+                icon: "xmark.circle",
+                title: "action.quit".localized()
+            ) {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Menu Bar Action Button
+
+private struct MenuBarActionButton: View {
+    let icon: String
+    let title: String
+    var isLoading: Bool = false
+    let action: () -> Void
+    
+    @State private var isHovered = false
+    @State private var rotation: Double = 0
+    @State private var timer: Timer?
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                    .frame(width: 14)
+                    .rotationEffect(.degrees(rotation))
+                
+                Text(title)
+                    .font(.system(size: 13))
+                
+                Spacer()
+                
+                if isLoading {
+                    SmallProgressView(size: 12)
+                }
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .background(isHovered ? Color.secondary.opacity(0.1) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isLoading)
+        .onHover { isHovered = $0 }
+        .onAppear {
+            updateTimer()
+        }
+        .onChange(of: isLoading) { _, _ in
+            updateTimer()
+        }
+        .onDisappear {
+            timer?.invalidate()
+            timer = nil
+        }
+    }
+    
+    private func updateTimer() {
+        timer?.invalidate()
+        timer = nil
+        
+        if isLoading {
+            // Use Timer for reliable animation in NSMenu context
+            timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+                Task { @MainActor in
+                    rotation += 18 // 360° / 20 steps = 18° per step
+                    if rotation >= 360 {
+                        rotation = 0
+                    }
+                }
+            }
+        } else {
+            rotation = 0
+        }
+    }
+}
 
