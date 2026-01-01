@@ -33,10 +33,16 @@ final class CLIProxyManager {
     nonisolated static func terminateProxyOnShutdown() {
         let savedPort = UserDefaults.standard.integer(forKey: "proxyPort")
         let port = (savedPort > 0 && savedPort < 65536) ? UInt16(savedPort) : 8080
+        let useBridge = UserDefaults.standard.bool(forKey: "useBridgeMode")
         
-        // Kill both user-facing port and internal port
+        // Kill user-facing port
         killProcessOnPort(port)
-        killProcessOnPort(ProxyBridge.internalPort(from: port))
+        
+        // Only kill internal port if bridge mode is enabled
+        // to avoid accidentally killing unrelated services
+        if useBridge {
+            killProcessOnPort(ProxyBridge.internalPort(from: port))
+        }
     }
     
     nonisolated private static func killProcessOnPort(_ port: UInt16) {
@@ -590,13 +596,17 @@ final class CLIProxyManager {
         // Kill any process on the user-facing port
         killProcessOnPort(proxyStatus.port)
         
-        // Kill any process on the internal port (if using bridge mode)
-        killProcessOnPort(internalPort)
+        // Only kill internal port if bridge mode is enabled
+        // to avoid accidentally killing unrelated services
+        if useBridgeMode {
+            killProcessOnPort(internalPort)
+            NSLog("[CLIProxyManager] Cleaned up orphan processes on ports \(proxyStatus.port) and \(internalPort)")
+        } else {
+            NSLog("[CLIProxyManager] Cleaned up orphan processes on port \(proxyStatus.port)")
+        }
         
         // Small delay to ensure ports are released
         Thread.sleep(forTimeInterval: 0.2)
-        
-        NSLog("[CLIProxyManager] Cleaned up orphan processes on ports \(proxyStatus.port) and \(internalPort)")
     }
     
     private func forceTerminateProcess() {
