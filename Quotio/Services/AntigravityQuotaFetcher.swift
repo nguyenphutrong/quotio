@@ -152,9 +152,9 @@ struct ModelQuota: Codable, Identifiable, Sendable {
     
     var displayName: String {
         switch name {
-        case "gemini-3-pro-high": return "Gemini Pro"
-        case "gemini-3-flash": return "Gemini Flash"
-        case "gemini-3-pro-image": return "Gemini Image"
+        case "gemini-3-pro-high": return "Gemini 3 Pro"
+        case "gemini-3-flash": return "Gemini 3 Flash"
+        case "gemini-3-pro-image": return "Gemini 3 Image"
         case "claude-sonnet-4-5-thinking": return "Claude 4.5"
         case "codex-session": return "Session"
         case "codex-weekly": return "Weekly"

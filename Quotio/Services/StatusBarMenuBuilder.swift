@@ -163,13 +163,13 @@ final class StatusBarMenuBuilder {
             email: email,
             data: data,
             provider: provider,
-            hasSubmenu: provider == .antigravity && data.hasGroupedModels
+            hasSubmenu: provider == .antigravity && !data.models.isEmpty
         )
         
         let item = viewItem(for: cardView)
         
         // Attach native submenu for Antigravity accounts
-        if provider == .antigravity && data.hasGroupedModels {
+        if provider == .antigravity && !data.models.isEmpty {
             let submenu = buildAntigravitySubmenu(data: data)
             item.submenu = submenu
         }
@@ -183,23 +183,11 @@ final class StatusBarMenuBuilder {
         let submenu = NSMenu()
         submenu.autoenablesItems = false
         
-        for group in data.groupedModels {
-            // Group header
-            let groupItem = viewItem(for: MenuGroupDetailView(group: group))
-            submenu.addItem(groupItem)
-            
-            // Individual models
-            for model in group.models.sorted(by: { $0.name < $1.name }) {
-                let modelItem = viewItem(for: MenuModelDetailView(model: model, indented: true))
-                submenu.addItem(modelItem)
-            }
-            
-            submenu.addItem(NSMenuItem.separator())
-        }
+        let allModels = data.models.sorted { $0.name < $1.name }
         
-        // Remove trailing separator
-        if submenu.items.last?.isSeparatorItem == true {
-            submenu.removeItem(at: submenu.items.count - 1)
+        for model in allModels {
+            let modelItem = viewItem(for: MenuModelDetailView(model: model, showRawName: true))
+            submenu.addItem(modelItem)
         }
         
         return submenu
@@ -468,21 +456,42 @@ private struct MenuAccountCardView: View {
         email.masked(if: settings.hideSensitiveInfo)
     }
     
-    // For Antigravity: use grouped models
     private var isAntigravity: Bool {
-        provider == .antigravity && data.hasGroupedModels
+        provider == .antigravity && !data.models.isEmpty
     }
     
-    private var heroPercentage: Double {
-        if isAntigravity {
-            return data.groupedModels.map(\.percentage).min() ?? 0
+    private var antigravityGroups: [AntigravityDisplayGroup] {
+        guard isAntigravity else { return [] }
+        
+        var groups: [AntigravityDisplayGroup] = []
+        
+        let gemini3ProModels = data.models.filter { 
+            $0.name.contains("gemini-3-pro") && !$0.name.contains("image") 
         }
-        return data.models.map(\.percentage).min() ?? 0
-    }
-    
-    private var heroGroup: GroupedModelQuota? {
-        guard isAntigravity else { return nil }
-        return data.groupedModels.min { $0.percentage < $1.percentage }
+        if !gemini3ProModels.isEmpty {
+            let minQuota = gemini3ProModels.map(\.percentage).min() ?? 0
+            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Pro", percentage: minQuota))
+        }
+        
+        let gemini3FlashModels = data.models.filter { $0.name.contains("gemini-3-flash") }
+        if !gemini3FlashModels.isEmpty {
+            let minQuota = gemini3FlashModels.map(\.percentage).min() ?? 0
+            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Flash", percentage: minQuota))
+        }
+        
+        let geminiImageModels = data.models.filter { $0.name.contains("image") }
+        if !geminiImageModels.isEmpty {
+            let minQuota = geminiImageModels.map(\.percentage).min() ?? 0
+            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Image", percentage: minQuota))
+        }
+        
+        let claudeModels = data.models.filter { $0.name.contains("claude") }
+        if !claudeModels.isEmpty {
+            let minQuota = claudeModels.map(\.percentage).min() ?? 0
+            groups.append(AntigravityDisplayGroup(name: "Claude 4.5", percentage: minQuota))
+        }
+        
+        return groups.sorted { $0.percentage < $1.percentage }
     }
     
     private var heroMetric: ModelQuota? {
@@ -490,38 +499,23 @@ private struct MenuAccountCardView: View {
         return data.models.min { $0.percentage < $1.percentage }
     }
     
-    private var secondaryGroups: [GroupedModelQuota] {
-        guard isAntigravity, let hero = heroGroup else { return [] }
-        return data.groupedModels.filter { $0.id != hero.id }
-    }
-    
     private var secondaryMetrics: [ModelQuota] {
-        guard !isAntigravity, let hero = heroMetric else { return data.models }
+        guard !isAntigravity else { return [] }
+        guard let hero = heroMetric else { return data.models }
         return data.models.filter { $0.name != hero.name }
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Header: Email + Plan + Submenu indicator
             cardHeader
             
-            // Hero section
             if isAntigravity {
-                if let hero = heroGroup {
-                    heroGroupSection(group: hero)
-                }
+                antigravityModelsSection
             } else {
                 if let hero = heroMetric {
                     heroSection(metric: hero)
                 }
-            }
-            
-            // Secondary section
-            if isAntigravity {
-                if !secondaryGroups.isEmpty {
-                    secondaryGroupsSection
-                }
-            } else {
+                
                 if !secondaryMetrics.isEmpty {
                     secondaryMetricsSection
                 }
@@ -561,7 +555,17 @@ private struct MenuAccountCardView: View {
         }
     }
     
-    // MARK: - Hero Section (Regular)
+    // MARK: - Antigravity Groups Section (4 groups)
+    
+    private var antigravityModelsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(antigravityGroups) { group in
+                AntigravityGroupRow(group: group)
+            }
+        }
+    }
+    
+    // MARK: - Hero Section (for non-Antigravity)
     
     private func heroSection(metric: ModelQuota) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -587,37 +591,7 @@ private struct MenuAccountCardView: View {
         }
     }
     
-    // MARK: - Hero Section (Antigravity Grouped)
-    
-    private func heroGroupSection(group: GroupedModelQuota) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                HStack(spacing: 4) {
-                    Image(systemName: group.group.icon)
-                        .font(.system(size: 10))
-                    Text(group.displayName)
-                        .font(.system(size: 11))
-                }
-                .foregroundStyle(.secondary)
-                
-                Spacer()
-                
-                Text(formatPercentage(group.percentage))
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .foregroundStyle(quotaColor(for: group.percentage))
-            }
-            
-            HeroProgressBar(percentage: group.percentage)
-            
-            if !group.formattedResetTime.isEmpty && group.formattedResetTime != "—" {
-                Text("Resets in \(group.formattedResetTime)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-            }
-        }
-    }
-    
-    // MARK: - Secondary Section (Regular)
+    // MARK: - Secondary Section (for non-Antigravity)
     
     private var secondaryMetricsSection: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -626,17 +600,6 @@ private struct MenuAccountCardView: View {
                     name: metric.displayName,
                     percentage: metric.percentage
                 )
-            }
-        }
-        .padding(.top, 4)
-    }
-    
-    // MARK: - Secondary Section (Antigravity Grouped)
-    
-    private var secondaryGroupsSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(secondaryGroups.prefix(3)) { group in
-                SecondaryGroupRow(group: group)
             }
         }
         .padding(.top, 4)
@@ -654,6 +617,57 @@ private struct MenuAccountCardView: View {
         if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
         if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
         return Color(red: 0.35, green: 0.68, blue: 0.45)
+    }
+}
+
+// MARK: Antigravity Display Group
+
+private struct AntigravityDisplayGroup: Identifiable {
+    let name: String
+    let percentage: Double
+    
+    var id: String { name }
+}
+
+private struct AntigravityGroupRow: View {
+    let group: AntigravityDisplayGroup
+    
+    private func quotaColor(for percentage: Double) -> Color {
+        let used = 100 - percentage
+        if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
+        if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
+        return Color(red: 0.35, green: 0.68, blue: 0.45)
+    }
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(group.name)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.primary)
+                .frame(width: 100, alignment: .leading)
+            
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(.quaternary)
+                    
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(quotaColor(for: group.percentage))
+                        .frame(width: proxy.size.width * min(1, max(0, group.percentage / 100)))
+                }
+            }
+            .frame(height: 6)
+            
+            Text(formatPercentage(group.percentage))
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(quotaColor(for: group.percentage))
+                .frame(width: 36, alignment: .trailing)
+        }
+    }
+    
+    private func formatPercentage(_ value: Double) -> String {
+        let remaining = Int(value)
+        return remaining < 0 ? "—" : "\(remaining)%"
     }
 }
 
@@ -721,101 +735,11 @@ private struct SecondaryMetricRow: View {
     }
 }
 
-// MARK: Secondary Group Row (Antigravity)
-
-private struct SecondaryGroupRow: View {
-    let group: GroupedModelQuota
-    
-    private func quotaColor(for percentage: Double) -> Color {
-        let used = 100 - percentage
-        if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
-        if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
-        return Color(red: 0.35, green: 0.68, blue: 0.45)
-    }
-    
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(quotaColor(for: group.percentage))
-                .frame(width: 6, height: 6)
-            
-            HStack(spacing: 3) {
-                Image(systemName: group.group.icon)
-                    .font(.system(size: 9))
-                Text(group.displayName)
-                    .font(.system(size: 11))
-            }
-            .foregroundStyle(.secondary)
-            
-            Spacer()
-            
-            Text(formatPercentage(group.percentage))
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(.primary)
-        }
-    }
-    
-    private func formatPercentage(_ value: Double) -> String {
-        let remaining = Int(value)
-        return remaining < 0 ? "—" : "\(remaining)%"
-    }
-}
-
-// MARK: Group Detail View (for submenu)
-
-private struct MenuGroupDetailView: View {
-    let group: GroupedModelQuota
-    
-    @State private var settings = MenuBarSettingsManager.shared
-    
-    private var usedPercent: Double {
-        100 - group.percentage
-    }
-    
-    private var statusColor: Color {
-        if usedPercent >= 90 { return .red }
-        if usedPercent >= 70 { return .yellow }
-        return .green
-    }
-    
-    var body: some View {
-        let displayMode = settings.quotaDisplayMode
-        let displayPercent = displayMode == .used ? usedPercent : group.percentage
-        
-        HStack(spacing: 8) {
-            Image(systemName: group.group.icon)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 14)
-            
-            Text(group.displayName)
-                .font(.subheadline)
-                .fontWeight(.medium)
-            
-            Spacer()
-            
-            Text(String(format: "%.0f%% %@", displayPercent, displayMode.suffixKey.localized()))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(statusColor)
-            
-            if group.formattedResetTime != "—" && !group.formattedResetTime.isEmpty {
-                Text(group.formattedResetTime)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color.secondary.opacity(0.03))
-    }
-}
-
 // MARK: Model Detail View (for submenu)
 
 private struct MenuModelDetailView: View {
     let model: ModelQuota
-    let indented: Bool
+    let showRawName: Bool
     
     @State private var settings = MenuBarSettingsManager.shared
     
@@ -834,9 +758,9 @@ private struct MenuModelDetailView: View {
         let displayPercent = displayMode == .used ? usedPercent : model.percentage
         
         HStack(spacing: 8) {
-            Text(model.displayName)
-                .font(.caption)
-                .foregroundStyle(indented ? .secondary : .primary)
+            Text(showRawName ? model.name : model.displayName)
+                .font(.system(size: 11, design: showRawName ? .monospaced : .default))
+                .foregroundStyle(.primary)
                 .lineLimit(1)
             
             Spacer()
@@ -858,8 +782,7 @@ private struct MenuModelDetailView: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .padding(.leading, indented ? 28 : 12)
-        .padding(.trailing, 12)
+        .padding(.horizontal, 12)
         .padding(.vertical, 4)
     }
 }

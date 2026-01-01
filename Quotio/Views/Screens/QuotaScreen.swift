@@ -376,6 +376,46 @@ private struct AccountQuotaCardV2: View {
         account.email.masked(if: settings.hideSensitiveInfo)
     }
     
+    /// Build 4-group display for Antigravity: Gemini 3 Pro, Gemini 3 Flash, Gemini 3 Image, Claude 4.5
+    private var antigravityDisplayGroups: [AntigravityDisplayGroup] {
+        guard let data = account.quotaData, provider == .antigravity else { return [] }
+        
+        var groups: [AntigravityDisplayGroup] = []
+        
+        // Gemini 3 Pro (excluding image models)
+        let gemini3ProModels = data.models.filter { 
+            $0.name.contains("gemini-3-pro") && !$0.name.contains("image") 
+        }
+        if !gemini3ProModels.isEmpty {
+            let minQuota = gemini3ProModels.map(\.percentage).min() ?? 0
+            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Pro", percentage: minQuota, models: gemini3ProModels))
+        }
+        
+        // Gemini 3 Flash
+        let gemini3FlashModels = data.models.filter { $0.name.contains("gemini-3-flash") }
+        if !gemini3FlashModels.isEmpty {
+            let minQuota = gemini3FlashModels.map(\.percentage).min() ?? 0
+            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Flash", percentage: minQuota, models: gemini3FlashModels))
+        }
+        
+        // Gemini 3 Image (any model containing "image")
+        let geminiImageModels = data.models.filter { $0.name.contains("image") }
+        if !geminiImageModels.isEmpty {
+            let minQuota = geminiImageModels.map(\.percentage).min() ?? 0
+            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Image", percentage: minQuota, models: geminiImageModels))
+        }
+        
+        // Claude 4.5 (any model containing "claude")
+        let claudeModels = data.models.filter { $0.name.contains("claude") }
+        if !claudeModels.isEmpty {
+            let minQuota = claudeModels.map(\.percentage).min() ?? 0
+            groups.append(AntigravityDisplayGroup(name: "Claude 4.5", percentage: minQuota, models: claudeModels))
+        }
+        
+        // Sort by lowest quota first (most urgent)
+        return groups.sorted { $0.percentage < $1.percentage }
+    }
+    
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 16) {
@@ -478,23 +518,25 @@ private struct AccountQuotaCardV2: View {
                 Divider()
                 
                 VStack(spacing: 14) {
-                    if provider == .antigravity && data.hasGroupedModels {
-                        ForEach(data.groupedModels) { groupedModel in
-                            ExpandableGroupRow(
-                                groupedModel: groupedModel,
-                                isExpanded: expandedGroups.contains(groupedModel.id),
+                    // Antigravity uses 4-group display
+                    if provider == .antigravity && !antigravityDisplayGroups.isEmpty {
+                        ForEach(antigravityDisplayGroups) { group in
+                            ExpandableAntigravityGroupRow(
+                                group: group,
+                                isExpanded: expandedGroups.contains(group.id),
                                 onToggle: {
                                     withAnimation(.easeInOut(duration: 0.2)) {
-                                        if expandedGroups.contains(groupedModel.id) {
-                                            expandedGroups.remove(groupedModel.id)
+                                        if expandedGroups.contains(group.id) {
+                                            expandedGroups.remove(group.id)
                                         } else {
-                                            expandedGroups.insert(groupedModel.id)
+                                            expandedGroups.insert(group.id)
                                         }
                                     }
                                 }
                             )
                         }
                     } else {
+                        // Other providers show individual models
                         ForEach(data.models.sorted { $0.name < $1.name }) { model in
                             UsageRowV2(
                                 name: model.displayName,
@@ -687,17 +729,36 @@ private struct UpgradePromptView: View {
     }
 }
 
-// MARK: - Expandable Group Row
+// MARK: - Antigravity Display Group (4 groups)
 
-private struct ExpandableGroupRow: View {
-    let groupedModel: GroupedModelQuota
+private struct AntigravityDisplayGroup: Identifiable {
+    let name: String
+    let percentage: Double
+    let models: [ModelQuota]
+    
+    var id: String { name }
+    
+    var formattedResetTime: String {
+        // Use earliest reset time from models
+        models.compactMap { model -> Date? in
+            guard !model.formattedResetTime.isEmpty && model.formattedResetTime != "—" else { return nil }
+            // Return nil since we can't easily parse, use first available
+            return nil
+        }.first.map { _ in "" } ?? models.first?.formattedResetTime ?? "—"
+    }
+}
+
+// MARK: - Expandable Antigravity Group Row
+
+private struct ExpandableAntigravityGroupRow: View {
+    let group: AntigravityDisplayGroup
     let isExpanded: Bool
     let onToggle: () -> Void
     
     @State private var settings = MenuBarSettingsManager.shared
     
     private var usedPercent: Double {
-        100 - groupedModel.percentage
+        100 - group.percentage
     }
     
     private var statusColor: Color {
@@ -707,7 +768,14 @@ private struct ExpandableGroupRow: View {
     }
     
     private var remainingPercent: Double {
-        max(0, min(100, groupedModel.percentage))
+        max(0, min(100, group.percentage))
+    }
+    
+    private var groupIcon: String {
+        if group.name.contains("Claude") { return "brain.head.profile" }
+        if group.name.contains("Image") { return "photo" }
+        if group.name.contains("Flash") { return "bolt.fill" }
+        return "sparkles" // Gemini Pro
     }
     
     var body: some View {
@@ -726,17 +794,17 @@ private struct ExpandableGroupRow: View {
                     
                     // Group icon and name
                     HStack(spacing: 6) {
-                        Image(systemName: groupedModel.group.icon)
+                        Image(systemName: groupIcon)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text(groupedModel.displayName)
+                        Text(group.name)
                             .font(.subheadline)
                             .fontWeight(.medium)
                     }
                     
                     // Model count badge
-                    if groupedModel.models.count > 1 {
-                        Text("\(groupedModel.models.count)")
+                    if group.models.count > 1 {
+                        Text("\(group.models.count)")
                             .font(.caption2)
                             .fontWeight(.medium)
                             .foregroundStyle(.secondary)
@@ -755,12 +823,13 @@ private struct ExpandableGroupRow: View {
                             .fontWeight(.semibold)
                             .foregroundStyle(statusColor)
                         
-                        // Reset time
-                        if groupedModel.formattedResetTime != "—" && !groupedModel.formattedResetTime.isEmpty {
+                        // Reset time from first model
+                        if let firstModel = group.models.first,
+                           firstModel.formattedResetTime != "—" && !firstModel.formattedResetTime.isEmpty {
                             HStack(spacing: 3) {
                                 Image(systemName: "clock")
                                     .font(.caption2)
-                                Text(groupedModel.formattedResetTime)
+                                Text(firstModel.formattedResetTime)
                                     .font(.caption)
                             }
                             .foregroundStyle(.secondary)
@@ -790,7 +859,7 @@ private struct ExpandableGroupRow: View {
             // Expanded model details
             if isExpanded {
                 VStack(spacing: 10) {
-                    ForEach(groupedModel.models.sorted { $0.name < $1.name }) { model in
+                    ForEach(group.models.sorted { $0.name < $1.name }) { model in
                         ModelDetailRow(model: model)
                     }
                 }
