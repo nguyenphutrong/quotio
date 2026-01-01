@@ -66,18 +66,17 @@ final class AntigravityAccountSwitcher {
     }
     
     /// Detect the currently active account in Antigravity IDE
+    /// Reads email directly from antigravityAuthStatus in the database
     func detectActiveAccount() async {
         do {
-            let tokenInfo = try await databaseService.getCurrentTokenInfo()
-            
-            guard let accessToken = tokenInfo.accessToken, !accessToken.isEmpty else {
+            guard let activeEmail = try await databaseService.getActiveEmail(),
+                  !activeEmail.isEmpty else {
                 currentActiveAccount = nil
                 return
             }
             
             currentActiveAccount = AntigravityActiveAccount(
-                identifier: "unknown", // We can't get email from token directly
-                tokenPrefix: String(accessToken.prefix(20)),
+                email: activeEmail,
                 detectedAt: Date()
             )
         } catch {
@@ -85,24 +84,10 @@ final class AntigravityAccountSwitcher {
         }
     }
     
-    /// Check if a given auth file matches the currently active account
-    func isActiveAccount(authFilePath: String) async -> Bool {
+    /// Check if a given email matches the currently active account
+    func isActiveAccount(email: String) -> Bool {
         guard let active = currentActiveAccount else { return false }
-        
-        // Read the auth file and compare token prefix
-        let url = URL(fileURLWithPath: authFilePath)
-        guard let data = try? Data(contentsOf: url),
-              let authFile = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data) else {
-            return false
-        }
-        
-        return active.matches(accessToken: authFile.accessToken)
-    }
-    
-    /// Check if a given email/account key matches the currently active account
-    func isActiveAccount(email: String, accessToken: String) -> Bool {
-        guard let active = currentActiveAccount else { return false }
-        return active.matches(accessToken: accessToken)
+        return active.matches(email: email)
     }
     
     /// Begin the account switch confirmation flow
@@ -171,10 +156,9 @@ final class AntigravityAccountSwitcher {
             // Step 5: Clean up backup on success
             await databaseService.removeBackup()
             
-            // Update active account
+            // Update active account with the new email
             currentActiveAccount = AntigravityActiveAccount(
-                identifier: authFile.email,
-                tokenPrefix: String(authFile.accessToken.prefix(20)),
+                email: authFile.email,
                 detectedAt: Date()
             )
             

@@ -155,6 +155,37 @@ actor AntigravityDatabaseService {
         FileManager.default.fileExists(atPath: Self.backupPath.path)
     }
     
+    // MARK: - Auth Status Operations
+    
+    private static let authStatusKey = "antigravityAuthStatus"
+    
+    /// Auth status structure from antigravityAuthStatus key
+    private struct AuthStatus: Codable {
+        let email: String?
+        let name: String?
+        let apiKey: String?  // This is actually the access_token
+    }
+    
+    /// Get the email of currently active account in IDE
+    /// Reads from antigravityAuthStatus which contains {email, name, apiKey}
+    func getActiveEmail() async throws -> String? {
+        guard databaseExists() else {
+            return nil
+        }
+        
+        let db = try Connection(Self.databasePath.path, readonly: true)
+        
+        let query = itemTable.filter(keyColumn == Self.authStatusKey)
+        guard let row = try db.pluck(query),
+              let jsonString = row[valueColumn],
+              let jsonData = jsonString.data(using: .utf8) else {
+            return nil
+        }
+        
+        let authStatus = try JSONDecoder().decode(AuthStatus.self, from: jsonData)
+        return authStatus.email
+    }
+    
     // MARK: - Token Operations
     
     /// Inject token into database

@@ -9,18 +9,16 @@ import Foundation
 
 /// Represents the currently active Antigravity account in the IDE
 struct AntigravityActiveAccount: Equatable, Sendable {
-    /// Email or account identifier
-    let identifier: String
-    
-    /// Access token (first 20 chars for comparison, not stored in full for security)
-    let tokenPrefix: String
+    /// Email of the active account (from antigravityAuthStatus in database)
+    let email: String
     
     /// When the active account was last detected
     let detectedAt: Date
     
-    /// Check if this matches a given auth file based on token prefix
-    func matches(accessToken: String) -> Bool {
-        accessToken.prefix(20) == tokenPrefix.prefix(20)
+    /// Check if this matches a given email
+    func matches(email: String) -> Bool {
+        guard !self.email.isEmpty, !email.isEmpty else { return false }
+        return self.email.lowercased() == email.lowercased()
     }
 }
 
