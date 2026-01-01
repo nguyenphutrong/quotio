@@ -85,17 +85,16 @@ struct QuotioApp: App {
     }
     
     private func initializeApp() async {
-        // Apply saved appearance mode
         appearanceManager.applyAppearance()
         
-        // Check if onboarding needed
         if !modeManager.hasCompletedOnboarding {
             showOnboarding = true
             return
         }
         
-        // Initialize based on mode
         await viewModel.initialize()
+        
+        statusBarManager.setViewModel(viewModel)
         
         #if canImport(Sparkle)
         updaterService.checkForUpdatesInBackground()

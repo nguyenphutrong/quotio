@@ -2,19 +2,16 @@
 //  StatusBarMenuBuilder.swift
 //  Quotio
 //
-//  Native NSMenu builder with cascading submenus for provider accounts.
-//  Follows RepoBar pattern: NSMenu → NSMenuItem → submenu: NSMenu
+//  Native NSMenu builder that matches MenuBarView layout:
+//  - Header
+//  - Proxy Info (Full Mode)
+//  - Provider Segment Picker
+//  - Account Cards (individual NSMenuItem, with submenu for Antigravity)
+//  - Actions
 //
 
 import AppKit
 import SwiftUI
-
-// MARK: - Menu Builder Protocol
-
-@MainActor
-protocol MenuItemProvider {
-    func buildMenuItems() -> [NSMenuItem]
-}
 
 // MARK: - Status Bar Menu Builder
 
@@ -24,6 +21,9 @@ final class StatusBarMenuBuilder {
     private let viewModel: QuotaViewModel
     private let modeManager = AppModeManager.shared
     private let menuWidth: CGFloat = 300
+    
+    // Selected provider from UserDefaults
+    @AppStorage("menuBarSelectedProvider") private var selectedProviderRaw: String = ""
     
     init(viewModel: QuotaViewModel) {
         self.viewModel = viewModel
@@ -35,29 +35,47 @@ final class StatusBarMenuBuilder {
         let menu = NSMenu()
         menu.autoenablesItems = false
         
-        // Header
+        // 1. Header
         menu.addItem(buildHeaderItem())
         menu.addItem(NSMenuItem.separator())
         
-        // Proxy info (Full Mode only)
+        // 2. Proxy info (Full Mode only)
         if modeManager.isFullMode {
             menu.addItem(buildProxyInfoItem())
             menu.addItem(NSMenuItem.separator())
         }
         
-        // Provider sections with account submenus
+        // 3. Provider segment picker + Account cards
         let providers = providersWithData
         if !providers.isEmpty {
-            for provider in providers {
-                menu.addItem(buildProviderSection(for: provider))
+            // Provider filter buttons
+            menu.addItem(buildProviderPickerItem(providers: providers))
+            menu.addItem(NSMenuItem.separator())
+            
+            // Account cards for selected provider
+            let selectedProvider = resolveSelectedProvider(from: providers)
+            let accounts = accountsForProvider(selectedProvider)
+            
+            for account in accounts {
+                let accountItem = buildAccountCardItem(
+                    email: account.email,
+                    data: account.data,
+                    provider: selectedProvider
+                )
+                menu.addItem(accountItem)
             }
+            
+            if accounts.isEmpty {
+                menu.addItem(buildEmptyStateItem())
+            }
+            
             menu.addItem(NSMenuItem.separator())
         } else {
             menu.addItem(buildEmptyStateItem())
             menu.addItem(NSMenuItem.separator())
         }
         
-        // Action items
+        // 4. Action items
         for item in buildActionItems() {
             menu.addItem(item)
         }
@@ -75,6 +93,15 @@ final class StatusBarMenuBuilder {
             }
         }
         return providers.sorted { $0.displayName < $1.displayName }
+    }
+    
+    private func resolveSelectedProvider(from providers: [AIProvider]) -> AIProvider {
+        if !selectedProviderRaw.isEmpty,
+           let provider = AIProvider(rawValue: selectedProviderRaw),
+           providers.contains(provider) {
+            return provider
+        }
+        return providers.first ?? .gemini
     }
     
     private func accountsForProvider(_ provider: AIProvider) -> [(email: String, data: ProviderQuotaData)] {
@@ -107,100 +134,75 @@ final class StatusBarMenuBuilder {
         return viewItem(for: proxyView)
     }
     
-    // MARK: - Provider Section with Submenu
+    // MARK: - Provider Picker Item
     
-    private func buildProviderSection(for provider: AIProvider) -> NSMenuItem {
-        let accounts = accountsForProvider(provider)
-        
-        // Provider header item
-        let providerView = MenuProviderHeaderView(
-            provider: provider,
-            accountCount: accounts.count,
-            lowestQuota: lowestQuotaPercent(for: provider)
+    private func buildProviderPickerItem(providers: [AIProvider]) -> NSMenuItem {
+        let selectedProvider = resolveSelectedProvider(from: providers)
+        let pickerView = MenuProviderPickerView(
+            providers: providers,
+            selectedProvider: selectedProvider,
+            onSelect: { [weak self] provider in
+                self?.selectedProviderRaw = provider.rawValue
+                // Close and reopen menu to refresh
+                if let menu = NSApp.mainMenu?.items.first?.submenu {
+                    menu.cancelTracking()
+                }
+            }
         )
-        
-        let providerItem = viewItem(for: providerView)
-        
-        // Build submenu for accounts
-        let submenu = NSMenu()
-        submenu.autoenablesItems = false
-        
-        for account in accounts {
-            let accountItem = buildAccountItem(
-                email: account.email,
-                data: account.data,
-                provider: provider
-            )
-            submenu.addItem(accountItem)
-        }
-        
-        providerItem.submenu = submenu
-        
-        return providerItem
+        return viewItem(for: pickerView)
     }
     
-    // MARK: - Account Item with Detail Submenu
+    // MARK: - Account Card Item (with submenu for Antigravity)
     
-    private func buildAccountItem(
+    private func buildAccountCardItem(
         email: String,
         data: ProviderQuotaData,
         provider: AIProvider
     ) -> NSMenuItem {
-        // Account summary view (shows in parent menu)
-        let accountView = MenuAccountSummaryView(
+        let cardView = MenuAccountCardView(
             email: email,
             data: data,
-            provider: provider
+            provider: provider,
+            hasSubmenu: provider == .antigravity && data.hasGroupedModels
         )
         
-        let accountItem = viewItem(for: accountView)
+        let item = viewItem(for: cardView)
         
-        // Build detail submenu for models/groups
-        let detailSubmenu = NSMenu()
-        detailSubmenu.autoenablesItems = false
-        
+        // Attach native submenu for Antigravity accounts
         if provider == .antigravity && data.hasGroupedModels {
-            // Grouped models for Antigravity
-            for group in data.groupedModels {
-                let groupItem = buildGroupDetailItem(group: group)
-                detailSubmenu.addItem(groupItem)
-                
-                // Individual models under this group
-                for model in group.models.sorted(by: { $0.name < $1.name }) {
-                    let modelItem = buildModelDetailItem(model: model, indented: true)
-                    detailSubmenu.addItem(modelItem)
-                }
-                
-                detailSubmenu.addItem(NSMenuItem.separator())
-            }
-        } else {
-            // Regular models
-            for model in data.models.sorted(by: { $0.name < $1.name }) {
-                let modelItem = buildModelDetailItem(model: model, indented: false)
-                detailSubmenu.addItem(modelItem)
-            }
+            let submenu = buildAntigravitySubmenu(data: data)
+            item.submenu = submenu
         }
         
-        // Only add submenu if there are items
-        if detailSubmenu.items.count > 0 {
-            accountItem.submenu = detailSubmenu
+        return item
+    }
+    
+    // MARK: - Antigravity Submenu
+    
+    private func buildAntigravitySubmenu(data: ProviderQuotaData) -> NSMenu {
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        
+        for group in data.groupedModels {
+            // Group header
+            let groupItem = viewItem(for: MenuGroupDetailView(group: group))
+            submenu.addItem(groupItem)
+            
+            // Individual models
+            for model in group.models.sorted(by: { $0.name < $1.name }) {
+                let modelItem = viewItem(for: MenuModelDetailView(model: model, indented: true))
+                submenu.addItem(modelItem)
+            }
+            
+            submenu.addItem(NSMenuItem.separator())
         }
         
-        return accountItem
-    }
-    
-    // MARK: - Group Detail Item
-    
-    private func buildGroupDetailItem(group: GroupedModelQuota) -> NSMenuItem {
-        let groupView = MenuGroupDetailView(group: group)
-        return viewItem(for: groupView)
-    }
-    
-    // MARK: - Model Detail Item
-    
-    private func buildModelDetailItem(model: ModelQuota, indented: Bool) -> NSMenuItem {
-        let modelView = MenuModelDetailView(model: model, indented: indented)
-        return viewItem(for: modelView)
+        // Remove trailing separator
+        if submenu.items.last?.isSeparatorItem == true {
+            submenu.removeItem(at: submenu.items.count - 1)
+        }
+        
+        return submenu
     }
     
     // MARK: - Empty State
@@ -252,22 +254,6 @@ final class StatusBarMenuBuilder {
     }
     
     // MARK: - Helpers
-    
-    private func lowestQuotaPercent(for provider: AIProvider) -> Double? {
-        guard let accounts = viewModel.providerQuotas[provider] else { return nil }
-        
-        var lowestPercent: Double? = nil
-        for (_, quotaData) in accounts {
-            for model in quotaData.models {
-                if model.percentage >= 0 {
-                    if lowestPercent == nil || model.percentage < lowestPercent! {
-                        lowestPercent = model.percentage
-                    }
-                }
-            }
-        }
-        return lowestPercent
-    }
     
     /// Create NSMenuItem with SwiftUI view
     private func viewItem<V: View>(for view: V, width: CGFloat? = nil) -> NSMenuItem {
@@ -395,118 +381,387 @@ private struct MenuProxyInfoView: View {
     }
 }
 
-// MARK: Provider Header View
+// MARK: Provider Picker View
 
-private struct MenuProviderHeaderView: View {
-    let provider: AIProvider
-    let accountCount: Int
-    let lowestQuota: Double?
-    
-    private var statusColor: Color {
-        guard let percent = lowestQuota else { return .gray }
-        let used = 100 - percent
-        if used >= 90 { return .red }
-        if used >= 70 { return .yellow }
-        return .green
-    }
+private struct MenuProviderPickerView: View {
+    let providers: [AIProvider]
+    let selectedProvider: AIProvider
+    let onSelect: (AIProvider) -> Void
     
     var body: some View {
-        HStack(spacing: 8) {
-            ProviderIcon(provider: provider, size: 16)
-            
-            Text(provider.displayName)
-                .font(.subheadline)
-                .fontWeight(.medium)
-            
-            Text("\(accountCount)")
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(.quaternary)
-                .clipShape(Capsule())
-            
-            Spacer()
-            
-            if let quota = lowestQuota {
-                Text(String(format: "%.0f%%", quota))
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(statusColor)
+        FlowLayout(spacing: 6) {
+            ForEach(providers) { provider in
+                ProviderFilterButton(
+                    provider: provider,
+                    isSelected: selectedProvider == provider
+                ) {
+                    onSelect(provider)
+                }
             }
-            
-            Image(systemName: "chevron.right")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
     }
 }
 
-// MARK: Account Summary View
+// MARK: Provider Filter Button
 
-private struct MenuAccountSummaryView: View {
+private struct ProviderFilterButton: View {
+    let provider: AIProvider
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                ProviderIconMono(provider: provider, size: 14)
+                
+                Text(provider.shortName)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+            }
+            .foregroundStyle(isSelected ? .primary : .secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(isSelected ? Color.secondary.opacity(0.12) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: Monochrome Provider Icon
+
+private struct ProviderIconMono: View {
+    let provider: AIProvider
+    let size: CGFloat
+    
+    var body: some View {
+        Group {
+            if let assetName = provider.menuBarIconAsset,
+               let nsImage = NSImage(named: assetName) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .colorMultiply(.primary)
+            } else {
+                Image(systemName: provider.iconName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+// MARK: Account Card View
+
+private struct MenuAccountCardView: View {
     let email: String
     let data: ProviderQuotaData
     let provider: AIProvider
+    let hasSubmenu: Bool
     
     @State private var settings = MenuBarSettingsManager.shared
+    @State private var isHovered = false
     
     private var displayEmail: String {
         email.masked(if: settings.hideSensitiveInfo)
     }
     
+    // For Antigravity: use grouped models
+    private var isAntigravity: Bool {
+        provider == .antigravity && data.hasGroupedModels
+    }
+    
     private var heroPercentage: Double {
-        if provider == .antigravity && data.hasGroupedModels {
+        if isAntigravity {
             return data.groupedModels.map(\.percentage).min() ?? 0
         }
         return data.models.map(\.percentage).min() ?? 0
     }
     
-    private var statusColor: Color {
-        let used = 100 - heroPercentage
-        if used >= 90 { return .red }
-        if used >= 70 { return .yellow }
-        return .green
+    private var heroGroup: GroupedModelQuota? {
+        guard isAntigravity else { return nil }
+        return data.groupedModels.min { $0.percentage < $1.percentage }
+    }
+    
+    private var heroMetric: ModelQuota? {
+        guard !isAntigravity else { return nil }
+        return data.models.min { $0.percentage < $1.percentage }
+    }
+    
+    private var secondaryGroups: [GroupedModelQuota] {
+        guard isAntigravity, let hero = heroGroup else { return [] }
+        return data.groupedModels.filter { $0.id != hero.id }
+    }
+    
+    private var secondaryMetrics: [ModelQuota] {
+        guard !isAntigravity, let hero = heroMetric else { return data.models }
+        return data.models.filter { $0.name != hero.name }
     }
     
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
+        VStack(alignment: .leading, spacing: 10) {
+            // Header: Email + Plan + Submenu indicator
+            cardHeader
             
-            VStack(alignment: .leading, spacing: 1) {
+            // Hero section
+            if isAntigravity {
+                if let hero = heroGroup {
+                    heroGroupSection(group: hero)
+                }
+            } else {
+                if let hero = heroMetric {
+                    heroSection(metric: hero)
+                }
+            }
+            
+            // Secondary section
+            if isAntigravity {
+                if !secondaryGroups.isEmpty {
+                    secondaryGroupsSection
+                }
+            } else {
+                if !secondaryMetrics.isEmpty {
+                    secondaryMetricsSection
+                }
+            }
+        }
+        .padding(10)
+        .background(isHovered ? Color.secondary.opacity(0.08) : Color.secondary.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
+        .onHover { isHovered = $0 }
+    }
+    
+    // MARK: - Card Header
+    
+    private var cardHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(displayEmail)
-                    .font(.caption)
+                    .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
                 
                 if let plan = data.planDisplayName {
                     Text(plan)
-                        .font(.caption2)
+                        .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
             }
             
             Spacer()
             
-            Text(String(format: "%.0f%%", heroPercentage))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(statusColor)
-            
-            Image(systemName: "chevron.right")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            if hasSubmenu {
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+    }
+    
+    // MARK: - Hero Section (Regular)
+    
+    private func heroSection(metric: ModelQuota) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(metric.displayName)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                
+                Spacer()
+                
+                Text(formatPercentage(metric.percentage))
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(quotaColor(for: metric.percentage))
+            }
+            
+            HeroProgressBar(percentage: metric.percentage)
+            
+            if !metric.formattedResetTime.isEmpty && metric.formattedResetTime != "—" {
+                Text("Resets in \(metric.formattedResetTime)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+    
+    // MARK: - Hero Section (Antigravity Grouped)
+    
+    private func heroGroupSection(group: GroupedModelQuota) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                HStack(spacing: 4) {
+                    Image(systemName: group.group.icon)
+                        .font(.system(size: 10))
+                    Text(group.displayName)
+                        .font(.system(size: 11))
+                }
+                .foregroundStyle(.secondary)
+                
+                Spacer()
+                
+                Text(formatPercentage(group.percentage))
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(quotaColor(for: group.percentage))
+            }
+            
+            HeroProgressBar(percentage: group.percentage)
+            
+            if !group.formattedResetTime.isEmpty && group.formattedResetTime != "—" {
+                Text("Resets in \(group.formattedResetTime)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+    
+    // MARK: - Secondary Section (Regular)
+    
+    private var secondaryMetricsSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(secondaryMetrics.prefix(3)) { metric in
+                SecondaryMetricRow(
+                    name: metric.displayName,
+                    percentage: metric.percentage
+                )
+            }
+        }
+        .padding(.top, 4)
+    }
+    
+    // MARK: - Secondary Section (Antigravity Grouped)
+    
+    private var secondaryGroupsSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(secondaryGroups.prefix(3)) { group in
+                SecondaryGroupRow(group: group)
+            }
+        }
+        .padding(.top, 4)
+    }
+    
+    // MARK: - Helpers
+    
+    private func formatPercentage(_ value: Double) -> String {
+        let remaining = Int(value)
+        return remaining < 0 ? "—" : "\(remaining)%"
+    }
+    
+    private func quotaColor(for percentage: Double) -> Color {
+        let used = 100 - percentage
+        if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
+        if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
+        return Color(red: 0.35, green: 0.68, blue: 0.45)
     }
 }
 
-// MARK: Group Detail View
+// MARK: Hero Progress Bar
+
+private struct HeroProgressBar: View {
+    let percentage: Double
+    
+    private func quotaColor(for percentage: Double) -> Color {
+        let used = 100 - percentage
+        if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
+        if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
+        return Color(red: 0.35, green: 0.68, blue: 0.45)
+    }
+    
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(.quaternary)
+                
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(quotaColor(for: percentage))
+                    .frame(width: proxy.size.width * min(1, max(0, percentage / 100)))
+            }
+        }
+        .frame(height: 8)
+    }
+}
+
+// MARK: Secondary Metric Row
+
+private struct SecondaryMetricRow: View {
+    let name: String
+    let percentage: Double
+    
+    private func quotaColor(for percentage: Double) -> Color {
+        let used = 100 - percentage
+        if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
+        if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
+        return Color(red: 0.35, green: 0.68, blue: 0.45)
+    }
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(quotaColor(for: percentage))
+                .frame(width: 6, height: 6)
+            
+            Text(name)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            
+            Spacer()
+            
+            Text(formatPercentage(percentage))
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.primary)
+        }
+    }
+    
+    private func formatPercentage(_ value: Double) -> String {
+        let remaining = Int(value)
+        return remaining < 0 ? "—" : "\(remaining)%"
+    }
+}
+
+// MARK: Secondary Group Row (Antigravity)
+
+private struct SecondaryGroupRow: View {
+    let group: GroupedModelQuota
+    
+    private func quotaColor(for percentage: Double) -> Color {
+        let used = 100 - percentage
+        if used >= 90 { return Color(red: 0.9, green: 0.45, blue: 0.3) }
+        if used >= 70 { return Color(red: 0.85, green: 0.65, blue: 0.25) }
+        return Color(red: 0.35, green: 0.68, blue: 0.45)
+    }
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(quotaColor(for: group.percentage))
+                .frame(width: 6, height: 6)
+            
+            HStack(spacing: 3) {
+                Image(systemName: group.group.icon)
+                    .font(.system(size: 9))
+                Text(group.displayName)
+                    .font(.system(size: 11))
+            }
+            .foregroundStyle(.secondary)
+            
+            Spacer()
+            
+            Text(formatPercentage(group.percentage))
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.primary)
+        }
+    }
+    
+    private func formatPercentage(_ value: Double) -> String {
+        let remaining = Int(value)
+        return remaining < 0 ? "—" : "\(remaining)%"
+    }
+}
+
+// MARK: Group Detail View (for submenu)
 
 private struct MenuGroupDetailView: View {
     let group: GroupedModelQuota
@@ -556,7 +811,7 @@ private struct MenuGroupDetailView: View {
     }
 }
 
-// MARK: Model Detail View
+// MARK: Model Detail View (for submenu)
 
 private struct MenuModelDetailView: View {
     let model: ModelQuota
@@ -623,3 +878,25 @@ private struct MenuEmptyStateView: View {
         .padding(.horizontal, 12)
     }
 }
+
+// MARK: - AIProvider Extension
+
+private extension AIProvider {
+    var shortName: String {
+        switch self {
+        case .gemini: return "Gemini"
+        case .claude: return "Claude"
+        case .codex: return "OpenAI"
+        case .cursor: return "Cursor"
+        case .copilot: return "Copilot"
+        case .trae: return "Trae"
+        case .antigravity: return "Antigravity"
+        case .qwen: return "Qwen"
+        case .iflow: return "iFlow"
+        case .vertex: return "Vertex"
+        case .kiro: return "Kiro"
+        }
+    }
+}
+
+

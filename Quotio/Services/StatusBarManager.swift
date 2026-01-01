@@ -20,8 +20,18 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     private var menuContentVersion: Int = 0
     private let menuWidth: CGFloat = 300
     
+    // Native menu builder
+    private var menuBuilder: StatusBarMenuBuilder?
+    private weak var viewModel: QuotaViewModel?
+    
     private override init() {
         super.init()
+    }
+    
+    func setViewModel(_ viewModel: QuotaViewModel) {
+        self.viewModel = viewModel
+        self.menuBuilder = StatusBarMenuBuilder(viewModel: viewModel)
+        MenuActionHandler.shared.viewModel = viewModel
     }
     
     func updateStatusBar(
@@ -108,25 +118,33 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     }
     
     private func populateMenu() {
-        guard let menu = menu, let contentProvider = menuContentProvider else { return }
+        guard let menu = menu else { return }
         
-        // Clear existing items
         menu.removeAllItems()
         
-        // Create the SwiftUI content wrapped with fixed width
+        // Use native menu builder if available
+        if let builder = menuBuilder {
+            let nativeMenu = builder.buildMenu()
+            for item in nativeMenu.items {
+                nativeMenu.removeItem(item)
+                menu.addItem(item)
+            }
+            return
+        }
+        
+        // Fallback to SwiftUI hosting view
+        guard let contentProvider = menuContentProvider else { return }
+        
         let content = contentProvider()
         let wrappedContent = MenuContentWrapper(content: content, width: menuWidth)
         let hostingView = MenuHostingView(rootView: wrappedContent, fixedWidth: menuWidth)
         
-        // Use Auto Layout for proper sizing
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         
-        // Create container that will use Auto Layout
         let containerView = MenuContainerView()
         containerView.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(hostingView)
         
-        // Pin hosting view to container with fixed width
         NSLayoutConstraint.activate([
             hostingView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
             hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
@@ -135,10 +153,8 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             hostingView.widthAnchor.constraint(equalToConstant: menuWidth)
         ])
         
-        // Force layout pass to calculate intrinsic size
         containerView.layoutSubtreeIfNeeded()
         
-        // Get the fitting size and set frame
         let fittingSize = containerView.fittingSize
         let height = max(50, fittingSize.height.isFinite ? fittingSize.height : 300)
         containerView.frame = NSRect(origin: .zero, size: NSSize(width: menuWidth, height: height))
@@ -148,7 +164,6 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         contentItem.representedObject = "menuContent"
         menu.addItem(contentItem)
         
-        // Deferred layout pass for dynamic content
         DispatchQueue.main.async { [weak containerView, weak menu] in
             guard let containerView, let menu else { return }
             containerView.layoutSubtreeIfNeeded()
