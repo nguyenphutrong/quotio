@@ -45,11 +45,38 @@ final class StatusBarMenuBuilder {
             menu.addItem(NSMenuItem.separator())
         }
         
-        // 3. Provider picker + Account cards (combined reactive view)
+        // 3. Provider picker + Account cards (separate items for submenu support)
         let providers = providersWithData
         if !providers.isEmpty {
-            let providerAccountsView = MenuProviderAccountsView(providers: providers)
-            menu.addItem(viewItem(for: providerAccountsView))
+            // Provider picker as separate item with callback to rebuild menu
+            let pickerView = MenuProviderPickerView(providers: providers) {
+                // Rebuild menu in place to show new provider's accounts
+                // Uses StatusBarManager singleton to ensure it works across desktop switches
+                DispatchQueue.main.async {
+                    StatusBarManager.shared.rebuildMenuInPlace()
+                }
+            }
+            menu.addItem(viewItem(for: pickerView))
+            
+            menu.addItem(NSMenuItem.separator())
+            
+            // Account cards as individual items (enables native submenu on hover)
+            let selectedProvider = resolveSelectedProvider(from: providers)
+            let accounts = accountsForProvider(selectedProvider)
+            
+            if accounts.isEmpty {
+                menu.addItem(buildEmptyStateItem())
+            } else {
+                for account in accounts {
+                    let cardItem = buildAccountCardItem(
+                        email: account.email,
+                        data: account.data,
+                        provider: selectedProvider
+                    )
+                    menu.addItem(cardItem)
+                }
+            }
+            
             menu.addItem(NSMenuItem.separator())
         } else {
             menu.addItem(buildEmptyStateItem())
@@ -300,13 +327,13 @@ private struct MenuProxyInfoView: View {
     }
 }
 
-// MARK: - Provider + Accounts Combined View
+// MARK: - Provider Picker View (separate from accounts for submenu support)
 
-private struct MenuProviderAccountsView: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+private struct MenuProviderPickerView: View {
     @AppStorage("menuBarSelectedProvider") private var selectedProviderRaw: String = ""
     
     let providers: [AIProvider]
+    let onProviderChanged: () -> Void
     
     private var selectedProvider: AIProvider {
         if !selectedProviderRaw.isEmpty,
@@ -317,46 +344,21 @@ private struct MenuProviderAccountsView: View {
         return providers.first ?? .gemini
     }
     
-    private var accounts: [(email: String, data: ProviderQuotaData)] {
-        guard let quotas = viewModel.providerQuotas[selectedProvider] else { return [] }
-        return quotas.map { ($0.key, $0.value) }.sorted { $0.email < $1.email }
-    }
-    
     var body: some View {
-        VStack(spacing: 0) {
-            // Provider Picker
-            FlowLayout(spacing: 6) {
-                ForEach(providers) { provider in
-                    ProviderFilterButton(
-                        provider: provider,
-                        isSelected: selectedProvider == provider
-                    ) {
-                        selectedProviderRaw = provider.rawValue
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            // Account Cards
-            if accounts.isEmpty {
-                MenuEmptyStateView()
-            } else {
-                VStack(spacing: 4) {
-                    ForEach(accounts, id: \.email) { account in
-                        MenuAccountCardView(
-                            email: account.email,
-                            data: account.data,
-                            provider: selectedProvider,
-                            hasSubmenu: false
-                        )
-                    }
+        FlowLayout(spacing: 6) {
+            ForEach(providers) { provider in
+                ProviderFilterButton(
+                    provider: provider,
+                    isSelected: selectedProvider == provider
+                ) {
+                    selectedProviderRaw = provider.rawValue
+                    // Trigger menu rebuild to show new provider's accounts
+                    onProviderChanged()
                 }
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
     }
 }
 
@@ -886,8 +888,9 @@ private struct MenuBarActionButton: View {
         timer = nil
         
         if isLoading {
-            // Use Timer for reliable animation in NSMenu context
-            timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            // Use Timer with .common mode for reliable animation when NSMenu is open
+            // Default scheduledTimer uses .default mode which doesn't fire during menu tracking
+            let newTimer = Timer(timeInterval: 0.05, repeats: true) { _ in
                 Task { @MainActor in
                     rotation += 18 // 360° / 20 steps = 18° per step
                     if rotation >= 360 {
@@ -895,6 +898,8 @@ private struct MenuBarActionButton: View {
                     }
                 }
             }
+            RunLoop.main.add(newTimer, forMode: .common)
+            timer = newTimer
         } else {
             rotation = 0
         }

@@ -117,6 +117,13 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         // Cleanup
     }
     
+    /// Force rebuild menu while it's open (e.g., when provider changes)
+    func rebuildMenuInPlace() {
+        guard let menu = menu else { return }
+        populateMenu()
+        menu.update()
+    }
+    
     private func populateMenu() {
         guard let menu = menu else { return }
         
