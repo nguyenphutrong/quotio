@@ -244,10 +244,10 @@ final class ProxyBridge {
                     .components(separatedBy: "\r\n")
                     .first(where: { $0.lowercased().hasPrefix("content-length:") }) {
                     
-                    let lengthStr = contentLengthLine
-                        .components(separatedBy: ":")[1]
-                        .trimmingCharacters(in: .whitespaces)
+                    let headerParts = contentLengthLine.components(separatedBy: ":")
+                    guard headerParts.count > 1 else { return }
                     
+                    let lengthStr = headerParts[1].trimmingCharacters(in: .whitespaces)
                     if let contentLength = Int(lengthStr) {
                         let currentBodyLength = newData.count - headerEndIndex
                         
