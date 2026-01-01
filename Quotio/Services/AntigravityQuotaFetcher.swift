@@ -287,29 +287,34 @@ struct SubscriptionInfo: Codable, Sendable {
     let upgradeSubscriptionUri: String?
     let paidTier: SubscriptionTier?
     
+    /// Get the effective tier - prioritize paidTier over currentTier
+    private var effectiveTier: SubscriptionTier? {
+        paidTier ?? currentTier
+    }
+    
     var tierDisplayName: String {
-        currentTier?.name ?? "Unknown"
+        effectiveTier?.name ?? "Unknown"
     }
     
     var tierDescription: String {
-        currentTier?.description ?? ""
+        effectiveTier?.description ?? ""
     }
     
     var tierId: String {
-        currentTier?.id ?? "unknown"
+        effectiveTier?.id ?? "unknown"
     }
     
     var isPaidTier: Bool {
-        guard let id = currentTier?.id else { return false }
-        return id == "g1-pro-tier" || id == "standard-tier"
+        guard let id = effectiveTier?.id else { return false }
+        return id.contains("pro") || id.contains("ultra")
     }
     
     var canUpgrade: Bool {
-        currentTier?.upgradeSubscriptionUri != nil
+        effectiveTier?.upgradeSubscriptionUri != nil
     }
     
     var upgradeURL: URL? {
-        guard let uri = currentTier?.upgradeSubscriptionUri else { return nil }
+        guard let uri = effectiveTier?.upgradeSubscriptionUri else { return nil }
         return URL(string: uri)
     }
 }
@@ -392,10 +397,18 @@ actor AntigravityQuotaFetcher {
     
     private let session: URLSession
     
+    // Cache subscription info to avoid duplicate API calls within same refresh cycle
+    private var subscriptionCache: [String: SubscriptionInfo] = [:]
+    
     init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
         self.session = URLSession(configuration: config)
+    }
+    
+    /// Clear the subscription cache (call at start of refresh cycle)
+    func clearCache() {
+        subscriptionCache.removeAll()
     }
     
     func refreshAccessToken(refreshToken: String) async throws -> String {
@@ -487,7 +500,14 @@ actor AntigravityQuotaFetcher {
     }
     
     private func fetchProjectId(accessToken: String) async -> String? {
+        // Use cached subscription info if available, otherwise fetch
+        if let cached = subscriptionCache[accessToken] {
+            return cached.cloudaicompanionProject
+        }
         let result = await fetchSubscriptionInfo(accessToken: accessToken)
+        if let info = result {
+            subscriptionCache[accessToken] = info
+        }
         return result?.cloudaicompanionProject
     }
     
@@ -591,7 +611,133 @@ actor AntigravityQuotaFetcher {
         return try await fetchQuota(accessToken: accessToken)
     }
     
+    /// Fetch both quota and subscription for an auth file in one operation
+    /// This reuses the subscription info fetched during quota fetch (via fetchProjectId)
+    func fetchQuotaAndSubscriptionForAuthFile(at path: String) async -> (quota: ProviderQuotaData?, subscription: SubscriptionInfo?) {
+        let url = URL(fileURLWithPath: path)
+        guard let data = try? Data(contentsOf: url),
+              var authFile = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data) else {
+            return (nil, nil)
+        }
+        
+        var accessToken = authFile.accessToken
+        
+        if authFile.isExpired, let refreshToken = authFile.refreshToken {
+            do {
+                accessToken = try await refreshAccessToken(refreshToken: refreshToken)
+                authFile.accessToken = accessToken
+                
+                if let updatedData = try? JSONEncoder().encode(authFile) {
+                    try? updatedData.write(to: url)
+                }
+            } catch {
+                return (nil, nil)
+            }
+        }
+        
+        // Fetch quota - this internally calls fetchProjectId which fetches and caches subscription
+        var quota: ProviderQuotaData? = nil
+        do {
+            quota = try await fetchQuota(accessToken: accessToken)
+        } catch {
+            // Quota fetch failed, but we might still have subscription in cache
+        }
+        
+        // Get subscription from cache (was fetched during fetchProjectId in fetchQuota)
+        let subscription = subscriptionCache[accessToken]
+        
+        return (quota, subscription)
+    }
+    
     func fetchAllAntigravityQuotas(authDir: String = "~/.cli-proxy-api") async -> [String: ProviderQuotaData] {
+        let expandedPath = NSString(string: authDir).expandingTildeInPath
+        let fileManager = FileManager.default
+        
+        guard let files = try? fileManager.contentsOfDirectory(atPath: expandedPath) else {
+            return [:]
+        }
+        
+        var results: [String: ProviderQuotaData] = [:]
+        
+        // Run all fetches concurrently using TaskGroup
+        await withTaskGroup(of: (String, ProviderQuotaData?).self) { group in
+            for file in files where file.hasPrefix("antigravity-") && file.hasSuffix(".json") {
+                let filePath = (expandedPath as NSString).appendingPathComponent(file)
+                let email = file
+                    .replacingOccurrences(of: "antigravity-", with: "")
+                    .replacingOccurrences(of: ".json", with: "")
+                    .replacingOccurrences(of: "_", with: ".")
+                    .replacingOccurrences(of: ".gmail.com", with: "@gmail.com")
+                
+                group.addTask {
+                    do {
+                        let quota = try await self.fetchQuotaForAuthFile(at: filePath)
+                        return (email, quota)
+                    } catch {
+                        return (email, nil)
+                    }
+                }
+            }
+            
+            for await (email, quota) in group {
+                if let quota = quota {
+                    results[email] = quota
+                }
+            }
+        }
+        
+        return results
+    }
+    
+    /// Fetch all Antigravity data (quotas + subscriptions) in one call
+    /// This avoids duplicate API calls by reusing cached subscription info
+    func fetchAllAntigravityData(authDir: String = "~/.cli-proxy-api") async -> (quotas: [String: ProviderQuotaData], subscriptions: [String: SubscriptionInfo]) {
+        // Clear cache at start of refresh cycle
+        clearCache()
+        
+        let expandedPath = NSString(string: authDir).expandingTildeInPath
+        let fileManager = FileManager.default
+        
+        guard let files = try? fileManager.contentsOfDirectory(atPath: expandedPath) else {
+            return ([:], [:])
+        }
+        
+        var quotaResults: [String: ProviderQuotaData] = [:]
+        var subscriptionResults: [String: SubscriptionInfo] = [:]
+        
+        // Run all fetches concurrently using TaskGroup
+        await withTaskGroup(of: (String, ProviderQuotaData?, SubscriptionInfo?).self) { group in
+            for file in files where file.hasPrefix("antigravity-") && file.hasSuffix(".json") {
+                let filePath = (expandedPath as NSString).appendingPathComponent(file)
+                let email = file
+                    .replacingOccurrences(of: "antigravity-", with: "")
+                    .replacingOccurrences(of: ".json", with: "")
+                    .replacingOccurrences(of: "_", with: ".")
+                    .replacingOccurrences(of: ".gmail.com", with: "@gmail.com")
+                
+                group.addTask {
+                    // Fetch both quota and subscription in one call
+                    let result = await self.fetchQuotaAndSubscriptionForAuthFile(at: filePath)
+                    return (email, result.quota, result.subscription)
+                }
+            }
+            
+            for await (email, quota, subscription) in group {
+                if let quota = quota {
+                    quotaResults[email] = quota
+                }
+                if let subscription = subscription {
+                    subscriptionResults[email] = subscription
+                }
+            }
+        }
+        
+        return (quotaResults, subscriptionResults)
+    }
+    
+    /// Legacy function - now just calls fetchAllAntigravityQuotas
+    @available(*, deprecated, message: "Use fetchAllAntigravityData instead")
+    func fetchAllAntigravityQuotasLegacy(authDir: String = "~/.cli-proxy-api") async -> [String: ProviderQuotaData] {
         let expandedPath = NSString(string: authDir).expandingTildeInPath
         let fileManager = FileManager.default
         

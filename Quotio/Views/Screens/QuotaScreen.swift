@@ -291,7 +291,7 @@ private struct ProviderQuotaView: View {
                     statusColor: .green,
                     authFile: nil,
                     quotaData: data,
-                    subscriptionInfo: nil
+                    subscriptionInfo: subscriptionInfos[key]
                 ))
             }
         }
@@ -301,15 +301,6 @@ private struct ProviderQuotaView: View {
     
     var body: some View {
         VStack(spacing: 16) {
-            // Loading indicator at top if loading
-            if isLoading && !allAccounts.isEmpty {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                        .scaleEffect(0.8)
-                }
-            }
-            
             // Account Cards
             if allAccounts.isEmpty && isLoading {
                 QuotaLoadingView()
@@ -365,6 +356,7 @@ private struct AccountQuotaCardV2: View {
     let isLoading: Bool
     
     @State private var isRefreshing = false
+    @State private var rotationAngle: Double = 0
     @State private var expandedGroups: Set<String> = []
     @State private var showSwitchSheet = false
     
@@ -511,20 +503,20 @@ private struct AccountQuotaCardV2: View {
             Button {
                 Task {
                     isRefreshing = true
+                    withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+                        rotationAngle = 360
+                    }
                     await viewModel.refreshQuotaForProvider(provider)
+                    withAnimation(.none) {
+                        rotationAngle = 0
+                    }
                     isRefreshing = false
                 }
             } label: {
-                Group {
-                    if isRefreshing {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.subheadline)
-                    }
-                }
-                .frame(width: 20, height: 20)
+                Image(systemName: "arrow.clockwise")
+                    .font(.subheadline)
+                    .rotationEffect(.degrees(rotationAngle))
+                    .frame(width: 24, height: 24)
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
@@ -685,20 +677,27 @@ private struct SubscriptionBadgeV2: View {
     let info: SubscriptionInfo
     
     private var tierConfig: (name: String, bgColor: Color, textColor: Color) {
-        switch info.tierId {
-        case "g1-ultra-tier":
-            // Gold/Yellow for Ultra
+        let tierId = info.tierId.lowercased()
+        let tierName = info.tierDisplayName.lowercased()
+        
+        // Check for Ultra tier (highest priority)
+        if tierId.contains("ultra") || tierName.contains("ultra") {
             return ("Ultra", Color(red: 1.0, green: 0.95, blue: 0.8), Color(red: 0.52, green: 0.39, blue: 0.02))
-        case "g1-pro-tier":
-            // Blue for Pro
-            return ("Pro", Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
-        case "standard-tier":
-            // Gray for Standard/Free
-            return ("Free", Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
-        default:
-            // Gray for unknown tiers - use actual tier name
-            return (info.tierDisplayName, Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
         }
+        
+        // Check for Pro tier
+        if tierId.contains("pro") || tierName.contains("pro") {
+            return ("Pro", Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
+        }
+        
+        // Check for Free/Standard tier
+        if tierId.contains("standard") || tierId.contains("free") || 
+           tierName.contains("standard") || tierName.contains("free") {
+            return ("Free", Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
+        }
+        
+        // Fallback: use the display name from API
+        return (info.tierDisplayName, Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
     }
     
     var body: some View {

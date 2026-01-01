@@ -16,9 +16,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     
     private var statusItem: NSStatusItem?
     private var menu: NSMenu?
-    private var menuContentProvider: (() -> AnyView)?
     private var menuContentVersion: Int = 0
-    private let menuWidth: CGFloat = 300
     
     // Native menu builder
     private var menuBuilder: StatusBarMenuBuilder?
@@ -39,8 +37,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         colorMode: MenuBarColorMode,
         isRunning: Bool,
         showMenuBarIcon: Bool,
-        showQuota: Bool,
-        menuContentProvider: @escaping () -> AnyView
+        showQuota: Bool
     ) {
         guard showMenuBarIcon else {
             removeStatusItem()
@@ -51,8 +48,6 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         }
         
-        // Store content provider for menu refresh
-        self.menuContentProvider = menuContentProvider
         self.menuContentVersion += 1
         
         // Create or update menu
@@ -129,57 +124,12 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         
         menu.removeAllItems()
         
-        // Use native menu builder if available
-        if let builder = menuBuilder {
-            let nativeMenu = builder.buildMenu()
-            for item in nativeMenu.items {
-                nativeMenu.removeItem(item)
-                menu.addItem(item)
-            }
-            return
-        }
+        guard let builder = menuBuilder else { return }
         
-        // Fallback to SwiftUI hosting view
-        guard let contentProvider = menuContentProvider else { return }
-        
-        let content = contentProvider()
-        let wrappedContent = MenuContentWrapper(content: content, width: menuWidth)
-        let hostingView = MenuHostingView(rootView: wrappedContent, fixedWidth: menuWidth)
-        
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        
-        let containerView = MenuContainerView()
-        containerView.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(hostingView)
-        
-        NSLayoutConstraint.activate([
-            hostingView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: containerView.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
-            hostingView.widthAnchor.constraint(equalToConstant: menuWidth)
-        ])
-        
-        containerView.layoutSubtreeIfNeeded()
-        
-        let fittingSize = containerView.fittingSize
-        let height = max(50, fittingSize.height.isFinite ? fittingSize.height : 300)
-        containerView.frame = NSRect(origin: .zero, size: NSSize(width: menuWidth, height: height))
-        
-        let contentItem = NSMenuItem()
-        contentItem.view = containerView
-        contentItem.representedObject = "menuContent"
-        menu.addItem(contentItem)
-        
-        DispatchQueue.main.async { [weak containerView, weak menu] in
-            guard let containerView, let menu else { return }
-            containerView.layoutSubtreeIfNeeded()
-            let newSize = containerView.fittingSize
-            let newHeight = max(50, newSize.height.isFinite ? newSize.height : containerView.frame.height)
-            if abs(newHeight - containerView.frame.height) > 1 {
-                containerView.frame = NSRect(origin: .zero, size: NSSize(width: 300, height: newHeight))
-                menu.update()
-            }
+        let nativeMenu = builder.buildMenu()
+        for item in nativeMenu.items {
+            nativeMenu.removeItem(item)
+            menu.addItem(item)
         }
     }
     
@@ -196,92 +146,6 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             statusItem = nil
         }
         menu = nil
-    }
-}
-
-// MARK: - Menu Content Wrapper
-
-/// Wrapper view that enforces fixed width for proper height calculation
-private struct MenuContentWrapper: View {
-    let content: AnyView
-    let width: CGFloat
-    
-    var body: some View {
-        content
-            .frame(width: width)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-// MARK: - Menu Container View
-
-/// Container view for menu items that supports vibrancy
-private final class MenuContainerView: NSView {
-    override var allowsVibrancy: Bool { true }
-    
-    override var intrinsicContentSize: NSSize {
-        // Return fitting size based on subviews
-        guard let hostingView = subviews.first else {
-            return NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
-        }
-        return hostingView.fittingSize
-    }
-    
-    override func layout() {
-        super.layout()
-        invalidateIntrinsicContentSize()
-    }
-}
-
-// MARK: - Menu Hosting View
-
-/// Custom NSHostingView that enables vibrancy and provides accurate height measurement
-private final class MenuHostingView<Content: View>: NSHostingView<Content> {
-    
-    private let fixedWidth: CGFloat
-    
-    override var allowsVibrancy: Bool { true }
-    
-    /// Override intrinsicContentSize to provide accurate sizing for NSMenu
-    override var intrinsicContentSize: NSSize {
-        // Use sizeThatFits for accurate measurement
-        let controller = NSHostingController(rootView: self.rootView)
-        let measured = controller.sizeThatFits(in: CGSize(width: fixedWidth, height: CGFloat.greatestFiniteMagnitude))
-        let height = measured.height.isFinite ? measured.height : 300
-        return NSSize(width: fixedWidth, height: max(50, height))
-    }
-    
-    init(rootView: Content, fixedWidth: CGFloat) {
-        self.fixedWidth = fixedWidth
-        super.init(rootView: rootView)
-        setupTransparency()
-    }
-    
-    required init(rootView: Content) {
-        self.fixedWidth = 300
-        super.init(rootView: rootView)
-        setupTransparency()
-    }
-    
-    @available(*, unavailable)
-    @MainActor @preconcurrency required dynamic init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
-    private func setupTransparency() {
-        wantsLayer = true
-        layer?.backgroundColor = .clear
-    }
-    
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        wantsLayer = true
-        layer?.backgroundColor = .clear
-    }
-    
-    override func updateLayer() {
-        super.updateLayer()
-        layer?.backgroundColor = .clear
     }
 }
 

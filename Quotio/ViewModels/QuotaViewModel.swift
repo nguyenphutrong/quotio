@@ -519,14 +519,31 @@ final class QuotaViewModel {
     }
     
     private func refreshAntigravityQuotasInternal() async {
-        let quotas = await antigravityFetcher.fetchAllAntigravityQuotas()
+        // Fetch both quotas and subscriptions in one call (avoids duplicate API calls)
+        let (quotas, subscriptions) = await antigravityFetcher.fetchAllAntigravityData()
+        
         providerQuotas[.antigravity] = quotas
         
-        let subscriptions = await antigravityFetcher.fetchAllSubscriptionInfo()
-        subscriptionInfos = subscriptions
+        // Merge instead of replace to preserve data if API fails
+        for (email, info) in subscriptions {
+            subscriptionInfos[email] = info
+        }
         
         // Detect active account in IDE (reads email directly from database)
         await antigravitySwitcher.detectActiveAccount()
+    }
+    
+    /// Refresh Antigravity quotas without re-detecting active account
+    /// Used after switching accounts (active account already set by switch operation)
+    private func refreshAntigravityQuotasWithoutDetect() async {
+        let (quotas, subscriptions) = await antigravityFetcher.fetchAllAntigravityData()
+        
+        providerQuotas[.antigravity] = quotas
+        
+        for (email, info) in subscriptions {
+            subscriptionInfos[email] = info
+        }
+        // Note: Don't call detectActiveAccount() here - already set by switch operation
     }
     
     // MARK: - Antigravity Account Switching
@@ -543,7 +560,9 @@ final class QuotaViewModel {
         
         // Refresh to update active account
         if case .success = antigravitySwitcher.switchState {
-            await refreshAntigravityQuotasInternal()
+            // Refresh quotas but don't re-detect active account
+            // (already set in executeSwitchForEmail)
+            await refreshAntigravityQuotasWithoutDetect()
         }
     }
     

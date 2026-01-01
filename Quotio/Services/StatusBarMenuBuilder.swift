@@ -95,11 +95,19 @@ final class StatusBarMenuBuilder {
     
     private var providersWithData: [AIProvider] {
         var providers = Set<AIProvider>()
+        
+        // From direct auth files (scanned from filesystem - available immediately)
+        for file in viewModel.directAuthFiles {
+            providers.insert(file.provider)
+        }
+        
+        // From quota data (available after API calls complete)
         for (provider, accountQuotas) in viewModel.providerQuotas {
             if !accountQuotas.isEmpty {
                 providers.insert(provider)
             }
         }
+        
         return providers.sorted { $0.displayName < $1.displayName }
     }
     
@@ -149,11 +157,20 @@ final class StatusBarMenuBuilder {
         data: ProviderQuotaData,
         provider: AIProvider
     ) -> NSMenuItem {
+        let subscriptionInfo = viewModel.subscriptionInfos[email]
+        let isActiveInIDE = provider == .antigravity && viewModel.isAntigravityAccountActive(email: email)
+        
         let cardView = MenuAccountCardView(
             email: email,
             data: data,
             provider: provider,
-            hasSubmenu: provider == .antigravity && !data.models.isEmpty
+            hasSubmenu: provider == .antigravity && !data.models.isEmpty,
+            subscriptionInfo: subscriptionInfo,
+            isActiveInIDE: isActiveInIDE,
+            onUseAccount: provider == .antigravity && !isActiveInIDE ? { [weak viewModel] in
+                // Show confirmation dialog before switching
+                Self.showSwitchConfirmation(email: email, viewModel: viewModel)
+            } : nil
         )
         
         let item = viewItem(for: cardView)
@@ -165,6 +182,35 @@ final class StatusBarMenuBuilder {
         }
         
         return item
+    }
+    
+    // MARK: - Switch Account Confirmation
+    
+    private static func showSwitchConfirmation(email: String, viewModel: QuotaViewModel?) {
+        guard let viewModel = viewModel else { return }
+        
+        let isIDERunning = viewModel.antigravitySwitcher.isIDERunning()
+        
+        let alert = NSAlert()
+        alert.messageText = "Switch Antigravity Account"
+        alert.informativeText = "Switch to account: \(email)"
+        
+        if isIDERunning {
+            alert.informativeText += "\n\n⚠️ Antigravity IDE is running and will be restarted."
+        }
+        
+        alert.alertStyle = isIDERunning ? .warning : .informational
+        alert.addButton(withTitle: "Switch Account")
+        alert.addButton(withTitle: "Cancel")
+        
+        let response = alert.runModal()
+        
+        if response == .alertFirstButtonReturn {
+            Task { @MainActor in
+                await viewModel.switchAntigravityAccount(email: email)
+                StatusBarManager.shared.rebuildMenuInPlace()
+            }
+        }
     }
     
     // MARK: - Antigravity Submenu
@@ -418,12 +464,35 @@ private struct MenuAccountCardView: View {
     let data: ProviderQuotaData
     let provider: AIProvider
     let hasSubmenu: Bool
+    let subscriptionInfo: SubscriptionInfo?
+    let isActiveInIDE: Bool
+    let onUseAccount: (() -> Void)?
     
     @State private var settings = MenuBarSettingsManager.shared
     @State private var isHovered = false
     
     private var displayEmail: String {
         email.masked(if: settings.hideSensitiveInfo)
+    }
+    
+    // Tier badge config
+    private var tierConfig: (name: String, bgColor: Color, textColor: Color)? {
+        guard let info = subscriptionInfo else { return nil }
+        
+        let tierId = info.tierId.lowercased()
+        let tierName = info.tierDisplayName.lowercased()
+        
+        if tierId.contains("ultra") || tierName.contains("ultra") {
+            return ("Ultra", Color(red: 1.0, green: 0.95, blue: 0.8), Color(red: 0.52, green: 0.39, blue: 0.02))
+        }
+        if tierId.contains("pro") || tierName.contains("pro") {
+            return ("Pro", Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
+        }
+        if tierId.contains("standard") || tierId.contains("free") ||
+           tierName.contains("standard") || tierName.contains("free") {
+            return ("Free", Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
+        }
+        return (info.tierDisplayName, Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
     }
     
     private var isAntigravity: Bool {
@@ -502,25 +571,68 @@ private struct MenuAccountCardView: View {
     // MARK: - Card Header
     
     private var cardHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(displayEmail)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-                
-                if let plan = data.planDisplayName {
+        VStack(alignment: .leading, spacing: 4) {
+            // Row 1: Email
+            Text(displayEmail)
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+            
+            // Row 2: Tier badge + Active badge + Use button + Submenu chevron
+            HStack(spacing: 6) {
+                // Tier badge (Antigravity)
+                if let config = tierConfig {
+                    Text(config.name)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(config.textColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(config.bgColor)
+                        .clipShape(Capsule())
+                } else if let plan = data.planDisplayName {
                     Text(plan)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
-            }
-            
-            Spacer()
-            
-            if hasSubmenu {
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                
+                Spacer()
+                
+                // Active badge (Antigravity)
+                if isActiveInIDE {
+                    Text("Active")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color(red: 0.13, green: 0.55, blue: 0.13))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(red: 0.85, green: 0.95, blue: 0.85))
+                        .clipShape(Capsule())
+                }
+                
+                // Use button (Antigravity, non-active)
+                if let onUse = onUseAccount {
+                    Button {
+                        onUse()
+                    } label: {
+                        HStack(spacing: 2) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 8))
+                            Text("Use")
+                                .font(.system(size: 9))
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundStyle(.blue)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                // Submenu chevron
+                if hasSubmenu {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
     }
@@ -842,8 +954,6 @@ private struct MenuBarActionButton: View {
     let action: () -> Void
     
     @State private var isHovered = false
-    @State private var rotation: Double = 0
-    @State private var timer: Timer?
     
     var body: some View {
         Button(action: action) {
@@ -851,7 +961,6 @@ private struct MenuBarActionButton: View {
                 Image(systemName: icon)
                     .font(.system(size: 12))
                     .frame(width: 14)
-                    .rotationEffect(.degrees(rotation))
                 
                 Text(title)
                     .font(.system(size: 13))
@@ -871,38 +980,6 @@ private struct MenuBarActionButton: View {
         .buttonStyle(.plain)
         .disabled(isLoading)
         .onHover { isHovered = $0 }
-        .onAppear {
-            updateTimer()
-        }
-        .onChange(of: isLoading) { _, _ in
-            updateTimer()
-        }
-        .onDisappear {
-            timer?.invalidate()
-            timer = nil
-        }
-    }
-    
-    private func updateTimer() {
-        timer?.invalidate()
-        timer = nil
-        
-        if isLoading {
-            // Use Timer with .common mode for reliable animation when NSMenu is open
-            // Default scheduledTimer uses .default mode which doesn't fire during menu tracking
-            let newTimer = Timer(timeInterval: 0.05, repeats: true) { _ in
-                Task { @MainActor in
-                    rotation += 18 // 360° / 20 steps = 18° per step
-                    if rotation >= 360 {
-                        rotation = 0
-                    }
-                }
-            }
-            RunLoop.main.add(newTimer, forMode: .common)
-            timer = newTimer
-        } else {
-            rotation = 0
-        }
     }
 }
 

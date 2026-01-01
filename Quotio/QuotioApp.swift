@@ -74,13 +74,7 @@ struct QuotioApp: App {
             colorMode: menuBarSettings.colorMode,
             isRunning: hasQuotaData,
             showMenuBarIcon: menuBarSettings.showMenuBarIcon,
-            showQuota: menuBarSettings.showQuotaInMenuBar,
-            menuContentProvider: {
-                AnyView(
-                    MenuBarView()
-                        .environment(viewModel)
-                )
-            }
+            showQuota: menuBarSettings.showQuotaInMenuBar
         )
     }
     
@@ -92,15 +86,20 @@ struct QuotioApp: App {
             return
         }
         
-        await viewModel.initialize()
+        // Scan auth files immediately (fast filesystem scan)
+        // This allows menu bar to show providers before quota API calls complete
+        await viewModel.loadDirectAuthFiles()
         
+        // Setup menu bar immediately so user can open it while data loads
         statusBarManager.setViewModel(viewModel)
+        updateStatusBar()
+        
+        // Load data in background
+        await viewModel.initialize()
         
         #if canImport(Sparkle)
         updaterService.checkForUpdatesInBackground()
         #endif
-        
-        updateStatusBar()
     }
     
     var body: some Scene {
@@ -115,6 +114,8 @@ struct QuotioApp: App {
                 }
                 .onChange(of: viewModel.isLoadingQuotas) {
                     updateStatusBar()
+                    // Rebuild menu when loading state changes so loader updates
+                    statusBarManager.rebuildMenuInPlace()
                 }
                 .onChange(of: menuBarSettings.showQuotaInMenuBar) {
                     updateStatusBar()
@@ -133,6 +134,11 @@ struct QuotioApp: App {
                 }
                 .onChange(of: viewModel.providerQuotas.count) {
                     updateStatusBar()
+                    statusBarManager.rebuildMenuInPlace()
+                }
+                .onChange(of: viewModel.directAuthFiles.count) {
+                    updateStatusBar()
+                    statusBarManager.rebuildMenuInPlace()
                 }
                 .sheet(isPresented: $showOnboarding) {
                     ModePickerView {
