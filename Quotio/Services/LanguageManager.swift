@@ -178,6 +178,16 @@ struct LocalizedStrings {
         "logs.warn": [.english: "Warn", .vietnamese: "Cảnh báo", .chinese: "警告"],
         "logs.error": [.english: "Error", .vietnamese: "Lỗi", .chinese: "错误"],
         "logs.autoScroll": [.english: "Auto-scroll", .vietnamese: "Tự cuộn", .chinese: "自动滚动"],
+        "logs.tab.requests": [.english: "Requests", .vietnamese: "Yêu cầu", .chinese: "请求"],
+        "logs.tab.proxyLogs": [.english: "Proxy Logs", .vietnamese: "Nhật ký Proxy", .chinese: "代理日志"],
+        "logs.searchRequests": [.english: "Search requests...", .vietnamese: "Tìm kiếm yêu cầu...", .chinese: "搜索请求..."],
+        "logs.noRequests": [.english: "No Requests", .vietnamese: "Chưa có yêu cầu", .chinese: "无请求"],
+        "logs.requestsWillAppear": [.english: "API requests will appear here as they pass through the proxy", .vietnamese: "Yêu cầu API sẽ xuất hiện khi đi qua proxy", .chinese: "API 请求通过代理时将显示在此处"],
+        "logs.stats.totalRequests": [.english: "Total", .vietnamese: "Tổng", .chinese: "总计"],
+        "logs.stats.successRate": [.english: "Success", .vietnamese: "Thành công", .chinese: "成功率"],
+        "logs.stats.totalTokens": [.english: "Tokens", .vietnamese: "Token", .chinese: "令牌"],
+        "logs.stats.avgDuration": [.english: "Avg Time", .vietnamese: "TB Thời gian", .chinese: "平均时间"],
+        "logs.filter.allProviders": [.english: "All Providers", .vietnamese: "Tất cả nhà cung cấp", .chinese: "所有提供商"],
         
         // Actions
         "action.start": [.english: "Start", .vietnamese: "Bắt đầu", .chinese: "开始"],

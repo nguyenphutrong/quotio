@@ -162,6 +162,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowDidBecomeKeyObserver: NSObjectProtocol?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Register default values for UserDefaults
+        UserDefaults.standard.register(defaults: [
+            "useBridgeMode": true  // Enable two-layer proxy by default for connection stability
+        ])
+        
         windowWillCloseObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: nil,

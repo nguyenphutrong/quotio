@@ -10,29 +10,72 @@ actor ManagementAPIClient {
     private let authKey: String
     private let session: URLSession
     private let sessionDelegate: SessionDelegate
+    private let clientId: String
+    
+    // MARK: - Diagnostic Logging
+    
+    static let enableDiagnosticLogging = false
+    private static var activeRequests: Int = 0
+    private static let requestLock = NSLock()
+    
+    private static func log(_ message: String) {
+        guard enableDiagnosticLogging else { return }
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        print("[API \(timestamp)] \(message)")
+    }
+    
+    private static func incrementActiveRequests() -> Int {
+        requestLock.lock()
+        defer { requestLock.unlock() }
+        activeRequests += 1
+        return activeRequests
+    }
+    
+    private static func decrementActiveRequests() -> Int {
+        requestLock.lock()
+        defer { requestLock.unlock() }
+        activeRequests -= 1
+        return activeRequests
+    }
     
     init(baseURL: String, authKey: String) {
         self.baseURL = baseURL
         self.authKey = authKey
+        self.clientId = String(UUID().uuidString.prefix(6))
         
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 10
-        config.timeoutIntervalForResource = 30
-        // Limit concurrent connections to prevent connection accumulation
-        config.httpMaximumConnectionsPerHost = 2
+        config.timeoutIntervalForRequest = 15  // Increased from 10
+        config.timeoutIntervalForResource = 45 // Increased from 30
+        // Increased connection limit to handle concurrent requests better
+        config.httpMaximumConnectionsPerHost = 4
         // Disable connection caching to prevent stale connections
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         
-        self.sessionDelegate = SessionDelegate()
+        self.sessionDelegate = SessionDelegate(clientId: clientId)
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
+        
+        Self.log("[\(clientId)] Client created, maxConnections=4, timeout=15/45s")
     }
     
     func invalidate() {
+        Self.log("[\(clientId)] Session invalidating...")
         session.invalidateAndCancel()
     }
     
-    private func makeRequest(_ endpoint: String, method: String = "GET", body: Data? = nil) async throws -> Data {
+    private func makeRequest(_ endpoint: String, method: String = "GET", body: Data? = nil, retryCount: Int = 0) async throws -> Data {
+        let requestId = String(UUID().uuidString.prefix(6))
+        let activeCount = Self.incrementActiveRequests()
+        let startTime = Date()
+        
+        Self.log("[\(clientId)][\(requestId)] START \(method) \(endpoint) (active=\(activeCount), retry=\(retryCount))")
+        
+        defer {
+            let endCount = Self.decrementActiveRequests()
+            let duration = Date().timeIntervalSince(startTime)
+            Self.log("[\(clientId)][\(requestId)] END \(method) \(endpoint) duration=\(String(format: "%.3f", duration))s (active=\(endCount))")
+        }
+        
         guard let url = URL(string: "\(baseURL)\(endpoint)") else {
             throw APIError.invalidURL
         }
@@ -41,22 +84,41 @@ actor ManagementAPIClient {
         request.httpMethod = method
         request.addValue("Bearer \(authKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Force new connection to avoid stale connection issues after idle periods
+        request.addValue("close", forHTTPHeaderField: "Connection")
         
         if let body = body {
             request.httpBody = body
         }
         
-        let (data, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
+        do {
+            let (data, response) = try await session.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.invalidResponse
+            }
+            
+            guard 200...299 ~= httpResponse.statusCode else {
+                Self.log("[\(clientId)][\(requestId)] HTTP ERROR \(httpResponse.statusCode)")
+                throw APIError.httpError(httpResponse.statusCode)
+            }
+            
+            return data
+        } catch let error as URLError {
+            Self.log("[\(clientId)][\(requestId)] URL ERROR: \(error.code.rawValue) - \(error.localizedDescription)")
+            
+            // Retry once on timeout or connection errors (stale connection recovery)
+            if retryCount < 1 && (error.code == .timedOut || error.code == .networkConnectionLost || error.code == .cannotConnectToHost) {
+                Self.log("[\(clientId)][\(requestId)] RETRYING after 0.5s...")
+                // Small delay before retry
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                return try await makeRequest(endpoint, method: method, body: body, retryCount: retryCount + 1)
+            }
+            throw APIError.connectionError(error.localizedDescription)
+        } catch {
+            Self.log("[\(clientId)][\(requestId)] UNEXPECTED ERROR: \(error.localizedDescription)")
+            throw error
         }
-        
-        guard 200...299 ~= httpResponse.statusCode else {
-            throw APIError.httpError(httpResponse.statusCode)
-        }
-        
-        return data
     }
     
     func fetchAuthFiles() async throws -> [AuthFile] {
@@ -217,9 +279,27 @@ struct LatestVersionResponse: Codable, Sendable {
 
 // MARK: - URLSession Delegate
 
-private final class SessionDelegate: NSObject, URLSessionDelegate, Sendable {
+private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
+    private let clientId: String
+    
+    init(clientId: String) {
+        self.clientId = clientId
+        super.init()
+    }
+    
     func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) {
-        // Session invalidated - cleanup handled by URLSession
+        let errorMsg = error?.localizedDescription ?? "none"
+        print("[API] [\(clientId)] Session invalidated, error=\(errorMsg)")
+    }
+    
+    func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+        guard ManagementAPIClient.enableDiagnosticLogging else { return }
+        
+        for metric in metrics.transactionMetrics {
+            let reused = metric.isReusedConnection ? "reused" : "new"
+            let duration = metric.responseEndDate?.timeIntervalSince(metric.requestStartDate ?? Date()) ?? 0
+            print("[API] [\(clientId)] Connection: \(reused), duration=\(String(format: "%.3f", duration))s")
+        }
     }
 }
 
@@ -242,6 +322,7 @@ enum APIError: LocalizedError {
     case invalidResponse
     case httpError(Int)
     case decodingError(String)
+    case connectionError(String)
     
     var errorDescription: String? {
         switch self {
@@ -249,6 +330,7 @@ enum APIError: LocalizedError {
         case .invalidResponse: return "Invalid response"
         case .httpError(let code): return "HTTP error: \(code)"
         case .decodingError(let msg): return "Decoding error: \(msg)"
+        case .connectionError(let msg): return "Connection error: \(msg)"
         }
     }
 }

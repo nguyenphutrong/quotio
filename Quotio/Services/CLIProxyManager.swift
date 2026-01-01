@@ -11,10 +11,38 @@ import AppKit
 final class CLIProxyManager {
     static let shared = CLIProxyManager()
     
+    // MARK: - Two-Layer Proxy Architecture
+    
+    /// The ProxyBridge sits between clients and CLIProxyAPI to handle connection management
+    /// This solves the stale connection issue by forcing "Connection: close" on all requests
+    let proxyBridge = ProxyBridge()
+    
+    /// Whether to use the two-layer proxy architecture (ProxyBridge → CLIProxyAPI)
+    /// When enabled: clients connect to userPort, ProxyBridge forwards to internalPort
+    /// When disabled: clients connect directly to userPort where CLIProxyAPI runs
+    var useBridgeMode: Bool {
+        get { UserDefaults.standard.bool(forKey: "useBridgeMode") }
+        set { UserDefaults.standard.set(newValue, forKey: "useBridgeMode") }
+    }
+    
+    /// Internal port where CLIProxyAPI runs (when bridge mode is enabled)
+    var internalPort: UInt16 {
+        ProxyBridge.internalPort(from: proxyStatus.port)
+    }
+    
     nonisolated static func terminateProxyOnShutdown() {
         let savedPort = UserDefaults.standard.integer(forKey: "proxyPort")
         let port = (savedPort > 0 && savedPort < 65536) ? UInt16(savedPort) : 8080
+        let useBridge = UserDefaults.standard.bool(forKey: "useBridgeMode")
+        
+        // Kill user-facing port
         killProcessOnPort(port)
+        
+        // Only kill internal port if bridge mode is enabled
+        // to avoid accidentally killing unrelated services
+        if useBridge {
+            killProcessOnPort(ProxyBridge.internalPort(from: port))
+        }
     }
     
     nonisolated private static func killProcessOnPort(_ port: UInt16) {
@@ -101,12 +129,20 @@ final class CLIProxyManager {
     private static let githubRepo = "router-for-me/CLIProxyAPIPlus"
     private static let binaryName = "CLIProxyAPI"
     
+    /// Base URL for the proxy API (always points to CLIProxyAPI directly)
+    /// When bridge mode is enabled, this uses the internal port
     var baseURL: String {
-        "http://127.0.0.1:\(proxyStatus.port)"
+        let port = useBridgeMode ? internalPort : proxyStatus.port
+        return "http://127.0.0.1:\(port)"
     }
     
     var managementURL: String {
         "\(baseURL)/v0/management"
+    }
+    
+    /// The endpoint URL that clients should use (user-facing port)
+    var clientEndpoint: String {
+        "http://127.0.0.1:\(proxyStatus.port)"
     }
     
     init() {
@@ -133,7 +169,10 @@ final class CLIProxyManager {
         if savedPort > 0 && savedPort < 65536 {
             self.proxyStatus.port = UInt16(savedPort)
         }
-        
+
+        // Note: Bridge mode default is registered in AppDelegate.applicationDidFinishLaunching()
+        // using UserDefaults.register(defaults:) which is the preferred approach
+
         try? FileManager.default.createDirectory(atPath: authDir, withIntermediateDirectories: true)
         
         ensureConfigExists()
@@ -476,8 +515,17 @@ final class CLIProxyManager {
         
         defer { isStarting = false }
         
+        // Clean up any orphan processes from previous runs
+        cleanupOrphanProcesses()
+        
         syncSecretKeyInConfig()
         syncProxyURLInConfig()
+        
+        // Determine which port CLIProxyAPI should listen on
+        let cliProxyPort = useBridgeMode ? internalPort : proxyStatus.port
+        
+        // Update config to use the correct port
+        updateConfigPort(cliProxyPort)
         
         // Use effectiveBinaryPath to support versioned storage
         let activeBinaryPath = effectiveBinaryPath
@@ -498,13 +546,23 @@ final class CLIProxyManager {
         environment["TERM"] = "xterm-256color"
         process.environment = environment
         
+        let bridgeEnabled = useBridgeMode
+        let userPort = proxyStatus.port
+        
         process.terminationHandler = { terminatedProcess in
             let status = terminatedProcess.terminationStatus
             Task { @MainActor [weak self] in
-                self?.proxyStatus.running = false
-                self?.process = nil
+                guard let self = self else { return }
+                self.proxyStatus.running = false
+                self.process = nil
+                
+                // Stop ProxyBridge if CLIProxyAPI crashes
+                if bridgeEnabled {
+                    self.proxyBridge.stop()
+                }
+                
                 if status != 0 {
-                    self?.lastError = "Process exited with code: \(status)"
+                    self.lastError = "Process exited with code: \(status)"
                     NotificationManager.shared.notifyProxyCrashed(exitCode: status)
                 }
             }
@@ -516,11 +574,31 @@ final class CLIProxyManager {
             
             try await Task.sleep(nanoseconds: 1_500_000_000)
             
-            if process.isRunning {
-                proxyStatus.running = true
-            } else {
+            guard process.isRunning else {
                 throw ProxyError.startupFailed
             }
+            
+            // If bridge mode is enabled, start ProxyBridge
+            if bridgeEnabled {
+                proxyBridge.configure(listenPort: userPort, targetPort: cliProxyPort)
+                proxyBridge.start()
+                
+                // Wait a bit for ProxyBridge to start
+                try await Task.sleep(nanoseconds: 500_000_000)
+                
+                guard proxyBridge.isRunning else {
+                    // ProxyBridge failed to start, stop CLIProxyAPI
+                    process.terminate()
+                    throw ProxyError.startupFailed
+                }
+                
+                NSLog("[CLIProxyManager] Two-layer proxy started: clients → \(userPort) → \(cliProxyPort)")
+            } else {
+                NSLog("[CLIProxyManager] Direct proxy started on port \(userPort)")
+            }
+            
+            proxyStatus.running = true
+            
         } catch {
             lastError = error.localizedDescription
             throw error
@@ -529,10 +607,41 @@ final class CLIProxyManager {
     
     func stop() {
         terminateAuthProcess()
+        
+        // Stop ProxyBridge first if running
+        if proxyBridge.isRunning {
+            proxyBridge.stop()
+        }
+        
         forceTerminateProcess()
+        
+        // Kill processes on both ports
         killProcessOnPort(proxyStatus.port)
+        if useBridgeMode {
+            killProcessOnPort(internalPort)
+        }
+        
         process = nil
         proxyStatus.running = false
+    }
+    
+    /// Clean up any orphan proxy processes from previous runs
+    /// This prevents port conflicts and zombie processes
+    private func cleanupOrphanProcesses() {
+        // Kill any process on the user-facing port
+        killProcessOnPort(proxyStatus.port)
+        
+        // Only kill internal port if bridge mode is enabled
+        // to avoid accidentally killing unrelated services
+        if useBridgeMode {
+            killProcessOnPort(internalPort)
+            NSLog("[CLIProxyManager] Cleaned up orphan processes on ports \(proxyStatus.port) and \(internalPort)")
+        } else {
+            NSLog("[CLIProxyManager] Cleaned up orphan processes on port \(proxyStatus.port)")
+        }
+        
+        // Small delay to ensure ports are released
+        Thread.sleep(forTimeInterval: 0.2)
     }
     
     private func forceTerminateProcess() {
