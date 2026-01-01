@@ -583,6 +583,7 @@ struct LocalizedStrings {
         "settings.proxy.error.invalidScheme": [.english: "Invalid scheme. Use socks5://, http://, or https://", .vietnamese: "Scheme không hợp lệ. Sử dụng socks5://, http://, hoặc https://", .chinese: "无效的协议。使用 socks5://、http:// 或 https://"],
         "settings.proxy.error.invalidURL": [.english: "Invalid URL format", .vietnamese: "Định dạng URL không hợp lệ", .chinese: "无效的 URL 格式"],
         "settings.proxy.error.missingHost": [.english: "Missing host", .vietnamese: "Thiếu host", .chinese: "缺少主机"],
+        "settings.proxy.error.missingPort": [.english: "Port is required for socks5", .vietnamese: "Port là bắt buộc cho socks5", .chinese: "socks5 需要端口号"],
         "settings.proxy.error.invalidPort": [.english: "Invalid port number", .vietnamese: "Số port không hợp lệ", .chinese: "无效的端口号"],
         
         // Custom Providers

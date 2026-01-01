@@ -491,6 +491,7 @@ enum ProxyURLValidationResult: Equatable {
     case invalidScheme
     case invalidURL
     case missingHost
+    case missingPort
     case invalidPort
     
     var isValid: Bool {
@@ -507,6 +508,8 @@ enum ProxyURLValidationResult: Equatable {
             return "settings.proxy.error.invalidURL"
         case .missingHost:
             return "settings.proxy.error.missingHost"
+        case .missingPort:
+            return "settings.proxy.error.missingPort"
         case .invalidPort:
             return "settings.proxy.error.invalidPort"
         }
@@ -539,7 +542,15 @@ enum ProxyURLValidator {
             return .missingHost
         }
         
-        if let port = url.port {
+        // socks5 requires explicit port
+        if url.scheme?.lowercased() == "socks5" {
+            guard let port = url.port else {
+                return .missingPort
+            }
+            guard port >= 1 && port <= 65535 else {
+                return .invalidPort
+            }
+        } else if let port = url.port {
             guard port >= 1 && port <= 65535 else {
                 return .invalidPort
             }
