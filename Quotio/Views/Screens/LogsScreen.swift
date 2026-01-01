@@ -7,9 +7,187 @@ import SwiftUI
 
 struct LogsScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @State private var selectedTab: LogsTab = .requests
     @State private var autoScroll = true
     @State private var filterLevel: LogEntry.LogLevel? = nil
     @State private var searchText = ""
+    @State private var requestFilterProvider: String? = nil
+    
+    enum LogsTab: String, CaseIterable {
+        case requests = "requests"
+        case proxyLogs = "proxyLogs"
+        
+        var title: String {
+            switch self {
+            case .requests: return "logs.tab.requests".localized()
+            case .proxyLogs: return "logs.tab.proxyLogs".localized()
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .requests: return "arrow.up.arrow.down"
+            case .proxyLogs: return "doc.text"
+            }
+        }
+    }
+    
+    var body: some View {
+        Group {
+            if !viewModel.proxyManager.proxyStatus.running {
+                ProxyRequiredView(
+                    description: "logs.startProxy".localized()
+                ) {
+                    await viewModel.startProxy()
+                }
+            } else {
+                VStack(spacing: 0) {
+                    // Tab Picker
+                    Picker("Tab", selection: $selectedTab) {
+                        ForEach(LogsTab.allCases, id: \.self) { tab in
+                            Label(tab.title, systemImage: tab.icon)
+                                .tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding()
+                    
+                    Divider()
+                    
+                    // Tab Content
+                    switch selectedTab {
+                    case .requests:
+                        requestHistoryView
+                    case .proxyLogs:
+                        proxyLogsView
+                    }
+                }
+            }
+        }
+        .navigationTitle("nav.logs".localized())
+        .searchable(text: $searchText, prompt: searchPrompt)
+        .toolbar {
+            toolbarContent
+        }
+        .task {
+            while !Task.isCancelled {
+                if selectedTab == .proxyLogs {
+                    await viewModel.refreshLogs()
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+    }
+    
+    private var searchPrompt: String {
+        switch selectedTab {
+        case .requests:
+            return "logs.searchRequests".localized()
+        case .proxyLogs:
+            return "logs.searchLogs".localized()
+        }
+    }
+    
+    // MARK: - Request History View
+    
+    private var requestHistoryView: some View {
+        Group {
+            if viewModel.requestTracker.requestHistory.isEmpty {
+                ContentUnavailableView {
+                    Label("logs.noRequests".localized(), systemImage: "arrow.up.arrow.down")
+                } description: {
+                    Text("logs.requestsWillAppear".localized())
+                }
+            } else {
+                VStack(spacing: 0) {
+                    // Stats Header
+                    requestStatsHeader
+                    
+                    Divider()
+                    
+                    // Request List
+                    requestList
+                }
+            }
+        }
+    }
+    
+    private var requestStatsHeader: some View {
+        let stats = viewModel.requestTracker.stats
+        
+        return HStack(spacing: 24) {
+            StatItem(
+                title: "logs.stats.totalRequests".localized(),
+                value: "\(stats.totalRequests)"
+            )
+            
+            StatItem(
+                title: "logs.stats.successRate".localized(),
+                value: String(format: "%.0f%%", stats.successRate)
+            )
+            
+            StatItem(
+                title: "logs.stats.totalTokens".localized(),
+                value: stats.totalTokens.formattedTokenCount
+            )
+            
+            StatItem(
+                title: "logs.stats.avgDuration".localized(),
+                value: "\(stats.averageDurationMs)ms"
+            )
+            
+            Spacer()
+            
+            // Provider Filter
+            Picker("Provider", selection: $requestFilterProvider) {
+                Text("logs.filter.allProviders".localized()).tag(nil as String?)
+                Divider()
+                ForEach(Array(stats.byProvider.keys.sorted()), id: \.self) { provider in
+                    Text(provider.capitalized).tag(provider as String?)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 140)
+        }
+        .padding()
+        .background(.regularMaterial)
+    }
+    
+    private var filteredRequests: [RequestLog] {
+        var requests = viewModel.requestTracker.requestHistory
+        
+        if let provider = requestFilterProvider {
+            requests = requests.filter { $0.provider == provider }
+        }
+        
+        if !searchText.isEmpty {
+            requests = requests.filter {
+                ($0.provider?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+                ($0.model?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+                ($0.endpoint.localizedCaseInsensitiveContains(searchText))
+            }
+        }
+        
+        return requests
+    }
+    
+    private var requestList: some View {
+        ScrollViewReader { proxy in
+            List(filteredRequests) { request in
+                RequestRow(request: request)
+                    .id(request.id)
+            }
+            .onChange(of: viewModel.requestTracker.requestHistory.count) { _, _ in
+                if autoScroll, let first = filteredRequests.first {
+                    withAnimation {
+                        proxy.scrollTo(first.id, anchor: .top)
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Proxy Logs View
     
     var filteredLogs: [LogEntry] {
         var logs = viewModel.logs
@@ -25,15 +203,9 @@ struct LogsScreen: View {
         return logs
     }
     
-    var body: some View {
+    private var proxyLogsView: some View {
         Group {
-            if !viewModel.proxyManager.proxyStatus.running {
-                ProxyRequiredView(
-                    description: "logs.startProxy".localized()
-                ) {
-                    await viewModel.startProxy()
-                }
-            } else if filteredLogs.isEmpty {
+            if filteredLogs.isEmpty {
                 ContentUnavailableView {
                     Label("logs.noLogs".localized(), systemImage: "doc.text")
                 } description: {
@@ -41,42 +213,6 @@ struct LogsScreen: View {
                 }
             } else {
                 logList
-            }
-        }
-        .navigationTitle("nav.logs".localized())
-        .searchable(text: $searchText, prompt: "logs.searchLogs".localized())
-        .toolbar {
-            ToolbarItemGroup {
-                Picker("Filter", selection: $filterLevel) {
-                    Text("logs.all".localized()).tag(nil as LogEntry.LogLevel?)
-                    Divider()
-                    Text("logs.info".localized()).tag(LogEntry.LogLevel.info as LogEntry.LogLevel?)
-                    Text("logs.warn".localized()).tag(LogEntry.LogLevel.warn as LogEntry.LogLevel?)
-                    Text("logs.error".localized()).tag(LogEntry.LogLevel.error as LogEntry.LogLevel?)
-                }
-                .pickerStyle(.menu)
-                
-                Toggle(isOn: $autoScroll) {
-                    Label("logs.autoScroll".localized(), systemImage: "arrow.down.to.line")
-                }
-                
-                Button {
-                    Task { await viewModel.refreshLogs() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                
-                Button(role: .destructive) {
-                    Task { await viewModel.clearLogs() }
-                } label: {
-                    Image(systemName: "trash")
-                }
-            }
-        }
-        .task {
-            while !Task.isCancelled {
-                await viewModel.refreshLogs()
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
     }
@@ -94,6 +230,158 @@ struct LogsScreen: View {
                     }
                 }
             }
+        }
+    }
+    
+    // MARK: - Toolbar
+    
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItemGroup {
+            if selectedTab == .proxyLogs {
+                Picker("Filter", selection: $filterLevel) {
+                    Text("logs.all".localized()).tag(nil as LogEntry.LogLevel?)
+                    Divider()
+                    Text("logs.info".localized()).tag(LogEntry.LogLevel.info as LogEntry.LogLevel?)
+                    Text("logs.warn".localized()).tag(LogEntry.LogLevel.warn as LogEntry.LogLevel?)
+                    Text("logs.error".localized()).tag(LogEntry.LogLevel.error as LogEntry.LogLevel?)
+                }
+                .pickerStyle(.menu)
+            }
+            
+            Toggle(isOn: $autoScroll) {
+                Label("logs.autoScroll".localized(), systemImage: "arrow.down.to.line")
+            }
+            
+            Button {
+                if selectedTab == .requests {
+                    // Refresh handled by RequestTracker automatically
+                } else {
+                    Task { await viewModel.refreshLogs() }
+                }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            
+            Button(role: .destructive) {
+                if selectedTab == .requests {
+                    viewModel.requestTracker.clearHistory()
+                } else {
+                    Task { await viewModel.clearLogs() }
+                }
+            } label: {
+                Image(systemName: "trash")
+            }
+        }
+    }
+}
+
+// MARK: - Request Row
+
+struct RequestRow: View {
+    let request: RequestLog
+    
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            // Timestamp
+            Text(request.formattedTimestamp)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 70, alignment: .leading)
+            
+            // Status Badge
+            statusBadge
+            
+            // Provider & Model
+            VStack(alignment: .leading, spacing: 2) {
+                if let provider = request.provider {
+                    Text(provider.capitalized)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                if let model = request.model {
+                    Text(model)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: 140, alignment: .leading)
+            
+            // Tokens
+            if let tokens = request.formattedTokens {
+                HStack(spacing: 4) {
+                    Image(systemName: "text.word.spacing")
+                        .font(.caption2)
+                    Text(tokens)
+                        .font(.system(.caption, design: .monospaced))
+                }
+                .foregroundStyle(.secondary)
+                .frame(width: 70, alignment: .trailing)
+            } else {
+                Text("-")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 70, alignment: .trailing)
+            }
+            
+            // Duration
+            Text(request.formattedDuration)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 60, alignment: .trailing)
+            
+            Spacer()
+            
+            // Size
+            HStack(spacing: 4) {
+                Text("\(request.requestSize.formatted())B")
+                    .foregroundStyle(.secondary)
+                Image(systemName: "arrow.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Text("\(request.responseSize.formatted())B")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.system(.caption2, design: .monospaced))
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private var statusBadge: some View {
+        Text(request.statusBadge)
+            .font(.system(.caption2, design: .monospaced, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(statusColor)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+    }
+    
+    private var statusColor: Color {
+        guard let code = request.statusCode else { return .gray }
+        switch code {
+        case 200..<300: return .green
+        case 400..<500: return .orange
+        case 500..<600: return .red
+        default: return .gray
+        }
+    }
+}
+
+// MARK: - Stat Item
+
+struct StatItem: View {
+    let title: String
+    let value: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(.body, design: .rounded, weight: .semibold))
         }
     }
 }

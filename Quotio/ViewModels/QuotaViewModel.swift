@@ -19,6 +19,9 @@ final class QuotaViewModel {
     private let notificationManager = NotificationManager.shared
     private let modeManager = AppModeManager.shared
     
+    /// Request tracker for monitoring API requests through ProxyBridge
+    let requestTracker = RequestTracker.shared
+    
     // Quota-Only Mode Fetchers (CLI-based)
     private let claudeCodeFetcher = ClaudeCodeQuotaFetcher()
     private let cursorFetcher = CursorQuotaFetcher()
@@ -322,9 +325,18 @@ final class QuotaViewModel {
     
     func startProxy() async {
         do {
+            // Wire up ProxyBridge callback to RequestTracker before starting
+            proxyManager.proxyBridge.onRequestCompleted = { [weak self] metadata in
+                self?.requestTracker.addRequest(from: metadata)
+            }
+            
             try await proxyManager.start()
             setupAPIClient()
             startAutoRefresh()
+            
+            // Start RequestTracker
+            requestTracker.start()
+            
             await refreshData()
         } catch {
             errorMessage = error.localizedDescription
@@ -334,6 +346,10 @@ final class QuotaViewModel {
     func stopProxy() {
         refreshTask?.cancel()
         refreshTask = nil
+        
+        // Stop RequestTracker
+        requestTracker.stop()
+        
         proxyManager.stop()
         
         // Invalidate URLSession to close all connections
@@ -366,11 +382,46 @@ final class QuotaViewModel {
     private func startAutoRefresh() {
         refreshTask?.cancel()
         refreshTask = Task {
+            var consecutiveFailures = 0
             while !Task.isCancelled {
-                // Increased from 5 to 15 seconds to reduce connection pressure
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                // Refresh interval: 20 seconds (increased from 15 to reduce pressure)
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
+                
+                // Skip health check - it competes with data refresh for connections
+                // Instead, track failures in refreshData() itself
+                
                 await refreshData()
+                
+                // Check if last refresh succeeded by looking at errorMessage
+                if errorMessage != nil {
+                    consecutiveFailures += 1
+                    print("[QuotaVM] Refresh failed, consecutive failures: \(consecutiveFailures)")
+                    
+                    // After 3 consecutive failures (60 seconds), attempt recovery
+                    if consecutiveFailures >= 3 {
+                        print("[QuotaVM] Attempting proxy recovery...")
+                        await attemptProxyRecovery()
+                        consecutiveFailures = 0
+                    }
+                } else {
+                    if consecutiveFailures > 0 {
+                        print("[QuotaVM] Refresh succeeded, resetting failure count")
+                    }
+                    consecutiveFailures = 0
+                }
             }
+        }
+    }
+    
+    /// Attempt to recover an unresponsive proxy
+    private func attemptProxyRecovery() async {
+        // Check if process is still running
+        if proxyManager.proxyStatus.running {
+            // Proxy process is running but not responding - likely hung
+            // Stop and restart
+            stopProxy()
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+            await startProxy()
         }
     }
     
@@ -381,13 +432,14 @@ final class QuotaViewModel {
         guard let client = apiClient else { return }
         
         do {
-            async let files = client.fetchAuthFiles()
-            async let stats = client.fetchUsageStats()
-            async let keys = client.fetchAPIKeys()
+            // Serialize requests to avoid connection contention (issue #37)
+            // This reduces pressure on the connection pool
+            self.authFiles = try await client.fetchAuthFiles()
+            self.usageStats = try await client.fetchUsageStats()
+            self.apiKeys = try await client.fetchAPIKeys()
             
-            self.authFiles = try await files
-            self.usageStats = try await stats
-            self.apiKeys = try await keys
+            // Clear any previous error on success
+            errorMessage = nil
             
             checkAccountStatusChanges()
             
