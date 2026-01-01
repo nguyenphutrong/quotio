@@ -93,7 +93,7 @@ final class StatusBarMenuBuilder {
     
     private func buildProxyInfoItem() -> NSMenuItem {
         let proxyView = MenuProxyInfoView(
-            port: viewModel.proxyManager.port,
+            port: Int(viewModel.proxyManager.port),
             isRunning: viewModel.proxyManager.proxyStatus.running,
             onToggle: { [weak viewModel] in
                 Task { await viewModel?.toggleProxy() }
