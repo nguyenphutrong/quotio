@@ -15,6 +15,8 @@ struct ProviderDisclosureGroup: View {
     let provider: AIProvider
     let accounts: [AccountRowData]
     var onDeleteAccount: ((AccountRowData) -> Void)?
+    var onSwitchAccount: ((AccountRowData) -> Void)?
+    var isAccountActive: ((AccountRowData) -> Bool)?
     
     @State private var isExpanded: Bool = true
     
@@ -26,9 +28,12 @@ struct ProviderDisclosureGroup: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             ForEach(accounts) { account in
-                AccountRow(account: account) {
-                    onDeleteAccount?(account)
-                }
+                AccountRow(
+                    account: account,
+                    onDelete: onDeleteAccount != nil ? { onDeleteAccount?(account) } : nil,
+                    onSwitch: onSwitchAccount != nil ? { onSwitchAccount?(account) } : nil,
+                    isActiveInIDE: isAccountActive?(account) ?? false
+                )
                 .padding(.leading, 4)
             }
         } label: {

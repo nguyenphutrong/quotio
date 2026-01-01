@@ -68,6 +68,12 @@ final class QuotaViewModel {
     /// Subscription info per account (email -> SubscriptionInfo)
     var subscriptionInfos: [String: SubscriptionInfo] = [:]
     
+    /// Antigravity account switcher (for IDE token injection)
+    let antigravitySwitcher = AntigravityAccountSwitcher.shared
+    
+    /// Cache of Antigravity auth file tokens for active account detection
+    private var antigravityTokenCache: [String: String] = [:] // email -> accessToken prefix
+    
     private var refreshTask: Task<Void, Never>?
     private var lastLogTimestamp: Int?
     
@@ -521,6 +527,63 @@ final class QuotaViewModel {
         
         let subscriptions = await antigravityFetcher.fetchAllSubscriptionInfo()
         subscriptionInfos = subscriptions
+        
+        // Cache token prefixes for active account detection
+        await cacheAntigravityTokens()
+        
+        // Detect active account in IDE
+        await antigravitySwitcher.detectActiveAccount()
+    }
+    
+    /// Cache Antigravity auth file tokens for active account detection
+    private func cacheAntigravityTokens() async {
+        let authDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: authDir) else { return }
+        
+        var cache: [String: String] = [:]
+        
+        for file in files where file.hasPrefix("antigravity-") && file.hasSuffix(".json") {
+            let filePath = (authDir as NSString).appendingPathComponent(file)
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)),
+               let authFile = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data) {
+                cache[authFile.email] = String(authFile.accessToken.prefix(20))
+            }
+        }
+        
+        antigravityTokenCache = cache
+    }
+    
+    // MARK: - Antigravity Account Switching
+    
+    /// Check if an Antigravity account is currently active in the IDE
+    func isAntigravityAccountActive(email: String) -> Bool {
+        guard let tokenPrefix = antigravityTokenCache[email] else { return false }
+        return antigravitySwitcher.isActiveAccount(email: email, accessToken: tokenPrefix)
+    }
+    
+    /// Switch Antigravity account in the IDE
+    func switchAntigravityAccount(email: String) async {
+        await antigravitySwitcher.executeSwitchForEmail(email)
+        
+        // Refresh to update active account
+        if case .success = antigravitySwitcher.switchState {
+            await refreshAntigravityQuotasInternal()
+        }
+    }
+    
+    /// Begin the switch confirmation flow
+    func beginAntigravitySwitch(accountId: String, email: String) {
+        antigravitySwitcher.beginSwitch(accountId: accountId, accountEmail: email)
+    }
+    
+    /// Cancel the switch operation
+    func cancelAntigravitySwitch() {
+        antigravitySwitcher.cancelSwitch()
+    }
+    
+    /// Dismiss switch result
+    func dismissAntigravitySwitchResult() {
+        antigravitySwitcher.dismissResult()
     }
     
     private func refreshOpenAIQuotasInternal() async {

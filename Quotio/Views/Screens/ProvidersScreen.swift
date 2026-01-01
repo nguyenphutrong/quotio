@@ -23,6 +23,7 @@ struct ProvidersScreen: View {
     @State private var showCustomProviderSheet = false
     @State private var editingCustomProvider: CustomProvider?
     @State private var showAddProviderPopover = false
+    @State private var switchingAccount: AccountRowData?
     
     private let modeManager = AppModeManager.shared
     private let customProviderService = CustomProviderService.shared
@@ -158,6 +159,15 @@ struct ProvidersScreen: View {
                 }
             )
         }
+        .sheet(item: $switchingAccount) { account in
+            SwitchAccountSheet(
+                accountEmail: account.displayName,
+                onDismiss: {
+                    switchingAccount = nil
+                }
+            )
+            .environment(viewModel)
+        }
     }
     
     // MARK: - Toolbar
@@ -218,7 +228,13 @@ struct ProvidersScreen: View {
                         accounts: groupedAccounts[provider] ?? [],
                         onDeleteAccount: { account in
                             Task { await deleteAccount(account) }
-                        }
+                        },
+                        onSwitchAccount: provider == .antigravity ? { account in
+                            switchingAccount = account
+                        } : nil,
+                        isAccountActive: provider == .antigravity ? { account in
+                            viewModel.isAntigravityAccountActive(email: account.displayName)
+                        } : nil
                     )
                 }
             }

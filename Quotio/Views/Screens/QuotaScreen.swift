@@ -366,6 +366,7 @@ private struct AccountQuotaCardV2: View {
     
     @State private var isRefreshing = false
     @State private var expandedGroups: Set<String> = []
+    @State private var showSwitchSheet = false
     
     private var hasQuotaData: Bool {
         guard let data = account.quotaData else { return false }
@@ -374,6 +375,11 @@ private struct AccountQuotaCardV2: View {
     
     private var displayEmail: String {
         account.email.masked(if: settings.hideSensitiveInfo)
+    }
+    
+    /// Check if this Antigravity account is active in IDE
+    private var isActiveInIDE: Bool {
+        provider == .antigravity && viewModel.isAntigravityAccountActive(email: account.email)
     }
     
     /// Build 4-group display for Antigravity: Gemini 3 Pro, Gemini 3 Flash, Gemini 3 Image, Claude 4.5
@@ -464,6 +470,31 @@ private struct AccountQuotaCardV2: View {
             
             Spacer()
             
+            // Active in IDE badge (Antigravity only)
+            if isActiveInIDE {
+                Text("antigravity.active".localized())
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.green.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+            
+            // Switch account button (Antigravity, non-active)
+            if provider == .antigravity && !isActiveInIDE {
+                Button {
+                    showSwitchSheet = true
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+                .help("antigravity.switch.title".localized())
+            }
+            
             // Refresh button
             Button {
                 Task {
@@ -490,6 +521,15 @@ private struct AccountQuotaCardV2: View {
                     .background(.red.opacity(0.1))
                     .clipShape(Capsule())
             }
+        }
+        .sheet(isPresented: $showSwitchSheet) {
+            SwitchAccountSheet(
+                accountEmail: account.email,
+                onDismiss: {
+                    showSwitchSheet = false
+                }
+            )
+            .environment(viewModel)
         }
     }
     

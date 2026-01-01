@@ -639,6 +639,19 @@ struct LocalizedStrings {
         "customProviders.thinkingBudget": [.english: "Thinking Budget", .vietnamese: "Ngân sách suy nghĩ", .chinese: "思考预算"],
         "customProviders.thinkingBudgetDesc": [.english: "Append (value) to model names for reasoning control", .vietnamese: "Thêm (value) vào tên mô hình để kiểm soát suy luận", .chinese: "在模型名称后添加 (value) 以控制推理"],
         "customProviders.thinkingBudgetHint": [.english: "e.g., claude-sonnet-4(16000) or gemini-2.5-flash(max)", .vietnamese: "ví dụ: claude-sonnet-4(16000) hoặc gemini-2.5-flash(max)", .chinese: "例如：claude-sonnet-4(16000) 或 gemini-2.5-flash(max)"],
+        
+        // Antigravity Account Switching
+        "antigravity.switch.title": [.english: "Switch Account", .vietnamese: "Chuyển tài khoản", .chinese: "切换账户"],
+        "antigravity.switch.confirm": [.english: "Switch to this account in Antigravity IDE?", .vietnamese: "Chuyển sang tài khoản này trong Antigravity IDE?", .chinese: "切换到 Antigravity IDE 中的此账户？"],
+        "antigravity.switch.ideRunning": [.english: "Antigravity IDE is running and will be restarted.", .vietnamese: "Antigravity IDE đang chạy và sẽ được khởi động lại.", .chinese: "Antigravity IDE 正在运行，将被重启。"],
+        "antigravity.switch.progress.closing": [.english: "Closing Antigravity IDE...", .vietnamese: "Đang đóng Antigravity IDE...", .chinese: "正在关闭 Antigravity IDE..."],
+        "antigravity.switch.progress.backup": [.english: "Creating backup...", .vietnamese: "Đang tạo bản sao lưu...", .chinese: "正在创建备份..."],
+        "antigravity.switch.progress.injecting": [.english: "Switching account...", .vietnamese: "Đang chuyển tài khoản...", .chinese: "正在切换账户..."],
+        "antigravity.switch.progress.restarting": [.english: "Restarting Antigravity IDE...", .vietnamese: "Đang khởi động lại Antigravity IDE...", .chinese: "正在重启 Antigravity IDE..."],
+        "antigravity.switch.success": [.english: "Account switched successfully", .vietnamese: "Đã chuyển tài khoản thành công", .chinese: "账户切换成功"],
+        "antigravity.switch.failed": [.english: "Failed to switch account", .vietnamese: "Chuyển tài khoản thất bại", .chinese: "账户切换失败"],
+        "antigravity.active": [.english: "Active in IDE", .vietnamese: "Đang dùng trong IDE", .chinese: "在 IDE 中激活"],
+        "action.retry": [.english: "Retry", .vietnamese: "Thử lại", .chinese: "重试"],
     ]
     
     static func get(_ key: String, language: AppLanguage) -> String {
