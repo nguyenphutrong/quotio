@@ -14,6 +14,7 @@
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" alt="License MIT" />
   <a href="README.vi.md"><img src="https://img.shields.io/badge/lang-Tiếng%20Việt-red.svg?style=flat" alt="Vietnamese" /></a>
   <a href="README.zh.md"><img src="https://img.shields.io/badge/lang-zh--CN-green.svg?style=flat" alt="Chinese" /></a>
+  <a href="README.fr.md"><img src="https://img.shields.io/badge/lang-Français-blue.svg?style=flat" alt="French" /></a>
 </p>
 
 <p align="center">
