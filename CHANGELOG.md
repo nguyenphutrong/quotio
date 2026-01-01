@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-01
+
+### Added
+
+- **Custom AI Providers**: Add and configure your own AI providers with custom API endpoints, headers, and model mappings (#62)
+- **Upstream Proxy Support**: Configure upstream proxy URL in Settings for corporate networks or VPN environments (#63)
+
+### Fixed
+
+- **Proxy Idle Hang**: Prevent proxy process from hanging after extended idle periods (Issue #37, #53)
+
 ## [0.3.3] - 2025-12-31
 
 ### Added
