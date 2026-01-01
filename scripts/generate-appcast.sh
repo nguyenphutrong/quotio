@@ -64,6 +64,21 @@ fi
 
 if [ -f "${APPCAST_PATH}" ]; then
     log_info "Appcast generated: ${APPCAST_PATH}"
+    
+    # Get current version to check if it's a beta
+    CURRENT_VERSION=$(get_version)
+    
+    # Fix download URL: replace /latest/download/ with /download/vX.Y.Z/
+    # This ensures each release points to its own assets, not the latest stable
+    sed -i '' "s|/releases/latest/download/|/releases/download/v${CURRENT_VERSION}/|g" "${APPCAST_PATH}"
+    log_info "Fixed download URL to point to v${CURRENT_VERSION}"
+    
+    # Add beta channel tag for beta versions
+    if [[ "$CURRENT_VERSION" == *"-beta"* ]] || [[ "$CURRENT_VERSION" == *"-alpha"* ]] || [[ "$CURRENT_VERSION" == *"-rc"* ]]; then
+        # Add <sparkle:channel>beta</sparkle:channel> after <sparkle:shortVersionString>
+        sed -i '' 's|</sparkle:shortVersionString>|</sparkle:shortVersionString>\n            <sparkle:channel>beta</sparkle:channel>|g' "${APPCAST_PATH}"
+        log_info "Added beta channel tag for pre-release version"
+    fi
 else
     log_error "Appcast generation failed"
     exit 1

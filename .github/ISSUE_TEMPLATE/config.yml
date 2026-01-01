@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: CLIProxyAPI Documentation
+    url: https://github.com/router-for-me/CLIProxyAPIPlus
+    about: Check CLIProxyAPI(Plus) documentation for proxy server setup and configuration
+  - name: Discussions
+    url: https://github.com/nguyenphutrong/quotio/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: README
+    url: https://github.com/nguyenphutrong/quotio#readme
+    about: Read the documentation and installation guide
