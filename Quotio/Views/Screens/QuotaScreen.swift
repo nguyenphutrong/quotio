@@ -365,6 +365,7 @@ private struct AccountQuotaCardV2: View {
     let isLoading: Bool
     
     @State private var isRefreshing = false
+    @State private var expandedGroups: Set<String> = []
     
     private var hasQuotaData: Bool {
         guard let data = account.quotaData else { return false }
@@ -479,13 +480,18 @@ private struct AccountQuotaCardV2: View {
                 VStack(spacing: 14) {
                     if provider == .antigravity && data.hasGroupedModels {
                         ForEach(data.groupedModels) { groupedModel in
-                            UsageRowV2(
-                                name: groupedModel.displayName,
-                                icon: groupedModel.group.icon,
-                                usedPercent: 100 - groupedModel.percentage,
-                                used: nil,
-                                limit: nil,
-                                resetTime: groupedModel.formattedResetTime
+                            ExpandableGroupRow(
+                                groupedModel: groupedModel,
+                                isExpanded: expandedGroups.contains(groupedModel.id),
+                                onToggle: {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        if expandedGroups.contains(groupedModel.id) {
+                                            expandedGroups.remove(groupedModel.id)
+                                        } else {
+                                            expandedGroups.insert(groupedModel.id)
+                                        }
+                                    }
+                                }
                             )
                         }
                     } else {
@@ -678,6 +684,184 @@ private struct UpgradePromptView: View {
         .padding(12)
         .background(tierColor.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// MARK: - Expandable Group Row
+
+private struct ExpandableGroupRow: View {
+    let groupedModel: GroupedModelQuota
+    let isExpanded: Bool
+    let onToggle: () -> Void
+    
+    @State private var settings = MenuBarSettingsManager.shared
+    
+    private var usedPercent: Double {
+        100 - groupedModel.percentage
+    }
+    
+    private var statusColor: Color {
+        if usedPercent < 70 { return .green }
+        if usedPercent < 90 { return .yellow }
+        return .red
+    }
+    
+    private var remainingPercent: Double {
+        max(0, min(100, groupedModel.percentage))
+    }
+    
+    var body: some View {
+        let displayMode = settings.quotaDisplayMode
+        let displayPercent = displayMode == .used ? usedPercent : remainingPercent
+        
+        VStack(alignment: .leading, spacing: 8) {
+            // Header row (clickable to expand)
+            Button(action: onToggle) {
+                HStack {
+                    // Expand/collapse chevron
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                    
+                    // Group icon and name
+                    HStack(spacing: 6) {
+                        Image(systemName: groupedModel.group.icon)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(groupedModel.displayName)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                    }
+                    
+                    // Model count badge
+                    if groupedModel.models.count > 1 {
+                        Text("\(groupedModel.models.count)")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.quaternary)
+                            .clipShape(Capsule())
+                    }
+                    
+                    Spacer()
+                    
+                    // Usage info
+                    HStack(spacing: 10) {
+                        Text(String(format: "%.0f%% %@", displayPercent, displayMode.suffixKey.localized()))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(statusColor)
+                        
+                        // Reset time
+                        if groupedModel.formattedResetTime != "—" && !groupedModel.formattedResetTime.isEmpty {
+                            HStack(spacing: 3) {
+                                Image(systemName: "clock")
+                                    .font(.caption2)
+                                Text(groupedModel.formattedResetTime)
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(.quaternary)
+                            .clipShape(Capsule())
+                        }
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            
+            // Progress bar
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.quaternary)
+                    Capsule()
+                        .fill(statusColor.gradient)
+                        .frame(width: proxy.size.width * (remainingPercent / 100))
+                }
+            }
+            .frame(height: 8)
+            
+            // Expanded model details
+            if isExpanded {
+                VStack(spacing: 10) {
+                    ForEach(groupedModel.models.sorted { $0.name < $1.name }) { model in
+                        ModelDetailRow(model: model)
+                    }
+                }
+                .padding(.leading, 20)
+                .padding(.top, 4)
+            }
+        }
+    }
+}
+
+// MARK: - Model Detail Row
+
+private struct ModelDetailRow: View {
+    let model: ModelQuota
+    
+    @State private var settings = MenuBarSettingsManager.shared
+    
+    private var usedPercent: Double {
+        model.usedPercentage
+    }
+    
+    private var statusColor: Color {
+        if usedPercent < 70 { return .green }
+        if usedPercent < 90 { return .yellow }
+        return .red
+    }
+    
+    private var remainingPercent: Double {
+        max(0, min(100, model.percentage))
+    }
+    
+    var body: some View {
+        let displayMode = settings.quotaDisplayMode
+        let displayPercent = displayMode == .used ? usedPercent : remainingPercent
+        
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                // Model name
+                Text(model.name)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                
+                Spacer()
+                
+                // Percentage
+                Text(String(format: "%.0f%% %@", displayPercent, displayMode.suffixKey.localized()))
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(statusColor)
+                
+                // Reset time (if different from group)
+                if model.formattedResetTime != "—" && !model.formattedResetTime.isEmpty {
+                    Text(model.formattedResetTime)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            
+            // Smaller progress bar
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.quaternary)
+                    Capsule()
+                        .fill(statusColor.opacity(0.7))
+                        .frame(width: proxy.size.width * (remainingPercent / 100))
+                }
+            }
+            .frame(height: 4)
+        }
     }
 }
 
