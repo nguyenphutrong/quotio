@@ -1,6 +1,6 @@
 # Quotio - Codebase Summary
 
-> **Last Updated**: December 27, 2024  
+> **Last Updated**: January 2, 2025  
 > **Swift Version**: 6.0  
 > **Minimum macOS**: 15.0 (Sequoia)
 
@@ -81,6 +81,7 @@ Quotio/
 Quotio/Models/
 ├── Models.swift             # Core data types (AIProvider, AuthFile, etc.)
 ├── AgentModels.swift        # CLI agent configuration types
+├── AntigravityActiveAccount.swift # Antigravity account model and switch state
 ├── AppMode.swift            # App mode management (Full/Quota-Only)
 └── MenuBarSettings.swift    # Menu bar configuration and persistence
 ```
@@ -92,6 +93,7 @@ Quotio/Services/
 ├── CLIProxyManager.swift        # Proxy process lifecycle
 ├── ManagementAPIClient.swift    # HTTP client for proxy API
 ├── StatusBarManager.swift       # NSStatusBar management
+├── StatusBarMenuBuilder.swift   # Native NSMenu builder (menu bar content)
 ├── NotificationManager.swift    # User notification handling
 ├── UpdaterService.swift         # Sparkle integration
 ├── AgentDetectionService.swift  # CLI agent detection
@@ -100,6 +102,10 @@ Quotio/Services/
 ├── DirectAuthFileService.swift  # Direct auth file scanning
 ├── CLIExecutor.swift            # CLI command execution
 ├── LanguageManager.swift        # Localization management
+├── AntigravityAccountSwitcher.swift  # Account switching orchestrator
+├── AntigravityDatabaseService.swift  # SQLite database operations
+├── AntigravityProcessManager.swift   # IDE process lifecycle management
+├── AntigravityProtobufHandler.swift  # Protobuf encoding/decoding
 └── *QuotaFetcher.swift          # Provider-specific quota fetchers (7 files)
 ```
 
@@ -116,13 +122,14 @@ Quotio/ViewModels/
 ```
 Quotio/Views/
 ├── Components/
+│   ├── AccountRow.swift         # Account row with switch button
 │   ├── AgentCard.swift          # Agent display card
 │   ├── AgentConfigSheet.swift   # Agent configuration sheet
-│   ├── MenuBarView.swift        # Menu bar popover content
 │   ├── ProviderIcon.swift       # Provider icon component
 │   ├── QuotaCard.swift          # Quota display card
 │   ├── QuotaProgressBar.swift   # Progress bar component
-│   └── SidebarView.swift        # Navigation sidebar
+│   ├── SidebarView.swift        # Navigation sidebar
+│   └── SwitchAccountSheet.swift # Account switch confirmation dialog
 └── Screens/
     ├── DashboardScreen.swift    # Main dashboard
     ├── QuotaScreen.swift        # Quota monitoring
