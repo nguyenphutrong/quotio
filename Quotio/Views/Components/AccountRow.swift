@@ -16,9 +16,9 @@ enum AccountSource: Equatable {
     
     var displayName: String {
         switch self {
-        case .proxy: return "providers.source.proxy".localized()
-        case .direct: return "providers.source.disk".localized()
-        case .autoDetected: return "providers.autoDetected".localized()
+        case .proxy: return "providers.source.proxy".localizedStatic()
+        case .direct: return "providers.source.disk".localizedStatic()
+        case .autoDetected: return "providers.autoDetected".localizedStatic()
         }
     }
 }
@@ -214,7 +214,7 @@ struct AccountRow: View {
             )
             
             // Delete button (only for proxy accounts)
-            if account.canDelete, let onDelete = onDelete {
+            if account.canDelete, onDelete != nil {
                 Button(role: .destructive) {
                     showDeleteConfirmation = true
                 } label: {

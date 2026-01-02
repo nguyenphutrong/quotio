@@ -1,0 +1,171 @@
+name: Update Unreleased Changelog
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'CHANGELOG.md'
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    # Skip version bumps, CI commits, and explicit skip requests
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, '[skip changelog]') &&
+      !startsWith(github.event.head_commit.message, 'chore: bump version') &&
+      !startsWith(github.event.head_commit.message, 'docs(changelog):')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Parse commit message
+        id: parse
+        run: |
+          MSG="${{ github.event.head_commit.message }}"
+          FIRST_LINE=$(echo "$MSG" | head -1)
+
+          # Extract PR number (from squash merge: "Title (#123)")
+          PR_NUM=$(echo "$FIRST_LINE" | grep -oP '\(#\K\d+(?=\))' | head -1 || echo "")
+          SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+
+          # Parse conventional commit: type(scope)!: description
+          if [[ "$FIRST_LINE" =~ ^(feat|fix|refactor|perf)(\(([^)]+)\))?(!)?\:\ (.+)$ ]]; then
+            TYPE="${BASH_REMATCH[1]}"
+            SCOPE="${BASH_REMATCH[3]}"
+            BREAKING="${BASH_REMATCH[4]}"
+            DESC="${BASH_REMATCH[5]}"
+
+            # Remove PR number from description if present
+            DESC=$(echo "$DESC" | sed -E 's/ \(#[0-9]+\)$//')
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "reason=Not a changelog-worthy commit type" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check for BREAKING CHANGE in commit body
+          if echo "$MSG" | grep -q "BREAKING CHANGE:"; then
+            BREAKING="!"
+          fi
+
+          # Map type to changelog category
+          case "$TYPE" in
+            feat) CATEGORY="Added" ;;
+            fix) CATEGORY="Fixed" ;;
+            refactor|perf) CATEGORY="Changed" ;;
+          esac
+
+          # Format entry with scope (bold) if present
+          if [ -n "$SCOPE" ]; then
+            ENTRY_TEXT="**$SCOPE**: $DESC"
+          else
+            ENTRY_TEXT="$DESC"
+          fi
+
+          # Add PR or commit reference
+          if [ -n "$PR_NUM" ]; then
+            ENTRY="- $ENTRY_TEXT (#$PR_NUM)"
+          else
+            ENTRY="- $ENTRY_TEXT ($SHA_SHORT)"
+          fi
+
+          echo "category=$CATEGORY" >> $GITHUB_OUTPUT
+          echo "entry=$ENTRY" >> $GITHUB_OUTPUT
+          echo "breaking=$BREAKING" >> $GITHUB_OUTPUT
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+          # Log for debugging
+          echo "Type: $TYPE, Scope: $SCOPE, Breaking: $BREAKING"
+          echo "Category: $CATEGORY"
+          echo "Entry: $ENTRY"
+
+      - name: Update CHANGELOG.md
+        if: steps.parse.outputs.skip != 'true'
+        env:
+          CATEGORY: ${{ steps.parse.outputs.category }}
+          ENTRY: ${{ steps.parse.outputs.entry }}
+          BREAKING: ${{ steps.parse.outputs.breaking }}
+        run: |
+          FILE="CHANGELOG.md"
+
+          # Function to insert entry at end of section (oldest first ordering)
+          insert_entry() {
+            local section="$1"
+            local entry="$2"
+
+            # Check if section exists under [Unreleased]
+            if awk '/^## \[Unreleased\]/,/^## \[[0-9]/' "$FILE" | grep -q "^### $section"; then
+              # Section exists - find it and append entry at the end of section
+              awk -v section="### $section" -v entry="$entry" '
+                BEGIN { in_section=0; last_entry_line=0 }
+                $0 == section { in_section=1; print; next }
+                in_section && /^### / { 
+                  # Reached next section, insert entry before it
+                  print entry
+                  print ""
+                  in_section=0
+                }
+                in_section && /^## \[/ {
+                  # Reached next version, insert entry before it
+                  print entry
+                  print ""
+                  in_section=0
+                }
+                { print }
+                END {
+                  # If still in section at EOF, append entry
+                  if (in_section) {
+                    print entry
+                  }
+                }
+              ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+            else
+              # Section does not exist - create it after [Unreleased]
+              awk -v section="### $section" -v entry="$entry" '
+                /^## \[Unreleased\]/ {
+                  print
+                  print ""
+                  print section
+                  print ""
+                  print entry
+                  next
+                }
+                { print }
+              ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+            fi
+          }
+
+          # Add breaking change entry if applicable
+          if [ "$BREAKING" = "!" ]; then
+            insert_entry "Breaking Changes" "$ENTRY"
+          fi
+
+          # Add regular entry to appropriate category
+          insert_entry "$CATEGORY" "$ENTRY"
+
+          # Show diff for debugging
+          echo "=== CHANGELOG diff ==="
+          git diff CHANGELOG.md || true
+
+      - name: Commit changes
+        if: steps.parse.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if ! git diff --quiet CHANGELOG.md; then
+            git add CHANGELOG.md
+            git commit -m "docs(changelog): add entry for ${{ github.sha }} [skip ci]"
+            git push
+            echo "Changelog updated successfully"
+          else
+            echo "No changes to commit"
+          fi

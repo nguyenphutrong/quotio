@@ -281,12 +281,10 @@ actor CodexCLIQuotaFetcher {
         // Get email and plan from id_token
         var email = "Codex User"
         var planType: String? = nil
-        var orgName: String? = nil
         
         if let idToken = tokens.idToken, let claims = decodeJWT(token: idToken) {
             email = claims.email ?? email
             planType = claims.planType
-            orgName = claims.organizationName
         }
         
         // Check if token is expired and try to refresh

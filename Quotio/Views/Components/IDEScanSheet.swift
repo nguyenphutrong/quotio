@@ -303,18 +303,11 @@ struct IDEScanSheet: View {
         scanComplete = false
         
         Task {
-            do {
-                await viewModel.scanIDEsWithConsent(options: scanOptions)
-                
-                await MainActor.run {
-                    isScanning = false
-                    scanComplete = true
-                }
-            } catch {
-                await MainActor.run {
-                    isScanning = false
-                    errorMessage = error.localizedDescription
-                }
+            await viewModel.scanIDEsWithConsent(options: scanOptions)
+            
+            await MainActor.run {
+                isScanning = false
+                scanComplete = true
             }
         }
     }

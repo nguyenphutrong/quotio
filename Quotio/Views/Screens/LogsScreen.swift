@@ -19,8 +19,8 @@ struct LogsScreen: View {
         
         var title: String {
             switch self {
-            case .requests: return "logs.tab.requests".localized()
-            case .proxyLogs: return "logs.tab.proxyLogs".localized()
+            case .requests: return "logs.tab.requests".localizedStatic()
+            case .proxyLogs: return "logs.tab.proxyLogs".localizedStatic()
             }
         }
         

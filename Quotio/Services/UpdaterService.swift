@@ -19,8 +19,8 @@ enum UpdateChannel: String, CaseIterable, Identifiable, Sendable {
     
     var displayName: String {
         switch self {
-        case .stable: return "settings.updateChannel.stable".localized()
-        case .beta: return "settings.updateChannel.beta".localized()
+        case .stable: return "settings.updateChannel.stable".localizedStatic()
+        case .beta: return "settings.updateChannel.beta".localizedStatic()
         }
     }
     

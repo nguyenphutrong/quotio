@@ -75,51 +75,16 @@ actor AntigravityDatabaseService {
         process.standardOutput = outputPipe
         process.standardError = errorPipe
         
-        // Collect output data using readabilityHandler for non-blocking reads
-        var outputData = Data()
-        var errorData = Data()
-        let outputLock = NSLock()
-        let errorLock = NSLock()
-        
-        outputPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            outputLock.lock()
-            outputData.append(data)
-            outputLock.unlock()
-        }
-        
-        errorPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            errorLock.lock()
-            errorData.append(data)
-            errorLock.unlock()
-        }
-        
         try process.run()
+        process.waitUntilExit()
         
-        // Await process completion using continuation
-        let terminationStatus = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-            process.terminationHandler = { terminatedProcess in
-                // Remove handlers and close file handles to avoid resource leaks
-                outputPipe.fileHandleForReading.readabilityHandler = nil
-                errorPipe.fileHandleForReading.readabilityHandler = nil
-                
-                // Read any remaining data
-                outputLock.lock()
-                outputData.append(outputPipe.fileHandleForReading.readDataToEndOfFile())
-                outputLock.unlock()
-                
-                errorLock.lock()
-                errorData.append(errorPipe.fileHandleForReading.readDataToEndOfFile())
-                errorLock.unlock()
-                
-                try? outputPipe.fileHandleForReading.close()
-                try? errorPipe.fileHandleForReading.close()
-                
-                continuation.resume(returning: terminatedProcess.terminationStatus)
-            }
-        }
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
         
+        try? outputPipe.fileHandleForReading.close()
+        try? errorPipe.fileHandleForReading.close()
+        
+        let terminationStatus = process.terminationStatus
         let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         
         if terminationStatus != 0 {
