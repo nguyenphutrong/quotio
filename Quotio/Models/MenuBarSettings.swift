@@ -177,6 +177,77 @@ enum QuotaDisplayMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Refresh Cadence
+
+/// Refresh cadence options for quota auto-refresh
+enum RefreshCadence: String, CaseIterable, Identifiable, Codable {
+    case manual = "manual"
+    case oneMinute = "1min"
+    case twoMinutes = "2min"
+    case fiveMinutes = "5min"
+    case tenMinutes = "10min"
+    case fifteenMinutes = "15min"
+    
+    var id: String { rawValue }
+    
+    /// Interval in seconds (nil for manual = no auto-refresh)
+    var intervalSeconds: TimeInterval? {
+        switch self {
+        case .manual: return nil
+        case .oneMinute: return 60
+        case .twoMinutes: return 120
+        case .fiveMinutes: return 300
+        case .tenMinutes: return 600
+        case .fifteenMinutes: return 900
+        }
+    }
+    
+    /// Interval in nanoseconds for Task.sleep
+    var intervalNanoseconds: UInt64? {
+        guard let seconds = intervalSeconds else { return nil }
+        return UInt64(seconds * 1_000_000_000)
+    }
+    
+    var localizationKey: String {
+        switch self {
+        case .manual: return "settings.refresh.manual"
+        case .oneMinute: return "settings.refresh.1min"
+        case .twoMinutes: return "settings.refresh.2min"
+        case .fiveMinutes: return "settings.refresh.5min"
+        case .tenMinutes: return "settings.refresh.10min"
+        case .fifteenMinutes: return "settings.refresh.15min"
+        }
+    }
+}
+
+// MARK: - Refresh Settings Manager
+
+/// Manager for refresh cadence settings with persistence
+@MainActor
+@Observable
+final class RefreshSettingsManager {
+    static let shared = RefreshSettingsManager()
+    
+    private let defaults = UserDefaults.standard
+    private let refreshCadenceKey = "refreshCadence"
+    
+    /// Current refresh cadence
+    var refreshCadence: RefreshCadence {
+        didSet {
+            defaults.set(refreshCadence.rawValue, forKey: refreshCadenceKey)
+            onRefreshCadenceChanged?(refreshCadence)
+        }
+    }
+    
+    /// Callback when refresh cadence changes (for ViewModel to restart timer)
+    var onRefreshCadenceChanged: ((RefreshCadence) -> Void)?
+    
+    private init() {
+        let saved = defaults.string(forKey: refreshCadenceKey) ?? RefreshCadence.tenMinutes.rawValue
+        self.refreshCadence = RefreshCadence(rawValue: saved) ?? .tenMinutes
+    }
+}
+
 // MARK: - Menu Bar Quota Display Item
 
 /// Data for displaying a single quota item in menu bar

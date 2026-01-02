@@ -18,6 +18,7 @@ final class QuotaViewModel {
     private let directAuthService = DirectAuthFileService()
     private let notificationManager = NotificationManager.shared
     private let modeManager = AppModeManager.shared
+    private let refreshSettings = RefreshSettingsManager.shared
     
     /// Request tracker for monitoring API requests through ProxyBridge
     let requestTracker = RequestTracker.shared
@@ -82,6 +83,25 @@ final class QuotaViewModel {
     init() {
         self.proxyManager = CLIProxyManager.shared
         loadPersistedIDEQuotas()
+        setupRefreshCadenceCallback()
+    }
+    
+    private func setupRefreshCadenceCallback() {
+        refreshSettings.onRefreshCadenceChanged = { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.restartAutoRefresh()
+            }
+        }
+    }
+    
+    private func restartAutoRefresh() {
+        if modeManager.isQuotaOnlyMode {
+            startQuotaOnlyAutoRefresh()
+        } else if proxyManager.proxyStatus.running {
+            startAutoRefresh()
+        } else {
+            startQuotaAutoRefreshWithoutProxy()
+        }
     }
     
     // MARK: - Mode-Aware Initialization
@@ -280,10 +300,15 @@ final class QuotaViewModel {
     /// Start auto-refresh for quota-only mode
     private func startQuotaOnlyAutoRefresh() {
         refreshTask?.cancel()
+        
+        guard let intervalNs = refreshSettings.refreshCadence.intervalNanoseconds else {
+            // Manual mode - no auto-refresh
+            return
+        }
+        
         refreshTask = Task {
             while !Task.isCancelled {
-                // Refresh every 60 seconds in quota-only mode
-                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                try? await Task.sleep(nanoseconds: intervalNs)
                 await refreshQuotasDirectly()
             }
         }
@@ -292,10 +317,14 @@ final class QuotaViewModel {
     /// Start auto-refresh for quota when proxy is not running (Full Mode)
     private func startQuotaAutoRefreshWithoutProxy() {
         refreshTask?.cancel()
+        
+        guard let intervalNs = refreshSettings.refreshCadence.intervalNanoseconds else {
+            return
+        }
+        
         refreshTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 60_000_000_000) // 60 seconds
-                // Only refresh if proxy is still not running
+                try? await Task.sleep(nanoseconds: intervalNs)
                 if !proxyManager.proxyStatus.running {
                     await refreshQuotasUnified()
                 }
@@ -384,24 +413,25 @@ final class QuotaViewModel {
     
     private func startAutoRefresh() {
         refreshTask?.cancel()
+        
+        guard let intervalNs = refreshSettings.refreshCadence.intervalNanoseconds else {
+            return
+        }
+        
         refreshTask = Task {
             var consecutiveFailures = 0
+            let maxFailuresBeforeRecovery = max(3, Int(180_000_000_000 / intervalNs))
+            
             while !Task.isCancelled {
-                // Refresh interval: 20 seconds (increased from 15 to reduce pressure)
-                try? await Task.sleep(nanoseconds: 20_000_000_000)
-                
-                // Skip health check - it competes with data refresh for connections
-                // Instead, track failures in refreshData() itself
+                try? await Task.sleep(nanoseconds: intervalNs)
                 
                 await refreshData()
                 
-                // Check if last refresh succeeded by looking at errorMessage
                 if errorMessage != nil {
                     consecutiveFailures += 1
                     print("[QuotaVM] Refresh failed, consecutive failures: \(consecutiveFailures)")
                     
-                    // After 3 consecutive failures (60 seconds), attempt recovery
-                    if consecutiveFailures >= 3 {
+                    if consecutiveFailures >= maxFailuresBeforeRecovery {
                         print("[QuotaVM] Attempting proxy recovery...")
                         await attemptProxyRecovery()
                         consecutiveFailures = 0
@@ -429,7 +459,10 @@ final class QuotaViewModel {
     }
     
     private var lastQuotaRefresh: Date?
-    private let quotaRefreshInterval: TimeInterval = 60
+    
+    private var quotaRefreshInterval: TimeInterval {
+        refreshSettings.refreshCadence.intervalSeconds ?? 60
+    }
     
     func refreshData() async {
         guard let client = apiClient else { return }
@@ -462,6 +495,17 @@ final class QuotaViewModel {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+    
+    func manualRefresh() async {
+        if modeManager.isQuotaOnlyMode {
+            await refreshQuotasDirectly()
+        } else if proxyManager.proxyStatus.running {
+            await refreshData()
+        } else {
+            await refreshQuotasUnified()
+        }
+        lastQuotaRefreshTime = Date()
     }
     
     func refreshAllQuotas() async {

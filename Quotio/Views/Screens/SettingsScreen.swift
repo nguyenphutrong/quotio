@@ -194,6 +194,9 @@ struct SettingsScreen: View {
             // Quota Display
             QuotaDisplaySettingsSection()
             
+            // Refresh Cadence
+            RefreshCadenceSettingsSection()
+            
             // Menu Bar
             MenuBarSettingsSection()
             
@@ -515,6 +518,44 @@ struct QuotaDisplaySettingsSection: View {
             Label("settings.quota.display".localized(), systemImage: "percent")
         } footer: {
             Text("settings.quota.display.help".localized())
+        }
+    }
+}
+
+// MARK: - Refresh Cadence Settings Section
+
+struct RefreshCadenceSettingsSection: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @State private var refreshSettings = RefreshSettingsManager.shared
+    
+    private var cadenceBinding: Binding<RefreshCadence> {
+        Binding(
+            get: { refreshSettings.refreshCadence },
+            set: { refreshSettings.refreshCadence = $0 }
+        )
+    }
+    
+    var body: some View {
+        Section {
+            Picker("settings.refresh.cadence".localized(), selection: cadenceBinding) {
+                ForEach(RefreshCadence.allCases) { cadence in
+                    Text(cadence.localizationKey.localized()).tag(cadence)
+                }
+            }
+            
+            if refreshSettings.refreshCadence == .manual {
+                Button {
+                    Task {
+                        await viewModel.manualRefresh()
+                    }
+                } label: {
+                    Label("settings.refresh.now".localized(), systemImage: "arrow.clockwise")
+                }
+            }
+        } header: {
+            Label("settings.refresh".localized(), systemImage: "clock.arrow.2.circlepath")
+        } footer: {
+            Text("settings.refresh.help".localized())
         }
     }
 }
