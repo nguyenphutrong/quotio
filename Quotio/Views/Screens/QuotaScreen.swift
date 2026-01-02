@@ -357,8 +357,8 @@ private struct AccountQuotaCardV2: View {
     
     @State private var isRefreshing = false
     @State private var rotationAngle: Double = 0
-    @State private var expandedGroups: Set<String> = []
     @State private var showSwitchSheet = false
+    @State private var showModelsDetailSheet = false
     
     private var hasQuotaData: Bool {
         guard let data = account.quotaData else { return false }
@@ -403,11 +403,11 @@ private struct AccountQuotaCardV2: View {
             groups.append(AntigravityDisplayGroup(name: "Gemini 3 Image", percentage: minQuota, models: geminiImageModels))
         }
         
-        // Claude 4.5 (any model containing "claude")
+        // Claude (any model containing "claude")
         let claudeModels = data.models.filter { $0.name.contains("claude") }
         if !claudeModels.isEmpty {
             let minQuota = claudeModels.map(\.percentage).min() ?? 0
-            groups.append(AntigravityDisplayGroup(name: "Claude 4.5", percentage: minQuota, models: claudeModels))
+            groups.append(AntigravityDisplayGroup(name: "Claude", percentage: minQuota, models: claudeModels))
         }
         
         // Sort by lowest quota first (most urgent)
@@ -561,30 +561,39 @@ private struct AccountQuotaCardV2: View {
     private var usageSection: some View {
         if let data = account.quotaData {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Usage")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
+                // Header with Details button for Antigravity
+                HStack {
+                    Text("Usage")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    
+                    Spacer()
+                    
+                    // Details button for Antigravity (shows all models)
+                    if provider == .antigravity && data.models.count > 4 {
+                        Button {
+                            showModelsDetailSheet = true
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("quota.details".localized())
+                                    .font(.caption)
+                                Image(systemName: "list.bullet.rectangle")
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
                 
                 Divider()
                 
                 VStack(spacing: 14) {
-                    // Antigravity uses 4-group display
+                    // Antigravity uses 4-group display (non-expandable)
                     if provider == .antigravity && !antigravityDisplayGroups.isEmpty {
                         ForEach(antigravityDisplayGroups) { group in
-                            ExpandableAntigravityGroupRow(
-                                group: group,
-                                isExpanded: expandedGroups.contains(group.id),
-                                onToggle: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        if expandedGroups.contains(group.id) {
-                                            expandedGroups.remove(group.id)
-                                        } else {
-                                            expandedGroups.insert(group.id)
-                                        }
-                                    }
-                                }
-                            )
+                            AntigravityGroupRow(group: group)
                         }
                     } else {
                         // Other providers show individual models
@@ -602,6 +611,12 @@ private struct AccountQuotaCardV2: View {
                 }
             }
             .padding(.top, 8)
+            .sheet(isPresented: $showModelsDetailSheet) {
+                AntigravityModelsDetailSheet(
+                    email: account.email,
+                    models: data.models
+                )
+            }
         }
     }
 }
@@ -712,7 +727,7 @@ private struct SubscriptionBadgeV2: View {
     }
 }
 
-// MARK: - Antigravity Display Group (4 groups)
+// MARK: - Antigravity Display Group
 
 private struct AntigravityDisplayGroup: Identifiable {
     let name: String
@@ -720,23 +735,12 @@ private struct AntigravityDisplayGroup: Identifiable {
     let models: [ModelQuota]
     
     var id: String { name }
-    
-    var formattedResetTime: String {
-        // Use earliest reset time from models
-        models.compactMap { model -> Date? in
-            guard !model.formattedResetTime.isEmpty && model.formattedResetTime != "—" else { return nil }
-            // Return nil since we can't easily parse, use first available
-            return nil
-        }.first.map { _ in "" } ?? models.first?.formattedResetTime ?? "—"
-    }
 }
 
-// MARK: - Expandable Antigravity Group Row
+// MARK: - Antigravity Group Row (non-expandable)
 
-private struct ExpandableAntigravityGroupRow: View {
+private struct AntigravityGroupRow: View {
     let group: AntigravityDisplayGroup
-    let isExpanded: Bool
-    let onToggle: () -> Void
     
     @State private var settings = MenuBarSettingsManager.shared
     
@@ -766,66 +770,55 @@ private struct ExpandableAntigravityGroupRow: View {
         let displayPercent = displayMode == .used ? usedPercent : remainingPercent
         
         VStack(alignment: .leading, spacing: 8) {
-            // Header row (clickable to expand)
-            Button(action: onToggle) {
-                HStack {
-                    // Expand/collapse chevron
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+            HStack {
+                // Group icon and name
+                HStack(spacing: 6) {
+                    Image(systemName: groupIcon)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .frame(width: 12)
+                    Text(group.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                
+                // Model count badge
+                if group.models.count > 1 {
+                    Text("\(group.models.count)")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.quaternary)
+                        .clipShape(Capsule())
+                }
+                
+                Spacer()
+                
+                // Usage info
+                HStack(spacing: 10) {
+                    Text(String(format: "%.0f%% %@", displayPercent, displayMode.suffixKey.localized()))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(statusColor)
                     
-                    // Group icon and name
-                    HStack(spacing: 6) {
-                        Image(systemName: groupIcon)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(group.name)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                    }
-                    
-                    // Model count badge
-                    if group.models.count > 1 {
-                        Text("\(group.models.count)")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.quaternary)
-                            .clipShape(Capsule())
-                    }
-                    
-                    Spacer()
-                    
-                    // Usage info
-                    HStack(spacing: 10) {
-                        Text(String(format: "%.0f%% %@", displayPercent, displayMode.suffixKey.localized()))
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(statusColor)
-                        
-                        // Reset time from first model
-                        if let firstModel = group.models.first,
-                           firstModel.formattedResetTime != "—" && !firstModel.formattedResetTime.isEmpty {
-                            HStack(spacing: 3) {
-                                Image(systemName: "clock")
-                                    .font(.caption2)
-                                Text(firstModel.formattedResetTime)
-                                    .font(.caption)
-                            }
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(.quaternary)
-                            .clipShape(Capsule())
+                    // Reset time from first model
+                    if let firstModel = group.models.first,
+                       firstModel.formattedResetTime != "—" && !firstModel.formattedResetTime.isEmpty {
+                        HStack(spacing: 3) {
+                            Image(systemName: "clock")
+                                .font(.caption2)
+                            Text(firstModel.formattedResetTime)
+                                .font(.caption)
                         }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(.quaternary)
+                        .clipShape(Capsule())
                     }
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
             
             // Progress bar
             GeometryReader { proxy in
@@ -838,24 +831,74 @@ private struct ExpandableAntigravityGroupRow: View {
                 }
             }
             .frame(height: 8)
-            
-            // Expanded model details
-            if isExpanded {
-                VStack(spacing: 10) {
-                    ForEach(group.models) { model in
-                        ModelDetailRow(model: model)
-                    }
-                }
-                .padding(.leading, 20)
-                .padding(.top, 4)
-            }
         }
     }
 }
 
-// MARK: - Model Detail Row
+// MARK: - Antigravity Models Detail Sheet
 
-private struct ModelDetailRow: View {
+private struct AntigravityModelsDetailSheet: View {
+    let email: String
+    let models: [ModelQuota]
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var settings = MenuBarSettingsManager.shared
+    
+    private var sortedModels: [ModelQuota] {
+        models.sorted { $0.name < $1.name }
+    }
+    
+    private var columns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12)
+        ]
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("quota.allModels".localized())
+                        .font(.headline)
+                    Text(email)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            
+            Divider()
+            
+            // Models Grid
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(sortedModels) { model in
+                        ModelDetailCard(model: model)
+                    }
+                }
+                .padding()
+            }
+        }
+        .frame(minWidth: 500, minHeight: 400)
+    }
+}
+
+// MARK: - Model Detail Card (for sheet)
+
+private struct ModelDetailCard: View {
     let model: ModelQuota
     
     @State private var settings = MenuBarSettingsManager.shared
@@ -864,56 +907,62 @@ private struct ModelDetailRow: View {
         model.usedPercentage
     }
     
-    private var statusColor: Color {
-        if usedPercent < 70 { return .green }
-        if usedPercent < 90 { return .yellow }
-        return .red
-    }
-    
     private var remainingPercent: Double {
         max(0, min(100, model.percentage))
+    }
+    
+    private var statusColor: Color {
+        if usedPercent >= 90 { return .red }
+        if usedPercent >= 70 { return .yellow }
+        return .green
     }
     
     var body: some View {
         let displayMode = settings.quotaDisplayMode
         let displayPercent = displayMode == .used ? usedPercent : remainingPercent
         
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                // Model name
-                Text(model.displayName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                
-                Spacer()
-                
-                // Percentage
-                Text(String(format: "%.0f%% %@", displayPercent, displayMode.suffixKey.localized()))
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(statusColor)
-                
-                // Reset time (if different from group)
-                if model.formattedResetTime != "—" && !model.formattedResetTime.isEmpty {
-                    Text(model.formattedResetTime)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            // Model name (raw name)
+            Text(model.name)
+                .font(.caption)
+                .fontDesign(.monospaced)
+                .lineLimit(1)
             
-            // Smaller progress bar
+            // Progress bar
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(.quaternary)
                     Capsule()
-                        .fill(statusColor.opacity(0.7))
+                        .fill(statusColor.gradient)
                         .frame(width: proxy.size.width * (remainingPercent / 100))
                 }
             }
-            .frame(height: 4)
+            .frame(height: 6)
+            
+            // Footer: Percentage + Reset time
+            HStack {
+                Text(String(format: "%.0f%% %@", displayPercent, displayMode.suffixKey.localized()))
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(statusColor)
+                
+                Spacer()
+                
+                if model.formattedResetTime != "—" && !model.formattedResetTime.isEmpty {
+                    HStack(spacing: 3) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 9))
+                        Text(model.formattedResetTime)
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.tertiary)
+                }
+            }
         }
+        .padding(12)
+        .background(.quaternary.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 

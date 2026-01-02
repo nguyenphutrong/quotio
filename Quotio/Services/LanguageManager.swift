@@ -652,6 +652,10 @@ struct LocalizedStrings {
         "antigravity.switch.failed": [.english: "Failed to switch account", .vietnamese: "Chuyển tài khoản thất bại", .chinese: "账户切换失败"],
         "antigravity.active": [.english: "Active in IDE", .vietnamese: "Đang dùng trong IDE", .chinese: "在 IDE 中激活"],
         "action.retry": [.english: "Retry", .vietnamese: "Thử lại", .chinese: "重试"],
+        
+        // Quota Details
+        "quota.details": [.english: "Details", .vietnamese: "Chi tiết", .chinese: "详情"],
+        "quota.allModels": [.english: "All Models", .vietnamese: "Tất cả model", .chinese: "所有模型"],
     ]
     
     static func get(_ key: String, language: AppLanguage) -> String {

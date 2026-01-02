@@ -152,12 +152,25 @@ struct ModelQuota: Codable, Identifiable, Sendable {
     
     var displayName: String {
         switch name {
+        // Antigravity Gemini models
         case "gemini-3-pro-high": return "Gemini 3 Pro"
+        case "gemini-3-pro": return "Gemini 3 Pro"
         case "gemini-3-flash": return "Gemini 3 Flash"
+        case "gemini-3-flash-high": return "Gemini 3 Flash"
         case "gemini-3-pro-image": return "Gemini 3 Image"
-        case "claude-sonnet-4-5-thinking": return "Claude 4.5"
+        case "gemini-3-flash-image": return "Gemini 3 Image"
+        // Antigravity Claude models
+        case "claude-sonnet-4-5": return "Claude Sonnet 4.5"
+        case "claude-sonnet-4-5-thinking": return "Claude Sonnet 4.5 (Thinking)"
+        case "claude-opus-4": return "Claude Opus 4"
+        case "claude-opus-4-5": return "Claude Opus 4.5"
+        case "claude-opus-4-5-thinking": return "Claude Opus 4.5 (Thinking)"
+        case "claude-4-sonnet": return "Claude 4 Sonnet"
+        case "claude-4-opus": return "Claude 4 Opus"
+        // Codex quota names
         case "codex-session": return "Session"
         case "codex-weekly": return "Weekly"
+        // Copilot quota names
         case "copilot-chat": return "Chat"
         case "copilot-completions": return "Completions"
         case "copilot-premium": return "Premium"
