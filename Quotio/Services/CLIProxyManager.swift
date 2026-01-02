@@ -819,7 +819,7 @@ extension CLIProxyManager {
             var hasResumed = false
             let resumeLock = NSLock()
             
-            func safeResume(_ result: AuthCommandResult) {
+            @Sendable func safeResume(_ result: AuthCommandResult) {
                 resumeLock.lock()
                 defer { resumeLock.unlock() }
                 guard !hasResumed else { return }
@@ -827,11 +827,15 @@ extension CLIProxyManager {
                 continuation.resume(returning: result)
             }
             
+            let outputLock = NSLock()
+            
             if case .copilotLogin = command {
                 outputPipe.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     if let str = String(data: data, encoding: .utf8), !str.isEmpty {
+                        outputLock.lock()
                         capturedOutput += str
+                        outputLock.unlock()
                     }
                 }
             }

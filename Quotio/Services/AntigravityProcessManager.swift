@@ -121,7 +121,8 @@ final class AntigravityProcessManager {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         
-        try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+        let workspace = NSWorkspace.shared
+        try await workspace.openApplication(at: url, configuration: configuration)
     }
     
     // MARK: - Errors

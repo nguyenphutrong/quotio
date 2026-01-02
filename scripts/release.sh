@@ -1,13 +1,6 @@
 #!/bin/bash
 set -e
 
-# =============================================================================
-# Full Release Workflow
-# Usage: ./release.sh [version] [--beta]
-#   version: major, minor, patch, X.Y.Z, or X.Y.Z-beta-N (optional)
-#   --beta: Mark as pre-release on GitHub (auto-detected for -beta- versions)
-# =============================================================================
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"
 
@@ -19,94 +12,125 @@ if [[ "$VERSION_ARG" == *"-beta-"* ]] || [[ "$BETA_FLAG" == "--beta" ]]; then
     IS_BETA=true
 fi
 
-# Check prerequisites
 check_command xcodebuild
 check_command xcrun
 check_command gh
 
-# Check if gh is authenticated
 if ! gh auth status &>/dev/null; then
-    log_error "GitHub CLI not authenticated. Run: gh auth login"
+    log_error "GitHub CLI not authenticated"
+    log_item "Run: gh auth login"
     exit 1
 fi
 
-# Bump version if specified
 if [ -n "$VERSION_ARG" ]; then
     NEW_VERSION=$("${SCRIPT_DIR}/bump-version.sh" "$VERSION_ARG")
 else
     NEW_VERSION=$(get_version)
 fi
 
-log_info "=========================================="
-log_info "Starting release for ${PROJECT_NAME} v${NEW_VERSION}"
-log_info "=========================================="
+TOTAL_STEPS=5
+RELEASE_TYPE="Release"
+[[ "$IS_BETA" == true ]] && RELEASE_TYPE="Beta Release"
 
-# Step 1: Build
-log_step "Step 1/5: Building..."
-"${SCRIPT_DIR}/build.sh"
+print_header "${PROJECT_NAME} ${RELEASE_TYPE}" 55
 
-# Step 2: Notarize (optional - will skip if not configured)
-log_step "Step 2/5: Notarizing..."
-"${SCRIPT_DIR}/notarize.sh" || log_warn "Notarization skipped or failed"
+print_summary "Release Configuration" \
+    "Version" "v${NEW_VERSION}" \
+    "Type" "${RELEASE_TYPE}" \
+    "Repository" "${GITHUB_REPO}"
 
-# Step 3: Package
-log_step "Step 3/5: Packaging..."
-"${SCRIPT_DIR}/package.sh"
+print_step 1 $TOTAL_STEPS "Building Application"
+start_step_timer "build"
 
-# Step 4: Generate appcast
-log_step "Step 4/5: Generating appcast..."
-"${SCRIPT_DIR}/generate-appcast.sh"
+"${SCRIPT_DIR}/build.sh" 2>&1 | while read -r line; do
+    if [[ "$line" == *"${SYM_CHECK}"* ]] || [[ "$line" == *"${SYM_CROSS}"* ]]; then
+        echo "  $line"
+    fi
+done
 
-# Step 5: Create GitHub release
-log_step "Step 5/5: Creating GitHub release..."
+log_success "Build completed ($(get_step_duration "build"))"
+
+print_step 2 $TOTAL_STEPS "Notarizing"
+start_step_timer "notarize"
+
+if "${SCRIPT_DIR}/notarize.sh" 2>&1 | grep -qE "(complete|success|Skipping)"; then
+    log_success "Notarization completed ($(get_step_duration "notarize"))"
+else
+    log_warn "Notarization skipped ($(get_step_duration "notarize"))"
+fi
+
+print_step 3 $TOTAL_STEPS "Packaging"
+start_step_timer "package"
+
+"${SCRIPT_DIR}/package.sh" >/dev/null 2>&1
+
+log_success "Packaging completed ($(get_step_duration "package"))"
+
+print_step 4 $TOTAL_STEPS "Generating Appcast"
+start_step_timer "appcast"
+
+"${SCRIPT_DIR}/generate-appcast.sh" >/dev/null 2>&1
+
+log_success "Appcast generated ($(get_step_duration "appcast"))"
+
+print_step 5 $TOTAL_STEPS "Creating GitHub Release"
+start_step_timer "github"
 
 TAG_NAME="v${NEW_VERSION}"
 DMG_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${NEW_VERSION}.dmg"
 ZIP_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${NEW_VERSION}.zip"
 
-log_info "Looking for release files:"
-log_info "  DMG: ${DMG_FILE}"
-log_info "  ZIP: ${ZIP_FILE}"
-
 if [ ! -f "$DMG_FILE" ] && [ ! -f "$ZIP_FILE" ]; then
-    log_error "No release files found in ${RELEASE_DIR}/"
-    ls -la "${RELEASE_DIR}/" 2>/dev/null || log_error "Release directory does not exist"
+    log_failure "No release files found"
+    log_item "Expected: ${DMG_FILE}"
+    log_item "Expected: ${ZIP_FILE}"
     exit 1
 fi
 
-# Create git tag if not exists
 if ! git tag -l | grep -q "^${TAG_NAME}$"; then
-    log_info "Creating git tag: ${TAG_NAME}"
+    log_item "Creating git tag: ${TAG_NAME}"
     git tag -a "$TAG_NAME" -m "Release ${NEW_VERSION}"
     git push origin "$TAG_NAME"
 else
-    log_warn "Tag ${TAG_NAME} already exists"
+    log_item "Tag ${TAG_NAME} already exists"
 fi
 
-# Prepare release files
 RELEASE_FILES=""
 [ -f "$DMG_FILE" ] && RELEASE_FILES="$RELEASE_FILES $DMG_FILE"
 [ -f "$ZIP_FILE" ] && RELEASE_FILES="$RELEASE_FILES $ZIP_FILE"
 [ -f "$APPCAST_PATH" ] && RELEASE_FILES="$RELEASE_FILES $APPCAST_PATH"
 
-# Create GitHub release
-log_info "Creating GitHub release..."
-
 RELEASE_FLAGS=""
-if [ "$IS_BETA" = true ]; then
-    RELEASE_FLAGS="--prerelease"
-    log_info "Creating as PRE-RELEASE (beta)"
-fi
+[[ "$IS_BETA" == true ]] && RELEASE_FLAGS="--prerelease"
 
 gh release create "$TAG_NAME" \
     --title "${PROJECT_NAME} ${NEW_VERSION}" \
     --generate-notes \
     $RELEASE_FLAGS \
-    $RELEASE_FILES
+    $RELEASE_FILES >/dev/null 2>&1
 
-log_info "=========================================="
-log_info "Release complete!"
-log_info "=========================================="
-log_info "Version: ${NEW_VERSION}"
-log_info "Tag: ${TAG_NAME}"
-log_info "URL: https://github.com/${GITHUB_REPO}/releases/tag/${TAG_NAME}"
+log_success "GitHub release created ($(get_step_duration "github"))"
+
+DMG_SIZE="N/A"
+ZIP_SIZE="N/A"
+[ -f "$DMG_FILE" ] && DMG_SIZE=$(get_file_size "$DMG_FILE")
+[ -f "$ZIP_FILE" ] && ZIP_SIZE=$(get_file_size "$ZIP_FILE")
+
+echo ""
+print_divider "═" 55
+echo ""
+
+print_header "Release Complete ${SYM_ROCKET}" 55
+
+print_summary "Artifacts" \
+    "DMG" "${DMG_SIZE}" \
+    "ZIP" "${ZIP_SIZE}"
+
+print_summary "Release Details" \
+    "Version" "v${NEW_VERSION}" \
+    "Tag" "${TAG_NAME}" \
+    "Duration" "$(get_total_duration)"
+
+RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/tag/${TAG_NAME}"
+echo -e "  ${CYAN}${SYM_ARROW}${NC} ${RELEASE_URL}"
+echo ""

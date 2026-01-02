@@ -290,7 +290,7 @@ actor CLIExecutor {
             // Wait with timeout
             let deadline = Date().addingTimeInterval(timeout)
             while process.isRunning && Date() < deadline {
-                Thread.sleep(forTimeInterval: 0.1)
+                try? await Task.sleep(nanoseconds: 100_000_000)
             }
             
             if process.isRunning {

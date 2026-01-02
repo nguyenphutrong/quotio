@@ -1,0 +1,165 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.5.0 or 0.5.0-beta-1)'
+        required: true
+        type: string
+
+env:
+  PROJECT_NAME: Quotio
+  SCHEME: Quotio
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+    permissions:
+      contents: write
+
+    steps:
+      # ===========================================
+      # 1. Checkout
+      # ===========================================
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ===========================================
+      # 2. Setup Xcode
+      # ===========================================
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.2'
+
+      # ===========================================
+      # 3. Extract version from tag or input
+      # ===========================================
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          
+          # Check if beta
+          if [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-alpha"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Releasing version: ${VERSION}"
+
+      # ===========================================
+      # 4. Update CHANGELOG if needed
+      # ===========================================
+      - name: Update CHANGELOG
+        run: |
+          chmod +x ./scripts/update-changelog.sh
+          ./scripts/update-changelog.sh "${{ steps.version.outputs.VERSION }}"
+
+      # ===========================================
+      # 5. Bump version in Xcode project
+      # ===========================================
+      - name: Bump version
+        run: |
+          chmod +x ./scripts/bump-version.sh
+          ./scripts/bump-version.sh "${{ steps.version.outputs.VERSION }}"
+
+      # ===========================================
+      # 6. Build
+      # ===========================================
+      - name: Build
+        run: |
+          chmod +x ./scripts/build.sh
+          ./scripts/build.sh
+
+      # ===========================================
+      # 7. Package (ZIP + DMG)
+      # ===========================================
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Package
+        run: |
+          chmod +x ./scripts/package.sh
+          ./scripts/package.sh
+
+      # ===========================================
+      # 8. Generate Appcast with Sparkle signing
+      # ===========================================
+      - name: Generate Appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          chmod +x ./scripts/generate-appcast-ci.sh
+          ./scripts/generate-appcast-ci.sh
+
+      # ===========================================
+      # 9. Create tag (for workflow_dispatch)
+      # ===========================================
+      - name: Create tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          TAG_NAME="v${{ steps.version.outputs.VERSION }}"
+          if ! git tag -l | grep -q "^${TAG_NAME}$"; then
+            git tag -a "${TAG_NAME}" -m "Release ${{ steps.version.outputs.VERSION }}"
+            git push origin "${TAG_NAME}"
+          fi
+
+      # ===========================================
+      # 10. Create GitHub Release
+      # ===========================================
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: ${{ env.PROJECT_NAME }} ${{ steps.version.outputs.VERSION }}
+          files: |
+            build/release/*.dmg
+            build/release/*.zip
+            build/release/appcast.xml
+          generate_release_notes: true
+          prerelease: ${{ steps.version.outputs.IS_PRERELEASE == 'true' }}
+
+      # ===========================================
+      # 11. Commit version bump back to master
+      # ===========================================
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if there are changes to commit
+          if git diff --quiet CHANGELOG.md Quotio.xcodeproj/project.pbxproj; then
+            echo "No changes to commit"
+          else
+            git add CHANGELOG.md Quotio.xcodeproj/project.pbxproj
+            git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }} [skip ci]"
+            git push origin HEAD:master
+          fi
+
+      # ===========================================
+      # 12. Summary
+      # ===========================================
+      - name: Summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.version.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: v${{ steps.version.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pre-release**: ${{ steps.version.outputs.IS_PRERELEASE }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Assets" >> $GITHUB_STEP_SUMMARY
+          ls -la build/release/ >> $GITHUB_STEP_SUMMARY

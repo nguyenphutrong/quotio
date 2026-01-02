@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **GitHub Actions CI/CD**: Automated release workflow with tag-based and manual triggers (#74)
+  - Add `update-changelog.sh` script for automated changelog updates
+  - Add `generate-appcast-ci.sh` for CI-compatible Sparkle appcast generation
+  - Add `quick-release.sh` helper for local tag creation
+
+### Changed
+
+- **String Catalogs Localization**: Migrate from in-code dictionary to `Localizable.xcstrings` with 600+ keys across 4 languages (#74)
+  - Dynamic language switching without app restart
+  - Modernize `LanguageManager` with `@Observable` pattern
+  - Migrate legacy "zh" language code to "zh-Hans"
+
+### Fixed
+
+- **Swift 6 Concurrency**: Resolve build errors and concurrency warnings for Xcode 16.2
+  - Add `localizedStatic()` nonisolated variant for enum computed properties
+  - Fix sendability issues in `AntigravityDatabaseService`, `AntigravityProcessManager`, `CLIExecutor`, `CLIProxyManager`
+- **CI Compatibility**: Update Xcode version to 16.2 for macos-14 runner compatibility
+- **Build Scripts**: Improve reliability and error handling
+- **Localization Crash**: Fix duplicate dictionary key causing compiler error and app launch crash
+
 ## [0.4.1] - 2026-01-02
 
 ### Added

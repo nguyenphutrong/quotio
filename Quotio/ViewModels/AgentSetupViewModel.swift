@@ -83,7 +83,7 @@ final class AgentSetupViewModel {
         defer { isConfiguring = false }
         
         do {
-            var result = try await configurationService.generateConfiguration(
+            let result = try await configurationService.generateConfiguration(
                 agent: agent,
                 config: config,
                 mode: configurationMode,
