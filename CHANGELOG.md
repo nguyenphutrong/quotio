@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-01-02
+
+### Added
+
+- **French Localization**: Full French translation for all UI strings and README documentation
+- **Antigravity 4-Group Display**: Replace 3-group display with 4 model groups: Gemini 3 Pro, Gemini 3 Flash, Gemini 3 Image, Claude 4.5 (#66)
+  - Add expandable group rows in QuotaScreen with individual model details
+  - Show model count badge and individual progress bars when expanded
+- **Native Menu Bar Submenus**: Implement `NSMenuItem.submenu` for Antigravity accounts with automatic hover cascade (#66)
+  - Reactive provider picker - accounts update immediately when switching providers (no menu close needed)
+  - Add `rebuildMenuInPlace()` for proper menu refresh across macOS Desktops
+
+### Fixed
+
+- **Menu Bar Submenu Hover**: Fix submenu not working after switching macOS Desktops (#66)
+- **Menu Bar Dynamic Height**: Fix incorrect height when switching between providers (#66)
+- **Menu Bar Loading Animation**: Use Timer with `.common` RunLoop mode for animation while menu is open (#66)
+- **Model Display Names**: Consistent naming across QuotaScreen and menu bar (#66)
+
 ## [0.4.0] - 2026-01-01
 
 ### Added
