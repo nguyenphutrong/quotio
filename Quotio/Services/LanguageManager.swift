@@ -654,11 +654,27 @@ struct LocalizedStrings {
         "antigravity.switch.success": [.english: "Account switched successfully", .vietnamese: "Đã chuyển tài khoản thành công", .chinese: "账户切换成功", .french: "Compte changé avec succès"],
         "antigravity.switch.failed": [.english: "Failed to switch account", .vietnamese: "Chuyển tài khoản thất bại", .chinese: "账户切换失败", .french: "Échec du changement de compte"],
         "antigravity.active": [.english: "Active in IDE", .vietnamese: "Đang dùng trong IDE", .chinese: "在 IDE 中激活", .french: "Actif dans l'IDE"],
+        "antigravity.useInIDE": [.english: "Use in IDE", .vietnamese: "Dùng trong IDE", .chinese: "在 IDE 中使用", .french: "Utiliser dans l'IDE"],
         "action.retry": [.english: "Retry", .vietnamese: "Thử lại", .chinese: "重试", .french: "Réessayer"],
+        "action.ok": [.english: "OK", .vietnamese: "OK", .chinese: "确定", .french: "OK"],
         
         // Quota Details
         "quota.details": [.english: "Details", .vietnamese: "Chi tiết", .chinese: "详情", .french: "Détails"],
         "quota.allModels": [.english: "All Models", .vietnamese: "Tất cả model", .chinese: "所有模型", .french: "Tous les modèles"],
+        "quota.limitReached": [.english: "Limit Reached", .vietnamese: "Đã đạt giới hạn", .chinese: "已达上限", .french: "Limite atteinte"],
+        "quota.usage": [.english: "Usage", .vietnamese: "Sử dụng", .chinese: "使用量", .french: "Utilisation"],
+        "quota.used": [.english: "used", .vietnamese: "đã dùng", .chinese: "已用", .french: "utilisé"],
+        
+        // Settings
+        "settings.appDescription": [.english: "CLIProxyAPI GUI Wrapper", .vietnamese: "Giao diện quản lý CLIProxyAPI", .chinese: "CLIProxyAPI 图形界面", .french: "Interface graphique CLIProxyAPI"],
+        "settings.links": [.english: "Links", .vietnamese: "Liên kết", .chinese: "链接", .french: "Liens"],
+        "settings.versionCopied": [.english: "Version copied to clipboard", .vietnamese: "Đã sao chép phiên bản", .chinese: "版本已复制到剪贴板", .french: "Version copiée dans le presse-papiers"],
+        
+        // Agent Config
+        "agent.generatingPreview": [.english: "Generating preview...", .vietnamese: "Đang tạo xem trước...", .chinese: "正在生成预览...", .french: "Génération de l'aperçu..."],
+        
+        // Custom Provider
+        "customProviders.apiKeyNumber": [.english: "API Key #%@", .vietnamese: "API Key #%@", .chinese: "API 密钥 #%@", .french: "Clé API #%@"],
     ]
     
     static func get(_ key: String, language: AppLanguage) -> String {

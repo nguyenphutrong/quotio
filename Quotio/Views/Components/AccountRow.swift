@@ -176,7 +176,7 @@ struct AccountRow: View {
             
             // Active in IDE badge (Antigravity only)
             if account.provider == .antigravity && isActiveInIDE {
-                Text("Active")
+                Text("antigravity.active".localized())
                     .font(.caption2)
                     .fontWeight(.medium)
                     .foregroundStyle(Color(red: 0.13, green: 0.55, blue: 0.13))
@@ -194,7 +194,7 @@ struct AccountRow: View {
                     HStack(spacing: 4) {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
                             .font(.caption2)
-                        Text("Use in IDE")
+                        Text("antigravity.useInIDE".localized())
                             .font(.caption2)
                     }
                     .padding(.horizontal, 8)

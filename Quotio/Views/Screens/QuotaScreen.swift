@@ -463,7 +463,7 @@ private struct AccountQuotaCardV2: View {
             
             // Active badge (Antigravity only)
             if isActiveInIDE {
-                Text("Active")
+                Text("antigravity.active".localized())
                     .font(.caption2)
                     .fontWeight(.medium)
                     .foregroundStyle(Color(red: 0.13, green: 0.55, blue: 0.13))
@@ -481,7 +481,7 @@ private struct AccountQuotaCardV2: View {
                     HStack(spacing: 4) {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
                             .font(.caption)
-                        Text("Use in IDE")
+                        Text("antigravity.useInIDE".localized())
                             .font(.caption)
                     }
                     .padding(.horizontal, 8)

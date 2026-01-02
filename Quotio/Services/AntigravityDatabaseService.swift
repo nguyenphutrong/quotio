@@ -58,8 +58,8 @@ actor AntigravityDatabaseService {
     
     // MARK: - SQLite CLI Helpers
     
-    /// Execute sqlite3 command and return output
-    private func executeSQLite(_ sql: String, readOnly: Bool = true) throws -> String {
+    /// Execute sqlite3 command and return output asynchronously
+    private func executeSQLite(_ sql: String, readOnly: Bool = true) async throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
         
@@ -75,16 +75,56 @@ actor AntigravityDatabaseService {
         process.standardOutput = outputPipe
         process.standardError = errorPipe
         
-        try process.run()
-        process.waitUntilExit()
+        // Collect output data using readabilityHandler for non-blocking reads
+        var outputData = Data()
+        var errorData = Data()
+        let outputLock = NSLock()
+        let errorLock = NSLock()
         
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            outputLock.lock()
+            outputData.append(data)
+            outputLock.unlock()
+        }
+        
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            errorLock.lock()
+            errorData.append(data)
+            errorLock.unlock()
+        }
+        
+        try process.run()
+        
+        // Await process completion using continuation
+        let terminationStatus = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+            process.terminationHandler = { terminatedProcess in
+                // Remove handlers and close file handles to avoid resource leaks
+                outputPipe.fileHandleForReading.readabilityHandler = nil
+                errorPipe.fileHandleForReading.readabilityHandler = nil
+                
+                // Read any remaining data
+                outputLock.lock()
+                outputData.append(outputPipe.fileHandleForReading.readDataToEndOfFile())
+                outputLock.unlock()
+                
+                errorLock.lock()
+                errorData.append(errorPipe.fileHandleForReading.readDataToEndOfFile())
+                errorLock.unlock()
+                
+                try? outputPipe.fileHandleForReading.close()
+                try? errorPipe.fileHandleForReading.close()
+                
+                continuation.resume(returning: terminatedProcess.terminationStatus)
+            }
+        }
+        
         let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         
-        if process.terminationStatus != 0 {
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-            throw DatabaseError.writeFailed(NSError(domain: "SQLite", code: Int(process.terminationStatus), 
+        if terminationStatus != 0 {
+            let errorMessage = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown error"
+            throw DatabaseError.writeFailed(NSError(domain: "SQLite", code: Int(terminationStatus),
                 userInfo: [NSLocalizedDescriptionKey: errorMessage]))
         }
         
@@ -101,7 +141,7 @@ actor AntigravityDatabaseService {
         let escapedKey = Self.stateKey.replacingOccurrences(of: "'", with: "''")
         let sql = "SELECT value FROM ItemTable WHERE key = '\(escapedKey)';"
         
-        let result = try executeSQLite(sql)
+        let result = try await executeSQLite(sql)
         
         guard !result.isEmpty else {
             throw DatabaseError.stateNotFound
@@ -123,7 +163,7 @@ actor AntigravityDatabaseService {
         // Use INSERT OR REPLACE to handle both insert and update
         let sql = "INSERT OR REPLACE INTO ItemTable (key, value) VALUES ('\(escapedKey)', '\(escapedValue)');"
         
-        _ = try executeSQLite(sql, readOnly: false)
+        _ = try await executeSQLite(sql, readOnly: false)
     }
     
     // MARK: - Backup/Restore
@@ -196,7 +236,7 @@ actor AntigravityDatabaseService {
         let escapedKey = Self.authStatusKey.replacingOccurrences(of: "'", with: "''")
         let sql = "SELECT value FROM ItemTable WHERE key = '\(escapedKey)';"
         
-        let result = try executeSQLite(sql)
+        let result = try await executeSQLite(sql)
         
         guard !result.isEmpty, let jsonData = result.data(using: .utf8) else {
             return nil
