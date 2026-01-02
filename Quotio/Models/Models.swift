@@ -20,6 +20,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
     case copilot = "github-copilot"
     case cursor = "cursor"
     case trae = "trae"
+    case glm = "glm"
     
     var id: String { rawValue }
     
@@ -36,6 +37,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .copilot: return "GitHub Copilot"
         case .cursor: return "Cursor"
         case .trae: return "Trae"
+        case .glm: return "GLM"
         }
     }
     
@@ -52,6 +54,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .copilot: return "chevron.left.forwardslash.chevron.right"
         case .cursor: return "cursorarrow.rays"
         case .trae: return "cursorarrow.rays"
+        case .glm: return "brain"
         }
     }
     
@@ -69,6 +72,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .copilot: return "copilot"
         case .cursor: return "cursor"
         case .trae: return "trae"
+        case .glm: return "glm"
         }
     }
     
@@ -85,6 +89,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .copilot: return Color(hex: "238636") ?? .green
         case .cursor: return Color(hex: "00D4AA") ?? .teal
         case .trae: return Color(hex: "00B4D8") ?? .cyan
+        case .glm: return Color(hex: "3B82F6") ?? .blue
         }
     }
     
@@ -101,6 +106,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .copilot: return ""
         case .cursor: return ""  // Uses browser session
         case .trae: return ""  // Uses browser session
+        case .glm: return ""
         }
     }
     
@@ -118,6 +124,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .copilot: return "CP"
         case .cursor: return "CR"
         case .trae: return "TR"
+        case .glm: return "G"
         }
     }
     
@@ -136,13 +143,14 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .vertex: return "vertex-menubar"
         case .cursor: return "cursor-menubar"
         case .trae: return "trae-menubar"
+        case .glm: return "glm-menubar"
         }
     }
     
     /// Whether this provider supports quota tracking in quota-only mode
     var supportsQuotaOnlyMode: Bool {
         switch self {
-        case .claude, .codex, .cursor, .gemini, .antigravity, .copilot, .trae:
+        case .claude, .codex, .cursor, .gemini, .antigravity, .copilot, .trae, .glm:
             return true
         case .qwen, .iflow, .vertex, .kiro:
             return false
@@ -171,12 +179,23 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
     
     /// Whether this provider can be added manually (via OAuth, CLI login, or file import)
     /// Cursor, Trae, Windsurf are excluded because they only read from local app databases
+    /// GLM is excluded because it should only be added via Custom Providers
     var supportsManualAuth: Bool {
         switch self {
-        case .cursor, .trae:
-            return false  // Only reads from local app database, not a real provider
+        case .cursor, .trae, .glm:
+            return false  // GLM: only via Custom Providers; Cursor/Trae: only reads from local app database
         default:
             return true
+        }
+    }
+
+    /// Whether this provider uses API key authentication (stored in CustomProviderService)
+    var usesAPIKeyAuth: Bool {
+        switch self {
+        case .glm:
+            return true
+        default:
+            return false
         }
     }
     

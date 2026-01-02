@@ -15,6 +15,7 @@ final class QuotaViewModel {
     private let antigravityFetcher = AntigravityQuotaFetcher()
     private let openAIFetcher = OpenAIQuotaFetcher()
     private let copilotFetcher = CopilotQuotaFetcher()
+    private let glmFetcher = GLMQuotaFetcher()
     private let directAuthService = DirectAuthFileService()
     private let notificationManager = NotificationManager.shared
     private let modeManager = AppModeManager.shared
@@ -153,8 +154,9 @@ final class QuotaViewModel {
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
         async let codexCLI: () = refreshCodexCLIQuotasInternal()
         async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-        
-        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI)
+        async let glm: () = refreshGlmQuotasInternal()
+
+        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm)
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -253,7 +255,7 @@ final class QuotaViewModel {
     private func refreshGeminiCLIQuotasInternal() async {
         // Only use CLI fetcher in quota-only mode
         guard modeManager.isQuotaOnlyMode else { return }
-        
+
         let quotas = await geminiCLIFetcher.fetchAsProviderQuota()
         if !quotas.isEmpty {
             if var existing = providerQuotas[.gemini] {
@@ -264,6 +266,16 @@ final class QuotaViewModel {
             } else {
                 providerQuotas[.gemini] = quotas
             }
+        }
+    }
+
+    /// Refresh GLM quota using API keys from CustomProviderService
+    private func refreshGlmQuotasInternal() async {
+        let quotas = await glmFetcher.fetchAllQuotas()
+        if !quotas.isEmpty {
+            providerQuotas[.glm] = quotas
+        } else {
+            providerQuotas.removeValue(forKey: .glm)
         }
     }
     
@@ -466,22 +478,23 @@ final class QuotaViewModel {
     
     func refreshAllQuotas() async {
         guard !isLoadingQuotas else { return }
-        
+
         isLoadingQuotas = true
         lastQuotaRefresh = Date()
-        
+
         // Note: Cursor and Trae removed from auto-refresh (issue #29)
         // User must use "Scan for IDEs" to detect these
         async let antigravity: () = refreshAntigravityQuotasInternal()
         async let openai: () = refreshOpenAIQuotasInternal()
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        
-        _ = await (antigravity, openai, copilot, claudeCode)
-        
+        async let glm: () = refreshGlmQuotasInternal()
+
+        _ = await (antigravity, openai, copilot, claudeCode, glm)
+
         checkQuotaNotifications()
         autoSelectMenuBarItems()
-        
+
         isLoadingQuotas = false
     }
     
@@ -491,30 +504,31 @@ final class QuotaViewModel {
     /// Note: Cursor and Trae require explicit user scan (issue #29)
     func refreshQuotasUnified() async {
         guard !isLoadingQuotas else { return }
-        
+
         isLoadingQuotas = true
         lastQuotaRefreshTime = Date()
         lastQuotaRefresh = Date()
-        
+
         // Refresh direct fetchers (these don't need proxy)
         // Note: Cursor and Trae removed - require explicit scan (issue #29)
         async let antigravity: () = refreshAntigravityQuotasInternal()
         async let openai: () = refreshOpenAIQuotasInternal()
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        
+        async let glm: () = refreshGlmQuotasInternal()
+
         // In Quota-Only Mode, also include CLI fetchers
         if modeManager.isQuotaOnlyMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
             async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-            _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, codexCLI, geminiCLI)
         } else {
-            _ = await (antigravity, openai, copilot, claudeCode)
+            _ = await (antigravity, openai, copilot, claudeCode, glm)
         }
-        
+
         checkQuotaNotifications()
         autoSelectMenuBarItems()
-        
+
         isLoadingQuotas = false
     }
     
@@ -608,10 +622,12 @@ final class QuotaViewModel {
             await refreshGeminiCLIQuotasInternal()
         case .trae:
             await refreshTraeQuotasInternal()
+        case .glm:
+            await refreshGlmQuotasInternal()
         default:
             break
         }
-        
+
         // Prune menu bar items after refresh to remove deleted accounts
         pruneMenuBarItems()
     }

@@ -16,15 +16,17 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
     case claudeCompatibility = "claude-api-key"
     case geminiCompatibility = "gemini-api-key"
     case codexCompatibility = "codex-api-key"
-    
+    case glmCompatibility = "glm-api-key"
+
     var id: String { rawValue }
-    
+
     var displayName: String {
         switch self {
         case .openaiCompatibility: return "OpenAI Compatible"
         case .claudeCompatibility: return "Claude Compatible"
         case .geminiCompatibility: return "Gemini Compatible"
         case .codexCompatibility: return "Codex Compatible"
+        case .glmCompatibility: return "GLM Compatible"
         }
     }
     
@@ -35,6 +37,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .claudeCompatibility: return "customProviders.type.claude".localized()
         case .geminiCompatibility: return "customProviders.type.gemini".localized()
         case .codexCompatibility: return "customProviders.type.codex".localized()
+        case .glmCompatibility: return "customProviders.type.glm".localized()
         }
     }
     
@@ -48,6 +51,8 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
             return "Google Gemini API or Gemini-compatible providers"
         case .codexCompatibility:
             return "Custom Codex-compatible endpoints"
+        case .glmCompatibility:
+            return "GLM (BigModel.cn) API"
         }
     }
     
@@ -58,6 +63,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .claudeCompatibility: return "customProviders.type.claude.desc".localized()
         case .geminiCompatibility: return "customProviders.type.gemini.desc".localized()
         case .codexCompatibility: return "customProviders.type.codex.desc".localized()
+        case .glmCompatibility: return "customProviders.type.glm.desc".localized()
         }
     }
     
@@ -67,6 +73,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .claudeCompatibility: return "claude"
         case .geminiCompatibility: return "gemini"
         case .codexCompatibility: return "openai"
+        case .glmCompatibility: return "glm"
         }
     }
     
@@ -76,6 +83,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .claudeCompatibility: return "claude-menubar"
         case .geminiCompatibility: return "gemini-menubar"
         case .codexCompatibility: return "openai-menubar"
+        case .glmCompatibility: return "glm-menubar"
         }
     }
     
@@ -85,6 +93,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .claudeCompatibility: return Color(hex: "D97706") ?? .orange
         case .geminiCompatibility: return Color(hex: "4285F4") ?? .blue
         case .codexCompatibility: return Color(hex: "10A37F") ?? .green
+        case .glmCompatibility: return Color(hex: "3B82F6") ?? .blue
         }
     }
     
@@ -93,7 +102,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         switch self {
         case .openaiCompatibility, .codexCompatibility:
             return true
-        case .claudeCompatibility, .geminiCompatibility:
+        case .claudeCompatibility, .geminiCompatibility, .glmCompatibility:
             return false // Has default base URL
         }
     }
@@ -105,6 +114,8 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
             return "https://api.anthropic.com"
         case .geminiCompatibility:
             return "https://generativelanguage.googleapis.com"
+        case .glmCompatibility:
+            return "https://bigmodel.cn"
         case .openaiCompatibility, .codexCompatibility:
             return nil
         }
@@ -115,17 +126,17 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         switch self {
         case .openaiCompatibility, .claudeCompatibility:
             return true
-        case .geminiCompatibility, .codexCompatibility:
+        case .geminiCompatibility, .codexCompatibility, .glmCompatibility:
             return false
         }
     }
-    
+
     /// Whether this provider type supports custom headers
     var supportsCustomHeaders: Bool {
         switch self {
         case .geminiCompatibility:
             return true
-        case .openaiCompatibility, .claudeCompatibility, .codexCompatibility:
+        case .openaiCompatibility, .claudeCompatibility, .codexCompatibility, .glmCompatibility:
             return false
         }
     }
@@ -308,9 +319,11 @@ extension CustomProvider {
             return generateGeminiCompatibilityYAML()
         case .codexCompatibility:
             return generateCodexCompatibilityYAML()
+        case .glmCompatibility:
+            return generateGlmCompatibilityYAML()
         }
     }
-    
+
     private func generateOpenAICompatibilityYAML() -> String {
         var yaml = "  - name: \"\(escapedName)\"\n"
         yaml += "    base-url: \"\(baseURL)\"\n"
@@ -390,7 +403,23 @@ extension CustomProvider {
         for key in apiKeys {
             yaml += "  - api-key: \"\(key.apiKey)\"\n"
             yaml += "    base-url: \"\(baseURL)\"\n"
-            
+
+            if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
+                yaml += "    proxy-url: \"\(proxyURL)\"\n"
+            }
+        }
+        return yaml
+    }
+
+    private func generateGlmCompatibilityYAML() -> String {
+        var yaml = ""
+        for key in apiKeys {
+            yaml += "  - api-key: \"\(key.apiKey)\"\n"
+
+            if !baseURL.isEmpty && baseURL != type.defaultBaseURL {
+                yaml += "    base-url: \"\(baseURL)\"\n"
+            }
+
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
                 yaml += "    proxy-url: \"\(proxyURL)\"\n"
             }
@@ -444,7 +473,15 @@ extension Array where Element == CustomProvider {
                 yaml += provider.toYAMLBlock()
             }
         }
-        
+
+        // GLM Compatibility
+        if let glmProviders = grouped[.glmCompatibility], !glmProviders.isEmpty {
+            yaml += "\nglm-api-key:\n"
+            for provider in glmProviders {
+                yaml += provider.toYAMLBlock()
+            }
+        }
+
         return yaml
     }
 }
