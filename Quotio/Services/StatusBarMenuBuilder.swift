@@ -614,8 +614,7 @@ private struct MenuAccountCardView: View {
             if isAntigravity {
                 return antigravityGroups.map { ModelBadgeData(name: $0.name, percentage: $0.percentage) }
             } else {
-                return data.models.sorted { $0.percentage < $1.percentage }
-                    .map { ModelBadgeData(name: $0.displayName, percentage: $0.percentage) }
+                return data.models.map { ModelBadgeData(name: $0.displayName, percentage: $0.percentage) }
             }
         }()
         let count = models.count

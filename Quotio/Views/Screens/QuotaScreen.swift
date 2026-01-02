@@ -588,7 +588,7 @@ private struct AccountQuotaCardV2: View {
                         }
                     } else {
                         // Other providers show individual models
-                        ForEach(data.models.sorted { $0.name < $1.name }) { model in
+                        ForEach(data.models) { model in
                             UsageRowV2(
                                 name: model.displayName,
                                 icon: nil,
@@ -842,7 +842,7 @@ private struct ExpandableAntigravityGroupRow: View {
             // Expanded model details
             if isExpanded {
                 VStack(spacing: 10) {
-                    ForEach(group.models.sorted { $0.name < $1.name }) { model in
+                    ForEach(group.models) { model in
                         ModelDetailRow(model: model)
                     }
                 }
