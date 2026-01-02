@@ -466,7 +466,7 @@ private struct MenuAccountCardView: View {
     let isActiveInIDE: Bool
     let onUseAccount: (() -> Void)?
     
-    @State private var settings = MenuBarSettingsManager.shared
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
     @State private var isHovered = false
     
     private var displayEmail: String {
@@ -720,7 +720,7 @@ private struct MenuModelDetailView: View {
     let model: ModelQuota
     let showRawName: Bool
     
-    @State private var settings = MenuBarSettingsManager.shared
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
     
     private var usedPercent: Double {
         model.usedPercentage

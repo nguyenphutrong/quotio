@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import SQLite
 
 /// Service for interacting with Antigravity IDE's state database
 actor AntigravityDatabaseService {
@@ -21,11 +20,6 @@ actor AntigravityDatabaseService {
         .appendingPathComponent("Library/Application Support/Antigravity/User/globalStorage/state.vscdb.quotio.backup")
     
     private static let stateKey = "jetskiStateSync.agentManagerInitState"
-    
-    // SQLite table structure - value is stored as TEXT (base64 string), not BLOB
-    private let itemTable = Table("ItemTable")
-    private let keyColumn = SQLite.Expression<String>("key")
-    private let valueColumn = SQLite.Expression<String?>("value")
     
     // MARK: - Errors
     
@@ -62,24 +56,58 @@ actor AntigravityDatabaseService {
         FileManager.default.fileExists(atPath: Self.databasePath.path)
     }
     
+    // MARK: - SQLite CLI Helpers
+    
+    /// Execute sqlite3 command and return output
+    private func executeSQLite(_ sql: String, readOnly: Bool = true) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        
+        // Use -readonly flag for read operations
+        if readOnly {
+            process.arguments = ["-readonly", Self.databasePath.path, sql]
+        } else {
+            process.arguments = [Self.databasePath.path, sql]
+        }
+        
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        
+        if process.terminationStatus != 0 {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            throw DatabaseError.writeFailed(NSError(domain: "SQLite", code: Int(process.terminationStatus), 
+                userInfo: [NSLocalizedDescriptionKey: errorMessage]))
+        }
+        
+        return output
+    }
+    
     /// Read current state value from database (returns base64 string)
     func readStateValue() async throws -> String {
         guard databaseExists() else {
             throw DatabaseError.databaseNotFound
         }
         
-        let db = try Connection(Self.databasePath.path, readonly: true)
+        // Escape single quotes in key
+        let escapedKey = Self.stateKey.replacingOccurrences(of: "'", with: "''")
+        let sql = "SELECT value FROM ItemTable WHERE key = '\(escapedKey)';"
         
-        let query = itemTable.filter(keyColumn == Self.stateKey)
-        guard let row = try db.pluck(query) else {
+        let result = try executeSQLite(sql)
+        
+        guard !result.isEmpty else {
             throw DatabaseError.stateNotFound
         }
         
-        guard let stringValue = row[valueColumn], !stringValue.isEmpty else {
-            throw DatabaseError.invalidData
-        }
-        
-        return stringValue
+        return result
     }
     
     /// Write new state value to database (base64 string)
@@ -88,22 +116,14 @@ actor AntigravityDatabaseService {
             throw DatabaseError.databaseNotFound
         }
         
-        do {
-            let db = try Connection(Self.databasePath.path)
-            
-            let query = itemTable.filter(keyColumn == Self.stateKey)
-            let update = query.update(valueColumn <- value)
-            
-            let rowsUpdated = try db.run(update)
-            
-            if rowsUpdated == 0 {
-                // Key doesn't exist, insert instead
-                let insert = itemTable.insert(keyColumn <- Self.stateKey, valueColumn <- value)
-                try db.run(insert)
-            }
-        } catch {
-            throw DatabaseError.writeFailed(error)
-        }
+        // Escape single quotes
+        let escapedKey = Self.stateKey.replacingOccurrences(of: "'", with: "''")
+        let escapedValue = value.replacingOccurrences(of: "'", with: "''")
+        
+        // Use INSERT OR REPLACE to handle both insert and update
+        let sql = "INSERT OR REPLACE INTO ItemTable (key, value) VALUES ('\(escapedKey)', '\(escapedValue)');"
+        
+        _ = try executeSQLite(sql, readOnly: false)
     }
     
     // MARK: - Backup/Restore
@@ -173,17 +193,17 @@ actor AntigravityDatabaseService {
             return nil
         }
         
-        let db = try Connection(Self.databasePath.path, readonly: true)
+        let escapedKey = Self.authStatusKey.replacingOccurrences(of: "'", with: "''")
+        let sql = "SELECT value FROM ItemTable WHERE key = '\(escapedKey)';"
         
-        let query = itemTable.filter(keyColumn == Self.authStatusKey)
-        guard let row = try db.pluck(query),
-              let jsonString = row[valueColumn],
-              let jsonData = jsonString.data(using: .utf8) else {
+        let result = try executeSQLite(sql)
+        
+        guard !result.isEmpty, let jsonData = result.data(using: .utf8) else {
             return nil
         }
         
-        let authStatus = try JSONDecoder().decode(AuthStatus.self, from: jsonData)
-        return authStatus.email
+        let authStatus = try? JSONDecoder().decode(AuthStatus.self, from: jsonData)
+        return authStatus?.email
     }
     
     // MARK: - Token Operations

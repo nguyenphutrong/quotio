@@ -19,8 +19,16 @@ final class AntigravityAccountSwitcher {
     private init() {}
     
     // MARK: - Dependencies
-    
-    private let databaseService = AntigravityDatabaseService()
+    // Lazy-load database service only when needed (saves memory if Antigravity not installed)
+    private var _databaseService: AntigravityDatabaseService?
+    private var databaseService: AntigravityDatabaseService {
+        if let service = _databaseService {
+            return service
+        }
+        let service = AntigravityDatabaseService()
+        _databaseService = service
+        return service
+    }
     private let processManager = AntigravityProcessManager.shared
     
     // MARK: - State

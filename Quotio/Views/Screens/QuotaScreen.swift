@@ -350,7 +350,8 @@ private struct AccountInfo {
 
 private struct AccountQuotaCardV2: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var settings = MenuBarSettingsManager.shared
+    
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
     let provider: AIProvider
     let account: AccountInfo
     let isLoading: Bool
@@ -779,8 +780,7 @@ private struct AntigravityDisplayGroup: Identifiable {
 private struct AntigravityGroupRow: View {
     let group: AntigravityDisplayGroup
     
-    @State private var settings = MenuBarSettingsManager.shared
-    
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
     private var usedPercent: Double {
         100 - group.percentage
     }
@@ -879,7 +879,8 @@ private struct AntigravityModelsDetailSheet: View {
     let models: [ModelQuota]
     
     @Environment(\.dismiss) private var dismiss
-    @State private var settings = MenuBarSettingsManager.shared
+    
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
     
     private var sortedModels: [ModelQuota] {
         models.sorted { $0.name < $1.name }
@@ -938,7 +939,7 @@ private struct AntigravityModelsDetailSheet: View {
 private struct ModelDetailCard: View {
     let model: ModelQuota
     
-    @State private var settings = MenuBarSettingsManager.shared
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
     
     private var usedPercent: Double {
         model.usedPercentage
@@ -1013,7 +1014,7 @@ private struct UsageRowV2: View {
     let limit: Int?
     let resetTime: String
     
-    @State private var settings = MenuBarSettingsManager.shared
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
     
     private var isUnknown: Bool {
         usedPercent < 0 || usedPercent > 100

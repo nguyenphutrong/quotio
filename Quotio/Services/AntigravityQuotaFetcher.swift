@@ -419,9 +419,10 @@ actor AntigravityQuotaFetcher {
         self.session = URLSession(configuration: config)
     }
     
-    /// Clear the subscription cache (call at start of refresh cycle)
+    /// Clear the subscription cache and release memory (call at start of refresh cycle)
     func clearCache() {
-        subscriptionCache.removeAll()
+        // Create new empty dictionary to release old capacity, not just removeAll()
+        subscriptionCache = [:]
     }
     
     func refreshAccessToken(refreshToken: String) async throws -> String {

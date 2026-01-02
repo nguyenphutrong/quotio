@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		782F8F9C2EFD797D00CE18C5 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 78D386B12EFBF30500C40FB6 /* Sparkle */; };
-		78D386C22EFD800000000003 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = 78D386C12EFD800000000002 /* SQLite */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,7 +31,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				782F8F9C2EFD797D00CE18C5 /* Sparkle in Frameworks */,
-				78D386C22EFD800000000003 /* SQLite in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -87,7 +85,6 @@
 			name = Quotio;
 			packageProductDependencies = (
 				78D386B12EFBF30500C40FB6 /* Sparkle */,
-				78D386C12EFD800000000002 /* SQLite */,
 			);
 			productName = Quotio;
 			productReference = 78D386942EFBF30400C40FB6 /* Quotio.app */;
@@ -120,7 +117,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				78D386B02EFBF30500C40FB6 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				78D386C02EFD800000000001 /* XCRemoteSwiftPackageReference "SQLite" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 78D386952EFBF30400C40FB6 /* Products */;
@@ -389,14 +385,6 @@
 				minimumVersion = 2.0.0;
 			};
 		};
-		78D386C02EFD800000000001 /* XCRemoteSwiftPackageReference "SQLite" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/stephencelis/SQLite.swift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.15.3;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -404,11 +392,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 78D386B02EFBF30500C40FB6 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
-		};
-		78D386C12EFD800000000002 /* SQLite */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 78D386C02EFD800000000001 /* XCRemoteSwiftPackageReference "SQLite" */;
-			productName = SQLite;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
