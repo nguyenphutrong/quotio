@@ -71,7 +71,16 @@ final class LanguageManager {
 
     private init() {
         let saved = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
-        self.currentLanguage = AppLanguage(rawValue: saved) ?? .english
+        
+        // Migration: "zh" was used before String Catalogs migration, now use "zh-Hans"
+        let migrated = (saved == "zh") ? "zh-Hans" : saved
+        
+        self.currentLanguage = AppLanguage(rawValue: migrated) ?? .english
+        
+        // Persist migrated value if it changed
+        if saved == "zh" {
+            UserDefaults.standard.set("zh-Hans", forKey: "appLanguage")
+        }
     }
 
     func setLanguage(_ language: AppLanguage) {
