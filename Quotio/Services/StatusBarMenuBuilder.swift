@@ -191,16 +191,16 @@ final class StatusBarMenuBuilder {
         let isIDERunning = viewModel.antigravitySwitcher.isIDERunning()
         
         let alert = NSAlert()
-        alert.messageText = "Switch Antigravity Account"
-        alert.informativeText = "Switch to account: \(email)"
+        alert.messageText = "antigravity.switch.dialog.title".localized()
+        alert.informativeText = String(format: "antigravity.switch.dialog.message".localized(), email)
         
         if isIDERunning {
-            alert.informativeText += "\n\n⚠️ Antigravity IDE is running and will be restarted."
+            alert.informativeText += "\n\n⚠️ " + "antigravity.switch.dialog.warning".localized()
         }
         
         alert.alertStyle = isIDERunning ? .warning : .informational
-        alert.addButton(withTitle: "Switch Account")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "antigravity.switch.title".localized())
+        alert.addButton(withTitle: "action.cancel".localized())
         
         let response = alert.runModal()
         
@@ -575,7 +575,7 @@ private struct MenuAccountCardView: View {
                 
                 // Active badge (Antigravity)
                 if isActiveInIDE {
-                    Text("Active")
+                    Text("antigravity.active".localized())
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(Color(red: 0.13, green: 0.55, blue: 0.13))
                         .padding(.horizontal, 6)
@@ -592,7 +592,7 @@ private struct MenuAccountCardView: View {
                         HStack(spacing: 2) {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                                 .font(.system(size: 8))
-                            Text("Use")
+                            Text("antigravity.use".localized())
                                 .font(.system(size: 9))
                         }
                         .padding(.horizontal, 6)
