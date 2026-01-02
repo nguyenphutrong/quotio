@@ -356,7 +356,6 @@ private struct AccountQuotaCardV2: View {
     let isLoading: Bool
     
     @State private var isRefreshing = false
-    @State private var rotationAngle: Double = 0
     @State private var showSwitchSheet = false
     @State private var showModelsDetailSheet = false
     
@@ -420,9 +419,6 @@ private struct AccountQuotaCardV2: View {
                 // Account Header
                 accountHeader
                 
-                // Plan Badge
-                planSection
-                
                 // Usage Section
                 if isLoading {
                     QuotaLoadingView()
@@ -442,10 +438,12 @@ private struct AccountQuotaCardV2: View {
     
     private var accountHeader: some View {
         HStack(spacing: 12) {
-            // Status indicator
-            Circle()
-                .fill(account.statusColor)
-                .frame(width: 10, height: 10)
+            // Tier badge (before email) - Antigravity uses SubscriptionBadgeV2, others use PlanBadgeV2
+            if let info = account.subscriptionInfo {
+                SubscriptionBadgeV2(info: info)
+            } else if let planName = account.quotaData?.planDisplayName {
+                PlanBadgeV2Compact(planName: planName)
+            }
             
             // Email
             VStack(alignment: .leading, spacing: 2) {
@@ -461,11 +459,6 @@ private struct AccountQuotaCardV2: View {
             }
             
             Spacer()
-            
-            // Tier badge (Antigravity) - compact inline
-            if let info = account.subscriptionInfo {
-                SubscriptionBadgeV2(info: info)
-            }
             
             // Active badge (Antigravity only)
             if isActiveInIDE {
@@ -499,24 +492,23 @@ private struct AccountQuotaCardV2: View {
                 .buttonStyle(.plain)
             }
             
-            // Refresh button - inline spinner when loading
+            // Refresh button - shows loader when loading
             Button {
                 Task {
                     isRefreshing = true
-                    withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
-                        rotationAngle = 360
-                    }
                     await viewModel.refreshQuotaForProvider(provider)
-                    withAnimation(.none) {
-                        rotationAngle = 0
-                    }
                     isRefreshing = false
                 }
             } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.subheadline)
-                    .rotationEffect(.degrees(rotationAngle))
-                    .frame(width: 24, height: 24)
+                if isRefreshing || isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(width: 24, height: 24)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.subheadline)
+                        .frame(width: 24, height: 24)
+                }
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
@@ -544,16 +536,7 @@ private struct AccountQuotaCardV2: View {
         }
     }
     
-    // MARK: - Plan Section
-    
-    @ViewBuilder
-    private var planSection: some View {
-        // Subscription badge now shown in header for Antigravity
-        // Only show PlanBadgeV2 for other providers without subscriptionInfo
-        if account.subscriptionInfo == nil, let planName = account.quotaData?.planDisplayName {
-            PlanBadgeV2(planName: planName)
-        }
-    }
+    // MARK: - Plan Section (removed - now in header)
     
     // MARK: - Usage Section
     
@@ -618,6 +601,60 @@ private struct AccountQuotaCardV2: View {
                 )
             }
         }
+    }
+}
+
+// MARK: - Plan Badge V2 Compact (for header inline display)
+
+private struct PlanBadgeV2Compact: View {
+    let planName: String
+    
+    private var tierConfig: (name: String, bgColor: Color, textColor: Color) {
+        let lowercased = planName.lowercased()
+        
+        // Check for Pro variants
+        if lowercased.contains("pro") {
+            return ("Pro", Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
+        }
+        
+        // Check for Plus
+        if lowercased.contains("plus") {
+            return ("Plus", Color(red: 0.85, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.3, blue: 0.6))
+        }
+        
+        // Check for Team
+        if lowercased.contains("team") {
+            return ("Team", Color(red: 1.0, green: 0.9, blue: 0.8), Color(red: 0.6, green: 0.3, blue: 0.0))
+        }
+        
+        // Check for Enterprise
+        if lowercased.contains("enterprise") {
+            return ("Enterprise", Color(red: 1.0, green: 0.85, blue: 0.85), Color(red: 0.5, green: 0.0, blue: 0.0))
+        }
+        
+        // Free/Standard
+        if lowercased.contains("free") || lowercased.contains("standard") {
+            return ("Free", Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
+        }
+        
+        // Default: use display name
+        let displayName = planName
+            .replacingOccurrences(of: "_", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
+            .joined(separator: " ")
+        return (displayName, Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
+    }
+    
+    var body: some View {
+        Text(tierConfig.name)
+            .font(.caption)
+            .fontWeight(.medium)
+            .foregroundStyle(tierConfig.textColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(tierConfig.bgColor)
+            .clipShape(Capsule())
     }
 }
 
