@@ -18,6 +18,7 @@ struct QuotioApp: App {
     @State private var statusBarManager = StatusBarManager.shared
     @State private var modeManager = AppModeManager.shared
     @State private var appearanceManager = AppearanceManager.shared
+    @State private var languageManager = LanguageManager.shared
     @State private var showOnboarding = false
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     @Environment(\.openWindow) private var openWindow
@@ -105,7 +106,9 @@ struct QuotioApp: App {
     var body: some Scene {
         Window("Quotio", id: "main") {
             ContentView()
+                .id(languageManager.currentLanguage) // Force re-render on language change
                 .environment(viewModel)
+                .environment(\.locale, languageManager.locale)
                 .task {
                     await initializeApp()
                 }
@@ -115,6 +118,10 @@ struct QuotioApp: App {
                 .onChange(of: viewModel.isLoadingQuotas) {
                     updateStatusBar()
                     // Rebuild menu when loading state changes so loader updates
+                    statusBarManager.rebuildMenuInPlace()
+                }
+                .onChange(of: languageManager.currentLanguage) { _, _ in
+                    // Rebuild menu bar when language changes
                     statusBarManager.rebuildMenuInPlace()
                 }
                 .onChange(of: menuBarSettings.showQuotaInMenuBar) {

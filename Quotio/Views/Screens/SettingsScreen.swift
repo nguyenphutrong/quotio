@@ -26,11 +26,11 @@ struct SettingsScreen: View {
     
     var body: some View {
         @Bindable var lang = LanguageManager.shared
-        
+
         Form {
             // App Mode
             AppModeSection()
-            
+
             // General Settings
             Section {
                 Toggle("settings.launchAtLogin".localized(), isOn: $launchAtLogin)
@@ -45,17 +45,17 @@ struct SettingsScreen: View {
                             launchAtLogin = !newValue
                         }
                     }
-                
+
                 Toggle("settings.showInDock".localized(), isOn: $showInDock)
             } header: {
                 Label("settings.general".localized(), systemImage: "gearshape")
             }
-            
+
             // Language
             Section {
                 Picker(selection: Binding(
                     get: { lang.currentLanguage },
-                    set: { lang.currentLanguage = $0 }
+                    set: { lang.setLanguage($0) }
                 )) {
                     ForEach(AppLanguage.allCases) { language in
                         HStack {
@@ -69,10 +69,8 @@ struct SettingsScreen: View {
                 }
             } header: {
                 Label("settings.language".localized(), systemImage: "globe")
-            } footer: {
-                Text("settings.restartForEffect".localized())
             }
-            
+
             // Appearance
             AppearanceSettingsSection()
             
@@ -1276,7 +1274,7 @@ struct GeneralSettingsTab: View {
             Section {
                 Picker(selection: Binding(
                     get: { lang.currentLanguage },
-                    set: { lang.currentLanguage = $0 }
+                    set: { lang.setLanguage($0) }
                 )) {
                     ForEach(AppLanguage.allCases) { language in
                         HStack {
@@ -1290,8 +1288,6 @@ struct GeneralSettingsTab: View {
                 }
             } header: {
                 Label("settings.language".localized(), systemImage: "globe")
-            } footer: {
-                Text("settings.restartForEffect".localized())
             }
         }
         .formStyle(.grouped)
