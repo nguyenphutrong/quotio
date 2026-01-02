@@ -396,7 +396,7 @@ struct ModeSwitcherRow: View {
     @ViewBuilder
     private var modeButtons: some View {
         ModeButton(
-            label: "Proxy + Quota",
+            label: "mode.full".localized(),
             icon: "server.rack",
             color: .blue,
             isSelected: modeManager.currentMode == .full
@@ -405,7 +405,7 @@ struct ModeSwitcherRow: View {
         }
         
         ModeButton(
-            label: "Quota Only",
+            label: "mode.quotaOnly".localized(),
             icon: "chart.bar.fill",
             color: .green,
             isSelected: modeManager.currentMode == .quotaOnly
@@ -549,7 +549,7 @@ struct QuotaRefreshStatusRow: View {
                     .foregroundStyle(.secondary)
                 
                 if let lastRefresh = viewModel.lastQuotaRefreshTime {
-                    Text("Updated \(lastRefresh, style: .relative) ago")
+                    Text("status.updatedAgo \(lastRefresh, style: .relative)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {

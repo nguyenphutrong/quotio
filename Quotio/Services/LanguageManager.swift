@@ -44,6 +44,9 @@ enum AppLanguage: String, CaseIterable, Identifiable, Codable {
            let bundle = Bundle(path: path) {
             return bundle
         }
+        #if DEBUG
+        print("⚠️ LanguageManager: Bundle not found for \(rawValue), falling back to main bundle")
+        #endif
         return .main
     }
 }
