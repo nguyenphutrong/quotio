@@ -2,19 +2,15 @@
 //  AppMode.swift
 //  Quotio - CLIProxyAPI GUI Wrapper
 //
-//  DEPRECATED: Use OperatingMode.swift instead
-//  This file is kept for backward compatibility during migration
+//  Dual-mode support: Full Mode (proxy + quota) vs Quota-Only Mode
 //
 
 import Foundation
 import SwiftUI
 
-// MARK: - App Mode (DEPRECATED)
+// MARK: - App Mode
 
 /// Represents the two primary operating modes of Quotio
-/// - Note: DEPRECATED. Use `OperatingMode` instead which supports 3 modes:
-///   `.monitor`, `.localProxy`, `.remoteProxy`
-@available(*, deprecated, message: "Use OperatingMode instead. AppMode will be removed in a future version.")
 enum AppMode: String, Codable, CaseIterable, Identifiable {
     case full = "full"           // Proxy server + Quota tracking (current behavior)
     case quotaOnly = "quota"     // Quota tracking only (no proxy required)
@@ -84,9 +80,9 @@ enum AppMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - App Mode Manager (DEPRECATED)
+// MARK: - App Mode Manager
 
-@available(*, deprecated, message: "Use OperatingModeManager instead. AppModeManager will be removed in a future version.")
+/// Singleton manager for app mode state
 @Observable
 final class AppModeManager {
     static let shared = AppModeManager()
