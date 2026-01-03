@@ -149,6 +149,9 @@ struct SettingsScreen: View {
                         Text("settings.fillFirst".localized()).tag("fill-first")
                     }
                     .pickerStyle(.segmented)
+                    .onChange(of: routingStrategy) { _, newValue in
+                        viewModel.proxyManager.updateConfigRoutingStrategy(newValue)
+                    }
                 } header: {
                     Label("settings.routingStrategy".localized(), systemImage: "arrow.triangle.branch")
                 } footer: {
