@@ -253,12 +253,15 @@ final class ProxyBridge {
                         
                         // Need more data
                         if currentBodyLength < contentLength {
-                            self.receiveRequest(
-                                from: connection,
-                                connectionId: connectionId,
-                                startTime: startTime,
-                                accumulatedData: newData
-                            )
+                            // Use async dispatch to break recursion stack
+                            DispatchQueue.global(qos: .userInitiated).async {
+                                self.receiveRequest(
+                                    from: connection,
+                                    connectionId: connectionId,
+                                    startTime: startTime,
+                                    accumulatedData: newData
+                                )
+                            }
                             return
                         }
                     }
@@ -274,12 +277,15 @@ final class ProxyBridge {
                 
             } else if !isComplete {
                 // Haven't found header end yet, continue receiving
-                self.receiveRequest(
-                    from: connection,
-                    connectionId: connectionId,
-                    startTime: startTime,
-                    accumulatedData: newData
-                )
+                // Use async dispatch to break recursion stack
+                DispatchQueue.global(qos: .userInitiated).async {
+                    self.receiveRequest(
+                        from: connection,
+                        connectionId: connectionId,
+                        startTime: startTime,
+                        accumulatedData: newData
+                    )
+                }
             } else {
                 // Complete but malformed
                 self.processRequest(
@@ -549,16 +555,18 @@ final class ProxyBridge {
                             originalConnection.cancel()
                         })
                     } else {
-                        // Continue streaming
-                        self.receiveResponse(
-                            from: targetConnection,
-                            to: originalConnection,
-                            connectionId: connectionId,
-                            startTime: startTime,
-                            requestSize: requestSize,
-                            metadata: metadata,
-                            responseData: accumulatedResponse
-                        )
+                        // Continue streaming - use async dispatch to break recursion stack
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            self.receiveResponse(
+                                from: targetConnection,
+                                to: originalConnection,
+                                connectionId: connectionId,
+                                startTime: startTime,
+                                requestSize: requestSize,
+                                metadata: metadata,
+                                responseData: accumulatedResponse
+                            )
+                        }
                     }
                 })
             } else if isComplete {
