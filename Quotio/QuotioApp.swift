@@ -203,8 +203,8 @@ struct QuotioApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var windowWillCloseObserver: NSObjectProtocol?
-    private var windowDidBecomeKeyObserver: NSObjectProtocol?
+    private nonisolated(unsafe) var windowWillCloseObserver: NSObjectProtocol?
+    private nonisolated(unsafe) var windowDidBecomeKeyObserver: NSObjectProtocol?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Register default values for UserDefaults
@@ -216,16 +216,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: NSWindow.willCloseNotification,
             object: nil,
             queue: .main
-        ) { [weak self] notification in
-            self?.handleWindowWillClose(notification)
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleWindowWillClose()
+            }
         }
         
         windowDidBecomeKeyObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
             object: nil,
             queue: .main
-        ) { [weak self] notification in
-            self?.handleWindowDidBecomeKey(notification)
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleWindowDidBecomeKey()
+            }
         }
     }
     
@@ -237,28 +241,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CLIProxyManager.terminateProxyOnShutdown()
     }
     
-    private func handleWindowDidBecomeKey(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow else { return }
-        guard window.title == "Quotio" else { return }
-        
-        if NSApp.activationPolicy() != .regular {
-            NSApp.setActivationPolicy(.regular)
+    private func handleWindowDidBecomeKey() {
+        for window in NSApp.windows where window.title == "Quotio" {
+            if NSApp.activationPolicy() != .regular {
+                NSApp.setActivationPolicy(.regular)
+            }
+            break
         }
     }
     
-    private func handleWindowWillClose(_ notification: Notification) {
-        guard let closingWindow = notification.object as? NSWindow else { return }
-        guard closingWindow.title == "Quotio" else { return }
-        
-        let remainingWindows = NSApp.windows.filter { window in
-            window != closingWindow &&
+    private func handleWindowWillClose() {
+        // Check after a short delay to allow window to fully close
+        DispatchQueue.main.async {
+            let visibleQuotioWindows = NSApp.windows.filter { window in
                 window.title == "Quotio" &&
-                window.isVisible &&
-                !window.isMiniaturized
-        }
-        
-        if remainingWindows.isEmpty {
-            NSApp.setActivationPolicy(.accessory)
+                    window.isVisible &&
+                    !window.isMiniaturized
+            }
+            if visibleQuotioWindows.isEmpty {
+                NSApp.setActivationPolicy(.accessory)
+            }
         }
     }
     

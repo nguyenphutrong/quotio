@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-01-03
+
+## [0.4.3-beta-3] - 2026-01-03
+
+### Added
+
+- migrate to Swift 6 with strict concurrency (#83)
+
 ## [0.4.3-beta-2] - 2026-01-03
 
 ### Fixed

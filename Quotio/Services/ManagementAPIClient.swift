@@ -49,7 +49,7 @@ actor ManagementAPIClient {
     // MARK: - Diagnostic Logging
     
     static let enableDiagnosticLogging = false
-    private static var activeRequests: Int = 0
+    nonisolated(unsafe) private static var activeRequests: Int = 0
     private static let requestLock = NSLock()
     
     private static func log(_ message: String) {
@@ -342,7 +342,7 @@ actor ManagementAPIClient {
 
 // MARK: - Latest Version Response
 
-struct LatestVersionResponse: Codable, Sendable {
+nonisolated struct LatestVersionResponse: Codable, Sendable {
     let latestVersion: String
     
     enum CodingKeys: String, CodingKey {
@@ -390,7 +390,7 @@ private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTas
 
 // MARK: - Response Types
 
-struct LogsResponse: Codable, Sendable {
+nonisolated struct LogsResponse: Codable, Sendable {
     let lines: [String]?
     let lineCount: Int?
     let latestTimestamp: Int?
@@ -402,7 +402,7 @@ struct LogsResponse: Codable, Sendable {
     }
 }
 
-enum APIError: LocalizedError {
+nonisolated enum APIError: LocalizedError {
     case invalidURL
     case invalidResponse
     case httpError(Int)

@@ -10,7 +10,7 @@ import Foundation
 import SQLite3
 
 /// Quota data from Cursor
-struct CursorQuotaInfo: Sendable {
+nonisolated struct CursorQuotaInfo: Sendable {
     let email: String?
     let membershipType: String? // pro, pro_student, free, etc.
     let subscriptionStatus: String?
@@ -47,7 +47,7 @@ struct CursorQuotaInfo: Sendable {
 }
 
 /// Auth data from Cursor's state.vscdb
-struct CursorAuthData: Sendable {
+nonisolated struct CursorAuthData: Sendable {
     let accessToken: String?
     let refreshToken: String?
     let email: String?

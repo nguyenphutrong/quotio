@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Model Group
 
-enum AntigravityModelGroup: String, CaseIterable, Identifiable {
+nonisolated enum AntigravityModelGroup: String, CaseIterable, Identifiable {
     case claude = "Claude"
     case geminiPro = "Gemini Pro"
     case geminiFlash = "Gemini Flash"
@@ -46,7 +46,7 @@ enum AntigravityModelGroup: String, CaseIterable, Identifiable {
     }
 }
 
-struct GroupedModelQuota: Identifiable, Sendable {
+nonisolated struct GroupedModelQuota: Identifiable, Sendable {
     let group: AntigravityModelGroup
     let models: [ModelQuota]
     
@@ -111,7 +111,7 @@ struct GroupedModelQuota: Identifiable, Sendable {
 
 // MARK: - Models
 
-struct ModelQuota: Codable, Identifiable, Sendable {
+nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
     let name: String
     let percentage: Double
     let resetTime: String
@@ -234,7 +234,7 @@ struct ModelQuota: Codable, Identifiable, Sendable {
     }
 }
 
-struct ProviderQuotaData: Codable, Sendable {
+nonisolated struct ProviderQuotaData: Codable, Sendable {
     var models: [ModelQuota]
     var lastUpdated: Date
     var isForbidden: Bool
@@ -280,7 +280,7 @@ struct ProviderQuotaData: Codable, Sendable {
 
 // MARK: - Subscription Info Models
 
-struct SubscriptionTier: Codable, Sendable {
+nonisolated struct SubscriptionTier: Codable, Sendable {
     let id: String
     let name: String
     let description: String
@@ -292,12 +292,12 @@ struct SubscriptionTier: Codable, Sendable {
     let userDefinedCloudaicompanionProject: Bool?
 }
 
-struct PrivacyNotice: Codable, Sendable {
+nonisolated struct PrivacyNotice: Codable, Sendable {
     let showNotice: Bool?
     let noticeText: String?
 }
 
-struct SubscriptionInfo: Codable, Sendable {
+nonisolated struct SubscriptionInfo: Codable, Sendable {
     let currentTier: SubscriptionTier?
     let allowedTiers: [SubscriptionTier]?
     let cloudaicompanionProject: String?
@@ -339,20 +339,20 @@ struct SubscriptionInfo: Codable, Sendable {
 
 // MARK: - API Response Models
 
-private struct QuotaAPIResponse: Codable, Sendable {
+nonisolated private struct QuotaAPIResponse: Codable, Sendable {
     let models: [String: ModelInfo]
 }
 
-private struct ModelInfo: Codable, Sendable {
+nonisolated private struct ModelInfo: Codable, Sendable {
     let quotaInfo: QuotaInfo?
 }
 
-private struct QuotaInfo: Codable, Sendable {
+nonisolated private struct QuotaInfo: Codable, Sendable {
     let remainingFraction: Double?
     let resetTime: String?
 }
 
-private struct TokenRefreshResponse: Codable, Sendable {
+nonisolated private struct TokenRefreshResponse: Codable, Sendable {
     let accessToken: String
     let expiresIn: Int
     let tokenType: String?
@@ -366,7 +366,7 @@ private struct TokenRefreshResponse: Codable, Sendable {
 
 // MARK: - Auth File Model
 
-struct AntigravityAuthFile: Codable, Sendable {
+nonisolated struct AntigravityAuthFile: Codable, Sendable {
     var accessToken: String
     let email: String
     let expired: String?
@@ -385,7 +385,7 @@ struct AntigravityAuthFile: Codable, Sendable {
         case type
     }
     
-    var isExpired: Bool {
+    nonisolated var isExpired: Bool {
         guard let expired = expired else { return true }
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -788,7 +788,7 @@ actor AntigravityQuotaFetcher {
 
 // MARK: - Errors
 
-enum QuotaFetchError: LocalizedError {
+nonisolated enum QuotaFetchError: LocalizedError {
     case invalidURL
     case invalidResponse
     case forbidden

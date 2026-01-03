@@ -10,7 +10,7 @@ import Foundation
 // MARK: - GitHub Release Models
 
 /// GitHub release information.
-struct GitHubRelease: Codable, Sendable {
+nonisolated struct GitHubRelease: Codable, Sendable {
     let tagName: String
     let name: String?
     let body: String?
@@ -34,7 +34,7 @@ struct GitHubRelease: Codable, Sendable {
 }
 
 /// GitHub release asset information.
-struct GitHubAsset: Codable, Sendable {
+nonisolated struct GitHubAsset: Codable, Sendable {
     let name: String
     let browserDownloadUrl: String
     let digest: String?
@@ -59,7 +59,7 @@ struct GitHubAsset: Codable, Sendable {
 // MARK: - Proxy Version Info
 
 /// Information about a specific proxy version (simplified).
-struct ProxyVersionInfo: Sendable, Identifiable, Equatable {
+nonisolated struct ProxyVersionInfo: Sendable, Identifiable, Equatable {
     /// Semantic version string (e.g., "6.6.68-0")
     let version: String
     
@@ -104,7 +104,7 @@ struct ProxyVersionInfo: Sendable, Identifiable, Equatable {
 // MARK: - Compatibility Check Result
 
 /// Result of a compatibility check.
-enum CompatibilityCheckResult: Sendable {
+nonisolated enum CompatibilityCheckResult: Sendable {
     case compatible
     case proxyNotResponding
     case proxyNotRunning
@@ -132,7 +132,7 @@ enum CompatibilityCheckResult: Sendable {
 // MARK: - Proxy Manager State
 
 /// State machine for proxy upgrade flow.
-enum ProxyManagerState: String, Sendable {
+nonisolated enum ProxyManagerState: String, Sendable {
     /// No proxy is running.
     case idle
     
@@ -150,7 +150,7 @@ enum ProxyManagerState: String, Sendable {
 }
 
 /// Information about an installed proxy version.
-struct InstalledProxyVersion: Sendable, Identifiable, Equatable {
+nonisolated struct InstalledProxyVersion: Sendable, Identifiable, Equatable {
     let version: String
     let path: String
     let installedAt: Date
@@ -162,7 +162,7 @@ struct InstalledProxyVersion: Sendable, Identifiable, Equatable {
 // MARK: - Upgrade Errors
 
 /// Errors that can occur during proxy upgrade.
-enum ProxyUpgradeError: LocalizedError, Sendable {
+nonisolated enum ProxyUpgradeError: LocalizedError, Sendable {
     case downloadFailed(String)
     case checksumMismatch(expected: String, actual: String)
     case extractionFailed(String)

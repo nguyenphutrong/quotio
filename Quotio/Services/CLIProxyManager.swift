@@ -815,27 +815,42 @@ extension CLIProxyManager {
             environment["TERM"] = "xterm-256color"
             newAuthProcess.environment = environment
             
-            var capturedOutput = ""
-            var hasResumed = false
-            let resumeLock = NSLock()
-            
-            @Sendable func safeResume(_ result: AuthCommandResult) {
-                resumeLock.lock()
-                defer { resumeLock.unlock() }
-                guard !hasResumed else { return }
-                hasResumed = true
-                continuation.resume(returning: result)
+            // Thread-safe state container for concurrent access
+            final class AuthState: @unchecked Sendable {
+                private let lock = NSLock()
+                private var _capturedOutput = ""
+                private var _hasResumed = false
+                
+                var capturedOutput: String {
+                    get { lock.withLock { _capturedOutput } }
+                    set { lock.withLock { _capturedOutput = newValue } }
+                }
+                
+                func appendOutput(_ str: String) {
+                    lock.withLock { _capturedOutput += str }
+                }
+                
+                func tryResume() -> Bool {
+                    lock.withLock {
+                        if _hasResumed { return false }
+                        _hasResumed = true
+                        return true
+                    }
+                }
             }
             
-            let outputLock = NSLock()
+            let state = AuthState()
+            
+            @Sendable func safeResume(_ result: AuthCommandResult) {
+                guard state.tryResume() else { return }
+                continuation.resume(returning: result)
+            }
             
             if case .copilotLogin = command {
                 outputPipe.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     if let str = String(data: data, encoding: .utf8), !str.isEmpty {
-                        outputLock.lock()
-                        capturedOutput += str
-                        outputLock.unlock()
+                        state.appendOutput(str)
                     }
                 }
             }
@@ -868,7 +883,7 @@ extension CLIProxyManager {
                     guard newAuthProcess.isRunning else { return }
                     
                     if case .copilotLogin = command {
-                        if let code = self.extractDeviceCode(from: capturedOutput) {
+                        if let code = self.extractDeviceCode(from: state.capturedOutput) {
                             DispatchQueue.main.async {
                                 NSPasteboard.general.clearContents()
                                 NSPasteboard.general.setString(code, forType: .string)

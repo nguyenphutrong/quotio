@@ -107,7 +107,7 @@ actor OpenAIQuotaFetcher {
     }
 }
 
-struct CodexUsageResponse: Codable, Sendable {
+nonisolated struct CodexUsageResponse: Codable, Sendable {
     let planType: String?
     let rateLimit: RateLimitInfo?
     let codeReviewRateLimit: RateLimitInfo?
@@ -121,7 +121,7 @@ struct CodexUsageResponse: Codable, Sendable {
     }
 }
 
-struct RateLimitInfo: Codable, Sendable {
+nonisolated struct RateLimitInfo: Codable, Sendable {
     let allowed: Bool?
     let limitReached: Bool?
     let primaryWindow: WindowInfo?
@@ -135,7 +135,7 @@ struct RateLimitInfo: Codable, Sendable {
     }
 }
 
-struct WindowInfo: Codable, Sendable {
+nonisolated struct WindowInfo: Codable, Sendable {
     let usedPercent: Int?
     let limitWindowSeconds: Int?
     let resetAfterSeconds: Int?
@@ -149,7 +149,7 @@ struct WindowInfo: Codable, Sendable {
     }
 }
 
-struct CreditsInfo: Codable, Sendable {
+nonisolated struct CreditsInfo: Codable, Sendable {
     let hasCredits: Bool?
     let unlimited: Bool?
     let balance: String?
@@ -161,7 +161,7 @@ struct CreditsInfo: Codable, Sendable {
     }
 }
 
-struct CodexQuotaData: Codable, Sendable {
+nonisolated struct CodexQuotaData: Codable, Sendable {
     let planType: String
     let sessionUsedPercent: Int
     let sessionResetAt: Date?
@@ -190,15 +190,15 @@ struct CodexQuotaData: Codable, Sendable {
         }
     }
     
-    var sessionRemainingPercent: Double {
+    nonisolated var sessionRemainingPercent: Double {
         Double(100 - sessionUsedPercent)
     }
     
-    var weeklyRemainingPercent: Double {
+    nonisolated var weeklyRemainingPercent: Double {
         Double(100 - weeklyUsedPercent)
     }
     
-    func toProviderQuotaData() -> ProviderQuotaData {
+    nonisolated func toProviderQuotaData() -> ProviderQuotaData {
         var models: [ModelQuota] = []
         
         models.append(ModelQuota(
@@ -222,7 +222,7 @@ struct CodexQuotaData: Codable, Sendable {
     }
 }
 
-struct CodexAuthFile: Codable, Sendable {
+nonisolated struct CodexAuthFile: Codable, Sendable {
     var accessToken: String
     let accountId: String?
     let email: String?
@@ -241,7 +241,7 @@ struct CodexAuthFile: Codable, Sendable {
         case type
     }
     
-    var isExpired: Bool {
+    nonisolated var isExpired: Bool {
         guard let expired = expired else { return true }
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -259,7 +259,7 @@ struct CodexAuthFile: Codable, Sendable {
     }
 }
 
-private struct TokenRefreshResponse: Codable, Sendable {
+private nonisolated struct TokenRefreshResponse: Codable, Sendable {
     let accessToken: String
     
     enum CodingKeys: String, CodingKey {
@@ -267,7 +267,7 @@ private struct TokenRefreshResponse: Codable, Sendable {
     }
 }
 
-enum CodexQuotaError: LocalizedError {
+nonisolated enum CodexQuotaError: LocalizedError {
     case invalidResponse
     case httpError(Int)
     case noAccessToken

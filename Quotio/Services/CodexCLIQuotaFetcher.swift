@@ -9,7 +9,7 @@
 import Foundation
 
 /// Auth file structure for Codex CLI (~/.codex/auth.json)
-struct CodexCLIAuthFile: Codable, Sendable {
+nonisolated struct CodexCLIAuthFile: Codable, Sendable {
     let OPENAI_API_KEY: String?
     let tokens: CodexCLITokens?
     let lastRefresh: String?
@@ -21,7 +21,7 @@ struct CodexCLIAuthFile: Codable, Sendable {
     }
 }
 
-struct CodexCLITokens: Codable, Sendable {
+nonisolated struct CodexCLITokens: Codable, Sendable {
     let idToken: String?
     let accessToken: String?
     let refreshToken: String?
@@ -36,7 +36,7 @@ struct CodexCLITokens: Codable, Sendable {
 }
 
 /// Decoded JWT claims from Codex id_token
-struct CodexJWTClaims: Sendable {
+nonisolated struct CodexJWTClaims: Sendable {
     let email: String?
     let emailVerified: Bool
     let planType: String?
@@ -47,7 +47,7 @@ struct CodexJWTClaims: Sendable {
 }
 
 /// Quota data from Codex CLI
-struct CodexCLIQuotaInfo: Sendable {
+nonisolated struct CodexCLIQuotaInfo: Sendable {
     let email: String
     let planType: String?
     let organizationName: String?
@@ -348,7 +348,7 @@ actor CodexCLIQuotaFetcher {
 
 // MARK: - Errors
 
-enum CodexCLIQuotaError: LocalizedError {
+nonisolated enum CodexCLIQuotaError: LocalizedError {
     case invalidResponse
     case httpError(Int)
     case noAccessToken

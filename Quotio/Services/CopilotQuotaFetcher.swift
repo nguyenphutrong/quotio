@@ -5,7 +5,7 @@
 
 import Foundation
 
-struct CopilotQuotaSnapshot: Codable, Sendable {
+nonisolated struct CopilotQuotaSnapshot: Codable, Sendable {
     let entitlement: Int?
     let remaining: Int?
     let percentRemaining: Double?
@@ -22,7 +22,7 @@ struct CopilotQuotaSnapshot: Codable, Sendable {
         case unlimited
     }
     
-    func calculatePercent(defaultTotal: Int) -> Double {
+    nonisolated func calculatePercent(defaultTotal: Int) -> Double {
         if let percent = percentRemaining {
             return percent
         }
@@ -32,7 +32,7 @@ struct CopilotQuotaSnapshot: Codable, Sendable {
     }
 }
 
-struct CopilotQuotaSnapshots: Codable, Sendable {
+nonisolated struct CopilotQuotaSnapshots: Codable, Sendable {
     let chat: CopilotQuotaSnapshot?
     let completions: CopilotQuotaSnapshot?
     let premiumInteractions: CopilotQuotaSnapshot?
@@ -44,7 +44,7 @@ struct CopilotQuotaSnapshots: Codable, Sendable {
     }
 }
 
-struct CopilotEntitlement: Codable, Sendable {
+nonisolated struct CopilotEntitlement: Codable, Sendable {
     let accessTypeSku: String?
     let copilotPlan: String?
     let chatEnabled: Bool?
@@ -67,7 +67,7 @@ struct CopilotEntitlement: Codable, Sendable {
         case quotaSnapshots = "quota_snapshots"
     }
     
-    var planDisplayName: String {
+    nonisolated var planDisplayName: String {
         let sku = accessTypeSku?.lowercased() ?? ""
         let plan = copilotPlan?.lowercased() ?? ""
         
@@ -90,7 +90,7 @@ struct CopilotEntitlement: Codable, Sendable {
         return copilotPlan?.capitalized ?? accessTypeSku?.capitalized ?? "Unknown"
     }
     
-    var resetDate: Date? {
+    nonisolated var resetDate: Date? {
         let dateString = quotaResetDateUtc ?? quotaResetDate ?? limitedUserResetDate
         guard let dateString = dateString else { return nil }
         
@@ -111,7 +111,7 @@ struct CopilotEntitlement: Codable, Sendable {
     }
 }
 
-struct CopilotAuthFile: Codable, Sendable {
+nonisolated struct CopilotAuthFile: Codable, Sendable {
     let accessToken: String
     let tokenType: String?
     let scope: String?
