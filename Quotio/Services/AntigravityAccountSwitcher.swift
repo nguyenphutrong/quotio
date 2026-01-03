@@ -128,15 +128,16 @@ final class AntigravityAccountSwitcher {
             if wasIDERunning {
                 switchState = .switching(progress: .closingIDE)
                 _ = await processManager.terminate()
-                // Small delay to ensure process is fully terminated
-                try? await Task.sleep(nanoseconds: 500_000_000)
+                // Wait for SQLite WAL to flush and release database lock
+                // 500ms is often not enough on slower machines
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
             }
             
             // Step 2: Create backup
             switchState = .switching(progress: .creatingBackup)
             try await databaseService.createBackup()
             
-            // Step 3: Inject token
+            // Step 3: Inject token with retry logic
             switchState = .switching(progress: .injectingToken)
             
             // Calculate expiry from auth file
@@ -149,11 +150,29 @@ final class AntigravityAccountSwitcher {
                 expiry = Int64(Date().timeIntervalSince1970) + 3600
             }
             
-            try await databaseService.injectToken(
-                accessToken: authFile.accessToken,
-                refreshToken: authFile.refreshToken ?? "",
-                expiry: expiry
-            )
+            // Retry up to 3 times with increasing delays (database may still be locked)
+            var lastError: Error?
+            for attempt in 1...3 {
+                do {
+                    try await databaseService.injectToken(
+                        accessToken: authFile.accessToken,
+                        refreshToken: authFile.refreshToken ?? "",
+                        expiry: expiry
+                    )
+                    lastError = nil
+                    break
+                } catch {
+                    lastError = error
+                    if attempt < 3 {
+                        // Wait before retry: 1s, 2s
+                        try? await Task.sleep(nanoseconds: UInt64(attempt) * 1_000_000_000)
+                    }
+                }
+            }
+            
+            if let error = lastError {
+                throw error
+            }
             
             // Step 4: Restart IDE if it was running and user wants it
             if wasIDERunning && shouldRestartIDE {

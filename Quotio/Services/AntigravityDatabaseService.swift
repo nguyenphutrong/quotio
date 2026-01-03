@@ -30,6 +30,7 @@ actor AntigravityDatabaseService {
         case restoreFailed(Error)
         case writeFailed(Error)
         case invalidData
+        case timeout
         
         var errorDescription: String? {
             switch self {
@@ -45,6 +46,8 @@ actor AntigravityDatabaseService {
                 return "Failed to write to database: \(error.localizedDescription)"
             case .invalidData:
                 return "Invalid data format in database"
+            case .timeout:
+                return "Database operation timed out. The database may be locked by another process."
             }
         }
     }
@@ -58,7 +61,9 @@ actor AntigravityDatabaseService {
     
     // MARK: - SQLite CLI Helpers
     
-    /// Execute sqlite3 command and return output asynchronously
+    private static let sqliteTimeout: TimeInterval = 10.0
+    
+    /// Execute sqlite3 command and return output asynchronously with timeout
     private func executeSQLite(_ sql: String, readOnly: Bool = true) async throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
@@ -76,7 +81,19 @@ actor AntigravityDatabaseService {
         process.standardError = errorPipe
         
         try process.run()
-        process.waitUntilExit()
+        
+        // Wait with timeout to prevent indefinite blocking
+        let waitResult = await waitForProcessWithTimeout(process, timeout: Self.sqliteTimeout)
+        
+        if !waitResult {
+            // Process timed out - terminate it
+            process.terminate()
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms grace period
+            if process.isRunning {
+                process.interrupt() // Force kill if still running
+            }
+            throw DatabaseError.timeout
+        }
         
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
         let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
@@ -94,6 +111,20 @@ actor AntigravityDatabaseService {
         }
         
         return output
+    }
+    
+    /// Wait for process to exit with timeout
+    private func waitForProcessWithTimeout(_ process: Process, timeout: TimeInterval) async -> Bool {
+        let startTime = Date()
+        
+        while process.isRunning {
+            if Date().timeIntervalSince(startTime) >= timeout {
+                return false
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms polling
+        }
+        
+        return true
     }
     
     /// Read current state value from database (returns base64 string)
