@@ -179,8 +179,13 @@ struct ModelQuota: Codable, Identifiable, Sendable {
         case "on-demand": return "On-Demand"
         case "cursor-usage": return "Usage"
         // Claude Code quota names
-        case "weekly-usage": return "Weekly Usage"
-        case "sonnet-only": return "Sonnet Only"
+        case "five-hour-session": return "Session"
+        case "seven-day-weekly": return "Weekly"
+        case "seven-day-sonnet": return "Sonnet"
+        case "seven-day-opus": return "Opus"
+        case "extra-usage": return "Extra"
+        case "weekly-usage": return "Weekly"
+        case "sonnet-only": return "Sonnet"
         // Gemini CLI
         case "gemini-quota": return "Gemini"
         // Trae quota names
