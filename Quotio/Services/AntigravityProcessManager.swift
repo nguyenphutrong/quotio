@@ -83,18 +83,38 @@ final class AntigravityProcessManager {
     }
     
     /// Kill all Antigravity helper processes that may hold database locks
+    /// Compatible with macOS 14+, 15+, 26+
     private func killHelperProcesses() async {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
-        process.arguments = ["-f", "Antigravity Helper"]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        // Helper process names that Electron/Antigravity spawns
+        let helperPatterns = [
+            "Antigravity Helper",
+            "Antigravity Helper (GPU)",
+            "Antigravity Helper (Plugin)",
+            "Antigravity Helper (Renderer)"
+        ]
         
-        try? process.run()
-        process.waitUntilExit()
+        // Method 1: Use killall for each helper pattern (most reliable)
+        for pattern in helperPatterns {
+            let killall = Process()
+            killall.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+            killall.arguments = ["-9", pattern]
+            killall.standardOutput = FileHandle.nullDevice
+            killall.standardError = FileHandle.nullDevice
+            try? killall.run()
+            killall.waitUntilExit()
+        }
         
-        // Small delay to ensure processes are fully terminated
-        try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
+        // Method 2: Use pkill as fallback (catches any remaining)
+        let pkill = Process()
+        pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        pkill.arguments = ["-9", "-f", "Antigravity Helper"]
+        pkill.standardOutput = FileHandle.nullDevice
+        pkill.standardError = FileHandle.nullDevice
+        try? pkill.run()
+        pkill.waitUntilExit()
+        
+        // Delay to ensure processes are fully terminated
+        try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
     }
     
     /// Wait for all instances to terminate

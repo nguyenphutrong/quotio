@@ -128,6 +128,10 @@ final class AntigravityAccountSwitcher {
             if wasIDERunning {
                 switchState = .switching(progress: .closingIDE)
                 _ = await processManager.terminate()
+                
+                // Clean up WAL files to release database locks
+                await databaseService.cleanupWALFiles()
+                
                 // Wait for SQLite WAL to flush and release database lock
                 // 500ms is often not enough on slower machines
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds

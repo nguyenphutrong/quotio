@@ -19,6 +19,12 @@ actor AntigravityDatabaseService {
     private static let backupPath = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/Antigravity/User/globalStorage/state.vscdb.quotio.backup")
     
+    private static let walPath = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/Antigravity/User/globalStorage/state.vscdb-wal")
+    
+    private static let shmPath = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/Antigravity/User/globalStorage/state.vscdb-shm")
+    
     private static let stateKey = "jetskiStateSync.agentManagerInitState"
     
     // MARK: - Errors
@@ -209,6 +215,13 @@ actor AntigravityDatabaseService {
     /// Check if backup exists
     func backupExists() -> Bool {
         FileManager.default.fileExists(atPath: Self.backupPath.path)
+    }
+    
+    /// Remove WAL and SHM files to release database locks
+    /// Should be called after IDE termination
+    func cleanupWALFiles() async {
+        try? FileManager.default.removeItem(at: Self.walPath)
+        try? FileManager.default.removeItem(at: Self.shmPath)
     }
     
     // MARK: - Auth Status Operations
