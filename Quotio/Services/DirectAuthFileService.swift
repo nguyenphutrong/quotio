@@ -15,6 +15,9 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
     let id: String
     let provider: AIProvider
     let email: String?
+    let login: String?          // GitHub username (for Copilot)
+    let expired: Date?          // Token expiry date
+    let accountType: String?    // pro, free, etc.
     let filePath: String
     let source: AuthFileSource
     let filename: String
@@ -22,18 +25,29 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
     /// Source location of the auth file
     enum AuthFileSource: String, Sendable {
         case cliProxyApi = "~/.cli-proxy-api"
-        case claudeCode = "~/.claude"
-        case codexCLI = "~/.codex"
-        case geminiCLI = "~/.gemini"
         
         var displayName: String {
             switch self {
             case .cliProxyApi: return "CLI Proxy API"
-            case .claudeCode: return "Claude Code"
-            case .codexCLI: return "Codex CLI"
-            case .geminiCLI: return "Gemini CLI"
             }
         }
+    }
+    
+    /// Check if token is expired
+    var isExpired: Bool {
+        guard let expired = expired else { return false }
+        return expired < Date()
+    }
+    
+    /// Display name for UI (email > login > filename)
+    var displayName: String {
+        if let email = email, !email.isEmpty {
+            return email
+        }
+        if let login = login, !login.isEmpty {
+            return login
+        }
+        return filename
     }
     
     func hash(into hasher: inout Hasher) {
@@ -59,33 +73,8 @@ actor DirectAuthFileService {
     
     /// Scan all known auth file locations
     func scanAllAuthFiles() async -> [DirectAuthFile] {
-        var allFiles: [DirectAuthFile] = []
-        
-        // 1. Scan ~/.cli-proxy-api (CLIProxyAPI managed)
-        let cliProxyFiles = await scanCLIProxyAPIDirectory()
-        allFiles.append(contentsOf: cliProxyFiles)
-        
-        // 2. Scan native CLI auth locations (optional - these may also be in ~/.cli-proxy-api)
-        if let claudeAuth = await scanClaudeCodeAuth() {
-            // Only add if not already in CLI proxy files
-            if !allFiles.contains(where: { $0.provider == .claude && $0.email == claudeAuth.email }) {
-                allFiles.append(claudeAuth)
-            }
-        }
-        
-        if let codexAuth = await scanCodexAuth() {
-            if !allFiles.contains(where: { $0.provider == .codex && $0.email == codexAuth.email }) {
-                allFiles.append(codexAuth)
-            }
-        }
-        
-        if let geminiAuth = await scanGeminiAuth() {
-            if !allFiles.contains(where: { $0.provider == .gemini && $0.email == geminiAuth.email }) {
-                allFiles.append(geminiAuth)
-            }
-        }
-        
-        return allFiles
+        // Only scan ~/.cli-proxy-api (CLIProxyAPI managed)
+        await scanCLIProxyAPIDirectory()
     }
     
     // MARK: - CLI Proxy API Directory
@@ -102,6 +91,13 @@ actor DirectAuthFileService {
         for file in files where file.hasSuffix(".json") {
             let filePath = (path as NSString).appendingPathComponent(file)
             
+            // Try to parse JSON content first
+            if let authFile = parseAuthFileJSON(at: filePath, filename: file) {
+                authFiles.append(authFile)
+                continue
+            }
+            
+            // Fallback: parse from filename if JSON parsing fails
             guard let (provider, email) = parseAuthFileName(file) else {
                 continue
             }
@@ -110,6 +106,9 @@ actor DirectAuthFileService {
                 id: filePath,
                 provider: provider,
                 email: email,
+                login: nil,
+                expired: nil,
+                accountType: nil,
                 filePath: filePath,
                 source: .cliProxyApi,
                 filename: file
@@ -118,6 +117,82 @@ actor DirectAuthFileService {
         
         return authFiles
     }
+    
+    // MARK: - JSON Parsing
+    
+    /// Parse auth file JSON content to extract provider, email, and metadata
+    private func parseAuthFileJSON(at filePath: String, filename: String) -> DirectAuthFile? {
+        guard let data = fileManager.contents(atPath: filePath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        
+        // Get provider from "type" field
+        guard let typeString = json["type"] as? String,
+              let provider = mapTypeToProvider(typeString) else {
+            return nil
+        }
+        
+        // Extract metadata
+        let email = json["email"] as? String
+        let login = json["login"] as? String
+        let accountType = json["account_type"] as? String
+        
+        // Parse expired date
+        var expiredDate: Date?
+        if let expiredString = json["expired"] as? String {
+            expiredDate = parseISO8601Date(expiredString)
+        }
+        
+        return DirectAuthFile(
+            id: filePath,
+            provider: provider,
+            email: email,
+            login: login,
+            expired: expiredDate,
+            accountType: accountType,
+            filePath: filePath,
+            source: .cliProxyApi,
+            filename: filename
+        )
+    }
+    
+    /// Map JSON "type" field to AIProvider
+    private func mapTypeToProvider(_ type: String) -> AIProvider? {
+        let typeMap: [String: AIProvider] = [
+            "antigravity": .antigravity,
+            "claude": .claude,
+            "codex": .codex,
+            "copilot": .copilot,
+            "github-copilot": .copilot,
+            "gemini": .gemini,
+            "gemini-cli": .gemini,
+            "qwen": .qwen,
+            "iflow": .iflow,
+            "kiro": .kiro,
+            "vertex": .vertex,
+            "cursor": .cursor,
+            "trae": .trae
+        ]
+        return typeMap[type.lowercased()]
+    }
+    
+    /// Parse ISO8601 date string with multiple format support
+    private func parseISO8601Date(_ dateString: String) -> Date? {
+        // Try with fractional seconds
+        let formatterWithFractional = ISO8601DateFormatter()
+        formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatterWithFractional.date(from: dateString) {
+            return date
+        }
+        
+        // Try without fractional seconds
+        let formatterStandard = ISO8601DateFormatter()
+        formatterStandard.formatOptions = [.withInternetDateTime]
+        return formatterStandard.date(from: dateString)
+    }
+    
+    // MARK: - Filename Parsing (Fallback)
     
     /// Parse auth file name to extract provider and email
     private func parseAuthFileName(_ filename: String) -> (AIProvider, String?)? {
@@ -179,144 +254,6 @@ actor DirectAuthFileService {
         }
         
         return name
-    }
-    
-    // MARK: - Native CLI Auth Locations
-
-    /// Scan Claude Code native auth from macOS Keychain
-    /// Claude Code 2.0+ stores credentials in Keychain instead of ~/.claude/.credentials.json
-    private func scanClaudeCodeAuth() async -> DirectAuthFile? {
-        // Try multiple credential names (Claude Code may use different names)
-        let credentialNames = [
-            "Claude Code-credentials",
-            "claude-credentials",
-            "Claude-credentials",
-            "claudecode-credentials"
-        ]
-
-        for credName in credentialNames {
-            if let authFile = getClaudeAuthFromKeychain(serviceName: credName) {
-                return authFile
-            }
-        }
-
-        // Fallback: check legacy file location for older versions
-        let credPath = expandPath("~/.claude/.credentials.json")
-        if fileManager.fileExists(atPath: credPath) {
-            var email: String? = nil
-            if let data = fileManager.contents(atPath: credPath),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                email = json["email"] as? String ?? json["account_email"] as? String
-            }
-            return DirectAuthFile(
-                id: "claude-code-native",
-                provider: .claude,
-                email: email,
-                filePath: credPath,
-                source: .claudeCode,
-                filename: ".credentials.json"
-            )
-        }
-
-        return nil
-    }
-
-    /// Get Claude Code auth from macOS Keychain
-    private func getClaudeAuthFromKeychain(serviceName: String) -> DirectAuthFile? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["find-generic-password", "-s", serviceName, "-w"]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-
-            guard process.terminationStatus == 0 else { return nil }
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let jsonString = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !jsonString.isEmpty,
-                  let jsonData = jsonString.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
-                return nil
-            }
-
-            // Extract email from the credential JSON
-            var email: String? = nil
-            if let claudeAiOauth = json["claudeAiOauth"] as? [String: Any] {
-                email = claudeAiOauth["email"] as? String
-            }
-
-            return DirectAuthFile(
-                id: "claude-code-keychain",
-                provider: .claude,
-                email: email ?? "Claude Code User",
-                filePath: "keychain://\(serviceName)",
-                source: .claudeCode,
-                filename: serviceName
-            )
-        } catch {
-            return nil
-        }
-    }
-
-    /// Scan Codex CLI native auth (~/.codex/)
-    private func scanCodexAuth() async -> DirectAuthFile? {
-        let authPath = expandPath("~/.codex/auth.json")
-        guard fileManager.fileExists(atPath: authPath) else { return nil }
-        
-        var email: String? = nil
-        
-        if let data = fileManager.contents(atPath: authPath),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            email = json["email"] as? String ?? json["account_id"] as? String ?? json["user"] as? String
-        }
-        
-        return DirectAuthFile(
-            id: "codex-native",
-            provider: .codex,
-            email: email,
-            filePath: authPath,
-            source: .codexCLI,
-            filename: "auth.json"
-        )
-    }
-    
-    /// Scan Gemini CLI native auth (~/.gemini/)
-    private func scanGeminiAuth() async -> DirectAuthFile? {
-        let settingsPath = expandPath("~/.gemini/settings.json")
-        guard fileManager.fileExists(atPath: settingsPath) else { return nil }
-        
-        // Gemini CLI uses Google OAuth, email might be in different locations
-        // Also check for ~/.config/gemini-cli/ or ~/.gemini/credentials.json
-        var email: String? = nil
-        
-        // Try credentials file
-        let credPaths = [
-            expandPath("~/.gemini/credentials.json"),
-            expandPath("~/.config/gemini-cli/credentials.json")
-        ]
-        
-        for credPath in credPaths {
-            if let data = fileManager.contents(atPath: credPath),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                email = json["email"] as? String ?? json["account"] as? String
-                if email != nil { break }
-            }
-        }
-        
-        return DirectAuthFile(
-            id: "gemini-native",
-            provider: .gemini,
-            email: email,
-            filePath: settingsPath,
-            source: .geminiCLI,
-            filename: "settings.json"
-        )
     }
     
     // MARK: - Auth File Reading
