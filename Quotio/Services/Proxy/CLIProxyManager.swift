@@ -636,7 +636,13 @@ final class CLIProxyManager {
             proxyBridge.stop()
         }
         
-        // Run blocking operations in background
+        // Run blocking operations in background to avoid freezing MainActor.
+        //
+        // Trade-off note: If start() is called immediately after stop(), there is a small
+        // window where the detached task could kill the newly started process (since
+        // killProcessOnPortSync kills by PORT, not PID). This is an acceptable trade-off
+        // because UI responsiveness is more important than this rare edge case.
+        // A 150ms buffer is added below to reduce (but not eliminate) this race window.
         let currentProcess = process
         let userPort = proxyStatus.port
         let bridgeMode = useBridgeMode
@@ -664,6 +670,10 @@ final class CLIProxyManager {
                 Self.killProcessOnPortSync(intPort)
             }
         }
+        
+        // Small buffer to allow detached task to start killing before state update.
+        // This reduces the race condition window when start() is called immediately after.
+        Thread.sleep(forTimeInterval: 0.15)
         
         process = nil
         proxyStatus.running = false
