@@ -30,6 +30,7 @@ final class AntigravityAccountSwitcher {
         return service
     }
     private let processManager = AntigravityProcessManager.shared
+    private let quotaFetcher = AntigravityQuotaFetcher()
     
     // MARK: - State
     
@@ -116,7 +117,7 @@ final class AntigravityAccountSwitcher {
         // Read auth file
         let url = URL(fileURLWithPath: (authFilePath as NSString).expandingTildeInPath)
         guard let data = try? Data(contentsOf: url),
-              let authFile = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data) else {
+              var authFile = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data) else {
             switchState = .failed(message: "Failed to read auth file")
             return
         }
@@ -124,18 +125,40 @@ final class AntigravityAccountSwitcher {
         let wasIDERunning = processManager.isRunning()
         
         do {
-            // Step 1: Close IDE if running
+            // Step 0: Ensure token is fresh (auto-refresh if needed)
+            if authFile.isExpired, let refreshToken = authFile.refreshToken {
+                do {
+                    let freshToken = try await quotaFetcher.refreshAccessToken(refreshToken: refreshToken)
+                    authFile.accessToken = freshToken
+                    
+                    // Update expiry time (default to 1 hour from refresh)
+                    authFile.expired = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+                    
+                    // Save updated auth file
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = .prettyPrinted
+                    if let updatedData = try? encoder.encode(authFile) {
+                        try updatedData.write(to: url)
+                    }
+                } catch {
+                    switchState = .failed(message: "Token refresh failed: \(error.localizedDescription)")
+                    return
+                }
+            }
+            
+            // Step 1: Close IDE if running and clear any helper processes
             if wasIDERunning {
                 switchState = .switching(progress: .closingIDE)
-                _ = await processManager.terminate()
-                
-                // Clean up WAL files to release database locks
-                await databaseService.cleanupWALFiles()
-                
-                // Wait for SQLite WAL to flush and release database lock
-                // 500ms is often not enough on slower machines
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
             }
+            _ = await processManager.terminateAllProcesses()
+            
+            // Clean up WAL files to release database locks
+            await databaseService.cleanupWALFiles()
+            
+            // Wait for SQLite WAL to flush and release database lock
+            // 500ms is often not enough on slower machines
+            let settleDelay: UInt64 = wasIDERunning ? 2_000_000_000 : 500_000_000
+            try? await Task.sleep(nanoseconds: settleDelay)
             
             // Step 2: Create backup
             switchState = .switching(progress: .creatingBackup)

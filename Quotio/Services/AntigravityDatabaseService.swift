@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SQLite3
 
 /// Service for interacting with Antigravity IDE's state database
 actor AntigravityDatabaseService {
@@ -65,72 +66,111 @@ actor AntigravityDatabaseService {
         FileManager.default.fileExists(atPath: Self.databasePath.path)
     }
     
-    // MARK: - SQLite CLI Helpers
+    // MARK: - SQLite Helpers
     
     private static let sqliteTimeout: TimeInterval = 10.0
+    private static let sqliteBusyTimeoutMs: Int32 = Int32(sqliteTimeout * 1000)
+    private static let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
     
-    /// Execute sqlite3 command and return output asynchronously with timeout
-    private func executeSQLite(_ sql: String, readOnly: Bool = true) async throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+    private func withDatabase<T>(readOnly: Bool, _ body: (OpaquePointer) throws -> T) throws -> T {
+        var db: OpaquePointer?
+        let flags = readOnly ? SQLITE_OPEN_READONLY : SQLITE_OPEN_READWRITE
+        let openResult = sqlite3_open_v2(Self.databasePath.path, &db, flags, nil)
         
-        // Use -readonly flag for read operations
-        if readOnly {
-            process.arguments = ["-readonly", Self.databasePath.path, sql]
-        } else {
-            process.arguments = [Self.databasePath.path, sql]
-        }
-        
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-        
-        try process.run()
-        
-        // Wait with timeout to prevent indefinite blocking
-        let waitResult = await waitForProcessWithTimeout(process, timeout: Self.sqliteTimeout)
-        
-        if !waitResult {
-            // Process timed out - terminate it
-            process.terminate()
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms grace period
-            if process.isRunning {
-                process.interrupt() // Force kill if still running
-            }
+        if openResult == SQLITE_BUSY || openResult == SQLITE_LOCKED {
             throw DatabaseError.timeout
         }
-        
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-        
-        try? outputPipe.fileHandleForReading.close()
-        try? errorPipe.fileHandleForReading.close()
-        
-        let terminationStatus = process.terminationStatus
-        let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        
-        if terminationStatus != 0 {
-            let errorMessage = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown error"
-            throw DatabaseError.writeFailed(NSError(domain: "SQLite", code: Int(terminationStatus),
-                userInfo: [NSLocalizedDescriptionKey: errorMessage]))
+        guard openResult == SQLITE_OK, let db else {
+            let errorMessage = db.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown error"
+            if db != nil {
+                sqlite3_close(db)
+            }
+            throw DatabaseError.writeFailed(
+                NSError(domain: "SQLite", code: Int(openResult), userInfo: [NSLocalizedDescriptionKey: errorMessage])
+            )
         }
         
-        return output
+        sqlite3_busy_timeout(db, Self.sqliteBusyTimeoutMs)
+        defer { sqlite3_close(db) }
+        
+        return try body(db)
     }
     
-    /// Wait for process to exit with timeout
-    private func waitForProcessWithTimeout(_ process: Process, timeout: TimeInterval) async -> Bool {
-        let startTime = Date()
+    private func sqliteError(_ db: OpaquePointer?, code: Int32) -> NSError {
+        let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown error"
+        return NSError(domain: "SQLite", code: Int(code), userInfo: [NSLocalizedDescriptionKey: message])
+    }
+    
+    private func handleSQLiteResult(_ result: Int32, db: OpaquePointer?) throws {
+        if result == SQLITE_BUSY || result == SQLITE_LOCKED {
+            throw DatabaseError.timeout
+        }
+        guard result == SQLITE_OK else {
+            throw DatabaseError.writeFailed(sqliteError(db, code: result))
+        }
+    }
+    
+    private func executeSimpleStatement(_ sql: String, db: OpaquePointer) throws {
+        let result = sqlite3_exec(db, sql, nil, nil, nil)
+        try handleSQLiteResult(result, db: db)
+    }
+    
+    private func readValue(forKey key: String, db: OpaquePointer) throws -> String? {
+        let sql = "SELECT value FROM ItemTable WHERE key = ?;"
+        var statement: OpaquePointer?
         
-        while process.isRunning {
-            if Date().timeIntervalSince(startTime) >= timeout {
-                return false
-            }
-            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms polling
+        let prepareResult = sqlite3_prepare_v2(db, sql, -1, &statement, nil)
+        try handleSQLiteResult(prepareResult, db: db)
+        defer { sqlite3_finalize(statement) }
+        
+        let bindResult = key.withCString { sqlite3_bind_text(statement, 1, $0, -1, Self.sqliteTransient) }
+        guard bindResult == SQLITE_OK else {
+            throw DatabaseError.writeFailed(sqliteError(db, code: bindResult))
         }
         
-        return true
+        let stepResult = sqlite3_step(statement)
+        switch stepResult {
+        case SQLITE_ROW:
+            guard let valuePtr = sqlite3_column_text(statement, 0) else {
+                return nil
+            }
+            return String(cString: valuePtr)
+        case SQLITE_DONE:
+            return nil
+        case SQLITE_BUSY, SQLITE_LOCKED:
+            throw DatabaseError.timeout
+        default:
+            throw DatabaseError.writeFailed(sqliteError(db, code: stepResult))
+        }
+    }
+    
+    private func writeValue(_ value: String, forKey key: String, db: OpaquePointer) throws {
+        let sql = "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?);"
+        var statement: OpaquePointer?
+        
+        let prepareResult = sqlite3_prepare_v2(db, sql, -1, &statement, nil)
+        try handleSQLiteResult(prepareResult, db: db)
+        defer { sqlite3_finalize(statement) }
+        
+        let bindKeyResult = key.withCString { sqlite3_bind_text(statement, 1, $0, -1, Self.sqliteTransient) }
+        guard bindKeyResult == SQLITE_OK else {
+            throw DatabaseError.writeFailed(sqliteError(db, code: bindKeyResult))
+        }
+        
+        let bindValueResult = value.withCString { sqlite3_bind_text(statement, 2, $0, -1, Self.sqliteTransient) }
+        guard bindValueResult == SQLITE_OK else {
+            throw DatabaseError.writeFailed(sqliteError(db, code: bindValueResult))
+        }
+        
+        let stepResult = sqlite3_step(statement)
+        switch stepResult {
+        case SQLITE_DONE:
+            return
+        case SQLITE_BUSY, SQLITE_LOCKED:
+            throw DatabaseError.timeout
+        default:
+            throw DatabaseError.writeFailed(sqliteError(db, code: stepResult))
+        }
     }
     
     /// Read current state value from database (returns base64 string)
@@ -138,18 +178,16 @@ actor AntigravityDatabaseService {
         guard databaseExists() else {
             throw DatabaseError.databaseNotFound
         }
+
+        let result = try withDatabase(readOnly: true) { db in
+            try readValue(forKey: Self.stateKey, db: db)
+        }
         
-        // Escape single quotes in key
-        let escapedKey = Self.stateKey.replacingOccurrences(of: "'", with: "''")
-        let sql = "SELECT value FROM ItemTable WHERE key = '\(escapedKey)';"
-        
-        let result = try await executeSQLite(sql)
-        
-        guard !result.isEmpty else {
+        guard let value = result, !value.isEmpty else {
             throw DatabaseError.stateNotFound
         }
         
-        return result
+        return value
     }
     
     /// Write new state value to database (base64 string)
@@ -157,15 +195,9 @@ actor AntigravityDatabaseService {
         guard databaseExists() else {
             throw DatabaseError.databaseNotFound
         }
-        
-        // Escape single quotes
-        let escapedKey = Self.stateKey.replacingOccurrences(of: "'", with: "''")
-        let escapedValue = value.replacingOccurrences(of: "'", with: "''")
-        
-        // Use INSERT OR REPLACE to handle both insert and update
-        let sql = "INSERT OR REPLACE INTO ItemTable (key, value) VALUES ('\(escapedKey)', '\(escapedValue)');"
-        
-        _ = try await executeSQLite(sql, readOnly: false)
+        try withDatabase(readOnly: false) { db in
+            try writeValue(value, forKey: Self.stateKey, db: db)
+        }
     }
     
     // MARK: - Backup/Restore
@@ -241,13 +273,12 @@ actor AntigravityDatabaseService {
         guard databaseExists() else {
             return nil
         }
+
+        let result = try withDatabase(readOnly: true) { db in
+            try readValue(forKey: Self.authStatusKey, db: db)
+        }
         
-        let escapedKey = Self.authStatusKey.replacingOccurrences(of: "'", with: "''")
-        let sql = "SELECT value FROM ItemTable WHERE key = '\(escapedKey)';"
-        
-        let result = try await executeSQLite(sql)
-        
-        guard !result.isEmpty, let jsonData = result.data(using: .utf8) else {
+        guard let value = result, !value.isEmpty, let jsonData = value.data(using: .utf8) else {
             return nil
         }
         
@@ -263,19 +294,32 @@ actor AntigravityDatabaseService {
     ///   - refreshToken: OAuth refresh token
     ///   - expiry: Token expiry timestamp (Unix seconds)
     func injectToken(accessToken: String, refreshToken: String, expiry: Int64) async throws {
-        // Read current state
-        let currentState = try await readStateValue()
-        
-        // Inject new token
-        let newState = try AntigravityProtobufHandler.injectToken(
-            existingBase64: currentState,
-            accessToken: accessToken,
-            refreshToken: refreshToken,
-            expiry: expiry
-        )
-        
-        // Write back to database
-        try await writeStateValue(newState)
+        try withDatabase(readOnly: false) { db in
+            try executeSimpleStatement("BEGIN IMMEDIATE TRANSACTION;", db: db)
+            var shouldRollback = true
+            defer {
+                if shouldRollback {
+                    try? executeSimpleStatement("ROLLBACK;", db: db)
+                }
+            }
+            
+            guard let currentState = try readValue(forKey: Self.stateKey, db: db),
+                  !currentState.isEmpty else {
+                throw DatabaseError.stateNotFound
+            }
+            
+            let newState = try AntigravityProtobufHandler.injectToken(
+                existingBase64: currentState,
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                expiry: expiry
+            )
+            
+            try writeValue(newState, forKey: Self.stateKey, db: db)
+            try writeValue("true", forKey: "antigravityOnboarding", db: db)
+            try executeSimpleStatement("COMMIT;", db: db)
+            shouldRollback = false
+        }
     }
     
     /// Get current token info from database (for detecting active account)

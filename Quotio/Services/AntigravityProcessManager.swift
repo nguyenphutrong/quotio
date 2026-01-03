@@ -21,7 +21,7 @@ final class AntigravityProcessManager {
         "com.todesktop.230313mzl4w4u92"     // ToDesktop wrapped version
     ]
     private static let appName = "Antigravity"
-    private static let terminationTimeout: TimeInterval = 5.0
+    private static let terminationTimeout: TimeInterval = 20.0
     private static let forceKillTimeout: TimeInterval = 3.0
     
     // MARK: - Singleton
@@ -80,6 +80,14 @@ final class AntigravityProcessManager {
         await killHelperProcesses()
         
         return false
+    }
+    
+    /// Terminate Antigravity and any helper processes, even if the main app is not running
+    @discardableResult
+    func terminateAllProcesses() async -> Bool {
+        let terminated = await terminate()
+        await killHelperProcesses()
+        return terminated
     }
     
     /// Kill all Antigravity helper processes that may hold database locks
