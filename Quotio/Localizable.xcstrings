@@ -10685,25 +10685,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restart proxy after changing port"
+            "value" : "Restart proxy for changes to take effect"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Redémarrer le proxy après changement de port"
+            "value" : "Redémarrer le proxy pour appliquer les modifications"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Khởi động lại proxy sau khi đổi cổng"
+            "value" : "Khởi động lại proxy để áp dụng thay đổi"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更改端口后重启代理"
+            "value" : "重启代理以使更改生效"
           }
         }
       }

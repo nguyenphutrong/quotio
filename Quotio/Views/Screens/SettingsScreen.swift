@@ -155,10 +155,13 @@ struct SettingsScreen: View {
                 } header: {
                     Label("settings.routingStrategy".localized(), systemImage: "arrow.triangle.branch")
                 } footer: {
-                    Text(routingStrategy == "round-robin"
-                         ? "settings.roundRobinDesc".localized()
-                         : "settings.fillFirstDesc".localized())
-                        .font(.caption)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(routingStrategy == "round-robin"
+                             ? "settings.roundRobinDesc".localized()
+                             : "settings.fillFirstDesc".localized())
+                        Text("settings.restartProxy".localized())
+                    }
+                    .font(.caption)
                 }
                 
                 // Quota Exceeded Behavior
