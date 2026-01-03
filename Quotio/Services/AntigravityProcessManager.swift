@@ -63,6 +63,8 @@ final class AntigravityProcessManager {
         let gracefullyTerminated = await waitForTermination(timeout: Self.terminationTimeout)
         
         if gracefullyTerminated {
+            // Also kill any remaining helper processes
+            await killHelperProcesses()
             return true
         }
         
@@ -74,7 +76,25 @@ final class AntigravityProcessManager {
         // Wait for force termination
         _ = await waitForTermination(timeout: Self.forceKillTimeout)
         
+        // Kill any orphaned helper processes that may still hold database locks
+        await killHelperProcesses()
+        
         return false
+    }
+    
+    /// Kill all Antigravity helper processes that may hold database locks
+    private func killHelperProcesses() async {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        process.arguments = ["-f", "Antigravity Helper"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        
+        try? process.run()
+        process.waitUntilExit()
+        
+        // Small delay to ensure processes are fully terminated
+        try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
     }
     
     /// Wait for all instances to terminate
