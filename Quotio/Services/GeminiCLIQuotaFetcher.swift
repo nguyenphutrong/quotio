@@ -10,7 +10,7 @@
 import Foundation
 
 /// Auth file structure for Gemini CLI (~/.gemini/oauth_creds.json)
-struct GeminiCLIAuthFile: Codable, Sendable {
+nonisolated struct GeminiCLIAuthFile: Codable, Sendable {
     let idToken: String?
     let accessToken: String?
     let scope: String?
@@ -29,13 +29,13 @@ struct GeminiCLIAuthFile: Codable, Sendable {
 }
 
 /// Google accounts file structure (~/.gemini/google_accounts.json)
-struct GeminiAccountsFile: Codable, Sendable {
+nonisolated struct GeminiAccountsFile: Codable, Sendable {
     let active: String?
     let old: [String]?
 }
 
 /// Decoded JWT claims from Gemini id_token
-struct GeminiJWTClaims: Sendable {
+nonisolated struct GeminiJWTClaims: Sendable {
     let email: String?
     let emailVerified: Bool
     let name: String?
@@ -45,7 +45,7 @@ struct GeminiJWTClaims: Sendable {
 }
 
 /// Account info from Gemini CLI
-struct GeminiCLIAccountInfo: Sendable {
+nonisolated struct GeminiCLIAccountInfo: Sendable {
     let email: String
     let name: String?
     let isActive: Bool

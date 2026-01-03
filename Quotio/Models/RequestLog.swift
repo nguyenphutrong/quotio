@@ -11,7 +11,7 @@ import Foundation
 // MARK: - Request Log Entry
 
 /// Represents a single API request/response pair with associated metadata
-struct RequestLog: Identifiable, Codable, Hashable, Sendable {
+nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     let timestamp: Date
     
@@ -97,7 +97,7 @@ struct RequestLog: Identifiable, Codable, Hashable, Sendable {
 // MARK: - Aggregate Statistics
 
 /// Aggregated statistics for request history
-struct RequestStats: Codable, Sendable {
+nonisolated struct RequestStats: Codable, Sendable {
     /// Total number of requests
     let totalRequests: Int
     
@@ -178,7 +178,7 @@ struct ModelStats: Codable, Sendable {
 // MARK: - Request History Storage
 
 /// Container for persisted request history
-struct RequestHistoryStore: Codable, Sendable {
+nonisolated struct RequestHistoryStore: Codable, Sendable {
     /// Version for migration support
     let version: Int
     

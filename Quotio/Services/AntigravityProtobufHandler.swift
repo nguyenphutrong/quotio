@@ -9,7 +9,7 @@
 import Foundation
 
 /// Handles protobuf operations for Antigravity IDE token injection
-enum AntigravityProtobufHandler {
+nonisolated enum AntigravityProtobufHandler {
     
     // MARK: - Errors
     

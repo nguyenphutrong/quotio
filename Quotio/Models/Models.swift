@@ -8,7 +8,7 @@ import SwiftUI
 
 // MARK: - Provider Types
 
-enum AIProvider: String, CaseIterable, Codable, Identifiable {
+nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
     case gemini = "gemini-cli"
     case claude = "claude"
     case codex = "codex"
@@ -193,7 +193,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
 
 // MARK: - Proxy Status
 
-struct ProxyStatus: Codable {
+nonisolated struct ProxyStatus: Codable {
     var running: Bool = false
     var port: UInt16 = 8317
     
@@ -204,7 +204,7 @@ struct ProxyStatus: Codable {
 
 // MARK: - Auth File (from Management API)
 
-struct AuthFile: Codable, Identifiable, Hashable, Sendable {
+nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let provider: String
@@ -280,13 +280,13 @@ struct AuthFile: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct AuthFilesResponse: Codable, Sendable {
+nonisolated struct AuthFilesResponse: Codable, Sendable {
     let files: [AuthFile]
 }
 
 // MARK: - API Keys (Proxy Service Auth)
 
-struct APIKeysResponse: Codable, Sendable {
+nonisolated struct APIKeysResponse: Codable, Sendable {
     let apiKeys: [String]
     
     enum CodingKeys: String, CodingKey {
@@ -296,7 +296,7 @@ struct APIKeysResponse: Codable, Sendable {
 
 // MARK: - Usage Statistics
 
-struct UsageStats: Codable, Sendable {
+nonisolated struct UsageStats: Codable, Sendable {
     let usage: UsageData?
     let failedRequests: Int?
     
@@ -306,7 +306,7 @@ struct UsageStats: Codable, Sendable {
     }
 }
 
-struct UsageData: Codable, Sendable {
+nonisolated struct UsageData: Codable, Sendable {
     let totalRequests: Int?
     let successCount: Int?
     let failureCount: Int?
@@ -331,21 +331,21 @@ struct UsageData: Codable, Sendable {
 
 // MARK: - OAuth Flow
 
-struct OAuthURLResponse: Codable, Sendable {
+nonisolated struct OAuthURLResponse: Codable, Sendable {
     let status: String
     let url: String?
     let state: String?
     let error: String?
 }
 
-struct OAuthStatusResponse: Codable, Sendable {
+nonisolated struct OAuthStatusResponse: Codable, Sendable {
     let status: String
     let error: String?
 }
 
 // MARK: - App Config
 
-struct AppConfig: Codable {
+nonisolated struct AppConfig: Codable {
     var host: String = ""
     var port: UInt16 = 8317
     var authDir: String = "~/.cli-proxy-api"
@@ -376,11 +376,11 @@ struct AppConfig: Codable {
     }
 }
 
-struct RoutingConfig: Codable {
+nonisolated struct RoutingConfig: Codable {
     var strategy: String = "round-robin"
 }
 
-struct QuotaExceededConfig: Codable {
+nonisolated struct QuotaExceededConfig: Codable {
     var switchProject: Bool = true
     var switchPreviewModel: Bool = true
     
@@ -390,7 +390,7 @@ struct QuotaExceededConfig: Codable {
     }
 }
 
-struct RemoteManagementConfig: Codable {
+nonisolated struct RemoteManagementConfig: Codable {
     var allowRemote: Bool = false
     var secretKey: String = ""
     var disableControlPanel: Bool = false
@@ -404,7 +404,7 @@ struct RemoteManagementConfig: Codable {
 
 // MARK: - Log Entry
 
-struct LogEntry: Identifiable {
+nonisolated struct LogEntry: Identifiable {
     let id = UUID()
     let timestamp: Date
     let level: LogLevel
@@ -426,7 +426,7 @@ struct LogEntry: Identifiable {
 
 // MARK: - Navigation
 
-enum NavigationPage: String, CaseIterable, Identifiable {
+nonisolated enum NavigationPage: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
     case quota = "Quota"
     case providers = "Providers"
@@ -454,7 +454,7 @@ enum NavigationPage: String, CaseIterable, Identifiable {
 
 // MARK: - Color Extension
 
-extension Color {
+nonisolated extension Color {
     init?(hex: String) {
         var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
@@ -485,7 +485,7 @@ extension Int {
 
 // MARK: - Proxy URL Validation
 
-enum ProxyURLValidationResult: Equatable {
+nonisolated enum ProxyURLValidationResult: Equatable {
     case valid
     case empty
     case invalidScheme
@@ -516,7 +516,7 @@ enum ProxyURLValidationResult: Equatable {
     }
 }
 
-enum ProxyURLValidator {
+nonisolated enum ProxyURLValidator {
     static let supportedSchemes = ["socks5", "http", "https"]
     
     static func validate(_ urlString: String) -> ProxyURLValidationResult {

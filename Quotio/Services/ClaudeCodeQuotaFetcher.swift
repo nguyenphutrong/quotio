@@ -9,7 +9,7 @@
 import Foundation
 
 /// Quota data from Claude Code OAuth API
-struct ClaudeCodeQuotaInfo: Sendable {
+nonisolated struct ClaudeCodeQuotaInfo: Sendable {
     let accessToken: String?
     let email: String?
 
