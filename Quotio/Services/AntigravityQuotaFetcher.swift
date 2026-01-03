@@ -369,7 +369,7 @@ nonisolated private struct TokenRefreshResponse: Codable, Sendable {
 nonisolated struct AntigravityAuthFile: Codable, Sendable {
     var accessToken: String
     let email: String
-    let expired: String?
+    var expired: String?
     let expiresIn: Int?
     let refreshToken: String?
     let timestamp: Int?
