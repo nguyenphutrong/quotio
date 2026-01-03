@@ -198,28 +198,16 @@ final class CLIProxyManager {
         }
     }
     
-    /// Update routing strategy in config and sync to running proxy
+    /// Update routing strategy in config file
+    /// Note: Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
     func updateConfigRoutingStrategy(_ strategy: String) {
-        // 1. Update config file
         guard FileManager.default.fileExists(atPath: configPath),
               var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
         
         if let range = content.range(of: #"strategy:\s*"[^"]*""#, options: .regularExpression) {
             content.replaceSubrange(range, with: "strategy: \"\(strategy)\"")
             try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
-        }
-        
-        // 2. Sync to running proxy via Management API
-        guard proxyStatus.running else { return }
-        
-        Task {
-            do {
-                let client = ManagementAPIClient(baseURL: managementURL, authKey: managementKey)
-                try await client.setRoutingStrategy(strategy)
-                NSLog("[CLIProxyManager] Routing strategy updated to: \(strategy)")
-            } catch {
-                NSLog("[CLIProxyManager] Failed to update routing strategy: \(error)")
-            }
+            NSLog("[CLIProxyManager] Routing strategy updated to: \(strategy) (restart required)")
         }
     }
     
