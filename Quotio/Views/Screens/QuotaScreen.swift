@@ -900,7 +900,7 @@ private struct AntigravityModelsDetailSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("quota.allModels".localized())
                         .font(.headline)
-                    Text(email)
+                    Text(email.masked(if: settings.hideSensitiveInfo))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

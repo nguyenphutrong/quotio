@@ -11,6 +11,7 @@ import SwiftUI
 /// Sheet for confirming and executing Antigravity account switch
 struct SwitchAccountSheet: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @State private var settings = MenuBarSettingsManager.shared
     
     let accountEmail: String
     let onDismiss: () -> Void
@@ -54,7 +55,7 @@ struct SwitchAccountSheet: View {
                 Text("antigravity.switch.title".localized())
                     .font(.headline)
                 
-                Text(accountEmail)
+                Text(accountEmail.masked(if: settings.hideSensitiveInfo))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

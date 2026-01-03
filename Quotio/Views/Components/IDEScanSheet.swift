@@ -11,6 +11,7 @@ import SwiftUI
 struct IDEScanSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(QuotaViewModel.self) private var viewModel
+    @State private var settings = MenuBarSettingsManager.shared
     
     @State private var scanOptions = IDEScanOptions.defaultOptions
     @State private var isScanning = false
@@ -199,13 +200,13 @@ struct IDEScanSheet: View {
             if let result = IDEScanSettingsManager.shared.lastScanResult {
                 VStack(alignment: .leading, spacing: 8) {
                     if result.cursorFound {
-                        resultRow(icon: "checkmark.circle.fill", color: .green, text: "Cursor: \(result.cursorEmail ?? "Found")")
+                        resultRow(icon: "checkmark.circle.fill", color: .green, text: "Cursor: \((result.cursorEmail ?? "Found").masked(if: settings.hideSensitiveInfo))")
                     } else if scanOptions.scanCursor {
                         resultRow(icon: "xmark.circle.fill", color: .secondary, text: "Cursor: " + "ideScan.notFound".localized())
                     }
                     
                     if result.traeFound {
-                        resultRow(icon: "checkmark.circle.fill", color: .green, text: "Trae: \(result.traeEmail ?? "Found")")
+                        resultRow(icon: "checkmark.circle.fill", color: .green, text: "Trae: \((result.traeEmail ?? "Found").masked(if: settings.hideSensitiveInfo))")
                     } else if scanOptions.scanTrae {
                         resultRow(icon: "xmark.circle.fill", color: .secondary, text: "Trae: " + "ideScan.notFound".localized())
                     }
