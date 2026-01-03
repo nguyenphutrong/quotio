@@ -83,7 +83,65 @@ ZIP_SIZE=$(stat -f%z "$ZIP_FILE")
 ZIP_NAME=$(basename "$ZIP_FILE")
 
 # Generate appcast XML manually
+# Determine if this is a beta release
+IS_BETA=false
+if [[ "$CURRENT_VERSION" == *"-beta"* ]] || [[ "$CURRENT_VERSION" == *"-alpha"* ]] || [[ "$CURRENT_VERSION" == *"-rc"* ]]; then
+    IS_BETA=true
+fi
+
+# Build the new item entry
+NEW_ITEM="        <item>
+            <title>Version ${CURRENT_VERSION}</title>
+            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
+            <sparkle:shortVersionString>${CURRENT_VERSION}</sparkle:shortVersionString>"
+
+if [[ "$IS_BETA" == true ]]; then
+    NEW_ITEM="${NEW_ITEM}
+            <sparkle:channel>beta</sparkle:channel>"
+fi
+
+NEW_ITEM="${NEW_ITEM}
+            <pubDate>$(date -R)</pubDate>
+            <enclosure url=\"https://github.com/${GITHUB_REPO}/releases/download/v${CURRENT_VERSION}/${ZIP_NAME}\"
+                       sparkle:edSignature=\"${SIGNATURE}\"
+                       length=\"${ZIP_SIZE}\"
+                       type=\"application/octet-stream\"/>
+        </item>"
+
 log_step "Generating appcast.xml..."
+
+# Try to fetch existing appcast from latest stable release
+EXISTING_APPCAST_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/appcast.xml"
+EXISTING_ITEMS=""
+
+log_step "Fetching existing appcast from latest release..."
+EXISTING_APPCAST=$(curl -sL "$EXISTING_APPCAST_URL" 2>/dev/null || echo "")
+
+if [[ -n "$EXISTING_APPCAST" ]] && [[ "$EXISTING_APPCAST" == *"<item>"* ]]; then
+    log_info "Found existing appcast, merging entries..."
+    # Extract existing items (everything between <item> and </item>)
+    EXISTING_ITEMS=$(echo "$EXISTING_APPCAST" | sed -n '/<item>/,/<\/item>/p')
+    
+    # Remove any existing entry with the same version to avoid duplicates
+    EXISTING_ITEMS=$(echo "$EXISTING_ITEMS" | awk -v ver="$CURRENT_VERSION" '
+        BEGIN { skip=0 }
+        /<item>/ { 
+            item=""
+            in_item=1
+        }
+        in_item { item = item $0 "\n" }
+        /<\/item>/ {
+            in_item=0
+            if (item !~ ">" ver "<") {
+                printf "%s", item
+            }
+        }
+    ')
+else
+    log_info "No existing appcast found, creating fresh one"
+fi
+
+# Create the merged appcast
 cat > "${APPCAST_PATH}" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -92,23 +150,13 @@ cat > "${APPCAST_PATH}" <<EOF
         <link>https://github.com/${GITHUB_REPO}</link>
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
-        <item>
-            <title>Version ${CURRENT_VERSION}</title>
-            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
-            <sparkle:shortVersionString>${CURRENT_VERSION}</sparkle:shortVersionString>
-            <pubDate>$(date -R)</pubDate>
-            <enclosure url="https://github.com/${GITHUB_REPO}/releases/download/v${CURRENT_VERSION}/${ZIP_NAME}"
-                       sparkle:edSignature="${SIGNATURE}"
-                       length="${ZIP_SIZE}"
-                       type="application/octet-stream"/>
-        </item>
+${NEW_ITEM}
+${EXISTING_ITEMS}
     </channel>
 </rss>
 EOF
 
-# Add beta channel tag for pre-release versions
-if [[ "$CURRENT_VERSION" == *"-beta"* ]] || [[ "$CURRENT_VERSION" == *"-alpha"* ]] || [[ "$CURRENT_VERSION" == *"-rc"* ]]; then
-    sed -i '' 's|</sparkle:shortVersionString>|</sparkle:shortVersionString>\n            <sparkle:channel>beta</sparkle:channel>|g' "${APPCAST_PATH}"
+if [[ "$IS_BETA" == true ]]; then
     log_info "Added beta channel tag for pre-release version"
 fi
 

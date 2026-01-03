@@ -145,8 +145,30 @@ jobs:
           prerelease: ${{ steps.version.outputs.IS_PRERELEASE == 'true' }}
 
       # ===========================================
-      # 11. Commit version bump back to master
+      # 11. Update latest stable release with merged appcast
       # ===========================================
+      - name: Update latest stable appcast
+        if: steps.version.outputs.IS_PRERELEASE == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the latest stable release tag
+          LATEST_STABLE=$(gh release list --exclude-pre-releases --limit 1 --json tagName -q '.[0].tagName')
+          
+          if [ -n "$LATEST_STABLE" ]; then
+            echo "Updating appcast on latest stable release: $LATEST_STABLE"
+            
+            # Delete old appcast from stable release
+            gh release delete-asset "$LATEST_STABLE" appcast.xml --yes 2>/dev/null || true
+            
+            # Upload merged appcast to stable release
+            gh release upload "$LATEST_STABLE" build/release/appcast.xml --clobber
+            
+            echo "Updated appcast.xml on $LATEST_STABLE with merged entries"
+          else
+            echo "No stable release found to update"
+          fi
+
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"

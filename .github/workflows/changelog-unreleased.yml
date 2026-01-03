@@ -5,16 +5,24 @@ on:
     branches: [master]
     paths-ignore:
       - 'CHANGELOG.md'
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA to process (leave empty for latest)'
+        required: false
+        type: string
 
 jobs:
   update-changelog:
     runs-on: ubuntu-latest
-    # Skip version bumps, CI commits, and explicit skip requests
+    # Skip version bumps, CI commits, and explicit skip requests (only for push events)
     if: |
-      !contains(github.event.head_commit.message, '[skip ci]') &&
-      !contains(github.event.head_commit.message, '[skip changelog]') &&
-      !startsWith(github.event.head_commit.message, 'chore: bump version') &&
-      !startsWith(github.event.head_commit.message, 'docs(changelog):')
+      github.event_name == 'workflow_dispatch' || (
+        !contains(github.event.head_commit.message, '[skip ci]') &&
+        !contains(github.event.head_commit.message, '[skip changelog]') &&
+        !startsWith(github.event.head_commit.message, 'chore: bump version') &&
+        !startsWith(github.event.head_commit.message, 'docs(changelog):')
+      )
 
     permissions:
       contents: write
@@ -23,21 +31,52 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 50
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine commit to process
+        id: commit
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger
+            if [ -n "${{ inputs.commit_sha }}" ]; then
+              COMMIT_SHA="${{ inputs.commit_sha }}"
+            else
+              # Use latest commit on branch
+              COMMIT_SHA=$(git rev-parse HEAD)
+            fi
+            COMMIT_MSG=$(git log -1 --format=%B "$COMMIT_SHA")
+          else
+            # Push trigger
+            COMMIT_SHA="${{ github.sha }}"
+            COMMIT_MSG="${{ github.event.head_commit.message }}"
+          fi
+          
+          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          # Use delimiter for multiline message
+          {
+            echo "message<<EOF"
+            echo "$COMMIT_MSG"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          
+          echo "Processing commit: $COMMIT_SHA"
+          echo "Message: $(echo "$COMMIT_MSG" | head -1)"
 
       - name: Parse commit message
         id: parse
         run: |
-          MSG="${{ github.event.head_commit.message }}"
+          MSG="${{ steps.commit.outputs.message }}"
           FIRST_LINE=$(echo "$MSG" | head -1)
 
           # Extract PR number (from squash merge: "Title (#123)")
           PR_NUM=$(echo "$FIRST_LINE" | grep -oP '\(#\K\d+(?=\))' | head -1 || echo "")
-          SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          SHA_SHORT=$(echo "${{ steps.commit.outputs.sha }}" | cut -c1-7)
 
           # Parse conventional commit: type(scope)!: description
-          if [[ $FIRST_LINE =~ ^(feat|fix|refactor|perf)(\(([^)]+)\))?(!)?:\ (.+)$ ]]; then
+          # Regex stored in variable to avoid bash parsing issues with special chars
+          COMMIT_REGEX='^(feat|fix|refactor|perf)(\(([^)]+)\))?(!)?:[[:space:]](.+)$'
+          if [[ $FIRST_LINE =~ $COMMIT_REGEX ]]; then
             TYPE="${BASH_REMATCH[1]}"
             SCOPE="${BASH_REMATCH[3]}"
             BREAKING="${BASH_REMATCH[4]}"
@@ -163,7 +202,7 @@ jobs:
 
           if ! git diff --quiet CHANGELOG.md; then
             git add CHANGELOG.md
-            git commit -m "docs(changelog): add entry for ${{ github.sha }} [skip ci]"
+            git commit -m "docs(changelog): add entry for ${{ steps.commit.outputs.sha }} [skip ci]"
             git push
             echo "Changelog updated successfully"
           else
