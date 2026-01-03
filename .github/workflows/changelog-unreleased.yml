@@ -37,7 +37,7 @@ jobs:
           SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
 
           # Parse conventional commit: type(scope)!: description
-          if [[ "$FIRST_LINE" =~ ^(feat|fix|refactor|perf)(\(([^)]+)\))?(!)?\:\ (.+)$ ]]; then
+          if [[ $FIRST_LINE =~ ^(feat|fix|refactor|perf)(\(([^)]+)\))?(!)?:\ (.+)$ ]]; then
             TYPE="${BASH_REMATCH[1]}"
             SCOPE="${BASH_REMATCH[3]}"
             BREAKING="${BASH_REMATCH[4]}"

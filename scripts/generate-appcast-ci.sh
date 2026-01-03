@@ -45,9 +45,10 @@ if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
     exit 1
 fi
 
-# Get current version
+# Get current version and build number
 CURRENT_VERSION=$(get_version)
-log_info "Generating appcast for version ${CURRENT_VERSION}"
+BUILD_NUMBER=$(get_build_number)
+log_info "Generating appcast for version ${CURRENT_VERSION} (build ${BUILD_NUMBER})"
 
 # Temporarily move DMG files to avoid Sparkle duplicate version error
 DMG_FILES=$(find "$RELEASE_DIR" -name "*.dmg" -type f 2>/dev/null)
@@ -93,7 +94,7 @@ cat > "${APPCAST_PATH}" <<EOF
         <language>en</language>
         <item>
             <title>Version ${CURRENT_VERSION}</title>
-            <sparkle:version>${CURRENT_VERSION}</sparkle:version>
+            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
             <sparkle:shortVersionString>${CURRENT_VERSION}</sparkle:shortVersionString>
             <pubDate>$(date -R)</pubDate>
             <enclosure url="https://github.com/${GITHUB_REPO}/releases/download/v${CURRENT_VERSION}/${ZIP_NAME}"

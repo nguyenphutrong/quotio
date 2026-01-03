@@ -17,7 +17,7 @@ env:
 
 jobs:
   build-and-release:
-    runs-on: macos-14
+    runs-on: macos-15
     permissions:
       contents: write
 
@@ -37,7 +37,7 @@ jobs:
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '16.2'
+          xcode-version: '26.1'
 
       # ===========================================
       # 3. Extract version from tag or input
@@ -131,6 +131,17 @@ jobs:
             build/release/*.zip
             build/release/appcast.xml
           generate_release_notes: true
+          append_body: true
+          body: |
+            
+            ## Installation
+
+            Download `Quotio-${{ steps.version.outputs.VERSION }}.dmg` or `Quotio-${{ steps.version.outputs.VERSION }}.zip` below.
+
+            > ⚠️ **Note**: The app is not signed with an Apple Developer certificate. If macOS blocks the app, run:
+            > ```bash
+            > xattr -cr /Applications/Quotio.app
+            > ```
           prerelease: ${{ steps.version.outputs.IS_PRERELEASE == 'true' }}
 
       # ===========================================
