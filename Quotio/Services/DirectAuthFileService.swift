@@ -170,7 +170,9 @@ actor DirectAuthFileService {
             "qwen": .qwen,
             "iflow": .iflow,
             "kiro": .kiro,
-            "vertex": .vertex
+            "vertex": .vertex,
+            "cursor": .cursor,
+            "trae": .trae
         ]
         return typeMap[type.lowercased()]
     }
