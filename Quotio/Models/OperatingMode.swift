@@ -266,10 +266,15 @@ final class OperatingModeManager {
     // MARK: - Remote Configuration
     
     /// Switch to remote mode with config
-    func switchToRemote(config: RemoteConnectionConfig, managementKey: String) {
+    func switchToRemote(config: RemoteConnectionConfig, managementKey: String, fromOnboarding: Bool = false) {
         saveRemoteConfig(config)
         KeychainHelper.saveManagementKey(managementKey, for: config.id)
         setMode(.remoteProxy)
+        
+        if fromOnboarding {
+            hasCompletedOnboarding = true
+            UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        }
     }
     
     /// Save remote config

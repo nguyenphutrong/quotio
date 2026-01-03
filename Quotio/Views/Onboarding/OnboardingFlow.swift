@@ -98,7 +98,7 @@ final class OnboardingViewModel {
                 endpointURL: remoteEndpoint,
                 displayName: "Remote Server"
             )
-            modeManager.switchToRemote(config: config, managementKey: remoteManagementKey)
+            modeManager.switchToRemote(config: config, managementKey: remoteManagementKey, fromOnboarding: true)
         } else {
             modeManager.completeOnboarding(mode: selectedMode)
         }
