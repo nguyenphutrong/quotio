@@ -333,7 +333,7 @@ nonisolated struct DetectedCLI: Identifiable, Sendable {
     let isInstalled: Bool
     let version: String?
     
-    nonisolated(unsafe) static let allKnownCLIs: [String: String] = [
+    static let allKnownCLIs: [String: String] = [
         "claude": "Claude Code",
         "codex": "Codex",
         "cursor": "Cursor",

@@ -184,7 +184,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleWindowWillClose()
+            Task { @MainActor in
+                self?.handleWindowWillClose()
+            }
         }
         
         windowDidBecomeKeyObserver = NotificationCenter.default.addObserver(
@@ -192,7 +194,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleWindowDidBecomeKey()
+            Task { @MainActor in
+                self?.handleWindowDidBecomeKey()
+            }
         }
     }
     
@@ -214,12 +218,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func handleWindowWillClose() {
-        let remainingWindows = NSApp.windows.filter { window in
-            window.title == "Quotio" &&
-                window.isVisible &&
-                !window.isMiniaturized
-        }
-        
         // Check after a short delay to allow window to fully close
         DispatchQueue.main.async {
             let visibleQuotioWindows = NSApp.windows.filter { window in

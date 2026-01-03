@@ -516,11 +516,17 @@ final class ProxyBridge {
                 return
             }
             
-            var accumulatedResponse = responseData
+            // Use let to avoid captured var warning - Data is already accumulated via parameter
+            let accumulatedResponse: Data
+            if let data = data, !data.isEmpty {
+                var newAccumulated = responseData
+                newAccumulated.append(data)
+                accumulatedResponse = newAccumulated
+            } else {
+                accumulatedResponse = responseData
+            }
             
             if let data = data, !data.isEmpty {
-                accumulatedResponse.append(data)
-                
                 // Forward chunk to client
                 originalConnection.send(content: data, completion: .contentProcessed { sendError in
                     if let sendError = sendError {
