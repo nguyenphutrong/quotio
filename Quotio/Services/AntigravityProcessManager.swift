@@ -90,8 +90,13 @@ final class AntigravityProcessManager {
         return terminated
     }
     
-    /// Kill all Antigravity helper processes that may hold database locks
-    /// Compatible with macOS 14+, 15+, 26+
+    // ════════════════════════════════════════════════════════════════════════
+    // MARK: - Helper Process Cleanup
+    // ════════════════════════════════════════════════════════════════════════
+    
+    /// Kill all Antigravity helper processes that may hold database locks.
+    /// Executes blocking operations on a detached task to avoid blocking MainActor.
+    /// Compatible with macOS 14+, 15+, 26+.
     private func killHelperProcesses() async {
         // Helper process names that Electron/Antigravity spawns
         let helperPatterns = [
@@ -101,25 +106,32 @@ final class AntigravityProcessManager {
             "Antigravity Helper (Renderer)"
         ]
         
-        // Method 1: Use killall for each helper pattern (most reliable)
-        for pattern in helperPatterns {
-            let killall = Process()
-            killall.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-            killall.arguments = ["-9", pattern]
-            killall.standardOutput = FileHandle.nullDevice
-            killall.standardError = FileHandle.nullDevice
-            try? killall.run()
-            killall.waitUntilExit()
+        // Execute blocking operations on background thread
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            Task.detached(priority: .userInitiated) {
+                // Method 1: Use killall for each helper pattern (most reliable)
+                for pattern in helperPatterns {
+                    let killall = Process()
+                    killall.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+                    killall.arguments = ["-9", pattern]
+                    killall.standardOutput = FileHandle.nullDevice
+                    killall.standardError = FileHandle.nullDevice
+                    try? killall.run()
+                    killall.waitUntilExit()
+                }
+                
+                // Method 2: Use pkill as fallback (catches any remaining)
+                let pkill = Process()
+                pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+                pkill.arguments = ["-9", "-f", "Antigravity Helper"]
+                pkill.standardOutput = FileHandle.nullDevice
+                pkill.standardError = FileHandle.nullDevice
+                try? pkill.run()
+                pkill.waitUntilExit()
+                
+                continuation.resume()
+            }
         }
-        
-        // Method 2: Use pkill as fallback (catches any remaining)
-        let pkill = Process()
-        pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
-        pkill.arguments = ["-9", "-f", "Antigravity Helper"]
-        pkill.standardOutput = FileHandle.nullDevice
-        pkill.standardError = FileHandle.nullDevice
-        try? pkill.run()
-        pkill.waitUntilExit()
         
         // Delay to ensure processes are fully terminated
         try? await Task.sleep(nanoseconds: 500_000_000) // 500ms

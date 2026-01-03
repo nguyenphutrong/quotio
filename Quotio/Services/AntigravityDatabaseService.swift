@@ -288,12 +288,60 @@ actor AntigravityDatabaseService {
     
     // MARK: - Token Operations
     
-    /// Inject token into database
+    // ════════════════════════════════════════════════════════════════════════
+    // Constants for retry policy
+    // ════════════════════════════════════════════════════════════════════════
+    
+    private static let defaultMaxRetries = 3
+    private static let baseRetryDelayNs: UInt64 = 1_000_000_000  // 1 second
+    
+    /// Inject token into database with automatic retry on database lock.
     /// - Parameters:
     ///   - accessToken: OAuth access token
     ///   - refreshToken: OAuth refresh token
     ///   - expiry: Token expiry timestamp (Unix seconds)
-    func injectToken(accessToken: String, refreshToken: String, expiry: Int64) async throws {
+    ///   - maxRetries: Maximum retry attempts (default: 3)
+    /// - Throws: Last encountered error after all retries exhausted
+    func injectToken(
+        accessToken: String,
+        refreshToken: String,
+        expiry: Int64,
+        maxRetries: Int = defaultMaxRetries
+    ) async throws {
+        var lastError: Error?
+        
+        for attempt in 1...maxRetries {
+            do {
+                try injectTokenOnce(
+                    accessToken: accessToken,
+                    refreshToken: refreshToken,
+                    expiry: expiry
+                )
+                return  // Success, exit retry loop
+            } catch {
+                lastError = error
+                
+                // Only retry on timeout (database locked) errors
+                guard case DatabaseError.timeout = error, attempt < maxRetries else {
+                    if attempt >= maxRetries { break }
+                    throw error
+                }
+                
+                // Exponential backoff: 1s, 2s, 4s...
+                let delayNs = Self.baseRetryDelayNs * UInt64(attempt)
+                try? await Task.sleep(nanoseconds: delayNs)
+            }
+        }
+        
+        throw lastError ?? DatabaseError.timeout
+    }
+    
+    /// Single attempt to inject token (no retry).
+    private func injectTokenOnce(
+        accessToken: String,
+        refreshToken: String,
+        expiry: Int64
+    ) throws {
         try withDatabase(readOnly: false) { db in
             try executeSimpleStatement("BEGIN IMMEDIATE TRANSACTION;", db: db)
             var shouldRollback = true

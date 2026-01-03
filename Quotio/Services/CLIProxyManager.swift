@@ -525,7 +525,7 @@ final class CLIProxyManager {
         defer { isStarting = false }
         
         // Clean up any orphan processes from previous runs
-        cleanupOrphanProcesses()
+        await cleanupOrphanProcesses()
         
         syncSecretKeyInConfig()
         syncProxyURLInConfig()
@@ -623,54 +623,74 @@ final class CLIProxyManager {
             proxyBridge.stop()
         }
         
-        forceTerminateProcess()
+        // Run blocking operations in background
+        let currentProcess = process
+        let userPort = proxyStatus.port
+        let bridgeMode = useBridgeMode
+        let intPort = internalPort
         
-        // Kill processes on both ports
-        killProcessOnPort(proxyStatus.port)
-        if useBridgeMode {
-            killProcessOnPort(internalPort)
+        Task.detached(priority: .userInitiated) {
+            // Force terminate the main proxy process
+            if let proc = currentProcess, proc.isRunning {
+                let pid = proc.processIdentifier
+                proc.terminate()
+                
+                let deadline = Date().addingTimeInterval(2.0)
+                while proc.isRunning && Date() < deadline {
+                    usleep(100_000)  // 100ms, avoid Thread.sleep in async context
+                }
+                
+                if proc.isRunning {
+                    kill(pid, SIGKILL)
+                }
+            }
+            
+            // Kill processes on both ports
+            Self.killProcessOnPortSync(userPort)
+            if bridgeMode {
+                Self.killProcessOnPortSync(intPort)
+            }
         }
         
         process = nil
         proxyStatus.running = false
     }
     
-    /// Clean up any orphan proxy processes from previous runs
-    /// This prevents port conflicts and zombie processes
-    private func cleanupOrphanProcesses() {
-        // Kill any process on the user-facing port
-        killProcessOnPort(proxyStatus.port)
-        
-        // Only kill internal port if bridge mode is enabled
-        // to avoid accidentally killing unrelated services
-        if useBridgeMode {
-            killProcessOnPort(internalPort)
-            NSLog("[CLIProxyManager] Cleaned up orphan processes on ports \(proxyStatus.port) and \(internalPort)")
-        } else {
-            NSLog("[CLIProxyManager] Cleaned up orphan processes on port \(proxyStatus.port)")
-        }
-        
-        // Small delay to ensure ports are released
-        Thread.sleep(forTimeInterval: 0.2)
-    }
+    // ════════════════════════════════════════════════════════════════════════
+    // MARK: - Process Cleanup
+    // ════════════════════════════════════════════════════════════════════════
     
-    private func forceTerminateProcess() {
-        guard let process = process, process.isRunning else { return }
+    /// Clean up any orphan proxy processes from previous runs.
+    /// Executes blocking operations on background thread to avoid blocking MainActor.
+    private func cleanupOrphanProcesses() async {
+        let userPort = proxyStatus.port
+        let bridgeMode = useBridgeMode
+        let intPort = internalPort
         
-        let pid = process.processIdentifier
-        process.terminate()
-        
-        let deadline = Date().addingTimeInterval(2.0)
-        while process.isRunning && Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.1)
-        }
-        
-        if process.isRunning {
-            kill(pid, SIGKILL)
+        // Execute blocking operations on background thread
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            Task.detached(priority: .userInitiated) {
+                // Kill any process on the user-facing port
+                Self.killProcessOnPortSync(userPort)
+                
+                // Only kill internal port if bridge mode is enabled
+                if bridgeMode {
+                    Self.killProcessOnPortSync(intPort)
+                    NSLog("[CLIProxyManager] Cleaned up orphan processes on ports \(userPort) and \(intPort)")
+                } else {
+                    NSLog("[CLIProxyManager] Cleaned up orphan processes on port \(userPort)")
+                }
+                
+                // Small delay to ensure ports are released
+                usleep(200_000)  // 200ms, avoid Thread.sleep in async context
+                continuation.resume()
+            }
         }
     }
     
-    private func killProcessOnPort(_ port: UInt16) {
+    /// Synchronous port cleanup for use in detached tasks.
+    /// This method is `nonisolated` to allow calling from background threads.
+    nonisolated private static func killProcessOnPortSync(_ port: UInt16) {
         let lsofProcess = Process()
         lsofProcess.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         lsofProcess.arguments = ["-ti", "tcp:\(port)"]
@@ -693,6 +713,7 @@ final class CLIProxyManager {
                 }
             }
         } catch {
+            // Silent failure - process may not exist
         }
     }
     
@@ -1401,7 +1422,7 @@ extension CLIProxyManager {
         
         // Also kill anything on test port
         if let port = testPort {
-            killProcessOnPort(port)
+            Self.killProcessOnPortSync(port)
         }
     }
     
@@ -1429,7 +1450,7 @@ extension CLIProxyManager {
         
         // Also kill anything on test port
         if let port = testPort {
-            killProcessOnPort(port)
+            Self.killProcessOnPortSync(port)
         }
     }
     
