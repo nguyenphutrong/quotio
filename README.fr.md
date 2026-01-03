@@ -124,6 +124,18 @@ Allez dans l'onglet **Agents** → Sélectionnez un agent installé → Cliquez 
 - **Démarrage Automatique** : Lancer le proxy automatiquement à l'ouverture de Quotio
 - **Notifications** : Activer/désactiver les alertes pour divers événements
 
+### Gestion à Distance
+
+Le panneau de contrôle CLIProxyAPI (accessible à `http://localhost:8317`) affiche un champ `secret-key`. Celui-ci est utilisé pour l'**authentification de la gestion à distance** :
+
+| Paramètre | Description |
+|-----------|-------------|
+| `allow-remote` | Lorsque `true`, permet l'accès à l'API de gestion depuis d'autres appareils sur votre réseau |
+| `secret-key` | Token d'authentification requis pour les requêtes API à distance. UUID généré automatiquement par défaut |
+| `disable-control-panel` | Lorsque `true`, désactive complètement le panneau de contrôle web |
+
+> **Note** : Pour une utilisation locale uniquement (par défaut), vous pouvez ignorer le champ `secret-key`. Il n'est nécessaire que lors de l'activation de l'accès à distance depuis d'autres machines.
+
 ## 📸 Captures d'Écran
 
 ### Tableau de Bord

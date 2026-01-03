@@ -124,6 +124,18 @@ Go to **Agents** tab → Select an installed agent → Click **Configure** → C
 - **Auto-start**: Launch proxy automatically when Quotio opens
 - **Notifications**: Toggle alerts for various events
 
+### Remote Management
+
+The CLIProxyAPI control panel (accessible at `http://localhost:8317`) displays a `secret-key` field. This is used for **remote management authentication**:
+
+| Setting | Description |
+|---------|-------------|
+| `allow-remote` | When `true`, allows access to the management API from other devices on your network |
+| `secret-key` | Authentication token required for remote API requests. Auto-generated UUID by default |
+| `disable-control-panel` | When `true`, disables the web control panel entirely |
+
+> **Note**: For local-only usage (the default), you can safely ignore the `secret-key` field. It's only needed when enabling remote access from other machines.
+
 ## 📸 Screenshots
 
 ### Dashboard

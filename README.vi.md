@@ -124,6 +124,18 @@ Vào tab **Agents** → Chọn agent đã cài → Nhấn **Configure** → Ch�
 - **Auto-start**: Tự động khởi động proxy khi mở app
 - **Notifications**: Bật/tắt thông báo
 
+### Quản lý từ xa
+
+Bảng điều khiển CLIProxyAPI (truy cập tại `http://localhost:8317`) hiển thị trường `secret-key`. Đây là khóa xác thực cho **quản lý từ xa**:
+
+| Cài đặt | Mô tả |
+|---------|-------|
+| `allow-remote` | Khi `true`, cho phép truy cập API quản lý từ các thiết bị khác trong mạng |
+| `secret-key` | Token xác thực cho các yêu cầu API từ xa. UUID tự động tạo mặc định |
+| `disable-control-panel` | Khi `true`, vô hiệu hóa hoàn toàn bảng điều khiển web |
+
+> **Lưu ý**: Đối với sử dụng cục bộ (mặc định), bạn có thể bỏ qua trường `secret-key`. Nó chỉ cần thiết khi bật truy cập từ xa từ các máy khác.
+
 ## 📸 Hình ảnh
 
 ### Bảng điều khiển

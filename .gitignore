@@ -1,6 +1,10 @@
 DEVELOPMENT_PLAN.md
 build/
 
+# Editor configs
+.vscode/
+.idea/
+
 # Sparkle private key - NEVER COMMIT
 .sparkle_private_key
 
