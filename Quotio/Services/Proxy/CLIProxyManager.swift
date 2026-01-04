@@ -639,6 +639,15 @@ final class CLIProxyManager {
         
         process.terminationHandler = { terminatedProcess in
             let status = terminatedProcess.terminationStatus
+            
+            // Clear readability handlers to release closures and prevent resource leaks
+            outputPipe.fileHandleForReading.readabilityHandler = nil
+            errorPipe.fileHandleForReading.readabilityHandler = nil
+            
+            // Close file handles to release resources
+            try? outputPipe.fileHandleForReading.close()
+            try? errorPipe.fileHandleForReading.close()
+            
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.proxyStatus.running = false
