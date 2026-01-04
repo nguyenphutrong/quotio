@@ -15,9 +15,10 @@ struct ProviderDisclosureGroup: View {
     let provider: AIProvider
     let accounts: [AccountRowData]
     var onDeleteAccount: ((AccountRowData) -> Void)?
+    var onEditAccount: ((AccountRowData) -> Void)?
     var onSwitchAccount: ((AccountRowData) -> Void)?
     var isAccountActive: ((AccountRowData) -> Bool)?
-    
+
     @State private var isExpanded: Bool = true
     
     /// Check if all accounts in this group are auto-detected
@@ -31,6 +32,7 @@ struct ProviderDisclosureGroup: View {
                 AccountRow(
                     account: account,
                     onDelete: onDeleteAccount != nil ? { onDeleteAccount?(account) } : nil,
+                    onEdit: onEditAccount != nil ? { onEditAccount?(account) } : nil,
                     onSwitch: onSwitchAccount != nil ? { onSwitchAccount?(account) } : nil,
                     isActiveInIDE: isAccountActive?(account) ?? false
                 )
