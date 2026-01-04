@@ -45,6 +45,12 @@ final class ProxyBridge {
     /// Statistics: active connections count
     private(set) var activeConnections: Int = 0
     
+    /// Maximum concurrent connections to prevent resource exhaustion
+    private let maxActiveConnections = 100
+    
+    /// Connection timeout in seconds (for target connection setup)
+    private let connectionTimeoutSeconds: UInt64 = 10
+    
     /// Callback for request metadata extraction (for RequestTracker)
     var onRequestCompleted: ((RequestMetadata) -> Void)?
     
@@ -171,6 +177,12 @@ final class ProxyBridge {
     // MARK: - Connection Handling
     
     private func handleNewConnection(_ connection: NWConnection) {
+        if activeConnections >= maxActiveConnections {
+            NSLog("[ProxyBridge] Connection limit reached (\(maxActiveConnections)), rejecting")
+            connection.cancel()
+            return
+        }
+        
         activeConnections += 1
         totalRequests += 1
         
@@ -437,14 +449,37 @@ final class ProxyBridge {
         }
         
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(targetHost), port: port)
-        let parameters = NWParameters.tcp
+        
+        let tcpOptions = NWProtocolTCP.Options()
+        tcpOptions.enableKeepalive = true
+        tcpOptions.keepaliveIdle = 30
+        tcpOptions.keepaliveInterval = 5
+        tcpOptions.keepaliveCount = 3
+        let parameters = NWParameters(tls: nil, tcp: tcpOptions)
+        
         let targetConnection = NWConnection(to: endpoint, using: parameters)
+        
+        let timeoutSeconds = self.connectionTimeoutSeconds
+        
+        // Use class-based wrapper for thread-safe cancellation flag
+        final class TimeoutState: @unchecked Sendable {
+            var cancelled = false
+        }
+        let timeoutState = TimeoutState()
+        
+        DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(Int(timeoutSeconds))) { [weak targetConnection] in
+            guard !timeoutState.cancelled else { return }
+            guard let conn = targetConnection, conn.state != .ready else { return }
+            NSLog("[ProxyBridge] #\(connectionId) target connection timeout after \(timeoutSeconds)s")
+            conn.cancel()
+        }
         
         targetConnection.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
             
             switch state {
             case .ready:
+                timeoutState.cancelled = true
                 // Build forwarded request with Connection: close
                 var forwardedRequest = "\(method) \(path) \(version)\r\n"
                 
@@ -489,6 +524,7 @@ final class ProxyBridge {
                 })
                 
             case .failed(let error):
+                timeoutState.cancelled = true
                 NSLog("[ProxyBridge] #\(connectionId) target connection failed: \(error)")
                 self.sendError(to: originalConnection, statusCode: 502, message: "Bad Gateway - Cannot connect to proxy")
                 targetConnection.cancel()
