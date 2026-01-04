@@ -6,36 +6,37 @@
 import Foundation
 import SwiftUI
 import AppKit
+import Observation
 
 @MainActor
 @Observable
 final class QuotaViewModel {
     let proxyManager: CLIProxyManager
-    private var apiClient: ManagementAPIClient?
-    private let antigravityFetcher = AntigravityQuotaFetcher()
-    private let openAIFetcher = OpenAIQuotaFetcher()
-    private let copilotFetcher = CopilotQuotaFetcher()
-    private let directAuthService = DirectAuthFileService()
-    private let notificationManager = NotificationManager.shared
-    private let modeManager = OperatingModeManager.shared
-    private let refreshSettings = RefreshSettingsManager.shared
+    @ObservationIgnored private var apiClient: ManagementAPIClient?
+    @ObservationIgnored private let antigravityFetcher = AntigravityQuotaFetcher()
+    @ObservationIgnored private let openAIFetcher = OpenAIQuotaFetcher()
+    @ObservationIgnored private let copilotFetcher = CopilotQuotaFetcher()
+    @ObservationIgnored private let glmFetcher = GLMQuotaFetcher()
+    @ObservationIgnored private let directAuthService = DirectAuthFileService()
+    @ObservationIgnored private let notificationManager = NotificationManager.shared
+    @ObservationIgnored private let modeManager = OperatingModeManager.shared
+    @ObservationIgnored private let refreshSettings = RefreshSettingsManager.shared
     
     /// Request tracker for monitoring API requests through ProxyBridge
     let requestTracker = RequestTracker.shared
     
     // Quota-Only Mode Fetchers (CLI-based)
-    private let claudeCodeFetcher = ClaudeCodeQuotaFetcher()
-    private let cursorFetcher = CursorQuotaFetcher()
-    private let codexCLIFetcher = CodexCLIQuotaFetcher()
-    private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
-    private let traeFetcher = TraeQuotaFetcher()
+    @ObservationIgnored private let claudeCodeFetcher = ClaudeCodeQuotaFetcher()
+    @ObservationIgnored private let cursorFetcher = CursorQuotaFetcher()
+    @ObservationIgnored private let codexCLIFetcher = CodexCLIQuotaFetcher()
+    @ObservationIgnored private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
+    @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
     
-    private var lastKnownAccountStatuses: [String: String] = [:]
+    @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
     
     var currentPage: NavigationPage = .dashboard
     var authFiles: [AuthFile] = []
     var usageStats: UsageStats?
-    var logs: [LogEntry] = []
     var apiKeys: [String] = []
     var isLoading = false
     var isLoadingQuotas = false
@@ -50,9 +51,9 @@ final class QuotaViewModel {
     
     /// IDE Scan state
     var showIDEScanSheet = false
-    private let ideScanSettings = IDEScanSettingsManager.shared
+    @ObservationIgnored private let ideScanSettings = IDEScanSettingsManager.shared
     
-    private var _agentSetupViewModel: AgentSetupViewModel?
+    @ObservationIgnored private var _agentSetupViewModel: AgentSetupViewModel?
     var agentSetupViewModel: AgentSetupViewModel {
         if let vm = _agentSetupViewModel {
             return vm
@@ -72,8 +73,7 @@ final class QuotaViewModel {
     /// Antigravity account switcher (for IDE token injection)
     let antigravitySwitcher = AntigravityAccountSwitcher.shared
     
-    private var refreshTask: Task<Void, Never>?
-    private var lastLogTimestamp: Int?
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
     
     // MARK: - IDE Quota Persistence Keys
     
@@ -214,8 +214,9 @@ final class QuotaViewModel {
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
         async let codexCLI: () = refreshCodexCLIQuotasInternal()
         async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-        
-        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI)
+        async let glm: () = refreshGlmQuotasInternal()
+
+        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm)
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -314,7 +315,7 @@ final class QuotaViewModel {
     private func refreshGeminiCLIQuotasInternal() async {
         // Only use CLI fetcher in quota-only mode
         guard modeManager.isMonitorMode else { return }
-        
+
         let quotas = await geminiCLIFetcher.fetchAsProviderQuota()
         if !quotas.isEmpty {
             if var existing = providerQuotas[.gemini] {
@@ -325,6 +326,16 @@ final class QuotaViewModel {
             } else {
                 providerQuotas[.gemini] = quotas
             }
+        }
+    }
+
+    /// Refresh GLM quota using API keys from CustomProviderService
+    private func refreshGlmQuotasInternal() async {
+        let quotas = await glmFetcher.fetchAllQuotas()
+        if !quotas.isEmpty {
+            providerQuotas[.glm] = quotas
+        } else {
+            providerQuotas.removeValue(forKey: .glm)
         }
     }
     
@@ -499,7 +510,7 @@ final class QuotaViewModel {
         }
     }
     
-    private var lastQuotaRefresh: Date?
+    @ObservationIgnored private var lastQuotaRefresh: Date?
     
     private var quotaRefreshInterval: TimeInterval {
         refreshSettings.refreshCadence.intervalSeconds ?? 60
@@ -551,22 +562,23 @@ final class QuotaViewModel {
     
     func refreshAllQuotas() async {
         guard !isLoadingQuotas else { return }
-        
+
         isLoadingQuotas = true
         lastQuotaRefresh = Date()
-        
+
         // Note: Cursor and Trae removed from auto-refresh (issue #29)
         // User must use "Scan for IDEs" to detect these
         async let antigravity: () = refreshAntigravityQuotasInternal()
         async let openai: () = refreshOpenAIQuotasInternal()
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        
-        _ = await (antigravity, openai, copilot, claudeCode)
-        
+        async let glm: () = refreshGlmQuotasInternal()
+
+        _ = await (antigravity, openai, copilot, claudeCode, glm)
+
         checkQuotaNotifications()
         autoSelectMenuBarItems()
-        
+
         isLoadingQuotas = false
     }
     
@@ -576,30 +588,31 @@ final class QuotaViewModel {
     /// Note: Cursor and Trae require explicit user scan (issue #29)
     func refreshQuotasUnified() async {
         guard !isLoadingQuotas else { return }
-        
+
         isLoadingQuotas = true
         lastQuotaRefreshTime = Date()
         lastQuotaRefresh = Date()
-        
+
         // Refresh direct fetchers (these don't need proxy)
         // Note: Cursor and Trae removed - require explicit scan (issue #29)
         async let antigravity: () = refreshAntigravityQuotasInternal()
         async let openai: () = refreshOpenAIQuotasInternal()
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        
+        async let glm: () = refreshGlmQuotasInternal()
+
         // In Quota-Only Mode, also include CLI fetchers
         if modeManager.isMonitorMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
             async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-            _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, codexCLI, geminiCLI)
         } else {
-            _ = await (antigravity, openai, copilot, claudeCode)
+            _ = await (antigravity, openai, copilot, claudeCode, glm)
         }
-        
+
         checkQuotaNotifications()
         autoSelectMenuBarItems()
-        
+
         isLoadingQuotas = false
     }
     
@@ -693,10 +706,12 @@ final class QuotaViewModel {
             await refreshGeminiCLIQuotasInternal()
         case .trae:
             await refreshTraeQuotasInternal()
+        case .glm:
+            await refreshGlmQuotasInternal()
         default:
             break
         }
-        
+
         // Prune menu bar items after refresh to remove deleted accounts
         pruneMenuBarItems()
     }
@@ -707,36 +722,6 @@ final class QuotaViewModel {
         
         for provider in autoDetectedProviders {
             await refreshQuotaForProvider(provider)
-        }
-    }
-    
-    func refreshLogs() async {
-        guard let client = apiClient else { return }
-        
-        do {
-            let response = try await client.fetchLogs(after: lastLogTimestamp)
-            if let lines = response.lines {
-                let newEntries: [LogEntry] = lines.map { line in
-                    let level: LogEntry.LogLevel
-                    if line.contains("error") || line.contains("ERROR") {
-                        level = .error
-                    } else if line.contains("warn") || line.contains("WARN") {
-                        level = .warn
-                    } else if line.contains("debug") || line.contains("DEBUG") {
-                        level = .debug
-                    } else {
-                        level = .info
-                    }
-                    return LogEntry(timestamp: Date(), level: level, message: line)
-                }
-                logs.append(contentsOf: newEntries)
-                if logs.count > 500 {
-                    logs = Array(logs.suffix(500))
-                }
-            }
-            lastLogTimestamp = response.latestTimestamp
-        } catch {
-            // Silently ignore log fetch errors
         }
     }
     
@@ -972,18 +957,6 @@ final class QuotaViewModel {
             errorMessage = nil
         } catch {
             errorMessage = "Import failed: \(error.localizedDescription)"
-        }
-    }
-    
-    func clearLogs() async {
-        guard let client = apiClient else { return }
-        
-        do {
-            try await client.clearLogs()
-            logs.removeAll()
-            lastLogTimestamp = nil
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
     

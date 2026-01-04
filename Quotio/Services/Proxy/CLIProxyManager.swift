@@ -77,6 +77,7 @@ final class CLIProxyManager {
     private(set) var proxyStatus = ProxyStatus()
     private(set) var isStarting = false
     private(set) var isDownloading = false
+    private(set) var isRegeneratingKey = false
     private(set) var downloadProgress: Double = 0
     private(set) var lastError: String?
     
@@ -106,6 +107,18 @@ final class CLIProxyManager {
     /// Available upgrade version info.
     private(set) var availableUpgrade: ProxyVersionInfo?
     
+    /// Health monitor task for auto-recovery
+    private var healthMonitorTask: Task<Void, Never>?
+    
+    /// Consecutive health check failures
+    private var healthCheckFailures: Int = 0
+    
+    /// Max failures before auto-restart
+    private let maxHealthCheckFailures = 3
+    
+    /// Health check interval in seconds
+    private let healthCheckIntervalSeconds: UInt64 = 30
+    
     /// Compatibility checker instance.
     private let compatibilityChecker = CompatibilityChecker()
     
@@ -115,7 +128,7 @@ final class CLIProxyManager {
     let binaryPath: String
     let configPath: String
     let authDir: String
-    let managementKey: String
+    private(set) var managementKey: String
     
     var port: UInt16 {
         get { proxyStatus.port }
@@ -198,6 +211,19 @@ final class CLIProxyManager {
         }
     }
     
+    /// Update routing strategy in config file
+    /// Note: Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
+    func updateConfigRoutingStrategy(_ strategy: String) {
+        guard FileManager.default.fileExists(atPath: configPath),
+              var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
+        
+        if let range = content.range(of: #"strategy:\s*"[^"]*""#, options: .regularExpression) {
+            content.replaceSubrange(range, with: "strategy: \"\(strategy)\"")
+            try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
+            NSLog("[CLIProxyManager] Routing strategy updated to: \(strategy) (restart required)")
+        }
+    }
+    
     func updateConfigProxyURL(_ url: String?) {
         guard FileManager.default.fileExists(atPath: configPath),
               var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
@@ -262,6 +288,40 @@ final class CLIProxyManager {
         } else if let range = content.range(of: #"secret-key:\s*[^\n]+"#, options: .regularExpression) {
             content.replaceSubrange(range, with: "secret-key: \"\(managementKey)\"")
             try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
+        }
+    }
+    
+    /// Regenerates the management key with staged persistence and rollback on failure.
+    /// - Throws: `ProxyError` if proxy restart fails
+    func regenerateManagementKey() async throws {
+        guard !isRegeneratingKey else {
+            throw ProxyError.operationInProgress
+        }
+        
+        isRegeneratingKey = true
+        defer { isRegeneratingKey = false }
+        
+        let previousKey = managementKey
+        let newKey = UUID().uuidString
+        managementKey = newKey
+        syncSecretKeyInConfig()
+        
+        guard proxyStatus.running else {
+            UserDefaults.standard.set(newKey, forKey: "managementKey")
+            return
+        }
+        
+        do {
+            stop()
+            try await Task.sleep(for: .milliseconds(500))
+            try await start()
+            UserDefaults.standard.set(newKey, forKey: "managementKey")
+        } catch {
+            managementKey = previousKey
+            syncSecretKeyInConfig()
+            try? await Task.sleep(for: .milliseconds(300))
+            try? await start()
+            throw error
         }
     }
     
@@ -525,7 +585,7 @@ final class CLIProxyManager {
         defer { isStarting = false }
         
         // Clean up any orphan processes from previous runs
-        cleanupOrphanProcesses()
+        await cleanupOrphanProcesses()
         
         syncSecretKeyInConfig()
         syncProxyURLInConfig()
@@ -545,11 +605,29 @@ final class CLIProxyManager {
         process.arguments = ["-config", configPath]
         process.currentDirectoryURL = URL(fileURLWithPath: activeBinaryPath).deletingLastPathComponent()
         
-        // Keep process output - prevents early termination
+        // CRITICAL FIX: Drain stdout/stderr to prevent pipe buffer deadlock
+        // macOS pipe buffer is ~64KB. If CLIProxyAPI writes more without being read,
+        // the process blocks on write and becomes unresponsive (port open but no response).
+        // Solution: Use readabilityHandler to continuously drain the buffers.
         let outputPipe = Pipe()
         let errorPipe = Pipe()
         process.standardOutput = outputPipe
         process.standardError = errorPipe
+        
+        // Drain stdout buffer to prevent blocking
+        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            // Discard data to prevent memory accumulation
+            // If debug logging needed: NSLog("[CLIProxyAPI] \(String(data: data, encoding: .utf8) ?? "")")
+            _ = data.count
+        }
+        
+        // Drain stderr buffer to prevent blocking
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            // Discard data - errors are typically reported via exit code
+            _ = data.count
+        }
         
         // Important: Don't inherit environment that might cause issues
         var environment = ProcessInfo.processInfo.environment
@@ -561,6 +639,15 @@ final class CLIProxyManager {
         
         process.terminationHandler = { terminatedProcess in
             let status = terminatedProcess.terminationStatus
+            
+            // Clear readability handlers to release closures and prevent resource leaks
+            outputPipe.fileHandleForReading.readabilityHandler = nil
+            errorPipe.fileHandleForReading.readabilityHandler = nil
+            
+            // Close file handles to release resources
+            try? outputPipe.fileHandleForReading.close()
+            try? errorPipe.fileHandleForReading.close()
+            
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.proxyStatus.running = false
@@ -609,6 +696,8 @@ final class CLIProxyManager {
             
             proxyStatus.running = true
             
+            startHealthMonitor()
+            
         } catch {
             lastError = error.localizedDescription
             throw error
@@ -617,60 +706,170 @@ final class CLIProxyManager {
     
     func stop() {
         terminateAuthProcess()
+        stopHealthMonitor()
         
         // Stop ProxyBridge first if running
         if proxyBridge.isRunning {
             proxyBridge.stop()
         }
         
-        forceTerminateProcess()
+        // Run blocking operations in background to avoid freezing MainActor.
+        //
+        // Trade-off note: If start() is called immediately after stop(), there is a small
+        // window where the detached task could kill the newly started process (since
+        // killProcessOnPortSync kills by PORT, not PID). This is an acceptable trade-off
+        // because UI responsiveness is more important than this rare edge case.
+        // A 150ms buffer is added below to reduce (but not eliminate) this race window.
+        let currentProcess = process
+        let userPort = proxyStatus.port
+        let bridgeMode = useBridgeMode
+        let intPort = internalPort
         
-        // Kill processes on both ports
-        killProcessOnPort(proxyStatus.port)
-        if useBridgeMode {
-            killProcessOnPort(internalPort)
+        Task.detached(priority: .userInitiated) {
+            // Force terminate the main proxy process
+            if let proc = currentProcess, proc.isRunning {
+                let pid = proc.processIdentifier
+                proc.terminate()
+                
+                let deadline = Date().addingTimeInterval(2.0)
+                while proc.isRunning && Date() < deadline {
+                    usleep(100_000)  // 100ms, avoid Thread.sleep in async context
+                }
+                
+                if proc.isRunning {
+                    kill(pid, SIGKILL)
+                }
+            }
+            
+            // Kill processes on both ports
+            Self.killProcessOnPortSync(userPort)
+            if bridgeMode {
+                Self.killProcessOnPortSync(intPort)
+            }
         }
+        
+        // Small buffer to allow detached task to start killing before state update.
+        // This reduces the race condition window when start() is called immediately after.
+        Thread.sleep(forTimeInterval: 0.15)
         
         process = nil
         proxyStatus.running = false
     }
     
-    /// Clean up any orphan proxy processes from previous runs
-    /// This prevents port conflicts and zombie processes
-    private func cleanupOrphanProcesses() {
-        // Kill any process on the user-facing port
-        killProcessOnPort(proxyStatus.port)
+    // ════════════════════════════════════════════════════════════════════════
+    // MARK: - Health Monitoring
+    // ════════════════════════════════════════════════════════════════════════
+    
+    private func startHealthMonitor() {
+        stopHealthMonitor()
+        healthCheckFailures = 0
         
-        // Only kill internal port if bridge mode is enabled
-        // to avoid accidentally killing unrelated services
-        if useBridgeMode {
-            killProcessOnPort(internalPort)
-            NSLog("[CLIProxyManager] Cleaned up orphan processes on ports \(proxyStatus.port) and \(internalPort)")
+        healthMonitorTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: (self?.healthCheckIntervalSeconds ?? 30) * 1_000_000_000)
+                guard !Task.isCancelled else { break }
+                
+                await self?.performHealthCheck()
+            }
+        }
+    }
+    
+    private func stopHealthMonitor() {
+        healthMonitorTask?.cancel()
+        healthMonitorTask = nil
+    }
+    
+    private func performHealthCheck() async {
+        // Bail out if proxy is not running or manager is in upgrade flow
+        guard proxyStatus.running else {
+            healthCheckFailures = 0
+            return
+        }
+        
+        // Skip health check during managed upgrades to avoid racing with upgrade flow
+        switch managerState {
+        case .testing, .promoting, .rollingBack:
+            NSLog("[CLIProxyManager] Skipping health check during \(managerState) state")
+            return
+        case .idle, .active:
+            break
+        }
+        
+        let isHealthy = await compatibilityChecker.isHealthy(port: useBridgeMode ? internalPort : proxyStatus.port)
+        
+        // Re-check state after await - proxy may have been stopped or upgrade may have started
+        guard proxyStatus.running else {
+            healthCheckFailures = 0
+            return
+        }
+        
+        switch managerState {
+        case .testing, .promoting, .rollingBack:
+            NSLog("[CLIProxyManager] Aborting health check action - manager entered \(managerState) state")
+            return
+        case .idle, .active:
+            break
+        }
+        
+        if isHealthy {
+            healthCheckFailures = 0
         } else {
-            NSLog("[CLIProxyManager] Cleaned up orphan processes on port \(proxyStatus.port)")
-        }
-        
-        // Small delay to ensure ports are released
-        Thread.sleep(forTimeInterval: 0.2)
-    }
-    
-    private func forceTerminateProcess() {
-        guard let process = process, process.isRunning else { return }
-        
-        let pid = process.processIdentifier
-        process.terminate()
-        
-        let deadline = Date().addingTimeInterval(2.0)
-        while process.isRunning && Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.1)
-        }
-        
-        if process.isRunning {
-            kill(pid, SIGKILL)
+            healthCheckFailures += 1
+            NSLog("[CLIProxyManager] Health check failed (\(healthCheckFailures)/\(maxHealthCheckFailures))")
+            
+            if healthCheckFailures >= maxHealthCheckFailures {
+                NSLog("[CLIProxyManager] Max failures reached, auto-restarting proxy...")
+                healthCheckFailures = 0
+                
+                stop()
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                
+                do {
+                    try await start()
+                    NSLog("[CLIProxyManager] Auto-restart successful")
+                } catch {
+                    NSLog("[CLIProxyManager] Auto-restart failed: \(error)")
+                    NotificationManager.shared.notifyProxyCrashed(exitCode: -1)
+                }
+            }
         }
     }
     
-    private func killProcessOnPort(_ port: UInt16) {
+    // ════════════════════════════════════════════════════════════════════════
+    // MARK: - Process Cleanup
+    // ════════════════════════════════════════════════════════════════════════
+    
+    /// Clean up any orphan proxy processes from previous runs.
+    /// Executes blocking operations on background thread to avoid blocking MainActor.
+    private func cleanupOrphanProcesses() async {
+        let userPort = proxyStatus.port
+        let bridgeMode = useBridgeMode
+        let intPort = internalPort
+        
+        // Execute blocking operations on background thread
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            Task.detached(priority: .userInitiated) {
+                // Kill any process on the user-facing port
+                Self.killProcessOnPortSync(userPort)
+                
+                // Only kill internal port if bridge mode is enabled
+                if bridgeMode {
+                    Self.killProcessOnPortSync(intPort)
+                    NSLog("[CLIProxyManager] Cleaned up orphan processes on ports \(userPort) and \(intPort)")
+                } else {
+                    NSLog("[CLIProxyManager] Cleaned up orphan processes on port \(userPort)")
+                }
+                
+                // Small delay to ensure ports are released
+                usleep(200_000)  // 200ms, avoid Thread.sleep in async context
+                continuation.resume()
+            }
+        }
+    }
+    
+    /// Synchronous port cleanup for use in detached tasks.
+    /// This method is `nonisolated` to allow calling from background threads.
+    nonisolated private static func killProcessOnPortSync(_ port: UInt16) {
         let lsofProcess = Process()
         lsofProcess.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         lsofProcess.arguments = ["-ti", "tcp:\(port)"]
@@ -693,6 +892,7 @@ final class CLIProxyManager {
                 }
             }
         } catch {
+            // Silent failure - process may not exist
         }
     }
     
@@ -723,6 +923,7 @@ final class CLIProxyManager {
 enum ProxyError: LocalizedError {
     case binaryNotFound
     case startupFailed
+    case operationInProgress
     case networkError(String)
     case noCompatibleBinary
     case extractionFailed
@@ -734,6 +935,8 @@ enum ProxyError: LocalizedError {
             return "CLIProxyAPI binary not found. Click 'Install' to download."
         case .startupFailed:
             return "Failed to start proxy server."
+        case .operationInProgress:
+            return "Another operation is already in progress. Please wait."
         case .networkError(let msg):
             return "Network error: \(msg)"
         case .noCompatibleBinary:
@@ -1401,7 +1604,7 @@ extension CLIProxyManager {
         
         // Also kill anything on test port
         if let port = testPort {
-            killProcessOnPort(port)
+            Self.killProcessOnPortSync(port)
         }
     }
     
@@ -1429,7 +1632,7 @@ extension CLIProxyManager {
         
         // Also kill anything on test port
         if let port = testPort {
-            killProcessOnPort(port)
+            Self.killProcessOnPortSync(port)
         }
     }
     

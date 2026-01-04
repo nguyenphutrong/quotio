@@ -7,9 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-01-04
+
+### Added
+
+- **glm**: add GLM provider support with API key-based quota tracking (#77) - thanks @prnake 🎉
+
+### Fixed
+
+- **detection**: check XDG_DATA_HOME for fnm path detection (#102)
+- **glm**: resolve Swift 6 concurrency warnings in GLMQuotaFetcher (#106)
+
+## [0.5.0] - 2026-01-04
+
+### Added
+
+- unified operating mode system with remote management support (#86)
+- **settings**: add management API key display and regenerate (#97)
+
 ### Changed
 
 - **changelog**: clean up duplicates and add auto-squash for prereleases (fa1a273)
+- Memory optimization - reduce RAM from 150-250MB to <100MB (#100)
+
+### Fixed
+
+- **proxy**: add buffer to reduce stop/start race condition window (#93)
+- **settings**: add restart notice for routing strategy changes (#94)
+- **proxy**: prevent hang after extended runtime (#96)
 
 ## [0.4.4] - 2026-01-03
 

@@ -28,3 +28,7 @@ DerivedData/
 Config/Local.xcconfig
 
 plans/
+
+# Local AI agent context (not shared)
+.context/
+.context

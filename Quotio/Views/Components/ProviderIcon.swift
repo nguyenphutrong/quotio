@@ -24,7 +24,7 @@ struct ProviderIcon: View {
     
     var body: some View {
         Group {
-            if let nsImage = NSImage(named: provider.logoAssetName) {
+            if let nsImage = ImageCacheService.shared.image(named: provider.logoAssetName, size: size) {
                 Image(nsImage: nsImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)

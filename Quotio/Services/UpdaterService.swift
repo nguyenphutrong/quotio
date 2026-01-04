@@ -44,6 +44,8 @@ final class UpdaterService: NSObject {
     private var updaterController: SPUStandardUpdaterController?
     private var updater: SPUUpdater? { updaterController?.updater }
     
+    private(set) var isInitialized = false
+    
     /// Whether automatic update checks are enabled
     var automaticallyChecksForUpdates: Bool {
         get { updater?.automaticallyChecksForUpdates ?? true }
@@ -60,7 +62,8 @@ final class UpdaterService: NSObject {
     
     /// Whether the updater can check for updates
     var canCheckForUpdates: Bool {
-        updater?.canCheckForUpdates ?? false
+        guard isInitialized else { return false }
+        return updater?.canCheckForUpdates ?? false
     }
     
     /// Current app icon (observable for SwiftUI views)
@@ -86,20 +89,26 @@ final class UpdaterService: NSObject {
     
     override init() {
         super.init()
+        updateAppIcon()
+    }
+    
+    /// Initialize Sparkle updater on-demand (memory optimization)
+    func initializeIfNeeded() {
+        guard !isInitialized else { return }
         
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: self,
             userDriverDelegate: nil
         )
-        
-        updateAppIcon()
+        isInitialized = true
     }
     
     // MARK: - Public Methods
     
     /// Manually check for updates
     func checkForUpdates() {
+        initializeIfNeeded()
         guard canCheckForUpdates else { return }
         isCheckingForUpdates = true
         updater?.checkForUpdates()
@@ -107,19 +116,19 @@ final class UpdaterService: NSObject {
     
     /// Check for updates in background (no UI if no update)
     func checkForUpdatesInBackground() {
+        initializeIfNeeded()
         updater?.checkForUpdatesInBackground()
     }
     
     // MARK: - Icon Management
     
     func updateAppIcon() {
-        // Use imageset names (not appiconset) for runtime loading
         let iconName = updateChannel == .beta ? "AppIconBetaImage" : "AppIconImage"
         
         guard let iconImage = NSImage(named: iconName) else { return }
         
-        let size = NSSize(width: 1024, height: 1024)
-        let roundedIcon = NSImage(size: size, flipped: false) { rect in
+        let displaySize = NSSize(width: 256, height: 256)
+        let roundedIcon = NSImage(size: displaySize, flipped: false) { rect in
             let path = NSBezierPath(roundedRect: rect, xRadius: rect.width * 0.22, yRadius: rect.height * 0.22)
             path.addClip()
             iconImage.draw(in: rect)

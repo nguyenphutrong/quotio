@@ -24,7 +24,7 @@ struct ProvidersScreen: View {
     @State private var editingCustomProvider: CustomProvider?
     @State private var showAddProviderPopover = false
     @State private var switchingAccount: AccountRowData?
-    
+
     private let modeManager = OperatingModeManager.shared
     private let customProviderService = CustomProviderService.shared
     
@@ -42,8 +42,8 @@ struct ProvidersScreen: View {
     /// All accounts grouped by provider
     private var groupedAccounts: [AIProvider: [AccountRowData]] {
         var groups: [AIProvider: [AccountRowData]] = [:]
-        
-                    if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
+
+        if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
             // From proxy auth files (proxy running)
             for file in viewModel.authFiles {
                 guard let provider = file.providerType else { continue }
@@ -57,17 +57,35 @@ struct ProvidersScreen: View {
                 groups[file.provider, default: []].append(data)
             }
         }
-        
+
         // Add auto-detected accounts (Cursor, Trae)
+        // Note: GLM uses API key auth via CustomProviderService, so skip it here
         for (provider, quotas) in viewModel.providerQuotas {
-            if !provider.supportsManualAuth {
+            if !provider.supportsManualAuth && provider != .glm {
                 for (accountKey, _) in quotas {
                     let data = AccountRowData.from(provider: provider, accountKey: accountKey)
                     groups[provider, default: []].append(data)
                 }
             }
         }
-        
+
+        // Add GLM providers from CustomProviderService
+        for glmProvider in customProviderService.providers.filter({ $0.type == .glmCompatibility && $0.isEnabled }) {
+            // Use provider name as display name (store provider ID for editing)
+            let data = AccountRowData(
+                id: glmProvider.id.uuidString,
+                provider: .glm,
+                displayName: glmProvider.name.isEmpty ? "GLM" : glmProvider.name,
+                source: .direct,
+                status: "ready",
+                statusMessage: nil,
+                isDisabled: false,
+                canDelete: true,
+                canEdit: true
+            )
+            groups[.glm, default: []].append(data)
+        }
+
         return groups
     }
     
@@ -132,7 +150,8 @@ struct ProvidersScreen: View {
         }
         .sheet(isPresented: $showCustomProviderSheet) {
             CustomProviderSheet(provider: editingCustomProvider) { provider in
-                if editingCustomProvider != nil {
+                // Check if provider already exists by ID to determine if we're updating or adding
+                if customProviderService.providers.contains(where: { $0.id == provider.id }) {
                     customProviderService.updateProvider(provider)
                 } else {
                     customProviderService.addProvider(provider)
@@ -229,6 +248,9 @@ struct ProvidersScreen: View {
                         onDeleteAccount: { account in
                             Task { await deleteAccount(account) }
                         },
+                        onEditAccount: provider == .glm ? { account in
+                            handleEditGlmAccount(account)
+                        } : nil,
                         onSwitchAccount: provider == .antigravity ? { account in
                             switchingAccount = account
                         } : nil,
@@ -260,12 +282,15 @@ struct ProvidersScreen: View {
     }
     
     // MARK: - Custom Providers Section
-    
+
     @ViewBuilder
     private var customProvidersSection: some View {
+        // Filter out GLM providers (they're shown in Your Accounts section)
+        let nonGlmProviders = customProviderService.providers.filter { $0.type != .glmCompatibility }
+
         Section {
             // List existing custom providers
-            ForEach(customProviderService.providers) { provider in
+            ForEach(nonGlmProviders) { provider in
                 CustomProviderRow(
                     provider: provider,
                     onEdit: {
@@ -285,10 +310,10 @@ struct ProvidersScreen: View {
         } header: {
             HStack {
                 Label("customProviders.title".localized(), systemImage: "puzzlepiece.extension.fill")
-                
-                if !customProviderService.providers.isEmpty {
+
+                if !nonGlmProviders.isEmpty {
                     Spacer()
-                    Text("\(customProviderService.providers.count)")
+                    Text("\(nonGlmProviders.count)")
                         .font(.caption2.bold())
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -304,14 +329,14 @@ struct ProvidersScreen: View {
     }
     
     // MARK: - Helper Functions
-    
+
     private func handleAddProvider(_ provider: AIProvider) {
         // In Local Proxy Mode, require proxy to be running for OAuth
         if modeManager.isLocalProxyMode && !viewModel.proxyManager.proxyStatus.running {
             showProxyRequiredAlert = true
             return
         }
-        
+
         if provider == .vertex {
             isImporterPresented = true
         } else {
@@ -323,13 +348,32 @@ struct ProvidersScreen: View {
     private func deleteAccount(_ account: AccountRowData) async {
         // Only proxy accounts can be deleted via API
         guard account.canDelete else { return }
-        
+
+        // Handle GLM accounts (stored in CustomProviderService)
+        if account.provider == .glm {
+            // GLM accounts are stored as custom providers
+            // Find the GLM provider by ID and delete it
+            if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
+                customProviderService.deleteProvider(id: glmProvider.id)
+                syncCustomProvidersToConfig()
+            }
+            return
+        }
+
         // Find the original AuthFile to delete
         if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
             await viewModel.deleteAuthFile(authFile)
         }
     }
-    
+
+    private func handleEditGlmAccount(_ account: AccountRowData) {
+        // Find the GLM provider by ID and open edit sheet using CustomProviderSheet
+        if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
+            editingCustomProvider = glmProvider
+            showCustomProviderSheet = true
+        }
+    }
+
     private func syncCustomProvidersToConfig() {
         // Silent failure - custom provider sync is non-critical
         // Config will be synced on next proxy start
@@ -615,6 +659,9 @@ private struct OAuthStatusView: View {
     let state: String?
     let provider: AIProvider
     
+    /// Stable rotation angle for spinner animation (fixes UUID() infinite re-render)
+    @State private var rotationAngle: Double = 0
+    
     var body: some View {
         Group {
             switch status {
@@ -639,8 +686,12 @@ private struct OAuthStatusView: View {
                             .trim(from: 0, to: 0.7)
                             .stroke(provider.color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                             .frame(width: 60, height: 60)
-                            .rotationEffect(.degrees(-90))
-                            .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: UUID())
+                            .rotationEffect(.degrees(rotationAngle - 90))
+                            .onAppear {
+                                withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+                                    rotationAngle = 360
+                                }
+                            }
                         
                         Image(systemName: "person.badge.key.fill")
                             .font(.title2)

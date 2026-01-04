@@ -12,7 +12,6 @@ struct SettingsScreen: View {
     private let modeManager = OperatingModeManager.shared
     
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
-    @AppStorage("showInDock") private var showInDock = true
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     @AppStorage("routingStrategy") private var routingStrategy = "round-robin"
     @AppStorage("requestRetry") private var requestRetry = 3
@@ -50,8 +49,6 @@ struct SettingsScreen: View {
                             launchAtLogin = !newValue
                         }
                     }
-
-                Toggle("settings.showInDock".localized(), isOn: $showInDock)
             } header: {
                 Label("settings.general".localized(), systemImage: "gearshape")
             }
@@ -113,6 +110,8 @@ struct SettingsScreen: View {
                             .textSelection(.enabled)
                     }
                     
+                    ManagementKeyRow()
+                    
                     Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
                     
                     VStack(alignment: .leading, spacing: 6) {
@@ -154,13 +153,19 @@ struct SettingsScreen: View {
                         Text("settings.fillFirst".localized()).tag("fill-first")
                     }
                     .pickerStyle(.segmented)
+                    .onChange(of: routingStrategy) { _, newValue in
+                        viewModel.proxyManager.updateConfigRoutingStrategy(newValue)
+                    }
                 } header: {
                     Label("settings.routingStrategy".localized(), systemImage: "arrow.triangle.branch")
                 } footer: {
-                    Text(routingStrategy == "round-robin"
-                         ? "settings.roundRobinDesc".localized()
-                         : "settings.fillFirstDesc".localized())
-                        .font(.caption)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(routingStrategy == "round-robin"
+                             ? "settings.roundRobinDesc".localized()
+                             : "settings.fillFirstDesc".localized())
+                        Text("settings.restartProxy".localized())
+                    }
+                    .font(.caption)
                 }
                 
                 // Quota Exceeded Behavior
@@ -1180,6 +1185,26 @@ private struct AvailableVersionRow: View {
     let isInstalling: Bool
     let onInstall: () -> Void
     
+    // Cached DateFormatters to avoid repeated allocations (performance fix)
+    private static let isoFormatterWithFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    
+    private static let isoFormatterStandard: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+    
+    private static let displayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+    
     var body: some View {
         HStack(spacing: 12) {
             // Version info
@@ -1242,23 +1267,14 @@ private struct AvailableVersionRow: View {
     }
     
     private func formatDate(_ isoString: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        if let date = formatter.date(from: isoString) {
-            let displayFormatter = DateFormatter()
-            displayFormatter.dateStyle = .medium
-            displayFormatter.timeStyle = .none
-            return displayFormatter.string(from: date)
+        // Try with fractional seconds first
+        if let date = Self.isoFormatterWithFractional.date(from: isoString) {
+            return Self.displayFormatter.string(from: date)
         }
         
         // Try without fractional seconds
-        formatter.formatOptions = [.withInternetDateTime]
-        if let date = formatter.date(from: isoString) {
-            let displayFormatter = DateFormatter()
-            displayFormatter.dateStyle = .medium
-            displayFormatter.timeStyle = .none
-            return displayFormatter.string(from: date)
+        if let date = Self.isoFormatterStandard.date(from: isoString) {
+            return Self.displayFormatter.string(from: date)
         }
         
         return isoString
@@ -1268,13 +1284,38 @@ private struct AvailableVersionRow: View {
 // MARK: - Menu Bar Settings Section
 
 struct MenuBarSettingsSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
-    @State private var settings = MenuBarSettingsManager.shared
+    private let settings = MenuBarSettingsManager.shared
+    @AppStorage("showInDock") private var showInDock = true
     
     private var showMenuBarIconBinding: Binding<Bool> {
         Binding(
             get: { settings.showMenuBarIcon },
-            set: { settings.showMenuBarIcon = $0 }
+            set: { newValue in
+                // Prevent disabling both dock and menu bar icon (user would have no way to access app)
+                if !newValue && !showInDock {
+                    // Re-enable dock if user tries to disable menu bar icon while dock is already disabled
+                    showInDock = true
+                    NSApp.setActivationPolicy(.regular)
+                }
+                // Just update the setting - QuotioApp's onChange handler will update the status bar
+                settings.showMenuBarIcon = newValue
+            }
+        )
+    }
+    
+    private var showInDockBinding: Binding<Bool> {
+        Binding(
+            get: { showInDock },
+            set: { newValue in
+                // Prevent disabling both dock and menu bar icon (user would have no way to access app)
+                if !newValue && !settings.showMenuBarIcon {
+                    // Re-enable menu bar icon if user tries to disable dock while menu bar is already disabled
+                    settings.showMenuBarIcon = true
+                    // Note: QuotioApp's onChange handler will update the status bar
+                }
+                showInDock = newValue
+                NSApp.setActivationPolicy(newValue ? .regular : .accessory)
+            }
         )
     }
     
@@ -1294,6 +1335,8 @@ struct MenuBarSettingsSection: View {
     
     var body: some View {
         Section {
+            Toggle("settings.showInDock".localized(), isOn: showInDockBinding)
+            
             Toggle("settings.menubar.showIcon".localized(), isOn: showMenuBarIconBinding)
             
             if settings.showMenuBarIcon {
@@ -1371,7 +1414,6 @@ struct PrivacySettingsSection: View {
 
 struct GeneralSettingsTab: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
-    @AppStorage("showInDock") private var showInDock = true
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     
     var body: some View {
@@ -1395,12 +1437,6 @@ struct GeneralSettingsTab: View {
                 Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
             } header: {
                 Label("settings.startup".localized(), systemImage: "power")
-            }
-            
-            Section {
-                Toggle("settings.showInDock".localized(), isOn: $showInDock)
-            } header: {
-                Label("settings.appearance".localized(), systemImage: "macwindow")
             }
             
             Section {
@@ -1499,6 +1535,11 @@ struct AboutScreen: View {
                 versionCopyToast
                     .transition(.opacity)
             }
+        }
+        .onAppear {
+            #if canImport(Sparkle)
+            updaterService.initializeIfNeeded()
+            #endif
         }
         .navigationTitle("nav.about".localized())
     }
@@ -1710,6 +1751,11 @@ struct AboutUpdateSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .onAppear {
+            #if canImport(Sparkle)
+            updaterService.initializeIfNeeded()
+            #endif
+        }
     }
 }
 
@@ -2290,6 +2336,98 @@ struct LinkCard: View {
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
             }
+        }
+    }
+}
+
+// MARK: - Management Key Row
+
+struct ManagementKeyRow: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @State private var settings = MenuBarSettingsManager.shared
+    @State private var regenerateError: String?
+    @State private var showRegenerateConfirmation = false
+    @State private var showCopyConfirmation = false
+    
+    private var displayKey: String {
+        if settings.hideSensitiveInfo {
+            let key = viewModel.proxyManager.managementKey
+            return String(repeating: "•", count: 8) + "..." + key.suffix(4)
+        }
+        return viewModel.proxyManager.managementKey
+    }
+    
+    var body: some View {
+        LabeledContent("settings.managementKey".localized()) {
+            HStack(spacing: 8) {
+                Text(displayKey)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                
+                Button {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(viewModel.proxyManager.managementKey, forType: .string)
+                    showCopyConfirmation = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.5))
+                        showCopyConfirmation = false
+                    }
+                } label: {
+                    Image(systemName: showCopyConfirmation ? "checkmark" : "doc.on.doc")
+                        .font(.caption)
+                        .frame(width: 14, height: 14)
+                        .foregroundStyle(showCopyConfirmation ? .green : .primary)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .buttonStyle(.borderless)
+                .help("action.copy".localized())
+                
+                Button {
+                    showRegenerateConfirmation = true
+                } label: {
+                    if viewModel.proxyManager.isRegeneratingKey {
+                        ProgressView()
+                            .controlSize(.small)
+                            .scaleEffect(0.7)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.borderless)
+                .disabled(viewModel.proxyManager.isRegeneratingKey)
+                .help("settings.managementKey.regenerate".localized())
+            }
+        }
+        .confirmationDialog(
+            "settings.managementKey.regenerate.title".localized(),
+            isPresented: $showRegenerateConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("settings.managementKey.regenerate.confirm".localized(), role: .destructive) {
+                Task {
+                    regenerateError = nil
+                    do {
+                        try await viewModel.proxyManager.regenerateManagementKey()
+                    } catch {
+                        regenerateError = error.localizedDescription
+                    }
+                }
+            }
+            Button("action.cancel".localized(), role: .cancel) {}
+        } message: {
+            Text("settings.managementKey.regenerate.warning".localized())
+        }
+        .alert("Error".localized(), isPresented: .init(
+            get: { regenerateError != nil },
+            set: { if !$0 { regenerateError = nil } }
+        )) {
+            Button("OK".localized()) { regenerateError = nil }
+        } message: {
+            Text(regenerateError ?? "")
         }
     }
 }

@@ -164,7 +164,7 @@ final class AntigravityAccountSwitcher {
             switchState = .switching(progress: .creatingBackup)
             try await databaseService.createBackup()
             
-            // Step 3: Inject token with retry logic
+            // Step 3: Inject token (retry logic is now internal to databaseService)
             switchState = .switching(progress: .injectingToken)
             
             // Calculate expiry from auth file
@@ -177,29 +177,12 @@ final class AntigravityAccountSwitcher {
                 expiry = Int64(Date().timeIntervalSince1970) + 3600
             }
             
-            // Retry up to 3 times with increasing delays (database may still be locked)
-            var lastError: Error?
-            for attempt in 1...3 {
-                do {
-                    try await databaseService.injectToken(
-                        accessToken: authFile.accessToken,
-                        refreshToken: authFile.refreshToken ?? "",
-                        expiry: expiry
-                    )
-                    lastError = nil
-                    break
-                } catch {
-                    lastError = error
-                    if attempt < 3 {
-                        // Wait before retry: 1s, 2s
-                        try? await Task.sleep(nanoseconds: UInt64(attempt) * 1_000_000_000)
-                    }
-                }
-            }
-            
-            if let error = lastError {
-                throw error
-            }
+            // injectToken now handles retry internally with exponential backoff
+            try await databaseService.injectToken(
+                accessToken: authFile.accessToken,
+                refreshToken: authFile.refreshToken ?? "",
+                expiry: expiry
+            )
             
             // Step 4: Restart IDE if it was running and user wants it
             if wasIDERunning && shouldRestartIDE {

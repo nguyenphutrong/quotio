@@ -155,7 +155,8 @@ struct QuotaScreen: View {
     private var providerSegmentedControl: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(availableProviders, id: \.self) { provider in
+                // availableProviders is already sorted; AIProvider is Identifiable
+                ForEach(availableProviders) { provider in
                     ProviderSegmentButton(
                         provider: provider,
                         quotaPercent: lowestQuotaPercent(for: provider),
@@ -900,7 +901,7 @@ private struct AntigravityModelsDetailSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("quota.allModels".localized())
                         .font(.headline)
-                    Text(email)
+                    Text(email.masked(if: settings.hideSensitiveInfo))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
