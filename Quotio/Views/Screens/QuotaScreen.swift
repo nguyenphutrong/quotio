@@ -369,6 +369,10 @@ private struct AccountQuotaCardV2: View {
         account.email.masked(if: settings.hideSensitiveInfo)
     }
     
+    private var isWarmupEnabled: Bool {
+        viewModel.isWarmupEnabled(for: provider, accountKey: account.key)
+    }
+    
     /// Check if this Antigravity account is active in IDE
     private var isActiveInIDE: Bool {
         provider == .antigravity && viewModel.isAntigravityAccountActive(email: account.email)
@@ -460,6 +464,23 @@ private struct AccountQuotaCardV2: View {
             }
             
             Spacer()
+            
+            Button {
+                viewModel.toggleWarmup(for: provider, accountKey: account.key)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: isWarmupEnabled ? "bolt.fill" : "bolt")
+                        .font(.caption)
+                    Text("action.warmup".localized())
+                        .font(.caption)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(isWarmupEnabled ? provider.color.opacity(0.15) : Color.secondary.opacity(0.1))
+                .foregroundStyle(isWarmupEnabled ? provider.color : .secondary)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
             
             // Active badge (Antigravity only)
             if isActiveInIDE {

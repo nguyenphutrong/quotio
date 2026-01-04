@@ -19,6 +19,8 @@ final class QuotaViewModel {
     private let notificationManager = NotificationManager.shared
     private let modeManager = AppModeManager.shared
     private let refreshSettings = RefreshSettingsManager.shared
+    private let warmupSettings = WarmupSettingsManager.shared
+    private let warmupService = WarmupService()
     
     /// Request tracker for monitoring API requests through ProxyBridge
     let requestTracker = RequestTracker.shared
@@ -73,7 +75,9 @@ final class QuotaViewModel {
     let antigravitySwitcher = AntigravityAccountSwitcher.shared
     
     private var refreshTask: Task<Void, Never>?
+    private var warmupTask: Task<Void, Never>?
     private var lastLogTimestamp: Int?
+    private var isWarmupRunning = false
     
     // MARK: - IDE Quota Persistence Keys
     
@@ -84,12 +88,22 @@ final class QuotaViewModel {
         self.proxyManager = CLIProxyManager.shared
         loadPersistedIDEQuotas()
         setupRefreshCadenceCallback()
+        setupWarmupCallback()
+        restartWarmupScheduler()
     }
     
     private func setupRefreshCadenceCallback() {
         refreshSettings.onRefreshCadenceChanged = { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.restartAutoRefresh()
+            }
+        }
+    }
+    
+    private func setupWarmupCallback() {
+        warmupSettings.onEnabledAccountsChanged = { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.restartWarmupScheduler()
             }
         }
     }
@@ -330,6 +344,264 @@ final class QuotaViewModel {
                 }
             }
         }
+    }
+
+    // MARK: - Warmup
+
+    func isWarmupEnabled(for provider: AIProvider, accountKey: String) -> Bool {
+        warmupSettings.isEnabled(provider: provider, accountKey: accountKey)
+    }
+
+    func toggleWarmup(for provider: AIProvider, accountKey: String) {
+        warmupSettings.toggle(provider: provider, accountKey: accountKey)
+        let enabled = warmupSettings.isEnabled(provider: provider, accountKey: accountKey)
+        logWarmup("\(enabled ? "Enabled" : "Disabled") \(provider.rawValue) / \(accountKey)")
+        
+        if enabled {
+            Task {
+                await warmupAccount(provider: provider, accountKey: accountKey)
+            }
+        }
+    }
+
+    private var warmupIntervalNanoseconds: UInt64 {
+        60 * 60 * 1_000_000_000
+    }
+
+    private func restartWarmupScheduler() {
+        warmupTask?.cancel()
+        
+        guard !warmupSettings.enabledAccountIds.isEmpty else { return }
+        
+        warmupTask = Task { [weak self] in
+            guard let self else { return }
+            
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: warmupIntervalNanoseconds)
+                await runWarmupCycle()
+            }
+        }
+    }
+
+    private func runWarmupCycle() async {
+        guard !isWarmupRunning else { return }
+        let targets = warmupTargets()
+        guard !targets.isEmpty else { return }
+        
+        guard proxyManager.proxyStatus.running else {
+            logWarmup("Skipped cycle: proxy not running")
+            return
+        }
+        
+        isWarmupRunning = true
+        defer { isWarmupRunning = false }
+        
+        guard let apiKey = await warmupAPIKey() else {
+            logWarmup("Skipped cycle: missing API key")
+            return
+        }
+        
+        let availableModels = await fetchWarmupModels(apiKey: apiKey)
+        guard !availableModels.isEmpty else {
+            logWarmup("Skipped cycle: no models available")
+            return
+        }
+        
+        logWarmup("Starting cycle: \(targets.count) accounts, \(availableModels.count) models")
+        
+        for target in targets {
+            if Task.isCancelled { break }
+            await warmupAccount(
+                provider: target.provider,
+                accountKey: target.accountKey,
+                availableModels: availableModels,
+                apiKey: apiKey
+            )
+        }
+    }
+
+    private func warmupAccount(provider: AIProvider, accountKey: String) async {
+        guard proxyManager.proxyStatus.running else {
+            logWarmup("Skipped \(provider.rawValue) / \(accountKey): proxy not running")
+            return
+        }
+        
+        guard let apiKey = await warmupAPIKey() else {
+            logWarmup("Skipped \(provider.rawValue) / \(accountKey): missing API key")
+            return
+        }
+        
+        let availableModels = await fetchWarmupModels(apiKey: apiKey)
+        guard !availableModels.isEmpty else {
+            logWarmup("Skipped \(provider.rawValue) / \(accountKey): no models available")
+            return
+        }
+        
+        await warmupAccount(
+            provider: provider,
+            accountKey: accountKey,
+            availableModels: availableModels,
+            apiKey: apiKey
+        )
+    }
+
+    private func warmupAccount(
+        provider: AIProvider,
+        accountKey: String,
+        availableModels: [WarmupModelInfo],
+        apiKey: String
+    ) async {
+        let models = warmupModels(
+            provider: provider,
+            accountKey: accountKey,
+            availableModels: availableModels
+        )
+        guard !models.isEmpty else {
+            logWarmup("No matching models for \(provider.rawValue) / \(accountKey)")
+            return
+        }
+        logWarmup("Filtered models for \(provider.rawValue) / \(accountKey): \(models.count) of \(availableModels.count)")
+        logWarmup("Warming \(provider.rawValue) / \(accountKey): \(models.count) models")
+        
+        for model in models {
+            if Task.isCancelled { break }
+            do {
+                try await warmupService.warmup(
+                    baseURL: proxyManager.baseURL,
+                    apiKey: apiKey,
+                    model: model
+                )
+                logWarmup("Warmup OK \(provider.rawValue) / \(accountKey): \(model)")
+            } catch {
+                logWarmup("Warmup failed \(provider.rawValue) / \(accountKey): \(model) (\(error.localizedDescription))")
+            }
+        }
+    }
+
+    private func warmupModels(
+        provider: AIProvider,
+        accountKey _: String,
+        availableModels: [WarmupModelInfo]
+    ) -> [String] {
+        let providerTokens = providerMetadataTokens(for: provider)
+        let idMatches = Set(
+            availableModels
+                .map(\.id)
+                .filter { modelIdMatchesProvider($0, provider: provider) }
+        )
+        
+        var matches: [String] = []
+        matches.reserveCapacity(availableModels.count)
+        var seen = Set<String>()
+        
+        for info in availableModels {
+            let source = (info.provider ?? info.ownedBy ?? "").lowercased()
+            let metadataMatch = providerTokens.contains { token in source.contains(token) }
+            let idMatch = idMatches.contains(info.id)
+            guard metadataMatch || idMatch else { continue }
+            if seen.insert(info.id).inserted {
+                matches.append(info.id)
+            }
+        }
+        
+        return matches
+    }
+
+    private func providerMetadataTokens(for provider: AIProvider) -> [String] {
+        switch provider {
+        case .codex:
+            return ["openai", "codex"]
+        case .claude:
+            return ["anthropic", "claude"]
+        case .gemini:
+            return ["google", "gemini"]
+        case .copilot:
+            return ["copilot", "github"]
+        case .antigravity:
+            return ["antigravity", "google", "gemini", "anthropic", "claude", "github", "copilot"]
+        case .qwen:
+            return ["qwen"]
+        case .iflow:
+            return ["iflow"]
+        case .vertex:
+            return ["vertex", "google"]
+        case .kiro:
+            return ["kiro"]
+        case .cursor:
+            return ["cursor"]
+        case .trae:
+            return ["trae"]
+        }
+    }
+
+    private func modelIdMatchesProvider(_ modelId: String, provider: AIProvider) -> Bool {
+        let id = modelId.lowercased()
+        switch provider {
+        case .codex:
+            return id.hasPrefix("gpt") || id.hasPrefix("o1") || id.hasPrefix("o3") || id.contains("codex")
+        case .claude:
+            return id.contains("claude")
+        case .gemini:
+            return id.contains("gemini")
+        case .copilot:
+            return id.contains("copilot")
+        case .antigravity:
+            return id.contains("antigravity") || id.contains("gemini") || id.contains("claude") || id.contains("copilot")
+        case .qwen:
+            return id.contains("qwen")
+        case .iflow:
+            return id.contains("iflow")
+        case .vertex:
+            return id.contains("vertex")
+        case .kiro:
+            return id.contains("kiro")
+        case .cursor, .trae:
+            return false
+        }
+    }
+
+    private func fetchWarmupModels(apiKey: String) async -> [WarmupModelInfo] {
+        do {
+            let models = try await warmupService.fetchModels(
+                baseURL: proxyManager.baseURL,
+                apiKey: apiKey
+            )
+            logWarmup("Fetched models: \(models.count)")
+            return models
+        } catch {
+            logWarmup("Failed to fetch models: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private func warmupAPIKey() async -> String? {
+        if let key = apiKeys.first, !key.isEmpty {
+            return key
+        }
+        
+        guard let client = apiClient else { return nil }
+        if let fetched = try? await client.fetchAPIKeys(), let first = fetched.first {
+            apiKeys = fetched
+            return first
+        }
+        
+        return nil
+    }
+
+    private func warmupTargets() -> [WarmupAccountKey] {
+        let keys = warmupSettings.enabledAccountIds.compactMap { id in
+            WarmupSettingsManager.parseAccountId(id)
+        }
+        return keys.sorted { lhs, rhs in
+            if lhs.provider.displayName == rhs.provider.displayName {
+                return lhs.accountKey < rhs.accountKey
+            }
+            return lhs.provider.displayName < rhs.provider.displayName
+        }
+    }
+
+    private func logWarmup(_ message: String) {
+        NSLog("[Warmup] \(message)")
     }
     
     var authFilesByProvider: [AIProvider: [AuthFile]] {
