@@ -10,18 +10,18 @@ import Foundation
 
 // MARK: - API Response Models
 
-private struct GLMQuotaResponse: Codable, Sendable {
+struct GLMQuotaResponse: Codable, Sendable {
     let code: Int
     let msg: String
     let data: GLMQuotaData?
     let success: Bool
 }
 
-private struct GLMQuotaData: Codable, Sendable {
+struct GLMQuotaData: Codable, Sendable {
     let limits: [GLMLimit]
 }
 
-private struct GLMLimit: Codable, Sendable {
+struct GLMLimit: Codable, Sendable {
     let type: String
     let unit: Int
     let number: Int
@@ -41,7 +41,7 @@ private struct GLMLimit: Codable, Sendable {
     }
 }
 
-private struct GLMUsageDetail: Codable, Sendable {
+struct GLMUsageDetail: Codable, Sendable {
     let modelCode: String
     let usage: Int
 
@@ -78,54 +78,58 @@ actor GLMQuotaFetcher {
 
         guard 200...299 ~= httpResponse.statusCode else {
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-                return ProviderQuotaData(isForbidden: true)
+                return await MainActor.run { ProviderQuotaData(isForbidden: true) }
             }
             throw QuotaFetchError.httpError(httpResponse.statusCode)
         }
 
         let decoder = JSONDecoder()
-        let quotaResponse = try decoder.decode(GLMQuotaResponse.self, from: data)
+        let quotaResponse = try await MainActor.run {
+            try decoder.decode(GLMQuotaResponse.self, from: data)
+        }
 
-        guard quotaResponse.success, quotaResponse.code == 200, let data = quotaResponse.data else {
+        guard quotaResponse.success, quotaResponse.code == 200, let responseData = quotaResponse.data else {
             throw QuotaFetchError.apiErrorMessage(quotaResponse.msg)
         }
 
-        var models: [ModelQuota] = []
+        return await MainActor.run {
+            var models: [ModelQuota] = []
 
-        // Parse limits - GLM has TOKENS_LIMIT (main quota) and TIME_LIMIT (MCP quota)
-        for limit in data.limits {
-            if limit.type == "TOKENS_LIMIT" {
-                // Token limit - show as main quota on dashboard
-                let resetTime = limit.nextResetTime != nil
-                    ? ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: TimeInterval(limit.nextResetTime! / 1000)))
-                    : ""
+            // Parse limits - GLM has TOKENS_LIMIT (main quota) and TIME_LIMIT (MCP quota)
+            for limit in responseData.limits {
+                if limit.type == "TOKENS_LIMIT" {
+                    // Token limit - show as main quota on dashboard
+                    let resetTime = limit.nextResetTime != nil
+                        ? ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: TimeInterval(limit.nextResetTime! / 1000)))
+                        : ""
 
-                // currentValue is used, usage is total limit
-                // API returns percentage as "used", so convert to "remaining" for ModelQuota
-                models.append(ModelQuota(
-                    name: "Tokens",
-                    percentage: 100 - limit.percentage,
-                    resetTime: resetTime,
-                    used: limit.currentValue,
-                    limit: limit.usage,
-                    remaining: limit.remaining
-                ))
-            } else if limit.type == "TIME_LIMIT" {
-                // MCP quota (monthly, no reset time)
-                // currentValue is used, usage is total
-                // API returns percentage as "used", so convert to "remaining" for ModelQuota
-                models.append(ModelQuota(
-                    name: "MCP Usage",
-                    percentage: 100 - limit.percentage,
-                    resetTime: "",
-                    used: limit.currentValue,
-                    limit: limit.usage,
-                    remaining: limit.remaining
-                ))
+                    // currentValue is used, usage is total limit
+                    // API returns percentage as "used", so convert to "remaining" for ModelQuota
+                    models.append(ModelQuota(
+                        name: "Tokens",
+                        percentage: 100 - limit.percentage,
+                        resetTime: resetTime,
+                        used: limit.currentValue,
+                        limit: limit.usage,
+                        remaining: limit.remaining
+                    ))
+                } else if limit.type == "TIME_LIMIT" {
+                    // MCP quota (monthly, no reset time)
+                    // currentValue is used, usage is total
+                    // API returns percentage as "used", so convert to "remaining" for ModelQuota
+                    models.append(ModelQuota(
+                        name: "MCP Usage",
+                        percentage: 100 - limit.percentage,
+                        resetTime: "",
+                        used: limit.currentValue,
+                        limit: limit.usage,
+                        remaining: limit.remaining
+                    ))
+                }
             }
-        }
 
-        return ProviderQuotaData(models: models, lastUpdated: Date())
+            return ProviderQuotaData(models: models, lastUpdated: Date())
+        }
     }
 
     /// Fetch quota for all configured GLM API keys
