@@ -115,7 +115,7 @@ final class CLIProxyManager {
     let binaryPath: String
     let configPath: String
     let authDir: String
-    let managementKey: String
+    private(set) var managementKey: String
     
     var port: UInt16 {
         get { proxyStatus.port }
@@ -275,6 +275,20 @@ final class CLIProxyManager {
         } else if let range = content.range(of: #"secret-key:\s*[^\n]+"#, options: .regularExpression) {
             content.replaceSubrange(range, with: "secret-key: \"\(managementKey)\"")
             try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
+        }
+    }
+    
+    func regenerateManagementKey() {
+        managementKey = UUID().uuidString
+        UserDefaults.standard.set(managementKey, forKey: "managementKey")
+        syncSecretKeyInConfig()
+        
+        if proxyStatus.running {
+            Task {
+                stop()
+                try? await Task.sleep(for: .milliseconds(500))
+                try? await start()
+            }
         }
     }
     

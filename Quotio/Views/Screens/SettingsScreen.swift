@@ -108,6 +108,8 @@ struct SettingsScreen: View {
                             .textSelection(.enabled)
                     }
                     
+                    ManagementKeyRow()
+                    
                     Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
                     
                     VStack(alignment: .leading, spacing: 6) {
@@ -2216,6 +2218,53 @@ struct LinkCard: View {
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
+            }
+        }
+    }
+}
+
+// MARK: - Management Key Row
+
+struct ManagementKeyRow: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @State private var settings = MenuBarSettingsManager.shared
+    
+    private var displayKey: String {
+        if settings.hideSensitiveInfo {
+            let key = viewModel.proxyManager.managementKey
+            return String(repeating: "•", count: 8) + "..." + key.suffix(4)
+        }
+        return viewModel.proxyManager.managementKey
+    }
+    
+    var body: some View {
+        LabeledContent("settings.managementKey".localized()) {
+            HStack(spacing: 8) {
+                Text(displayKey)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                
+                Button {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(viewModel.proxyManager.managementKey, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .help("action.copy".localized())
+                
+                Button {
+                    viewModel.proxyManager.regenerateManagementKey()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .help("settings.managementKey.regenerate".localized())
             }
         }
     }
