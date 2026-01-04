@@ -690,8 +690,8 @@ final class QuotaViewModel {
                     return LogEntry(timestamp: Date(), level: level, message: line)
                 }
                 logs.append(contentsOf: newEntries)
-                if logs.count > 500 {
-                    logs = Array(logs.suffix(500))
+                if logs.count > 50 {
+                    logs = Array(logs.suffix(50))
                 }
             }
             lastLogTimestamp = response.latestTimestamp

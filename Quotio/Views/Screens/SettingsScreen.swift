@@ -1438,6 +1438,11 @@ struct AboutScreen: View {
                     .transition(.opacity)
             }
         }
+        .onAppear {
+            #if canImport(Sparkle)
+            updaterService.initializeIfNeeded()
+            #endif
+        }
         .navigationTitle("nav.about".localized())
     }
     
@@ -1648,6 +1653,11 @@ struct AboutUpdateSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .onAppear {
+            #if canImport(Sparkle)
+            updaterService.initializeIfNeeded()
+            #endif
+        }
     }
 }
 

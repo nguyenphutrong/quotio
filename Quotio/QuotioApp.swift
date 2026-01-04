@@ -23,10 +23,6 @@ struct QuotioApp: App {
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     @Environment(\.openWindow) private var openWindow
     
-    #if canImport(Sparkle)
-    private let updaterService = UpdaterService.shared
-    #endif
-    
     private var quotaItems: [MenuBarQuotaDisplayItem] {
         guard menuBarSettings.showQuotaInMenuBar else { return [] }
         
@@ -132,7 +128,7 @@ struct QuotioApp: App {
         await viewModel.initialize()
         
         #if canImport(Sparkle)
-        updaterService.checkForUpdatesInBackground()
+        UpdaterService.shared.checkForUpdatesInBackground()
         #endif
     }
     
@@ -193,9 +189,9 @@ struct QuotioApp: App {
             #if canImport(Sparkle)
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {
-                    updaterService.checkForUpdates()
+                    UpdaterService.shared.checkForUpdates()
                 }
-                .disabled(!updaterService.canCheckForUpdates)
+                .disabled(!UpdaterService.shared.canCheckForUpdates)
             }
             #endif
         }
