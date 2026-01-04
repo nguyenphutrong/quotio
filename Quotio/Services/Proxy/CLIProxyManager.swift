@@ -106,6 +106,18 @@ final class CLIProxyManager {
     /// Available upgrade version info.
     private(set) var availableUpgrade: ProxyVersionInfo?
     
+    /// Health monitor task for auto-recovery
+    private var healthMonitorTask: Task<Void, Never>?
+    
+    /// Consecutive health check failures
+    private var healthCheckFailures: Int = 0
+    
+    /// Max failures before auto-restart
+    private let maxHealthCheckFailures = 3
+    
+    /// Health check interval in seconds
+    private let healthCheckIntervalSeconds: UInt64 = 30
+    
     /// Compatibility checker instance.
     private let compatibilityChecker = CompatibilityChecker()
     
@@ -558,11 +570,29 @@ final class CLIProxyManager {
         process.arguments = ["-config", configPath]
         process.currentDirectoryURL = URL(fileURLWithPath: activeBinaryPath).deletingLastPathComponent()
         
-        // Keep process output - prevents early termination
+        // CRITICAL FIX: Drain stdout/stderr to prevent pipe buffer deadlock
+        // macOS pipe buffer is ~64KB. If CLIProxyAPI writes more without being read,
+        // the process blocks on write and becomes unresponsive (port open but no response).
+        // Solution: Use readabilityHandler to continuously drain the buffers.
         let outputPipe = Pipe()
         let errorPipe = Pipe()
         process.standardOutput = outputPipe
         process.standardError = errorPipe
+        
+        // Drain stdout buffer to prevent blocking
+        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            // Discard data to prevent memory accumulation
+            // If debug logging needed: NSLog("[CLIProxyAPI] \(String(data: data, encoding: .utf8) ?? "")")
+            _ = data.count
+        }
+        
+        // Drain stderr buffer to prevent blocking
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            // Discard data - errors are typically reported via exit code
+            _ = data.count
+        }
         
         // Important: Don't inherit environment that might cause issues
         var environment = ProcessInfo.processInfo.environment
@@ -622,6 +652,8 @@ final class CLIProxyManager {
             
             proxyStatus.running = true
             
+            startHealthMonitor()
+            
         } catch {
             lastError = error.localizedDescription
             throw error
@@ -630,6 +662,7 @@ final class CLIProxyManager {
     
     func stop() {
         terminateAuthProcess()
+        stopHealthMonitor()
         
         // Stop ProxyBridge first if running
         if proxyBridge.isRunning {
@@ -677,6 +710,61 @@ final class CLIProxyManager {
         
         process = nil
         proxyStatus.running = false
+    }
+    
+    // ════════════════════════════════════════════════════════════════════════
+    // MARK: - Health Monitoring
+    // ════════════════════════════════════════════════════════════════════════
+    
+    private func startHealthMonitor() {
+        stopHealthMonitor()
+        healthCheckFailures = 0
+        
+        healthMonitorTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: (self?.healthCheckIntervalSeconds ?? 30) * 1_000_000_000)
+                guard !Task.isCancelled else { break }
+                
+                await self?.performHealthCheck()
+            }
+        }
+    }
+    
+    private func stopHealthMonitor() {
+        healthMonitorTask?.cancel()
+        healthMonitorTask = nil
+    }
+    
+    private func performHealthCheck() async {
+        guard proxyStatus.running else {
+            healthCheckFailures = 0
+            return
+        }
+        
+        let isHealthy = await compatibilityChecker.isHealthy(port: useBridgeMode ? internalPort : proxyStatus.port)
+        
+        if isHealthy {
+            healthCheckFailures = 0
+        } else {
+            healthCheckFailures += 1
+            NSLog("[CLIProxyManager] Health check failed (\(healthCheckFailures)/\(maxHealthCheckFailures))")
+            
+            if healthCheckFailures >= maxHealthCheckFailures {
+                NSLog("[CLIProxyManager] Max failures reached, auto-restarting proxy...")
+                healthCheckFailures = 0
+                
+                stop()
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                
+                do {
+                    try await start()
+                    NSLog("[CLIProxyManager] Auto-restart successful")
+                } catch {
+                    NSLog("[CLIProxyManager] Auto-restart failed: \(error)")
+                    NotificationManager.shared.notifyProxyCrashed(exitCode: -1)
+                }
+            }
+        }
     }
     
     // ════════════════════════════════════════════════════════════════════════
