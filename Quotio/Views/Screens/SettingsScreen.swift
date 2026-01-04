@@ -2229,6 +2229,8 @@ struct ManagementKeyRow: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var settings = MenuBarSettingsManager.shared
     @State private var regenerateError: String?
+    @State private var showRegenerateConfirmation = false
+    @State private var showCopyConfirmation = false
     
     private var displayKey: String {
         if settings.hideSensitiveInfo {
@@ -2251,22 +2253,23 @@ struct ManagementKeyRow: View {
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
                     pasteboard.setString(viewModel.proxyManager.managementKey, forType: .string)
+                    showCopyConfirmation = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.5))
+                        showCopyConfirmation = false
+                    }
                 } label: {
-                    Image(systemName: "doc.on.doc")
+                    Image(systemName: showCopyConfirmation ? "checkmark" : "doc.on.doc")
                         .font(.caption)
+                        .frame(width: 14, height: 14)
+                        .foregroundStyle(showCopyConfirmation ? .green : .primary)
+                        .contentTransition(.symbolEffect(.replace))
                 }
                 .buttonStyle(.borderless)
                 .help("action.copy".localized())
                 
                 Button {
-                    Task {
-                        regenerateError = nil
-                        do {
-                            try await viewModel.proxyManager.regenerateManagementKey()
-                        } catch {
-                            regenerateError = error.localizedDescription
-                        }
-                    }
+                    showRegenerateConfirmation = true
                 } label: {
                     if viewModel.proxyManager.isRegeneratingKey {
                         ProgressView()
@@ -2281,6 +2284,25 @@ struct ManagementKeyRow: View {
                 .disabled(viewModel.proxyManager.isRegeneratingKey)
                 .help("settings.managementKey.regenerate".localized())
             }
+        }
+        .confirmationDialog(
+            "settings.managementKey.regenerate.title".localized(),
+            isPresented: $showRegenerateConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("settings.managementKey.regenerate.confirm".localized(), role: .destructive) {
+                Task {
+                    regenerateError = nil
+                    do {
+                        try await viewModel.proxyManager.regenerateManagementKey()
+                    } catch {
+                        regenerateError = error.localizedDescription
+                    }
+                }
+            }
+            Button("action.cancel".localized(), role: .cancel) {}
+        } message: {
+            Text("settings.managementKey.regenerate.warning".localized())
         }
         .alert("Error", isPresented: .init(
             get: { regenerateError != nil },
