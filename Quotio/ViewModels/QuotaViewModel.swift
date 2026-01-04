@@ -478,7 +478,21 @@ final class QuotaViewModel {
         guard !targets.isEmpty else { return }
         
         guard proxyManager.proxyStatus.running else {
-            // Warmup skipped when proxy is not running; no log.
+            let now = Date()
+            for target in targets {
+                let mode = warmupSettings.warmupScheduleMode(provider: target.provider, accountKey: target.accountKey)
+                switch mode {
+                case .interval:
+                    let cadence = warmupSettings.warmupCadence(provider: target.provider, accountKey: target.accountKey)
+                    warmupNextRun[target] = now.addingTimeInterval(cadence.intervalSeconds)
+                case .daily:
+                    let minutes = warmupSettings.warmupDailyMinutes(provider: target.provider, accountKey: target.accountKey)
+                    warmupNextRun[target] = nextDailyRunDate(minutes: minutes, now: now)
+                }
+                updateWarmupStatus(for: target) { status in
+                    status.nextRun = warmupNextRun[target]
+                }
+            }
             return
         }
         
@@ -510,6 +524,13 @@ final class QuotaViewModel {
             }
             updateWarmupStatus(for: target) { status in
                 status.nextRun = warmupNextRun[target]
+                status.lastError = nil
+            }
+        }
+
+        for target in targets where !dueTargets.contains(target) {
+            updateWarmupStatus(for: target) { status in
+                status.lastError = nil
             }
         }
     }
@@ -732,6 +753,7 @@ final class QuotaViewModel {
             try await proxyManager.start()
             setupAPIClient()
             startAutoRefresh()
+            restartWarmupScheduler()
             
             // Start RequestTracker
             requestTracker.start()
@@ -751,6 +773,7 @@ final class QuotaViewModel {
         requestTracker.stop()
         
         proxyManager.stop()
+        restartWarmupScheduler()
         
         // Invalidate URLSession to close all connections
         // Capture client reference before setting to nil to avoid race condition

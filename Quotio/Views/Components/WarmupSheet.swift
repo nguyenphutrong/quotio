@@ -84,13 +84,6 @@ struct WarmupSheet: View {
         return Self.dateFormatter.string(from: lastRun)
     }
 
-    private var nextRunText: String {
-        guard let nextRun = viewModel.warmupNextRunDate(provider: provider, accountKey: accountKey) else {
-            return "warmup.status.none".localized()
-        }
-        return Self.dateFormatter.string(from: nextRun)
-    }
-
     private var progressText: String? {
         let status = viewModel.warmupStatus(provider: provider, accountKey: accountKey)
         guard status.isRunning, status.progressTotal > 0 else { return nil }
@@ -101,6 +94,16 @@ struct WarmupSheet: View {
         let status = viewModel.warmupStatus(provider: provider, accountKey: accountKey)
         guard status.isRunning, let current = status.currentModel else { return nil }
         return String(format: "warmup.status.currentModel".localized(), current)
+    }
+
+    private var nextRunText: String {
+        guard isWarmupEnabled, !selectedModels.isEmpty else {
+            return "warmup.status.none".localized()
+        }
+        guard let nextRun = viewModel.warmupNextRunDate(provider: provider, accountKey: accountKey) else {
+            return "warmup.status.none".localized()
+        }
+        return Self.dateFormatter.string(from: nextRun)
     }
     
     var body: some View {
@@ -267,6 +270,7 @@ struct WarmupSheet: View {
                 didSeeRunning = warmupIsRunning
                 viewModel.setWarmupEnabled(true, provider: provider, accountKey: accountKey)
             }
+            .disabled(!isWarmupEnabled && selectedModels.isEmpty)
             .keyboardShortcut(.defaultAction)
         }
     }
