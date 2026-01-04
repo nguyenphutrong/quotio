@@ -14,7 +14,6 @@ actor WarmupService {
     
     func warmup(managementClient: ManagementAPIClient, authIndex: String, model: String) async throws {
         let upstreamModel = mapAntigravityModelAlias(model)
-        NSLog("[Warmup] Requesting model: \(model) -> \(upstreamModel)")
         let payload = AntigravityWarmupRequest(
             project: "warmup-" + String(UUID().uuidString.prefix(5)).lowercased(),
             requestId: "agent-" + UUID().uuidString.lowercased(),
@@ -51,14 +50,12 @@ actor WarmupService {
             ))
             
             if 200...299 ~= response.statusCode {
-                NSLog("[Warmup] OK model: \(model) -> \(upstreamModel)")
                 return
             }
             lastError = WarmupError.httpError(response.statusCode, response.body)
         }
         
         if let lastError {
-            NSLog("[Warmup] Failed model: \(model) -> \(upstreamModel) (\(lastError.localizedDescription))")
             throw lastError
         }
         throw WarmupError.invalidResponse

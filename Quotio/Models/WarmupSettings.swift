@@ -72,6 +72,9 @@ final class WarmupSettingsManager {
     private let warmupScheduleModeKey = "warmupScheduleMode"
     private let warmupDailyMinutesKey = "warmupDailyMinutes"
     private let warmupSelectedModelsKey = "warmupSelectedModels"
+    private let warmupCadenceByAccountKey = "warmupCadenceByAccount"
+    private let warmupScheduleModeByAccountKey = "warmupScheduleModeByAccount"
+    private let warmupDailyMinutesByAccountKey = "warmupDailyMinutesByAccount"
     
     var enabledAccountIds: Set<String> {
         didSet {
@@ -111,6 +114,24 @@ final class WarmupSettingsManager {
             persistSelectedModels()
         }
     }
+
+    var cadenceByAccount: [String: String] {
+        didSet {
+            persistCadenceByAccount()
+        }
+    }
+
+    var scheduleModeByAccount: [String: String] {
+        didSet {
+            persistScheduleModeByAccount()
+        }
+    }
+
+    var dailyMinutesByAccount: [String: Int] {
+        didSet {
+            persistDailyMinutesByAccount()
+        }
+    }
     
     var warmupDailyTime: Date {
         get {
@@ -144,6 +165,24 @@ final class WarmupSettingsManager {
         } else {
             self.selectedModelsByAccount = [:]
         }
+        if let data = defaults.data(forKey: warmupCadenceByAccountKey),
+           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
+            self.cadenceByAccount = decoded
+        } else {
+            self.cadenceByAccount = [:]
+        }
+        if let data = defaults.data(forKey: warmupScheduleModeByAccountKey),
+           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
+            self.scheduleModeByAccount = decoded
+        } else {
+            self.scheduleModeByAccount = [:]
+        }
+        if let data = defaults.data(forKey: warmupDailyMinutesByAccountKey),
+           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+            self.dailyMinutesByAccount = decoded
+        } else {
+            self.dailyMinutesByAccount = [:]
+        }
     }
     
     func isEnabled(provider: AIProvider, accountKey: String) -> Bool {
@@ -153,8 +192,10 @@ final class WarmupSettingsManager {
     func setEnabled(_ enabled: Bool, provider: AIProvider, accountKey: String) {
         let id = Self.makeAccountId(provider: provider, accountKey: accountKey)
         if enabled {
+            if enabledAccountIds.contains(id) { return }
             enabledAccountIds.insert(id)
         } else {
+            if !enabledAccountIds.contains(id) { return }
             enabledAccountIds.remove(id)
         }
     }
@@ -172,14 +213,65 @@ final class WarmupSettingsManager {
         let id = Self.makeAccountId(provider: provider, accountKey: accountKey)
         return selectedModelsByAccount[id] ?? []
     }
+
+    func hasStoredSelection(provider: AIProvider, accountKey: String) -> Bool {
+        let id = Self.makeAccountId(provider: provider, accountKey: accountKey)
+        return selectedModelsByAccount.keys.contains(id)
+    }
     
     func setSelectedModels(_ models: [String], provider: AIProvider, accountKey: String) {
         let id = Self.makeAccountId(provider: provider, accountKey: accountKey)
-        if models.isEmpty {
-            selectedModelsByAccount.removeValue(forKey: id)
-        } else {
-            selectedModelsByAccount[id] = models
+        selectedModelsByAccount[id] = models
+    }
+
+    func warmupCadence(provider: AIProvider, accountKey: String) -> WarmupCadence {
+        let id = Self.makeAccountId(provider: provider, accountKey: accountKey)
+        if let raw = cadenceByAccount[id], let cadence = WarmupCadence(rawValue: raw) {
+            return cadence
         }
+        return warmupCadence
+    }
+
+    func setWarmupCadence(_ cadence: WarmupCadence, provider: AIProvider, accountKey: String) {
+        let id = Self.makeAccountId(provider: provider, accountKey: accountKey)
+        cadenceByAccount[id] = cadence.rawValue
+        onWarmupScheduleChanged?()
+    }
+
+    func warmupScheduleMode(provider: AIProvider, accountKey: String) -> WarmupScheduleMode {
+        let id = Self.makeAccountId(provider: provider, accountKey: accountKey)
+        if let raw = scheduleModeByAccount[id], let mode = WarmupScheduleMode(rawValue: raw) {
+            return mode
+        }
+        return warmupScheduleMode
+    }
+
+    func setWarmupScheduleMode(_ mode: WarmupScheduleMode, provider: AIProvider, accountKey: String) {
+        let id = Self.makeAccountId(provider: provider, accountKey: accountKey)
+        scheduleModeByAccount[id] = mode.rawValue
+        onWarmupScheduleChanged?()
+    }
+
+    func warmupDailyMinutes(provider: AIProvider, accountKey: String) -> Int {
+        let id = Self.makeAccountId(provider: provider, accountKey: accountKey)
+        if let minutes = dailyMinutesByAccount[id] {
+            return min(max(minutes, 0), 1439)
+        }
+        return warmupDailyMinutes
+    }
+
+    func setWarmupDailyMinutes(_ minutes: Int, provider: AIProvider, accountKey: String) {
+        let id = Self.makeAccountId(provider: provider, accountKey: accountKey)
+        dailyMinutesByAccount[id] = min(max(minutes, 0), 1439)
+        onWarmupScheduleChanged?()
+    }
+
+    func warmupDailyTime(provider: AIProvider, accountKey: String) -> Date {
+        Self.dateFromMinutes(warmupDailyMinutes(provider: provider, accountKey: accountKey))
+    }
+
+    func setWarmupDailyTime(_ date: Date, provider: AIProvider, accountKey: String) {
+        setWarmupDailyMinutes(Self.minutesFromDate(date), provider: provider, accountKey: accountKey)
     }
     
     private func persist() {
@@ -190,6 +282,21 @@ final class WarmupSettingsManager {
     private func persistSelectedModels() {
         guard let data = try? JSONEncoder().encode(selectedModelsByAccount) else { return }
         defaults.set(data, forKey: warmupSelectedModelsKey)
+    }
+
+    private func persistCadenceByAccount() {
+        guard let data = try? JSONEncoder().encode(cadenceByAccount) else { return }
+        defaults.set(data, forKey: warmupCadenceByAccountKey)
+    }
+
+    private func persistScheduleModeByAccount() {
+        guard let data = try? JSONEncoder().encode(scheduleModeByAccount) else { return }
+        defaults.set(data, forKey: warmupScheduleModeByAccountKey)
+    }
+
+    private func persistDailyMinutesByAccount() {
+        guard let data = try? JSONEncoder().encode(dailyMinutesByAccount) else { return }
+        defaults.set(data, forKey: warmupDailyMinutesByAccountKey)
     }
     
     nonisolated static func makeAccountId(provider: AIProvider, accountKey: String) -> String {
