@@ -367,6 +367,7 @@ private struct AccountQuotaCardV2: View {
         return oauthState.provider == provider &&
                (oauthState.status == .waiting || oauthState.status == .polling)
     }
+    @State private var showWarmupSheet = false
     
     private var hasQuotaData: Bool {
         guard let data = account.quotaData else { return false }
@@ -375,6 +376,10 @@ private struct AccountQuotaCardV2: View {
     
     private var displayEmail: String {
         account.email.masked(if: settings.hideSensitiveInfo)
+    }
+    
+    private var isWarmupEnabled: Bool {
+        viewModel.isWarmupEnabled(for: provider, accountKey: account.key)
     }
     
     /// Check if this Antigravity account is active in IDE
@@ -468,6 +473,25 @@ private struct AccountQuotaCardV2: View {
             }
             
             Spacer()
+            
+            if provider == .antigravity {
+                Button {
+                    showWarmupSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isWarmupEnabled ? "bolt.fill" : "bolt")
+                            .font(.caption)
+                        Text("action.warmup".localized())
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isWarmupEnabled ? provider.color.opacity(0.15) : Color.secondary.opacity(0.1))
+                    .foregroundStyle(isWarmupEnabled ? provider.color : .secondary)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
             
             // Active badge (Antigravity only)
             if isActiveInIDE {
@@ -573,6 +597,17 @@ private struct AccountQuotaCardV2: View {
                 accountEmail: account.email,
                 onDismiss: {
                     showSwitchSheet = false
+                }
+            )
+            .environment(viewModel)
+        }
+        .sheet(isPresented: $showWarmupSheet) {
+            WarmupSheet(
+                provider: provider,
+                accountKey: account.key,
+                accountEmail: account.email,
+                onDismiss: {
+                    showWarmupSheet = false
                 }
             )
             .environment(viewModel)
