@@ -12,7 +12,6 @@ struct SettingsScreen: View {
     private let modeManager = AppModeManager.shared
     
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
-    @AppStorage("showInDock") private var showInDock = true
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     @AppStorage("routingStrategy") private var routingStrategy = "round-robin"
     @AppStorage("requestRetry") private var requestRetry = 3
@@ -44,11 +43,6 @@ struct SettingsScreen: View {
                         } catch {
                             launchAtLogin = !newValue
                         }
-                    }
-
-                Toggle("settings.showInDock".localized(), isOn: $showInDock)
-                    .onChange(of: showInDock) { _, newValue in
-                        NSApp.setActivationPolicy(newValue ? .regular : .accessory)
                     }
             } header: {
                 Label("settings.general".localized(), systemImage: "gearshape")
@@ -1211,13 +1205,38 @@ private struct AvailableVersionRow: View {
 // MARK: - Menu Bar Settings Section
 
 struct MenuBarSettingsSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
-    @State private var settings = MenuBarSettingsManager.shared
+    private let settings = MenuBarSettingsManager.shared
+    @AppStorage("showInDock") private var showInDock = true
     
     private var showMenuBarIconBinding: Binding<Bool> {
         Binding(
             get: { settings.showMenuBarIcon },
-            set: { settings.showMenuBarIcon = $0 }
+            set: { newValue in
+                // Prevent disabling both dock and menu bar icon (user would have no way to access app)
+                if !newValue && !showInDock {
+                    // Re-enable dock if user tries to disable menu bar icon while dock is already disabled
+                    showInDock = true
+                    NSApp.setActivationPolicy(.regular)
+                }
+                // Just update the setting - QuotioApp's onChange handler will update the status bar
+                settings.showMenuBarIcon = newValue
+            }
+        )
+    }
+    
+    private var showInDockBinding: Binding<Bool> {
+        Binding(
+            get: { showInDock },
+            set: { newValue in
+                // Prevent disabling both dock and menu bar icon (user would have no way to access app)
+                if !newValue && !settings.showMenuBarIcon {
+                    // Re-enable menu bar icon if user tries to disable dock while menu bar is already disabled
+                    settings.showMenuBarIcon = true
+                    // Note: QuotioApp's onChange handler will update the status bar
+                }
+                showInDock = newValue
+                NSApp.setActivationPolicy(newValue ? .regular : .accessory)
+            }
         )
     }
     
@@ -1237,6 +1256,8 @@ struct MenuBarSettingsSection: View {
     
     var body: some View {
         Section {
+            Toggle("settings.showInDock".localized(), isOn: showInDockBinding)
+            
             Toggle("settings.menubar.showIcon".localized(), isOn: showMenuBarIconBinding)
             
             if settings.showMenuBarIcon {
@@ -1314,7 +1335,6 @@ struct PrivacySettingsSection: View {
 
 struct GeneralSettingsTab: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
-    @AppStorage("showInDock") private var showInDock = true
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     
     var body: some View {
@@ -1338,15 +1358,6 @@ struct GeneralSettingsTab: View {
                 Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
             } header: {
                 Label("settings.startup".localized(), systemImage: "power")
-            }
-            
-            Section {
-                Toggle("settings.showInDock".localized(), isOn: $showInDock)
-                    .onChange(of: showInDock) { _, newValue in
-                        NSApp.setActivationPolicy(newValue ? .regular : .accessory)
-                    }
-            } header: {
-                Label("settings.appearance".localized(), systemImage: "macwindow")
             }
             
             Section {
