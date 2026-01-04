@@ -74,6 +74,10 @@ final class QuotaViewModel {
     let antigravitySwitcher = AntigravityAccountSwitcher.shared
     
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var warmupTask: Task<Void, Never>?
+    @ObservationIgnored private var lastLogTimestamp: Int?
+    @ObservationIgnored private var isWarmupRunning = false
+    @ObservationIgnored private var warmupRunningAccounts: Set<WarmupAccountKey> = []
     
     // MARK: - IDE Quota Persistence Keys
     
@@ -98,6 +102,16 @@ final class QuotaViewModel {
     
     private func setupWarmupCallback() {
         warmupSettings.onEnabledAccountsChanged = { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.restartWarmupScheduler()
+            }
+        }
+        warmupSettings.onWarmupCadenceChanged = { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.restartWarmupScheduler()
+            }
+        }
+        warmupSettings.onWarmupScheduleChanged = { [weak self] in
             Task { @MainActor [weak self] in
                 self?.restartWarmupScheduler()
             }
@@ -360,9 +374,13 @@ final class QuotaViewModel {
     }
 
     func toggleWarmup(for provider: AIProvider, accountKey: String) {
+        guard provider == .antigravity else {
+            // Warmup not supported for this provider; no log.
+            return
+        }
         warmupSettings.toggle(provider: provider, accountKey: accountKey)
         let enabled = warmupSettings.isEnabled(provider: provider, accountKey: accountKey)
-        logWarmup("\(enabled ? "Enabled" : "Disabled") \(provider.rawValue) / \(accountKey)")
+        // Warmup toggle state changed; no log.
         
         if enabled {
             Task {
@@ -371,8 +389,41 @@ final class QuotaViewModel {
         }
     }
 
-    private var warmupIntervalNanoseconds: UInt64 {
-        60 * 60 * 1_000_000_000
+    func setWarmupEnabled(_ enabled: Bool, provider: AIProvider, accountKey: String) {
+        guard provider == .antigravity else {
+            // Warmup not supported for this provider; no log.
+            return
+        }
+        warmupSettings.setEnabled(enabled, provider: provider, accountKey: accountKey)
+        // Warmup toggle state changed; no log.
+        if enabled {
+            Task {
+                await warmupAccount(provider: provider, accountKey: accountKey)
+            }
+        }
+    }
+
+    private let warmupTargetModelPatterns = [
+        "gemini-3-pro",
+        "gemini-2.5-flash",
+        "claude-sonnet-4-5"
+    ]
+    
+    private func nextWarmupDelayNanoseconds() -> UInt64 {
+        switch warmupSettings.warmupScheduleMode {
+        case .interval:
+            return warmupSettings.warmupCadence.intervalNanoseconds
+        case .daily:
+            let calendar = Calendar.current
+            let now = Date()
+            let minutes = warmupSettings.warmupDailyMinutes
+            let hour = minutes / 60
+            let minute = minutes % 60
+            let today = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: now) ?? now
+            let target = (today > now) ? today : (calendar.date(byAdding: .day, value: 1, to: today) ?? today)
+            let delay = max(target.timeIntervalSince(now), 1)
+            return UInt64(delay * 1_000_000_000)
+        }
     }
 
     private func restartWarmupScheduler() {
@@ -383,8 +434,11 @@ final class QuotaViewModel {
         warmupTask = Task { [weak self] in
             guard let self else { return }
             
+            if warmupSettings.warmupScheduleMode == .interval {
+                await runWarmupCycle()
+            }
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: warmupIntervalNanoseconds)
+                try? await Task.sleep(nanoseconds: nextWarmupDelayNanoseconds())
                 await runWarmupCycle()
             }
         }
@@ -396,59 +450,64 @@ final class QuotaViewModel {
         guard !targets.isEmpty else { return }
         
         guard proxyManager.proxyStatus.running else {
-            logWarmup("Skipped cycle: proxy not running")
+            // Warmup skipped when proxy is not running; no log.
             return
         }
         
         isWarmupRunning = true
         defer { isWarmupRunning = false }
         
-        guard let apiKey = await warmupAPIKey() else {
-            logWarmup("Skipped cycle: missing API key")
-            return
-        }
-        
-        let availableModels = await fetchWarmupModels(apiKey: apiKey)
-        guard !availableModels.isEmpty else {
-            logWarmup("Skipped cycle: no models available")
-            return
-        }
-        
-        logWarmup("Starting cycle: \(targets.count) accounts, \(availableModels.count) models")
+        // Warmup cycle started; no log.
         
         for target in targets {
             if Task.isCancelled { break }
             await warmupAccount(
                 provider: target.provider,
-                accountKey: target.accountKey,
-                availableModels: availableModels,
-                apiKey: apiKey
+                accountKey: target.accountKey
             )
         }
     }
 
     private func warmupAccount(provider: AIProvider, accountKey: String) async {
+        guard provider == .antigravity else {
+            // Warmup not supported for this provider; no log.
+            return
+        }
+        let account = WarmupAccountKey(provider: provider, accountKey: accountKey)
+        guard warmupRunningAccounts.insert(account).inserted else {
+            // Warmup already running for this account; no log.
+            return
+        }
+        defer { warmupRunningAccounts.remove(account) }
         guard proxyManager.proxyStatus.running else {
-            logWarmup("Skipped \(provider.rawValue) / \(accountKey): proxy not running")
+            // Warmup skipped when proxy is not running; no log.
             return
         }
         
-        guard let apiKey = await warmupAPIKey() else {
-            logWarmup("Skipped \(provider.rawValue) / \(accountKey): missing API key")
+        guard let apiClient else {
+            // Warmup skipped when management client is missing; no log.
             return
         }
         
-        let availableModels = await fetchWarmupModels(apiKey: apiKey)
+        guard let authInfo = warmupAuthInfo(provider: provider, accountKey: accountKey) else {
+            // Warmup skipped when auth index is missing; no log.
+            return
+        }
+        
+        let availableModels = await fetchWarmupModels(
+            authFileName: authInfo.authFileName,
+            apiClient: apiClient
+        )
         guard !availableModels.isEmpty else {
-            logWarmup("Skipped \(provider.rawValue) / \(accountKey): no models available")
+            // Warmup skipped when no models are available; no log.
             return
         }
-        
         await warmupAccount(
             provider: provider,
             accountKey: accountKey,
             availableModels: availableModels,
-            apiKey: apiKey
+            authIndex: authInfo.authIndex,
+            apiClient: apiClient
         )
     }
 
@@ -456,31 +515,39 @@ final class QuotaViewModel {
         provider: AIProvider,
         accountKey: String,
         availableModels: [WarmupModelInfo],
-        apiKey: String
+        authIndex: String,
+        apiClient: ManagementAPIClient
     ) async {
-        let models = warmupModels(
+        guard provider == .antigravity else {
+            // Warmup not supported for this provider; no log.
+            return
+        }
+        let availableIds = availableModels.map(\.id)
+        let selectedModels = warmupSettings.selectedModels(provider: provider, accountKey: accountKey)
+        let filteredSelected = selectedModels.filter { availableIds.contains($0) }
+        let allModels = warmupModels(
             provider: provider,
             accountKey: accountKey,
             availableModels: availableModels
         )
+        let models = filteredSelected.isEmpty ? selectWarmupModels(from: allModels) : filteredSelected
         guard !models.isEmpty else {
-            logWarmup("No matching models for \(provider.rawValue) / \(accountKey)")
+            // Warmup skipped when no matching models; no log.
             return
         }
-        logWarmup("Filtered models for \(provider.rawValue) / \(accountKey): \(models.count) of \(availableModels.count)")
-        logWarmup("Warming \(provider.rawValue) / \(accountKey): \(models.count) models")
+        // Warmup filters computed; no log.
         
         for model in models {
             if Task.isCancelled { break }
             do {
                 try await warmupService.warmup(
-                    baseURL: proxyManager.baseURL,
-                    apiKey: apiKey,
+                    managementClient: apiClient,
+                    authIndex: authIndex,
                     model: model
                 )
-                logWarmup("Warmup OK \(provider.rawValue) / \(accountKey): \(model)")
+                // Warmup succeeded; no log.
             } catch {
-                logWarmup("Warmup failed \(provider.rawValue) / \(accountKey): \(model) (\(error.localizedDescription))")
+                // Warmup failed; no log.
             }
         }
     }
@@ -511,7 +578,48 @@ final class QuotaViewModel {
             }
         }
         
-        return matches
+        return matches.sorted { lhs, rhs in
+            lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+        }
+    }
+    
+    private func selectWarmupModels(from models: [String]) -> [String] {
+        let lowercased = models.map { $0.lowercased() }
+        var selected: [String] = []
+        var seen = Set<String>()
+        
+        for pattern in warmupTargetModelPatterns {
+            var candidates: [String] = []
+            for (idx, id) in lowercased.enumerated() {
+                guard id.contains(pattern), !id.contains("image") else { continue }
+                candidates.append(models[idx])
+            }
+            guard !candidates.isEmpty else { continue }
+            let best = candidates.sorted { lhs, rhs in
+                warmupModelPickScore(lhs) < warmupModelPickScore(rhs)
+            }[0]
+            if seen.insert(best).inserted {
+                selected.append(best)
+            }
+        }
+        
+        return selected
+    }
+
+    func warmupModelDisplayNames(for provider: AIProvider) -> [String] {
+        guard provider == .antigravity else { return [] }
+        return [
+            "gemini-3-pro",
+            "gemini-2.5-flash",
+            "claude-sonnet-4-5"
+        ]
+    }
+    
+    private func warmupModelPickScore(_ modelId: String) -> (Int, Int, String) {
+        let id = modelId.lowercased()
+        let thinkingPenalty = id.contains("thinking") ? 1 : 0
+        let previewPenalty = id.contains("preview") ? 1 : 0
+        return (thinkingPenalty, previewPenalty, id)
     }
 
     private func providerMetadataTokens(for provider: AIProvider) -> [String] {
@@ -567,39 +675,59 @@ final class QuotaViewModel {
         }
     }
 
-    private func fetchWarmupModels(apiKey: String) async -> [WarmupModelInfo] {
+    private func fetchWarmupModels(authFileName: String, apiClient: ManagementAPIClient) async -> [WarmupModelInfo] {
         do {
             let models = try await warmupService.fetchModels(
-                baseURL: proxyManager.baseURL,
-                apiKey: apiKey
+                managementClient: apiClient,
+                authFileName: authFileName
             )
-            logWarmup("Fetched models: \(models.count)")
+            // Warmup fetched models; no log.
             return models
         } catch {
-            logWarmup("Failed to fetch models: \(error.localizedDescription)")
+            // Warmup fetch failed; no log.
             return []
         }
     }
 
-    private func warmupAPIKey() async -> String? {
-        if let key = apiKeys.first, !key.isEmpty {
-            return key
+    func warmupAvailableModels(provider: AIProvider, accountKey: String) async -> [String] {
+        guard provider == .antigravity else { return [] }
+        guard let apiClient else { return [] }
+        guard let authInfo = warmupAuthInfo(provider: provider, accountKey: accountKey) else { return [] }
+        let models = await fetchWarmupModels(authFileName: authInfo.authFileName, apiClient: apiClient)
+        return models.map(\.id).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+    
+    func defaultWarmupSelection(from modelIds: [String]) -> [String] {
+        selectWarmupModels(from: modelIds)
+    }
+
+    private func warmupAuthInfo(provider: AIProvider, accountKey: String) -> (authIndex: String, authFileName: String)? {
+        guard let authFile = authFiles.first(where: {
+            $0.providerType == provider && $0.quotaLookupKey == accountKey
+        }) else {
+            // Warmup skipped when auth file is missing; no log.
+            return nil
         }
         
-        guard let client = apiClient else { return nil }
-        if let fetched = try? await client.fetchAPIKeys(), let first = fetched.first {
-            apiKeys = fetched
-            return first
+        guard let authIndex = authFile.authIndex, !authIndex.isEmpty else {
+            // Warmup skipped when auth index is missing; no log.
+            return nil
         }
         
-        return nil
+        let name = authFile.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            // Warmup skipped when auth file name is missing; no log.
+            return nil
+        }
+        
+        return (authIndex: authIndex, authFileName: name)
     }
 
     private func warmupTargets() -> [WarmupAccountKey] {
         let keys = warmupSettings.enabledAccountIds.compactMap { id in
             WarmupSettingsManager.parseAccountId(id)
         }
-        return keys.sorted { lhs, rhs in
+        return keys.filter { $0.provider == .antigravity }.sorted { lhs, rhs in
             if lhs.provider.displayName == rhs.provider.displayName {
                 return lhs.accountKey < rhs.accountKey
             }
@@ -607,9 +735,7 @@ final class QuotaViewModel {
         }
     }
 
-    private func logWarmup(_ message: String) {
-        NSLog("[Warmup] \(message)")
-    }
+    // Warmup logging intentionally disabled.
     
     var authFilesByProvider: [AIProvider: [AuthFile]] {
         var result: [AIProvider: [AuthFile]] = [:]
@@ -649,6 +775,7 @@ final class QuotaViewModel {
             requestTracker.start()
             
             await refreshData()
+            await runWarmupCycle()
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -127,6 +127,19 @@ actor ManagementAPIClient {
         return response.files
     }
     
+    func fetchAuthFileModels(name: String) async throws -> [AuthFileModelInfo] {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        let data = try await makeRequest("/auth-files/models?name=\(encoded)")
+        let response = try JSONDecoder().decode(AuthFileModelsResponse.self, from: data)
+        return response.models
+    }
+    
+    func apiCall(_ request: APICallRequest) async throws -> APICallResponse {
+        let body = try JSONEncoder().encode(request)
+        let data = try await makeRequest("/api-call", method: "POST", body: body)
+        return try JSONDecoder().decode(APICallResponse.self, from: data)
+    }
+    
     func deleteAuthFile(name: String) async throws {
         _ = try await makeRequest("/auth-files?name=\(name)", method: "DELETE")
     }
@@ -314,6 +327,45 @@ nonisolated struct LogsResponse: Codable, Sendable {
         case lines
         case lineCount = "line-count"
         case latestTimestamp = "latest-timestamp"
+    }
+}
+
+nonisolated struct AuthFileModelsResponse: Codable, Sendable {
+    let models: [AuthFileModelInfo]
+}
+
+nonisolated struct AuthFileModelInfo: Codable, Sendable {
+    let id: String
+    let ownedBy: String?
+    let type: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, type
+        case ownedBy = "owned_by"
+    }
+}
+
+nonisolated struct APICallRequest: Codable, Sendable {
+    let authIndex: String?
+    let method: String
+    let url: String
+    let header: [String: String]?
+    let data: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case method, url, header, data
+        case authIndex = "auth_index"
+    }
+}
+
+nonisolated struct APICallResponse: Codable, Sendable {
+    let statusCode: Int
+    let header: [String: [String]]?
+    let body: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case header, body
+        case statusCode = "status_code"
     }
 }
 

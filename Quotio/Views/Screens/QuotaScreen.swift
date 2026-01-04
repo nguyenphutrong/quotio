@@ -360,6 +360,7 @@ private struct AccountQuotaCardV2: View {
     @State private var isRefreshing = false
     @State private var showSwitchSheet = false
     @State private var showModelsDetailSheet = false
+    @State private var showWarmupSheet = false
     
     private var hasQuotaData: Bool {
         guard let data = account.quotaData else { return false }
@@ -466,22 +467,24 @@ private struct AccountQuotaCardV2: View {
             
             Spacer()
             
-            Button {
-                viewModel.toggleWarmup(for: provider, accountKey: account.key)
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: isWarmupEnabled ? "bolt.fill" : "bolt")
-                        .font(.caption)
-                    Text("action.warmup".localized())
-                        .font(.caption)
+            if provider == .antigravity {
+                Button {
+                    showWarmupSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isWarmupEnabled ? "bolt.fill" : "bolt")
+                            .font(.caption)
+                        Text("action.warmup".localized())
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isWarmupEnabled ? provider.color.opacity(0.15) : Color.secondary.opacity(0.1))
+                    .foregroundStyle(isWarmupEnabled ? provider.color : .secondary)
+                    .clipShape(Capsule())
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(isWarmupEnabled ? provider.color.opacity(0.15) : Color.secondary.opacity(0.1))
-                .foregroundStyle(isWarmupEnabled ? provider.color : .secondary)
-                .clipShape(Capsule())
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             
             // Active badge (Antigravity only)
             if isActiveInIDE {
@@ -553,6 +556,17 @@ private struct AccountQuotaCardV2: View {
                 accountEmail: account.email,
                 onDismiss: {
                     showSwitchSheet = false
+                }
+            )
+            .environment(viewModel)
+        }
+        .sheet(isPresented: $showWarmupSheet) {
+            WarmupSheet(
+                provider: provider,
+                accountKey: account.key,
+                accountEmail: account.email,
+                onDismiss: {
+                    showWarmupSheet = false
                 }
             )
             .environment(viewModel)
