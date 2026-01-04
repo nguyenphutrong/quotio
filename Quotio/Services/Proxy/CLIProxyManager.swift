@@ -77,6 +77,7 @@ final class CLIProxyManager {
     private(set) var proxyStatus = ProxyStatus()
     private(set) var isStarting = false
     private(set) var isDownloading = false
+    private(set) var isRegeneratingKey = false
     private(set) var downloadProgress: Double = 0
     private(set) var lastError: String?
     
@@ -127,7 +128,7 @@ final class CLIProxyManager {
     let binaryPath: String
     let configPath: String
     let authDir: String
-    let managementKey: String
+    private(set) var managementKey: String
     
     var port: UInt16 {
         get { proxyStatus.port }
@@ -287,6 +288,40 @@ final class CLIProxyManager {
         } else if let range = content.range(of: #"secret-key:\s*[^\n]+"#, options: .regularExpression) {
             content.replaceSubrange(range, with: "secret-key: \"\(managementKey)\"")
             try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
+        }
+    }
+    
+    /// Regenerates the management key with staged persistence and rollback on failure.
+    /// - Throws: `ProxyError` if proxy restart fails
+    func regenerateManagementKey() async throws {
+        guard !isRegeneratingKey else {
+            throw ProxyError.operationInProgress
+        }
+        
+        isRegeneratingKey = true
+        defer { isRegeneratingKey = false }
+        
+        let previousKey = managementKey
+        let newKey = UUID().uuidString
+        managementKey = newKey
+        syncSecretKeyInConfig()
+        
+        guard proxyStatus.running else {
+            UserDefaults.standard.set(newKey, forKey: "managementKey")
+            return
+        }
+        
+        do {
+            stop()
+            try await Task.sleep(for: .milliseconds(500))
+            try await start()
+            UserDefaults.standard.set(newKey, forKey: "managementKey")
+        } catch {
+            managementKey = previousKey
+            syncSecretKeyInConfig()
+            try? await Task.sleep(for: .milliseconds(300))
+            try? await start()
+            throw error
         }
     }
     
@@ -855,6 +890,7 @@ final class CLIProxyManager {
 enum ProxyError: LocalizedError {
     case binaryNotFound
     case startupFailed
+    case operationInProgress
     case networkError(String)
     case noCompatibleBinary
     case extractionFailed
@@ -866,6 +902,8 @@ enum ProxyError: LocalizedError {
             return "CLIProxyAPI binary not found. Click 'Install' to download."
         case .startupFailed:
             return "Failed to start proxy server."
+        case .operationInProgress:
+            return "Another operation is already in progress. Please wait."
         case .networkError(let msg):
             return "Network error: \(msg)"
         case .noCompatibleBinary:

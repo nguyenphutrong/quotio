@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - unified operating mode system with remote management support (#86)
 
+- **settings**: add management API key display and regenerate (#97)
+
 ### Changed
 
 - **changelog**: clean up duplicates and add auto-squash for prereleases (fa1a273)
@@ -35,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - migrate to Swift 6 with strict concurrency (#83)
 
+- **settings**: add management API key display and regenerate (#97)
+
 ### Fixed
 
 - **ci**: resolve bash regex parsing issue and add manual workflow trigger (651fd46)
@@ -52,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add `update-changelog.sh` script for automated changelog updates
   - Add `generate-appcast-ci.sh` for CI-compatible Sparkle appcast generation
   - Add `quick-release.sh` helper for local tag creation
+
+- **settings**: add management API key display and regenerate (#97)
 
 ### Changed
 
@@ -83,6 +89,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reactive provider picker - accounts update immediately when switching providers (no menu close needed)
   - Add `rebuildMenuInPlace()` for proper menu refresh across macOS Desktops
 
+- **settings**: add management API key display and regenerate (#97)
+
 ### Fixed
 
 - **Menu Bar Submenu Hover**: Fix submenu not working after switching macOS Desktops (#66)
@@ -99,6 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Custom AI Providers**: Add and configure your own AI providers with custom API endpoints, headers, and model mappings (#62)
 - **Upstream Proxy Support**: Configure upstream proxy URL in Settings for corporate networks or VPN environments (#63)
 
+- **settings**: add management API key display and regenerate (#97)
+
 ### Fixed
 
 - **Proxy Idle Hang**: Prevent proxy process from hanging after extended idle periods (Issue #37, #53)
@@ -112,6 +122,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Beta Channel Support**: Opt-in to beta updates via Settings with separate Sparkle appcast feed (#56)
 - **Dynamic App Icon**: App icon automatically switches between production and beta based on update channel (#56)
 - **Privacy Mode**: Option to hide sensitive information (emails, account names) with asterisks across the app (#46)
+
+- **settings**: add management API key display and regenerate (#97)
 
 ### Fixed
 
@@ -127,6 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Chinese Localization**: Full Simplified Chinese translation for all UI strings (#39)
+
+- **settings**: add management API key display and regenerate (#97)
 
 ### Fixed
 
@@ -151,6 +165,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Localization**: Vietnamese translations for IDE scan UI
 - **Chinese README**: Documentation in Simplified Chinese (#35)
 - **MIT License**: Project now licensed under MIT (#24)
+
+- **settings**: add management API key display and regenerate (#97)
 
 ### Changed
 
@@ -179,6 +195,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Mode Switcher**: Responsive toggle in sidebar to switch between Full and Quota-Only modes
 - **Trae Provider**: Support for Trae AI coding agent with quota tracking
 
+- **settings**: add management API key display and regenerate (#97)
+
 ### Changed
 
 - **Menu Bar Redesign**: Provider-first layout with improved Liquid Glass compatibility
@@ -205,6 +223,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Refresh Button**: Manual refresh button for auto-detected providers section to detect logout changes (#11)
 
+- **settings**: add management API key display and regenerate (#97)
+
 ### Changed
 
 - Increase auto-refresh interval from 5s to 15s to reduce connection pressure (#11)
@@ -224,6 +244,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Appearance Settings**: New theme settings with System, Light, and Dark mode options
+
+- **settings**: add management API key display and regenerate (#97)
 
 ### Changed
 
@@ -245,6 +267,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Quota Display Mode**: Choose between showing used or remaining percentage
 - **Direct Provider Authentication**: Read quota from provider auth files (Claude Code, Gemini CLI, Codex CLI)
 - Mode picker onboarding for first-time setup
+
+- **settings**: add management API key display and regenerate (#97)
 
 ### Changed
 
@@ -270,6 +294,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kill-by-port cleanup to handle orphan processes
 - Claude Code configuration storage option (global vs project-local)
 - Dev build distinction with separate app icon
+
+- **settings**: add management API key display and regenerate (#97)
 
 ### Changed
 
@@ -310,6 +336,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sparkle Auto-Update**: Automatic update checking and installation
 - **Bilingual Support**: English and Vietnamese localization
 
+- **settings**: add management API key display and regenerate (#97)
+
 ### Fixed
 
 - Sheet state not resetting when reopening
@@ -326,3 +354,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic proxy management
 - Provider authentication via OAuth
 - Simple quota display
+- **settings**: add management API key display and regenerate (#97)
