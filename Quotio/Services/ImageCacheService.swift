@@ -16,13 +16,18 @@ final class ImageCacheService: @unchecked Sendable {
     private let cache = NSCache<NSString, NSImage>()
     private let queue = DispatchQueue(label: "com.quotio.imagecache", attributes: .concurrent)
     
+    /// Retained memory pressure source to prevent deallocation
+    private var memoryPressureSource: DispatchSourceMemoryPressure?
+    
     private init() {
-        // Configure cache limits
-        cache.countLimit = 50  // Max 50 images
-        cache.totalCostLimit = 10 * 1024 * 1024  // 10 MB max
-        
-        // Register for memory pressure notifications
+        cache.countLimit = 50
+        cache.totalCostLimit = 10 * 1024 * 1024
         setupMemoryPressureHandler()
+    }
+    
+    deinit {
+        memoryPressureSource?.cancel()
+        memoryPressureSource = nil
     }
     
     // MARK: - Public API
@@ -98,21 +103,19 @@ final class ImageCacheService: @unchecked Sendable {
     }
     
     private func setupMemoryPressureHandler() {
-        // Use DispatchSource for memory pressure monitoring
         let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
         source.setEventHandler { [weak self] in
             self?.clearCache()
         }
+        memoryPressureSource = source
         source.resume()
         
-        // Also observe NSApplication notifications for background state
         NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            // Trim cache when app goes to background
-            self?.cache.countLimit = 20  // Reduce limit
+            self?.cache.countLimit = 20
         }
         
         NotificationCenter.default.addObserver(
@@ -120,7 +123,6 @@ final class ImageCacheService: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            // Restore limit when app becomes active
             self?.cache.countLimit = 50
         }
     }
