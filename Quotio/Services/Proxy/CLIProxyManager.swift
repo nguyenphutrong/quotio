@@ -283,7 +283,7 @@ final class CLIProxyManager {
     /// - Throws: `ProxyError` if proxy restart fails
     func regenerateManagementKey() async throws {
         guard !isRegeneratingKey else {
-            throw ProxyError.startupFailed
+            throw ProxyError.operationInProgress
         }
         
         isRegeneratingKey = true
@@ -802,6 +802,7 @@ final class CLIProxyManager {
 enum ProxyError: LocalizedError {
     case binaryNotFound
     case startupFailed
+    case operationInProgress
     case networkError(String)
     case noCompatibleBinary
     case extractionFailed
@@ -813,6 +814,8 @@ enum ProxyError: LocalizedError {
             return "CLIProxyAPI binary not found. Click 'Install' to download."
         case .startupFailed:
             return "Failed to start proxy server."
+        case .operationInProgress:
+            return "Another operation is already in progress. Please wait."
         case .networkError(let msg):
             return "Network error: \(msg)"
         case .noCompatibleBinary:

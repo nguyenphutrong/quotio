@@ -2304,11 +2304,11 @@ struct ManagementKeyRow: View {
         } message: {
             Text("settings.managementKey.regenerate.warning".localized())
         }
-        .alert("Error", isPresented: .init(
+        .alert("Error".localized(), isPresented: .init(
             get: { regenerateError != nil },
             set: { if !$0 { regenerateError = nil } }
         )) {
-            Button("OK") { regenerateError = nil }
+            Button("OK".localized()) { regenerateError = nil }
         } message: {
             Text(regenerateError ?? "")
         }
