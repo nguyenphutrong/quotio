@@ -47,6 +47,9 @@ struct SettingsScreen: View {
                     }
 
                 Toggle("settings.showInDock".localized(), isOn: $showInDock)
+                    .onChange(of: showInDock) { _, newValue in
+                        NSApp.setActivationPolicy(newValue ? .regular : .accessory)
+                    }
             } header: {
                 Label("settings.general".localized(), systemImage: "gearshape")
             }
@@ -1339,6 +1342,9 @@ struct GeneralSettingsTab: View {
             
             Section {
                 Toggle("settings.showInDock".localized(), isOn: $showInDock)
+                    .onChange(of: showInDock) { _, newValue in
+                        NSApp.setActivationPolicy(newValue ? .regular : .accessory)
+                    }
             } header: {
                 Label("settings.appearance".localized(), systemImage: "macwindow")
             }

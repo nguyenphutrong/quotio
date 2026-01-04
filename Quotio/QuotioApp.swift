@@ -207,8 +207,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Register default values for UserDefaults
         UserDefaults.standard.register(defaults: [
-            "useBridgeMode": true  // Enable two-layer proxy by default for connection stability
+            "useBridgeMode": true,  // Enable two-layer proxy by default for connection stability
+            "showInDock": true      // Show in dock by default
         ])
+        
+        // Apply initial dock visibility based on saved preference
+        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
+        NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
         
         windowWillCloseObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
@@ -240,6 +245,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func handleWindowDidBecomeKey() {
+        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
+        // Only show in dock if user has enabled the setting
+        guard showInDock else { return }
+        
         for window in NSApp.windows where window.title == "Quotio" {
             if NSApp.activationPolicy() != .regular {
                 NSApp.setActivationPolicy(.regular)
@@ -257,6 +266,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     !window.isMiniaturized
             }
             if visibleQuotioWindows.isEmpty {
+                // Always hide from dock when no windows are visible
+                // (regardless of showInDock setting - it controls showing, not hiding)
                 NSApp.setActivationPolicy(.accessory)
             }
         }
