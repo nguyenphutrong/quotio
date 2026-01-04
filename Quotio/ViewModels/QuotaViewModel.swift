@@ -6,31 +6,32 @@
 import Foundation
 import SwiftUI
 import AppKit
+import Observation
 
 @MainActor
 @Observable
 final class QuotaViewModel {
     let proxyManager: CLIProxyManager
-    private var apiClient: ManagementAPIClient?
-    private let antigravityFetcher = AntigravityQuotaFetcher()
-    private let openAIFetcher = OpenAIQuotaFetcher()
-    private let copilotFetcher = CopilotQuotaFetcher()
-    private let directAuthService = DirectAuthFileService()
-    private let notificationManager = NotificationManager.shared
-    private let modeManager = AppModeManager.shared
-    private let refreshSettings = RefreshSettingsManager.shared
+    @ObservationIgnored private var apiClient: ManagementAPIClient?
+    @ObservationIgnored private let antigravityFetcher = AntigravityQuotaFetcher()
+    @ObservationIgnored private let openAIFetcher = OpenAIQuotaFetcher()
+    @ObservationIgnored private let copilotFetcher = CopilotQuotaFetcher()
+    @ObservationIgnored private let directAuthService = DirectAuthFileService()
+    @ObservationIgnored private let notificationManager = NotificationManager.shared
+    @ObservationIgnored private let modeManager = AppModeManager.shared
+    @ObservationIgnored private let refreshSettings = RefreshSettingsManager.shared
     
     /// Request tracker for monitoring API requests through ProxyBridge
     let requestTracker = RequestTracker.shared
     
     // Quota-Only Mode Fetchers (CLI-based)
-    private let claudeCodeFetcher = ClaudeCodeQuotaFetcher()
-    private let cursorFetcher = CursorQuotaFetcher()
-    private let codexCLIFetcher = CodexCLIQuotaFetcher()
-    private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
-    private let traeFetcher = TraeQuotaFetcher()
+    @ObservationIgnored private let claudeCodeFetcher = ClaudeCodeQuotaFetcher()
+    @ObservationIgnored private let cursorFetcher = CursorQuotaFetcher()
+    @ObservationIgnored private let codexCLIFetcher = CodexCLIQuotaFetcher()
+    @ObservationIgnored private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
+    @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
     
-    private var lastKnownAccountStatuses: [String: String] = [:]
+    @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
     
     var currentPage: NavigationPage = .dashboard
     var authFiles: [AuthFile] = []
@@ -50,9 +51,9 @@ final class QuotaViewModel {
     
     /// IDE Scan state
     var showIDEScanSheet = false
-    private let ideScanSettings = IDEScanSettingsManager.shared
+    @ObservationIgnored private let ideScanSettings = IDEScanSettingsManager.shared
     
-    private var _agentSetupViewModel: AgentSetupViewModel?
+    @ObservationIgnored private var _agentSetupViewModel: AgentSetupViewModel?
     var agentSetupViewModel: AgentSetupViewModel {
         if let vm = _agentSetupViewModel {
             return vm
@@ -72,8 +73,8 @@ final class QuotaViewModel {
     /// Antigravity account switcher (for IDE token injection)
     let antigravitySwitcher = AntigravityAccountSwitcher.shared
     
-    private var refreshTask: Task<Void, Never>?
-    private var lastLogTimestamp: Int?
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var lastLogTimestamp: Int?
     
     // MARK: - IDE Quota Persistence Keys
     
@@ -458,7 +459,7 @@ final class QuotaViewModel {
         }
     }
     
-    private var lastQuotaRefresh: Date?
+    @ObservationIgnored private var lastQuotaRefresh: Date?
     
     private var quotaRefreshInterval: TimeInterval {
         refreshSettings.refreshCadence.intervalSeconds ?? 60

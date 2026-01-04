@@ -1107,6 +1107,26 @@ private struct AvailableVersionRow: View {
     let isInstalling: Bool
     let onInstall: () -> Void
     
+    // Cached DateFormatters to avoid repeated allocations (performance fix)
+    private static let isoFormatterWithFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    
+    private static let isoFormatterStandard: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+    
+    private static let displayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+    
     var body: some View {
         HStack(spacing: 12) {
             // Version info
@@ -1169,23 +1189,14 @@ private struct AvailableVersionRow: View {
     }
     
     private func formatDate(_ isoString: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        if let date = formatter.date(from: isoString) {
-            let displayFormatter = DateFormatter()
-            displayFormatter.dateStyle = .medium
-            displayFormatter.timeStyle = .none
-            return displayFormatter.string(from: date)
+        // Try with fractional seconds first
+        if let date = Self.isoFormatterWithFractional.date(from: isoString) {
+            return Self.displayFormatter.string(from: date)
         }
         
         // Try without fractional seconds
-        formatter.formatOptions = [.withInternetDateTime]
-        if let date = formatter.date(from: isoString) {
-            let displayFormatter = DateFormatter()
-            displayFormatter.dateStyle = .medium
-            displayFormatter.timeStyle = .none
-            return displayFormatter.string(from: date)
+        if let date = Self.isoFormatterStandard.date(from: isoString) {
+            return Self.displayFormatter.string(from: date)
         }
         
         return isoString

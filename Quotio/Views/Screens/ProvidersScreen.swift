@@ -615,6 +615,9 @@ private struct OAuthStatusView: View {
     let state: String?
     let provider: AIProvider
     
+    /// Stable rotation angle for spinner animation (fixes UUID() infinite re-render)
+    @State private var rotationAngle: Double = 0
+    
     var body: some View {
         Group {
             switch status {
@@ -639,8 +642,12 @@ private struct OAuthStatusView: View {
                             .trim(from: 0, to: 0.7)
                             .stroke(provider.color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                             .frame(width: 60, height: 60)
-                            .rotationEffect(.degrees(-90))
-                            .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: UUID())
+                            .rotationEffect(.degrees(rotationAngle - 90))
+                            .onAppear {
+                                withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+                                    rotationAngle = 360
+                                }
+                            }
                         
                         Image(systemName: "person.badge.key.fill")
                             .font(.title2)

@@ -38,6 +38,28 @@ struct DashboardScreen: View {
         return viewModel.proxyManager.proxyStatus.running
     }
     
+    // MARK: - Precomputed Properties (performance optimization)
+    
+    /// Unique provider count from direct auth files
+    private var directProvidersCount: Int {
+        Set(viewModel.directAuthFiles.map { $0.provider }).count
+    }
+    
+    /// Lowest quota percentage across all providers and models
+    private var lowestQuotaPercentage: Double {
+        viewModel.providerQuotas.values
+            .flatMap { $0.values }
+            .flatMap { $0.models }
+            .map { $0.percentage }
+            .filter { $0 >= 0 }  // Exclude unknown (-1) values
+            .min() ?? 100
+    }
+    
+    /// Grouped accounts by provider (cached computation)
+    private var groupedDirectAuthFiles: [AIProvider: [DirectAuthFile]] {
+        Dictionary(grouping: viewModel.directAuthFiles) { $0.provider }
+    }
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -149,23 +171,21 @@ struct DashboardScreen: View {
                 color: .blue
             )
             
-            let providersCount = Set(viewModel.directAuthFiles.map { $0.provider }).count
             KPICard(
                 title: "dashboard.providers".localized(),
-                value: "\(providersCount)",
+                value: "\(directProvidersCount)",
                 subtitle: "dashboard.connected".localized(),
                 icon: "cpu",
                 color: .green
             )
             
-            // Show lowest quota percentage
-            let lowestQuota = viewModel.providerQuotas.values.flatMap { $0.values }.flatMap { $0.models }.map { $0.percentage }.min() ?? 100
+            // Show lowest quota percentage (precomputed)
             KPICard(
                 title: "dashboard.lowestQuota".localized(),
-                value: String(format: "%.0f%%", lowestQuota),
+                value: String(format: "%.0f%%", lowestQuotaPercentage),
                 subtitle: "dashboard.remaining".localized(),
                 icon: "chart.bar.fill",
-                color: lowestQuota > 50 ? .green : (lowestQuota > 20 ? .orange : .red)
+                color: lowestQuotaPercentage > 50 ? .green : (lowestQuotaPercentage > 20 ? .orange : .red)
             )
             
             if let lastRefresh = viewModel.lastQuotaRefreshTime {
@@ -204,7 +224,8 @@ struct DashboardScreen: View {
                 .padding(.vertical, 20)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(viewModel.providerQuotas.keys), id: \.self) { provider in
+                    // Sort providers for stable iteration order (ForEach performance fix)
+                    ForEach(viewModel.providerQuotas.keys.sorted { $0.displayName < $1.displayName }) { provider in
                         if let accounts = viewModel.providerQuotas[provider], !accounts.isEmpty {
                             QuotaProviderRow(provider: provider, accounts: accounts)
                         }
@@ -245,10 +266,9 @@ struct DashboardScreen: View {
                 .padding(.vertical, 20)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    let groupedAccounts = Dictionary(grouping: viewModel.directAuthFiles) { $0.provider }
-                    
-                    ForEach(AIProvider.allCases.filter { groupedAccounts[$0] != nil }, id: \.self) { provider in
-                        if let accounts = groupedAccounts[provider] {
+                    // Use precomputed groupedDirectAuthFiles instead of inline Dictionary(grouping:)
+                    ForEach(AIProvider.allCases.filter { groupedDirectAuthFiles[$0] != nil }) { provider in
+                        if let accounts = groupedDirectAuthFiles[provider] {
                             HStack(spacing: 12) {
                                 ProviderIcon(provider: provider, size: 20)
                                 
