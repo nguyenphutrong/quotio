@@ -780,12 +780,36 @@ final class CLIProxyManager {
     }
     
     private func performHealthCheck() async {
+        // Bail out if proxy is not running or manager is in upgrade flow
         guard proxyStatus.running else {
             healthCheckFailures = 0
             return
         }
         
+        // Skip health check during managed upgrades to avoid racing with upgrade flow
+        switch managerState {
+        case .testing, .promoting, .rollingBack:
+            NSLog("[CLIProxyManager] Skipping health check during \(managerState) state")
+            return
+        case .idle, .active:
+            break
+        }
+        
         let isHealthy = await compatibilityChecker.isHealthy(port: useBridgeMode ? internalPort : proxyStatus.port)
+        
+        // Re-check state after await - proxy may have been stopped or upgrade may have started
+        guard proxyStatus.running else {
+            healthCheckFailures = 0
+            return
+        }
+        
+        switch managerState {
+        case .testing, .promoting, .rollingBack:
+            NSLog("[CLIProxyManager] Aborting health check action - manager entered \(managerState) state")
+            return
+        case .idle, .active:
+            break
+        }
         
         if isHealthy {
             healthCheckFailures = 0
