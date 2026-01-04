@@ -345,6 +345,7 @@ private struct QuotaAccountRow: View {
             email: "[email protected]",
             accountType: nil,
             account: nil,
+            authIndex: nil,
             createdAt: nil,
             updatedAt: nil,
             lastRefresh: nil
@@ -361,7 +362,7 @@ private struct QuotaAccountRow: View {
         )
     ]
     
-    return QuotaCard(provider: .antigravity, accounts: mockAccounts, quotaData: mockQuota)
+    QuotaCard(provider: .antigravity, accounts: mockAccounts, quotaData: mockQuota)
         .frame(width: 400)
         .padding()
 }
