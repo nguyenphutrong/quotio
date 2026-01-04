@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-01-04
+
+### Added
+
+- **glm**: add GLM provider support with API key-based quota tracking (#77) - thanks @prnake 🎉
+
+### Fixed
+
+- **detection**: check XDG_DATA_HOME for fnm path detection (#102)
+- **glm**: resolve Swift 6 concurrency warnings in GLMQuotaFetcher (#106)
+
 ## [0.5.0] - 2026-01-04
 
 ### Added
