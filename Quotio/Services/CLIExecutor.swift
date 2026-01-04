@@ -94,14 +94,27 @@ actor CLIExecutor {
             }
         }
         
-        // fnm: ~/.fnm/node-versions/v*/installation/bin/
-        let fnmBase = "\(home)/.fnm/node-versions"
-        if let versions = try? fileManager.contentsOfDirectory(atPath: fnmBase) {
-            for version in versions.sorted().reversed() {
-                let binPath = "\(fnmBase)/\(version)/installation/bin/\(name)"
-                if fileManager.isExecutableFile(atPath: binPath) {
-                    return binPath
+        // fnm: $XDG_DATA_HOME/fnm (defaults to ~/.local/share/fnm), then legacy ~/.fnm
+        let xdgDataHome: String
+        if let envValue = ProcessInfo.processInfo.environment["XDG_DATA_HOME"], !envValue.isEmpty {
+            xdgDataHome = envValue
+        } else {
+            xdgDataHome = "\(home)/.local/share"
+        }
+        let fnmPaths = [
+            "\(xdgDataHome)/fnm/node-versions",
+            "\(home)/.fnm/node-versions"  // legacy path
+        ]
+
+        for fnmBase in fnmPaths {
+            if let versions = try? fileManager.contentsOfDirectory(atPath: fnmBase), !versions.isEmpty {
+                for version in versions.sorted().reversed() {
+                    let binPath = "\(fnmBase)/\(version)/installation/bin/\(name)"
+                    if fileManager.isExecutableFile(atPath: binPath) {
+                        return binPath
+                    }
                 }
+                break  // found fnm installation, skip legacy path
             }
         }
         
