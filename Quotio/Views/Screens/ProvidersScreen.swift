@@ -98,6 +98,11 @@ struct ProvidersScreen: View {
     private var totalAccountCount: Int {
         groupedAccounts.values.reduce(0) { $0 + $1.count }
     }
+
+    /// Account count per provider (for AddProviderPopover badge display)
+    private var providerAccountCounts: [AIProvider: Int] {
+        groupedAccounts.mapValues { $0.count }
+    }
     
     // MARK: - Body
     
@@ -163,6 +168,7 @@ struct ProvidersScreen: View {
         .sheet(isPresented: $showAddProviderPopover) {
             AddProviderPopover(
                 providers: addableProviders,
+                existingCounts: providerAccountCounts,
                 onSelectProvider: { provider in
                     handleAddProvider(provider)
                 },

@@ -8,6 +8,13 @@
 
 import Foundation
 
+/// API fetch result type
+nonisolated enum ClaudeAPIResult: Sendable {
+    case success(ClaudeCodeQuotaInfo)
+    case authenticationError  // Token expired or invalid - needs re-authentication
+    case otherError
+}
+
 /// Quota data from Claude Code OAuth API
 nonisolated struct ClaudeCodeQuotaInfo: Sendable {
     let accessToken: String?
@@ -29,13 +36,13 @@ nonisolated struct ClaudeCodeQuotaInfo: Sendable {
             max(0, min(100, 100 - utilization))
         }
     }
-    
+
     struct ExtraUsage: Sendable {
         let isEnabled: Bool
         let monthlyLimit: Double?
         let usedCredits: Double?
         let utilization: Double?
-        
+
         /// Remaining percentage for extra usage, clamped to 0-100
         var remaining: Double? {
             guard let util = utilization else { return nil }
@@ -49,17 +56,29 @@ actor ClaudeCodeQuotaFetcher {
 
     /// Auth directory for CLI Proxy API
     private let authDir = "~/.cli-proxy-api"
-    
+
+    /// Anthropic OAuth usage API endpoint
+    private let usageURL = "https://api.anthropic.com/api/oauth/usage"
+
+    /// URLSession for network requests
+    private let session: URLSession
+
     /// Cache for quota data to reduce API calls
     private var quotaCache: [String: CachedQuota] = [:]
-    
+
     /// Cache TTL: 5 minutes
     private let cacheTTL: TimeInterval = 300
-    
+
+    init() {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 15
+        self.session = URLSession(configuration: config)
+    }
+
     private struct CachedQuota {
         let data: ProviderQuotaData
         let timestamp: Date
-        
+
         func isValid(ttl: TimeInterval) -> Bool {
             Date().timeIntervalSince(timestamp) < ttl
         }
@@ -107,35 +126,52 @@ actor ClaudeCodeQuotaFetcher {
     }
 
     /// Fetch usage data from Anthropic OAuth API
-    private func fetchUsageFromAPI(accessToken: String, email: String?) async -> ClaudeCodeQuotaInfo? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-        process.arguments = [
-            "-s",
-            "-H", "Accept: application/json",
-            "-H", "Authorization: Bearer \(accessToken)",
-            "-H", "anthropic-beta: oauth-2025-04-20",
-            "https://api.anthropic.com/api/oauth/usage"
-        ]
+    /// - Returns: ClaudeAPIResult indicating success, auth error, or other error
+    private func fetchUsageFromAPI(accessToken: String, email: String?) async -> ClaudeAPIResult {
+        guard let url = URL(string: usageURL) else {
+            return .otherError
+        }
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
 
         do {
-            try process.run()
-            process.waitUntilExit()
+            let (data, response) = try await session.data(for: request)
 
-            guard process.terminationStatus == 0 else { return nil }
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return nil
+            // Check HTTP status code
+            if let httpResponse = response as? HTTPURLResponse {
+                // 401 Unauthorized indicates authentication error
+                if httpResponse.statusCode == 401 {
+                    return .authenticationError
+                }
+                // Other non-2xx status codes
+                if !(200...299 ~= httpResponse.statusCode) {
+                    NSLog("[ClaudeQuota] HTTP error: \(httpResponse.statusCode)")
+                    return .otherError
+                }
             }
-            
+
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                NSLog("[ClaudeQuota] Failed to parse JSON response")
+                return .otherError
+            }
+
             // Check for API error response
             if json["type"] as? String == "error" {
-                return nil
+                // Check if it's an authentication error
+                if let errorObj = json["error"] as? [String: Any],
+                   let errorType = errorObj["type"] as? String,
+                   errorType == "authentication_error" {
+                    // Token expired or invalid - needs re-authentication
+                    // Note: Anthropic OAuth tokens expire after ~1 hour and don't support refresh
+                    NSLog("[ClaudeQuota] Authentication error for \(email ?? "unknown")")
+                    return .authenticationError
+                }
+                NSLog("[ClaudeQuota] API error: \(json)")
+                return .otherError
             }
 
             // API returns data directly (no wrapper)
@@ -145,7 +181,7 @@ actor ClaudeCodeQuotaFetcher {
             let sevenDayOpus = parseQuotaUsage(from: json["seven_day_opus"] as? [String: Any])
             let extraUsage = parseExtraUsage(from: json["extra_usage"] as? [String: Any])
 
-            return ClaudeCodeQuotaInfo(
+            return .success(ClaudeCodeQuotaInfo(
                 accessToken: accessToken,
                 email: email,
                 fiveHour: fiveHour,
@@ -153,9 +189,10 @@ actor ClaudeCodeQuotaFetcher {
                 sevenDaySonnet: sevenDaySonnet,
                 sevenDayOpus: sevenDayOpus,
                 extraUsage: extraUsage
-            )
+            ))
         } catch {
-            return nil
+            NSLog("[ClaudeQuota] Network error: \(error.localizedDescription)")
+            return .otherError
         }
     }
 
@@ -205,93 +242,109 @@ actor ClaudeCodeQuotaFetcher {
     ///   - forceRefresh: If true, bypass cache
     private func fetchQuotaFromAuthFile(at path: String, forceRefresh: Bool = false) async -> (email: String, data: ProviderQuotaData)? {
         let fileManager = FileManager.default
-        
+
         guard let data = fileManager.contents(atPath: path),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
-        
+
         guard let accessToken = json["access_token"] as? String,
               let email = json["email"] as? String else {
             return nil
         }
-        
+
         // Check cache first (unless force refresh)
         if !forceRefresh, let cached = quotaCache[email], cached.isValid(ttl: cacheTTL) {
             return (email, cached.data)
         }
-        
+
         // Fetch usage from API using the token
-        guard let info = await fetchUsageFromAPI(accessToken: accessToken, email: email) else {
-            // Return cached data if API fails
+        let result = await fetchUsageFromAPI(accessToken: accessToken, email: email)
+
+        switch result {
+        case .success(let info):
+            // Convert to ProviderQuotaData
+            var models: [ModelQuota] = []
+
+            if let fiveHour = info.fiveHour {
+                models.append(ModelQuota(
+                    name: "five-hour-session",
+                    percentage: fiveHour.remaining,
+                    resetTime: fiveHour.resetsAt
+                ))
+            }
+
+            if let sevenDay = info.sevenDay {
+                models.append(ModelQuota(
+                    name: "seven-day-weekly",
+                    percentage: sevenDay.remaining,
+                    resetTime: sevenDay.resetsAt
+                ))
+            }
+
+            if let sonnet = info.sevenDaySonnet {
+                models.append(ModelQuota(
+                    name: "seven-day-sonnet",
+                    percentage: sonnet.remaining,
+                    resetTime: sonnet.resetsAt
+                ))
+            }
+
+            if let opus = info.sevenDayOpus {
+                models.append(ModelQuota(
+                    name: "seven-day-opus",
+                    percentage: opus.remaining,
+                    resetTime: opus.resetsAt
+                ))
+            }
+
+            if let extra = info.extraUsage, let remaining = extra.remaining {
+                var extraModel = ModelQuota(
+                    name: "extra-usage",
+                    percentage: remaining,
+                    resetTime: ""
+                )
+                // Add usage details if available
+                if let used = extra.usedCredits, let limit = extra.monthlyLimit {
+                    extraModel.used = Int(used)
+                    extraModel.limit = Int(limit)
+                }
+                models.append(extraModel)
+            }
+
+            guard !models.isEmpty else { return nil }
+
+            let quotaData = ProviderQuotaData(
+                models: models,
+                lastUpdated: Date(),
+                isForbidden: false,
+                planType: nil
+            )
+
+            // Update cache
+            quotaCache[email] = CachedQuota(data: quotaData, timestamp: Date())
+
+            return (email, quotaData)
+
+        case .authenticationError:
+            // Token expired - return isForbidden: true to trigger re-authentication UI
+            // Note: Anthropic OAuth tokens expire after ~1 hour and don't support refresh
+            let quotaData = ProviderQuotaData(
+                models: [],
+                lastUpdated: Date(),
+                isForbidden: true,  // Indicates re-authentication needed
+                planType: nil
+            )
+            // Don't cache auth errors - allow retry
+            return (email, quotaData)
+
+        case .otherError:
+            // Return cached data if API fails with non-auth error
             if let cached = quotaCache[email] {
                 return (email, cached.data)
             }
             return nil
         }
-        
-        // Convert to ProviderQuotaData
-        var models: [ModelQuota] = []
-        
-        if let fiveHour = info.fiveHour {
-            models.append(ModelQuota(
-                name: "five-hour-session",
-                percentage: fiveHour.remaining,
-                resetTime: fiveHour.resetsAt
-            ))
-        }
-        
-        if let sevenDay = info.sevenDay {
-            models.append(ModelQuota(
-                name: "seven-day-weekly",
-                percentage: sevenDay.remaining,
-                resetTime: sevenDay.resetsAt
-            ))
-        }
-        
-        if let sonnet = info.sevenDaySonnet {
-            models.append(ModelQuota(
-                name: "seven-day-sonnet",
-                percentage: sonnet.remaining,
-                resetTime: sonnet.resetsAt
-            ))
-        }
-        
-        if let opus = info.sevenDayOpus {
-            models.append(ModelQuota(
-                name: "seven-day-opus",
-                percentage: opus.remaining,
-                resetTime: opus.resetsAt
-            ))
-        }
-        
-        if let extra = info.extraUsage, let remaining = extra.remaining {
-            var extraModel = ModelQuota(
-                name: "extra-usage",
-                percentage: remaining,
-                resetTime: ""
-            )
-            // Add usage details if available
-            if let used = extra.usedCredits, let limit = extra.monthlyLimit {
-                extraModel.used = Int(used)
-                extraModel.limit = Int(limit)
-            }
-            models.append(extraModel)
-        }
-        
-        guard !models.isEmpty else { return nil }
-        
-        let quotaData = ProviderQuotaData(
-            models: models,
-            lastUpdated: Date(),
-            isForbidden: false,
-            planType: nil
-        )
-        
-        // Update cache
-        quotaCache[email] = CachedQuota(data: quotaData, timestamp: Date())
-        
-        return (email, quotaData)
     }
     
     /// Clear the quota cache
