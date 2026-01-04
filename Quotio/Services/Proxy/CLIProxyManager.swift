@@ -77,6 +77,7 @@ final class CLIProxyManager {
     private(set) var proxyStatus = ProxyStatus()
     private(set) var isStarting = false
     private(set) var isDownloading = false
+    private(set) var isRegeneratingKey = false
     private(set) var downloadProgress: Double = 0
     private(set) var lastError: String?
     
@@ -278,17 +279,37 @@ final class CLIProxyManager {
         }
     }
     
-    func regenerateManagementKey() {
-        managementKey = UUID().uuidString
-        UserDefaults.standard.set(managementKey, forKey: "managementKey")
+    /// Regenerates the management key with staged persistence and rollback on failure.
+    /// - Throws: `ProxyError` if proxy restart fails
+    func regenerateManagementKey() async throws {
+        guard !isRegeneratingKey else {
+            throw ProxyError.startupFailed
+        }
+        
+        isRegeneratingKey = true
+        defer { isRegeneratingKey = false }
+        
+        let previousKey = managementKey
+        let newKey = UUID().uuidString
+        managementKey = newKey
         syncSecretKeyInConfig()
         
-        if proxyStatus.running {
-            Task {
-                stop()
-                try? await Task.sleep(for: .milliseconds(500))
-                try? await start()
-            }
+        guard proxyStatus.running else {
+            UserDefaults.standard.set(newKey, forKey: "managementKey")
+            return
+        }
+        
+        do {
+            stop()
+            try await Task.sleep(for: .milliseconds(500))
+            try await start()
+            UserDefaults.standard.set(newKey, forKey: "managementKey")
+        } catch {
+            managementKey = previousKey
+            syncSecretKeyInConfig()
+            try? await Task.sleep(for: .milliseconds(300))
+            try? await start()
+            throw error
         }
     }
     

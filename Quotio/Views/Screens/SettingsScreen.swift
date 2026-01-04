@@ -2228,6 +2228,7 @@ struct LinkCard: View {
 struct ManagementKeyRow: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var settings = MenuBarSettingsManager.shared
+    @State private var regenerateError: String?
     
     private var displayKey: String {
         if settings.hideSensitiveInfo {
@@ -2258,14 +2259,36 @@ struct ManagementKeyRow: View {
                 .help("action.copy".localized())
                 
                 Button {
-                    viewModel.proxyManager.regenerateManagementKey()
+                    Task {
+                        regenerateError = nil
+                        do {
+                            try await viewModel.proxyManager.regenerateManagementKey()
+                        } catch {
+                            regenerateError = error.localizedDescription
+                        }
+                    }
                 } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.caption)
+                    if viewModel.proxyManager.isRegeneratingKey {
+                        ProgressView()
+                            .controlSize(.small)
+                            .scaleEffect(0.7)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
                 }
                 .buttonStyle(.borderless)
+                .disabled(viewModel.proxyManager.isRegeneratingKey)
                 .help("settings.managementKey.regenerate".localized())
             }
+        }
+        .alert("Error", isPresented: .init(
+            get: { regenerateError != nil },
+            set: { if !$0 { regenerateError = nil } }
+        )) {
+            Button("OK") { regenerateError = nil }
+        } message: {
+            Text(regenerateError ?? "")
         }
     }
 }
