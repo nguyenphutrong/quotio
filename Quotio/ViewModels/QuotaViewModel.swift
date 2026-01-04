@@ -19,7 +19,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let glmFetcher = GLMQuotaFetcher()
     @ObservationIgnored private let directAuthService = DirectAuthFileService()
     @ObservationIgnored private let notificationManager = NotificationManager.shared
-    @ObservationIgnored private let modeManager = AppModeManager.shared
+    @ObservationIgnored private let modeManager = OperatingModeManager.shared
     @ObservationIgnored private let refreshSettings = RefreshSettingsManager.shared
     
     /// Request tracker for monitoring API requests through ProxyBridge
@@ -95,7 +95,7 @@ final class QuotaViewModel {
     }
     
     private func restartAutoRefresh() {
-        if modeManager.isQuotaOnlyMode {
+        if modeManager.isMonitorMode {
             startQuotaOnlyAutoRefresh()
         } else if proxyManager.proxyStatus.running {
             startAutoRefresh()
@@ -106,16 +106,16 @@ final class QuotaViewModel {
     
     // MARK: - Mode-Aware Initialization
     
-    /// Initialize the app based on current mode
     func initialize() async {
-        if modeManager.isQuotaOnlyMode {
+        if modeManager.isRemoteProxyMode {
+            await initializeRemoteMode()
+        } else if modeManager.isMonitorMode {
             await initializeQuotaOnlyMode()
         } else {
             await initializeFullMode()
         }
     }
     
-    /// Initialize for Full Mode (with proxy)
     private func initializeFullMode() async {
         // Always refresh quotas directly first (works without proxy)
         await refreshQuotasUnified()
@@ -147,6 +147,47 @@ final class QuotaViewModel {
         
         // Start auto-refresh for quota-only mode
         startQuotaOnlyAutoRefresh()
+    }
+    
+    private func initializeRemoteMode() async {
+        guard modeManager.hasValidRemoteConfig,
+              let config = modeManager.remoteConfig,
+              let managementKey = modeManager.remoteManagementKey else {
+            modeManager.setConnectionStatus(.error("No valid remote configuration"))
+            return
+        }
+        
+        modeManager.setConnectionStatus(.connecting)
+        
+        await setupRemoteAPIClient(config: config, managementKey: managementKey)
+        
+        guard let client = apiClient else {
+            modeManager.setConnectionStatus(.error("Failed to create API client"))
+            return
+        }
+        
+        let isConnected = await client.checkProxyResponding()
+        
+        if isConnected {
+            modeManager.markConnected()
+            await refreshData()
+            startAutoRefresh()
+        } else {
+            modeManager.setConnectionStatus(.error("Could not connect to remote server"))
+        }
+    }
+    
+    private func setupRemoteAPIClient(config: RemoteConnectionConfig, managementKey: String) async {
+        if let existingClient = apiClient {
+            await existingClient.invalidate()
+        }
+        
+        apiClient = ManagementAPIClient(config: config, managementKey: managementKey)
+    }
+    
+    func reconnectRemote() async {
+        guard modeManager.isRemoteProxyMode else { return }
+        await initializeRemoteMode()
     }
     
     // MARK: - Direct Auth File Management (Quota-Only Mode)
@@ -254,7 +295,7 @@ final class QuotaViewModel {
     private func refreshCodexCLIQuotasInternal() async {
         // Only use CLI fetcher if proxy is not available or in quota-only mode
         // The openAIFetcher handles Codex via proxy auth files
-        guard modeManager.isQuotaOnlyMode else { return }
+        guard modeManager.isMonitorMode else { return }
         
         let quotas = await codexCLIFetcher.fetchAsProviderQuota()
         if !quotas.isEmpty {
@@ -273,7 +314,7 @@ final class QuotaViewModel {
     /// Refresh Gemini quota using CLI auth file (~/.gemini/oauth_creds.json)
     private func refreshGeminiCLIQuotasInternal() async {
         // Only use CLI fetcher in quota-only mode
-        guard modeManager.isQuotaOnlyMode else { return }
+        guard modeManager.isMonitorMode else { return }
 
         let quotas = await geminiCLIFetcher.fetchAsProviderQuota()
         if !quotas.isEmpty {
@@ -509,7 +550,7 @@ final class QuotaViewModel {
     }
     
     func manualRefresh() async {
-        if modeManager.isQuotaOnlyMode {
+        if modeManager.isMonitorMode {
             await refreshQuotasDirectly()
         } else if proxyManager.proxyStatus.running {
             await refreshData()
@@ -561,7 +602,7 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
 
         // In Quota-Only Mode, also include CLI fetchers
-        if modeManager.isQuotaOnlyMode {
+        if modeManager.isMonitorMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
             async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
             _ = await (antigravity, openai, copilot, claudeCode, glm, codexCLI, geminiCLI)

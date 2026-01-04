@@ -25,14 +25,14 @@ struct ProvidersScreen: View {
     @State private var showAddProviderPopover = false
     @State private var switchingAccount: AccountRowData?
 
-    private let modeManager = AppModeManager.shared
+    private let modeManager = OperatingModeManager.shared
     private let customProviderService = CustomProviderService.shared
     
     // MARK: - Computed Properties
     
     /// Providers that can be added manually
     private var addableProviders: [AIProvider] {
-        if modeManager.isFullMode {
+        if modeManager.isLocalProxyMode {
             return AIProvider.allCases.filter { $0.supportsManualAuth }
         } else {
             return AIProvider.allCases.filter { $0.supportsQuotaOnlyMode && $0.supportsManualAuth }
@@ -43,7 +43,7 @@ struct ProvidersScreen: View {
     private var groupedAccounts: [AIProvider: [AccountRowData]] {
         var groups: [AIProvider: [AccountRowData]] = [:]
 
-        if modeManager.isFullMode && viewModel.proxyManager.proxyStatus.running {
+        if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
             // From proxy auth files (proxy running)
             for file in viewModel.authFiles {
                 guard let provider = file.providerType else { continue }
@@ -106,12 +106,12 @@ struct ProvidersScreen: View {
             // Section 1: Your Accounts (grouped by provider)
             accountsSection
             
-            // Section 2: Custom Providers (Full Mode only)
-            if modeManager.isFullMode {
+            // Section 2: Custom Providers (Local Proxy Mode only)
+            if modeManager.isLocalProxyMode {
                 customProvidersSection
             }
         }
-        .navigationTitle(modeManager.isQuotaOnlyMode ? "nav.accounts".localized() : "nav.providers".localized())
+        .navigationTitle(modeManager.isMonitorMode ? "nav.accounts".localized() : "nav.providers".localized())
         .toolbar {
             toolbarContent
         }
@@ -205,7 +205,7 @@ struct ProvidersScreen: View {
         ToolbarItem(placement: .automatic) {
             Button {
                 Task {
-                    if modeManager.isFullMode && viewModel.proxyManager.proxyStatus.running {
+        if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
                         await viewModel.refreshData()
                     } else {
                         await viewModel.loadDirectAuthFiles()
@@ -331,8 +331,8 @@ struct ProvidersScreen: View {
     // MARK: - Helper Functions
 
     private func handleAddProvider(_ provider: AIProvider) {
-        // In Full Mode, require proxy to be running for OAuth
-        if modeManager.isFullMode && !viewModel.proxyManager.proxyStatus.running {
+        // In Local Proxy Mode, require proxy to be running for OAuth
+        if modeManager.isLocalProxyMode && !viewModel.proxyManager.proxyStatus.running {
             showProxyRequiredAlert = true
             return
         }

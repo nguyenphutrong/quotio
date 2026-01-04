@@ -17,7 +17,7 @@ struct QuotioApp: App {
     @State private var logsViewModel = LogsViewModel()
     @State private var menuBarSettings = MenuBarSettingsManager.shared
     @State private var statusBarManager = StatusBarManager.shared
-    @State private var modeManager = AppModeManager.shared
+    @State private var modeManager = OperatingModeManager.shared
     @State private var appearanceManager = AppearanceManager.shared
     @State private var languageManager = LanguageManager.shared
     @State private var showOnboarding = false
@@ -179,7 +179,7 @@ struct QuotioApp: App {
                     statusBarManager.rebuildMenuInPlace()
                 }
                 .sheet(isPresented: $showOnboarding) {
-                    ModePickerView {
+                    OnboardingFlow {
                         Task { await initializeApp() }
                     }
                 }
@@ -286,7 +286,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct ContentView: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @AppStorage("loggingToFile") private var loggingToFile = true
-    @State private var modeManager = AppModeManager.shared
+    @State private var modeManager = OperatingModeManager.shared
     
     var body: some View {
         @Bindable var vm = viewModel
@@ -302,19 +302,21 @@ struct ContentView: View {
                         Label("nav.quota".localized(), systemImage: "chart.bar.fill")
                             .tag(NavigationPage.quota)
                         
-                        Label(modeManager.isQuotaOnlyMode ? "nav.accounts".localized() : "nav.providers".localized(), 
+                        Label(modeManager.isMonitorMode ? "nav.accounts".localized() : "nav.providers".localized(), 
                               systemImage: "person.2.badge.key")
                             .tag(NavigationPage.providers)
                         
-                        // Full mode only
-                        if modeManager.isFullMode {
-                            Label("nav.agents".localized(), systemImage: "terminal")
-                                .tag(NavigationPage.agents)
+                        // Proxy mode only (local or remote)
+                        if modeManager.isProxyMode {
+                            if modeManager.currentMode.supportsAgentConfig {
+                                Label("nav.agents".localized(), systemImage: "terminal")
+                                    .tag(NavigationPage.agents)
+                            }
                             
                             Label("nav.apiKeys".localized(), systemImage: "key.horizontal")
                                 .tag(NavigationPage.apiKeys)
                             
-                            if loggingToFile {
+                            if modeManager.isLocalProxyMode && loggingToFile {
                                 Label("nav.logs".localized(), systemImage: "doc.text")
                                     .tag(NavigationPage.logs)
                             }
@@ -328,20 +330,22 @@ struct ContentView: View {
                     }
                 }
                 
-                // Control section at bottom - mode switcher + status
+                // Control section at bottom - current mode badge + status
                 VStack(spacing: 0) {
                     Divider()
                     
-                    // Mode Switcher
-                    ModeSwitcherRow()
+                    // Current Mode Badge (replaces ModeSwitcherRow)
+                    CurrentModeBadge()
                         .padding(.horizontal, 16)
                         .padding(.top, 10)
                         .padding(.bottom, 6)
                     
                     // Status row - different per mode
                     Group {
-                        if modeManager.isFullMode {
+                        if modeManager.isLocalProxyMode {
                             ProxyStatusRow(viewModel: viewModel)
+                        } else if modeManager.isRemoteProxyMode {
+                            RemoteStatusRow()
                         } else {
                             QuotaRefreshStatusRow(viewModel: viewModel)
                         }
@@ -354,8 +358,8 @@ struct ContentView: View {
             .navigationTitle("Quotio")
             .toolbar {
                 ToolbarItem {
-                    if modeManager.isFullMode {
-                        // Full mode: proxy controls
+                    if modeManager.isLocalProxyMode {
+                        // Local proxy mode: proxy controls
                         if viewModel.proxyManager.isStarting {
                             SmallProgressView()
                         } else {
@@ -367,7 +371,7 @@ struct ContentView: View {
                             .help(viewModel.proxyManager.proxyStatus.running ? "action.stopProxy".localized() : "action.startProxy".localized())
                         }
                     } else {
-                        // Quota-only mode: refresh button
+                        // Monitor or remote mode: refresh button
                         Button {
                             Task { await viewModel.refreshQuotasDirectly() }
                         } label: {
@@ -401,152 +405,52 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Sidebar Mode Switcher
-
-/// Compact mode switcher for sidebar with custom toggle buttons
-struct ModeSwitcherRow: View {
-    @Environment(QuotaViewModel.self) private var viewModel
-    @State private var modeManager = AppModeManager.shared
-    @State private var showConfirmation = false
-    @State private var pendingMode: AppMode?
-    
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            // Horizontal layout (preferred when space allows)
-            HStack(spacing: 6) {
-                modeButtons
-            }
-            
-            // Vertical layout (fallback when sidebar is narrow)
-            VStack(spacing: 6) {
-                modeButtons
-            }
-        }
-        .alert("settings.appMode.switchConfirmTitle".localized(), isPresented: $showConfirmation) {
-            Button("action.cancel".localized(), role: .cancel) {
-                pendingMode = nil
-            }
-            Button("action.switch".localized()) {
-                if let mode = pendingMode {
-                    switchToMode(mode)
-                }
-                pendingMode = nil
-            }
-        } message: {
-            Text("settings.appMode.switchConfirmMessage".localized())
-        }
-    }
-    
-    @ViewBuilder
-    private var modeButtons: some View {
-        ModeButton(
-            label: "mode.full".localized(),
-            icon: "server.rack",
-            color: .blue,
-            isSelected: modeManager.currentMode == .full
-        ) {
-            handleModeSelection(.full)
-        }
-        
-        ModeButton(
-            label: "mode.quotaOnly".localized(),
-            icon: "chart.bar.fill",
-            color: .green,
-            isSelected: modeManager.currentMode == .quotaOnly
-        ) {
-            handleModeSelection(.quotaOnly)
-        }
-    }
-    
-    private func handleModeSelection(_ mode: AppMode) {
-        guard mode != modeManager.currentMode else { return }
-        
-        if modeManager.isFullMode && mode == .quotaOnly {
-            // Confirm before switching from full to quota-only
-            pendingMode = mode
-            showConfirmation = true
-        } else {
-            switchToMode(mode)
-        }
-    }
-    
-    private func switchToMode(_ mode: AppMode) {
-        modeManager.switchMode(to: mode) {
-            viewModel.stopProxy()
-        }
-        
-        Task {
-            await viewModel.initialize()
-        }
-    }
-}
-
-// MARK: - Mode Button
-
-/// Custom toggle button for mode selection
-private struct ModeButton: View {
-    let label: String
-    let icon: String
-    let color: Color
-    let isSelected: Bool
-    let onTap: () -> Void
-    
-    @State private var isHovered = false
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.caption)
-                Text(label)
-                    .font(.caption)
-                    .fontWeight(isSelected ? .medium : .regular)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity)
-            .background(background)
-            .foregroundStyle(foregroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(borderColor, lineWidth: isSelected ? 1.5 : 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .animation(.easeInOut(duration: 0.15), value: isHovered)
-        .animation(.easeInOut(duration: 0.15), value: isSelected)
-    }
-    
-    private var background: Color {
-        if isSelected {
-            return color.opacity(0.15)
-        } else if isHovered {
-            return Color.secondary.opacity(0.08)
-        }
-        return Color.clear
-    }
-    
-    private var foregroundColor: Color {
-        isSelected ? color : .secondary
-    }
-    
-    private var borderColor: Color {
-        if isSelected {
-            return color.opacity(0.5)
-        } else if isHovered {
-            return Color.secondary.opacity(0.3)
-        }
-        return Color.secondary.opacity(0.15)
-    }
-}
-
 // MARK: - Sidebar Status Rows
 
-/// Proxy status row for Full Mode
+/// Remote connection status row for Remote Proxy Mode
+struct RemoteStatusRow: View {
+    @State private var modeManager = OperatingModeManager.shared
+    
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
+            
+            Text(statusText)
+                .font(.caption)
+            
+            Spacer()
+            
+            if let config = modeManager.remoteConfig {
+                Text(config.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+    
+    private var statusColor: Color {
+        switch modeManager.connectionStatus {
+        case .connected: return .green
+        case .connecting: return .orange
+        case .disconnected: return .gray
+        case .error: return .red
+        }
+    }
+    
+    private var statusText: String {
+        switch modeManager.connectionStatus {
+        case .connected: return "status.connected".localized()
+        case .connecting: return "status.connecting".localized()
+        case .disconnected: return "status.disconnected".localized()
+        case .error: return "status.error".localized()
+        }
+    }
+}
+
+/// Proxy status row for Local Proxy Mode
 struct ProxyStatusRow: View {
     let viewModel: QuotaViewModel
     

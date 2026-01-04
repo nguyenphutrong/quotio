@@ -19,7 +19,7 @@ import SwiftUI
 final class StatusBarMenuBuilder {
     
     private let viewModel: QuotaViewModel
-    private let modeManager = AppModeManager.shared
+    private let modeManager = OperatingModeManager.shared
     private let menuWidth: CGFloat = 300
     
     // Selected provider from UserDefaults
@@ -39,8 +39,8 @@ final class StatusBarMenuBuilder {
         menu.addItem(buildHeaderItem())
         menu.addItem(NSMenuItem.separator())
         
-        // 2. Proxy info (Full Mode only)
-        if modeManager.isFullMode {
+        // 2. Proxy info (Local Proxy Mode only)
+        if modeManager.isLocalProxyMode {
             menu.addItem(buildProxyInfoItem())
             menu.addItem(NSMenuItem.separator())
         }

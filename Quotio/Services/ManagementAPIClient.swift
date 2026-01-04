@@ -12,6 +12,40 @@ actor ManagementAPIClient {
     private let sessionDelegate: SessionDelegate
     private let clientId: String
     
+    /// Whether this client is connected to a remote server (vs localhost)
+    let isRemote: Bool
+    
+    /// Timeout configuration used for this client
+    let timeoutConfig: TimeoutConfig
+    
+    // MARK: - Timeout Configuration
+    
+    /// Timeout settings for API requests
+    struct TimeoutConfig: Sendable {
+        let requestTimeout: TimeInterval
+        let resourceTimeout: TimeInterval
+        let maxRetries: Int
+        
+        /// Default timeouts for local connections (faster, more reliable)
+        static let local = TimeoutConfig(
+            requestTimeout: 15,
+            resourceTimeout: 45,
+            maxRetries: 1
+        )
+        
+        /// Timeouts for remote connections (slower, needs more patience)
+        static let remote = TimeoutConfig(
+            requestTimeout: 30,
+            resourceTimeout: 90,
+            maxRetries: 2
+        )
+        
+        /// Custom timeout configuration
+        static func custom(requestTimeout: TimeInterval, resourceTimeout: TimeInterval, maxRetries: Int = 1) -> TimeoutConfig {
+            TimeoutConfig(requestTimeout: requestTimeout, resourceTimeout: resourceTimeout, maxRetries: maxRetries)
+        }
+    }
+    
     // MARK: - Diagnostic Logging
     
     static let enableDiagnosticLogging = false
@@ -38,24 +72,63 @@ actor ManagementAPIClient {
         return activeRequests
     }
     
+    // MARK: - Initialization
+    
+    /// Initialize for local connection (localhost)
     init(baseURL: String, authKey: String) {
         self.baseURL = baseURL
         self.authKey = authKey
         self.clientId = String(UUID().uuidString.prefix(6))
+        self.isRemote = false
+        self.timeoutConfig = .local
         
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15  // Increased from 10
-        config.timeoutIntervalForResource = 45 // Increased from 30
-        // Increased connection limit to handle concurrent requests better
+        config.timeoutIntervalForRequest = timeoutConfig.requestTimeout
+        config.timeoutIntervalForResource = timeoutConfig.resourceTimeout
         config.httpMaximumConnectionsPerHost = 4
-        // Disable connection caching to prevent stale connections
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         
         self.sessionDelegate = SessionDelegate(clientId: clientId)
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
         
-        Self.log("[\(clientId)] Client created, maxConnections=4, timeout=15/45s")
+        Self.log("[\(clientId)] Local client created, timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s")
+    }
+    
+    /// Initialize for remote connection with custom timeout
+    init(baseURL: String, authKey: String, timeoutConfig: TimeoutConfig, verifySSL: Bool = true) {
+        self.baseURL = baseURL
+        self.authKey = authKey
+        self.clientId = String(UUID().uuidString.prefix(6))
+        self.isRemote = true
+        self.timeoutConfig = timeoutConfig
+        
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = timeoutConfig.requestTimeout
+        config.timeoutIntervalForResource = timeoutConfig.resourceTimeout
+        config.httpMaximumConnectionsPerHost = 4
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        
+        self.sessionDelegate = SessionDelegate(clientId: clientId, verifySSL: verifySSL)
+        self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
+        
+        Self.log("[\(clientId)] Remote client created, timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s, verifySSL=\(verifySSL)")
+    }
+    
+    /// Convenience initializer for remote connection with RemoteConnectionConfig
+    init(config: RemoteConnectionConfig, managementKey: String) {
+        let timeout = TimeoutConfig.custom(
+            requestTimeout: TimeInterval(config.timeoutSeconds),
+            resourceTimeout: TimeInterval(config.timeoutSeconds * 3),
+            maxRetries: 2
+        )
+        self.init(
+            baseURL: config.managementBaseURL,
+            authKey: managementKey,
+            timeoutConfig: timeout,
+            verifySSL: config.verifySSL
+        )
     }
     
     func invalidate() {
@@ -107,8 +180,8 @@ actor ManagementAPIClient {
         } catch let error as URLError {
             Self.log("[\(clientId)][\(requestId)] URL ERROR: \(error.code.rawValue) - \(error.localizedDescription)")
             
-            // Retry once on timeout or connection errors (stale connection recovery)
-            if retryCount < 1 && (error.code == .timedOut || error.code == .networkConnectionLost || error.code == .cannotConnectToHost) {
+            // Retry on timeout or connection errors (stale connection recovery)
+            if retryCount < timeoutConfig.maxRetries && (error.code == .timedOut || error.code == .networkConnectionLost || error.code == .cannotConnectToHost) {
                 Self.log("[\(clientId)][\(requestId)] RETRYING after 0.5s...")
                 // Small delay before retry
                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
@@ -281,9 +354,11 @@ nonisolated struct LatestVersionResponse: Codable, Sendable {
 
 private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
     private let clientId: String
+    private let verifySSL: Bool
     
-    init(clientId: String) {
+    init(clientId: String, verifySSL: Bool = true) {
         self.clientId = clientId
+        self.verifySSL = verifySSL
         super.init()
     }
     
@@ -300,6 +375,16 @@ private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTas
             let duration = metric.responseEndDate?.timeIntervalSince(metric.requestStartDate ?? Date()) ?? 0
             print("[API] [\(clientId)] Connection: \(reused), duration=\(String(format: "%.3f", duration))s")
         }
+    }
+    
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if !verifySSL && challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+            if let serverTrust = challenge.protectionSpace.serverTrust {
+                completionHandler(.useCredential, URLCredential(trust: serverTrust))
+                return
+            }
+        }
+        completionHandler(.performDefaultHandling, nil)
     }
 }
 

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct QuotaScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    private let modeManager = AppModeManager.shared
+    private let modeManager = OperatingModeManager.shared
     
     @State private var selectedProvider: AIProvider?
     
@@ -72,7 +72,7 @@ struct QuotaScreen: View {
     
     /// Check if we have any data to show
     private var hasAnyData: Bool {
-        if modeManager.isQuotaOnlyMode {
+        if modeManager.isMonitorMode {
             return !viewModel.providerQuotas.isEmpty || !viewModel.directAuthFiles.isEmpty
         }
         return !viewModel.authFiles.isEmpty || !viewModel.providerQuotas.isEmpty
