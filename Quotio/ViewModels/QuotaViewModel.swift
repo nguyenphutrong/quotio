@@ -36,7 +36,6 @@ final class QuotaViewModel {
     var currentPage: NavigationPage = .dashboard
     var authFiles: [AuthFile] = []
     var usageStats: UsageStats?
-    var logs: [LogEntry] = []
     var apiKeys: [String] = []
     var isLoading = false
     var isLoadingQuotas = false
@@ -74,7 +73,6 @@ final class QuotaViewModel {
     let antigravitySwitcher = AntigravityAccountSwitcher.shared
     
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    @ObservationIgnored private var lastLogTimestamp: Int?
     
     // MARK: - IDE Quota Persistence Keys
     
@@ -670,36 +668,6 @@ final class QuotaViewModel {
         }
     }
     
-    func refreshLogs() async {
-        guard let client = apiClient else { return }
-        
-        do {
-            let response = try await client.fetchLogs(after: lastLogTimestamp)
-            if let lines = response.lines {
-                let newEntries: [LogEntry] = lines.map { line in
-                    let level: LogEntry.LogLevel
-                    if line.contains("error") || line.contains("ERROR") {
-                        level = .error
-                    } else if line.contains("warn") || line.contains("WARN") {
-                        level = .warn
-                    } else if line.contains("debug") || line.contains("DEBUG") {
-                        level = .debug
-                    } else {
-                        level = .info
-                    }
-                    return LogEntry(timestamp: Date(), level: level, message: line)
-                }
-                logs.append(contentsOf: newEntries)
-                if logs.count > 50 {
-                    logs = Array(logs.suffix(50))
-                }
-            }
-            lastLogTimestamp = response.latestTimestamp
-        } catch {
-            // Silently ignore log fetch errors
-        }
-    }
-    
     func startOAuth(for provider: AIProvider, projectId: String? = nil, authMethod: AuthCommand? = nil) async {
         // GitHub Copilot uses Device Code Flow via CLI binary, not Management API
         if provider == .copilot {
@@ -932,18 +900,6 @@ final class QuotaViewModel {
             errorMessage = nil
         } catch {
             errorMessage = "Import failed: \(error.localizedDescription)"
-        }
-    }
-    
-    func clearLogs() async {
-        guard let client = apiClient else { return }
-        
-        do {
-            try await client.clearLogs()
-            logs.removeAll()
-            lastLogTimestamp = nil
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
     

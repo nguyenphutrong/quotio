@@ -14,6 +14,7 @@ import Sparkle
 struct QuotioApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var viewModel = QuotaViewModel()
+    @State private var logsViewModel = LogsViewModel()
     @State private var menuBarSettings = MenuBarSettingsManager.shared
     @State private var statusBarManager = StatusBarManager.shared
     @State private var modeManager = AppModeManager.shared
@@ -137,6 +138,7 @@ struct QuotioApp: App {
             ContentView()
                 .id(languageManager.currentLanguage) // Force re-render on language change
                 .environment(viewModel)
+                .environment(logsViewModel)
                 .environment(\.locale, languageManager.locale)
                 .task {
                     await initializeApp()

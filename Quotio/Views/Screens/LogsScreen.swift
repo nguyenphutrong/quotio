@@ -7,6 +7,7 @@ import SwiftUI
 
 struct LogsScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(LogsViewModel.self) private var logsViewModel
     @State private var selectedTab: LogsTab = .requests
     @State private var autoScroll = true
     @State private var filterLevel: LogEntry.LogLevel? = nil
@@ -70,9 +71,17 @@ struct LogsScreen: View {
             toolbarContent
         }
         .task {
+            // Configure LogsViewModel with proxy connection when screen appears
+            if !logsViewModel.isConfigured {
+                logsViewModel.configure(
+                    baseURL: viewModel.proxyManager.managementURL,
+                    authKey: viewModel.proxyManager.managementKey
+                )
+            }
+            
             while !Task.isCancelled {
                 if selectedTab == .proxyLogs {
-                    await viewModel.refreshLogs()
+                    await logsViewModel.refreshLogs()
                 }
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
@@ -190,7 +199,7 @@ struct LogsScreen: View {
     // MARK: - Proxy Logs View
     
     var filteredLogs: [LogEntry] {
-        var logs = viewModel.logs
+        var logs = logsViewModel.logs
         
         if let level = filterLevel {
             logs = logs.filter { $0.level == level }
@@ -223,7 +232,7 @@ struct LogsScreen: View {
                 LogRow(entry: entry)
                     .id(entry.id)
             }
-            .onChange(of: viewModel.logs.count) { _, _ in
+            .onChange(of: logsViewModel.logs.count) { _, _ in
                 if autoScroll, let last = filteredLogs.last {
                     withAnimation {
                         proxy.scrollTo(last.id, anchor: .bottom)
@@ -257,7 +266,7 @@ struct LogsScreen: View {
                 if selectedTab == .requests {
                     // Refresh handled by RequestTracker automatically
                 } else {
-                    Task { await viewModel.refreshLogs() }
+                    Task { await logsViewModel.refreshLogs() }
                 }
             } label: {
                 Image(systemName: "arrow.clockwise")
@@ -267,7 +276,7 @@ struct LogsScreen: View {
                 if selectedTab == .requests {
                     viewModel.requestTracker.clearHistory()
                 } else {
-                    Task { await viewModel.clearLogs() }
+                    Task { await logsViewModel.clearLogs() }
                 }
             } label: {
                 Image(systemName: "trash")
