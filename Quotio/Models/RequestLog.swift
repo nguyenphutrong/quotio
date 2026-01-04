@@ -185,8 +185,8 @@ nonisolated struct RequestHistoryStore: Codable, Sendable {
     /// Request log entries
     var entries: [RequestLog]
     
-    /// Maximum number of entries to keep
-    static let maxEntries = 500
+    /// Maximum entries to keep (memory-optimized)
+    static let maxEntries = 50
     
     /// Current storage version
     static let currentVersion = 1

@@ -794,7 +794,8 @@ nonisolated enum QuotaFetchError: LocalizedError {
     case forbidden
     case httpError(Int)
     case unknown
-    
+    case apiErrorMessage(String)
+
     var errorDescription: String? {
         switch self {
         case .invalidURL: return "Invalid URL"
@@ -802,6 +803,7 @@ nonisolated enum QuotaFetchError: LocalizedError {
         case .forbidden: return "Access forbidden"
         case .httpError(let code): return "HTTP error: \(code)"
         case .unknown: return "Unknown error"
+        case .apiErrorMessage(let msg): return "API error: \(msg)"
         }
     }
 }

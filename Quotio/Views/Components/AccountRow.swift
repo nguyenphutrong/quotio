@@ -33,12 +33,39 @@ struct AccountRowData: Identifiable, Hashable {
     let statusMessage: String?
     let isDisabled: Bool
     let canDelete: Bool           // Only proxy accounts can be deleted
-    
+    let canEdit: Bool             // Whether this account can be edited (GLM only)
+    let canSwitch: Bool           // Whether this account can be switched (Antigravity only)
+
+    // Custom initializer to handle canEdit parameter
+    init(
+        id: String,
+        provider: AIProvider,
+        displayName: String,
+        source: AccountSource,
+        status: String?,
+        statusMessage: String?,
+        isDisabled: Bool,
+        canDelete: Bool,
+        canEdit: Bool = false,
+        canSwitch: Bool = false
+    ) {
+        self.id = id
+        self.provider = provider
+        self.displayName = displayName
+        self.source = source
+        self.status = status
+        self.statusMessage = statusMessage
+        self.isDisabled = isDisabled
+        self.canDelete = canDelete
+        self.canEdit = canEdit
+        self.canSwitch = canSwitch
+    }
+
     // For menu bar selection
     var menuBarItem: MenuBarQuotaItem {
         MenuBarQuotaItem(provider: provider.rawValue, accountKey: displayName)
     }
-    
+
     // MARK: - Factory Methods
     
     /// Create from AuthFile (proxy mode)
@@ -84,7 +111,7 @@ struct AccountRowData: Identifiable, Hashable {
             canDelete: false
         )
     }
-    
+
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
@@ -99,6 +126,7 @@ struct AccountRowData: Identifiable, Hashable {
 struct AccountRow: View {
     let account: AccountRowData
     var onDelete: (() -> Void)?
+    var onEdit: (() -> Void)?
     var onSwitch: (() -> Void)?
     var isActiveInIDE: Bool = false
     
@@ -212,7 +240,19 @@ struct AccountRow: View {
                 isSelected: isMenuBarSelected,
                 onTap: handleMenuBarToggle
             )
-            
+
+            // Edit button (GLM only)
+            if account.canEdit, let onEdit = onEdit {
+                Button {
+                    onEdit()
+                } label: {
+                    Image(systemName: "pencil")
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.rowAction)
+                .help("action.edit".localized())
+            }
+
             // Delete button (only for proxy accounts)
             if account.canDelete, onDelete != nil {
                 Button(role: .destructive) {

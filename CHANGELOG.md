@@ -7,27 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-01-04
+
+### Added
+
+- **glm**: add GLM provider support with API key-based quota tracking (#77) - thanks @prnake 🎉
+
 ### Fixed
 
-- **proxy**: add buffer to reduce stop/start race condition window (#93)
+- **detection**: check XDG_DATA_HOME for fnm path detection (#102)
+- **glm**: resolve Swift 6 concurrency warnings in GLMQuotaFetcher (#106)
 
-- **settings**: add restart notice for routing strategy changes (#94)
+## [0.5.0] - 2026-01-04
 
 ### Added
 
 - unified operating mode system with remote management support (#86)
+- **settings**: add management API key display and regenerate (#97)
 
 ### Changed
 
 - **changelog**: clean up duplicates and add auto-squash for prereleases (fa1a273)
+- Memory optimization - reduce RAM from 150-250MB to <100MB (#100)
+
+### Fixed
+
+- **proxy**: add buffer to reduce stop/start race condition window (#93)
+- **settings**: add restart notice for routing strategy changes (#94)
+- **proxy**: prevent hang after extended runtime (#96)
 
 ## [0.4.4] - 2026-01-03
 
 ### Fixed
 
 - **antigravity**: Fix account switch DB lock handling with SQLite3 busy timeout and immediate transactions (#88)
-
-- **settings**: add restart notice for routing strategy changes (#94)
 
 ## [0.4.3] - 2026-01-03
 
@@ -40,8 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ci**: resolve bash regex parsing issue and add manual workflow trigger (651fd46)
 - **ci**: merge appcast entries to make beta releases visible to updater (33e28a8)
 - **antigravity**: fix Use in IDE hanging on macOS 15.5+ (#81)
-
-- **settings**: add restart notice for routing strategy changes (#94)
 
 ## [0.4.2] - 2026-01-02
 
@@ -69,8 +80,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Build Scripts**: Improve reliability and error handling
 - **Localization Crash**: Fix duplicate dictionary key causing compiler error and app launch crash
 
-- **settings**: add restart notice for routing strategy changes (#94)
-
 ## [0.4.1] - 2026-01-02
 
 ### Added
@@ -90,8 +99,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Menu Bar Loading Animation**: Use Timer with `.common` RunLoop mode for animation while menu is open (#66)
 - **Model Display Names**: Consistent naming across QuotaScreen and menu bar (#66)
 
-- **settings**: add restart notice for routing strategy changes (#94)
-
 ## [0.4.0] - 2026-01-01
 
 ### Added
@@ -102,8 +109,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Proxy Idle Hang**: Prevent proxy process from hanging after extended idle periods (Issue #37, #53)
-
-- **settings**: add restart notice for routing strategy changes (#94)
 
 ## [0.3.3] - 2025-12-31
 
@@ -120,8 +125,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **About Screen Icon**: Use observable for real-time icon updates when switching update channels (#56)
 - **Menu Bar Spacing**: Adjusted horizontal padding to match native macOS spacing (#50)
 
-- **settings**: add restart notice for routing strategy changes (#94)
-
 ## [0.3.2] - 2025-12-30
 
 ### Added
@@ -131,8 +134,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Sparkle Update Loop**: Sync build number to match released version, preventing false update notifications
-
-- **settings**: add restart notice for routing strategy changes (#94)
 
 ## [0.3.1] - 2025-12-30
 
@@ -169,8 +170,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add version manager support: nvm, fnm, Volta, asdf, mise
 - **ForEach ID Collision**: Fix duplicate ID issue when Cursor and Trae share same email (#33)
 
-- **settings**: add restart notice for routing strategy changes (#94)
-
 ## [0.3.0] - 2025-12-29
 
 ### Added
@@ -188,16 +187,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Cursor SQLite**: Use immutable mode to avoid WAL file lock errors
 
-- **settings**: add restart notice for routing strategy changes (#94)
-
 ## [0.2.3] - 2025-12-28
 
 ### Fixed
 
 - **Menu Bar Full-Screen Support**: Replace NSPopover with custom NSPanel to enable visibility in full-screen applications (#13)
 - **Menu Bar Auto-Focus**: Prevent auto-focus on buttons when panel opens (#13)
-
-- **settings**: add restart notice for routing strategy changes (#94)
 
 ## [0.2.2] - 2025-12-27
 
@@ -217,8 +212,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ForEach Duplicate ID**: Add uniqueId field combining provider+email to prevent duplicate ID warnings (#11)
 - **Race Condition**: Avoid race condition in stopProxy by capturing client reference before invalidation (#11)
 
-- **settings**: add restart notice for routing strategy changes (#94)
-
 ## [0.2.1] - 2025-12-27
 
 ### Added
@@ -233,8 +226,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Claude Code Reconfigure**: Preserve existing settings.json configuration when reconfiguring Claude Code (#3)
 - **Dashboard UI**: Hide +Cursor button for non-manual-auth providers (#5)
-
-- **settings**: add restart notice for routing strategy changes (#94)
 
 ## [0.2.0] - 2025-12-27
 
@@ -259,8 +250,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cursor excluded from manual add options (quota tracking only)
 - Appcast generation with DMG files
 
-- **settings**: add restart notice for routing strategy changes (#94)
-
 ## [0.1.3] - 2025-12-27
 
 ### Added
@@ -281,8 +270,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Proxy process not terminating after running for a while
 - Orphan proxy processes remaining after app quit
 - Proxy still running when quitting app from menu bar
-
-- **settings**: add restart notice for routing strategy changes (#94)
 
 ## [0.1.0] - 2025-12-26
 
@@ -315,8 +302,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sheet state not resetting when reopening
 - Agent configurations persisting correctly on navigation
 - CLI agent configurations matching CLIProxyAPI documentation
-
-- **settings**: add restart notice for routing strategy changes (#94)
 
 ## [0.0.1] - 2025-12-20
 

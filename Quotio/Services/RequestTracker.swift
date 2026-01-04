@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import AppKit
 
 /// Service for tracking API request history with persistence
 @MainActor
@@ -51,6 +52,30 @@ final class RequestTracker {
     
     private init() {
         loadFromDisk()
+        setupMemoryWarningObserver()
+    }
+    
+    private func setupMemoryWarningObserver() {
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.trimHistoryForBackground()
+            }
+        }
+    }
+    
+    private func trimHistoryForBackground() {
+        let reducedLimit = 10
+        if store.entries.count > reducedLimit {
+            store.entries = Array(store.entries.prefix(reducedLimit))
+            requestHistory = store.entries
+            stats = store.calculateStats()
+            saveToDisk()
+            NSLog("[RequestTracker] Trimmed to \(reducedLimit) entries for background")
+        }
     }
     
     // MARK: - Public Methods

@@ -14,6 +14,7 @@ import Sparkle
 struct QuotioApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var viewModel = QuotaViewModel()
+    @State private var logsViewModel = LogsViewModel()
     @State private var menuBarSettings = MenuBarSettingsManager.shared
     @State private var statusBarManager = StatusBarManager.shared
     @State private var modeManager = AppModeManager.shared
@@ -22,10 +23,6 @@ struct QuotioApp: App {
     @State private var showOnboarding = false
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     @Environment(\.openWindow) private var openWindow
-    
-    #if canImport(Sparkle)
-    private let updaterService = UpdaterService.shared
-    #endif
     
     private var quotaItems: [MenuBarQuotaDisplayItem] {
         guard menuBarSettings.showQuotaInMenuBar else { return [] }
@@ -132,7 +129,7 @@ struct QuotioApp: App {
         await viewModel.initialize()
         
         #if canImport(Sparkle)
-        updaterService.checkForUpdatesInBackground()
+        UpdaterService.shared.checkForUpdatesInBackground()
         #endif
     }
     
@@ -141,6 +138,7 @@ struct QuotioApp: App {
             ContentView()
                 .id(languageManager.currentLanguage) // Force re-render on language change
                 .environment(viewModel)
+                .environment(logsViewModel)
                 .environment(\.locale, languageManager.locale)
                 .task {
                     await initializeApp()
@@ -193,9 +191,9 @@ struct QuotioApp: App {
             #if canImport(Sparkle)
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {
-                    updaterService.checkForUpdates()
+                    UpdaterService.shared.checkForUpdates()
                 }
-                .disabled(!updaterService.canCheckForUpdates)
+                .disabled(!UpdaterService.shared.canCheckForUpdates)
             }
             #endif
         }
@@ -209,8 +207,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Register default values for UserDefaults
         UserDefaults.standard.register(defaults: [
-            "useBridgeMode": true  // Enable two-layer proxy by default for connection stability
+            "useBridgeMode": true,  // Enable two-layer proxy by default for connection stability
+            "showInDock": true      // Show in dock by default
         ])
+        
+        // Apply initial dock visibility based on saved preference
+        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
+        NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
         
         windowWillCloseObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
@@ -242,6 +245,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func handleWindowDidBecomeKey() {
+        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
+        // Only show in dock if user has enabled the setting
+        guard showInDock else { return }
+        
         for window in NSApp.windows where window.title == "Quotio" {
             if NSApp.activationPolicy() != .regular {
                 NSApp.setActivationPolicy(.regular)
@@ -259,6 +266,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     !window.isMiniaturized
             }
             if visibleQuotioWindows.isEmpty {
+                // Always hide from dock when no windows are visible
+                // (regardless of showInDock setting - it controls showing, not hiding)
                 NSApp.setActivationPolicy(.accessory)
             }
         }
