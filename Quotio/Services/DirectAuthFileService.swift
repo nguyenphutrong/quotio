@@ -134,9 +134,16 @@ actor DirectAuthFileService {
         }
         
         // Extract metadata
-        let email = json["email"] as? String
+        var email = json["email"] as? String
         let login = json["login"] as? String
         let accountType = json["account_type"] as? String
+        
+        // For Kiro: if email is empty, try to use provider (e.g., "Google") as identifier
+        if provider == .kiro && (email == nil || email?.isEmpty == true) {
+            if let authProvider = json["provider"] as? String {
+                email = "Kiro (\(authProvider))"
+            }
+        }
         
         // Parse expired date
         var expiredDate: Date?
