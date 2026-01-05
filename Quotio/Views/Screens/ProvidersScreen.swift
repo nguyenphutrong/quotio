@@ -538,7 +538,7 @@ struct OAuthSheet: View {
     let onDismiss: () -> Void
     
     @State private var hasStartedAuth = false
-    @State private var selectedKiroMethod: AuthCommand = .kiroGoogleLogin
+    @State private var selectedKiroMethod: AuthCommand = .kiroImport
     
     private var isPolling: Bool {
         viewModel.oauthState?.status == .polling || viewModel.oauthState?.status == .waiting
@@ -553,7 +553,7 @@ struct OAuthSheet: View {
     }
     
     private var kiroAuthMethods: [AuthCommand] {
-        [.kiroGoogleLogin, .kiroAWSAuthCode, .kiroAWSLogin, .kiroImport]
+        [.kiroImport, .kiroGoogleLogin, .kiroAWSAuthCode, .kiroAWSLogin]
     }
     
     var body: some View {
@@ -594,15 +594,7 @@ struct OAuthSheet: View {
                     .pickerStyle(.menu)
                     .labelsHidden()
                     
-                    if selectedKiroMethod == .kiroGoogleLogin {
-                        Label {
-                            Text("oauth.kiroGoogleHint".localized())
-                        } icon: {
-                            Image(systemName: "info.circle.fill")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                    }
+
                 }
                 .frame(maxWidth: 320)
             }

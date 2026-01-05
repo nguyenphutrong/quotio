@@ -37,6 +37,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let codexCLIFetcher = CodexCLIQuotaFetcher()
     @ObservationIgnored private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
+    @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
     
     @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
     
@@ -222,8 +223,9 @@ final class QuotaViewModel {
         async let codexCLI: () = refreshCodexCLIQuotasInternal()
         async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
         async let glm: () = refreshGlmQuotasInternal()
+        async let kiro: () = refreshKiroQuotasInternal()
 
-        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm)
+        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, kiro)
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -353,6 +355,62 @@ final class QuotaViewModel {
             providerQuotas.removeValue(forKey: .trae)
         } else {
             providerQuotas[.trae] = quotas
+        }
+    }
+    
+    /// Refresh Kiro quota using IDE JSON tokens
+    private func refreshKiroQuotasInternal() async {
+        let rawQuotas = await kiroFetcher.fetchAllQuotas()
+        
+        var remappedQuotas: [String: ProviderQuotaData] = [:]
+        
+        // Helper: clean filename (remove .json)
+        func cleanName(_ name: String) -> String {
+            name.replacingOccurrences(of: ".json", with: "")
+        }
+        
+        // 1. Remap for Proxy AuthFiles
+        var consumedRawKeys = Set<String>()
+        
+        for file in authFiles where file.providerType == .kiro {
+            // The fetcher returns data keyed by clean filename
+            let filenameKey = cleanName(file.name)
+            
+            if let data = rawQuotas[filenameKey] {
+                // Store under the key the UI expects (AuthFile.quotaLookupKey)
+                let targetKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
+                remappedQuotas[targetKey] = data
+                consumedRawKeys.insert(filenameKey)
+            }
+        }
+        
+        // 2. Remap for Direct AuthFiles (Quota Only Mode)
+        if modeManager.isQuotaOnlyMode {
+            for file in directAuthFiles where file.provider == .kiro {
+                let filenameKey = cleanName(file.filename)
+                
+                // Skip if already processed by Proxy loop
+                if consumedRawKeys.contains(filenameKey) { continue }
+                
+                if let data = rawQuotas[filenameKey] {
+                    let targetKey = file.email ?? file.filename
+                    remappedQuotas[targetKey] = data
+                    consumedRawKeys.insert(filenameKey)
+                }
+            }
+        }
+        
+        // 3. Fallback: Include original keys ONLY if not mapped
+        for (key, data) in rawQuotas {
+            if !consumedRawKeys.contains(key) {
+                remappedQuotas[key] = data
+            }
+        }
+
+        if remappedQuotas.isEmpty {
+            providerQuotas.removeValue(forKey: .kiro)
+        } else {
+            providerQuotas[.kiro] = remappedQuotas
         }
     }
     
@@ -912,8 +970,9 @@ final class QuotaViewModel {
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
         async let glm: () = refreshGlmQuotasInternal()
+        async let kiro: () = refreshKiroQuotasInternal()
 
-        _ = await (antigravity, openai, copilot, claudeCode, glm)
+        _ = await (antigravity, openai, copilot, claudeCode, glm, kiro)
 
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -939,14 +998,15 @@ final class QuotaViewModel {
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
         async let glm: () = refreshGlmQuotasInternal()
+        async let kiro: () = refreshKiroQuotasInternal()
 
         // In Quota-Only Mode, also include CLI fetchers
         if modeManager.isQuotaOnlyMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
             async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-            _ = await (antigravity, openai, copilot, claudeCode, glm, codexCLI, geminiCLI)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, kiro, codexCLI, geminiCLI)
         } else {
-            _ = await (antigravity, openai, copilot, claudeCode, glm)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, kiro)
         }
 
         checkQuotaNotifications()
@@ -1129,6 +1189,20 @@ final class QuotaViewModel {
         let result = await proxyManager.runAuthCommand(method)
         
         if result.success {
+            // Check if it's an import - simply wait and refresh, don't poll for new files (files might already exist)
+            if method == .kiroImport {
+                oauthState = OAuthState(provider: .kiro, status: .polling, error: "Importing quotas...")
+                
+                // Allow some time for file operations
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                await refreshData()
+                
+                // For import, we assume success if the command succeeded
+                oauthState = OAuthState(provider: .kiro, status: .success)
+                return
+            }
+            
+            // For other methods (login), poll for new auth files
             if let deviceCode = result.deviceCode {
                 oauthState = OAuthState(provider: .kiro, status: .polling, state: deviceCode, error: result.message)
             } else {

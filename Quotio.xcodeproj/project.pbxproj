@@ -18,7 +18,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		78D386962EFBF30400C40FB7 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		78D386962EFBF30400C40FB7 /* Exceptions for "Quotio" folder in "Quotio" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -31,7 +31,7 @@
 		78D386962EFBF30400C40FB6 /* Quotio */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				78D386962EFBF30400C40FB7 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				78D386962EFBF30400C40FB7 /* Exceptions for "Quotio" folder in "Quotio" target */,
 			);
 			path = Quotio;
 			sourceTree = "<group>";
