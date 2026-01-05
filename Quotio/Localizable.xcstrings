@@ -8054,6 +8054,34 @@
         }
       }
     },
+    "oauth.kiroGoogleHint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If Kiro IDE is installed, the callback may be intercepted. Use 'Import from Kiro IDE' instead."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si Kiro IDE est installé, le callback peut être intercepté. Utilisez plutôt « Importer depuis Kiro IDE »."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nếu Kiro IDE đã cài đặt, callback có thể bị chặn. Hãy sử dụng 'Nhập từ Kiro IDE' thay thế."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果已安装 Kiro IDE，回调可能被拦截。请改用「从 Kiro IDE 导入」。"
+          }
+        }
+      }
+    },
     "oauth.completeBrowser" : {
       "extractionState" : "stale",
       "localizations" : {

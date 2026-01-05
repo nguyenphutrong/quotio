@@ -593,6 +593,16 @@ struct OAuthSheet: View {
                     }
                     .pickerStyle(.menu)
                     .labelsHidden()
+                    
+                    if selectedKiroMethod == .kiroGoogleLogin {
+                        Label {
+                            Text("oauth.kiroGoogleHint".localized())
+                        } icon: {
+                            Image(systemName: "info.circle.fill")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    }
                 }
                 .frame(maxWidth: 320)
             }
@@ -640,7 +650,9 @@ struct OAuthSheet: View {
             }
         }
         .padding(40)
-        .frame(width: 480, height: 400)
+        .frame(width: 480)
+        .frame(minHeight: 350)
+        .fixedSize(horizontal: false, vertical: true)
         .animation(.easeInOut(duration: 0.2), value: viewModel.oauthState?.status)
         .onChange(of: viewModel.oauthState?.status) { _, newStatus in
             if newStatus == .success {
@@ -784,6 +796,6 @@ private struct OAuthStatusView: View {
                 .padding(.vertical, 16)
             }
         }
-        .frame(height: 120)
+        .frame(minHeight: 100)
     }
 }
