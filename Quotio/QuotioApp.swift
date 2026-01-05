@@ -35,61 +35,63 @@ struct QuotioApp: App {
         for selectedItem in menuBarSettings.selectedItems {
             guard let provider = selectedItem.aiProvider else { continue }
             
-            if let accountQuotas = viewModel.providerQuotas[provider],
-               let quotaData = accountQuotas[selectedItem.accountKey],
-               !quotaData.models.isEmpty {
-                // Get display percentage based on provider-specific strategy
-                let displayPercent: Double
-                switch provider {
-                case .claude:
-                    // Claude Code: prefer Session (5-hour) quota - resets frequently, most relevant
-                    let sessionModel = quotaData.models.first { 
-                        $0.name == "five-hour-session" || $0.name == "Session" 
-                    }
-                    displayPercent = sessionModel?.percentage ?? quotaData.models.first?.percentage ?? -1
-                    
-                case .codex:
-                    // Codex: prefer Session quota - same logic as Claude
-                    let sessionModel = quotaData.models.first { 
-                        $0.name == "codex-session" 
-                    }
-                    displayPercent = sessionModel?.percentage ?? quotaData.models.first?.percentage ?? -1
-                    
-                case .cursor:
-                    // Cursor: prefer Plan Usage - main usage indicator
-                    let planModel = quotaData.models.first { 
-                        $0.name == "plan-usage" 
-                    }
-                    displayPercent = planModel?.percentage ?? quotaData.models.first?.percentage ?? -1
-                    
-                case .trae:
-                    // Trae: prefer Fast Requests quota
-                    let fastModel = quotaData.models.first { 
-                        $0.name == "premium-fast" 
-                    }
-                    displayPercent = fastModel?.percentage ?? quotaData.models.first?.percentage ?? -1
-                    
-                default:
-                    // Other providers (Copilot, Gemini, Antigravity): show lowest percentage
-                    let validPercentages = quotaData.models.map(\.percentage).filter { $0 >= 0 }
-                    displayPercent = validPercentages.min() ?? (quotaData.models.first?.percentage ?? -1)
+            var displayPercent: Double = -1
+            
+            if let accountQuotas = viewModel.providerQuotas[provider] {
+                
+                // Robust key lookup: Try exact match first, then clean key (no .json)
+                var quotaData = accountQuotas[selectedItem.accountKey]
+                if quotaData == nil {
+                    let cleanKey = selectedItem.accountKey.replacingOccurrences(of: ".json", with: "")
+                    quotaData = accountQuotas[cleanKey]
                 }
-                items.append(MenuBarQuotaDisplayItem(
-                    id: selectedItem.id,
-                    providerSymbol: provider.menuBarSymbol,
-                    accountShort: selectedItem.accountKey,
-                    percentage: displayPercent,
-                    provider: provider
-                ))
-            } else {
-                items.append(MenuBarQuotaDisplayItem(
-                    id: selectedItem.id,
-                    providerSymbol: provider.menuBarSymbol,
-                    accountShort: selectedItem.accountKey,
-                    percentage: -1,
-                    provider: provider
-                ))
+                
+                if let quotaData = quotaData, !quotaData.models.isEmpty {
+                    // Get display percentage based on provider-specific strategy
+                    switch provider {
+                    case .claude:
+                        // Claude Code: prefer Session (5-hour) quota
+                        let sessionModel = quotaData.models.first { 
+                            $0.name == "five-hour-session" || $0.name == "Session" 
+                        }
+                        displayPercent = sessionModel?.percentage ?? quotaData.models.first?.percentage ?? -1
+                        
+                    case .codex:
+                        // Codex: prefer Session quota
+                        let sessionModel = quotaData.models.first { 
+                            $0.name == "codex-session" 
+                        }
+                        displayPercent = sessionModel?.percentage ?? quotaData.models.first?.percentage ?? -1
+                        
+                    case .cursor:
+                        // Cursor: prefer Plan Usage
+                        let planModel = quotaData.models.first { 
+                            $0.name == "plan-usage" 
+                        }
+                        displayPercent = planModel?.percentage ?? quotaData.models.first?.percentage ?? -1
+                        
+                    case .trae:
+                        // Trae: prefer Fast Requests quota
+                        let fastModel = quotaData.models.first { 
+                            $0.name == "premium-fast" 
+                        }
+                        displayPercent = fastModel?.percentage ?? quotaData.models.first?.percentage ?? -1
+                        
+                    default:
+                        // Other providers: show lowest percentage
+                        let validPercentages = quotaData.models.map(\.percentage).filter { $0 >= 0 }
+                        displayPercent = validPercentages.min() ?? (quotaData.models.first?.percentage ?? -1)
+                    }
+                }
             }
+            
+            items.append(MenuBarQuotaDisplayItem(
+                id: selectedItem.id,
+                providerSymbol: provider.menuBarSymbol,
+                accountShort: selectedItem.accountKey,
+                percentage: displayPercent,
+                provider: provider
+            ))
         }
         
         return items

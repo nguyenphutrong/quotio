@@ -92,6 +92,7 @@ actor DirectAuthFileService {
             let filePath = (path as NSString).appendingPathComponent(file)
             
             // Try to parse JSON content first
+            if let authFile = parseAuthFileJSON(at: filePath, filename: file) {
                 authFiles.append(authFile)
                 continue
             } else {

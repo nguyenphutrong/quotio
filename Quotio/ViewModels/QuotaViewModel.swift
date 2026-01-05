@@ -1107,6 +1107,8 @@ final class QuotaViewModel {
             await refreshTraeQuotasInternal()
         case .glm:
             await refreshGlmQuotasInternal()
+        case .kiro:
+            await refreshKiroQuotasInternal()
         default:
             break
         }
@@ -1339,7 +1341,14 @@ final class QuotaViewModel {
         
         // Add items from direct auth files (quota-only mode)
         for file in directAuthFiles {
-            let item = MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.email ?? file.filename)
+            var accountKey = file.email ?? file.filename
+            
+            // Kiro/CodeWhisperer special handling: Fetcher uses filename as key
+            if file.provider == .kiro {
+                accountKey = file.filename.replacingOccurrences(of: ".json", with: "")
+            }
+            
+            let item = MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: accountKey)
             if !seen.contains(item.id) {
                 seen.insert(item.id)
                 validItems.append(item)
