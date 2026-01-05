@@ -637,6 +637,42 @@ actor AgentConfigurationService {
         }
     }
     
+    func fetchAvailableModels(config: AgentConfiguration) async throws -> [AvailableModel] {
+        guard let url = URL(string: "\(config.proxyURL)/models") else {
+            throw URLError(.badURL)
+        }
+        
+        var request = URLRequest(url: url)
+        request.addValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        
+        // Parse struct matching OpenAI /v1/models response
+        struct ModelsResponse: Decodable {
+            struct ModelItem: Decodable {
+                let id: String
+                let owned_by: String?
+            }
+            let data: [ModelItem]
+        }
+        
+        let decoded = try JSONDecoder().decode(ModelsResponse.self, from: data)
+        
+        return decoded.data.map { item in
+            AvailableModel(
+                id: item.id,
+                name: item.id,
+                provider: item.owned_by ?? "openai",
+                isDefault: false
+            )
+        }
+    }
+    
     func testConnection(agent: CLIAgent, config: AgentConfiguration) async -> ConnectionTestResult {
         let startTime = Date()
         

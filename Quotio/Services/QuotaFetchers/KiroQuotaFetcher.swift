@@ -4,22 +4,46 @@
 //
 //  Kiro (AWS CodeWhisperer) Quota Fetcher
 //  Implements logic from kiro2api for quota monitoring
-//
+
 
 import Foundation
 
 // MARK: - Kiro Response Models
 
-nonisolated struct KiroUsageResponse: Codable {
-    let usageLimits: [KiroUsageLimit]?
-    
-    struct KiroUsageLimit: Codable {
-        let name: String
-        let description: String?
-        let period: String?
-        let limit: Int?
-        let usage: Int?
+nonisolated struct KiroUsageResponse: Decodable {
+    let usageBreakdownList: [KiroUsageBreakdown]?
+    let subscriptionInfo: KiroSubscriptionInfo?
+    let userInfo: KiroUserInfo?
+    let nextDateReset: Double?
+
+    struct KiroUsageBreakdown: Decodable {
+        let displayName: String?
         let resourceType: String?
+        let currentUsage: Double?
+        let currentUsageWithPrecision: Double?
+        let usageLimit: Double?
+        let usageLimitWithPrecision: Double?
+        let nextDateReset: Double?
+        let freeTrialInfo: KiroFreeTrialInfo?
+    }
+
+    struct KiroFreeTrialInfo: Decodable {
+        let currentUsage: Double?
+        let currentUsageWithPrecision: Double?
+        let usageLimit: Double?
+        let usageLimitWithPrecision: Double?
+        let freeTrialStatus: String?
+        let freeTrialExpiry: Double?
+    }
+
+    struct KiroSubscriptionInfo: Decodable {
+        let subscriptionTitle: String?
+        let type: String?
+    }
+
+    struct KiroUserInfo: Decodable {
+        let email: String?
+        let userId: String?
     }
 }
 
@@ -121,8 +145,8 @@ actor KiroQuotaFetcher {
             }
         }
         
-        // 2. Fetch Usage
-        guard let url = URL(string: "\(usageEndpoint)?isEmailRequired=true&origin=AI_EDITOR&resourceType=AGENTIC_REQUEST") else { 
+        // 2. Fetch Usage - Remove resourceType filter to get all quota types including Bonus Credits
+        guard let url = URL(string: "\(usageEndpoint)?isEmailRequired=true&origin=AI_EDITOR") else {
             return ProviderQuotaData(models: [ModelQuota(name: "Error", percentage: 0, resetTime: "Invalid URL")], lastUpdated: Date(), isForbidden: false, planType: "Error")
         }
         
@@ -151,17 +175,33 @@ actor KiroQuotaFetcher {
                 return ProviderQuotaData(models: [ModelQuota(name: "Error", percentage: 0, resetTime: errorMsg)], lastUpdated: Date(), isForbidden: false, planType: "Error")
             }
             
-            let usageResponse = try JSONDecoder().decode(KiroUsageResponse.self, from: data)
-            
-            // Determine Plan Type: Check for Managed/Enterprise via start_url
-            // "awsapps.com" or "amazon.com" in start_url usually implies IAM Identity Center (Managed)
-            var planType = "Standard"
-            if let startUrl = tokenData.extras?["start_url"], 
-               (startUrl.contains("awsapps.com") || startUrl.contains("amazon.com")) {
-                planType = "Enterprise"
+            // Decode response
+            do {
+                let usageResponse = try JSONDecoder().decode(KiroUsageResponse.self, from: data)
+
+                // Determine Plan Type from subscription info
+                let planType = usageResponse.subscriptionInfo?.subscriptionTitle ?? "Standard"
+
+                return convertToQuotaData(usageResponse, planType: planType)
+            } catch {
+                // Debug: If decoding failed, show raw keys
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    let keys = json.keys.sorted().joined(separator: ",")
+                    return ProviderQuotaData(
+                        models: [ModelQuota(name: "Debug: Keys: \(keys)", percentage: 0, resetTime: "Decode Error: \(error.localizedDescription)")],
+                        lastUpdated: Date(),
+                        isForbidden: false,
+                        planType: "Error"
+                    )
+                }
+
+                return ProviderQuotaData(
+                    models: [ModelQuota(name: "Error", percentage: 0, resetTime: error.localizedDescription)],
+                    lastUpdated: Date(),
+                    isForbidden: false,
+                    planType: "Error"
+                )
             }
-            
-            return convertToQuotaData(usageResponse, planType: planType)
             
         } catch {
             // Return error as a quota item for visibility
@@ -220,40 +260,74 @@ actor KiroQuotaFetcher {
     /// Convert Kiro response to standard Quota Data
     private func convertToQuotaData(_ response: KiroUsageResponse, planType: String) -> ProviderQuotaData {
         var models: [ModelQuota] = []
-        
-        if let limits = response.usageLimits {
-            for limit in limits {
-                 // Create quota items for each limit
-                 // Example: "Completions", "Chat", etc.
-                let name = limit.name
-                let total = limit.limit ?? 0
-                let used = limit.usage ?? 0
-                
-                // Calculate percentage remaining
-                // If limit is -1 or 0 (and usage is low), it might mean unlimited or unknown
-                // Assuming standard quota: remaining = (total - used) / total
-                
-                var percentage: Double = 0
-                if total > 0 {
-                    percentage = max(0, Double(total - used) / Double(total) * 100)
-                } else if total == -1 {
-                    percentage = 100 // Unlimited (Treat as 100% remaining)
+
+        // Calculate reset time from nextDateReset timestamp
+        var resetTimeStr = ""
+        if let nextReset = response.nextDateReset {
+            let resetDate = Date(timeIntervalSince1970: nextReset)
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MM/dd"
+            resetTimeStr = "resets \(formatter.string(from: resetDate))"
+        }
+
+        if let breakdownList = response.usageBreakdownList {
+            for breakdown in breakdownList {
+                let displayName = breakdown.displayName ?? breakdown.resourceType ?? "Usage"
+
+                // Check for active free trial (Bonus Credits)
+                let hasActiveTrial = breakdown.freeTrialInfo?.freeTrialStatus == "ACTIVE"
+
+                if hasActiveTrial, let freeTrialInfo = breakdown.freeTrialInfo {
+                    // Show trial/bonus quota
+                    let used = freeTrialInfo.currentUsageWithPrecision ?? freeTrialInfo.currentUsage ?? 0
+                    let total = freeTrialInfo.usageLimitWithPrecision ?? freeTrialInfo.usageLimit ?? 0
+
+                    var percentage: Double = 0
+                    if total > 0 {
+                        percentage = max(0, (total - used) / total * 100)
+                    }
+
+                    // Calculate free trial expiry time
+                    var trialResetStr = resetTimeStr
+                    if let expiry = freeTrialInfo.freeTrialExpiry {
+                        let expiryDate = Date(timeIntervalSince1970: expiry)
+                        let formatter = DateFormatter()
+                        formatter.dateFormat = "MM/dd"
+                        trialResetStr = "expires \(formatter.string(from: expiryDate))"
+                    }
+
+                    models.append(ModelQuota(
+                        name: "Bonus \(displayName)",
+                        percentage: percentage,
+                        resetTime: trialResetStr
+                    ))
                 }
-                
-                // Construct reset time description if available
-                let resetInfo = limit.period ?? "" // e.g., "Monthly"
-                
-                models.append(ModelQuota(
-                    name: "kiro-\(name.lowercased().replacingOccurrences(of: " ", with: "-"))",
-                    percentage: percentage,
-                    resetTime: resetInfo
-                ))
+
+                // Always check regular/paid quota (root level usage)
+                let regularUsed = breakdown.currentUsageWithPrecision ?? breakdown.currentUsage ?? 0
+                let regularTotal = breakdown.usageLimitWithPrecision ?? breakdown.usageLimit ?? 0
+
+                // Add regular quota if it has meaningful limits
+                // For trial users: this shows the base plan quota (e.g., 50)
+                // For paid users: this shows the paid plan quota
+                if regularTotal > 0 {
+                    var percentage: Double = 0
+                    percentage = max(0, (regularTotal - regularUsed) / regularTotal * 100)
+
+                    // Use different name based on whether trial is active
+                    let quotaName = hasActiveTrial ? "\(displayName) (Base)" : displayName
+                    models.append(ModelQuota(
+                        name: quotaName,
+                        percentage: percentage,
+                        resetTime: resetTimeStr
+                    ))
+                }
             }
         }
-        
+
         // Fallback if no limits found
         if models.isEmpty {
-             models.append(ModelQuota(name: "kiro-standard", percentage: 100, resetTime: "Unknown"))
+            models.append(ModelQuota(name: "kiro-standard", percentage: 100, resetTime: "Unknown"))
         }
 
         return ProviderQuotaData(

@@ -23,6 +23,9 @@ final class AgentSetupViewModel {
     var testResult: ConnectionTestResult?
     var errorMessage: String?
     
+    var availableModels: [AvailableModel] = []
+    var isFetchingModels = false
+    
     var currentConfiguration: AgentConfiguration?
     var detectedShell: ShellType = .zsh
     var configurationMode: ConfigurationMode = .automatic
@@ -69,6 +72,9 @@ final class AgentSetupViewModel {
             proxyURL: proxyManager.baseURL + "/v1",
             apiKey: apiKey
         )
+        
+        // Load models for this agent
+        Task { await loadModels() }
     }
     
     func updateModelSlot(_ slot: ModelSlot, model: String) {
@@ -228,5 +234,61 @@ final class AgentSetupViewModel {
         configStorageOption = .jsonOnly
         isConfiguring = false
         isTesting = false
+        // Don't reset availableModels here to allow caching to persist across dismissals
+    }
+    
+    func loadModels(forceRefresh: Bool = false) async {
+        guard let config = currentConfiguration else { return }
+        
+        isFetchingModels = true
+        defer { isFetchingModels = false }
+        
+        // 1. Try memory cache (already in avaliableModels if not empty and not force refresh)
+        if !availableModels.isEmpty && !forceRefresh {
+            return
+        }
+        
+        // 2. Try disk cache (UserDefaults)
+        let cacheKey = "quotio.models.cache.\(config.agent.id)"
+        if !forceRefresh,
+           let data = UserDefaults.standard.data(forKey: cacheKey),
+           let cachedModels = try? JSONDecoder().decode([AvailableModel].self, from: data) {
+            self.availableModels = cachedModels
+            // Even if we have cache, we might want to fetch fresh in background? 
+            // For now, respect the cache unless user clicks refresh.
+            return
+        }
+        
+        // 3. Fetch from Proxy
+        do {
+            let fetchedModels = try await configurationService.fetchAvailableModels(config: config)
+            
+            // Deduplicate and process
+            var uniqueModels = fetchedModels
+            
+            // Ensure default models are included if missing (fallback)
+            for defaultModel in AvailableModel.allModels {
+                if !uniqueModels.contains(where: { $0.id == defaultModel.id }) {
+                    uniqueModels.append(defaultModel)
+                }
+            }
+            
+            // Sort: Default models first? Or just alphabetical? 
+            // Let's keep the fetch order but maybe prioritize known models?
+            // For now, simple sort by name
+            uniqueModels.sort { $0.displayName < $1.displayName }
+            
+            self.availableModels = uniqueModels
+            
+            // Save to cache
+            if let data = try? JSONEncoder().encode(uniqueModels) {
+                UserDefaults.standard.set(data, forKey: cacheKey)
+            }
+        } catch {
+            // Fallback to hardcoded list if fetch fails and no cache
+            if availableModels.isEmpty {
+                self.availableModels = AvailableModel.allModels
+            }
+        }
     }
 }

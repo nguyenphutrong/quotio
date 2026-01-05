@@ -202,15 +202,34 @@ struct AgentConfigSheet: View {
     
     private var modelSlotsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("agents.modelSlots".localized())
-                .font(.subheadline)
-                .fontWeight(.medium)
+            HStack {
+                Text("agents.modelSlots".localized())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Spacer()
+                
+                Button {
+                    Task { await viewModel.loadModels(forceRefresh: true) }
+                } label: {
+                    if viewModel.isFetchingModels {
+                        SmallProgressView()
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.borderless)
+                .help("Refresh models from proxy".localized())
+                .disabled(viewModel.isFetchingModels)
+            }
             
             VStack(spacing: 8) {
                 ForEach(ModelSlot.allCases) { slot in
                     ModelSlotRow(
                         slot: slot,
                         selectedModel: viewModel.currentConfiguration?.modelSlots[slot] ?? "",
+                        availableModels: viewModel.availableModels,
                         onModelChange: { model in
                             viewModel.updateModelSlot(slot, model: model)
                         }
@@ -616,13 +635,14 @@ private struct InfoRow: View {
 private struct ModelSlotRow: View {
     let slot: ModelSlot
     let selectedModel: String
+    let availableModels: [AvailableModel]
     let onModelChange: (String) -> Void
     
     private var effectiveSelection: String {
-        if selectedModel.isEmpty {
-            return AvailableModel.defaultModels[slot]?.name ?? AvailableModel.allModels.first?.name ?? ""
+        if !selectedModel.isEmpty {
+            return selectedModel
         }
-        return selectedModel
+        return AvailableModel.defaultModels[slot]?.name ?? AvailableModel.allModels.first?.name ?? ""
     }
     
     var body: some View {
@@ -637,9 +657,15 @@ private struct ModelSlotRow: View {
                 get: { effectiveSelection },
                 set: { onModelChange($0) }
             )) {
-                ForEach(AvailableModel.allModels) { model in
-                    Text(model.displayName)
-                        .tag(model.name)
+                let providers = Set(availableModels.map { $0.provider }).sorted()
+                
+                ForEach(providers, id: \.self) { provider in
+                    Section(header: Text(provider.capitalized)) {
+                        ForEach(availableModels.filter { $0.provider == provider }) { model in
+                            Text(model.displayName)
+                                .tag(model.name)
+                        }
+                    }
                 }
             }
             .pickerStyle(.menu)

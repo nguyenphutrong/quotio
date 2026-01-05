@@ -401,6 +401,8 @@ final class ProxyBridge {
             provider = "openai"
         } else if path.contains("/copilot/") {
             provider = "copilot"
+        } else if path.contains("codewhisperer") || path.contains("kiro") {
+            provider = "kiro"
         }
         
         // Extract model from JSON body
@@ -418,6 +420,8 @@ final class ProxyBridge {
                     provider = "gemini"
                 } else if modelValue.hasPrefix("gpt") || modelValue.hasPrefix("o1") || modelValue.hasPrefix("o3") {
                     provider = "openai"
+                } else if modelValue.contains("kiro") || modelValue.contains("codewhisperer") {
+                    provider = "kiro"
                 }
             }
         }
