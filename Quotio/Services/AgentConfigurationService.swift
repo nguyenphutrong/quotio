@@ -13,27 +13,28 @@ actor AgentConfigurationService {
         config: AgentConfiguration,
         mode: ConfigurationMode,
         storageOption: ConfigStorageOption = .jsonOnly,
-        detectionService: AgentDetectionService
+        detectionService: AgentDetectionService,
+        availableModels: [AvailableModel] = []
     ) async throws -> AgentConfigResult {
-        
+
         switch agent {
         case .claudeCode:
             return generateClaudeCodeConfig(config: config, mode: mode, storageOption: storageOption)
-            
+
         case .codexCLI:
             return try await generateCodexConfig(config: config, mode: mode)
-            
+
         case .geminiCLI:
             return generateGeminiCLIConfig(config: config, mode: mode)
-            
+
         case .ampCLI:
             return try await generateAmpConfig(config: config, mode: mode)
-            
+
         case .openCode:
-            return generateOpenCodeConfig(config: config, mode: mode)
-            
+            return generateOpenCodeConfig(config: config, mode: mode, availableModels: availableModels)
+
         case .factoryDroid:
-            return generateFactoryDroidConfig(config: config, mode: mode)
+            return generateFactoryDroidConfig(config: config, mode: mode, availableModels: availableModels)
         }
     }
     
@@ -375,113 +376,20 @@ actor AgentConfigurationService {
         }
     }
     
-    private func generateOpenCodeConfig(config: AgentConfiguration, mode: ConfigurationMode) -> AgentConfigResult {
+    private func generateOpenCodeConfig(config: AgentConfiguration, mode: ConfigurationMode, availableModels: [AvailableModel]) -> AgentConfigResult {
         let home = fileManager.homeDirectoryForCurrentUser.path
         let configDir = "\(home)/.config/opencode"
         let configPath = "\(configDir)/opencode.json"
         let baseURL = config.proxyURL.replacingOccurrences(of: "/v1", with: "")
-        
-        let quotioModels: [String: [String: Any]] = [
-            "gemini-claude-opus-4-5-thinking": [
-                "name": "Claude Opus 4.5 Thinking",
-                "limit": ["context": 200000, "output": 64000],
-                "reasoning": true,
-                "options": ["thinking": ["type": "enabled", "budgetTokens": 10000]]
-            ],
-            "gemini-claude-sonnet-4-5": [
-                "name": "Claude Sonnet 4.5",
-                "limit": ["context": 200000, "output": 64000]
-            ],
-            "gemini-claude-sonnet-4-5-thinking": [
-                "name": "Claude Sonnet 4.5 Thinking",
-                "limit": ["context": 200000, "output": 64000],
-                "reasoning": true,
-                "options": ["thinking": ["type": "enabled", "budgetTokens": 10000]]
-            ],
-            "gemini-3-pro-preview": [
-                "name": "Gemini 3 Pro Preview",
-                "limit": ["context": 1048576, "output": 65536]
-            ],
-            "gemini-3-pro-image-preview": [
-                "name": "Gemini 3 Pro Image Preview",
-                "limit": ["context": 1048576, "output": 65536]
-            ],
-            "gemini-3-flash-preview": [
-                "name": "Gemini 3 Flash Preview",
-                "limit": ["context": 1048576, "output": 65536]
-            ],
-            "gemini-2.5-flash": [
-                "name": "Gemini 2.5 Flash",
-                "limit": ["context": 1048576, "output": 65536]
-            ],
-            "gemini-2.5-flash-lite": [
-                "name": "Gemini 2.5 Flash Lite",
-                "limit": ["context": 1048576, "output": 65536]
-            ],
-            "gemini-2.5-computer-use-preview-10-2025": [
-                "name": "Gemini 2.5 Computer Use Preview",
-                "limit": ["context": 1048576, "output": 65536]
-            ],
-            "gpt-5.2": [
-                "name": "GPT 5.2",
-                "limit": ["context": 400000, "output": 32768],
-                "reasoning": true,
-                "options": ["reasoning": ["effort": "medium"]]
-            ],
-            "gpt-5.2-codex": [
-                "name": "GPT 5.2 Codex",
-                "limit": ["context": 400000, "output": 32768],
-                "reasoning": true,
-                "options": ["reasoning": ["effort": "medium"]]
-            ],
-            "gpt-5.1": [
-                "name": "GPT 5.1",
-                "limit": ["context": 400000, "output": 32768],
-                "reasoning": true,
-                "options": ["reasoning": ["effort": "medium"]]
-            ],
-            "gpt-5.1-codex": [
-                "name": "GPT 5.1 Codex",
-                "limit": ["context": 400000, "output": 32768],
-                "reasoning": true,
-                "options": ["reasoning": ["effort": "medium"]]
-            ],
-            "gpt-5.1-codex-max": [
-                "name": "GPT 5.1 Codex Max",
-                "limit": ["context": 400000, "output": 32768],
-                "reasoning": true,
-                "options": ["reasoning": ["effort": "high"]]
-            ],
-            "gpt-5.1-codex-mini": [
-                "name": "GPT 5.1 Codex Mini",
-                "limit": ["context": 400000, "output": 32768],
-                "reasoning": true,
-                "options": ["reasoning": ["effort": "low"]]
-            ],
-            "gpt-5": [
-                "name": "GPT 5",
-                "limit": ["context": 400000, "output": 32768],
-                "reasoning": true,
-                "options": ["reasoning": ["effort": "medium"]]
-            ],
-            "gpt-5-codex": [
-                "name": "GPT 5 Codex",
-                "limit": ["context": 400000, "output": 32768],
-                "reasoning": true,
-                "options": ["reasoning": ["effort": "medium"]]
-            ],
-            "gpt-5-codex-mini": [
-                "name": "GPT 5 Codex Mini",
-                "limit": ["context": 400000, "output": 32768],
-                "reasoning": true,
-                "options": ["reasoning": ["effort": "low"]]
-            ],
-            "gpt-oss-120b-medium": [
-                "name": "GPT OSS 120B Medium",
-                "limit": ["context": 128000, "output": 16384]
-            ]
-        ]
-        
+
+        // Convert available models to OpenCode format dynamically
+        var quotioModels: [String: [String: Any]] = [:]
+        let modelsToUse = availableModels.isEmpty ? AvailableModel.allModels : availableModels
+
+        for model in modelsToUse {
+            quotioModels[model.name] = buildOpenCodeModelConfig(for: model.name)
+        }
+
         let quotioProvider: [String: Any] = [
             "models": quotioModels,
             "name": "Quotio",
@@ -491,27 +399,27 @@ actor AgentConfigurationService {
                 "baseURL": "\(baseURL)/v1"
             ]
         ]
-        
+
         do {
             var existingConfig: [String: Any] = [:]
-            
+
             if fileManager.fileExists(atPath: configPath),
                let existingData = fileManager.contents(atPath: configPath),
                let parsed = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
                 existingConfig = parsed
             }
-            
+
             if existingConfig["$schema"] == nil {
                 existingConfig["$schema"] = "https://opencode.ai/config.json"
             }
-            
+
             var providers = existingConfig["provider"] as? [String: Any] ?? [:]
             providers["quotio"] = quotioProvider
             existingConfig["provider"] = providers
-            
+
             let jsonData = try JSONSerialization.data(withJSONObject: existingConfig, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
             let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
-            
+
             let rawConfigs = [
                 RawConfigOutput(
                     format: .json,
@@ -521,24 +429,24 @@ actor AgentConfigurationService {
                     instructions: "Merge provider.quotio into ~/.config/opencode/opencode.json"
                 )
             ]
-            
+
             if mode == .automatic {
                 try fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
-                
+
                 var backupPath: String? = nil
                 if fileManager.fileExists(atPath: configPath) {
                     backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
                     try? fileManager.copyItem(atPath: configPath, toPath: backupPath!)
                 }
-                
+
                 try jsonData.write(to: URL(fileURLWithPath: configPath))
-                
+
                 return .success(
                     type: .file,
                     mode: mode,
                     configPath: configPath,
                     rawConfigs: rawConfigs,
-                    instructions: "Configuration updated. Run 'opencode' and use /models to select a model (e.g., quotio/gemini-3-pro-preview).",
+                    instructions: "Configuration updated. Run 'opencode' and use /models to select a model (e.g., quotio/\(modelsToUse.first?.name ?? "model")).",
                     modelsConfigured: quotioModels.count,
                     backupPath: backupPath
                 )
@@ -556,42 +464,70 @@ actor AgentConfigurationService {
             return .failure(error: "Failed to generate config: \(error.localizedDescription)")
         }
     }
+
+    /// Build OpenCode model configuration based on model name patterns
+    private func buildOpenCodeModelConfig(for modelName: String) -> [String: Any] {
+        let displayName = modelName.split(separator: "-")
+            .map { $0.capitalized }
+            .joined(separator: " ")
+
+        var modelConfig: [String: Any] = ["name": displayName]
+
+        // Determine limits based on model family
+        if modelName.contains("claude") {
+            modelConfig["limit"] = ["context": 200000, "output": 64000]
+        } else if modelName.contains("gemini") {
+            modelConfig["limit"] = ["context": 1048576, "output": 65536]
+        } else if modelName.contains("gpt") {
+            modelConfig["limit"] = ["context": 400000, "output": 32768]
+        } else {
+            // Default limits
+            modelConfig["limit"] = ["context": 128000, "output": 16384]
+        }
+
+        // Add reasoning options for thinking/reasoning models
+        if modelName.contains("thinking") {
+            modelConfig["reasoning"] = true
+            modelConfig["options"] = ["thinking": ["type": "enabled", "budgetTokens": 10000]]
+        } else if modelName.contains("codex") || modelName.hasPrefix("gpt-5") || modelName.hasPrefix("o1") || modelName.hasPrefix("o3") {
+            modelConfig["reasoning"] = true
+            if modelName.contains("max") {
+                modelConfig["options"] = ["reasoning": ["effort": "high"]]
+            } else if modelName.contains("mini") {
+                modelConfig["options"] = ["reasoning": ["effort": "low"]]
+            } else {
+                modelConfig["options"] = ["reasoning": ["effort": "medium"]]
+            }
+        }
+
+        return modelConfig
+    }
     
-    private func generateFactoryDroidConfig(config: AgentConfiguration, mode: ConfigurationMode) -> AgentConfigResult {
+    private func generateFactoryDroidConfig(config: AgentConfiguration, mode: ConfigurationMode, availableModels: [AvailableModel]) -> AgentConfigResult {
         let home = fileManager.homeDirectoryForCurrentUser.path
         let configDir = "\(home)/.factory"
         let configPath = "\(configDir)/config.json"
-        
+
         let openaiBaseURL = "\(config.proxyURL.replacingOccurrences(of: "/v1", with: ""))/v1"
-        
-        let customModels: [[String: Any]] = [
-            ["model": "gemini-claude-opus-4-5-thinking", "model_display_name": "gemini-claude-opus-4-5-thinking", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gemini-claude-sonnet-4-5", "model_display_name": "gemini-claude-sonnet-4-5", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gemini-claude-sonnet-4-5-thinking", "model_display_name": "gemini-claude-sonnet-4-5-thinking", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gpt-5.2", "model_display_name": "gpt-5.2", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gpt-5.2-codex", "model_display_name": "gpt-5.2-codex", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gpt-5.1", "model_display_name": "gpt-5.1", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gpt-5.1-codex", "model_display_name": "gpt-5.1-codex", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gpt-5.1-codex-max", "model_display_name": "gpt-5.1-codex-max", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gpt-5.1-codex-mini", "model_display_name": "gpt-5.1-codex-mini", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gpt-5", "model_display_name": "gpt-5", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gpt-5-codex", "model_display_name": "gpt-5-codex", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gpt-5-codex-mini", "model_display_name": "gpt-5-codex-mini", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gpt-oss-120b-medium", "model_display_name": "gpt-oss-120b-medium", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gemini-3-pro-preview", "model_display_name": "gemini-3-pro-preview", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gemini-3-pro-image-preview", "model_display_name": "gemini-3-pro-image-preview", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gemini-3-flash-preview", "model_display_name": "gemini-3-flash-preview", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gemini-2.5-flash", "model_display_name": "gemini-2.5-flash", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gemini-2.5-flash-lite", "model_display_name": "gemini-2.5-flash-lite", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"],
-            ["model": "gemini-2.5-computer-use-preview-10-2025", "model_display_name": "gemini-2.5-computer-use-preview-10-2025", "base_url": openaiBaseURL, "api_key": config.apiKey, "provider": "openai"]
-        ]
-        
+
+        // Convert available models to Factory Droid format dynamically
+        let modelsToUse = availableModels.isEmpty ? AvailableModel.allModels : availableModels
+        let customModels: [[String: Any]] = modelsToUse.map { model in
+            [
+                "model": model.name,
+                "model_display_name": model.name,
+                "base_url": openaiBaseURL,
+                "api_key": config.apiKey,
+                "provider": "openai"
+            ]
+        }
+
         let factoryConfig: [String: Any] = ["custom_models": customModels]
-        
+
         do {
             let jsonData = try JSONSerialization.data(withJSONObject: factoryConfig, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
             let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
-            
+
             let rawConfigs = [
                 RawConfigOutput(
                     format: .json,
@@ -601,25 +537,25 @@ actor AgentConfigurationService {
                     instructions: "Save this as ~/.factory/config.json"
                 )
             ]
-            
+
             if mode == .automatic {
                 try fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
-                
+
                 var backupPath: String? = nil
                 if fileManager.fileExists(atPath: configPath) {
                     backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
                     try? fileManager.copyItem(atPath: configPath, toPath: backupPath!)
                 }
-                
+
                 try jsonData.write(to: URL(fileURLWithPath: configPath))
-                
+
                 return .success(
                     type: .file,
                     mode: mode,
                     configPath: configPath,
                     rawConfigs: rawConfigs,
                     instructions: "Configuration saved. Run 'droid' or 'factory' to start using Factory Droid.",
-                    modelsConfigured: 3,
+                    modelsConfigured: customModels.count,
                     backupPath: backupPath
                 )
             } else {
@@ -629,7 +565,7 @@ actor AgentConfigurationService {
                     configPath: configPath,
                     rawConfigs: rawConfigs,
                     instructions: "Copy the configuration below and save it as ~/.factory/config.json:",
-                    modelsConfigured: 3
+                    modelsConfigured: customModels.count
                 )
             }
         } catch {

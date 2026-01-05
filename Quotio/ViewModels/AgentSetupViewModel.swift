@@ -84,17 +84,18 @@ final class AgentSetupViewModel {
     func applyConfiguration() async {
         guard let agent = selectedAgent,
               let config = currentConfiguration else { return }
-        
+
         isConfiguring = true
         defer { isConfiguring = false }
-        
+
         do {
             let result = try await configurationService.generateConfiguration(
                 agent: agent,
                 config: config,
                 mode: configurationMode,
                 storageOption: agent == .claudeCode ? configStorageOption : .jsonOnly,
-                detectionService: detectionService
+                detectionService: detectionService,
+                availableModels: availableModels
             )
             
             if configurationMode == .automatic && result.success {
@@ -202,13 +203,14 @@ final class AgentSetupViewModel {
     func generatePreviewConfig() async -> AgentConfigResult? {
         guard let agent = selectedAgent,
               let config = currentConfiguration else { return nil }
-        
+
         do {
             return try await configurationService.generateConfiguration(
                 agent: agent,
                 config: config,
                 mode: .manual,
-                detectionService: detectionService
+                detectionService: detectionService,
+                availableModels: availableModels
             )
         } catch {
             return nil
