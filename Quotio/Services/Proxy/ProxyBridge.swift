@@ -448,6 +448,7 @@ final class ProxyBridge {
 
         // Check if fallback is enabled
         guard settings.isEnabled else {
+            NSLog("[ProxyBridge] Fallback disabled")
             return .empty
         }
 
@@ -455,19 +456,30 @@ final class ProxyBridge {
         guard let bodyData = body.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
               let model = json["model"] as? String else {
+            NSLog("[ProxyBridge] Could not extract model from body")
             return .empty
         }
 
+        NSLog("[ProxyBridge] Checking model: '\(model)'")
+
         // Check if this is a virtual model
-        guard settings.isVirtualModel(model),
-              let virtualModel = settings.findVirtualModel(name: model) else {
+        guard settings.isVirtualModel(model) else {
+            NSLog("[ProxyBridge] '\(model)' is not a virtual model. Virtual models: \(settings.virtualModels.map { $0.name })")
+            return .empty
+        }
+
+        guard let virtualModel = settings.findVirtualModel(name: model) else {
+            NSLog("[ProxyBridge] Could not find virtual model for '\(model)'")
             return .empty
         }
 
         let entries = virtualModel.sortedEntries
         guard !entries.isEmpty else {
+            NSLog("[ProxyBridge] Virtual model '\(model)' has no fallback entries")
             return .empty
         }
+
+        NSLog("[ProxyBridge] Found virtual model '\(model)' with \(entries.count) fallback entries")
 
         return FallbackContext(
             virtualModelName: model,

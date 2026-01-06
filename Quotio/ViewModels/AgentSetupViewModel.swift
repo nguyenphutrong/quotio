@@ -77,7 +77,7 @@ final class AgentSetupViewModel {
         selectedAgent = agent
         currentConfiguration = AgentConfiguration(
             agent: agent,
-            proxyURL: proxyManager.baseURL + "/v1",
+            proxyURL: proxyManager.clientEndpoint + "/v1",
             apiKey: apiKey
         )
         
