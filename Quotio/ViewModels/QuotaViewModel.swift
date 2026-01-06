@@ -427,8 +427,8 @@ final class QuotaViewModel {
             }
         }
         
-        // 2. Remap for Direct AuthFiles (Quota Only Mode)
-        if modeManager.isQuotaOnlyMode {
+        // 2. Remap for Direct AuthFiles (Monitor Mode)
+        if modeManager.isMonitorMode {
             for file in directAuthFiles where file.provider == .kiro {
                 let filenameKey = cleanName(file.filename)
                 

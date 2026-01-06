@@ -11697,6 +11697,7 @@
       }
     },
     "settings.appMode.remoteNote" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
