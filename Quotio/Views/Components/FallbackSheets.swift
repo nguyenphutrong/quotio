@@ -98,31 +98,61 @@ struct VirtualModelSheet: View {
 struct AddFallbackEntrySheet: View {
     let virtualModelId: UUID
     let existingEntries: [FallbackEntry]
-    let configuredProviders: [AIProvider]
-    let proxyModels: [AvailableModel]
+    let availableModels: [AvailableModel]
     let onAdd: (AIProvider, String) -> Void
     let onDismiss: () -> Void
 
-    @State private var selectedProvider: AIProvider?
-    @State private var modelName: String = ""
+    @State private var selectedModelId: String = ""
     @State private var showValidationError = false
 
-    /// Providers that have configured accounts (from providerQuotas keys)
-    private var availableProviders: [AIProvider] {
-        configuredProviders
-            .filter { !$0.isQuotaTrackingOnly }
-            .sorted { $0.displayName < $1.displayName }
+    /// Filter out virtual models (provider == "fallback") to avoid circular reference
+    private var filteredModels: [AvailableModel] {
+        availableModels.filter { $0.provider.lowercased() != "fallback" }
     }
 
-    /// All models from proxy - show all models for user to select
-    private var availableModels: [String] {
-        // Show all proxy models regardless of selected provider
-        // User knows which model they want to use
-        proxyModels.map { $0.id }.sorted()
+    /// Get the selected model object
+    private var selectedModel: AvailableModel? {
+        filteredModels.first { $0.id == selectedModelId }
+    }
+
+    /// Map model provider string to AIProvider enum
+    private func providerFromModel(_ model: AvailableModel) -> AIProvider {
+        let providerName = model.provider.lowercased()
+        let modelId = model.id.lowercased()
+
+        // FIRST: Try to match by model ID prefix (most reliable for proxy models)
+        // e.g., "kiro-claude-xxx" -> kiro, "gemini-claude-xxx" -> gemini
+        for provider in AIProvider.allCases {
+            let providerKey = provider.rawValue.lowercased()
+            if modelId.hasPrefix(providerKey + "-") || modelId.hasPrefix(providerKey + "_") {
+                return provider
+            }
+        }
+
+        // SECOND: Try exact match on provider field
+        for provider in AIProvider.allCases {
+            if provider.rawValue.lowercased() == providerName {
+                return provider
+            }
+        }
+
+        // THIRD: Try to infer from model ID content (for models without prefix)
+        if modelId.contains("kiro") {
+            return .kiro
+        } else if modelId.contains("gemini") {
+            return .gemini
+        } else if modelId.contains("copilot") {
+            return .copilot
+        } else if modelId.contains("codex") {
+            return .codex
+        }
+
+        // Default to claude for generic claude models
+        return .claude
     }
 
     private var isValidEntry: Bool {
-        selectedProvider != nil && !modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !selectedModelId.isEmpty && selectedModel != nil
     }
 
     var body: some View {
@@ -143,52 +173,33 @@ struct AddFallbackEntrySheet: View {
                     .multilineTextAlignment(.center)
             }
 
-            // Provider selection
-            VStack(alignment: .leading, spacing: 6) {
-                Text("fallback.selectProvider".localized())
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                Picker("", selection: $selectedProvider) {
-                    Text("fallback.selectProviderPlaceholder".localized())
-                        .tag(nil as AIProvider?)
-
-                    ForEach(availableProviders, id: \.self) { provider in
-                        HStack {
-                            ProviderIcon(provider: provider, size: 16)
-                            Text(provider.displayName)
-                        }
-                        .tag(provider as AIProvider?)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-            }
-            .frame(maxWidth: 320)
-
-            // Model name input
+            // Model selection
             VStack(alignment: .leading, spacing: 6) {
                 Text("fallback.modelId".localized())
                     .font(.subheadline)
                     .fontWeight(.medium)
 
-                if availableModels.isEmpty {
+                if filteredModels.isEmpty {
                     // Manual input when no models available
-                    TextField("fallback.modelIdPlaceholder".localized(), text: $modelName)
-                        .textFieldStyle(.roundedBorder)
-
                     Text("fallback.noModelsHint".localized())
                         .font(.caption)
                         .foregroundStyle(.orange)
+                        .padding(.vertical, 8)
                 } else {
-                    // Picker for model selection
-                    Picker("", selection: $modelName) {
+                    // Picker for model selection - grouped by provider
+                    Picker("", selection: $selectedModelId) {
                         Text("fallback.selectModelPlaceholder".localized())
                             .tag("")
 
-                        ForEach(availableModels, id: \.self) { model in
-                            Text(model)
-                                .tag(model)
+                        let providers = Set(filteredModels.map { $0.provider }).sorted()
+
+                        ForEach(providers, id: \.self) { provider in
+                            Section(header: Text(provider.capitalized)) {
+                                ForEach(filteredModels.filter { $0.provider == provider }) { model in
+                                    Text(model.displayName)
+                                        .tag(model.id)
+                                }
+                            }
                         }
                     }
                     .pickerStyle(.menu)
@@ -201,11 +212,26 @@ struct AddFallbackEntrySheet: View {
                         .foregroundStyle(.red)
                 }
 
-                Text("fallback.modelIdHint".localized())
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                // Show selected model info
+                if let model = selectedModel {
+                    HStack(spacing: 8) {
+                        let provider = providerFromModel(model)
+                        ProviderIcon(provider: provider, size: 16)
+                        Text(provider.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("→")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Text(model.id)
+                            .font(.caption)
+                            .fontDesign(.monospaced)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 4)
+                }
             }
-            .frame(maxWidth: 320)
+            .frame(maxWidth: 400)
 
             // Buttons
             HStack(spacing: 16) {
@@ -215,8 +241,9 @@ struct AddFallbackEntrySheet: View {
                 .buttonStyle(.bordered)
 
                 Button {
-                    if isValidEntry {
-                        onAdd(selectedProvider!, modelName.trimmingCharacters(in: .whitespacesAndNewlines))
+                    if isValidEntry, let model = selectedModel {
+                        let provider = providerFromModel(model)
+                        onAdd(provider, model.id)
                         onDismiss()
                     } else {
                         showValidationError = true
@@ -230,10 +257,6 @@ struct AddFallbackEntrySheet: View {
         }
         .padding(40)
         .frame(width: 480)
-        .onChange(of: selectedProvider) { _, newProvider in
-            // Reset model name when provider changes
-            modelName = ""
-        }
     }
 }
 

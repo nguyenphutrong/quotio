@@ -255,6 +255,8 @@ final class AgentSetupViewModel {
 
         // 1. Try memory cache (already in avaliableModels if not empty and not force refresh)
         if !availableModels.isEmpty && !forceRefresh {
+            // Still need to refresh virtual models in case they changed
+            refreshVirtualModels()
             return
         }
 
@@ -266,7 +268,7 @@ final class AgentSetupViewModel {
             self.availableModels = cachedModels
             // Even if we have cache, we might want to fetch fresh in background?
             // For now, respect the cache unless user clicks refresh.
-            appendVirtualModels()
+            refreshVirtualModels()
             return
         }
 
@@ -291,7 +293,7 @@ final class AgentSetupViewModel {
 
             self.availableModels = uniqueModels
 
-            // Save to cache
+            // Save to cache (without virtual models - they are dynamic)
             if let data = try? JSONEncoder().encode(uniqueModels) {
                 UserDefaults.standard.set(data, forKey: cacheKey)
             }
@@ -303,24 +305,25 @@ final class AgentSetupViewModel {
         }
 
         // 4. Append virtual models from Fallback settings
-        appendVirtualModels()
+        refreshVirtualModels()
     }
 
-    /// Append enabled virtual models to the available models list
-    private func appendVirtualModels() {
+    /// Refresh virtual models - removes old ones and adds current ones
+    private func refreshVirtualModels() {
+        // First remove any existing virtual models (provider == "fallback")
+        availableModels.removeAll { $0.provider.lowercased() == "fallback" }
+
+        // Then add current virtual models
         guard fallbackSettings.isEnabled else { return }
 
         for virtualModel in fallbackSettings.virtualModels where virtualModel.isEnabled {
-            // Check if virtual model is already in the list
-            if !availableModels.contains(where: { $0.id == virtualModel.name }) {
-                let model = AvailableModel(
-                    id: virtualModel.name,
-                    name: virtualModel.name,
-                    provider: "fallback",
-                    isDefault: false
-                )
-                availableModels.append(model)
-            }
+            let model = AvailableModel(
+                id: virtualModel.name,
+                name: virtualModel.name,
+                provider: "fallback",
+                isDefault: false
+            )
+            availableModels.append(model)
         }
     }
 
