@@ -147,101 +147,90 @@ final class ProxyBridge {
     /// Starts the proxy bridge
     func start() {
         guard !isRunning else {
-            NSLog("[ProxyBridge] Already running on port \(listenPort)")
             return
         }
-        
+
         lastError = nil
-        
+
         do {
             let parameters = NWParameters.tcp
             parameters.allowLocalEndpointReuse = true
-            
+
             guard let port = NWEndpoint.Port(rawValue: listenPort) else {
                 lastError = "Invalid port: \(listenPort)"
-                NSLog("[ProxyBridge] Invalid port: %d", listenPort)
                 return
             }
-            
+
             listener = try NWListener(using: parameters, on: port)
-            
+
             listener?.stateUpdateHandler = { [weak self] state in
                 guard let weakSelf = self else { return }
                 Task { @MainActor in
                     weakSelf.handleListenerState(state)
                 }
             }
-            
+
             listener?.newConnectionHandler = { [weak self] connection in
                 guard let weakSelf = self else { return }
                 Task { @MainActor in
                     weakSelf.handleNewConnection(connection)
                 }
             }
-            
+
             listener?.start(queue: .global(qos: .userInitiated))
-            
+
         } catch {
             lastError = error.localizedDescription
-            NSLog("[ProxyBridge] Failed to start: \(error)")
         }
     }
-    
+
     /// Stops the proxy bridge
     func stop() {
         stateQueue.sync {
             listener?.cancel()
             listener = nil
         }
-        
+
         isRunning = false
-        NSLog("[ProxyBridge] Stopped")
     }
     
     // MARK: - State Handling
-    
+
     private func handleListenerState(_ state: NWListener.State) {
         switch state {
         case .ready:
             isRunning = true
-            NSLog("[ProxyBridge] Listening on port \(listenPort), forwarding to \(targetPort)")
         case .failed(let error):
             isRunning = false
             lastError = error.localizedDescription
-            NSLog("[ProxyBridge] Failed: \(error)")
         case .cancelled:
             isRunning = false
-            NSLog("[ProxyBridge] Cancelled")
         default:
             break
         }
     }
-    
+
     // MARK: - Connection Handling
-    
+
     private func handleNewConnection(_ connection: NWConnection) {
         if activeConnections >= maxActiveConnections {
-            NSLog("[ProxyBridge] Connection limit reached (\(maxActiveConnections)), rejecting")
             connection.cancel()
             return
         }
-        
+
         activeConnections += 1
         totalRequests += 1
-        
+
         let connectionId = totalRequests
         let startTime = Date()
-        
-        NSLog("[ProxyBridge] New connection #\(connectionId)")
-        
+
         connection.stateUpdateHandler = { [weak self] state in
             guard let weakSelf = self else { return }
             if case .cancelled = state {
                 Task { @MainActor in
                     weakSelf.activeConnections -= 1
                 }
-            } else if case .failed(let error) = state {
-                NSLog("[ProxyBridge] Connection #\(connectionId) failed: \(error)")
+            } else if case .failed = state {
                 Task { @MainActor in
                     weakSelf.activeConnections -= 1
                 }
@@ -270,9 +259,8 @@ final class ProxyBridge {
     ) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 1048576) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
-            
+
             if let error = error {
-                NSLog("[ProxyBridge] #\(connectionId) receive error: \(error)")
                 connection.cancel()
                 return
             }
@@ -402,8 +390,6 @@ final class ProxyBridge {
         // Extract metadata for tracking
         let metadata = extractMetadata(method: method, path: path, body: body)
 
-        NSLog("[ProxyBridge] #\(connectionId) \(method) \(path)")
-
         // Check for virtual model and create fallback context
         Task { @MainActor [weak self] in
             guard let self = self else { return }
@@ -414,7 +400,6 @@ final class ProxyBridge {
             if fallbackContext.hasFallback, let entry = fallbackContext.currentEntry {
                 // Replace model in body with resolved model
                 resolvedBody = self.replaceModelInBody(body, with: entry.modelId)
-                NSLog("[ProxyBridge] #\(connectionId) Virtual model '\(fallbackContext.virtualModelName ?? "")' → \(entry.provider.displayName)/\(entry.modelId) (fallback \(fallbackContext.currentIndex + 1)/\(fallbackContext.fallbackEntries.count))")
             } else {
                 resolvedBody = body
             }
@@ -448,7 +433,6 @@ final class ProxyBridge {
 
         // Check if fallback is enabled
         guard settings.isEnabled else {
-            NSLog("[ProxyBridge] Fallback disabled")
             return .empty
         }
 
@@ -456,30 +440,22 @@ final class ProxyBridge {
         guard let bodyData = body.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
               let model = json["model"] as? String else {
-            NSLog("[ProxyBridge] Could not extract model from body")
             return .empty
         }
 
-        NSLog("[ProxyBridge] Checking model: '\(model)'")
-
         // Check if this is a virtual model
         guard settings.isVirtualModel(model) else {
-            NSLog("[ProxyBridge] '\(model)' is not a virtual model. Virtual models: \(settings.virtualModels.map { $0.name })")
             return .empty
         }
 
         guard let virtualModel = settings.findVirtualModel(name: model) else {
-            NSLog("[ProxyBridge] Could not find virtual model for '\(model)'")
             return .empty
         }
 
         let entries = virtualModel.sortedEntries
         guard !entries.isEmpty else {
-            NSLog("[ProxyBridge] Virtual model '\(model)' has no fallback entries")
             return .empty
         }
-
-        NSLog("[ProxyBridge] Found virtual model '\(model)' with \(entries.count) fallback entries")
 
         return FallbackContext(
             virtualModelName: model,
@@ -588,7 +564,6 @@ final class ProxyBridge {
     ) {
         // Create connection to CLIProxyAPI
         guard let port = NWEndpoint.Port(rawValue: targetPort) else {
-            NSLog("[ProxyBridge] Invalid target port: %d", targetPort)
             sendError(to: originalConnection, statusCode: 500, message: "Invalid target port")
             return
         }
@@ -615,7 +590,6 @@ final class ProxyBridge {
         DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(Int(timeoutSeconds))) { [weak targetConnection] in
             guard !timeoutState.cancelled else { return }
             guard let conn = targetConnection, conn.state != .ready else { return }
-            NSLog("[ProxyBridge] #\(connectionId) target connection timeout after \(timeoutSeconds)s")
             conn.cancel()
         }
 
@@ -657,8 +631,7 @@ final class ProxyBridge {
                 }
 
                 targetConnection.send(content: requestData, completion: .contentProcessed { error in
-                    if let error = error {
-                        NSLog("[ProxyBridge] #\(connectionId) send error: \(error)")
+                    if error != nil {
                         targetConnection.cancel()
                         originalConnection.cancel()
                     } else {
@@ -682,9 +655,8 @@ final class ProxyBridge {
                     }
                 })
 
-            case .failed(let error):
+            case .failed:
                 timeoutState.cancelled = true
-                NSLog("[ProxyBridge] #\(connectionId) target connection failed: \(error)")
                 self.sendError(to: originalConnection, statusCode: 502, message: "Bad Gateway - Cannot connect to proxy")
                 targetConnection.cancel()
 
@@ -717,8 +689,7 @@ final class ProxyBridge {
         targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
 
-            if let error = error {
-                NSLog("[ProxyBridge] #\(connectionId) response error: \(error)")
+            if error != nil {
                 targetConnection.cancel()
                 originalConnection.cancel()
                 return
@@ -740,14 +711,12 @@ final class ProxyBridge {
 
                 if quotaExceeded && fallbackContext.hasMoreFallbacks {
                     // Don't forward error to client, try next fallback instead
-                    NSLog("[ProxyBridge] #\(connectionId) Quota exceeded, trying next fallback...")
                     targetConnection.cancel()
 
                     // Try next fallback
                     let nextContext = fallbackContext.next()
                     if let nextEntry = nextContext.currentEntry {
                         let nextBody = self.replaceModelInBody(fallbackContext.originalBody, with: nextEntry.modelId)
-                        NSLog("[ProxyBridge] #\(connectionId) Fallback → \(nextEntry.provider.displayName)/\(nextEntry.modelId) (\(nextContext.currentIndex + 1)/\(nextContext.fallbackEntries.count))")
 
                         self.forwardRequest(
                             method: method,
@@ -772,10 +741,6 @@ final class ProxyBridge {
             if let data = data, !data.isEmpty {
                 // Forward chunk to client
                 originalConnection.send(content: data, completion: .contentProcessed { sendError in
-                    if let sendError = sendError {
-                        NSLog("[ProxyBridge] #\(connectionId) send response error: \(sendError)")
-                    }
-
                     if isComplete {
                         // Request complete - record metadata
                         self.recordCompletion(
@@ -843,7 +808,7 @@ final class ProxyBridge {
         metadata: (provider: String?, model: String?, method: String, path: String)
     ) {
         let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
-        
+
         // Extract status code from response
         var statusCode: Int?
         if let responseString = String(data: responseData.prefix(100), encoding: .utf8),
@@ -854,9 +819,7 @@ final class ProxyBridge {
                 statusCode = code
             }
         }
-        
-        NSLog("[ProxyBridge] #\(connectionId) completed: \(statusCode ?? 0) in \(durationMs)ms (\(requestSize)B → \(responseSize)B)")
-        
+
         // Capture variables for Sendable closure
         let capturedStatusCode = statusCode
         let capturedMetadata = metadata
