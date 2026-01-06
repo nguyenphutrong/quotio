@@ -75,9 +75,14 @@ final class AgentSetupViewModel {
         }
         
         selectedAgent = agent
+
+        // Use ProxyBridge endpoint when Fallback is enabled, otherwise use direct CLIProxyAPI endpoint
+        let fallbackEnabled = FallbackSettingsManager.shared.isEnabled
+        let endpoint = fallbackEnabled ? proxyManager.clientEndpoint : proxyManager.baseURL
+
         currentConfiguration = AgentConfiguration(
             agent: agent,
-            proxyURL: proxyManager.clientEndpoint + "/v1",
+            proxyURL: endpoint + "/v1",
             apiKey: apiKey
         )
         

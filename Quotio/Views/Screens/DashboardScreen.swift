@@ -513,18 +513,31 @@ struct DashboardScreen: View {
     }
     
     // MARK: - Endpoint Section
-    
+
+    /// Compute the display endpoint based on Fallback status
+    private var displayEndpoint: String {
+        let fallbackEnabled = FallbackSettingsManager.shared.isEnabled
+        if fallbackEnabled {
+            // When Fallback is enabled, use ProxyBridge endpoint (user port)
+            return viewModel.proxyManager.clientEndpoint + "/v1"
+        } else {
+            // When Fallback is disabled, use CLIProxyAPI endpoint directly (internal port in bridge mode)
+            return viewModel.proxyManager.baseURL + "/v1"
+        }
+    }
+
     private var endpointSection: some View {
         GroupBox {
             HStack {
-                Text(viewModel.proxyManager.proxyStatus.endpoint)
+                Text(displayEndpoint)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
-                
+
                 Spacer()
-                
+
                 Button {
-                    viewModel.proxyManager.copyEndpointToClipboard()
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(displayEndpoint, forType: .string)
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
