@@ -16004,6 +16004,7 @@
             "value" : "版本号已复制到剪贴板"
           }
         }
+      }
     },
     "warmup.daily.label" : {
       "extractionState" : "stale",
