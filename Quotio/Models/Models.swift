@@ -451,19 +451,21 @@ nonisolated enum NavigationPage: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
     case quota = "Quota"
     case providers = "Providers"
+    case fallback = "Fallback"
     case agents = "Agents"
     case apiKeys = "API Keys"
     case logs = "Logs"
     case settings = "Settings"
     case about = "About"
-    
+
     var id: String { rawValue }
-    
+
     var icon: String {
         switch self {
         case .dashboard: return "gauge.with.dots.needle.33percent"
         case .quota: return "chart.bar.fill"
         case .providers: return "person.2.badge.key"
+        case .fallback: return "arrow.triangle.branch"
         case .agents: return "terminal"
         case .apiKeys: return "key.horizontal"
         case .logs: return "doc.text"

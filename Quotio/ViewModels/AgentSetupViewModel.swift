@@ -13,7 +13,8 @@ final class AgentSetupViewModel {
     private let detectionService = AgentDetectionService()
     private let configurationService = AgentConfigurationService()
     private let shellManager = ShellProfileManager()
-    
+    private let fallbackSettings = FallbackSettingsManager.shared
+
     var agentStatuses: [AgentStatus] = []
     var isLoading = false
     var isConfiguring = false
@@ -22,22 +23,29 @@ final class AgentSetupViewModel {
     var configResult: AgentConfigResult?
     var testResult: ConnectionTestResult?
     var errorMessage: String?
-    
+
     var availableModels: [AvailableModel] = []
     var isFetchingModels = false
-    
+
     var currentConfiguration: AgentConfiguration?
     var detectedShell: ShellType = .zsh
     var configurationMode: ConfigurationMode = .automatic
     var configStorageOption: ConfigStorageOption = .jsonOnly
     var selectedRawConfigIndex: Int = 0
-    
+
+    /// Resolved fallback info for display (shows which provider/model was selected)
+    var resolvedFallbackInfo: [ModelSlot: FallbackResolution] = [:]
+
     weak var proxyManager: CLIProxyManager?
-    
+
+    /// Reference to QuotaViewModel for quota checking
+    weak var quotaViewModel: QuotaViewModel?
+
     init() {}
-    
-    func setup(proxyManager: CLIProxyManager) {
+
+    func setup(proxyManager: CLIProxyManager, quotaViewModel: QuotaViewModel? = nil) {
         self.proxyManager = proxyManager
+        self.quotaViewModel = quotaViewModel
     }
     
     func refreshAgentStatuses(forceRefresh: Bool = false) async {
@@ -241,47 +249,48 @@ final class AgentSetupViewModel {
     
     func loadModels(forceRefresh: Bool = false) async {
         guard let config = currentConfiguration else { return }
-        
+
         isFetchingModels = true
         defer { isFetchingModels = false }
-        
+
         // 1. Try memory cache (already in avaliableModels if not empty and not force refresh)
         if !availableModels.isEmpty && !forceRefresh {
             return
         }
-        
+
         // 2. Try disk cache (UserDefaults)
         let cacheKey = "quotio.models.cache.\(config.agent.id)"
         if !forceRefresh,
            let data = UserDefaults.standard.data(forKey: cacheKey),
            let cachedModels = try? JSONDecoder().decode([AvailableModel].self, from: data) {
             self.availableModels = cachedModels
-            // Even if we have cache, we might want to fetch fresh in background? 
+            // Even if we have cache, we might want to fetch fresh in background?
             // For now, respect the cache unless user clicks refresh.
+            appendVirtualModels()
             return
         }
-        
+
         // 3. Fetch from Proxy
         do {
             let fetchedModels = try await configurationService.fetchAvailableModels(config: config)
-            
+
             // Deduplicate and process
             var uniqueModels = fetchedModels
-            
+
             // Ensure default models are included if missing (fallback)
             for defaultModel in AvailableModel.allModels {
                 if !uniqueModels.contains(where: { $0.id == defaultModel.id }) {
                     uniqueModels.append(defaultModel)
                 }
             }
-            
-            // Sort: Default models first? Or just alphabetical? 
+
+            // Sort: Default models first? Or just alphabetical?
             // Let's keep the fetch order but maybe prioritize known models?
             // For now, simple sort by name
             uniqueModels.sort { $0.displayName < $1.displayName }
-            
+
             self.availableModels = uniqueModels
-            
+
             // Save to cache
             if let data = try? JSONEncoder().encode(uniqueModels) {
                 UserDefaults.standard.set(data, forKey: cacheKey)
@@ -291,6 +300,56 @@ final class AgentSetupViewModel {
             if availableModels.isEmpty {
                 self.availableModels = AvailableModel.allModels
             }
+        }
+
+        // 4. Append virtual models from Fallback settings
+        appendVirtualModels()
+    }
+
+    /// Append enabled virtual models to the available models list
+    private func appendVirtualModels() {
+        guard fallbackSettings.isEnabled else { return }
+
+        for virtualModel in fallbackSettings.virtualModels where virtualModel.isEnabled {
+            // Check if virtual model is already in the list
+            if !availableModels.contains(where: { $0.id == virtualModel.name }) {
+                let model = AvailableModel(
+                    id: virtualModel.name,
+                    name: virtualModel.name,
+                    provider: "fallback",
+                    isDefault: false
+                )
+                availableModels.append(model)
+            }
+        }
+    }
+
+    /// Check if a provider has available quota for a specific model
+    /// This is used by the fallback resolution logic
+    func checkProviderQuota(provider: AIProvider, modelId: String) -> Bool {
+        guard let quotaVM = quotaViewModel else { return true } // Assume available if no quota info
+
+        guard let providerQuotas = quotaVM.providerQuotas[provider] else { return false }
+
+        // Check if any account for this provider has quota remaining
+        for (_, quotaData) in providerQuotas {
+            // Check if the provider has any quota remaining (> 0%)
+            let hasQuota = quotaData.models.contains { model in
+                model.percentage > 0
+            }
+            if hasQuota {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Resolve a virtual model to a real provider + model combination
+    /// Returns nil if the model is not a virtual model or no fallback is available
+    func resolveVirtualModel(_ modelName: String) -> FallbackResolution? {
+        return fallbackSettings.resolveModel(modelName: modelName) { [weak self] provider, modelId in
+            self?.checkProviderQuota(provider: provider, modelId: modelId) ?? true
         }
     }
 }

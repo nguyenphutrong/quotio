@@ -66,7 +66,7 @@ final class QuotaViewModel {
             return vm
         }
         let vm = AgentSetupViewModel()
-        vm.setup(proxyManager: proxyManager)
+        vm.setup(proxyManager: proxyManager, quotaViewModel: self)
         _agentSetupViewModel = vm
         return vm
     }

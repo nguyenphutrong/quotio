@@ -304,12 +304,15 @@ struct ContentView: View {
                         Label("nav.quota".localized(), systemImage: "chart.bar.fill")
                             .tag(NavigationPage.quota)
                         
-                        Label(modeManager.isQuotaOnlyMode ? "nav.accounts".localized() : "nav.providers".localized(), 
+                        Label(modeManager.isQuotaOnlyMode ? "nav.accounts".localized() : "nav.providers".localized(),
                               systemImage: "person.2.badge.key")
                             .tag(NavigationPage.providers)
-                        
+
                         // Full mode only
                         if modeManager.isFullMode {
+                            Label("nav.fallback".localized(), systemImage: "arrow.triangle.branch")
+                                .tag(NavigationPage.fallback)
+
                             Label("nav.agents".localized(), systemImage: "terminal")
                                 .tag(NavigationPage.agents)
                             
@@ -388,6 +391,8 @@ struct ContentView: View {
                 QuotaScreen()
             case .providers:
                 ProvidersScreen()
+            case .fallback:
+                FallbackScreen()
             case .agents:
                 AgentSetupScreen()
             case .apiKeys:
