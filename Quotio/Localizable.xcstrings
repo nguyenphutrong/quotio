@@ -5175,6 +5175,23 @@
         }
       }
     },
+    "fallback.noModelsHint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy not running or no models available. Enter model ID manually."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代理未运行或无可用模型。请手动输入模型 ID。"
+          }
+        }
+      }
+    },
     "fallback.noVirtualModels" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5205,6 +5222,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "创建虚拟模型以启用提供商之间的自动回退。"
+          }
+        }
+      }
+    },
+    "fallback.selectModelPlaceholder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a model..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择模型..."
           }
         }
       }

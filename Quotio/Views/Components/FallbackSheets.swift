@@ -114,21 +114,11 @@ struct AddFallbackEntrySheet: View {
             .sorted { $0.displayName < $1.displayName }
     }
 
-    /// Models available for the selected provider from proxy
+    /// All models from proxy - show all models for user to select
     private var availableModels: [String] {
-        guard let provider = selectedProvider else { return [] }
-
-        // Filter models by provider name (case-insensitive match)
-        let providerName = provider.rawValue.lowercased()
-        return proxyModels
-            .filter { model in
-                // Match by provider field or by model ID prefix
-                model.provider.lowercased() == providerName ||
-                model.provider.lowercased().contains(providerName) ||
-                model.id.lowercased().contains(providerName)
-            }
-            .map { $0.id }
-            .sorted()
+        // Show all proxy models regardless of selected provider
+        // User knows which model they want to use
+        proxyModels.map { $0.id }.sorted()
     }
 
     private var isValidEntry: Bool {
@@ -186,25 +176,23 @@ struct AddFallbackEntrySheet: View {
                     // Manual input when no models available
                     TextField("fallback.modelIdPlaceholder".localized(), text: $modelName)
                         .textFieldStyle(.roundedBorder)
-                } else {
-                    // Combo box with suggestions
-                    HStack {
-                        TextField("fallback.modelIdPlaceholder".localized(), text: $modelName)
-                            .textFieldStyle(.roundedBorder)
 
-                        Menu {
-                            ForEach(availableModels, id: \.self) { model in
-                                Button(model) {
-                                    modelName = model
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "chevron.down.circle")
-                                .foregroundStyle(.secondary)
+                    Text("fallback.noModelsHint".localized())
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else {
+                    // Picker for model selection
+                    Picker("", selection: $modelName) {
+                        Text("fallback.selectModelPlaceholder".localized())
+                            .tag("")
+
+                        ForEach(availableModels, id: \.self) { model in
+                            Text(model)
+                                .tag(model)
                         }
-                        .menuStyle(.borderlessButton)
-                        .frame(width: 24)
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
                 }
 
                 if showValidationError && !isValidEntry {
