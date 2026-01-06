@@ -11174,6 +11174,35 @@
         }
       }
     },
+    "remote.httpWarning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP connection is not encrypted. Your management key may be exposed. Use HTTPS for security."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La connexion HTTP n'est pas chiffrée. Votre clé de gestion peut être exposée. Utilisez HTTPS pour la sécurité."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết nối HTTP không được mã hóa. Management key có thể bị lộ. Hãy dùng HTTPS để bảo mật."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP连接未加密。您的管理密钥可能会暴露。请使用HTTPS以确保安全。"
+          }
+        }
+      }
+    },
     "remote.managementKey" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -11257,6 +11286,93 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "输入管理密钥"
+          }
+        }
+      }
+    },
+    "remote.sslWarning.confirm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I Understand the Risk"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je comprends le risque"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tôi hiểu rủi ro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我了解风险"
+          }
+        }
+      }
+    },
+    "remote.sslWarning.message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabling SSL verification allows attackers to intercept your management key and all remote operations (Man-in-the-Middle attack).\\n\\nOnly disable this for development environments or when you fully trust the network."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactiver la vérification SSL permet aux attaquants d'intercepter votre clé de gestion et toutes les opérations distantes (attaque de l'homme du milieu).\\n\\nNe désactivez cette option que pour les environnements de développement ou lorsque vous faites entièrement confiance au réseau."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tắt xác minh SSL cho phép kẻ tấn công chặn management key và tất cả các thao tác từ xa (tấn công Man-in-the-Middle).\\n\\nChỉ tắt tùy chọn này cho môi trường phát triển hoặc khi bạn hoàn toàn tin tưởng mạng hiện tại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "禁用SSL验证会让攻击者拦截您的管理密钥和所有远程操作（中间人攻击）。\\n\\n仅在开发环境或完全信任网络时才禁用此选项。"
+          }
+        }
+      }
+    },
+    "remote.sslWarning.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Security Warning"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avertissement de sécurité"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cảnh báo bảo mật"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全警告"
           }
         }
       }
@@ -11431,6 +11547,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "验证SSL证书"
+          }
+        }
+      }
+    },
+    "remote.verifySSL.warning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSL verification is disabled. Your connection may be vulnerable to interception."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La vérification SSL est désactivée. Votre connexion peut être vulnérable à l'interception."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xác minh SSL đã bị tắt. Kết nối của bạn có thể bị chặn và đọc trộm."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSL验证已禁用。您的连接可能容易被拦截。"
           }
         }
       }

@@ -19,11 +19,19 @@ struct RemoteConnectionSheet: View {
     @State private var timeoutSeconds: Int = 30
     @State private var isTestingConnection = false
     @State private var testResult: RemoteTestResult?
+    @State private var showSSLWarning = false
+    @State private var pendingSSLValue = false
     
     private var isEditing: Bool { existingConfig != nil }
     
     private var urlValidation: RemoteURLValidationResult {
         RemoteURLValidator.validate(endpointURL)
+    }
+    
+    /// Check if URL uses HTTP (not HTTPS) - security warning needed
+    private var isInsecureHTTP: Bool {
+        let trimmed = endpointURL.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return trimmed.hasPrefix("http://") && urlValidation == .valid
     }
     
     private var canSave: Bool {
@@ -54,6 +62,16 @@ struct RemoteConnectionSheet: View {
         .frame(width: 500, height: 550)
         .onAppear {
             loadExistingConfig()
+        }
+        .alert("remote.sslWarning.title".localized(), isPresented: $showSSLWarning) {
+            Button("action.cancel".localized(), role: .cancel) {
+                // Do nothing - keep SSL enabled
+            }
+            Button("remote.sslWarning.confirm".localized(), role: .destructive) {
+                verifySSL = pendingSSLValue
+            }
+        } message: {
+            Text("remote.sslWarning.message".localized())
         }
     }
     
@@ -118,6 +136,10 @@ struct RemoteConnectionSheet: View {
                     Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.red)
+                } else if isInsecureHTTP {
+                    Label("remote.httpWarning".localized(), systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
             }
         }
@@ -158,7 +180,24 @@ struct RemoteConnectionSheet: View {
             Text("remote.advanced".localized())
                 .font(.headline)
             
-            Toggle("remote.verifySSL".localized(), isOn: $verifySSL)
+            Toggle("remote.verifySSL".localized(), isOn: Binding(
+                get: { verifySSL },
+                set: { newValue in
+                    if !newValue {
+                        // User is trying to disable SSL - show warning first
+                        pendingSSLValue = newValue
+                        showSSLWarning = true
+                    } else {
+                        verifySSL = newValue
+                    }
+                }
+            ))
+            
+            if !verifySSL {
+                Label("remote.verifySSL.warning".localized(), systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
             
             HStack {
                 Text("remote.timeout".localized())
