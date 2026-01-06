@@ -8532,6 +8532,36 @@
         }
       }
     },
+    "providers.addMultipleHint" : {
+      "comment" : "Hint text explaining that users can add multiple accounts for the same provider",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click any provider to add multiple accounts"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cliquez sur un fournisseur pour ajouter plusieurs comptes"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhấp vào nhà cung cấp để thêm nhiều tài khoản"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点击可添加多个账号"
+          }
+        }
+      }
+    },
     "providers.addProvider" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9021,6 +9051,96 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂无使用数据"
+          }
+        }
+      }
+    },
+    "quota.notAvailable" : {
+      "comment" : "Message shown when quota data is not available (e.g., Gemini CLI has no public quota API)",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quota data not available for this provider"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Données de quota non disponibles pour ce fournisseur"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dữ liệu hạn mức không có sẵn cho nhà cung cấp này"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该提供商暂不支持配额查询"
+          }
+        }
+      }
+    },
+    "quota.reauthenticate" : {
+      "comment" : "Button label shown when Claude Code token has expired and re-authentication is needed",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-authenticate"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se reconnecter"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xác thực lại"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新认证"
+          }
+        }
+      }
+    },
+    "quota.reauthenticating" : {
+      "comment" : "Label shown while re-authentication is in progress",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticating..."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authentification..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang xác thực..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在认证..."
           }
         }
       }

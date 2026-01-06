@@ -44,19 +44,19 @@ final class AgentSetupViewModel {
         self.proxyManager = proxyManager
         self.quotaViewModel = quotaViewModel
     }
-    
+
     func refreshAgentStatuses(forceRefresh: Bool = false) async {
         isLoading = true
         defer { isLoading = false }
-        
+
         agentStatuses = await detectionService.detectAllAgents(forceRefresh: forceRefresh)
         detectedShell = await shellManager.detectShell()
     }
-    
+
     func status(for agent: CLIAgent) -> AgentStatus? {
         agentStatuses.first { $0.agent == agent }
     }
-    
+
     func startConfiguration(for agent: CLIAgent, apiKey: String) {
         configResult = nil
         testResult = nil
@@ -65,12 +65,12 @@ final class AgentSetupViewModel {
         configStorageOption = .jsonOnly
         isConfiguring = false
         isTesting = false
-        
+
         guard let proxyManager = proxyManager else {
             errorMessage = "Proxy manager not available"
             return
         }
-        
+
         selectedAgent = agent
 
         // Use ProxyBridge endpoint when Fallback is enabled, otherwise use direct CLIProxyAPI endpoint
@@ -82,15 +82,15 @@ final class AgentSetupViewModel {
             proxyURL: endpoint + "/v1",
             apiKey: apiKey
         )
-        
+
         // Load models for this agent
         Task { await loadModels() }
     }
-    
+
     func updateModelSlot(_ slot: ModelSlot, model: String) {
         currentConfiguration?.modelSlots[slot] = model
     }
-    
+
     func applyConfiguration() async {
         guard let agent = selectedAgent,
               let config = currentConfiguration else { return }
@@ -107,12 +107,12 @@ final class AgentSetupViewModel {
                 detectionService: detectionService,
                 availableModels: availableModels
             )
-            
+
             if configurationMode == .automatic && result.success {
                 let shouldUpdateShell = agent.configType == .both
                     ? (configStorageOption == .shellOnly || configStorageOption == .both)
                     : agent.configType != .file
-                
+
                 if let shellConfig = result.shellConfig, shouldUpdateShell {
                     try await shellManager.addToProfile(
                         shell: detectedShell,
@@ -120,13 +120,13 @@ final class AgentSetupViewModel {
                         agent: agent
                     )
                 }
-                
+
                 await detectionService.markAsConfigured(agent)
                 await refreshAgentStatuses()
             }
-            
+
             configResult = result
-            
+
             if !result.success {
                 errorMessage = result.error
             }
@@ -135,18 +135,18 @@ final class AgentSetupViewModel {
             configResult = .failure(error: error.localizedDescription)
         }
     }
-    
+
     func addToShellProfile() async {
         guard let agent = selectedAgent,
               let shellConfig = configResult?.shellConfig else { return }
-        
+
         do {
             try await shellManager.addToProfile(
                 shell: detectedShell,
                 configuration: shellConfig,
                 agent: agent
             )
-            
+
             configResult = AgentConfigResult.success(
                 type: configResult?.configType ?? .environment,
                 mode: configurationMode,
@@ -157,59 +157,59 @@ final class AgentSetupViewModel {
                 instructions: "Added to \(detectedShell.profilePath). Restart your terminal for changes to take effect.",
                 modelsConfigured: configResult?.modelsConfigured ?? 0
             )
-            
+
             await detectionService.markAsConfigured(agent)
             await refreshAgentStatuses()
         } catch {
             errorMessage = "Failed to update shell profile: \(error.localizedDescription)"
         }
     }
-    
+
     func copyToClipboard() {
         guard let shellConfig = configResult?.shellConfig else { return }
-        
+
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(shellConfig, forType: .string)
     }
-    
+
     func copyRawConfigToClipboard(index: Int) {
         guard let result = configResult,
               index < result.rawConfigs.count else { return }
-        
+
         let rawConfig = result.rawConfigs[index]
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(rawConfig.content, forType: .string)
     }
-    
+
     func copyAllRawConfigsToClipboard() {
         guard let result = configResult else { return }
-        
+
         let allContent = result.rawConfigs.map { config in
             """
             # \(config.filename ?? "Configuration")
             # Target: \(config.targetPath ?? "N/A")
-            
+
             \(config.content)
             """
         }.joined(separator: "\n\n---\n\n")
-        
+
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(allContent, forType: .string)
     }
-    
+
     func testConnection() async {
         guard let agent = selectedAgent,
               let config = currentConfiguration else { return }
-        
+
         isTesting = true
         defer { isTesting = false }
-        
+
         testResult = await configurationService.testConnection(
             agent: agent,
             config: config
         )
     }
-    
+
     func generatePreviewConfig() async -> AgentConfigResult? {
         guard let agent = selectedAgent,
               let config = currentConfiguration else { return nil }
@@ -226,7 +226,7 @@ final class AgentSetupViewModel {
             return nil
         }
     }
-    
+
     func dismissConfiguration() {
         selectedAgent = nil
         configResult = nil
@@ -237,7 +237,7 @@ final class AgentSetupViewModel {
         isConfiguring = false
         isTesting = false
     }
-    
+
     func resetSheetState() {
         configResult = nil
         testResult = nil
@@ -248,7 +248,7 @@ final class AgentSetupViewModel {
         isTesting = false
         // Don't reset availableModels here to allow caching to persist across dismissals
     }
-    
+
     func loadModels(forceRefresh: Bool = false) async {
         guard let config = currentConfiguration else { return }
 

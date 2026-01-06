@@ -360,6 +360,13 @@ private struct AccountQuotaCardV2: View {
     @State private var isRefreshing = false
     @State private var showSwitchSheet = false
     @State private var showModelsDetailSheet = false
+
+    /// Check if OAuth is in progress for this provider
+    private var isReauthenticating: Bool {
+        guard let oauthState = viewModel.oauthState else { return false }
+        return oauthState.provider == provider &&
+               (oauthState.status == .waiting || oauthState.status == .polling)
+    }
     @State private var showWarmupSheet = false
     
     private var hasQuotaData: Bool {
@@ -540,15 +547,49 @@ private struct AccountQuotaCardV2: View {
             .foregroundStyle(.secondary)
             .disabled(isRefreshing || isLoading)
             
-            // Forbidden badge
+            // Forbidden badge or Re-authenticate button
             if let data = account.quotaData, data.isForbidden {
-                Label("Limit Reached", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.red.opacity(0.1))
-                    .clipShape(Capsule())
+                if provider == .claude {
+                    // Claude Code: Token expired, show re-authenticate button
+                    Button {
+                        Task {
+                            await viewModel.startOAuth(for: .claude)
+                        }
+                    } label: {
+                        if isReauthenticating {
+                            HStack(spacing: 4) {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                Text("quota.reauthenticating".localized())
+                                    .font(.caption)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.orange.opacity(0.1))
+                            .foregroundStyle(.orange)
+                            .clipShape(Capsule())
+                        } else {
+                            Label("quota.reauthenticate".localized(), systemImage: "arrow.clockwise.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.orange.opacity(0.1))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isReauthenticating)
+                } else {
+                    // Other providers: Limit reached badge
+                    Label("Limit Reached", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.red.opacity(0.1))
+                        .clipShape(Capsule())
+                }
             }
         }
         .sheet(isPresented: $showSwitchSheet) {
@@ -576,7 +617,13 @@ private struct AccountQuotaCardV2: View {
     // MARK: - Plan Section (removed - now in header)
     
     // MARK: - Usage Section
-    
+
+    /// Check if all models have unavailable quota (percentage == -1)
+    private var isQuotaUnavailable: Bool {
+        guard let data = account.quotaData else { return false }
+        return data.models.allSatisfy { $0.percentage < 0 }
+    }
+
     @ViewBuilder
     private var usageSection: some View {
         if let data = account.quotaData {
@@ -587,9 +634,9 @@ private struct AccountQuotaCardV2: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundStyle(.secondary)
-                    
+
                     Spacer()
-                    
+
                     // Details button for Antigravity (shows all models)
                     if provider == .antigravity && data.models.count > 4 {
                         Button {
@@ -606,12 +653,23 @@ private struct AccountQuotaCardV2: View {
                         .buttonStyle(.plain)
                     }
                 }
-                
+
                 Divider()
-                
+
                 VStack(spacing: 14) {
+                    // Check if quota is unavailable (e.g., Gemini CLI has no public quota API)
+                    if isQuotaUnavailable {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundStyle(.secondary)
+                            Text("quota.notAvailable".localized())
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 8)
+                    }
                     // Antigravity uses 4-group display (non-expandable)
-                    if provider == .antigravity && !antigravityDisplayGroups.isEmpty {
+                    else if provider == .antigravity && !antigravityDisplayGroups.isEmpty {
                         ForEach(antigravityDisplayGroups) { group in
                             AntigravityGroupRow(group: group)
                         }

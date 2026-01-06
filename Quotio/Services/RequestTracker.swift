@@ -146,16 +146,21 @@ final class RequestTracker {
             NSLog("[RequestTracker] No history file found, starting fresh")
             return
         }
-        
+
         do {
             let data = try Data(contentsOf: storageURL)
-            store = try JSONDecoder().decode(RequestHistoryStore.self, from: data)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601  // Match the encoding strategy
+            store = try decoder.decode(RequestHistoryStore.self, from: data)
             requestHistory = store.entries
             stats = store.calculateStats()
             NSLog("[RequestTracker] Loaded \(store.entries.count) entries from disk")
         } catch {
             NSLog("[RequestTracker] Failed to load history: \(error)")
             lastError = error.localizedDescription
+            // If decoding fails due to format mismatch, clear the corrupt file
+            try? FileManager.default.removeItem(at: storageURL)
+            NSLog("[RequestTracker] Removed corrupt history file, starting fresh")
         }
     }
     

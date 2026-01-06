@@ -46,7 +46,7 @@ struct AgentConfigSheet: View {
             
             footerView
         }
-        .frame(width: 720, height: 800)
+        .frame(width: 720, height: 600)
         .onAppear {
             viewModel.resetSheetState()
             if isManualMode {
