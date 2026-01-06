@@ -12,6 +12,13 @@ struct FallbackScreen: View {
     @State private var editingVirtualModel: VirtualModel?
     @State private var showAddEntrySheet = false
     @State private var addingEntryToModelId: UUID?
+    @State private var proxyModels: [AvailableModel] = []
+    @State private var isFetchingModels = false
+
+    /// Providers that have configured accounts
+    private var configuredProviders: [AIProvider] {
+        Array(viewModel.providerQuotas.keys)
+    }
 
     var body: some View {
         List {
@@ -51,7 +58,8 @@ struct FallbackScreen: View {
             AddFallbackEntrySheet(
                 virtualModelId: modelId,
                 existingEntries: fallbackSettings.virtualModels.first(where: { $0.id == modelId })?.fallbackEntries ?? [],
-                providerQuotas: viewModel.providerQuotas,
+                configuredProviders: configuredProviders,
+                proxyModels: proxyModels,
                 onAdd: { provider, modelName in
                     fallbackSettings.addFallbackEntry(to: modelId, provider: provider, modelName: modelName)
                 },
@@ -59,6 +67,41 @@ struct FallbackScreen: View {
                     addingEntryToModelId = nil
                 }
             )
+        }
+        .task {
+            await fetchProxyModels()
+        }
+    }
+
+    // MARK: - Fetch Proxy Models
+
+    private func fetchProxyModels() async {
+        guard proxyModels.isEmpty else { return }
+        isFetchingModels = true
+        defer { isFetchingModels = false }
+
+        // Use the AgentSetupViewModel's available models if already loaded
+        let agentVM = viewModel.agentSetupViewModel
+        if !agentVM.availableModels.isEmpty {
+            proxyModels = agentVM.availableModels
+            return
+        }
+
+        // Otherwise fetch from proxy
+        guard viewModel.proxyManager.proxyStatus.running else { return }
+
+        let config = AgentConfiguration(
+            agent: .claudeCode,
+            proxyURL: viewModel.proxyManager.baseURL + "/v1",
+            apiKey: viewModel.proxyManager.managementKey
+        )
+
+        do {
+            let service = AgentConfigurationService()
+            let models = try await service.fetchAvailableModels(config: config)
+            proxyModels = models
+        } catch {
+            // Silently fail - user can still manually enter model IDs
         }
     }
 

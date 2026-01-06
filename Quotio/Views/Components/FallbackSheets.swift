@@ -98,7 +98,8 @@ struct VirtualModelSheet: View {
 struct AddFallbackEntrySheet: View {
     let virtualModelId: UUID
     let existingEntries: [FallbackEntry]
-    let providerQuotas: [AIProvider: [String: ProviderQuotaData]]
+    let configuredProviders: [AIProvider]
+    let proxyModels: [AvailableModel]
     let onAdd: (AIProvider, String) -> Void
     let onDismiss: () -> Void
 
@@ -106,27 +107,28 @@ struct AddFallbackEntrySheet: View {
     @State private var modelName: String = ""
     @State private var showValidationError = false
 
-    /// Providers that support fallback (exclude quota-tracking-only providers)
+    /// Providers that have configured accounts (from providerQuotas keys)
     private var availableProviders: [AIProvider] {
-        AIProvider.allCases.filter { !$0.isQuotaTrackingOnly }
+        configuredProviders
+            .filter { !$0.isQuotaTrackingOnly }
             .sorted { $0.displayName < $1.displayName }
     }
 
-    /// Models available for the selected provider
+    /// Models available for the selected provider from proxy
     private var availableModels: [String] {
-        guard let provider = selectedProvider,
-              let quotas = providerQuotas[provider] else {
-            return []
-        }
+        guard let provider = selectedProvider else { return [] }
 
-        // Collect all unique model IDs from quota data
-        var models = Set<String>()
-        for (_, quotaData) in quotas {
-            for model in quotaData.models {
-                models.insert(model.name)
+        // Filter models by provider name (case-insensitive match)
+        let providerName = provider.rawValue.lowercased()
+        return proxyModels
+            .filter { model in
+                // Match by provider field or by model ID prefix
+                model.provider.lowercased() == providerName ||
+                model.provider.lowercased().contains(providerName) ||
+                model.id.lowercased().contains(providerName)
             }
-        }
-        return models.sorted()
+            .map { $0.id }
+            .sorted()
     }
 
     private var isValidEntry: Bool {
