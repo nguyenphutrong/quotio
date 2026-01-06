@@ -33,9 +33,6 @@ final class AgentSetupViewModel {
     var configStorageOption: ConfigStorageOption = .jsonOnly
     var selectedRawConfigIndex: Int = 0
 
-    /// Resolved fallback info for display (shows which provider/model was selected)
-    var resolvedFallbackInfo: [ModelSlot: FallbackResolution] = [:]
-
     weak var proxyManager: CLIProxyManager?
 
     /// Reference to QuotaViewModel for quota checking
@@ -355,9 +352,8 @@ final class AgentSetupViewModel {
 
     /// Resolve a virtual model to a real provider + model combination
     /// Returns nil if the model is not a virtual model or no fallback is available
-    func resolveVirtualModel(_ modelName: String) -> FallbackResolution? {
-        return fallbackSettings.resolveModel(modelName: modelName) { [weak self] provider, modelId in
-            self?.checkProviderQuota(provider: provider, modelId: modelId) ?? true
-        }
+    /// Note: Actual fallback resolution happens at request time in ProxyBridge
+    func isVirtualModel(_ modelName: String) -> Bool {
+        return fallbackSettings.isVirtualModel(modelName)
     }
 }

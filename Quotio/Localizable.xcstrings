@@ -4821,6 +4821,40 @@
         }
       }
     },
+    "fallback.bridgeModeRequired" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bridge Mode Required"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要启用 Bridge Mode"
+          }
+        }
+      }
+    },
+    "fallback.bridgeModeRequiredDesc" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fallback requires Bridge Mode to be enabled. Go to Settings → Proxy to enable it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回退功能需要启用 Bridge Mode。请前往 设置 → 代理 启用。"
+          }
+        }
+      }
+    },
     "fallback.createFirst" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5225,6 +5259,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "创建虚拟模型以启用提供商之间的自动回退。"
+          }
+        }
+      }
+    },
+    "fallback.reconfigureMessage" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The API endpoint has changed. Please reconfigure your CLI agents (Claude Code, etc.) to use the new endpoint."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 端点已更改。请重新配置您的 CLI 代理（Claude Code 等）以使用新端点。"
+          }
+        }
+      }
+    },
+    "fallback.reconfigureRequired" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconfigure Agent Required"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要重新配置 Agent"
           }
         }
       }

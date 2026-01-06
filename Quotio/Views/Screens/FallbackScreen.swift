@@ -12,6 +12,13 @@ struct FallbackScreen: View {
     @State private var editingVirtualModel: VirtualModel?
     @State private var showAddEntrySheet = false
     @State private var addingEntryToModelId: UUID?
+    @State private var showReconfigureAlert = false
+    @State private var previousFallbackEnabled: Bool?
+
+    /// Check if Bridge Mode is enabled
+    private var isBridgeModeEnabled: Bool {
+        viewModel.proxyManager.useBridgeMode
+    }
 
     /// Get available models from AgentSetupViewModel
     private var availableModels: [AvailableModel] {
@@ -68,6 +75,12 @@ struct FallbackScreen: View {
         .task {
             await loadModelsIfNeeded()
         }
+        // Fix 3: Alert when Fallback toggle changes
+        .alert("fallback.reconfigureRequired".localized(), isPresented: $showReconfigureAlert) {
+            Button("action.ok".localized(), role: .cancel) {}
+        } message: {
+            Text("fallback.reconfigureMessage".localized())
+        }
     }
 
     // MARK: - Load Models
@@ -106,7 +119,17 @@ struct FallbackScreen: View {
     @ViewBuilder
     private var globalSettingsSection: some View {
         Section {
-            Toggle(isOn: Bindable(fallbackSettings).configuration.isEnabled) {
+            Toggle(isOn: Binding(
+                get: { fallbackSettings.configuration.isEnabled },
+                set: { newValue in
+                    let oldValue = fallbackSettings.configuration.isEnabled
+                    fallbackSettings.configuration.isEnabled = newValue
+                    // Show reconfigure alert when toggle changes
+                    if oldValue != newValue {
+                        showReconfigureAlert = true
+                    }
+                }
+            )) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("fallback.enableFallback".localized())
                         .fontWeight(.medium)
@@ -116,6 +139,23 @@ struct FallbackScreen: View {
                 }
             }
             .toggleStyle(.switch)
+
+            // Fix 2: Bridge Mode warning
+            if !isBridgeModeEnabled {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("fallback.bridgeModeRequired".localized())
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text("fallback.bridgeModeRequiredDesc".localized())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
         } header: {
             Label("fallback.settings".localized(), systemImage: "gearshape")
         }

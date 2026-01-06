@@ -113,33 +113,3 @@ struct FallbackConfiguration: Codable, Sendable {
         virtualModels.filter(\.isEnabled).map(\.name)
     }
 }
-
-// MARK: - Fallback Resolution Result
-
-/// Result of resolving a fallback chain
-struct FallbackResolution: Sendable {
-    let provider: AIProvider
-    let modelId: String
-    let virtualModelName: String
-    let fallbackIndex: Int  // 0 = primary, 1+ = fallback
-
-    var isUsingFallback: Bool {
-        fallbackIndex > 0
-    }
-}
-
-// MARK: - Provider Model Availability
-
-/// Represents the availability of a model for a specific provider
-struct ProviderModelAvailability: Sendable {
-    let provider: AIProvider
-    let modelId: String
-    let isAvailable: Bool
-    let quotaRemaining: Double?  // Percentage remaining, nil if unknown
-
-    /// Check if quota is sufficient (> 0%)
-    var hasQuota: Bool {
-        guard let quota = quotaRemaining else { return true }  // Assume available if unknown
-        return quota > 0
-    }
-}

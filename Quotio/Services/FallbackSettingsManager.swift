@@ -109,61 +109,6 @@ final class FallbackSettingsManager {
         configuration.virtualModels[index].moveEntry(from: source, to: destination)
     }
 
-    // MARK: - Fallback Resolution
-
-    /// Resolve a model name to the best available provider + model combination
-    /// - Parameters:
-    ///   - modelName: The requested model name (could be a virtual model name)
-    ///   - quotaChecker: A closure that checks if a provider has available quota for a model
-    /// - Returns: The resolved provider and model, or nil if no fallback is available
-    func resolveModel(
-        modelName: String,
-        quotaChecker: (AIProvider, String) -> Bool
-    ) -> FallbackResolution? {
-        // If fallback is disabled, return nil (use original model)
-        guard isEnabled else { return nil }
-
-        // Find matching virtual model
-        guard let virtualModel = findVirtualModel(name: modelName) else { return nil }
-
-        // Try each fallback entry in priority order
-        for (index, entry) in virtualModel.sortedEntries.enumerated() {
-            if quotaChecker(entry.provider, entry.modelId) {
-                return FallbackResolution(
-                    provider: entry.provider,
-                    modelId: entry.modelId,
-                    virtualModelName: modelName,
-                    fallbackIndex: index
-                )
-            }
-        }
-
-        // No available fallback found
-        return nil
-    }
-
-    /// Resolve model with async quota checker
-    func resolveModel(
-        modelName: String,
-        quotaChecker: (AIProvider, String) async -> Bool
-    ) async -> FallbackResolution? {
-        guard isEnabled else { return nil }
-        guard let virtualModel = findVirtualModel(name: modelName) else { return nil }
-
-        for (index, entry) in virtualModel.sortedEntries.enumerated() {
-            if await quotaChecker(entry.provider, entry.modelId) {
-                return FallbackResolution(
-                    provider: entry.provider,
-                    modelId: entry.modelId,
-                    virtualModelName: modelName,
-                    fallbackIndex: index
-                )
-            }
-        }
-
-        return nil
-    }
-
     // MARK: - Persistence
 
     private func persist() {
@@ -206,20 +151,5 @@ extension FallbackSettingsManager {
     /// Check if a model name is a virtual model
     func isVirtualModel(_ name: String) -> Bool {
         configuration.virtualModels.contains { $0.name == name && $0.isEnabled }
-    }
-
-    /// Get providers that support a specific model family
-    static func providersForModelFamily(_ family: String) -> [AIProvider] {
-        // This maps model families to providers that support them
-        switch family.lowercased() {
-        case "claude", "anthropic":
-            return [.antigravity, .claude, .kiro]
-        case "gpt", "openai":
-            return [.kiro, .codex, .copilot]
-        case "gemini", "google":
-            return [.antigravity, .gemini]
-        default:
-            return AIProvider.allCases.filter { !$0.isQuotaTrackingOnly }
-        }
     }
 }
