@@ -89,12 +89,12 @@ actor KiroQuotaFetcher {
                     guard let tokenData = await authService.readAuthToken(from: authFile) else {
                         return ("", nil)
                     }
-                    
+
                     // Use filename as key to match Proxy's behavior (ignoring email inside JSON for key purposes)
                     // This prevents duplicate accounts in the UI
                     let key = authFile.filename.replacingOccurrences(of: ".json", with: "")
-                    
-                    let quota = await self.fetchQuota(tokenData: tokenData)
+
+                    let quota = await self.fetchQuota(tokenData: tokenData, filePath: authFile.filePath)
                     return (key, quota)
                 }
             }
@@ -128,12 +128,12 @@ actor KiroQuotaFetcher {
     }
     
     /// Fetch quota for a single token
-    private func fetchQuota(tokenData: AuthTokenData) async -> ProviderQuotaData? {
+    private func fetchQuota(tokenData: AuthTokenData, filePath: String) async -> ProviderQuotaData? {
         var currentToken = tokenData.accessToken
-        
+
         // 1. Check if token needs refresh
         if isTokenExpired(tokenData) {
-            if let refreshed = await refreshToken(tokenData: tokenData) {
+            if let refreshed = await refreshToken(tokenData: tokenData, filePath: filePath) {
                 currentToken = refreshed
             } else {
                  return ProviderQuotaData(
@@ -214,46 +214,91 @@ actor KiroQuotaFetcher {
         }
     }
     
-    /// Refresh Kiro token using AWS OIDC
-    private func refreshToken(tokenData: AuthTokenData) async -> String? {
+    /// Refresh Kiro token using AWS OIDC and persist to disk
+    private func refreshToken(tokenData: AuthTokenData, filePath: String) async -> String? {
         guard let refreshToken = tokenData.refreshToken,
               let clientId = tokenData.clientId,
               let clientSecret = tokenData.clientSecret,
               let url = URL(string: tokenEndpoint) else {
             return nil
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        
+
         // Basic Auth with Client ID & Secret
         let authString = "\(clientId):\(clientSecret)"
         guard let authData = authString.data(using: .utf8) else { return nil }
         let base64Auth = authData.base64EncodedString()
         request.addValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")
-        
+
         let bodyComponents = [
             "grant_type": "refresh_token",
             "refresh_token": refreshToken,
             "client_id": clientId
         ]
-        
+
         let bodyString = bodyComponents.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
         request.httpBody = bodyString.data(using: .utf8)
-        
+
         do {
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 return nil
             }
-            
+
             let tokenResponse = try JSONDecoder().decode(KiroTokenResponse.self, from: data)
-            // Note: In a full implementation we would write this back to disk. 
-            // For now, we use it in-memory for this session.
+
+            // Persist refreshed token to disk for CLIProxyAPI to use
+            await persistRefreshedToken(
+                filePath: filePath,
+                newAccessToken: tokenResponse.accessToken,
+                newRefreshToken: tokenResponse.refreshToken,
+                expiresIn: tokenResponse.expiresIn
+            )
+
             return tokenResponse.accessToken
         } catch {
             return nil
+        }
+    }
+
+    /// Persist refreshed token back to the auth file on disk
+    private func persistRefreshedToken(
+        filePath: String,
+        newAccessToken: String,
+        newRefreshToken: String?,
+        expiresIn: Int
+    ) async {
+        // Read existing file to preserve other fields
+        guard let existingData = fileManager.contents(atPath: filePath),
+              var json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
+            return
+        }
+
+        // Update token fields
+        json["access_token"] = newAccessToken
+        if let newRefresh = newRefreshToken {
+            json["refresh_token"] = newRefresh
+        }
+
+        // Calculate new expiry time
+        let newExpiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        formatter.timeZone = TimeZone.current
+        json["expires_at"] = formatter.string(from: newExpiresAt)
+
+        // Update last_refresh timestamp
+        json["last_refresh"] = formatter.string(from: Date())
+
+        // Write back to disk
+        do {
+            let updatedData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+            try updatedData.write(to: URL(fileURLWithPath: filePath), options: .atomic)
+        } catch {
+            // Silent failure - token refresh still succeeded in memory
         }
     }
     
