@@ -10,7 +10,7 @@
 | ---- | ----- | ----- |
 | `Quotio/Views/Screens/APIKeysScreen.swift` | 260 |  |
 | `Quotio/Views/Screens/AgentSetupScreen.swift` | 200 |  |
-| `Quotio/Views/Screens/DashboardScreen.swift` | 747 | 📊 |
+| `Quotio/Views/Screens/DashboardScreen.swift` | 753 | 📊 |
 | `Quotio/Views/Screens/LogsScreen.swift` | 423 |  |
 | `Quotio/Views/Screens/ProvidersScreen.swift` | 799 | 📊 |
 | `Quotio/Views/Screens/QuotaScreen.swift` | 1246 | 📊 |

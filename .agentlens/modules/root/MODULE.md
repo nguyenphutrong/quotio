@@ -30,7 +30,7 @@
 | `Quotio/Services/StatusBarMenuBuilder.swift` | 883 | 📊 |
 | `Quotio/Services/UpdaterService.swift` | 168 |  |
 | `Quotio/Services/WarmupService.swift` | 183 |  |
-| `Quotio/ViewModels/AgentSetupViewModel.swift` | 296 |  |
+| `Quotio/ViewModels/AgentSetupViewModel.swift` | 300 |  |
 | `Quotio/ViewModels/LogsViewModel.swift` | 82 |  |
 | `Quotio/ViewModels/QuotaViewModel.swift` | 1657 | 📊 |
 | `Quotio/Views/Onboarding/ModePickerView.swift` | 183 |  |

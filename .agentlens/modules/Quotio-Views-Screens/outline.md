@@ -4,7 +4,7 @@
 
 Symbol maps for 4 large files in this module.
 
-## Quotio/Views/Screens/DashboardScreen.swift (747 lines)
+## Quotio/Views/Screens/DashboardScreen.swift (753 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -12,13 +12,13 @@ Symbol maps for 4 large files in this module.
 | 399 | fn | handleStepAction | (private) |
 | 410 | fn | showProviderPicker | (private) |
 | 434 | fn | showAgentPicker | (private) |
-| 541 | struct | GettingStartedStep | (internal) |
-| 550 | struct | GettingStartedStepRow | (internal) |
-| 605 | struct | KPICard | (internal) |
-| 633 | struct | ProviderChip | (internal) |
-| 657 | struct | FlowLayout | (internal) |
-| 671 | fn | layout | (private) |
-| 699 | struct | QuotaProviderRow | (internal) |
+| 547 | struct | GettingStartedStep | (internal) |
+| 556 | struct | GettingStartedStepRow | (internal) |
+| 611 | struct | KPICard | (internal) |
+| 639 | struct | ProviderChip | (internal) |
+| 663 | struct | FlowLayout | (internal) |
+| 677 | fn | layout | (private) |
+| 705 | struct | QuotaProviderRow | (internal) |
 
 ## Quotio/Views/Screens/ProvidersScreen.swift (799 lines)
 
