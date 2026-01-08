@@ -675,16 +675,10 @@ struct DashboardScreen: View {
     
     // MARK: - Endpoint Section
 
-    /// Compute the display endpoint based on Fallback status
+    /// The display endpoint for clients to connect to
     private var displayEndpoint: String {
-        let fallbackEnabled = FallbackSettingsManager.shared.isEnabled
-        if fallbackEnabled {
-            // When Fallback is enabled, use ProxyBridge endpoint (user port)
-            return viewModel.proxyManager.clientEndpoint + "/v1"
-        } else {
-            // When Fallback is disabled, use CLIProxyAPI endpoint directly (internal port in bridge mode)
-            return viewModel.proxyManager.baseURL + "/v1"
-        }
+        // Always use client endpoint - all traffic should go through Quotio's proxy
+        return viewModel.proxyManager.clientEndpoint + "/v1"
     }
 
     private var endpointSection: some View {

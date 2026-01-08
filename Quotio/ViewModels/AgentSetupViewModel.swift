@@ -73,9 +73,8 @@ final class AgentSetupViewModel {
 
         selectedAgent = agent
 
-        // Use ProxyBridge endpoint when Fallback is enabled, otherwise use direct CLIProxyAPI endpoint
-        let fallbackEnabled = FallbackSettingsManager.shared.isEnabled
-        let endpoint = fallbackEnabled ? proxyManager.clientEndpoint : proxyManager.baseURL
+        // Always use client endpoint - all traffic should go through Quotio's proxy
+        let endpoint = proxyManager.clientEndpoint
 
         currentConfiguration = AgentConfiguration(
             agent: agent,
