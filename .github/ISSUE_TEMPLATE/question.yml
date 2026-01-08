@@ -1,0 +1,66 @@
+name: "\u2753 Question"
+description: Ask a question about Quotio usage or configuration
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question? We're here to help!
+        
+        Before asking, please check:
+        - [README](https://github.com/nguyenphutrong/quotio#readme)
+        - [Discussions](https://github.com/nguyenphutrong/quotio/discussions)
+        - [Existing issues](https://github.com/nguyenphutrong/quotio/issues)
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: Ask your question here...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic
+      description: What area is your question about?
+      options:
+        - Installation / Setup
+        - OAuth / Authentication
+        - Agent Configuration (Claude Code, Codex, etc.)
+        - Quota Tracking
+        - Proxy Server (CLIProxyAPI)
+        - Custom Providers
+        - Model Routing
+        - Settings / Configuration
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: What steps have you already taken to find an answer?
+      placeholder: "I've tried..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any screenshots, logs, or other information that might help.
+      placeholder: Add any relevant context...
+    validations:
+      required: false
+
+  - type: input
+    id: quotio_version
+    attributes:
+      label: Quotio Version (optional)
+      placeholder: "e.g., 0.6.0"
+    validations:
+      required: false

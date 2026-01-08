@@ -577,17 +577,17 @@ actor AgentConfigurationService {
         guard let url = URL(string: "\(config.proxyURL)/models") else {
             throw URLError(.badURL)
         }
-        
+
         var request = URLRequest(url: url)
         request.addValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 10
-        
+
         let (data, response) = try await URLSession.shared.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
-        
+
         // Parse struct matching OpenAI /v1/models response
         struct ModelsResponse: Decodable {
             struct ModelItem: Decodable {
@@ -596,14 +596,31 @@ actor AgentConfigurationService {
             }
             let data: [ModelItem]
         }
-        
+
         let decoded = try JSONDecoder().decode(ModelsResponse.self, from: data)
-        
-        return decoded.data.map { item in
-            AvailableModel(
+
+        // Fetch available Copilot models to filter out unavailable ones
+        let copilotFetcher = CopilotQuotaFetcher()
+        let availableCopilotModelIds = await copilotFetcher.fetchUserAvailableModelIds()
+
+        return decoded.data.compactMap { item in
+            let provider = item.owned_by ?? "openai"
+
+            // Filter GitHub Copilot models - only include those actually available to the user
+            if provider == "github-copilot" {
+                // If we have Copilot accounts, filter by available models
+                if !availableCopilotModelIds.isEmpty {
+                    guard availableCopilotModelIds.contains(item.id) else {
+                        return nil
+                    }
+                }
+                // If no Copilot accounts, still show the model (user might add account later)
+            }
+
+            return AvailableModel(
                 id: item.id,
                 name: item.id,
-                provider: item.owned_by ?? "openai",
+                provider: provider,
                 isDefault: false
             )
         }
