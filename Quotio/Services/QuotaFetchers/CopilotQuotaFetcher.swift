@@ -44,6 +44,18 @@ nonisolated struct CopilotQuotaSnapshots: Codable, Sendable {
     }
 }
 
+/// Quota structure for limited users (free/individual plans)
+nonisolated struct CopilotLimitedUserQuotas: Codable, Sendable {
+    let chat: Int?
+    let completions: Int?
+}
+
+/// Monthly quota limits
+nonisolated struct CopilotMonthlyQuotas: Codable, Sendable {
+    let chat: Int?
+    let completions: Int?
+}
+
 nonisolated struct CopilotEntitlement: Codable, Sendable {
     let accessTypeSku: String?
     let copilotPlan: String?
@@ -54,7 +66,10 @@ nonisolated struct CopilotEntitlement: Codable, Sendable {
     let quotaResetDateUtc: String?
     let limitedUserResetDate: String?
     let quotaSnapshots: CopilotQuotaSnapshots?
-    
+    // New fields for limited/individual users
+    let limitedUserQuotas: CopilotLimitedUserQuotas?
+    let monthlyQuotas: CopilotMonthlyQuotas?
+
     enum CodingKeys: String, CodingKey {
         case accessTypeSku = "access_type_sku"
         case copilotPlan = "copilot_plan"
@@ -65,28 +80,36 @@ nonisolated struct CopilotEntitlement: Codable, Sendable {
         case quotaResetDateUtc = "quota_reset_date_utc"
         case limitedUserResetDate = "limited_user_reset_date"
         case quotaSnapshots = "quota_snapshots"
+        case limitedUserQuotas = "limited_user_quotas"
+        case monthlyQuotas = "monthly_quotas"
     }
     
     nonisolated var planDisplayName: String {
         let sku = accessTypeSku?.lowercased() ?? ""
         let plan = copilotPlan?.lowercased() ?? ""
-        
-        if sku.contains("pro") || plan.contains("pro") {
-            return "Pro"
-        }
-        if plan == "individual" || sku.contains("individual") {
-            return "Pro"
-        }
-        if sku.contains("business") || plan == "business" {
-            return "Business"
+
+        // Check free first - sku takes priority as it's more specific
+        if sku.contains("free") {
+            return "Free"
         }
         if sku.contains("enterprise") || plan == "enterprise" {
             return "Enterprise"
         }
-        if sku.contains("free") || plan.contains("free") {
+        if sku.contains("business") || plan == "business" {
+            return "Business"
+        }
+        if sku.contains("pro") || plan.contains("pro") {
+            return "Pro"
+        }
+        // individual without free sku means paid Pro
+        if plan == "individual" || sku.contains("individual") {
+            return "Pro"
+        }
+        // Fallback for other free plans
+        if plan.contains("free") {
             return "Free"
         }
-        
+
         return copilotPlan?.capitalized ?? accessTypeSku?.capitalized ?? "Unknown"
     }
     
@@ -260,7 +283,8 @@ actor CopilotQuotaFetcher {
     private func convertToQuotaData(entitlement: CopilotEntitlement) -> ProviderQuotaData {
         var models: [ModelQuota] = []
         let resetTimeString = entitlement.resetDate?.ISO8601Format() ?? ""
-        
+
+        // Method 1: Parse quota_snapshots (used by some plans)
         if let snapshots = entitlement.quotaSnapshots {
             if let chat = snapshots.chat, chat.unlimited != true {
                 models.append(ModelQuota(
@@ -269,7 +293,7 @@ actor CopilotQuotaFetcher {
                     resetTime: resetTimeString
                 ))
             }
-            
+
             if let completions = snapshots.completions, completions.unlimited != true {
                 models.append(ModelQuota(
                     name: "copilot-completions",
@@ -277,7 +301,7 @@ actor CopilotQuotaFetcher {
                     resetTime: resetTimeString
                 ))
             }
-            
+
             if let premium = snapshots.premiumInteractions, premium.unlimited != true {
                 models.append(ModelQuota(
                     name: "copilot-premium",
@@ -286,15 +310,32 @@ actor CopilotQuotaFetcher {
                 ))
             }
         }
-        
-        if models.isEmpty {
-            let isFree = entitlement.accessTypeSku == "free_limited_copilot"
-            if isFree {
-                models.append(ModelQuota(name: "copilot-chat", percentage: 100.0, resetTime: resetTimeString))
-                models.append(ModelQuota(name: "copilot-completions", percentage: 100.0, resetTime: resetTimeString))
+
+        // Method 2: Parse limited_user_quotas + monthly_quotas (used by free/individual plans)
+        if models.isEmpty,
+           let remaining = entitlement.limitedUserQuotas,
+           let total = entitlement.monthlyQuotas {
+            // Chat quota
+            if let chatRemaining = remaining.chat, let chatTotal = total.chat, chatTotal > 0 {
+                let percentage = (Double(chatRemaining) / Double(chatTotal)) * 100.0
+                models.append(ModelQuota(
+                    name: "copilot-chat",
+                    percentage: percentage,
+                    resetTime: resetTimeString
+                ))
+            }
+
+            // Completions quota
+            if let compRemaining = remaining.completions, let compTotal = total.completions, compTotal > 0 {
+                let percentage = (Double(compRemaining) / Double(compTotal)) * 100.0
+                models.append(ModelQuota(
+                    name: "copilot-completions",
+                    percentage: percentage,
+                    resetTime: resetTimeString
+                ))
             }
         }
-        
+
         return ProviderQuotaData(
             models: models,
             lastUpdated: Date(),
