@@ -13,6 +13,7 @@ struct FallbackScreen: View {
     @State private var showAddEntrySheet = false
     @State private var addingEntryToModelId: UUID?
     @State private var showReconfigureAlert = false
+    @State private var showDuplicateNameAlert = false
     @State private var previousFallbackEnabled: Bool?
 
     /// Check if Bridge Mode is enabled
@@ -30,7 +31,12 @@ struct FallbackScreen: View {
             // Section 1: Global Settings
             globalSettingsSection
 
-            // Section 2: Virtual Models
+            // Section 2: Active Route Status (only show when there are active routes)
+            if fallbackSettings.isEnabled && !fallbackSettings.activeRouteStates.isEmpty {
+                activeRouteStatusSection
+            }
+
+            // Section 3: Virtual Models
             virtualModelsSection
         }
         .navigationTitle("fallback.title".localized())
@@ -41,7 +47,9 @@ struct FallbackScreen: View {
             VirtualModelSheet(
                 virtualModel: nil,
                 onSave: { name in
-                    _ = fallbackSettings.addVirtualModel(name: name)
+                    if fallbackSettings.addVirtualModel(name: name) == nil {
+                        showDuplicateNameAlert = true
+                    }
                 },
                 onDismiss: {
                     showAddVirtualModelSheet = false
@@ -52,7 +60,9 @@ struct FallbackScreen: View {
             VirtualModelSheet(
                 virtualModel: model,
                 onSave: { name in
-                    fallbackSettings.renameVirtualModel(id: model.id, newName: name)
+                    if !fallbackSettings.renameVirtualModel(id: model.id, newName: name) {
+                        showDuplicateNameAlert = true
+                    }
                 },
                 onDismiss: {
                     editingVirtualModel = nil
@@ -75,11 +85,17 @@ struct FallbackScreen: View {
         .task {
             await loadModelsIfNeeded()
         }
-        // Fix 3: Alert when Fallback toggle changes
+        // Alert when Fallback toggle changes
         .alert("fallback.reconfigureRequired".localized(), isPresented: $showReconfigureAlert) {
             Button("action.ok".localized(), role: .cancel) {}
         } message: {
             Text("fallback.reconfigureMessage".localized())
+        }
+        // Alert when duplicate virtual model name
+        .alert("fallback.duplicateName".localized(), isPresented: $showDuplicateNameAlert) {
+            Button("action.ok".localized(), role: .cancel) {}
+        } message: {
+            Text("fallback.duplicateNameMessage".localized())
         }
     }
 
@@ -122,6 +138,9 @@ struct FallbackScreen: View {
             Toggle(isOn: Binding(
                 get: { fallbackSettings.configuration.isEnabled },
                 set: { newValue in
+                    // Only allow enabling if Bridge Mode is enabled
+                    guard isBridgeModeEnabled || !newValue else { return }
+
                     let oldValue = fallbackSettings.configuration.isEnabled
                     fallbackSettings.configuration.isEnabled = newValue
                     // Show reconfigure alert when toggle changes
@@ -139,8 +158,9 @@ struct FallbackScreen: View {
                 }
             }
             .toggleStyle(.switch)
+            .disabled(!isBridgeModeEnabled)
 
-            // Fix 2: Bridge Mode warning
+            // Bridge Mode warning - show when Bridge Mode is disabled
             if !isBridgeModeEnabled {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -158,6 +178,74 @@ struct FallbackScreen: View {
             }
         } header: {
             Label("fallback.settings".localized(), systemImage: "gearshape")
+        }
+    }
+
+    // MARK: - Active Route Status Section
+
+    @ViewBuilder
+    private var activeRouteStatusSection: some View {
+        Section {
+            ForEach(fallbackSettings.activeRouteStates, id: \.virtualModelName) { state in
+                HStack(spacing: 12) {
+                    // Provider icon
+                    ProviderIcon(provider: state.currentEntry.provider, size: 20)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        // Virtual model name
+                        Text(state.virtualModelName)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+
+                        // Current route
+                        HStack(spacing: 4) {
+                            Text(state.displayString)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Text("(\(state.progressString))")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+
+                    Spacer()
+
+                    // Status indicator
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(.orange)
+                            .frame(width: 6, height: 6)
+                        Text("fallback.routeActive".localized())
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            // Clear all button
+            Button(role: .destructive) {
+                fallbackSettings.clearAllRouteStates()
+            } label: {
+                Label("fallback.clearRouteStates".localized(), systemImage: "arrow.counterclockwise")
+                    .font(.subheadline)
+            }
+        } header: {
+            HStack {
+                Label("fallback.activeRoutes".localized(), systemImage: "arrow.triangle.swap")
+                Spacer()
+                Text("\(fallbackSettings.activeRouteStates.count)")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.2))
+                    .clipShape(Capsule())
+            }
+        } footer: {
+            Text("fallback.activeRoutesFooter".localized())
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 

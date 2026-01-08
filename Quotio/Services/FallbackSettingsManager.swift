@@ -6,6 +6,27 @@
 import Foundation
 import Observation
 
+// MARK: - Fallback Route State
+
+/// Represents the current routing state for a virtual model
+struct FallbackRouteState: Sendable, Equatable {
+    let virtualModelName: String
+    let currentEntryIndex: Int
+    let currentEntry: FallbackEntry
+    let lastUpdated: Date
+    let totalEntries: Int
+
+    /// Display string for the current route
+    var displayString: String {
+        "\(currentEntry.provider.displayName) → \(currentEntry.modelId)"
+    }
+
+    /// Progress string (e.g., "1/3")
+    var progressString: String {
+        "\(currentEntryIndex + 1)/\(totalEntries)"
+    }
+}
+
 @MainActor
 @Observable
 final class FallbackSettingsManager {
@@ -24,6 +45,19 @@ final class FallbackSettingsManager {
 
     /// Callback when configuration changes
     var onConfigurationChanged: ((FallbackConfiguration) -> Void)?
+
+    // MARK: - Route State Cache (Runtime only, not persisted)
+
+    /// Current route state for each virtual model (keyed by model name) - for UI display
+    private(set) var routeStates: [String: FallbackRouteState] = [:]
+
+    /// Callback when route state changes (for UI updates)
+    var onRouteStateChanged: (() -> Void)?
+
+    // Thread-safe cache for entry indices (accessed from ProxyBridge on background threads)
+    // Marked nonisolated(unsafe) because we handle thread safety manually with NSLock
+    nonisolated(unsafe) private var cachedEntryIndices: [String: Int] = [:]
+    nonisolated(unsafe) private let cacheLock = NSLock()
 
     private init() {
         if let data = defaults.data(forKey: configurationKey),
@@ -51,15 +85,28 @@ final class FallbackSettingsManager {
         configuration.virtualModels
     }
 
-    /// Add a new virtual model
-    func addVirtualModel(name: String) -> VirtualModel {
-        let model = VirtualModel(name: name)
+    /// Add a new virtual model (returns nil if name already exists)
+    func addVirtualModel(name: String) -> VirtualModel? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Check for duplicate name (case-insensitive)
+        guard !configuration.virtualModels.contains(where: {
+            $0.name.lowercased() == trimmedName.lowercased()
+        }) else {
+            return nil
+        }
+
+        let model = VirtualModel(name: trimmedName)
         configuration.virtualModels.append(model)
         return model
     }
 
     /// Remove a virtual model by ID
     func removeVirtualModel(id: UUID) {
+        // Clear cached route state before removing
+        if let model = configuration.virtualModels.first(where: { $0.id == id }) {
+            clearRouteState(for: model.name)
+        }
         configuration.virtualModels.removeAll { $0.id == id }
     }
 
@@ -82,11 +129,34 @@ final class FallbackSettingsManager {
         }
     }
 
-    /// Rename a virtual model
-    func renameVirtualModel(id: UUID, newName: String) {
-        if let index = configuration.virtualModels.firstIndex(where: { $0.id == id }) {
-            configuration.virtualModels[index].name = newName
+    /// Rename a virtual model (returns false if name already exists)
+    func renameVirtualModel(id: UUID, newName: String) -> Bool {
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Check for duplicate name (case-insensitive), excluding the current model
+        let isDuplicate = configuration.virtualModels.contains {
+            $0.id != id && $0.name.lowercased() == trimmedName.lowercased()
         }
+        guard !isDuplicate else { return false }
+
+        if let index = configuration.virtualModels.firstIndex(where: { $0.id == id }) {
+            let oldName = configuration.virtualModels[index].name
+            configuration.virtualModels[index].name = trimmedName
+
+            // Update cached route state key if exists
+            if let state = routeStates[oldName] {
+                routeStates.removeValue(forKey: oldName)
+                routeStates[trimmedName] = FallbackRouteState(
+                    virtualModelName: trimmedName,
+                    currentEntryIndex: state.currentEntryIndex,
+                    currentEntry: state.currentEntry,
+                    lastUpdated: state.lastUpdated,
+                    totalEntries: state.totalEntries
+                )
+                onRouteStateChanged?()
+            }
+        }
+        return true
     }
 
     // MARK: - Fallback Entry Management
@@ -100,13 +170,21 @@ final class FallbackSettingsManager {
     /// Remove a fallback entry from a virtual model
     func removeFallbackEntry(from modelId: UUID, entryId: UUID) {
         guard let index = configuration.virtualModels.firstIndex(where: { $0.id == modelId }) else { return }
+        let virtualModelName = configuration.virtualModels[index].name
         configuration.virtualModels[index].removeEntry(id: entryId)
+
+        // Clear cached route state when entries change (cached index may be invalid)
+        clearRouteState(for: virtualModelName)
     }
 
     /// Move fallback entry within a virtual model
     func moveFallbackEntry(in modelId: UUID, from source: IndexSet, to destination: Int) {
         guard let index = configuration.virtualModels.firstIndex(where: { $0.id == modelId }) else { return }
+        let virtualModelName = configuration.virtualModels[index].name
         configuration.virtualModels[index].moveEntry(from: source, to: destination)
+
+        // Clear cached route state when order changes (cached index may be invalid)
+        clearRouteState(for: virtualModelName)
     }
 
     // MARK: - Persistence
@@ -151,5 +229,78 @@ extension FallbackSettingsManager {
     /// Check if a model name is a virtual model
     func isVirtualModel(_ name: String) -> Bool {
         configuration.virtualModels.contains { $0.name == name && $0.isEnabled }
+    }
+}
+
+// MARK: - Route State Management
+
+extension FallbackSettingsManager {
+    /// Get the current cached entry index for a virtual model (thread-safe, for ProxyBridge)
+    nonisolated func getCachedEntryIndex(for virtualModelName: String) -> Int {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        return cachedEntryIndices[virtualModelName] ?? 0
+    }
+
+    /// Update cached entry index (thread-safe, called from ProxyBridge)
+    nonisolated func setCachedEntryIndex(for virtualModelName: String, index: Int) {
+        cacheLock.lock()
+        cachedEntryIndices[virtualModelName] = index
+        cacheLock.unlock()
+    }
+
+    /// Clear cached entry index (thread-safe)
+    nonisolated func clearCachedEntryIndex(for virtualModelName: String) {
+        cacheLock.lock()
+        cachedEntryIndices.removeValue(forKey: virtualModelName)
+        cacheLock.unlock()
+    }
+
+    /// Update route state when a fallback is triggered (called from ProxyBridge)
+    func updateRouteState(virtualModelName: String, entryIndex: Int, entry: FallbackEntry, totalEntries: Int) {
+        let state = FallbackRouteState(
+            virtualModelName: virtualModelName,
+            currentEntryIndex: entryIndex,
+            currentEntry: entry,
+            lastUpdated: Date(),
+            totalEntries: totalEntries
+        )
+        routeStates[virtualModelName] = state
+
+        // Also update thread-safe cache
+        cacheLock.lock()
+        cachedEntryIndices[virtualModelName] = entryIndex
+        cacheLock.unlock()
+
+        onRouteStateChanged?()
+    }
+
+    /// Clear route state for a virtual model (e.g., when quota resets or config changes)
+    func clearRouteState(for virtualModelName: String) {
+        routeStates.removeValue(forKey: virtualModelName)
+
+        // Also clear thread-safe cache
+        cacheLock.lock()
+        cachedEntryIndices.removeValue(forKey: virtualModelName)
+        cacheLock.unlock()
+
+        onRouteStateChanged?()
+    }
+
+    /// Clear all route states
+    func clearAllRouteStates() {
+        routeStates.removeAll()
+
+        // Also clear thread-safe cache
+        cacheLock.lock()
+        cachedEntryIndices.removeAll()
+        cacheLock.unlock()
+
+        onRouteStateChanged?()
+    }
+
+    /// Get all active route states for display
+    var activeRouteStates: [FallbackRouteState] {
+        Array(routeStates.values).sorted { $0.virtualModelName < $1.virtualModelName }
     }
 }

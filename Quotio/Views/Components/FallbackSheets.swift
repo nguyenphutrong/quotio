@@ -105,9 +105,13 @@ struct AddFallbackEntrySheet: View {
     @State private var selectedModelId: String = ""
     @State private var showValidationError = false
 
-    /// Filter out virtual models (provider == "fallback") to avoid circular reference
+    /// Filter out virtual models (provider == "fallback") and already added entries
     private var filteredModels: [AvailableModel] {
-        availableModels.filter { $0.provider.lowercased() != "fallback" }
+        let existingModelIds = Set(existingEntries.map { $0.modelId })
+        return availableModels.filter { model in
+            model.provider.lowercased() != "fallback" &&
+            !existingModelIds.contains(model.id)
+        }
     }
 
     /// Get the selected model object
