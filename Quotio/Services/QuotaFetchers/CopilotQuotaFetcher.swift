@@ -117,7 +117,7 @@ nonisolated struct CopilotAuthFile: Codable, Sendable {
     let scope: String?
     let username: String?
     let type: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case tokenType = "token_type"
@@ -127,10 +127,57 @@ nonisolated struct CopilotAuthFile: Codable, Sendable {
     }
 }
 
+// MARK: - Copilot API Token Response
+
+nonisolated struct CopilotAPITokenResponse: Codable, Sendable {
+    let token: String
+    let expiresAt: Int64?
+
+    enum CodingKeys: String, CodingKey {
+        case token
+        case expiresAt = "expires_at"
+    }
+}
+
+// MARK: - Copilot Model Info
+
+nonisolated struct CopilotModelInfo: Codable, Sendable {
+    let id: String
+    let name: String?
+    let modelPickerEnabled: Bool?
+    let modelPickerCategory: String?
+    let vendor: String?
+    let preview: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case modelPickerEnabled = "model_picker_enabled"
+        case modelPickerCategory = "model_picker_category"
+        case vendor
+        case preview
+    }
+
+    /// Whether this model is available for the user
+    var isAvailable: Bool {
+        modelPickerEnabled == true
+    }
+}
+
+nonisolated struct CopilotModelsResponse: Codable, Sendable {
+    let data: [CopilotModelInfo]
+}
+
 actor CopilotQuotaFetcher {
     private let entitlementURL = "https://api.github.com/copilot_internal/user"
+    private let tokenURL = "https://api.github.com/copilot_internal/v2/token"
+    private let modelsURL = "https://api.githubcopilot.com/models"
     private let session: URLSession
-    
+
+    // Cache for available models (per access token)
+    private var modelsCache: [String: (models: [CopilotModelInfo], expiry: Date)] = [:]
+    private let modelsCacheTTL: TimeInterval = 300 // 5 minutes
+
     init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
@@ -265,5 +312,121 @@ actor CopilotQuotaFetcher {
             name = String(name.dropLast(".json".count))
         }
         return name
+    }
+
+    // MARK: - Copilot Available Models
+
+    /// Fetch available models for a Copilot account
+    /// This calls the GitHub Copilot API to get the list of models the user can actually use
+    func fetchAvailableModels(authFilePath: String) async -> [CopilotModelInfo] {
+        guard let authFile = loadAuthFile(from: authFilePath) else {
+            return []
+        }
+
+        // Check cache first
+        if let cached = modelsCache[authFile.accessToken],
+           cached.expiry > Date() {
+            return cached.models
+        }
+
+        do {
+            // Step 1: Get Copilot API token from GitHub OAuth token
+            let apiToken = try await fetchCopilotAPIToken(accessToken: authFile.accessToken)
+
+            // Step 2: Fetch models from Copilot API
+            let models = try await fetchModelsFromCopilotAPI(apiToken: apiToken)
+
+            // Cache the result
+            modelsCache[authFile.accessToken] = (
+                models: models,
+                expiry: Date().addingTimeInterval(modelsCacheTTL)
+            )
+
+            return models
+        } catch {
+            print("CopilotQuotaFetcher fetchAvailableModels error: \(error)")
+            return []
+        }
+    }
+
+    /// Fetch available models for all Copilot accounts
+    func fetchAllAvailableModels(authDir: String = "~/.cli-proxy-api") async -> [CopilotModelInfo] {
+        let expandedPath = NSString(string: authDir).expandingTildeInPath
+        let fileManager = FileManager.default
+
+        guard let files = try? fileManager.contentsOfDirectory(atPath: expandedPath) else {
+            return []
+        }
+
+        let copilotFiles = files.filter { $0.hasPrefix("github-copilot-") && $0.hasSuffix(".json") }
+
+        // Get models from the first valid account (they should be the same for all accounts with same plan)
+        for file in copilotFiles {
+            let filePath = (expandedPath as NSString).appendingPathComponent(file)
+            let models = await fetchAvailableModels(authFilePath: filePath)
+            if !models.isEmpty {
+                return models
+            }
+        }
+
+        return []
+    }
+
+    /// Get only the models that are available for the user (model_picker_enabled == true)
+    func fetchUserAvailableModelIds(authDir: String = "~/.cli-proxy-api") async -> Set<String> {
+        let models = await fetchAllAvailableModels(authDir: authDir)
+        return Set(models.filter { $0.isAvailable }.map { $0.id })
+    }
+
+    private func fetchCopilotAPIToken(accessToken: String) async throws -> String {
+        guard let url = URL(string: tokenURL) else {
+            throw QuotaFetchError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaFetchError.invalidResponse
+        }
+
+        guard 200...299 ~= httpResponse.statusCode else {
+            throw QuotaFetchError.httpError(httpResponse.statusCode)
+        }
+
+        let tokenResponse = try JSONDecoder().decode(CopilotAPITokenResponse.self, from: data)
+        return tokenResponse.token
+    }
+
+    private func fetchModelsFromCopilotAPI(apiToken: String) async throws -> [CopilotModelInfo] {
+        guard let url = URL(string: modelsURL) else {
+            throw QuotaFetchError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("GithubCopilot/1.0", forHTTPHeaderField: "User-Agent")
+        request.addValue("vscode/1.100.0", forHTTPHeaderField: "Editor-Version")
+        request.addValue("copilot/1.300.0", forHTTPHeaderField: "Editor-Plugin-Version")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaFetchError.invalidResponse
+        }
+
+        guard 200...299 ~= httpResponse.statusCode else {
+            throw QuotaFetchError.httpError(httpResponse.statusCode)
+        }
+
+        let modelsResponse = try JSONDecoder().decode(CopilotModelsResponse.self, from: data)
+        return modelsResponse.data
     }
 }
