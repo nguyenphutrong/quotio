@@ -21,6 +21,7 @@ struct QuotioApp: App {
     @State private var appearanceManager = AppearanceManager.shared
     @State private var languageManager = LanguageManager.shared
     @State private var showOnboarding = false
+    @State private var hasInitialized = false  // Track initialization state
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     @Environment(\.openWindow) private var openWindow
     
@@ -143,6 +144,9 @@ struct QuotioApp: App {
                 .environment(logsViewModel)
                 .environment(\.locale, languageManager.locale)
                 .task {
+                    // Only initialize once, not every time the window appears
+                    guard !hasInitialized else { return }
+                    hasInitialized = true
                     await initializeApp()
                 }
                 .onChange(of: viewModel.proxyManager.proxyStatus.running) {
@@ -182,7 +186,10 @@ struct QuotioApp: App {
                 }
                 .sheet(isPresented: $showOnboarding) {
                     OnboardingFlow {
-                        Task { await initializeApp() }
+                        Task {
+                            hasInitialized = true
+                            await initializeApp()
+                        }
                     }
                 }
         }
@@ -241,38 +248,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
-    
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // When user clicks dock icon or menubar "Open Quotio" and no visible windows
+        if !flag {
+            // Find and show the main window
+            for window in sender.windows {
+                if window.title == "Quotio" {
+                    window.makeKeyAndOrderFront(nil)
+                    return true
+                }
+            }
+        }
+        return true
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         CLIProxyManager.terminateProxyOnShutdown()
     }
-    
+
     private func handleWindowDidBecomeKey() {
-        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
-        // Only show in dock if user has enabled the setting
-        guard showInDock else { return }
-        
-        for window in NSApp.windows where window.title == "Quotio" {
-            if NSApp.activationPolicy() != .regular {
-                NSApp.setActivationPolicy(.regular)
-            }
-            break
-        }
+        // Do nothing - activation policy is managed by showInDock setting only
     }
-    
+
     private func handleWindowWillClose() {
-        // Check after a short delay to allow window to fully close
-        DispatchQueue.main.async {
-            let visibleQuotioWindows = NSApp.windows.filter { window in
-                window.title == "Quotio" &&
-                    window.isVisible &&
-                    !window.isMiniaturized
-            }
-            if visibleQuotioWindows.isEmpty {
-                // Always hide from dock when no windows are visible
-                // (regardless of showInDock setting - it controls showing, not hiding)
-                NSApp.setActivationPolicy(.accessory)
-            }
-        }
+        // Do nothing - activation policy is managed by showInDock setting only
+        // When showInDock = true, dock icon stays visible even when window is closed
+        // When showInDock = false, dock icon is never visible
     }
     
     deinit {

@@ -277,9 +277,24 @@ final class MenuActionHandler: NSObject {
     }
     
     @objc func openApp() {
+        // In .accessory mode, menu closes automatically when window becomes key
+        // In .regular mode, we need to close it manually
+        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
+        if showInDock {
+            StatusBarManager.shared.closeMenu()
+        }
+
+        // Activation policy is managed by showInDock setting, no need to change here
         NSApplication.shared.activate(ignoringOtherApps: true)
+
         if let window = NSApplication.shared.windows.first(where: { $0.title == "Quotio" }) {
             window.makeKeyAndOrderFront(nil)
+
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
+
+            window.orderFrontRegardless()
         }
     }
     
@@ -822,9 +837,24 @@ private struct MenuActionsView: View {
                 icon: "macwindow",
                 title: "action.openApp".localized()
             ) {
+                // In .accessory mode, menu closes automatically when window becomes key
+                // In .regular mode, we need to close it manually
+                let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
+                if showInDock {
+                    StatusBarManager.shared.closeMenu()
+                }
+
+                // Activation policy is managed by showInDock setting, no need to change here
                 NSApplication.shared.activate(ignoringOtherApps: true)
+
                 if let window = NSApplication.shared.windows.first(where: { $0.title == "Quotio" }) {
                     window.makeKeyAndOrderFront(nil)
+
+                    if window.isMiniaturized {
+                        window.deminiaturize(nil)
+                    }
+
+                    window.orderFrontRegardless()
                 }
             }
             

@@ -1549,14 +1549,13 @@ struct MenuBarSettingsSection: View {
                 if !newValue && !showInDock {
                     // Re-enable dock if user tries to disable menu bar icon while dock is already disabled
                     showInDock = true
-                    NSApp.setActivationPolicy(.regular)
+                    // activation policy will be set by showInDockBinding automatically
                 }
-                // Just update the setting - QuotioApp's onChange handler will update the status bar
                 settings.showMenuBarIcon = newValue
             }
         )
     }
-    
+
     private var showInDockBinding: Binding<Bool> {
         Binding(
             get: { showInDock },
@@ -1565,9 +1564,14 @@ struct MenuBarSettingsSection: View {
                 if !newValue && !settings.showMenuBarIcon {
                     // Re-enable menu bar icon if user tries to disable dock while menu bar is already disabled
                     settings.showMenuBarIcon = true
-                    // Note: QuotioApp's onChange handler will update the status bar
                 }
+
+                // Update the value
                 showInDock = newValue
+
+                // This is the ONLY place where activation policy is changed based on user settings
+                // - true: dock icon always visible, even when window is closed
+                // - false: dock icon never visible
                 NSApp.setActivationPolicy(newValue ? .regular : .accessory)
             }
         )
