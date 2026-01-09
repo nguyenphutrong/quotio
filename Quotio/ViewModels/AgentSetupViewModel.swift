@@ -329,19 +329,16 @@ final class AgentSetupViewModel {
     }
 
     /// Check if a provider has available quota for a specific model
-    /// This is used by the fallback resolution logic
     func checkProviderQuota(provider: AIProvider, modelId: String) -> Bool {
-        guard let quotaVM = quotaViewModel else { return true } // Assume available if no quota info
+        guard let quotaVM = quotaViewModel else { return true }
 
         guard let providerQuotas = quotaVM.providerQuotas[provider] else { return false }
 
-        // Check if any account for this provider has quota remaining
         for (_, quotaData) in providerQuotas {
-            // Check if the provider has any quota remaining (> 0%)
-            let hasQuota = quotaData.models.contains { model in
-                model.percentage > 0
+            let hasQuotaForModel = quotaData.models.contains { model in
+                model.id == modelId && model.percentage > 0
             }
-            if hasQuota {
+            if hasQuotaForModel {
                 return true
             }
         }
