@@ -255,6 +255,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Find and show the main window
             for window in sender.windows {
                 if window.title == "Quotio" {
+                    // Restore minimized window first
+                    if window.isMiniaturized {
+                        window.deminiaturize(nil)
+                    }
                     window.makeKeyAndOrderFront(nil)
                     return true
                 }
