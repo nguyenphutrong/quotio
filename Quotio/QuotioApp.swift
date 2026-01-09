@@ -214,10 +214,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private nonisolated(unsafe) var windowDidBecomeKeyObserver: NSObjectProtocol?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Register default values for UserDefaults
+        TunnelManager.shared.cleanupOrphans()
+        
         UserDefaults.standard.register(defaults: [
-            "useBridgeMode": true,  // Enable two-layer proxy by default for connection stability
-            "showInDock": true      // Show in dock by default
+            "useBridgeMode": true,
+            "showInDock": true
         ])
         
         // Apply initial dock visibility based on saved preference
@@ -269,6 +270,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         CLIProxyManager.terminateProxyOnShutdown()
+        Task { @MainActor in
+            await TunnelManager.shared.stopTunnel()
+        }
     }
 
     private func handleWindowDidBecomeKey() {
