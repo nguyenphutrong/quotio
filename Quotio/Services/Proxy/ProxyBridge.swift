@@ -461,14 +461,6 @@ final class ProxyBridge {
         let cachedIndex = settings.getCachedEntryIndex(for: model)
         let startIndex = cachedIndex < entries.count ? cachedIndex : 0
 
-        if startIndex > 0 {
-            NSLog("[Fallback] Resuming virtual model '%@' from cached entry %d/%d: %@",
-                  model, startIndex + 1, entries.count, entries[startIndex].modelId)
-        } else {
-            NSLog("[Fallback] Starting virtual model '%@' with entry 1/%d: %@",
-                  model, entries.count, entries[0].modelId)
-        }
-
         return FallbackContext(
             virtualModelName: model,
             fallbackEntries: entries,
@@ -729,14 +721,6 @@ final class ProxyBridge {
                     let nextContext = fallbackContext.next()
                     if let nextEntry = nextContext.currentEntry,
                        let virtualModelName = nextContext.virtualModelName {
-
-                        // Log the fallback event
-                        NSLog("[Fallback] Quota exceeded for entry %d/%d, falling back to entry %d/%d: %@",
-                              fallbackContext.currentIndex + 1,
-                              fallbackContext.fallbackEntries.count,
-                              nextContext.currentIndex + 1,
-                              nextContext.fallbackEntries.count,
-                              nextEntry.modelId)
 
                         // Update cache and route state for UI (must be done on MainActor)
                         Task { @MainActor in
