@@ -689,24 +689,35 @@ private struct ModelBadgeData: Identifiable {
 
 private struct ModelGridBadge: View {
     let data: ModelBadgeData
-    
+
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+
     private var remainingPercent: Double {
         data.percentage
     }
-    
+
+    private var usedPercent: Double {
+        100 - data.percentage
+    }
+
+    private var displayPercent: Double {
+        settings.quotaDisplayMode == .used ? usedPercent : remainingPercent
+    }
+
     private var tintColor: Color {
+        // Color is always based on remaining percentage (resource health)
         if remainingPercent > 50 { return .green }
         if remainingPercent > 20 { return .orange }
         return .red
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(data.name)
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            
+
             HStack(spacing: 4) {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
@@ -718,8 +729,8 @@ private struct ModelGridBadge: View {
                     }
                 }
                 .frame(height: 4)
-                
-                Text(verbatim: "\(Int(remainingPercent))%")
+
+                Text(verbatim: "\(Int(displayPercent.rounded()))%")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(tintColor)
                     .frame(width: 28, alignment: .trailing)
