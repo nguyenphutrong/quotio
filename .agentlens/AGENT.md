@@ -26,8 +26,8 @@ Follow this protocol to understand the codebase efficiently:
 
 ## Freshness Check
 
-**Generated:** 2026-01-08T13:22:31Z
-**Git HEAD:** `58d9239`
+**Generated:** 2026-01-09T14:50:01Z
+**Git HEAD:** `2ca8d9a`
 
 ### How to verify freshness
 
@@ -39,12 +39,14 @@ Follow this protocol to understand the codebase efficiently:
 
 | Module | Files | Type | Description |
 | ------ | ----- | ---- | ----------- |
-| `` | 26 | root | Module |
-| `Quotio/Models` | 11 | implicit | Data models |
+| `` | 7 | root | Module |
+| `Quotio/Models` | 14 | implicit | Data models |
+| `Quotio/Services` | 20 | implicit | Business logic services |
 | `Quotio/Services/Antigravity` | 5 | implicit | Module |
 | `Quotio/Services/QuotaFetchers` | 8 | implicit | Module |
-| `Quotio/Views/Components` | 19 | implicit | UI components |
-| `Quotio/Views/Screens` | 7 | implicit | Module |
+| `Quotio/Views/Components` | 22 | implicit | UI components |
+| `Quotio/Views/Onboarding` | 6 | implicit | Module |
+| `Quotio/Views/Screens` | 8 | implicit | Module |
 
 ## When Docs Seem Stale
 

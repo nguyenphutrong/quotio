@@ -5,25 +5,9 @@
 ## Summary
 
 | High 🔴 | Medium 🟡 | Low 🟢 |
-| 0 | 0 | 12 |
+| 0 | 0 | 9 |
 
 ## 🟢 Low Priority
-
-### `NOTE` (Quotio/Services/AgentDetectionService.swift:16)
-
-> Only checks file existence (metadata), does NOT read file content
-
-### `NOTE` (Quotio/Services/AgentDetectionService.swift:91)
-
-> May not work in GUI apps due to limited PATH inheritance
-
-### `NOTE` (Quotio/Services/AgentDetectionService.swift:97)
-
-> Only checks file existence (metadata), does NOT read file content
-
-### `NOTE` (Quotio/Services/CLIExecutor.swift:33)
-
-> Only checks file existence (metadata), does NOT read file content
 
 ### `NOTE` (Quotio/Services/Proxy/CLIProxyManager.swift:186)
 
@@ -33,27 +17,31 @@
 
 > Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
 
-### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:209)
+### `NOTE` (Quotio/ViewModels/AgentSetupViewModel.swift:351)
+
+> Actual fallback resolution happens at request time in ProxyBridge
+
+### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:252)
 
 > Cursor and Trae are NOT auto-refreshed - user must use "Scan for IDEs" (issue #29)
 
-### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:217)
+### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:260)
 
 > Cursor and Trae removed from auto-refresh to address privacy concerns (issue #29)
 
-### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:966)
+### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1009)
 
 > Cursor and Trae removed from auto-refresh (issue #29)
 
-### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:986)
+### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1029)
 
 > Cursor and Trae require explicit user scan (issue #29)
 
-### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:995)
+### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1038)
 
 > Cursor and Trae removed - require explicit scan (issue #29)
 
-### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1043)
+### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1086)
 
 > Don't call detectActiveAccount() here - already set by switch operation
 

@@ -2,7 +2,7 @@
 
 [← Back to INDEX](../../INDEX.md)
 
-**Type:** implicit | **Files:** 19
+**Type:** implicit | **Files:** 22
 
 ## Files
 
@@ -13,7 +13,9 @@
 | `Quotio/Views/Components/AddProviderPopover.swift` | 158 |  |
 | `Quotio/Views/Components/AgentCard.swift` | 147 |  |
 | `Quotio/Views/Components/AgentConfigSheet.swift` | 791 | 📊 |
+| `Quotio/Views/Components/CurrentModeBadge.swift` | 122 |  |
 | `Quotio/Views/Components/CustomProviderSheet.swift` | 482 |  |
+| `Quotio/Views/Components/FallbackSheets.swift` | 271 |  |
 | `Quotio/Views/Components/GLMAPIKeySheet.swift` | 233 |  |
 | `Quotio/Views/Components/IDEScanSheet.swift` | 320 |  |
 | `Quotio/Views/Components/ProviderAccountsGroup.swift` | 227 |  |
@@ -23,6 +25,7 @@
 | `Quotio/Views/Components/QuotaCard.swift` | 368 |  |
 | `Quotio/Views/Components/QuotaProgressBar.swift` | 45 |  |
 | `Quotio/Views/Components/QuotioButtonStyles.swift` | 300 |  |
+| `Quotio/Views/Components/RemoteConnectionSheet.swift` | 331 |  |
 | `Quotio/Views/Components/SidebarView.swift` | 21 |  |
 | `Quotio/Views/Components/SmallProgressView.swift` | 94 |  |
 | `Quotio/Views/Components/SwitchAccountSheet.swift` | 266 |  |

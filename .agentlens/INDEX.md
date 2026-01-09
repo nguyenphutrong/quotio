@@ -9,16 +9,22 @@
 3. Check module's `outline.md` for large files
 4. Check module's `memory.md` for warnings
 
+## ⚠️ Critical Alerts
+
+**1** high-priority warnings across 1 modules. Check each module's `memory.md` for details.
+
 ## Modules
 
 | Module | Type | Files | Warnings | Hub |
 | ------ | ---- | ----- | -------- | --- |
-| [root](modules/root/MODULE.md) | root | 26 | - |  |
-| [Quotio/Models](modules/Quotio-Models/MODULE.md) | implicit | 11 | - |  |
+| [root](modules/root/MODULE.md) | root | 7 | - |  |
+| [Quotio/Models](modules/Quotio-Models/MODULE.md) | implicit | 14 | 1 |  |
+| [Quotio/Services](modules/Quotio-Services/MODULE.md) | implicit | 20 | - |  |
 | [Quotio/Services/Antigravity](modules/Quotio-Services-Antigravity/MODULE.md) | implicit | 5 | - |  |
 | [Quotio/Services/QuotaFetchers](modules/Quotio-Services-QuotaFetchers/MODULE.md) | implicit | 8 | - |  |
-| [Quotio/Views/Components](modules/Quotio-Views-Components/MODULE.md) | implicit | 19 | - |  |
-| [Quotio/Views/Screens](modules/Quotio-Views-Screens/MODULE.md) | implicit | 7 | - |  |
+| [Quotio/Views/Components](modules/Quotio-Views-Components/MODULE.md) | implicit | 22 | - |  |
+| [Quotio/Views/Onboarding](modules/Quotio-Views-Onboarding/MODULE.md) | implicit | 6 | - |  |
+| [Quotio/Views/Screens](modules/Quotio-Views-Screens/MODULE.md) | implicit | 8 | - |  |
 
 ---
 
