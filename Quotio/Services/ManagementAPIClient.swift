@@ -96,6 +96,8 @@ actor ManagementAPIClient {
     }
     
     /// Initialize for remote connection with custom timeout
+    /// - Warning: Setting `verifySSL: false` disables certificate validation, making the connection
+    ///   vulnerable to man-in-the-middle attacks. Only use for self-signed certificates in trusted networks.
     init(baseURL: String, authKey: String, timeoutConfig: TimeoutConfig, verifySSL: Bool = true) {
         self.baseURL = baseURL
         self.authKey = authKey
@@ -113,7 +115,11 @@ actor ManagementAPIClient {
         self.sessionDelegate = SessionDelegate(clientId: clientId, verifySSL: verifySSL)
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
         
-        Self.log("[\(clientId)] Remote client created, timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s, verifySSL=\(verifySSL)")
+        Self.log("[\\(clientId)] Remote client created, timeout=\\(Int(timeoutConfig.requestTimeout))/\\(Int(timeoutConfig.resourceTimeout))s, verifySSL=\\(verifySSL)")
+        
+        if !verifySSL {
+            print("[SECURITY WARNING] SSL verification disabled for \(baseURL). Connection is vulnerable to MITM attacks.")
+        }
     }
     
     /// Convenience initializer for remote connection with RemoteConnectionConfig
