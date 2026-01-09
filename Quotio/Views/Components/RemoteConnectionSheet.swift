@@ -297,8 +297,11 @@ struct RemoteConnectionSheet: View {
         )
         
         let client = ManagementAPIClient(config: config, managementKey: managementKey)
+        defer {
+            Task { await client.invalidate() }
+        }
+        
         let success = await client.checkProxyResponding()
-        await client.invalidate()
         
         testResult = RemoteTestResult(
             success: success,
