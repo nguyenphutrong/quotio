@@ -33,6 +33,9 @@ final class QuotaViewModel {
     /// Request tracker for monitoring API requests through ProxyBridge
     let requestTracker = RequestTracker.shared
     
+    /// Tunnel manager for Cloudflare Tunnel integration
+    let tunnelManager = TunnelManager.shared
+    
     // Quota-Only Mode Fetchers (CLI-based)
     @ObservationIgnored private let claudeCodeFetcher = ClaudeCodeQuotaFetcher()
     @ObservationIgnored private let cursorFetcher = CursorQuotaFetcher()
