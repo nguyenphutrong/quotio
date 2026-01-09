@@ -181,19 +181,33 @@ jobs:
             git add CHANGELOG.md Quotio.xcodeproj/project.pbxproj
             git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }} [skip ci]"
             
-            # Determine target branch
+            # Determine target branch with deterministic priority
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               # For manual dispatch, push to the branch that triggered the workflow
               TARGET_BRANCH="${{ github.ref_name }}"
             else
-              # For tag push, find the branch the tag points to (usually master)
-              TARGET_BRANCH=$(git branch -r --contains HEAD | grep -E 'origin/(master|main)' | head -1 | sed 's|origin/||' | xargs)
-              # Fallback to master if not found
-              TARGET_BRANCH="${TARGET_BRANCH:-master}"
+              # For tag push, find branches containing HEAD with deterministic priority
+              # Priority: master > main > first available
+              BRANCHES=$(git branch -r --contains HEAD | grep -E 'origin/(master|main)' | sed 's|origin/||' | xargs)
+              
+              if echo "$BRANCHES" | grep -qw "master"; then
+                TARGET_BRANCH="master"
+              elif echo "$BRANCHES" | grep -qw "main"; then
+                TARGET_BRANCH="main"
+              else
+                # Fallback to master if neither found
+                TARGET_BRANCH="master"
+              fi
             fi
             
-            echo "Pushing to branch: $TARGET_BRANCH"
-            git push origin HEAD:"$TARGET_BRANCH"
+            # Validate branch exists before pushing
+            if ! git rev-parse --verify "origin/${TARGET_BRANCH}" >/dev/null 2>&1; then
+              echo "Error: Branch ${TARGET_BRANCH} does not exist on remote"
+              exit 1
+            fi
+            
+            echo "Pushing to branch: ${TARGET_BRANCH}"
+            git push origin HEAD:"${TARGET_BRANCH}"
           fi
 
       # ===========================================
