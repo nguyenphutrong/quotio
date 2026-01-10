@@ -5,13 +5,11 @@
 
 import SwiftUI
 import AppKit
-import ServiceManagement
 
 struct SettingsScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
     private let modeManager = OperatingModeManager.shared
-    
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    private let launchManager = LaunchAtLoginManager.shared
     
     var body: some View {
         @Bindable var lang = LanguageManager.shared
@@ -28,18 +26,7 @@ struct SettingsScreen: View {
 
             // General Settings
             Section {
-                Toggle("settings.launchAtLogin".localized(), isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, newValue in
-                        do {
-                            if newValue {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
-                            }
-                        } catch {
-                            launchAtLogin = !newValue
-                        }
-                    }
+                LaunchAtLoginToggle()
             } header: {
                 Label("settings.general".localized(), systemImage: "gearshape")
             }
@@ -1678,7 +1665,6 @@ struct PrivacySettingsSection: View {
 }
 
 struct GeneralSettingsTab: View {
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     
     var body: some View {
@@ -1686,18 +1672,7 @@ struct GeneralSettingsTab: View {
         
         Form {
             Section {
-                Toggle("settings.launchAtLogin".localized(), isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, newValue in
-                        do {
-                            if newValue {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
-                            }
-                        } catch {
-                            launchAtLogin = !newValue
-                        }
-                    }
+                LaunchAtLoginToggle()
                 
                 Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
             } header: {
@@ -2693,6 +2668,64 @@ struct ManagementKeyRow: View {
             Button("OK".localized()) { regenerateError = nil }
         } message: {
             Text(regenerateError ?? "")
+        }
+    }
+}
+
+// MARK: - Launch at Login Toggle
+
+/// Reusable toggle component for Launch at Login functionality
+/// Uses LaunchAtLoginManager for proper SMAppService handling
+struct LaunchAtLoginToggle: View {
+    private let launchManager = LaunchAtLoginManager.shared
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var showLocationWarning = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle("settings.launchAtLogin".localized(), isOn: Binding(
+                get: { launchManager.isEnabled },
+                set: { newValue in
+                    do {
+                        try launchManager.setEnabled(newValue)
+                        
+                        // Show warning if app is not in /Applications
+                        if newValue && !launchManager.isInValidLocation {
+                            showLocationWarning = true
+                        }
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        showError = true
+                    }
+                }
+            ))
+            
+            // Show location warning inline
+            if showLocationWarning {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.yellow)
+                        .font(.caption)
+                    Text("launchAtLogin.warning.notInApplications".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.leading, 2)
+            }
+        }
+        .onAppear {
+            // Refresh status when view appears to sync with System Settings
+            launchManager.refreshStatus()
+        }
+        .alert("launchAtLogin.error.title".localized(), isPresented: $showError) {
+            Button("OK".localized()) { showError = false }
+            Button("launchAtLogin.openSystemSettings".localized()) {
+                launchManager.openSystemSettings()
+                showError = false
+            }
+        } message: {
+            Text(errorMessage)
         }
     }
 }
