@@ -161,6 +161,34 @@ Allez dans l'onglet **Agents** → Sélectionnez un agent installé → Cliquez 
   <img alt="Surveillance des Quotas" src="screenshots/quota.png" />
 </picture>
 
+### Configuration de Secours
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/fallback_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/fallback.png" />
+  <img alt="Configuration de Secours" src="screenshots/fallback.png" />
+</picture>
+
+### Clés API
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/api_keys_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/api_keys.png" />
+  <img alt="Clés API" src="screenshots/api_keys.png" />
+</picture>
+
+### Journaux
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/logs_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/logs.png" />
+  <img alt="Journaux" src="screenshots/logs.png" />
+</picture>
+
+### Paramètres
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/settings_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/settings.png" />
+  <img alt="Paramètres" src="screenshots/settings.png" />
+</picture>
+
 ### Barre de Menu
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />

@@ -161,6 +161,34 @@ Vào tab **Agents** → Chọn agent đã cài → Nhấn **Configure** → Ch�
   <img alt="Giám sát Hạn mức" src="screenshots/quota.png" />
 </picture>
 
+### Cấu hình Fallback
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/fallback_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/fallback.png" />
+  <img alt="Cấu hình Fallback" src="screenshots/fallback.png" />
+</picture>
+
+### API Keys
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/api_keys_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/api_keys.png" />
+  <img alt="API Keys" src="screenshots/api_keys.png" />
+</picture>
+
+### Nhật ký
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/logs_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/logs.png" />
+  <img alt="Nhật ký" src="screenshots/logs.png" />
+</picture>
+
+### Cài đặt
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/settings_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/settings.png" />
+  <img alt="Cài đặt" src="screenshots/settings.png" />
+</picture>
+
 ### Menu Bar
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />

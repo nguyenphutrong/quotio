@@ -161,6 +161,34 @@ Go to **Agents** tab → Select an installed agent → Click **Configure** → C
   <img alt="Quota Monitoring" src="screenshots/quota.png" />
 </picture>
 
+### Fallback Configuration
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/fallback_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/fallback.png" />
+  <img alt="Fallback Configuration" src="screenshots/fallback.png" />
+</picture>
+
+### API Keys
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/api_keys_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/api_keys.png" />
+  <img alt="API Keys" src="screenshots/api_keys.png" />
+</picture>
+
+### Logs
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/logs_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/logs.png" />
+  <img alt="Logs" src="screenshots/logs.png" />
+</picture>
+
+### Settings
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/settings_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/settings.png" />
+  <img alt="Settings" src="screenshots/settings.png" />
+</picture>
+
 ### Menu Bar
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
