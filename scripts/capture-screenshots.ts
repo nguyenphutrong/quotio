@@ -6,14 +6,13 @@
  * Requires CleanShot X 4.7+ to be installed.
  *
  * Usage:
- *   bun run scripts/capture-screenshots.ts [--dark] [--light] [--both]
- *
- * Options:
- *   --dark   Capture in dark mode only
- *   --light  Capture in light mode only
- *   --both   Capture in both modes (default)
+ *   bun run scripts/capture-screenshots.ts              # Interactive TUI
+ *   bun run scripts/capture-screenshots.ts --dark       # Dark mode only (all screens)
+ *   bun run scripts/capture-screenshots.ts --light      # Light mode only (all screens)
+ *   bun run scripts/capture-screenshots.ts --both       # Both modes (all screens)
  */
 
+import * as p from "@clack/prompts";
 import { $ } from "bun";
 import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from "fs";
 import { homedir } from "os";
@@ -39,15 +38,33 @@ const CONFIG = {
   retryDelay: 500,
 } as const;
 
-// Screens to capture (matches NavigationPage enum in Models.swift)
-// Note: Some screens are conditional (e.g., logs only when loggingToFile=true)
-const SCREENS = [
+// =============================================================================
+// Screen Definitions
+// =============================================================================
+
+interface ScreenDef {
+  id: string;
+  name: string;
+  sidebarIndex: number;
+  isMenuBar?: boolean;
+}
+
+const SCREENS: ScreenDef[] = [
   { id: "dashboard", name: "Dashboard", sidebarIndex: 0 },
   { id: "quota", name: "Quota", sidebarIndex: 1 },
   { id: "provider", name: "Providers", sidebarIndex: 2 },
   { id: "agent_setup", name: "Agents", sidebarIndex: 4 },
   { id: "settings", name: "Settings", sidebarIndex: 7 },
-] as const;
+  { id: "menu_bar", name: "Menu Bar", sidebarIndex: -1, isMenuBar: true },
+];
+
+type AppearanceMode = "light" | "dark";
+type ThemeChoice = "light" | "dark" | "both";
+
+interface CaptureOptions {
+  themes: AppearanceMode[];
+  screens: ScreenDef[];
+}
 
 // =============================================================================
 // Utilities
@@ -191,8 +208,6 @@ async function navigateToScreen(screenIndex: number): Promise<void> {
 // Appearance Mode
 // =============================================================================
 
-type AppearanceMode = "light" | "dark";
-
 async function getCurrentAppearance(): Promise<AppearanceMode> {
   const result = await runAppleScript(`
     tell application "System Events"
@@ -263,14 +278,17 @@ async function getWindowBounds(): Promise<{ x: number; y: number; width: number;
   };
 }
 
-async function getScreenHeight(): Promise<number> {
+async function getScreenBounds(): Promise<{ width: number; height: number }> {
   const result = await runAppleScript(`
     tell application "Finder"
       get bounds of window of desktop
     end tell
   `);
-  const parts = result.split(", ");
-  return Number(parts[3]) || 1080;
+  const parts = result.split(", ").map(Number);
+  return {
+    width: parts[2] || 1920,
+    height: parts[3] || 1080,
+  };
 }
 
 async function captureWindow(outputPath: string): Promise<void> {
@@ -298,11 +316,15 @@ async function captureWindow(outputPath: string): Promise<void> {
   }
 }
 
-async function hideAllWindows(): Promise<void> {
+async function hideAllWindows(includeQuotio = false): Promise<void> {
   log("Hiding all other windows...");
+  const excludeApps = includeQuotio
+    ? `name is not "Finder" and name is not "CleanShot X"`
+    : `name is not "${CONFIG.appName}" and name is not "Finder" and name is not "CleanShot X"`;
+
   await runAppleScript(`
     tell application "System Events"
-      set allProcesses to every process whose visible is true and name is not "${CONFIG.appName}" and name is not "Finder" and name is not "CleanShot X"
+      set allProcesses to every process whose visible is true and ${excludeApps}
       repeat with proc in allProcesses
         try
           set visible of proc to false
@@ -316,7 +338,7 @@ async function hideAllWindows(): Promise<void> {
 async function captureMenuBarDropdown(outputPath: string): Promise<void> {
   log("Capturing menu bar dropdown with sub-menu...");
 
-  await hideAllWindows();
+  await hideAllWindows(true);
 
   const menuItemInfo = await runAppleScript(`
     tell application "System Events"
@@ -332,7 +354,7 @@ async function captureMenuBarDropdown(outputPath: string): Promise<void> {
     end tell
   `);
 
-  await sleep(CONFIG.delays.afterMenuOpen + 300);
+  await sleep(CONFIG.delays.afterMenuOpen + 500);
 
   const [menuX, , menuWidth] = menuItemInfo.split(",").map(Number);
 
@@ -341,19 +363,15 @@ async function captureMenuBarDropdown(outputPath: string): Promise<void> {
   const hoverX = menuRightEdge - 180;
 
   await $`cliclick m:${hoverX},${firstAccountY}`.quiet();
-  await sleep(600);
+  await sleep(800);
 
-  const screenHeight = await getScreenHeight();
-  const captureWidth = 950;
-  const captureHeight = 1200;
-  const captureX = Math.max(0, menuRightEdge - captureWidth + 100);
+  const screen = await getScreenBounds();
+  const captureWidth = 900;
+  const captureHeight = 1100;
+  const captureX = screen.width - captureWidth;
   const captureY = 0;
-  const cleanshotY = screenHeight - captureY - captureHeight;
 
-  const beforeTime = Date.now();
-  const url = `cleanshot://capture-area?x=${captureX}&y=${cleanshotY}&width=${captureWidth}&height=${captureHeight}&action=save`;
-  await openURL(url);
-  await sleep(CONFIG.delays.afterCapture);
+  await $`screencapture -x -R ${captureX},${captureY},${captureWidth},${captureHeight} ${outputPath}`.quiet();
 
   await runAppleScript(`
     tell application "System Events"
@@ -361,13 +379,7 @@ async function captureMenuBarDropdown(outputPath: string): Promise<void> {
     end tell
   `);
 
-  const captured = findLatestScreenshot(CONFIG.cleanshotDir, beforeTime);
-  if (captured) {
-    moveScreenshot(captured, outputPath);
-  } else {
-    log(`Warning: Could not capture menu bar`, "warn");
-  }
-
+  log(`Saved: ${outputPath}`, "success");
   await sleep(300);
 }
 
@@ -375,18 +387,19 @@ async function captureMenuBarDropdown(outputPath: string): Promise<void> {
 // Main Capture Flow
 // =============================================================================
 
-async function captureAllScreens(mode: AppearanceMode, outputDir: string): Promise<void> {
+async function captureScreen(screen: ScreenDef, mode: AppearanceMode, outputDir: string): Promise<void> {
   const suffix = mode === "dark" ? "_dark" : "";
 
-  log(`\n📸 Capturing all screens in ${mode} mode...`);
-
-  await activateApp();
-  await resizeWindow();
-
-  // Capture each screen
-  for (const screen of SCREENS) {
+  if (screen.isMenuBar) {
+    await retry(
+      async () => {
+        await captureMenuBarDropdown(join(outputDir, `${screen.id}${suffix}.png`));
+      },
+      CONFIG.retryAttempts,
+      CONFIG.retryDelay
+    );
+  } else {
     log(`Navigating to ${screen.name}...`);
-
     await retry(
       async () => {
         await navigateToScreen(screen.sidebarIndex);
@@ -396,15 +409,19 @@ async function captureAllScreens(mode: AppearanceMode, outputDir: string): Promi
       CONFIG.retryDelay
     );
   }
+}
 
-  // Capture menu bar
-  await retry(
-    async () => {
-      await captureMenuBarDropdown(join(outputDir, `menu_bar${suffix}.png`));
-    },
-    CONFIG.retryAttempts,
-    CONFIG.retryDelay
-  );
+async function captureSelectedScreens(options: CaptureOptions, outputDir: string): Promise<void> {
+  for (const mode of options.themes) {
+    log(`\n📸 Capturing in ${mode} mode...`);
+    await setAppearance(mode);
+    await activateApp();
+    await resizeWindow();
+
+    for (const screen of options.screens) {
+      await captureScreen(screen, mode, outputDir);
+    }
+  }
 }
 
 function ensureOutputDir(dir: string): void {
@@ -414,22 +431,126 @@ function ensureOutputDir(dir: string): void {
 }
 
 // =============================================================================
+// Interactive TUI
+// =============================================================================
+
+async function showInteractiveTUI(): Promise<CaptureOptions | null> {
+  p.intro("📸 Quotio Screenshot Automation");
+
+  // Theme selection
+  const themeChoice = await p.select({
+    message: "Select appearance mode:",
+    options: [
+      { value: "both", label: "Both (Light & Dark)", hint: "recommended for README" },
+      { value: "light", label: "Light mode only" },
+      { value: "dark", label: "Dark mode only" },
+    ],
+  });
+
+  if (p.isCancel(themeChoice)) {
+    p.cancel("Operation cancelled.");
+    return null;
+  }
+
+  // Screen selection
+  const screenChoices = await p.multiselect({
+    message: "Select screens to capture:",
+    options: SCREENS.map((s) => ({
+      value: s.id,
+      label: s.name,
+      hint: s.isMenuBar ? "menu bar dropdown" : undefined,
+    })),
+    initialValues: SCREENS.map((s) => s.id), // All selected by default
+    required: true,
+  });
+
+  if (p.isCancel(screenChoices)) {
+    p.cancel("Operation cancelled.");
+    return null;
+  }
+
+  // Confirm
+  const selectedScreens = SCREENS.filter((s) => (screenChoices as string[]).includes(s.id));
+  const themes: AppearanceMode[] =
+    themeChoice === "both" ? ["light", "dark"] : [themeChoice as AppearanceMode];
+
+  const themesLabel = themes.join(" & ");
+  const screensLabel = selectedScreens.map((s) => s.name).join(", ");
+
+  const confirmed = await p.confirm({
+    message: `Capture ${selectedScreens.length} screens in ${themesLabel} mode?`,
+    initialValue: true,
+  });
+
+  if (p.isCancel(confirmed) || !confirmed) {
+    p.cancel("Operation cancelled.");
+    return null;
+  }
+
+  p.log.info(`Themes: ${themesLabel}`);
+  p.log.info(`Screens: ${screensLabel}`);
+
+  return {
+    themes,
+    screens: selectedScreens,
+  };
+}
+
+function parseCliArgs(): CaptureOptions | "interactive" {
+  const args = process.argv.slice(2);
+
+  // No args = interactive mode
+  if (args.length === 0) {
+    return "interactive";
+  }
+
+  // Parse CLI flags
+  const hasLight = args.includes("--light");
+  const hasDark = args.includes("--dark");
+  const hasBoth = args.includes("--both");
+
+  let themes: AppearanceMode[];
+  if (hasBoth || (hasLight && hasDark)) {
+    themes = ["light", "dark"];
+  } else if (hasDark) {
+    themes = ["dark"];
+  } else if (hasLight) {
+    themes = ["light"];
+  } else {
+    themes = ["light", "dark"]; // default
+  }
+
+  return {
+    themes,
+    screens: SCREENS, // CLI mode captures all screens
+  };
+}
+
+// =============================================================================
 // CLI Entry Point
 // =============================================================================
 
 async function main() {
-  const args = process.argv.slice(2);
-  const captureLight = args.includes("--light") || args.includes("--both") || args.length === 0;
-  const captureDark = args.includes("--dark") || args.includes("--both") || args.length === 0;
+  const cliResult = parseCliArgs();
 
-  console.log(`
+  let options: CaptureOptions;
+
+  if (cliResult === "interactive") {
+    const tuiResult = await showInteractiveTUI();
+    if (!tuiResult) {
+      process.exit(0);
+    }
+    options = tuiResult;
+  } else {
+    console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║           Quotio Screenshot Automation                       ║
 ║           Using CleanShot X URL Scheme API                   ║
 ╚══════════════════════════════════════════════════════════════╝
 `);
+    options = cliResult;
+  }
 
-  // Use root screenshots directory (matches README.md references)
   const outputDir = CONFIG.outputDir;
   ensureOutputDir(outputDir);
   log(`Output directory: ${outputDir}`);
@@ -438,39 +559,23 @@ async function main() {
   const originalMode = await getCurrentAppearance();
   log(`Current appearance: ${originalMode}`);
 
+  const spinner = p.spinner();
+  spinner.start("Preparing capture environment...");
+
   try {
-    // Ensure CleanShot is running
     await ensureCleanShotRunning();
-
-    // Hide desktop icons for cleaner screenshots
     await hideDesktopIcons();
-
-    // Launch and prepare app
     await launchApp();
+    spinner.stop("Environment ready");
 
-    // Capture in light mode
-    if (captureLight) {
-      await setAppearance("light");
-      await captureAllScreens("light", outputDir);
-    }
-
-    // Capture in dark mode
-    if (captureDark) {
-      await setAppearance("dark");
-      await captureAllScreens("dark", outputDir);
-    }
+    await captureSelectedScreens(options, outputDir);
   } finally {
-    // Restore original appearance
     await setAppearance(originalMode);
     await showDesktopIcons();
   }
 
-  console.log(`
-╔══════════════════════════════════════════════════════════════╗
-║  ✅ Screenshot capture complete!                              ║
-║  📁 Output: ${outputDir.padEnd(47)}║
-╚══════════════════════════════════════════════════════════════╝
-`);
+  p.outro(`✅ Captured ${options.screens.length} screens × ${options.themes.length} themes`);
+  log(`📁 Output: ${outputDir}`);
 }
 
 main().catch((error) => {
