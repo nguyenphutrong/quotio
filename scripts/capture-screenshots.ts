@@ -404,6 +404,11 @@ async function compositeOnWallpaper(
   const canvasHeight = windowHeight + padding * 2;
 
   await $`magick ${wallpaperPath} -resize ${canvasWidth}x${canvasHeight}^ -gravity center -extent ${canvasWidth}x${canvasHeight} ${windowImagePath} -gravity center -composite ${outputPath}`.quiet();
+  await compressPng(outputPath);
+}
+
+async function compressPng(imagePath: string): Promise<void> {
+  await $`pngquant --force --quality=80-95 --output ${imagePath} ${imagePath}`.quiet();
 }
 
 async function hideAllWindows(includeQuotio = false): Promise<void> {
@@ -469,6 +474,7 @@ async function captureMenuBarDropdown(outputPath: string): Promise<void> {
   const captureY = 0;
 
   await $`screencapture -x -R ${captureX},${captureY},${captureWidth},${captureHeight} ${outputPath}`.quiet();
+  await compressPng(outputPath);
 
   await runAppleScript(`
     tell application "System Events"
