@@ -109,12 +109,6 @@ final class LaunchAtLoginManager {
         }
         
         do {
-            // Best practice: Unregister first to fix any state inconsistencies
-            // This pattern is used by Rectangle, Stats, SwiftBar, and other popular apps
-            if currentStatus == .enabled {
-                try? SMAppService.mainApp.unregister()
-            }
-            
             try SMAppService.mainApp.register()
             isEnabled = true
             logger.info("Successfully registered for launch at login")

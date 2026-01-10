@@ -2690,9 +2690,11 @@ struct LaunchAtLoginToggle: View {
                     do {
                         try launchManager.setEnabled(newValue)
                         
-                        // Show warning if app is not in /Applications
+                        // Show warning if app is not in /Applications when enabling
                         if newValue && !launchManager.isInValidLocation {
                             showLocationWarning = true
+                        } else {
+                            showLocationWarning = false
                         }
                     } catch {
                         errorMessage = error.localizedDescription
