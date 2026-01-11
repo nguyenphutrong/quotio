@@ -194,6 +194,14 @@ enum QuotaDisplayStyle: String, Codable, CaseIterable, Identifiable {
         case .ring: return "settings.quota.style.ring"
         }
     }
+
+    var iconName: String {
+        switch self {
+        case .card: return "rectangle.portrait"
+        case .lowestBar: return "chart.bar.fill"
+        case .ring: return "circle.dotted"
+        }
+    }
 }
 
 // MARK: - Refresh Cadence

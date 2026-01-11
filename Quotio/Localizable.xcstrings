@@ -1742,13 +1742,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Active in IDE"
+            "value" : "Using in IDE"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Actif dans l'IDE"
+            "value" : "Utilisé dans l'IDE"
           }
         },
         "vi" : {
@@ -1760,7 +1760,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在 IDE 中激活"
+            "value" : "在 IDE 中使用"
           }
         }
       }

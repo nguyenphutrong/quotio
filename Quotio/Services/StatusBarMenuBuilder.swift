@@ -883,10 +883,31 @@ private struct AntigravityDisplayGroup: Identifiable {
     var id: String { name }
 }
 
+private func menuDisplayPercent(remainingPercent: Double, displayMode: QuotaDisplayMode) -> Double {
+    displayMode.displayValue(from: remainingPercent)
+}
+
+private func menuStatusColor(remainingPercent: Double, displayMode: QuotaDisplayMode) -> Color {
+    let usedPercent = 100 - remainingPercent
+    let checkValue = displayMode == .used ? usedPercent : remainingPercent
+
+    if displayMode == .used {
+        if checkValue < 70 { return .green }
+        if checkValue < 90 { return .yellow }
+        return .red
+    } else {
+        if checkValue > 50 { return .green }
+        if checkValue > 20 { return .orange }
+        return .red
+    }
+}
+
 // MARK: - Layout Subviews
 
 private struct LowestBarLayout: View {
     let models: [ModelBadgeData]
+    
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
 
     private var sorted: [ModelBadgeData] {
         models.sorted { $0.percentage < $1.percentage }
@@ -901,6 +922,8 @@ private struct LowestBarLayout: View {
     }
 
     var body: some View {
+        let displayMode = settings.quotaDisplayMode
+        
         VStack(spacing: 8) {
             if let lowest = lowest {
                 // Hero Row for Lowest with reset time
@@ -926,11 +949,11 @@ private struct LowestBarLayout: View {
                     }
                 }
                 .padding(8)
-                .background(Color.red.opacity(0.05))
+                .background(menuStatusColor(remainingPercent: lowest.percentage, displayMode: displayMode).opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.red.opacity(0.1), lineWidth: 1)
+                        .stroke(menuStatusColor(remainingPercent: lowest.percentage, displayMode: displayMode).opacity(0.2), lineWidth: 1)
                 )
             }
 
@@ -949,9 +972,9 @@ private struct LowestBarLayout: View {
                                     .font(.system(size: 9, design: .rounded))
                                     .foregroundStyle(.tertiary)
                             }
-                            Text("\(Int(model.percentage))%")
+                            Text("\(Int(menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode)))%")
                                 .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(model.percentage > 20 ? Color.secondary : Color.orange)
+                                .foregroundStyle(menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode))
                         }
                         .padding(.vertical, 2)
                     }
@@ -963,6 +986,8 @@ private struct LowestBarLayout: View {
 
 private struct RingGridLayout: View {
     let models: [ModelBadgeData]
+    
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
 
     private var columnCount: Int {
         min(max(models.count, 1), 4)
@@ -977,11 +1002,13 @@ private struct RingGridLayout: View {
     }
 
     var body: some View {
+        let displayMode = settings.quotaDisplayMode
+        
         // Auto-distribute 1-4 columns, cap at 4
         LazyVGrid(columns: columns, spacing: 10) {
             ForEach(models, id: \.name) { (model: ModelBadgeData) in
                 VStack(spacing: 4) {
-                    RingProgressView(percent: model.percentage, size: ringSize, lineWidth: 4, tint: color(for: model.percentage), showLabel: true)
+                    RingProgressView(percent: menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode), size: ringSize, lineWidth: 4, tint: menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode), showLabel: true)
 
                     Text(model.name)
                         .font(.system(size: 10, weight: .medium, design: .rounded))
@@ -999,16 +1026,12 @@ private struct RingGridLayout: View {
             }
         }
     }
-
-    func color(for percentage: Double) -> Color {
-        if percentage > 50 { return .green }
-        if percentage > 20 { return .orange }
-        return .red
-    }
 }
 
 private struct CardGridLayout: View {
     let models: [ModelBadgeData]
+    
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
 
     private var columns: [GridItem] {
         // Single metric: full width. Multiple: 2 columns
@@ -1018,8 +1041,10 @@ private struct CardGridLayout: View {
             return [GridItem(.flexible()), GridItem(.flexible())]
         }
     }
-
+    
     var body: some View {
+        let displayMode = settings.quotaDisplayMode
+        
         LazyVGrid(columns: columns, spacing: 8) {
             ForEach(models, id: \.name) { (model: ModelBadgeData) in
                 VStack(alignment: .leading, spacing: 4) {
@@ -1034,9 +1059,9 @@ private struct CardGridLayout: View {
                                 .font(.system(size: 9, design: .rounded))
                                 .foregroundStyle(.tertiary)
                         }
-                        Text("\(Int(model.percentage))%")
+                        Text("\(Int(menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode)))%")
                             .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(color(for: model.percentage))
+                            .foregroundStyle(menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode))
                     }
 
                     ModernProgressBar(percentage: model.percentage, height: 4)
@@ -1048,11 +1073,6 @@ private struct CardGridLayout: View {
         }
     }
 
-    func color(for percentage: Double) -> Color {
-        if percentage > 50 { return .green }
-        if percentage > 20 { return .orange }
-        return .red
-    }
 }
 
 // MARK: - Shared Components
@@ -1061,10 +1081,14 @@ private struct ModernProgressBar: View {
     let percentage: Double
     let height: CGFloat
     
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    
+    private var displayPercent: Double {
+        menuDisplayPercent(remainingPercent: percentage, displayMode: settings.quotaDisplayMode)
+    }
+    
     var color: Color {
-        if percentage > 50 { return .green }
-        if percentage > 20 { return .orange }
-        return .red
+        menuStatusColor(remainingPercent: percentage, displayMode: settings.quotaDisplayMode)
     }
     
     var body: some View {
@@ -1081,7 +1105,7 @@ private struct ModernProgressBar: View {
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: proxy.size.width * min(1, max(0, percentage / 100)))
+                    .frame(width: proxy.size.width * min(1, max(0, displayPercent / 100)))
             }
         }
         .frame(height: height)
@@ -1092,18 +1116,22 @@ private struct PercentageBadge: View {
     let percentage: Double
     var style: Style = .pill
     
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    
     enum Style { case pill, textOnly }
     
     var color: Color {
-        if percentage > 50 { return .green }
-        if percentage > 20 { return .orange }
-        return .red
+        menuStatusColor(remainingPercent: percentage, displayMode: settings.quotaDisplayMode)
+    }
+    
+    private var displayPercent: Double {
+        menuDisplayPercent(remainingPercent: percentage, displayMode: settings.quotaDisplayMode)
     }
     
     var body: some View {
         switch style {
         case .pill:
-            Text("\(Int(percentage))%")
+            Text("\(Int(displayPercent))%")
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(color)
                 .padding(.horizontal, 6)
@@ -1111,7 +1139,7 @@ private struct PercentageBadge: View {
                 .background(color.opacity(0.1))
                 .clipShape(Capsule())
         case .textOnly:
-            Text("\(Int(percentage))%")
+            Text("\(Int(displayPercent))%")
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
                 .foregroundStyle(color)
         }
@@ -1126,21 +1154,14 @@ private struct MenuModelDetailView: View {
 
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
 
-    private var usedPercent: Double {
-        model.usedPercentage
-    }
-    /// Color based on remaining percentage (consistent with menu bar ring/card layouts)
     private var statusColor: Color {
-        let remaining = model.percentage
-        if remaining > 50 { return .green }
-        if remaining > 20 { return .orange }
-        return .red
+        menuStatusColor(remainingPercent: model.percentage, displayMode: settings.quotaDisplayMode)
     }
 
     var body: some View {
         let displayMode = settings.quotaDisplayMode
         let displayStyle = settings.quotaDisplayStyle
-        let displayPercent = displayMode == .used ? usedPercent : model.percentage
+        let displayPercent = menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode)
 
         HStack(spacing: 8) {
             Text(showRawName ? model.name : model.displayName)
@@ -1169,7 +1190,7 @@ private struct MenuModelDetailView: View {
             }
 
             if displayStyle == .ring {
-                RingProgressView(percent: model.percentage, size: 14, lineWidth: 2, tint: statusColor)
+                RingProgressView(percent: displayPercent, size: 14, lineWidth: 2, tint: statusColor)
             }
         }
         .padding(.horizontal, 12)
