@@ -434,6 +434,16 @@ private struct ProviderIconMono: View {
     let provider: AIProvider
     let size: CGFloat
     
+    private var initials: String {
+        let words = provider.displayName.split(separator: " ")
+        if words.count >= 2 {
+            let first = words[0].prefix(1)
+            let second = words[1].prefix(1)
+            return String(first + second).uppercased()
+        }
+        return String(provider.displayName.prefix(2)).uppercased()
+    }
+    
     var body: some View {
         Group {
             if let assetName = provider.menuBarIconAsset,
@@ -443,9 +453,13 @@ private struct ProviderIconMono: View {
                     .aspectRatio(contentMode: .fit)
                     .colorMultiply(.primary)
             } else {
-                Image(systemName: provider.iconName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                ZStack {
+                    Circle()
+                        .fill(Color.primary.opacity(0.1))
+                    Text(initials)
+                        .font(.system(size: size * 0.45, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                }
             }
         }
         .frame(width: size, height: size)

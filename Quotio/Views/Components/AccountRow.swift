@@ -133,6 +133,7 @@ struct AccountRow: View {
     @State private var settings = MenuBarSettingsManager.shared
     @State private var showWarning = false
     @State private var showDeleteConfirmation = false
+    @State private var isHovered = false
     
     private var isMenuBarSelected: Bool {
         settings.isSelected(account.menuBarItem)
@@ -151,8 +152,28 @@ struct AccountRow: View {
         }
     }
     
+    private var healthIcon: String {
+        switch account.status {
+        case "ready": return account.isDisabled ? "circle.slash" : "checkmark.circle.fill"
+        case "cooling": return "clock.fill"
+        case "error": return "xmark.circle.fill"
+        default: return "circle"
+        }
+    }
+    
     var body: some View {
         HStack(spacing: 12) {
+            // Health status indicator (prominent)
+            ZStack {
+                Circle()
+                    .fill(statusColor.opacity(0.15))
+                    .frame(width: 32, height: 32)
+                
+                Image(systemName: healthIcon)
+                    .font(.system(size: 14))
+                    .foregroundStyle(statusColor)
+            }
+            
             // Provider icon
             ProviderIcon(provider: account.provider, size: 24)
             
@@ -168,13 +189,13 @@ struct AccountRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
-                    // Status indicator (only for proxy accounts)
+                    // Status text (only for proxy accounts with status)
                     if let status = account.status {
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 6, height: 6)
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
                         
-                        Text(status)
+                        Text(status.capitalized)
                             .font(.caption)
                             .foregroundStyle(statusColor)
                     } else {
@@ -214,58 +235,20 @@ struct AccountRow: View {
                     .clipShape(Capsule())
             }
             
-            // Switch button (Antigravity only, for proxy/direct accounts that are not active)
-            if account.provider == .antigravity && !isActiveInIDE && account.source != .autoDetected {
-                Button {
-                    onSwitch?()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .font(.caption2)
-                        Text("antigravity.useInIDE".localized())
-                            .font(.caption2)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.1))
-                    .foregroundStyle(.blue)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .help("antigravity.switch.title".localized())
-            }
-            
-            // Menu bar toggle
-            MenuBarBadge(
-                isSelected: isMenuBarSelected,
-                onTap: handleMenuBarToggle
-            )
-
-            // Edit button (GLM only)
-            if account.canEdit, let onEdit = onEdit {
-                Button {
-                    onEdit()
-                } label: {
-                    Image(systemName: "pencil")
-                        .foregroundStyle(.blue)
-                }
-                .buttonStyle(.rowAction)
-                .help("action.edit".localized())
-            }
-
-            // Delete button (only for proxy accounts)
-            if account.canDelete, onDelete != nil {
-                Button(role: .destructive) {
-                    showDeleteConfirmation = true
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundStyle(.red.opacity(0.8))
-                }
-                .buttonStyle(.rowActionDestructive)
-                .help("action.delete".localized())
+            // Hover actions (slide-in)
+            hoverActionsView
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
             }
         }
-        .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovered ? Color(.controlBackgroundColor).opacity(0.5) : Color.clear)
+        )
         .contextMenu {
             // Switch account option (Antigravity only)
             if account.provider == .antigravity && !isActiveInIDE && account.source != .autoDetected {
@@ -316,6 +299,66 @@ struct AccountRow: View {
         } message: {
             Text("menubar.warning.message".localized())
         }
+    }
+    
+    // MARK: - Hover Actions (slide-in pattern from AgentCard)
+    
+    private var hoverActionsView: some View {
+        HStack(spacing: 8) {
+            // Switch button (Antigravity only)
+            if account.provider == .antigravity && !isActiveInIDE && account.source != .autoDetected {
+                Button {
+                    onSwitch?()
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.body)
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.borderless)
+                .help("antigravity.switch.title".localized())
+                .opacity(isHovered ? 1 : 0)
+                .offset(x: isHovered ? 0 : 20)
+            }
+            
+            // Menu bar toggle
+            MenuBarBadge(
+                isSelected: isMenuBarSelected,
+                onTap: handleMenuBarToggle
+            )
+            .opacity(isHovered ? 1 : 0.6)
+            .scaleEffect(isHovered ? 1 : 0.9)
+            
+            // Edit button (GLM only)
+            if account.canEdit, let onEdit = onEdit {
+                Button {
+                    onEdit()
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.body)
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.borderless)
+                .help("action.edit".localized())
+                .opacity(isHovered ? 1 : 0)
+                .offset(x: isHovered ? 0 : 20)
+            }
+            
+            // Delete button (only for deletable accounts)
+            if account.canDelete, onDelete != nil {
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.body)
+                        .foregroundStyle(.red.opacity(0.8))
+                }
+                .buttonStyle(.borderless)
+                .help("action.delete".localized())
+                .opacity(isHovered ? 1 : 0)
+                .offset(x: isHovered ? 0 : 20)
+            }
+        }
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
     
     private func handleMenuBarToggle() {
