@@ -483,7 +483,7 @@ private struct MenuNetworkInfoView: View {
                     .fill(isProxyRunning ? Color.green : Color.gray)
                     .frame(width: 6, height: 6)
 
-                Text("Proxy")
+                Text("providers.source.proxy".localized())
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
 
@@ -520,7 +520,7 @@ private struct MenuNetworkInfoView: View {
                         .fill(tunnelStatus == .active ? Color.blue : Color.gray)
                         .frame(width: 6, height: 6)
 
-                    Text("Tunnel")
+                    Text(tunnelStatus == .active ? "tunnel.action.stop".localized() : "tunnel.action.start".localized())
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.secondary)
 
@@ -539,7 +539,7 @@ private struct MenuNetworkInfoView: View {
                             triggerCopyState(.tunnel)
                         }
                     } else if tunnelStatus == .starting {
-                        Text("Starting...")
+                        Text("status.starting".localized())
                             .font(.system(size: 9))
                             .foregroundStyle(.tertiary)
                     }
@@ -723,7 +723,7 @@ private struct MenuAccountCardView: View {
             
             // Active/Use Badge
             if isActiveInIDE {
-                Text("Using in IDE")
+                Text("antigravity.active".localized())
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.green)
                     .padding(.horizontal, 8)
@@ -748,7 +748,7 @@ private struct MenuAccountCardView: View {
                             ProgressView()
                                 .controlSize(.mini)
                         }
-                        Text("Use in IDE →")
+                        Text("antigravity.useInIDE".localized() + " " + "→".localized())
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
                     }
                     .foregroundStyle(.secondary)
@@ -783,7 +783,7 @@ private struct MenuAccountCardView: View {
         
         return Group {
             if models.isEmpty {
-                Text("No quota data")
+                Text("dashboard.noQuotaData".localized())
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .center)

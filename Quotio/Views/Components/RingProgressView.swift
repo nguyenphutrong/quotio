@@ -40,8 +40,8 @@ struct RingProgressView: View {
             }
         }
         .frame(width: size, height: size)
-        .accessibilityLabel("Usage Ring")
-        .accessibilityValue("\(Int(clamped)) percent")
+        .accessibilityLabel("usage.ring".localized())
+        .accessibilityValue(String(format: "%lld percent".localized(), Int64(clamped)))
     }
 }
 

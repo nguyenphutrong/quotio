@@ -212,6 +212,31 @@ struct QuotaScreen: View {
     }
 }
 
+fileprivate struct QuotaDisplayHelper {
+    let displayMode: QuotaDisplayMode
+    
+    func statusColor(remainingPercent: Double) -> Color {
+        let clamped = max(0, min(100, remainingPercent))
+        let usedPercent = 100 - clamped
+        let checkValue = displayMode == .used ? usedPercent : clamped
+        
+        if displayMode == .used {
+            if checkValue < 70 { return .green }
+            if checkValue < 90 { return .yellow }
+            return .red
+        }
+        
+        if checkValue > 50 { return .green }
+        if checkValue > 20 { return .orange }
+        return .red
+    }
+    
+    func displayPercent(remainingPercent: Double) -> Double {
+        let clamped = max(0, min(100, remainingPercent))
+        return displayMode == .used ? (100 - clamped) : clamped
+    }
+}
+
 // MARK: - Provider Segment Button
 
 private struct ProviderSegmentButton: View {
@@ -220,12 +245,15 @@ private struct ProviderSegmentButton: View {
     let accountCount: Int
     let isSelected: Bool
     let action: () -> Void
+
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
     
     private var statusColor: Color {
         guard let percent = quotaPercent else { return .secondary }
-        if percent > 30 { return .green }
-        if percent > 10 { return .yellow }
-        return .red
+        return displayHelper.statusColor(remainingPercent: percent)
     }
     
     private var remainingPercent: Double {
@@ -963,25 +991,9 @@ private struct AntigravityGroupRow: View {
     let group: AntigravityDisplayGroup
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
-    private var usedPercent: Double {
-        100 - group.percentage
-    }
-    
-    private var statusColor: Color {
-        let displayMode = settings.quotaDisplayMode
-        let checkValue = displayMode == .used ? usedPercent : remainingPercent
-        
-        // For "used" mode: low used = green, high used = red
-        // For "remaining" mode: high remaining = green, low remaining = red
-        if displayMode == .used {
-            if checkValue < 70 { return .green }
-            if checkValue < 90 { return .yellow }
-            return .red
-        } else {
-            if checkValue > 50 { return .green }
-            if checkValue > 20 { return .orange }
-            return .red
-        }
+
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
     
     private var remainingPercent: Double {
@@ -996,8 +1008,8 @@ private struct AntigravityGroupRow: View {
     }
     
     var body: some View {
-        let displayMode = settings.quotaDisplayMode
-        let displayPercent = displayMode == .used ? usedPercent : remainingPercent
+        let displayPercent = displayHelper.displayPercent(remainingPercent: remainingPercent)
+        let statusColor = displayHelper.statusColor(remainingPercent: remainingPercent)
         
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
@@ -1056,6 +1068,9 @@ private struct AntigravityLowestBarLayout: View {
     let groups: [AntigravityDisplayGroup]
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
     
     private var sorted: [AntigravityDisplayGroup] {
         groups.sorted { $0.percentage < $1.percentage }
@@ -1069,31 +1084,8 @@ private struct AntigravityLowestBarLayout: View {
         Array(sorted.dropFirst())
     }
     
-    private func statusColor(for remainingPercent: Double) -> Color {
-        let displayMode = settings.quotaDisplayMode
-        let usedPercent = 100 - remainingPercent
-        let checkValue = displayMode == .used ? usedPercent : remainingPercent
-        
-        if displayMode == .used {
-            if checkValue < 70 { return .green }
-            if checkValue < 90 { return .yellow }
-            return .red
-        } else {
-            if checkValue > 50 { return .green }
-            if checkValue > 20 { return .orange }
-            return .red
-        }
-    }
-    
     private func displayPercent(for remainingPercent: Double) -> Double {
-        let displayMode = settings.quotaDisplayMode
-        return displayMode == .used ? (100 - remainingPercent) : remainingPercent
-    }
-    
-    private func barFillPercent(for remainingPercent: Double) -> Double {
-        let displayMode = settings.quotaDisplayMode
-        // Bar always fills based on the display value
-        return displayMode == .used ? (100 - remainingPercent) : remainingPercent
+        displayHelper.displayPercent(remainingPercent: remainingPercent)
     }
     
     var body: some View {
@@ -1109,7 +1101,7 @@ private struct AntigravityLowestBarLayout: View {
                         Text(String(format: "%.0f%%", displayPercent(for: lowest.percentage)))
                             .font(.subheadline)
                             .fontWeight(.bold)
-                            .foregroundStyle(statusColor(for: lowest.percentage))
+                            .foregroundStyle(displayHelper.statusColor(remainingPercent: lowest.percentage))
                             .monospacedDigit()
                     }
                     
@@ -1118,14 +1110,14 @@ private struct AntigravityLowestBarLayout: View {
                             Capsule()
                                 .fill(Color.primary.opacity(0.06))
                             Capsule()
-                                .fill(statusColor(for: lowest.percentage).gradient)
-                                .frame(width: proxy.size.width * (barFillPercent(for: lowest.percentage) / 100))
+                                .fill(displayHelper.statusColor(remainingPercent: lowest.percentage).gradient)
+                                .frame(width: proxy.size.width * (displayPercent(for: lowest.percentage) / 100))
                         }
                     }
                     .frame(height: 8)
                 }
                 .padding(10)
-                .background(statusColor(for: lowest.percentage).opacity(0.08))
+                .background(displayHelper.statusColor(remainingPercent: lowest.percentage).opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             
@@ -1141,7 +1133,7 @@ private struct AntigravityLowestBarLayout: View {
                             Text(String(format: "%.0f%%", displayPercent(for: group.percentage)))
                                 .font(.caption)
                                 .fontWeight(.medium)
-                                .foregroundStyle(statusColor(for: group.percentage))
+                                .foregroundStyle(displayHelper.statusColor(remainingPercent: group.percentage))
                                 .monospacedDigit()
                         }
                     }
@@ -1157,31 +1149,17 @@ private struct AntigravityRingLayout: View {
     let groups: [AntigravityDisplayGroup]
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
     
     private var columns: [GridItem] {
         let count = min(max(groups.count, 1), 4)
         return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
     }
     
-    private func statusColor(for remainingPercent: Double) -> Color {
-        let displayMode = settings.quotaDisplayMode
-        let usedPercent = 100 - remainingPercent
-        let checkValue = displayMode == .used ? usedPercent : remainingPercent
-        
-        if displayMode == .used {
-            if checkValue < 70 { return .green }
-            if checkValue < 90 { return .yellow }
-            return .red
-        } else {
-            if checkValue > 50 { return .green }
-            if checkValue > 20 { return .orange }
-            return .red
-        }
-    }
-    
     private func displayPercent(for remainingPercent: Double) -> Double {
-        let displayMode = settings.quotaDisplayMode
-        return displayMode == .used ? (100 - remainingPercent) : remainingPercent
+        displayHelper.displayPercent(remainingPercent: remainingPercent)
     }
     
     var body: some View {
@@ -1192,7 +1170,7 @@ private struct AntigravityRingLayout: View {
                         percent: displayPercent(for: group.percentage),
                         size: 44,
                         lineWidth: 5,
-                        tint: statusColor(for: group.percentage),
+                        tint: displayHelper.statusColor(remainingPercent: group.percentage),
                         showLabel: true
                     )
                     
@@ -1212,6 +1190,9 @@ private struct StandardLowestBarLayout: View {
     let models: [ModelQuota]
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
     
     private var sorted: [ModelQuota] {
         models.sorted { $0.percentage < $1.percentage }
@@ -1225,30 +1206,8 @@ private struct StandardLowestBarLayout: View {
         Array(sorted.dropFirst())
     }
     
-    private func statusColor(for remainingPercent: Double) -> Color {
-        let displayMode = settings.quotaDisplayMode
-        let usedPercent = 100 - remainingPercent
-        let checkValue = displayMode == .used ? usedPercent : remainingPercent
-        
-        if displayMode == .used {
-            if checkValue < 70 { return .green }
-            if checkValue < 90 { return .yellow }
-            return .red
-        } else {
-            if checkValue > 50 { return .green }
-            if checkValue > 20 { return .orange }
-            return .red
-        }
-    }
-    
     private func displayPercent(for remainingPercent: Double) -> Double {
-        let displayMode = settings.quotaDisplayMode
-        return displayMode == .used ? (100 - remainingPercent) : remainingPercent
-    }
-    
-    private func barFillPercent(for remainingPercent: Double) -> Double {
-        let displayMode = settings.quotaDisplayMode
-        return displayMode == .used ? (100 - remainingPercent) : remainingPercent
+        displayHelper.displayPercent(remainingPercent: remainingPercent)
     }
     
     var body: some View {
@@ -1264,7 +1223,7 @@ private struct StandardLowestBarLayout: View {
                         Text(String(format: "%.0f%%", displayPercent(for: lowest.percentage)))
                             .font(.subheadline)
                             .fontWeight(.bold)
-                            .foregroundStyle(statusColor(for: lowest.percentage))
+                            .foregroundStyle(displayHelper.statusColor(remainingPercent: lowest.percentage))
                             .monospacedDigit()
                     }
                     
@@ -1273,8 +1232,8 @@ private struct StandardLowestBarLayout: View {
                             Capsule()
                                 .fill(Color.primary.opacity(0.06))
                             Capsule()
-                                .fill(statusColor(for: lowest.percentage).gradient)
-                                .frame(width: proxy.size.width * (barFillPercent(for: lowest.percentage) / 100))
+                                .fill(displayHelper.statusColor(remainingPercent: lowest.percentage).gradient)
+                                .frame(width: proxy.size.width * (displayPercent(for: lowest.percentage) / 100))
                         }
                     }
                     .frame(height: 8)
@@ -1286,7 +1245,7 @@ private struct StandardLowestBarLayout: View {
                     }
                 }
                 .padding(10)
-                .background(statusColor(for: lowest.percentage).opacity(0.08))
+                .background(displayHelper.statusColor(remainingPercent: lowest.percentage).opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             
@@ -1307,7 +1266,7 @@ private struct StandardLowestBarLayout: View {
                             Text(String(format: "%.0f%%", displayPercent(for: model.percentage)))
                                 .font(.caption)
                                 .fontWeight(.medium)
-                                .foregroundStyle(statusColor(for: model.percentage))
+                                .foregroundStyle(displayHelper.statusColor(remainingPercent: model.percentage))
                                 .monospacedDigit()
                         }
                     }
@@ -1323,31 +1282,17 @@ private struct StandardRingLayout: View {
     let models: [ModelQuota]
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
     
     private var columns: [GridItem] {
         let count = min(max(models.count, 1), 4)
         return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
     }
     
-    private func statusColor(for remainingPercent: Double) -> Color {
-        let displayMode = settings.quotaDisplayMode
-        let usedPercent = 100 - remainingPercent
-        let checkValue = displayMode == .used ? usedPercent : remainingPercent
-        
-        if displayMode == .used {
-            if checkValue < 70 { return .green }
-            if checkValue < 90 { return .yellow }
-            return .red
-        } else {
-            if checkValue > 50 { return .green }
-            if checkValue > 20 { return .orange }
-            return .red
-        }
-    }
-    
     private func displayPercent(for remainingPercent: Double) -> Double {
-        let displayMode = settings.quotaDisplayMode
-        return displayMode == .used ? (100 - remainingPercent) : remainingPercent
+        displayHelper.displayPercent(remainingPercent: remainingPercent)
     }
     
     var body: some View {
@@ -1358,7 +1303,7 @@ private struct StandardRingLayout: View {
                         percent: displayPercent(for: model.percentage),
                         size: 44,
                         lineWidth: 5,
-                        tint: statusColor(for: model.percentage),
+                        tint: displayHelper.statusColor(remainingPercent: model.percentage),
                         showLabel: true
                     )
                     
@@ -1424,7 +1369,7 @@ private struct AntigravityModelsDetailSheet: View {
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .help("Close")
+                .help("action.close".localized())
             }
             .padding()
             
@@ -1453,33 +1398,17 @@ private struct ModelDetailCard: View {
     let model: ModelQuota
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
-    
-    private var usedPercent: Double {
-        model.usedPercentage
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
     
     private var remainingPercent: Double {
         max(0, min(100, model.percentage))
     }
     
-    private var statusColor: Color {
-        let displayMode = settings.quotaDisplayMode
-        let checkValue = displayMode == .used ? usedPercent : remainingPercent
-        
-        if displayMode == .used {
-            if checkValue >= 90 { return .red }
-            if checkValue >= 70 { return .yellow }
-            return .green
-        } else {
-            if checkValue > 50 { return .green }
-            if checkValue > 20 { return .orange }
-            return .red
-        }
-    }
-    
     var body: some View {
-        let displayMode = settings.quotaDisplayMode
-        let displayPercent = displayMode == .used ? usedPercent : remainingPercent
+        let displayPercent = displayHelper.displayPercent(remainingPercent: remainingPercent)
+        let statusColor = displayHelper.statusColor(remainingPercent: remainingPercent)
         
         VStack(alignment: .leading, spacing: 8) {
             // Model name (raw name)
@@ -1541,25 +1470,12 @@ private struct UsageRowV2: View {
     let resetTime: String
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
     
     private var isUnknown: Bool {
         usedPercent < 0 || usedPercent > 100
-    }
-    
-    private var statusColor: Color {
-        if isUnknown { return .secondary }
-        let displayMode = settings.quotaDisplayMode
-        let checkValue = displayMode == .used ? usedPercent : remainingPercent
-        
-        if displayMode == .used {
-            if checkValue < 70 { return .green }
-            if checkValue < 90 { return .yellow }
-            return .red
-        } else {
-            if checkValue > 50 { return .green }
-            if checkValue > 20 { return .orange }
-            return .red
-        }
     }
     
     private var remainingPercent: Double {
@@ -1567,8 +1483,8 @@ private struct UsageRowV2: View {
     }
     
     var body: some View {
-        let displayMode = settings.quotaDisplayMode
-        let displayPercent = displayMode == .used ? usedPercent : remainingPercent
+        let displayPercent = displayHelper.displayPercent(remainingPercent: remainingPercent)
+        let statusColor = displayHelper.statusColor(remainingPercent: remainingPercent)
         
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
