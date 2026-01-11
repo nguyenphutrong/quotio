@@ -724,7 +724,6 @@ struct LocalProxyServerSection: View {
 }
 
 struct NetworkAccessSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
     @Binding var allowNetworkAccess: Bool
     
     var body: some View {
