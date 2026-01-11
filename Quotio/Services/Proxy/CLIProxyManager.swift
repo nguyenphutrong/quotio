@@ -643,7 +643,7 @@ final class CLIProxyManager {
         }
         
         // Important: Don't inherit environment that might cause issues
-        var environment = ProcessInfo.processinfo.environment
+        var environment = ProcessInfo.processInfo.environment
         environment["TERM"] = "xterm-256color"
         process.environment = environment
         
@@ -1027,7 +1027,7 @@ extension CLIProxyManager {
             newAuthProcess.standardOutput = outputPipe
             newAuthProcess.standardError = errorPipe
             
-            var environment = ProcessInfo.processinfo.environment
+            var environment = ProcessInfo.processInfo.environment
             environment["TERM"] = "xterm-256color"
             newAuthProcess.environment = environment
             
@@ -1494,7 +1494,7 @@ extension CLIProxyManager {
         process.standardOutput = outputPipe
         process.standardError = errorPipe
         
-        var environment = ProcessInfo.processinfo.environment
+        var environment = ProcessInfo.processInfo.environment
         environment["TERM"] = "xterm-256color"
         process.environment = environment
         

@@ -710,7 +710,7 @@ struct LocalProxyServerSection: View {
                     viewModel.proxyManager.allowNetworkAccess = newValue
                 }
                 
-                }
+
         } header: {
             Label("settings.proxyServer".localized(), systemImage: "server.rack")
         } footer: {
