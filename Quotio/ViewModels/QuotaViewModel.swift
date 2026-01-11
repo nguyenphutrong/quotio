@@ -113,15 +113,43 @@ final class QuotaViewModel {
     
     private static let ideQuotasKey = "persisted.ideQuotas"
     private static let ideProvidersToSave: Set<AIProvider> = [.cursor, .trae]
-    
+
     init() {
         self.proxyManager = CLIProxyManager.shared
         loadPersistedIDEQuotas()
         setupRefreshCadenceCallback()
         setupWarmupCallback()
         restartWarmupScheduler()
+        setupProxyURLObserver()
     }
-    
+
+    private func setupProxyURLObserver() {
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // Check if proxyURL changed and update configuration
+            Task { @MainActor [weak self] in
+                await self?.updateProxyConfiguration()
+            }
+        }
+    }
+
+    /// Update proxy configuration for all quota fetchers
+    func updateProxyConfiguration() async {
+        await antigravityFetcher.updateProxyConfiguration()
+        await openAIFetcher.updateProxyConfiguration()
+        await copilotFetcher.updateProxyConfiguration()
+        await glmFetcher.updateProxyConfiguration()
+        await claudeCodeFetcher.updateProxyConfiguration()
+        await cursorFetcher.updateProxyConfiguration()
+        await codexCLIFetcher.updateProxyConfiguration()
+        await geminiCLIFetcher.updateProxyConfiguration()
+        await traeFetcher.updateProxyConfiguration()
+        await kiroFetcher.updateProxyConfiguration()
+    }
+
     private func setupRefreshCadenceCallback() {
         refreshSettings.onRefreshCadenceChanged = { [weak self] _ in
             Task { @MainActor [weak self] in

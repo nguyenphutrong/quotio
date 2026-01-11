@@ -67,12 +67,17 @@ actor KiroQuotaFetcher {
     private let usageEndpoint = "https://codewhisperer.us-east-1.amazonaws.com/getUsageLimits"
     private let tokenEndpoint = "https://oidc.us-east-1.amazonaws.com/token"
 
-    private let session: URLSession
+    private var session: URLSession
     private let fileManager = FileManager.default
 
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 20
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 20)
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 20)
         self.session = URLSession(configuration: config)
     }
 

@@ -195,15 +195,20 @@ actor CopilotQuotaFetcher {
     private let entitlementURL = "https://api.github.com/copilot_internal/user"
     private let tokenURL = "https://api.github.com/copilot_internal/v2/token"
     private let modelsURL = "https://api.githubcopilot.com/models"
-    private let session: URLSession
+    private var session: URLSession
 
     // Cache for available models (per access token)
     private var modelsCache: [String: (models: [CopilotModelInfo], expiry: Date)] = [:]
     private let modelsCacheTTL: TimeInterval = 300 // 5 minutes
 
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         self.session = URLSession(configuration: config)
     }
     

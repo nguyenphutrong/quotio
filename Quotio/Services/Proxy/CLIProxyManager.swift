@@ -421,17 +421,19 @@ final class CLIProxyManager {
         guard let url = URL(string: urlString) else {
             throw ProxyError.networkError("Invalid URL")
         }
-        
+
         var request = URLRequest(url: url)
         request.addValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
         request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw ProxyError.networkError("Failed to fetch release info")
         }
-        
+
         return try JSONDecoder().decode(ReleaseInfo.self, from: data)
     }
     
@@ -464,16 +466,18 @@ final class CLIProxyManager {
         guard let downloadURL = URL(string: url) else {
             throw ProxyError.networkError("Invalid download URL")
         }
-        
+
         var request = URLRequest(url: downloadURL)
         request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 300) // 5 minutes timeout for large downloads
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw ProxyError.networkError("Failed to download binary")
         }
-        
+
         return data
     }
     
@@ -1266,17 +1270,19 @@ extension CLIProxyManager {
         guard let url = URL(string: urlString) else {
             throw ProxyError.networkError("Invalid URL")
         }
-        
+
         var request = URLRequest(url: url)
         request.addValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
         request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw ProxyError.networkError("Failed to fetch releases")
         }
-        
+
         return try JSONDecoder().decode([GitHubRelease].self, from: data)
     }
     
@@ -1292,17 +1298,19 @@ extension CLIProxyManager {
         guard let url = URL(string: urlString) else {
             throw ProxyError.networkError("Invalid URL")
         }
-        
+
         var request = URLRequest(url: url)
         request.addValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
         request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw ProxyError.networkError("Failed to fetch release info")
         }
-        
+
         return try JSONDecoder().decode(GitHubRelease.self, from: data)
     }
     
