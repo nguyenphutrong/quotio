@@ -17,12 +17,29 @@ final class CLIProxyManager {
     /// This solves the stale connection issue by forcing "Connection: close" on all requests
     let proxyBridge = ProxyBridge()
     
-    /// Whether to use the two-layer proxy architecture (ProxyBridge → CLIProxyAPI)
     /// When enabled: clients connect to userPort, ProxyBridge forwards to internalPort
     /// When disabled: clients connect directly to userPort where CLIProxyAPI runs
     var useBridgeMode: Bool {
         get { UserDefaults.standard.bool(forKey: "useBridgeMode") }
         set { UserDefaults.standard.set(newValue, forKey: "useBridgeMode") }
+    }
+    
+    /// Whether to allow network access to the proxy (bind to 0.0.0.0)
+    var allowNetworkAccess: Bool {
+        get { UserDefaults.standard.bool(forKey: "allowNetworkAccess") }
+        set { 
+            UserDefaults.standard.set(newValue, forKey: "allowNetworkAccess")
+            updateConfigHost(newValue ? "0.0.0.0" : "127.0.0.1")
+            
+            // Restart proxy if running to apply changes
+            if proxyStatus.running {
+                Task {
+                    stop()
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    try? await start()
+                }
+            }
+        }
     }
     
     /// Internal port where CLIProxyAPI runs (when bridge mode is enabled)
@@ -200,6 +217,16 @@ final class CLIProxyManager {
             try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
         }
     }
+
+    private func updateConfigHost(_ host: String) {
+        guard FileManager.default.fileExists(atPath: configPath),
+              var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
+        
+        if let range = content.range(of: #"host:\s*"[^"]*""#, options: .regularExpression) {
+            content.replaceSubrange(range, with: "host: \"\(host)\"")
+            try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
+        }
+    }
     
     func updateConfigLogging(enabled: Bool) {
         guard FileManager.default.fileExists(atPath: configPath),
@@ -248,7 +275,7 @@ final class CLIProxyManager {
         guard !FileManager.default.fileExists(atPath: configPath) else { return }
         
         let defaultConfig = """
-        host: "127.0.0.1"
+        host: "\(allowNetworkAccess ? "0.0.0.0" : "127.0.0.1")"
         port: \(proxyStatus.port)
         auth-dir: "\(authDir)"
         proxy-url: ""
@@ -630,7 +657,7 @@ final class CLIProxyManager {
         }
         
         // Important: Don't inherit environment that might cause issues
-        var environment = ProcessInfo.processInfo.environment
+        var environment = ProcessInfo.processinfo.environment
         environment["TERM"] = "xterm-256color"
         process.environment = environment
         
@@ -1014,7 +1041,7 @@ extension CLIProxyManager {
             newAuthProcess.standardOutput = outputPipe
             newAuthProcess.standardError = errorPipe
             
-            var environment = ProcessInfo.processInfo.environment
+            var environment = ProcessInfo.processinfo.environment
             environment["TERM"] = "xterm-256color"
             newAuthProcess.environment = environment
             
@@ -1481,7 +1508,7 @@ extension CLIProxyManager {
         process.standardOutput = outputPipe
         process.standardError = errorPipe
         
-        var environment = ProcessInfo.processInfo.environment
+        var environment = ProcessInfo.processinfo.environment
         environment["TERM"] = "xterm-256color"
         process.environment = environment
         
