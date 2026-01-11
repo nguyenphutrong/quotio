@@ -210,11 +210,21 @@ final class CLIProxyManager {
     
     private func updateConfigValue(pattern: String, replacement: String) {
         guard FileManager.default.fileExists(atPath: configPath),
-              var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
+              var content = try? String(contentsOfFile: configPath, encoding: .utf8) else {
+            NSLog("[CLIProxyManager] ERROR: Failed to read config file at \(configPath)")
+            return
+        }
         
-        if let range = content.range(of: pattern, options: .regularExpression) {
+        guard let range = content.range(of: pattern, options: .regularExpression) else {
+            NSLog("[CLIProxyManager] ERROR: Pattern '\(pattern)' not found in config")
+            return
+        }
+        
+        do {
             content.replaceSubrange(range, with: replacement)
-            try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
+            try content.write(toFile: configPath, atomically: true, encoding: .utf8)
+        } catch {
+            NSLog("[CLIProxyManager] ERROR: Failed to write config file: \(error)")
         }
     }
 
@@ -267,7 +277,7 @@ final class CLIProxyManager {
         proxy-url: ""
         
         api-keys:
-          - "quotio-local-\(UUID().uuidString.prefix(8))"
+          - "quotio-local-\(UUID().uuidString)"
         
         remote-management:
           allow-remote: false
