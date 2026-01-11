@@ -1,41 +1,41 @@
 {
   "version": "0.5.0",
-  "generated_at": 1767882833,
+  "generated_at": 1768055369,
   "modules": {
-    "root": {
-      "latest_mtime": 1767882830,
-      "file_count": 8,
-      "files_hash": 5178353876636375660
-    },
-    "Quotio-Views-Screens": {
-      "latest_mtime": 1767882830,
-      "file_count": 7,
-      "files_hash": 6024645575035298658
-    },
-    "Quotio-Services": {
-      "latest_mtime": 1767882830,
-      "file_count": 18,
-      "files_hash": 12350889847338248218
-    },
-    "Quotio-Models": {
-      "latest_mtime": 1767882830,
-      "file_count": 11,
-      "files_hash": 4255728776647440320
-    },
     "Quotio-Services-QuotaFetchers": {
-      "latest_mtime": 1767882830,
+      "latest_mtime": 1768055366,
       "file_count": 8,
       "files_hash": 15742415547219410393
     },
+    "Quotio-Views-Components": {
+      "latest_mtime": 1768055366,
+      "file_count": 25,
+      "files_hash": 18262967730645816044
+    },
+    "Quotio-Views-Screens": {
+      "latest_mtime": 1768055366,
+      "file_count": 8,
+      "files_hash": 15844722462868968527
+    },
+    "root": {
+      "latest_mtime": 1768055366,
+      "file_count": 31,
+      "files_hash": 5528443032283276713
+    },
+    "Quotio-Views-Onboarding": {
+      "latest_mtime": 1768055366,
+      "file_count": 6,
+      "files_hash": 4951050505872654154
+    },
     "Quotio-Services-Antigravity": {
-      "latest_mtime": 1767882830,
+      "latest_mtime": 1768055366,
       "file_count": 5,
       "files_hash": 6406456122991906305
     },
-    "Quotio-Views-Components": {
-      "latest_mtime": 1767882830,
-      "file_count": 19,
-      "files_hash": 15943783314240549055
+    "Quotio-Models": {
+      "latest_mtime": 1768055366,
+      "file_count": 15,
+      "files_hash": 4757899445576674768
     }
   }
 }

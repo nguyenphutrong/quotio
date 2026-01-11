@@ -31,4 +31,4 @@ plans/
 
 # Local AI agent context (not shared)
 .context/
-.context
+.wallpaper-cache/

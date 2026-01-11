@@ -12,6 +12,7 @@
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey.svg?style=flat" alt="Platform macOS" />
   <img src="https://img.shields.io/badge/language-Swift-orange.svg?style=flat" alt="Language Swift" />
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" alt="License MIT" />
+  <a href="https://discord.gg/dFzeZ7qS"><img src="https://img.shields.io/badge/Discord-加入我们-5865F2.svg?style=flat&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="README.md"><img src="https://img.shields.io/badge/lang-English-blue.svg?style=flat" alt="English" /></a>
   <a href="README.vi.md"><img src="https://img.shields.io/badge/lang-Tiếng%20Việt-red.svg?style=flat" alt="Vietnamese" /></a>
   <a href="README.fr.md"><img src="https://img.shields.io/badge/lang-Français-blue.svg?style=flat" alt="French" /></a>
@@ -160,6 +161,34 @@ brew install --cask quotio
   <img alt="Quota Monitoring" src="screenshots/quota.png" />
 </picture>
 
+### 备用配置
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/fallback_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/fallback.png" />
+  <img alt="Fallback Configuration" src="screenshots/fallback.png" />
+</picture>
+
+### API 密钥
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/api_keys_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/api_keys.png" />
+  <img alt="API Keys" src="screenshots/api_keys.png" />
+</picture>
+
+### 日志
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/logs_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/logs.png" />
+  <img alt="Logs" src="screenshots/logs.png" />
+</picture>
+
+### 设置
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/settings_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/settings.png" />
+  <img alt="Settings" src="screenshots/settings.png" />
+</picture>
+
 ### 菜单栏
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
@@ -174,6 +203,14 @@ brew install --cask quotio
 3. 提交修改（`git commit -m 'Add amazing feature'`）
 4. 推送到分支（`git push origin feature/amazing-feature`）
 5. 创建 Pull Request
+
+## 💬 社区
+
+加入我们的 Discord 社区，获取帮助、分享反馈并与其他用户交流：
+
+<a href="https://discord.gg/dFzeZ7qS">
+  <img src="https://img.shields.io/badge/Discord-加入我们的社区-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white" alt="加入 Discord" />
+</a>
 
 ## ⭐ Star 历史
 

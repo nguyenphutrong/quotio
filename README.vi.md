@@ -12,6 +12,7 @@
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey.svg?style=flat" alt="Platform macOS" />
   <img src="https://img.shields.io/badge/language-Swift-orange.svg?style=flat" alt="Language Swift" />
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" alt="License MIT" />
+  <a href="https://discord.gg/dFzeZ7qS"><img src="https://img.shields.io/badge/Discord-Tham%20gia-5865F2.svg?style=flat&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="README.md"><img src="https://img.shields.io/badge/lang-English-blue.svg?style=flat" alt="English" /></a>
   <a href="README.zh.md"><img src="https://img.shields.io/badge/lang-zh--CN-green.svg?style=flat" alt="Chinese" /></a>
   <a href="README.fr.md"><img src="https://img.shields.io/badge/lang-Français-blue.svg?style=flat" alt="French" /></a>
@@ -160,6 +161,34 @@ Vào tab **Agents** → Chọn agent đã cài → Nhấn **Configure** → Ch�
   <img alt="Giám sát Hạn mức" src="screenshots/quota.png" />
 </picture>
 
+### Cấu hình Fallback
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/fallback_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/fallback.png" />
+  <img alt="Cấu hình Fallback" src="screenshots/fallback.png" />
+</picture>
+
+### API Keys
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/api_keys_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/api_keys.png" />
+  <img alt="API Keys" src="screenshots/api_keys.png" />
+</picture>
+
+### Nhật ký
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/logs_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/logs.png" />
+  <img alt="Nhật ký" src="screenshots/logs.png" />
+</picture>
+
+### Cài đặt
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/settings_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/settings.png" />
+  <img alt="Cài đặt" src="screenshots/settings.png" />
+</picture>
+
 ### Menu Bar
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
@@ -174,6 +203,14 @@ Vào tab **Agents** → Chọn agent đã cài → Nhấn **Configure** → Ch�
 3. Commit (`git commit -m 'Thêm tính năng mới'`)
 4. Push (`git push origin feature/tinh-nang-moi`)
 5. Mở Pull Request
+
+## 💬 Cộng đồng
+
+Tham gia cộng đồng Discord để được hỗ trợ, chia sẻ phản hồi và kết nối với người dùng khác:
+
+<a href="https://discord.gg/dFzeZ7qS">
+  <img src="https://img.shields.io/badge/Discord-Tham%20gia%20cộng%20đồng-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white" alt="Tham gia Discord" />
+</a>
 
 ## ⭐ Star History
 

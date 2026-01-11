@@ -7,7 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.6.1] - 2026-01-08
+## [0.7.0] - 2026-01-09
+
+### Added
+
+- **fallback**: Model Fallback Strategy System (Experimental) (#136)
+  - Create virtual models with automatic provider fallback based on quota availability
+  - Dynamic fallback resolution at request time in ProxyBridge
+  - Auto-retry with next fallback entry on quota exhaustion (429)
+  - Bridge Mode routing when Fallback is enabled
+  - New Fallback screen for managing virtual models and entries
+- **ui**: Add ExperimentalBadge component for marking experimental features (a345698)
+- **onboarding**: Complete redesign with step-based flow (#136)
+  - Welcome, Mode Selection, Provider, Remote Setup, and Completion steps
+- **remote**: Remote connection support for connecting to remote proxy servers (#136)
+- **ui**: CurrentModeBadge component for displaying current operating mode (#136)
+- **docs**: Add Contributor Covenant Code of Conduct (6c2915b)
+
+### Changed
+
+- **mode**: Refactor operating mode system with enhanced OperatingMode struct (#136)
+- **agent**: Route through ProxyBridge when Fallback is enabled for virtual model detection (#136)
+
+### Fixed
+
+- **dock**: Fix dock icon management and ghost icon issues (#133)
+- **fallback**: Fix fallback route caching for better performance (#133)
+- **proxy**: CLIProxyAPIPlus v6.6.92+ compatibility (#133)
+- **quality**: Code quality improvements and cleanup (#135)
 
 ## [0.6.0] - 2026-01-06
 

@@ -118,7 +118,12 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         populateMenu()
         menu.update()
     }
-    
+
+    /// Close the menu programmatically
+    func closeMenu() {
+        menu?.cancelTracking()
+    }
+
     private func populateMenu() {
         guard let menu = menu else { return }
         

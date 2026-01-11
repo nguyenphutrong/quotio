@@ -12,6 +12,7 @@
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey.svg?style=flat" alt="Plateforme macOS" />
   <img src="https://img.shields.io/badge/language-Swift-orange.svg?style=flat" alt="Langage Swift" />
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" alt="Licence MIT" />
+  <a href="https://discord.gg/dFzeZ7qS"><img src="https://img.shields.io/badge/Discord-Rejoindre-5865F2.svg?style=flat&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="README.md"><img src="https://img.shields.io/badge/lang-English-blue.svg?style=flat" alt="Anglais" /></a>
   <a href="README.vi.md"><img src="https://img.shields.io/badge/lang-Tiếng%20Việt-red.svg?style=flat" alt="Vietnamien" /></a>
   <a href="README.zh.md"><img src="https://img.shields.io/badge/lang-zh--CN-green.svg?style=flat" alt="Chinois" /></a>
@@ -160,6 +161,34 @@ Allez dans l'onglet **Agents** → Sélectionnez un agent installé → Cliquez 
   <img alt="Surveillance des Quotas" src="screenshots/quota.png" />
 </picture>
 
+### Configuration de Secours
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/fallback_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/fallback.png" />
+  <img alt="Configuration de Secours" src="screenshots/fallback.png" />
+</picture>
+
+### Clés API
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/api_keys_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/api_keys.png" />
+  <img alt="Clés API" src="screenshots/api_keys.png" />
+</picture>
+
+### Journaux
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/logs_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/logs.png" />
+  <img alt="Journaux" src="screenshots/logs.png" />
+</picture>
+
+### Paramètres
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/settings_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/settings.png" />
+  <img alt="Paramètres" src="screenshots/settings.png" />
+</picture>
+
 ### Barre de Menu
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/menu_bar_dark.png" />
@@ -174,6 +203,14 @@ Allez dans l'onglet **Agents** → Sélectionnez un agent installé → Cliquez 
 3. Commitez vos Modifications (`git commit -m 'Ajout d'une fonctionnalité géniale'`)
 4. Poussez vers la Branche (`git push origin feature/fonctionnalite-geniale`)
 5. Ouvrez une Pull Request
+
+## 💬 Communauté
+
+Rejoignez notre communauté Discord pour obtenir de l'aide, partager vos commentaires et vous connecter avec d'autres utilisateurs :
+
+<a href="https://discord.gg/dFzeZ7qS">
+  <img src="https://img.shields.io/badge/Discord-Rejoindre%20notre%20communauté-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white" alt="Rejoindre Discord" />
+</a>
 
 ## ⭐ Historique des Étoiles
 

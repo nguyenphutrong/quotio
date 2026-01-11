@@ -12,6 +12,40 @@ actor ManagementAPIClient {
     private let sessionDelegate: SessionDelegate
     private let clientId: String
     
+    /// Whether this client is connected to a remote server (vs localhost)
+    let isRemote: Bool
+    
+    /// Timeout configuration used for this client
+    let timeoutConfig: TimeoutConfig
+    
+    // MARK: - Timeout Configuration
+    
+    /// Timeout settings for API requests
+    struct TimeoutConfig: Sendable {
+        let requestTimeout: TimeInterval
+        let resourceTimeout: TimeInterval
+        let maxRetries: Int
+        
+        /// Default timeouts for local connections (faster, more reliable)
+        static let local = TimeoutConfig(
+            requestTimeout: 15,
+            resourceTimeout: 45,
+            maxRetries: 1
+        )
+        
+        /// Timeouts for remote connections (slower, needs more patience)
+        static let remote = TimeoutConfig(
+            requestTimeout: 30,
+            resourceTimeout: 90,
+            maxRetries: 2
+        )
+        
+        /// Custom timeout configuration
+        static func custom(requestTimeout: TimeInterval, resourceTimeout: TimeInterval, maxRetries: Int = 1) -> TimeoutConfig {
+            TimeoutConfig(requestTimeout: requestTimeout, resourceTimeout: resourceTimeout, maxRetries: maxRetries)
+        }
+    }
+    
     // MARK: - Diagnostic Logging
     
     static let enableDiagnosticLogging = false
@@ -38,24 +72,69 @@ actor ManagementAPIClient {
         return activeRequests
     }
     
+    // MARK: - Initialization
+    
+    /// Initialize for local connection (localhost)
     init(baseURL: String, authKey: String) {
         self.baseURL = baseURL
         self.authKey = authKey
         self.clientId = String(UUID().uuidString.prefix(6))
+        self.isRemote = false
+        self.timeoutConfig = .local
         
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15  // Increased from 10
-        config.timeoutIntervalForResource = 45 // Increased from 30
-        // Increased connection limit to handle concurrent requests better
+        config.timeoutIntervalForRequest = timeoutConfig.requestTimeout
+        config.timeoutIntervalForResource = timeoutConfig.resourceTimeout
         config.httpMaximumConnectionsPerHost = 4
-        // Disable connection caching to prevent stale connections
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         
         self.sessionDelegate = SessionDelegate(clientId: clientId)
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
         
-        Self.log("[\(clientId)] Client created, maxConnections=4, timeout=15/45s")
+        Self.log("[\(clientId)] Local client created, timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s")
+    }
+    
+    /// Initialize for remote connection with custom timeout
+    /// - Warning: Setting `verifySSL: false` disables certificate validation, making the connection
+    ///   vulnerable to man-in-the-middle attacks. Only use for self-signed certificates in trusted networks.
+    init(baseURL: String, authKey: String, timeoutConfig: TimeoutConfig, verifySSL: Bool = true) {
+        self.baseURL = baseURL
+        self.authKey = authKey
+        self.clientId = String(UUID().uuidString.prefix(6))
+        self.isRemote = true
+        self.timeoutConfig = timeoutConfig
+        
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = timeoutConfig.requestTimeout
+        config.timeoutIntervalForResource = timeoutConfig.resourceTimeout
+        config.httpMaximumConnectionsPerHost = 4
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        
+        self.sessionDelegate = SessionDelegate(clientId: clientId, verifySSL: verifySSL)
+        self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
+        
+        Self.log("[\(clientId)] Remote client created, timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s, verifySSL=\(verifySSL)")
+        
+        if !verifySSL {
+            print("[SECURITY WARNING] SSL verification disabled for \(baseURL). Connection is vulnerable to MITM attacks.")
+        }
+    }
+    
+    /// Convenience initializer for remote connection with RemoteConnectionConfig
+    init(config: RemoteConnectionConfig, managementKey: String) {
+        let timeout = TimeoutConfig.custom(
+            requestTimeout: TimeInterval(config.timeoutSeconds),
+            resourceTimeout: TimeInterval(config.timeoutSeconds * 3),
+            maxRetries: 2
+        )
+        self.init(
+            baseURL: config.managementBaseURL,
+            authKey: managementKey,
+            timeoutConfig: timeout,
+            verifySSL: config.verifySSL
+        )
     }
     
     func invalidate() {
@@ -107,8 +186,8 @@ actor ManagementAPIClient {
         } catch let error as URLError {
             Self.log("[\(clientId)][\(requestId)] URL ERROR: \(error.code.rawValue) - \(error.localizedDescription)")
             
-            // Retry once on timeout or connection errors (stale connection recovery)
-            if retryCount < 1 && (error.code == .timedOut || error.code == .networkConnectionLost || error.code == .cannotConnectToHost) {
+            // Retry on timeout or connection errors (stale connection recovery)
+            if retryCount < timeoutConfig.maxRetries && (error.code == .timedOut || error.code == .networkConnectionLost || error.code == .cannotConnectToHost) {
                 Self.log("[\(clientId)][\(requestId)] RETRYING after 0.5s...")
                 // Small delay before retry
                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
@@ -198,8 +277,17 @@ actor ManagementAPIClient {
     }
     
     func setRoutingStrategy(_ strategy: String) async throws {
-        let body = try JSONEncoder().encode(["strategy": strategy])
-        _ = try await makeRequest("/routing", method: "PUT", body: body)
+        let body = try JSONEncoder().encode(["value": strategy])
+
+        // Try new endpoint first (CLIProxyAPIPlus v6.6.92+)
+        do {
+            _ = try await makeRequest("/routing/strategy", method: "PUT", body: body)
+            return
+        } catch APIError.httpError(404) {
+            // Fall back to legacy endpoint for older CLIProxyAPI versions
+            let legacyBody = try JSONEncoder().encode(["strategy": strategy])
+            _ = try await makeRequest("/routing", method: "PUT", body: legacyBody)
+        }
     }
     
     func setQuotaExceededSwitchProject(_ enabled: Bool) async throws {
@@ -215,6 +303,99 @@ actor ManagementAPIClient {
     func setRequestRetry(_ count: Int) async throws {
         let body = try JSONEncoder().encode(["value": count])
         _ = try await makeRequest("/request-retry", method: "PUT", body: body)
+    }
+    
+    // MARK: - Remote Configuration Getters
+    
+    /// Fetch the full configuration from the remote server
+    func fetchConfig() async throws -> RemoteProxyConfig {
+        let data = try await makeRequest("/config")
+        return try JSONDecoder().decode(RemoteProxyConfig.self, from: data)
+    }
+    
+    /// Get debug mode status
+    func getDebug() async throws -> Bool {
+        let data = try await makeRequest("/debug")
+        let response = try JSONDecoder().decode(DebugResponse.self, from: data)
+        return response.debug
+    }
+    
+    /// Get proxy URL (upstream proxy)
+    func getProxyURL() async throws -> String {
+        let data = try await makeRequest("/proxy-url")
+        let response = try JSONDecoder().decode(ProxyURLResponse.self, from: data)
+        return response.proxyURL
+    }
+    
+    /// Set proxy URL (upstream proxy)
+    func setProxyURL(_ url: String) async throws {
+        let body = try JSONEncoder().encode(["value": url])
+        _ = try await makeRequest("/proxy-url", method: "PUT", body: body)
+    }
+    
+    /// Delete/clear proxy URL
+    func deleteProxyURL() async throws {
+        _ = try await makeRequest("/proxy-url", method: "DELETE")
+    }
+    
+    /// Get logging to file status
+    func getLoggingToFile() async throws -> Bool {
+        let data = try await makeRequest("/logging-to-file")
+        let response = try JSONDecoder().decode(LoggingToFileResponse.self, from: data)
+        return response.loggingToFile
+    }
+    
+    /// Set logging to file
+    func setLoggingToFile(_ enabled: Bool) async throws {
+        let body = try JSONEncoder().encode(["value": enabled])
+        _ = try await makeRequest("/logging-to-file", method: "PUT", body: body)
+    }
+    
+    /// Get request log status
+    func getRequestLog() async throws -> Bool {
+        let data = try await makeRequest("/request-log")
+        let response = try JSONDecoder().decode(RequestLogResponse.self, from: data)
+        return response.requestLog
+    }
+    
+    /// Set request log
+    func setRequestLog(_ enabled: Bool) async throws {
+        let body = try JSONEncoder().encode(["value": enabled])
+        _ = try await makeRequest("/request-log", method: "PUT", body: body)
+    }
+    
+    /// Get request retry count
+    func getRequestRetry() async throws -> Int {
+        let data = try await makeRequest("/request-retry")
+        let response = try JSONDecoder().decode(RequestRetryResponse.self, from: data)
+        return response.requestRetry
+    }
+    
+    /// Get max retry interval
+    func getMaxRetryInterval() async throws -> Int {
+        let data = try await makeRequest("/max-retry-interval")
+        let response = try JSONDecoder().decode(MaxRetryIntervalResponse.self, from: data)
+        return response.maxRetryInterval
+    }
+    
+    /// Set max retry interval
+    func setMaxRetryInterval(_ seconds: Int) async throws {
+        let body = try JSONEncoder().encode(["value": seconds])
+        _ = try await makeRequest("/max-retry-interval", method: "PUT", body: body)
+    }
+    
+    /// Get quota exceeded switch project status
+    func getQuotaExceededSwitchProject() async throws -> Bool {
+        let data = try await makeRequest("/quota-exceeded/switch-project")
+        let response = try JSONDecoder().decode(SwitchProjectResponse.self, from: data)
+        return response.switchProject
+    }
+    
+    /// Get quota exceeded switch preview model status
+    func getQuotaExceededSwitchPreviewModel() async throws -> Bool {
+        let data = try await makeRequest("/quota-exceeded/switch-preview-model")
+        let response = try JSONDecoder().decode(SwitchPreviewModelResponse.self, from: data)
+        return response.switchPreviewModel
     }
     
     func uploadVertexServiceAccount(jsonPath: String) async throws {
@@ -294,9 +475,11 @@ nonisolated struct LatestVersionResponse: Codable, Sendable {
 
 private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
     private let clientId: String
+    private let verifySSL: Bool
     
-    init(clientId: String) {
+    init(clientId: String, verifySSL: Bool = true) {
         self.clientId = clientId
+        self.verifySSL = verifySSL
         super.init()
     }
     
@@ -313,6 +496,16 @@ private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTas
             let duration = metric.responseEndDate?.timeIntervalSince(metric.requestStartDate ?? Date()) ?? 0
             print("[API] [\(clientId)] Connection: \(reused), duration=\(String(format: "%.3f", duration))s")
         }
+    }
+    
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if !verifySSL && challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+            if let serverTrust = challenge.protectionSpace.serverTrust {
+                completionHandler(.useCredential, URLCredential(trust: serverTrust))
+                return
+            }
+        }
+        completionHandler(.performDefaultHandling, nil)
     }
 }
 
@@ -384,5 +577,99 @@ nonisolated enum APIError: LocalizedError {
         case .decodingError(let msg): return "Decoding error: \(msg)"
         case .connectionError(let msg): return "Connection error: \(msg)"
         }
+    }
+}
+
+// MARK: - Remote Configuration Response Types
+
+nonisolated struct RemoteProxyConfig: Codable, Sendable {
+    let debug: Bool?
+    let proxyURL: String?
+    let routingStrategy: String?
+    let requestRetry: Int?
+    let maxRetryInterval: Int?
+    let loggingToFile: Bool?
+    let requestLog: Bool?
+    let quotaExceeded: RemoteProxyQuotaExceededConfig?
+    
+    enum CodingKeys: String, CodingKey {
+        case debug
+        case proxyURL = "proxy-url"
+        case routingStrategy = "routing-strategy"
+        case requestRetry = "request-retry"
+        case maxRetryInterval = "max-retry-interval"
+        case loggingToFile = "logging-to-file"
+        case requestLog = "request-log"
+        case quotaExceeded = "quota-exceeded"
+    }
+}
+
+nonisolated struct RemoteProxyQuotaExceededConfig: Codable, Sendable {
+    let switchProject: Bool?
+    let switchPreviewModel: Bool?
+    
+    enum CodingKeys: String, CodingKey {
+        case switchProject = "switch-project"
+        case switchPreviewModel = "switch-preview-model"
+    }
+}
+
+nonisolated struct DebugResponse: Codable, Sendable {
+    let debug: Bool
+}
+
+nonisolated struct ProxyURLResponse: Codable, Sendable {
+    let proxyURL: String
+    
+    enum CodingKeys: String, CodingKey {
+        case proxyURL = "proxy-url"
+    }
+}
+
+nonisolated struct LoggingToFileResponse: Codable, Sendable {
+    let loggingToFile: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case loggingToFile = "logging-to-file"
+    }
+}
+
+nonisolated struct RequestLogResponse: Codable, Sendable {
+    let requestLog: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case requestLog = "request-log"
+    }
+}
+
+nonisolated struct RequestRetryResponse: Codable, Sendable {
+    let requestRetry: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case requestRetry = "request-retry"
+    }
+}
+
+nonisolated struct MaxRetryIntervalResponse: Codable, Sendable {
+    let maxRetryInterval: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case maxRetryInterval = "max-retry-interval"
+    }
+}
+
+nonisolated struct SwitchProjectResponse: Codable, Sendable {
+    let switchProject: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case switchProject = "switch-project"
+    }
+}
+
+nonisolated struct SwitchPreviewModelResponse: Codable, Sendable {
+    let switchPreviewModel: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case switchPreviewModel = "switch-preview-model"
     }
 }

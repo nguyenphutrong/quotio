@@ -19,7 +19,7 @@ import SwiftUI
 final class StatusBarMenuBuilder {
     
     private let viewModel: QuotaViewModel
-    private let modeManager = AppModeManager.shared
+    private let modeManager = OperatingModeManager.shared
     private let menuWidth: CGFloat = 300
     
     // Selected provider from UserDefaults
@@ -39,10 +39,16 @@ final class StatusBarMenuBuilder {
         menu.addItem(buildHeaderItem())
         menu.addItem(NSMenuItem.separator())
         
-        // 2. Proxy info (Full Mode only)
-        if modeManager.isFullMode {
+        // 2. Proxy info (Local Proxy Mode only)
+        if modeManager.isLocalProxyMode {
             menu.addItem(buildProxyInfoItem())
             menu.addItem(NSMenuItem.separator())
+            
+            // 2.5. Tunnel status (if proxy is running)
+            if viewModel.proxyManager.proxyStatus.running {
+                menu.addItem(buildTunnelItem())
+                menu.addItem(NSMenuItem.separator())
+            }
         }
         
         // 3. Provider picker + Account cards (separate items for submenu support)
@@ -148,6 +154,22 @@ final class StatusBarMenuBuilder {
             }
         )
         return viewItem(for: proxyView)
+    }
+    
+    private func buildTunnelItem() -> NSMenuItem {
+        let tunnelManager = TunnelManager.shared
+        let tunnelView = MenuTunnelView(
+            onToggle: { [weak viewModel] in
+                guard let viewModel = viewModel else { return }
+                Task {
+                    await tunnelManager.toggle(port: viewModel.proxyManager.port)
+                }
+            },
+            onCopyURL: {
+                tunnelManager.copyURLToClipboard()
+            }
+        )
+        return viewItem(for: tunnelView)
     }
     
     // MARK: - Account Card Item (with submenu for Antigravity)
@@ -277,14 +299,30 @@ final class MenuActionHandler: NSObject {
     }
     
     @objc func openApp() {
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        if let window = NSApplication.shared.windows.first(where: { $0.title == "Quotio" }) {
-            window.makeKeyAndOrderFront(nil)
-        }
+        Self.openMainWindow()
     }
     
     @objc func quit() {
         NSApplication.shared.terminate(nil)
+    }
+    
+    static func openMainWindow() {
+        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
+        if showInDock {
+            StatusBarManager.shared.closeMenu()
+        }
+
+        NSApplication.shared.activate(ignoringOtherApps: true)
+
+        if let window = NSApplication.shared.windows.first(where: { $0.title == "Quotio" }) {
+            window.makeKeyAndOrderFront(nil)
+
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
+
+            window.orderFrontRegardless()
+        }
     }
 }
 
@@ -674,24 +712,35 @@ private struct ModelBadgeData: Identifiable {
 
 private struct ModelGridBadge: View {
     let data: ModelBadgeData
-    
+
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+
     private var remainingPercent: Double {
         data.percentage
     }
-    
+
+    private var usedPercent: Double {
+        100 - data.percentage
+    }
+
+    private var displayPercent: Double {
+        settings.quotaDisplayMode == .used ? usedPercent : remainingPercent
+    }
+
     private var tintColor: Color {
+        // Color is always based on remaining percentage (resource health)
         if remainingPercent > 50 { return .green }
         if remainingPercent > 20 { return .orange }
         return .red
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(data.name)
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            
+
             HStack(spacing: 4) {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
@@ -703,8 +752,8 @@ private struct ModelGridBadge: View {
                     }
                 }
                 .frame(height: 4)
-                
-                Text(verbatim: "\(Int(remainingPercent))%")
+
+                Text(verbatim: "\(Int(displayPercent.rounded()))%")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(tintColor)
                     .frame(width: 28, alignment: .trailing)
@@ -822,10 +871,7 @@ private struct MenuActionsView: View {
                 icon: "macwindow",
                 title: "action.openApp".localized()
             ) {
-                NSApplication.shared.activate(ignoringOtherApps: true)
-                if let window = NSApplication.shared.windows.first(where: { $0.title == "Quotio" }) {
-                    window.makeKeyAndOrderFront(nil)
-                }
+                MenuActionHandler.openMainWindow()
             }
             
             Divider()
@@ -878,6 +924,72 @@ private struct MenuBarActionButton: View {
         .buttonStyle(.plain)
         .disabled(isLoading)
         .onHover { isHovered = $0 }
+    }
+}
+
+// MARK: - Menu Tunnel View
+
+private struct MenuTunnelView: View {
+    private let tunnelManager = TunnelManager.shared
+    let onToggle: () -> Void
+    let onCopyURL: () -> Void
+    
+    private var status: CloudflareTunnelStatus { tunnelManager.tunnelState.status }
+    private var publicURL: String? { tunnelManager.tunnelState.publicURL }
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Image(systemName: "globe")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                Text("Cloudflare Tunnel")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                Spacer()
+                
+                TunnelStatusBadge(status: status, compact: true)
+            }
+            
+            if status == .active, let url = publicURL {
+                HStack {
+                    Text(url)
+                        .font(.system(.caption, design: .monospaced))
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    Button(action: onCopyURL) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            
+            HStack {
+                Spacer()
+                
+                Button(action: onToggle) {
+                    Text(status == .active || status == .starting
+                         ? "tunnel.action.stop".localized()
+                         : "tunnel.action.start".localized())
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(status == .active ? .red : .blue)
+                .disabled(status == .starting || status == .stopping)
+            }
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
     }
 }
 
