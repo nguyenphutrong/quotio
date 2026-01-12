@@ -250,11 +250,19 @@ nonisolated struct ProviderQuotaData: Codable, Sendable {
     var planDisplayName: String? {
         guard let plan = planType?.lowercased() else { return nil }
         switch plan {
+        case "guest": return "Guest"
+        case "free": return "Free"
+        case "go": return "Go"
         case "plus": return "Plus"
         case "pro": return "Pro"
+        case "free_workspace": return "Free Workspace"
         case "team": return "Team"
+        case "business": return "Business"
+        case "education": return "Education"
+        case "quorum": return "Quorum"
+        case "k12": return "K-12"
         case "enterprise": return "Enterprise"
-        case "free": return "Free"
+        case "edu": return "Edu"
         default: return planType?.capitalized
         }
     }
