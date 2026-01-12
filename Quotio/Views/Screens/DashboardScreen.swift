@@ -48,14 +48,22 @@ struct DashboardScreen: View {
         Set(viewModel.directAuthFiles.map { $0.provider }).count
     }
     
-    /// Lowest quota percentage across all providers and models
+    /// Lowest quota percentage across all providers using total usage logic
     private var lowestQuotaPercentage: Double {
-        viewModel.providerQuotas.values
-            .flatMap { $0.values }
-            .flatMap { $0.models }
-            .map { $0.percentage }
-            .filter { $0 >= 0 }  // Exclude unknown (-1) values
-            .min() ?? 100
+        let settings = MenuBarSettingsManager.shared
+        var allTotals: [Double] = []
+        
+        for (_, accountQuotas) in viewModel.providerQuotas {
+            for (_, quotaData) in accountQuotas {
+                let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
+                let total = settings.totalUsagePercent(models: models)
+                if total >= 0 {
+                    allTotals.append(total)
+                }
+            }
+        }
+        
+        return allTotals.min() ?? 100
     }
     
     /// Grouped accounts by provider (cached computation)
