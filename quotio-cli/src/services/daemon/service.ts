@@ -1,5 +1,6 @@
 import { existsSync, writeFileSync, unlinkSync, readFileSync } from "node:fs";
-import { ConfigFiles, ensureDir, getCacheDir } from "../../utils/paths.ts";
+import { readdir } from "node:fs/promises";
+import { ConfigFiles, ensureDir, getCacheDir, getConfigDir } from "../../utils/paths.ts";
 import { logger } from "../../utils/logger.ts";
 import {
   startServer,
@@ -10,7 +11,12 @@ import {
   getConnectionCount,
   type MethodHandler,
 } from "../../ipc/server.ts";
-import type { DaemonStatus } from "../../ipc/protocol.ts";
+import type {
+  DaemonStatus,
+  ProviderQuotaInfo,
+  DetectedAgent,
+  AuthAccount,
+} from "../../ipc/protocol.ts";
 import {
   startProxy,
   stopProxy,
@@ -18,6 +24,14 @@ import {
   getProcessState,
   isProxyRunning,
 } from "../proxy-process/index.ts";
+import { getQuotaService } from "../quota-service.ts";
+import { getAgentDetectionService } from "../agent-detection/service.ts";
+import {
+  getAgentConfigurationService,
+  type ConfigurationMode,
+} from "../agent-detection/configuration.ts";
+import { CLI_AGENTS, type CLIAgentId } from "../agent-detection/types.ts";
+import { PROVIDER_METADATA } from "../../models/provider.ts";
 
 interface DaemonState {
   startedAt: Date | null;
@@ -36,6 +50,52 @@ function getVersion(): string {
   } catch {
     return "0.0.0";
   }
+}
+
+interface QuotaCache {
+  quotas: ProviderQuotaInfo[];
+  lastFetched: Date | null;
+}
+
+const quotaCache: QuotaCache = {
+  quotas: [],
+  lastFetched: null,
+};
+
+interface ConfigStore {
+  [key: string]: unknown;
+}
+
+let configStore: ConfigStore | null = null;
+
+async function loadConfigStore(): Promise<ConfigStore> {
+  if (configStore !== null) return configStore;
+  
+  const configPath = ConfigFiles.config();
+  try {
+    if (existsSync(configPath)) {
+      const content = readFileSync(configPath, "utf-8");
+      configStore = JSON.parse(content) as ConfigStore;
+    } else {
+      configStore = {};
+    }
+  } catch {
+    configStore = {};
+  }
+  return configStore as ConfigStore;
+}
+
+async function saveConfigStore(): Promise<void> {
+  if (!configStore) return;
+  
+  const configPath = ConfigFiles.config();
+  await ensureDir(getConfigDir());
+  writeFileSync(configPath, JSON.stringify(configStore, null, 2));
+}
+
+function getAuthDir(): string {
+  const home = process.env.HOME ?? Bun.env.HOME ?? "";
+  return `${home}/.cli-proxy-api`;
 }
 
 const handlers: Record<string, MethodHandler> = {
@@ -113,43 +173,155 @@ const handlers: Record<string, MethodHandler> = {
     return { healthy };
   },
 
-  "quota.fetch": async () => ({
-    success: true,
-    quotas: [],
-    errors: [],
-  }),
+  "quota.fetch": async (params: unknown) => {
+    const opts = params as { provider?: string; forceRefresh?: boolean } | undefined;
+    const quotaService = getQuotaService();
+    
+    try {
+      const result = await quotaService.fetchAllQuotas();
+      const quotas: ProviderQuotaInfo[] = [];
+      
+      for (const [key, data] of result.quotas) {
+        const [provider, email] = key.split(":");
+        const providerMeta = Object.values(PROVIDER_METADATA).find(p => p.id === provider);
+        
+        quotas.push({
+          provider: providerMeta?.displayName ?? provider ?? "unknown",
+          email: email ?? "unknown",
+          models: data.models.map(m => ({
+            name: m.name,
+            percentage: m.percentage,
+            resetTime: m.resetTime,
+            used: m.used,
+            limit: m.limit,
+          })),
+          lastUpdated: data.lastUpdated.toISOString(),
+          isForbidden: data.isForbidden,
+        });
+      }
+      
+      quotaCache.quotas = quotas;
+      quotaCache.lastFetched = new Date();
+      
+      return {
+        success: true,
+        quotas,
+        errors: result.errors.map(e => ({ provider: e.provider, error: e.error })),
+      };
+    } catch (err) {
+      return {
+        success: false,
+        quotas: [],
+        errors: [{ provider: "all", error: err instanceof Error ? err.message : String(err) }],
+      };
+    }
+  },
 
   "quota.list": async () => ({
-    quotas: [],
-    lastFetched: null,
+    quotas: quotaCache.quotas,
+    lastFetched: quotaCache.lastFetched?.toISOString() ?? null,
   }),
 
-  "agent.detect": async () => ({
-    agents: [],
-  }),
+  "agent.detect": async (params: unknown) => {
+    const opts = params as { forceRefresh?: boolean } | undefined;
+    const detectionService = getAgentDetectionService();
+    
+    const statuses = await detectionService.detectAllAgents(opts?.forceRefresh ?? false);
+    const agents: DetectedAgent[] = statuses.map(status => ({
+      id: status.agent.id,
+      name: status.agent.displayName,
+      installed: status.installed,
+      configured: status.configured,
+      binaryPath: status.binaryPath ?? null,
+      version: status.version ?? null,
+    }));
+    
+    return { agents };
+  },
 
   "agent.configure": async (params: unknown) => {
     const opts = params as { agent: string; mode: "auto" | "manual" };
+    const agentId = opts.agent as CLIAgentId;
+    
+    if (!CLI_AGENTS[agentId]) {
+      return {
+        success: false,
+        agent: opts.agent,
+        configPath: null,
+        backupPath: null,
+      };
+    }
+    
+    const configService = getAgentConfigurationService();
+    const proxyState = getProcessState();
+    const port = proxyState.running ? proxyState.port : 8217;
+    
+    const result = configService.generateConfiguration(
+      agentId,
+      {
+        agent: CLI_AGENTS[agentId],
+        proxyURL: `http://localhost:${port}/v1`,
+        apiKey: "quotio-cli-key",
+      },
+      opts.mode === "auto" ? "automatic" : "manual"
+    );
+    
     return {
-      success: true,
+      success: result.success,
       agent: opts.agent,
-      configPath: null,
-      backupPath: null,
+      configPath: result.configPath ?? null,
+      backupPath: result.backupPath ?? null,
     };
   },
 
-  "auth.list": async () => ({
-    accounts: [],
-  }),
+  "auth.list": async (params: unknown) => {
+    const opts = params as { provider?: string } | undefined;
+    const authDir = getAuthDir();
+    const accounts: AuthAccount[] = [];
+    
+    try {
+      const files = await readdir(authDir);
+      
+      for (const fileName of files) {
+        if (!fileName.endsWith(".json")) continue;
+        if (opts?.provider && !fileName.startsWith(opts.provider)) continue;
+        
+        const filePath = `${authDir}/${fileName}`;
+        try {
+          const content = JSON.parse(readFileSync(filePath, "utf-8"));
+          const provider = fileName.split("-")[0] ?? "unknown";
+          const providerMeta = Object.values(PROVIDER_METADATA).find(
+            p => p.id === provider || fileName.startsWith(p.id)
+          );
+          
+          accounts.push({
+            id: fileName.replace(".json", ""),
+            name: content.email ?? content.account ?? fileName.replace(".json", ""),
+            provider: providerMeta?.displayName ?? provider,
+            email: content.email,
+            status: content.status ?? "ready",
+            disabled: Boolean(content.disabled),
+          });
+        } catch {}
+      }
+    } catch {}
+    
+    return { accounts };
+  },
 
   "config.get": async (params: unknown) => {
     const opts = params as { key: string };
-    return { value: null };
+    const store = await loadConfigStore();
+    return { value: store[opts.key] ?? null };
   },
 
-  "config.set": async () => ({
-    success: true as const,
-  }),
+  "config.set": async (params: unknown) => {
+    const opts = params as { key: string; value: unknown };
+    const store = await loadConfigStore();
+    store[opts.key] = opts.value;
+    await saveConfigStore();
+    return { success: true as const };
+  },
 };
 
 export async function startDaemon(options?: { foreground?: boolean }): Promise<void> {
