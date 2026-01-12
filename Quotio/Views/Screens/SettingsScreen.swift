@@ -665,6 +665,7 @@ struct LocalProxyServerSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     @AppStorage("autoStartTunnel") private var autoStartTunnel = false
+    @AppStorage("allowNetworkAccess") private var allowNetworkAccess = false
     @State private var portText: String = ""
     
     var body: some View {
@@ -703,6 +704,13 @@ struct LocalProxyServerSection: View {
             
             Toggle("settings.autoStartTunnel".localized(), isOn: $autoStartTunnel)
                 .disabled(!viewModel.tunnelManager.installation.isInstalled)
+                
+            NetworkAccessSection(allowNetworkAccess: $allowNetworkAccess)
+                .onChange(of: allowNetworkAccess) { _, newValue in
+                    viewModel.proxyManager.allowNetworkAccess = newValue
+                }
+                
+
         } header: {
             Label("settings.proxyServer".localized(), systemImage: "server.rack")
         } footer: {
@@ -711,6 +719,38 @@ struct LocalProxyServerSection: View {
         }
         .onAppear {
             portText = String(viewModel.proxyManager.port)
+        }
+    }
+}
+
+struct NetworkAccessSection: View {
+    @Binding var allowNetworkAccess: Bool
+    
+    var body: some View {
+        Section {
+            Toggle("settings.allowNetworkAccess".localized(), isOn: $allowNetworkAccess)
+            
+            LabeledContent("settings.bindAddress".localized()) {
+                Text(allowNetworkAccess ? "0.0.0.0 (All Interfaces)" : "127.0.0.1 (Localhost)")
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(allowNetworkAccess ? .orange : .secondary)
+            }
+            
+            if allowNetworkAccess {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("settings.networkAccessWarning".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Label("settings.networkAccess".localized(), systemImage: "network")
+        } footer: {
+            Text("settings.networkAccessFooter".localized())
+                .font(.caption)
         }
     }
 }
@@ -845,11 +885,25 @@ struct QuotaDisplaySettingsSection: View {
         )
     }
     
+    private var displayStyleBinding: Binding<QuotaDisplayStyle> {
+        Binding(
+            get: { settings.quotaDisplayStyle },
+            set: { settings.quotaDisplayStyle = $0 }
+        )
+    }
+    
     var body: some View {
         Section {
             Picker("settings.quota.displayMode".localized(), selection: displayModeBinding) {
                 Text("settings.quota.displayMode.used".localized()).tag(QuotaDisplayMode.used)
                 Text("settings.quota.displayMode.remaining".localized()).tag(QuotaDisplayMode.remaining)
+            }
+            .pickerStyle(.segmented)
+            
+            Picker("settings.quota.displayStyle".localized(), selection: displayStyleBinding) {
+                ForEach(QuotaDisplayStyle.allCases) { style in
+                    Text(style.localizationKey.localized()).tag(style)
+                }
             }
             .pickerStyle(.segmented)
         } header: {

@@ -177,6 +177,33 @@ enum QuotaDisplayMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Quota Display Style
+
+/// Visual style for quota display in the main UI
+enum QuotaDisplayStyle: String, Codable, CaseIterable, Identifiable {
+    case card = "card"           // Default card with progress bar
+    case lowestBar = "lowestBar" // Compact: lowest % bar, others text
+    case ring = "ring"           // Circular progress rings
+
+    var id: String { rawValue }
+
+    var localizationKey: String {
+        switch self {
+        case .card: return "settings.quota.style.card"
+        case .lowestBar: return "settings.quota.style.lowestBar"
+        case .ring: return "settings.quota.style.ring"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .card: return "rectangle.portrait"
+        case .lowestBar: return "chart.bar.fill"
+        case .ring: return "circle.dotted"
+        }
+    }
+}
+
 // MARK: - Refresh Cadence
 
 /// Refresh cadence options for quota auto-refresh
@@ -279,6 +306,7 @@ final class MenuBarSettingsManager {
     private let showMenuBarIconKey = "showMenuBarIcon"
     private let showQuotaKey = "menuBarShowQuota"
     private let quotaDisplayModeKey = "quotaDisplayMode"
+    private let quotaDisplayStyleKey = "quotaDisplayStyle"
     private let hideSensitiveInfoKey = "hideSensitiveInfo"
     
     /// Whether to show menu bar icon at all
@@ -304,6 +332,11 @@ final class MenuBarSettingsManager {
     /// Quota display mode (used vs remaining)
     var quotaDisplayMode: QuotaDisplayMode {
         didSet { defaults.set(quotaDisplayMode.rawValue, forKey: quotaDisplayModeKey) }
+    }
+    
+    /// Visual style for quota display
+    var quotaDisplayStyle: QuotaDisplayStyle {
+        didSet { defaults.set(quotaDisplayStyle.rawValue, forKey: quotaDisplayStyleKey) }
     }
     
     /// Whether to hide sensitive information (emails, account names)
@@ -334,6 +367,7 @@ final class MenuBarSettingsManager {
         
         self.colorMode = MenuBarColorMode(rawValue: defaults.string(forKey: colorModeKey) ?? "") ?? .colored
         self.quotaDisplayMode = QuotaDisplayMode(rawValue: defaults.string(forKey: quotaDisplayModeKey) ?? "") ?? .used
+        self.quotaDisplayStyle = QuotaDisplayStyle(rawValue: defaults.string(forKey: quotaDisplayStyleKey) ?? "") ?? .card
         self.selectedItems = Self.loadSelectedItems(from: defaults, key: selectedItemsKey)
         self.hideSensitiveInfo = defaults.bool(forKey: hideSensitiveInfoKey)
     }

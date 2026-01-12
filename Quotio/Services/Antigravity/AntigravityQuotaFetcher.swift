@@ -413,14 +413,19 @@ actor AntigravityQuotaFetcher {
     private let clientSecret = "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"
     private let userAgent = "antigravity/1.11.3 Darwin/arm64"
     
-    private let session: URLSession
+    private var session: URLSession
     
     // Cache subscription info to avoid duplicate API calls within same refresh cycle
     private var subscriptionCache: [String: SubscriptionInfo] = [:]
     
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         self.session = URLSession(configuration: config)
     }
     

@@ -120,7 +120,7 @@ actor CloudflaredService {
         
         let buffer = OutputBuffer()
         
-        errorPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             
             // EOF detected - empty data means stream closed
@@ -140,7 +140,7 @@ actor CloudflaredService {
             }
         }
         
-        outputPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        outputPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             
             // EOF detected - empty data means stream closed

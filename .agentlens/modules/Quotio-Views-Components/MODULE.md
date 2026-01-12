@@ -2,7 +2,7 @@
 
 [← Back to INDEX](../../INDEX.md)
 
-**Type:** implicit | **Files:** 25
+**Type:** implicit | **Files:** 26
 
 ## Files
 
@@ -27,6 +27,7 @@
 | `Quotio/Views/Components/QuotaProgressBar.swift` | 45 |  |
 | `Quotio/Views/Components/QuotioButtonStyles.swift` | 300 |  |
 | `Quotio/Views/Components/RemoteConnectionSheet.swift` | 331 |  |
+| `Quotio/Views/Components/RingProgressView.swift` | 55 |  |
 | `Quotio/Views/Components/SidebarView.swift` | 21 |  |
 | `Quotio/Views/Components/SmallProgressView.swift` | 94 |  |
 | `Quotio/Views/Components/SwitchAccountSheet.swift` | 266 |  |
