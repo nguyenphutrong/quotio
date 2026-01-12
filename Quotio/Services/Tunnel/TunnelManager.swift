@@ -21,13 +21,15 @@ final class TunnelManager {
     private let service = CloudflaredService()
     private var monitorTask: Task<Void, Never>?
     private var tunnelRequestId: UInt64 = 0
+    private var startTimeoutTask: Task<Void, Never>?
+    private let startTimeoutSeconds: TimeInterval = 30
     
     // MARK: - Init
     
     private init() {
         Task {
             await refreshInstallation()
-            cleanupOrphans()
+            Self.cleanupOrphans()
         }
     }
     
@@ -55,6 +57,7 @@ final class TunnelManager {
         tunnelState.status = .starting
         tunnelState.errorMessage = nil
         tunnelState.publicURL = nil
+        cancelStartTimeout()
         
         do {
             try await service.start(port: port) { [weak self] url in
@@ -67,21 +70,25 @@ final class TunnelManager {
                     self.tunnelState.publicURL = url
                     self.tunnelState.status = .active
                     self.tunnelState.startTime = Date()
+                    self.cancelStartTimeout()
                     NSLog("[TunnelManager] Tunnel active: %@", url)
                 }
             }
-            
+
+            scheduleStartTimeout(requestId: currentRequestId)
             startMonitoring()
             
         } catch let error as TunnelError {
             guard tunnelRequestId == currentRequestId else { return }
             tunnelState.status = .error
             tunnelState.errorMessage = error.localizedMessage
+            cancelStartTimeout()
             NSLog("[TunnelManager] Failed to start tunnel: %@", error.localizedMessage)
         } catch {
             guard tunnelRequestId == currentRequestId else { return }
             tunnelState.status = .error
             tunnelState.errorMessage = error.localizedDescription
+            cancelStartTimeout()
             NSLog("[TunnelManager] Failed to start tunnel: %@", error.localizedDescription)
         }
     }
@@ -92,6 +99,7 @@ final class TunnelManager {
         }
         
         tunnelRequestId &+= 1
+        cancelStartTimeout()
         
         tunnelState.status = .stopping
         stopMonitoring()
@@ -117,6 +125,10 @@ final class TunnelManager {
     }
     
     func cleanupOrphans() {
+        Self.cleanupOrphans()
+    }
+
+    nonisolated static func cleanupOrphans() {
         CloudflaredService.killOrphanProcesses()
     }
     
@@ -148,5 +160,24 @@ final class TunnelManager {
     private func stopMonitoring() {
         monitorTask?.cancel()
         monitorTask = nil
+    }
+
+    private func scheduleStartTimeout(requestId: UInt64) {
+        cancelStartTimeout()
+        startTimeoutTask = Task { [weak self] in
+            guard let self = self else { return }
+            try? await Task.sleep(nanoseconds: UInt64(self.startTimeoutSeconds * 1_000_000_000))
+            guard self.tunnelRequestId == requestId else { return }
+            guard self.tunnelState.status == .starting else { return }
+            self.tunnelState.status = .error
+            self.tunnelState.errorMessage = "tunnel.error.startTimeout".localized()
+            NSLog("[TunnelManager] Tunnel start timed out after %.0f seconds", self.startTimeoutSeconds)
+            await self.service.stop()
+        }
+    }
+
+    private func cancelStartTimeout() {
+        startTimeoutTask?.cancel()
+        startTimeoutTask = nil
     }
 }

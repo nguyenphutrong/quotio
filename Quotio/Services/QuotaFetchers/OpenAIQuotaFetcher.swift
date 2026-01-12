@@ -9,11 +9,16 @@ actor OpenAIQuotaFetcher {
     private let usageURL = "https://chatgpt.com/backend-api/wham/usage"
     private let tokenURL = "https://token.oaifree.com/api/auth/refresh"
     
-    private let session: URLSession
+    private var session: URLSession
     
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         self.session = URLSession(configuration: config)
     }
     

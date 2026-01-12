@@ -260,7 +260,7 @@ final class ProxyBridge {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 1048576) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
 
-            if let error = error {
+            if error != nil {
                 connection.cancel()
                 return
             }
@@ -296,13 +296,14 @@ final class ProxyBridge {
                         
                         // Need more data
                         if currentBodyLength < contentLength {
+                            let nextData = newData
                             // Use async dispatch to break recursion stack
                             DispatchQueue.global(qos: .userInitiated).async {
                                 self.receiveRequest(
                                     from: connection,
                                     connectionId: connectionId,
                                     startTime: startTime,
-                                    accumulatedData: newData
+                                    accumulatedData: nextData
                                 )
                             }
                             return
@@ -321,12 +322,13 @@ final class ProxyBridge {
             } else if !isComplete {
                 // Haven't found header end yet, continue receiving
                 // Use async dispatch to break recursion stack
+                let nextData = newData
                 DispatchQueue.global(qos: .userInitiated).async {
                     self.receiveRequest(
                         from: connection,
                         connectionId: connectionId,
                         startTime: startTime,
-                        accumulatedData: newData
+                        accumulatedData: nextData
                     )
                 }
             } else {

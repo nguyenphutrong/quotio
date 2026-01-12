@@ -56,8 +56,8 @@ final class FallbackSettingsManager {
 
     // Thread-safe cache for entry indices (accessed from ProxyBridge on background threads)
     // Marked nonisolated(unsafe) because we handle thread safety manually with NSLock
-    nonisolated(unsafe) private var cachedEntryIndices: [String: Int] = [:]
-    nonisolated(unsafe) private let cacheLock = NSLock()
+    @ObservationIgnored nonisolated(unsafe) private var cachedEntryIndices: [String: Int] = [:]
+    @ObservationIgnored nonisolated private let cacheLock = NSLock()
 
     private init() {
         if let data = defaults.data(forKey: configurationKey),

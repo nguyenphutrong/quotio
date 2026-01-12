@@ -105,7 +105,9 @@ final class ImageCacheService: @unchecked Sendable {
     private func setupMemoryPressureHandler() {
         let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
         source.setEventHandler { [weak self] in
-            self?.clearCache()
+            Task { @MainActor in
+                self?.clearCache()
+            }
         }
         memoryPressureSource = source
         source.resume()
@@ -115,7 +117,9 @@ final class ImageCacheService: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.cache.countLimit = 20
+            Task { @MainActor in
+                self?.cache.countLimit = 20
+            }
         }
         
         NotificationCenter.default.addObserver(
@@ -123,7 +127,9 @@ final class ImageCacheService: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.cache.countLimit = 50
+            Task { @MainActor in
+                self?.cache.countLimit = 50
+            }
         }
     }
 }

@@ -61,7 +61,7 @@ actor ClaudeCodeQuotaFetcher {
     private let usageURL = "https://api.anthropic.com/api/oauth/usage"
 
     /// URLSession for network requests
-    private let session: URLSession
+    private var session: URLSession
 
     /// Cache for quota data to reduce API calls
     private var quotaCache: [String: CachedQuota] = [:]
@@ -70,8 +70,13 @@ actor ClaudeCodeQuotaFetcher {
     private let cacheTTL: TimeInterval = 300
 
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         self.session = URLSession(configuration: config)
     }
 

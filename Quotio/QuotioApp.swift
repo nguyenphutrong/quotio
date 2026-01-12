@@ -216,7 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Move orphan cleanup off main thread to avoid blocking app launch
         DispatchQueue.global(qos: .utility).async {
-            TunnelManager.shared.cleanupOrphans()
+            TunnelManager.cleanupOrphans()
         }
         
         UserDefaults.standard.register(defaults: [
@@ -287,7 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let result = semaphore.wait(timeout: cleanupTimeout)
         if result == .timedOut {
             // Fallback: force kill orphan processes if stopTunnel timed out
-            TunnelManager.shared.cleanupOrphans()
+            TunnelManager.cleanupOrphans()
             NSLog("[AppDelegate] Tunnel cleanup timed out, forced orphan cleanup")
         }
     }

@@ -58,13 +58,21 @@ nonisolated struct CursorAuthData: Sendable {
 
 /// Fetches quota from Cursor using stored auth
 actor CursorQuotaFetcher {
-    private let session: URLSession
+    private var session: URLSession
     private let cursorAPIBase = "https://api2.cursor.sh"
     private let stateDBPath = "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
     
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
+        config.httpAdditionalHeaders = [
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        ]
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         config.httpAdditionalHeaders = [
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
         ]

@@ -66,12 +66,17 @@ actor KiroQuotaFetcher {
     private let socialTokenEndpoint = "https://prod.us-east-1.auth.desktop.kiro.dev/refreshToken"  // For Google OAuth
     private let idcTokenEndpoint = "https://oidc.us-east-1.amazonaws.com/token"  // For AWS Builder ID
 
-    private let session: URLSession
+    private var session: URLSession
     private let fileManager = FileManager.default
 
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 20
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 20)
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 20)
         self.session = URLSession(configuration: config)
     }
 

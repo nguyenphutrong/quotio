@@ -17,12 +17,33 @@ final class CLIProxyManager {
     /// This solves the stale connection issue by forcing "Connection: close" on all requests
     let proxyBridge = ProxyBridge()
     
-    /// Whether to use the two-layer proxy architecture (ProxyBridge → CLIProxyAPI)
     /// When enabled: clients connect to userPort, ProxyBridge forwards to internalPort
     /// When disabled: clients connect directly to userPort where CLIProxyAPI runs
     var useBridgeMode: Bool {
         get { UserDefaults.standard.bool(forKey: "useBridgeMode") }
         set { UserDefaults.standard.set(newValue, forKey: "useBridgeMode") }
+    }
+    
+    /// Whether to allow network access to the proxy (bind to 0.0.0.0)
+    var allowNetworkAccess: Bool {
+        get { UserDefaults.standard.bool(forKey: "allowNetworkAccess") }
+        set { 
+            UserDefaults.standard.set(newValue, forKey: "allowNetworkAccess")
+            ensureConfigExists()
+            if newValue {
+                ensureApiKeyExistsInConfig()
+            }
+            updateConfigHost(newValue ? "0.0.0.0" : "127.0.0.1")
+            
+            // Restart proxy if running to apply changes
+            if proxyStatus.running {
+                Task {
+                    stop()
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    try? await start()
+                }
+            }
+        }
     }
     
     /// Internal port where CLIProxyAPI runs (when bridge mode is enabled)
@@ -191,37 +212,92 @@ final class CLIProxyManager {
         ensureConfigExists()
     }
     
-    private func updateConfigPort(_ newPort: UInt16) {
+    private func updateConfigValue(pattern: String, replacement: String) {
         guard FileManager.default.fileExists(atPath: configPath),
-              var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
-        
-        if let range = content.range(of: #"port:\s*\d+"#, options: .regularExpression) {
-            content.replaceSubrange(range, with: "port: \(newPort)")
-            try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
+              var content = try? String(contentsOfFile: configPath, encoding: .utf8) else {
+            NSLog("[CLIProxyManager] ERROR: Failed to read config file at \(configPath)")
+            return
         }
+        
+        guard let range = content.range(of: pattern, options: .regularExpression) else {
+            NSLog("[CLIProxyManager] ERROR: Pattern '\(pattern)' not found in config")
+            return
+        }
+        
+        do {
+            content.replaceSubrange(range, with: replacement)
+            try content.write(toFile: configPath, atomically: true, encoding: .utf8)
+        } catch {
+            NSLog("[CLIProxyManager] ERROR: Failed to write config file: \(error)")
+        }
+    }
+
+    private func updateConfigPort(_ newPort: UInt16) {
+        updateConfigValue(pattern: #"port:\s*\d+"#, replacement: "port: \(newPort)")
+    }
+
+    private func updateConfigHost(_ host: String) {
+        updateConfigValue(pattern: #"host:\s*"[^"]*""#, replacement: "host: \"\(host)\"")
+    }
+
+    private func ensureApiKeyExistsInConfig() {
+        guard FileManager.default.fileExists(atPath: configPath),
+              let content = try? String(contentsOfFile: configPath, encoding: .utf8) else {
+            return
+        }
+
+        var lines = content.components(separatedBy: "\n")
+        if let apiKeysIndex = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "api-keys:" }) {
+            var hasKey = false
+            var scanIndex = apiKeysIndex + 1
+
+            while scanIndex < lines.count {
+                let line = lines[scanIndex]
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+                if trimmed.isEmpty {
+                    break
+                }
+
+                if trimmed.hasPrefix("-") {
+                    let value = trimmed.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !value.isEmpty { hasKey = true }
+                    scanIndex += 1
+                    continue
+                }
+
+                if !line.hasPrefix(" ") && !line.hasPrefix("\t") {
+                    break
+                }
+
+                scanIndex += 1
+            }
+
+            if !hasKey {
+                let newKey = "quotio-local-\(UUID().uuidString)"
+                lines.insert("  - \"\(newKey)\"", at: apiKeysIndex + 1)
+                try? lines.joined(separator: "\n").write(toFile: configPath, atomically: true, encoding: .utf8)
+            }
+            return
+        }
+
+        let newKey = "quotio-local-\(UUID().uuidString)"
+        lines.append("")
+        lines.append("api-keys:")
+        lines.append("  - \"\(newKey)\"")
+        lines.append("")
+        try? lines.joined(separator: "\n").write(toFile: configPath, atomically: true, encoding: .utf8)
     }
     
     func updateConfigLogging(enabled: Bool) {
-        guard FileManager.default.fileExists(atPath: configPath),
-              var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
-        
-        if let range = content.range(of: #"logging-to-file:\s*(true|false)"#, options: .regularExpression) {
-            content.replaceSubrange(range, with: "logging-to-file: \(enabled)")
-            try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
-        }
+        updateConfigValue(pattern: #"logging-to-file:\s*(true|false)"#, replacement: "logging-to-file: \(enabled)")
     }
     
     /// Update routing strategy in config file
     /// Note: Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
     func updateConfigRoutingStrategy(_ strategy: String) {
-        guard FileManager.default.fileExists(atPath: configPath),
-              var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
-        
-        if let range = content.range(of: #"strategy:\s*"[^"]*""#, options: .regularExpression) {
-            content.replaceSubrange(range, with: "strategy: \"\(strategy)\"")
-            try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
-            NSLog("[CLIProxyManager] Routing strategy updated to: \(strategy) (restart required)")
-        }
+        updateConfigValue(pattern: #"strategy:\s*"[^"]*""#, replacement: "strategy: \"\(strategy)\"")
+        NSLog("[CLIProxyManager] Routing strategy updated to: \(strategy) (restart required)")
     }
     
     func updateConfigProxyURL(_ url: String?) {
@@ -248,13 +324,13 @@ final class CLIProxyManager {
         guard !FileManager.default.fileExists(atPath: configPath) else { return }
         
         let defaultConfig = """
-        host: "127.0.0.1"
+        host: "\(allowNetworkAccess ? "0.0.0.0" : "127.0.0.1")"
         port: \(proxyStatus.port)
         auth-dir: "\(authDir)"
         proxy-url: ""
         
         api-keys:
-          - "quotio-local-\(UUID().uuidString.prefix(8))"
+          - "quotio-local-\(UUID().uuidString)"
         
         remote-management:
           allow-remote: false
@@ -421,17 +497,19 @@ final class CLIProxyManager {
         guard let url = URL(string: urlString) else {
             throw ProxyError.networkError("Invalid URL")
         }
-        
+
         var request = URLRequest(url: url)
         request.addValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
         request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw ProxyError.networkError("Failed to fetch release info")
         }
-        
+
         return try JSONDecoder().decode(ReleaseInfo.self, from: data)
     }
     
@@ -464,16 +542,18 @@ final class CLIProxyManager {
         guard let downloadURL = URL(string: url) else {
             throw ProxyError.networkError("Invalid download URL")
         }
-        
+
         var request = URLRequest(url: downloadURL)
         request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 300) // 5 minutes timeout for large downloads
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw ProxyError.networkError("Failed to download binary")
         }
-        
+
         return data
     }
     
@@ -1266,17 +1346,19 @@ extension CLIProxyManager {
         guard let url = URL(string: urlString) else {
             throw ProxyError.networkError("Invalid URL")
         }
-        
+
         var request = URLRequest(url: url)
         request.addValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
         request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw ProxyError.networkError("Failed to fetch releases")
         }
-        
+
         return try JSONDecoder().decode([GitHubRelease].self, from: data)
     }
     
@@ -1292,17 +1374,19 @@ extension CLIProxyManager {
         guard let url = URL(string: urlString) else {
             throw ProxyError.networkError("Invalid URL")
         }
-        
+
         var request = URLRequest(url: url)
         request.addValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
         request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw ProxyError.networkError("Failed to fetch release info")
         }
-        
+
         return try JSONDecoder().decode(GitHubRelease.self, from: data)
     }
     

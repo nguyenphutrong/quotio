@@ -29,6 +29,7 @@ final class QuotaViewModel {
     private var warmupStatuses: [WarmupAccountKey: WarmupStatus] = [:]
     @ObservationIgnored private var warmupModelCache: [WarmupAccountKey: (models: [WarmupModelInfo], fetchedAt: Date)] = [:]
     @ObservationIgnored private let warmupModelCacheTTL: TimeInterval = 28800
+    @ObservationIgnored private var lastProxyURL: String?
     
     /// Request tracker for monitoring API requests through ProxyBridge
     let requestTracker = RequestTracker.shared
@@ -113,15 +114,57 @@ final class QuotaViewModel {
     
     private static let ideQuotasKey = "persisted.ideQuotas"
     private static let ideProvidersToSave: Set<AIProvider> = [.cursor, .trae]
-    
+
     init() {
         self.proxyManager = CLIProxyManager.shared
         loadPersistedIDEQuotas()
         setupRefreshCadenceCallback()
         setupWarmupCallback()
         restartWarmupScheduler()
+        lastProxyURL = normalizedProxyURL(UserDefaults.standard.string(forKey: "proxyURL"))
+        setupProxyURLObserver()
     }
-    
+
+    private func setupProxyURLObserver() {
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                let currentProxyURL = self.normalizedProxyURL(UserDefaults.standard.string(forKey: "proxyURL"))
+                guard currentProxyURL != self.lastProxyURL else { return }
+                self.lastProxyURL = currentProxyURL
+                await self.updateProxyConfiguration()
+            }
+        }
+    }
+
+    private func normalizedProxyURL(_ rawValue: String?) -> String? {
+        guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawValue.isEmpty else {
+            return nil
+        }
+
+        let sanitized = ProxyURLValidator.sanitize(rawValue)
+        return sanitized.isEmpty ? nil : sanitized
+    }
+
+    /// Update proxy configuration for all quota fetchers
+    func updateProxyConfiguration() async {
+        await antigravityFetcher.updateProxyConfiguration()
+        await openAIFetcher.updateProxyConfiguration()
+        await copilotFetcher.updateProxyConfiguration()
+        await glmFetcher.updateProxyConfiguration()
+        await claudeCodeFetcher.updateProxyConfiguration()
+        await cursorFetcher.updateProxyConfiguration()
+        await codexCLIFetcher.updateProxyConfiguration()
+        await geminiCLIFetcher.updateProxyConfiguration()
+        await traeFetcher.updateProxyConfiguration()
+        await kiroFetcher.updateProxyConfiguration()
+    }
+
     private func setupRefreshCadenceCallback() {
         refreshSettings.onRefreshCadenceChanged = { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -879,6 +922,12 @@ final class QuotaViewModel {
     func stopProxy() {
         refreshTask?.cancel()
         refreshTask = nil
+
+        if tunnelManager.tunnelState.isActive || tunnelManager.tunnelState.status == .starting {
+            Task { @MainActor in
+                await tunnelManager.stopTunnel()
+            }
+        }
         
         // Stop RequestTracker
         requestTracker.stop()

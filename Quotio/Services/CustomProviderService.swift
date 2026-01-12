@@ -186,13 +186,15 @@ final class CustomProviderService {
     private func removeCustomProviderSections(from content: String) -> String {
         var result = content
         
+        // Dynamically derive custom provider keys from CustomProviderType enum
+        // This ensures new provider types are automatically handled
+        let customProviderKeys = CustomProviderType.allCases.map { "\($0.rawValue):" }
+        
         // Remove marker comment and everything after it that belongs to custom providers
         if let markerRange = result.range(of: "# Custom Providers (managed by Quotio)") {
             // Find the end of custom providers section (next top-level key or end of file)
             let afterMarker = result[markerRange.upperBound...]
             
-            // Find next top-level key that's NOT a custom provider type
-            let customProviderKeys = ["openai-compatibility:", "claude-api-key:", "gemini-api-key:", "codex-api-key:"]
             var endIndex = result.endIndex
             
             // Look for any non-custom-provider top-level key
@@ -217,7 +219,7 @@ final class CustomProviderService {
         }
         
         // Also remove standalone custom provider sections that might exist without marker
-        for key in ["openai-compatibility:", "claude-api-key:", "gemini-api-key:", "codex-api-key:"] {
+        for key in customProviderKeys {
             result = removeYAMLSection(key, from: result)
         }
         

@@ -56,11 +56,16 @@ struct GLMUsageDetail: Codable, Sendable {
 actor GLMQuotaFetcher {
     private let quotaAPIURL = "https://bigmodel.cn/api/monitor/usage/quota/limit"
 
-    private let session: URLSession
+    private var session: URLSession
 
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         self.session = URLSession(configuration: config)
     }
 
