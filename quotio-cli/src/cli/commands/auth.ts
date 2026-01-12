@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import { registerCommand, type CLIContext, type CommandResult } from "../index.ts";
 import { ManagementAPIClient } from "../../services/management-api.ts";
+import { sendCommand, isDaemonRunning } from "../../ipc/client.ts";
 import { logger, formatTable, formatJson, colors, type TableColumn } from "../../utils/index.ts";
 import { PROVIDER_METADATA, AIProvider, parseProvider } from "../../models/index.ts";
 
@@ -79,6 +80,39 @@ Examples:
 }
 
 async function listAuth(client: ManagementAPIClient, ctx: CLIContext): Promise<CommandResult> {
+  // Try IPC daemon first (works without proxy running)
+  const daemonRunning = await isDaemonRunning();
+  if (daemonRunning) {
+    try {
+      const result = await sendCommand("auth.list", {});
+      
+      if (result.accounts.length === 0) {
+        logger.print(colors.dim("No authenticated accounts."));
+        return { success: true, data: [] };
+      }
+
+      const rows = result.accounts.map((account) => {
+        const metadata = PROVIDER_METADATA[account.provider as AIProvider];
+        return {
+          provider: metadata?.displayName ?? account.provider,
+          account: account.email ?? account.name ?? "-",
+          status: account.status === "ready" && !account.disabled ? colors.green("Active") : colors.dim(account.status),
+        };
+      });
+
+      if (ctx.format === "json") {
+        logger.print(formatJson(result.accounts));
+      } else {
+        logger.print(formatTable(rows, authColumns));
+      }
+
+      return { success: true, data: result.accounts };
+    } catch {
+      // Fall through to HTTP API
+    }
+  }
+
+  // Fallback to HTTP API (requires proxy running)
   try {
     const authFiles = await client.fetchAuthFiles();
 
@@ -105,7 +139,7 @@ async function listAuth(client: ManagementAPIClient, ctx: CLIContext): Promise<C
     return { success: true, data: authFiles };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { success: false, message: `Failed to list auth: ${message}` };
+    return { success: false, message: "Failed to list auth: " + message };
   }
 }
 
