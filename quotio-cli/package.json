@@ -12,6 +12,8 @@
     "dev": "bun run src/index.ts",
     "build": "bun build src/index.ts --compile --outfile dist/quotio",
     "build:all": "bun run scripts/build.ts",
+    "download-proxy": "bun run scripts/download-proxy.ts",
+    "download-proxy:current": "bun run scripts/download-proxy.ts --platform $(uname -m | sed 's/x86_64/x64/' | sed 's/aarch64/arm64/' | xargs -I {} echo darwin-{})",
     "test": "bun test",
     "lint": "bunx @biomejs/biome check src/",
     "format": "bunx @biomejs/biome format --write src/"
