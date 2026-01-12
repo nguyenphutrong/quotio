@@ -398,8 +398,8 @@ final class ProxyBridge {
             let resolvedBody: String
 
             if fallbackContext.hasFallback, let entry = fallbackContext.currentEntry {
-                // Replace model in body with resolved model
-                resolvedBody = self.replaceModelInBody(body, with: entry.modelId)
+                // Replace model in body with resolved model, using the entry's provider for param format
+                resolvedBody = self.replaceModelInBody(body, with: entry.modelId, provider: entry.provider)
             } else {
                 resolvedBody = body
             }
@@ -469,14 +469,34 @@ final class ProxyBridge {
         )
     }
 
-    /// Replace model name in JSON body
-    private nonisolated func replaceModelInBody(_ body: String, with newModel: String) -> String {
+    private nonisolated let providerSpecificParams: [AIProvider: [String]] = [
+        .antigravity: ["maxOutputTokens", "temperature", "topP", "topK"],
+        .kiro: ["maxTokens", "temperature", "topP", "topK"],
+        .codex: ["max_completion_tokens", "temperature", "top_p"],
+        .claude: ["max_tokens", "temperature", "top_p", "top_k"],
+    ]
+
+    private nonisolated func replaceModelInBody(_ body: String, with newModel: String, provider: AIProvider) -> String {
         guard let bodyData = body.data(using: .utf8),
               var json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] else {
             return body
         }
 
         json["model"] = newModel
+
+        // Use the actual provider from the FallbackEntry for param formatting
+        let targetProvider = provider
+
+        let providerParamsToRemove: [String] = providerSpecificParams.flatMap { (prov, params) -> [String] in
+            guard prov != targetProvider else { return [] }
+            return params
+        }
+
+        for param in providerParamsToRemove {
+            json.removeValue(forKey: param)
+        }
+
+        fixInvalidParameters(in: &json, for: targetProvider)
 
         guard let newData = try? JSONSerialization.data(withJSONObject: json),
               let newBody = String(data: newData, encoding: .utf8) else {
@@ -486,26 +506,170 @@ final class ProxyBridge {
         return newBody
     }
 
+    private nonisolated func fixInvalidParameters(in json: inout [String: Any], for provider: AIProvider) {
+        // All possible max tokens parameter names across different APIs
+        let allMaxTokensParams = ["maxOutputTokens", "maxTokens", "max_tokens", "max_completion_tokens"]
+
+        // The correct param name for the target provider
+        let targetMaxTokensParam: String = {
+            switch provider {
+            case .antigravity: return "maxOutputTokens"
+            case .kiro: return "maxTokens"
+            case .codex: return "max_completion_tokens"
+            case .claude: return "max_tokens"
+            default: return "max_tokens"
+            }
+        }()
+
+        // Helper to extract valid max tokens value
+        func extractValidMaxTokens(_ value: Any) -> Int? {
+            if let intValue = value as? Int, intValue >= 1 { return intValue }
+            if let doubleValue = value as? Double, doubleValue >= 1 { return Int(doubleValue) }
+            if let numberValue = value as? NSNumber, numberValue.intValue >= 1 { return numberValue.intValue }
+            return nil
+        }
+
+        // Try to find a valid max tokens value from any of the param names
+        var validMaxTokens: Int?
+        for param in allMaxTokensParams {
+            if let value = json[param], let valid = extractValidMaxTokens(value) {
+                validMaxTokens = valid
+                break
+            }
+        }
+
+        // Remove all max tokens params
+        for param in allMaxTokensParams {
+            json.removeValue(forKey: param)
+        }
+
+        // Set the target param with a valid value
+        if let valid = validMaxTokens {
+            json[targetMaxTokensParam] = valid
+        }
+        // If no valid value found, don't set any - let the API use its default
+
+        // Also handle generationConfig nested object (Gemini/Google format)
+        // Extract any valid maxOutputTokens from it, then remove the entire generationConfig
+        // since most providers don't use nested config
+        if let generationConfig = json["generationConfig"] as? [String: Any] {
+            // If we didn't find a valid value yet, try to get it from generationConfig
+            if validMaxTokens == nil {
+                for param in allMaxTokensParams {
+                    if let value = generationConfig[param], let valid = extractValidMaxTokens(value) {
+                        json[targetMaxTokensParam] = valid
+                        break
+                    }
+                }
+            }
+            // Remove generationConfig as it's provider-specific
+            json.removeValue(forKey: "generationConfig")
+        }
+
+        // Handle temperature - remove if invalid
+        if let value = json["temperature"] {
+            var shouldRemove = false
+            if let doubleValue = value as? Double, (doubleValue < 0 || doubleValue > 2) {
+                shouldRemove = true
+            } else if let intValue = value as? Int, (intValue < 0 || intValue > 2) {
+                shouldRemove = true
+            } else if let numberValue = value as? NSNumber {
+                let dVal = numberValue.doubleValue
+                if dVal < 0 || dVal > 2 {
+                    shouldRemove = true
+                }
+            }
+            if shouldRemove {
+                json.removeValue(forKey: "temperature")
+            }
+        }
+
+        // Handle topP - remove if invalid
+        if let value = json["topP"] {
+            var shouldRemove = false
+            if let doubleValue = value as? Double, (doubleValue < 0 || doubleValue > 1) {
+                shouldRemove = true
+            } else if let intValue = value as? Int, (intValue < 0 || intValue > 1) {
+                shouldRemove = true
+            } else if let numberValue = value as? NSNumber {
+                let dVal = numberValue.doubleValue
+                if dVal < 0 || dVal > 1 {
+                    shouldRemove = true
+                }
+            }
+            if shouldRemove {
+                json.removeValue(forKey: "topP")
+            }
+        }
+
+        // Handle top_p (OpenAI/Claude format) - remove if invalid
+        if let value = json["top_p"] {
+            var shouldRemove = false
+            if let doubleValue = value as? Double, (doubleValue < 0 || doubleValue > 1) {
+                shouldRemove = true
+            } else if let intValue = value as? Int, (intValue < 0 || intValue > 1) {
+                shouldRemove = true
+            } else if let numberValue = value as? NSNumber {
+                let dVal = numberValue.doubleValue
+                if dVal < 0 || dVal > 1 {
+                    shouldRemove = true
+                }
+            }
+            if shouldRemove {
+                json.removeValue(forKey: "top_p")
+            }
+        }
+
+        // Handle topK - remove if invalid
+        if let value = json["topK"] {
+            var shouldRemove = false
+            if let intValue = value as? Int, intValue < 1 {
+                shouldRemove = true
+            } else if let doubleValue = value as? Double, doubleValue < 1 {
+                shouldRemove = true
+            } else if let numberValue = value as? NSNumber, numberValue.intValue < 1 {
+                shouldRemove = true
+            }
+            if shouldRemove {
+                json.removeValue(forKey: "topK")
+            }
+        }
+
+        // Handle top_k (OpenAI/Claude format) - remove if invalid
+        if let value = json["top_k"] {
+            var shouldRemove = false
+            if let intValue = value as? Int, intValue < 1 {
+                shouldRemove = true
+            } else if let doubleValue = value as? Double, doubleValue < 1 {
+                shouldRemove = true
+            } else if let numberValue = value as? NSNumber, numberValue.intValue < 1 {
+                shouldRemove = true
+            }
+            if shouldRemove {
+                json.removeValue(forKey: "top_k")
+            }
+        }
+    }
+
     /// Check if response indicates quota exhaustion
     private nonisolated func isQuotaExceeded(responseData: Data) -> Bool {
         guard let responseString = String(data: responseData.prefix(2048), encoding: .utf8) else {
             return false
         }
 
-        // Check for 429 status code
         if let firstLine = responseString.components(separatedBy: "\r\n").first {
             let parts = firstLine.components(separatedBy: " ")
-            if parts.count >= 2, let code = Int(parts[1]), code == 429 {
+            if parts.count >= 2, let code = Int(parts[1]), code == 429 || code == 503 {
                 return true
             }
         }
 
-        // Check for quota-related error messages in body
         let lowercased = responseString.lowercased()
-        return (lowercased.contains("quota") && lowercased.contains("exceeded")) ||
-               lowercased.contains("rate limit") ||
-               lowercased.contains("limit reached") ||
-               lowercased.contains("no available account")
+        let quotaPatterns = [
+            "quota exceeded", "rate limit", "limit reached", "no available account",
+            "insufficient_quota", "resource_exhausted", "overloaded", "capacity"
+        ]
+        return quotaPatterns.contains { lowercased.contains($0) }
     }
     
     // MARK: - Metadata Extraction
@@ -709,8 +873,9 @@ final class ProxyBridge {
                 accumulatedResponse = responseData
             }
 
-            // Check for quota exceeded BEFORE forwarding to client (only on first chunk with headers)
-            if responseData.isEmpty && !accumulatedResponse.isEmpty && fallbackContext.hasFallback {
+            // Check for quota exceeded BEFORE forwarding to client (within first 4KB to catch streaming errors)
+            let quotaCheckThreshold = 4096
+            if accumulatedResponse.count <= quotaCheckThreshold && !accumulatedResponse.isEmpty && fallbackContext.hasFallback {
                 let quotaExceeded = self.isQuotaExceeded(responseData: accumulatedResponse)
 
                 if quotaExceeded && fallbackContext.hasMoreFallbacks {
@@ -733,7 +898,7 @@ final class ProxyBridge {
                             )
                         }
 
-                        let nextBody = self.replaceModelInBody(fallbackContext.originalBody, with: nextEntry.modelId)
+                        let nextBody = self.replaceModelInBody(fallbackContext.originalBody, with: nextEntry.modelId, provider: nextEntry.provider)
 
                         self.forwardRequest(
                             method: method,

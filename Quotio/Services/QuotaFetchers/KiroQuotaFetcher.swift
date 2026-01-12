@@ -110,6 +110,33 @@ actor KiroQuotaFetcher {
 
     private let refreshBufferSeconds: TimeInterval = 5 * 60  // Refresh 5 minutes before expiry
     
+    func refreshAllTokensIfNeeded() async -> Int {
+        let authService = DirectAuthFileService()
+        let allFiles = await authService.scanAllAuthFiles()
+        let kiroFiles = allFiles.filter { $0.provider == .kiro }
+        
+        guard !kiroFiles.isEmpty else {
+            return 0
+        }
+        
+        var refreshedCount = 0
+        
+        for authFile in kiroFiles {
+            guard let tokenData = await authService.readAuthToken(from: authFile) else {
+                continue
+            }
+            
+            let (needsRefresh, _) = shouldRefreshToken(tokenData)
+            if needsRefresh {
+                if let _ = await refreshToken(tokenData: tokenData, filePath: authFile.filePath) {
+                    refreshedCount += 1
+                }
+            }
+        }
+        
+        return refreshedCount
+    }
+    
     private func shouldRefreshToken(_ tokenData: AuthTokenData) -> (shouldRefresh: Bool, reason: String) {
         guard let expiresAt = tokenData.expiresAt else { 
             return (false, "no expiry info") 
@@ -148,22 +175,12 @@ actor KiroQuotaFetcher {
         var currentToken = tokenData.accessToken
         var hasAttemptedRefresh = false
 
-        // 1. Proactive refresh: Check if token needs refresh (expired or expiring soon)
-        let (needsRefresh, reason) = shouldRefreshToken(tokenData)
+        let (needsRefresh, _) = shouldRefreshToken(tokenData)
         if needsRefresh {
-            print("[Kiro] ⚠️ Token needs refresh for \(filename): \(reason)")
-            if let expiresAt = tokenData.expiresAt {
-                print("[Kiro]    Expired at: \(expiresAt)")
-            }
-            print("[Kiro]    Auth method: \(tokenData.authMethod ?? "IdC")")
-            print("[Kiro]    Has refresh token: \(tokenData.refreshToken != nil)")
-            
             if let refreshed = await refreshToken(tokenData: tokenData, filePath: filePath) {
-                print("[Kiro] ✅ Proactive token refresh succeeded for \(filename)")
                 currentToken = refreshed
                 hasAttemptedRefresh = true
             } else {
-                print("[Kiro] ❌ Proactive token refresh FAILED for \(filename)")
                 return ProviderQuotaData(
                     models: [ModelQuota(name: "Error", percentage: 0, resetTime: "Token Refresh Failed")],
                     lastUpdated: Date(),
@@ -178,20 +195,14 @@ actor KiroQuotaFetcher {
         
         // 3. Reactive refresh: If 401/403 and haven't tried refresh yet, refresh and retry
         if (result.statusCode == 401 || result.statusCode == 403) && !hasAttemptedRefresh {
-            print("[Kiro] 🔄 Got HTTP \(result.statusCode) for \(filename), attempting reactive token refresh...")
-            
             if let refreshed = await refreshToken(tokenData: tokenData, filePath: filePath) {
-                print("[Kiro] ✅ Reactive token refresh succeeded, retrying API call...")
                 let retryResult = await fetchUsageAPI(token: refreshed, filename: filename)
-                
-                if retryResult.quotaData != nil {
-                    print("[Kiro] ✅ Retry succeeded for \(filename)")
-                } else {
-                    print("[Kiro] ❌ Retry still failed with HTTP \(retryResult.statusCode) for \(filename)")
+                if retryResult.quotaData == nil {
+                    print("[Kiro] ❌ Retry failed with HTTP \(retryResult.statusCode) for \(filename)")
                 }
                 return retryResult.quotaData ?? ProviderQuotaData(models: [], lastUpdated: Date(), isForbidden: true, planType: "Unauthorized")
             } else {
-                print("[Kiro] ❌ Reactive token refresh FAILED for \(filename)")
+                print("[Kiro] ❌ Token refresh failed for \(filename)")
             }
         }
         
@@ -228,8 +239,6 @@ actor KiroQuotaFetcher {
                     lastUpdated: Date(), isForbidden: false, planType: "Error"
                 ))
             }
-
-            print("[Kiro] 📥 API response for \(filename): HTTP \(httpResponse.statusCode)")
 
             if httpResponse.statusCode != 200 {
                 if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
@@ -273,19 +282,14 @@ actor KiroQuotaFetcher {
     /// - IdC auth (AWS Builder ID): Uses AWS OIDC endpoint, needs clientId + clientSecret
     private func refreshToken(tokenData: AuthTokenData, filePath: String) async -> String? {
         let filename = (filePath as NSString).lastPathComponent
-        
+
         guard let refreshToken = tokenData.refreshToken else {
-            print("[Kiro] ❌ No refresh token available for \(filename)")
+            print("[Kiro] ❌ No refresh token for \(filename)")
             return nil
         }
 
         // Determine auth method: "Social" (Google) or "IdC" (AWS Builder ID)
-        // Default to "IdC" for backwards compatibility
         let authMethod = tokenData.authMethod ?? "IdC"
-        
-        print("[Kiro] 🔄 Starting token refresh for \(filename)")
-        print("[Kiro]    Method: \(authMethod)")
-        print("[Kiro]    Refresh token: \(refreshToken.prefix(20))...")
 
         if authMethod == "Social" {
             return await refreshSocialToken(refreshToken: refreshToken, filePath: filePath)
@@ -297,9 +301,7 @@ actor KiroQuotaFetcher {
     /// Refresh token for Social auth (Google OAuth) using Kiro's endpoint
     private func refreshSocialToken(refreshToken: String, filePath: String) async -> String? {
         let filename = (filePath as NSString).lastPathComponent
-        print("[Kiro] 📡 Refreshing Social (Google) token for \(filename)")
-        print("[Kiro]    Endpoint: \(socialTokenEndpoint)")
-        
+
         guard let url = URL(string: socialTokenEndpoint) else {
             print("[Kiro] ❌ Invalid Social token endpoint URL")
             return nil
@@ -309,7 +311,6 @@ actor KiroQuotaFetcher {
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Social auth only needs the refresh token
         let body: [String: String] = ["refreshToken": refreshToken]
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
             print("[Kiro] ❌ Failed to serialize request body")
@@ -318,31 +319,20 @@ actor KiroQuotaFetcher {
         request.httpBody = bodyData
 
         do {
-            print("[Kiro] 🌐 Sending refresh request...")
             let (data, response) = try await session.data(for: request)
-            
+
             guard let httpResponse = response as? HTTPURLResponse else {
                 print("[Kiro] ❌ Invalid response type")
                 return nil
             }
-            
-            print("[Kiro] 📥 Response status: \(httpResponse.statusCode)")
-            
+
             guard httpResponse.statusCode == 200 else {
-                print("[Kiro] ❌ HTTP error: \(httpResponse.statusCode)")
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("[Kiro]    Response body: \(responseString)")
-                }
+                print("[Kiro] ❌ Social token refresh failed: HTTP \(httpResponse.statusCode)")
                 return nil
             }
 
             let tokenResponse = try JSONDecoder().decode(KiroTokenResponse.self, from: data)
-            print("[Kiro] ✅ Token decoded successfully")
-            print("[Kiro]    New access token: \(tokenResponse.accessToken.prefix(20))...")
-            print("[Kiro]    Expires in: \(tokenResponse.expiresIn) seconds")
-            print("[Kiro]    Has new refresh token: \(tokenResponse.refreshToken != nil)")
 
-            // Persist refreshed token to disk
             await persistRefreshedToken(
                 filePath: filePath,
                 newAccessToken: tokenResponse.accessToken,
@@ -351,11 +341,8 @@ actor KiroQuotaFetcher {
             )
 
             return tokenResponse.accessToken
-        } catch let decodingError as DecodingError {
-            print("[Kiro] ❌ JSON decoding error: \(decodingError)")
-            return nil
         } catch {
-            print("[Kiro] ❌ Network error: \(error.localizedDescription)")
+            print("[Kiro] ❌ Social token refresh error: \(error.localizedDescription)")
             return nil
         }
     }
@@ -364,24 +351,17 @@ actor KiroQuotaFetcher {
     /// Based on kiro2api implementation: uses JSON body format with specific AWS headers
     private func refreshIdCToken(tokenData: AuthTokenData, filePath: String) async -> String? {
         let filename = (filePath as NSString).lastPathComponent
-        print("[Kiro] 📡 Refreshing IdC (AWS Builder ID) token for \(filename)")
-        print("[Kiro]    Endpoint: \(idcTokenEndpoint)")
-        
+
         guard let refreshToken = tokenData.refreshToken,
               let clientId = tokenData.clientId,
               let clientSecret = tokenData.clientSecret,
               let url = URL(string: idcTokenEndpoint) else {
-            print("[Kiro] ❌ Missing required credentials for IdC refresh")
-            print("[Kiro]    Has refresh token: \(tokenData.refreshToken != nil)")
-            print("[Kiro]    Has clientId: \(tokenData.clientId != nil)")
-            print("[Kiro]    Has clientSecret: \(tokenData.clientSecret != nil)")
+            print("[Kiro] ❌ Missing IdC credentials for \(filename)")
             return nil
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-
-        // Headers matching kiro2api implementation
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("oidc.us-east-1.amazonaws.com", forHTTPHeaderField: "Host")
         request.addValue("keep-alive", forHTTPHeaderField: "Connection")
@@ -391,7 +371,6 @@ actor KiroQuotaFetcher {
         request.addValue("cors", forHTTPHeaderField: "sec-fetch-mode")
         request.addValue("node", forHTTPHeaderField: "User-Agent")
 
-        // JSON body format (not form-urlencoded)
         let body: [String: String] = [
             "clientId": clientId,
             "clientSecret": clientSecret,
@@ -406,31 +385,20 @@ actor KiroQuotaFetcher {
         request.httpBody = bodyData
 
         do {
-            print("[Kiro] 🌐 Sending IdC refresh request...")
             let (data, response) = try await session.data(for: request)
-            
+
             guard let httpResponse = response as? HTTPURLResponse else {
                 print("[Kiro] ❌ Invalid response type")
                 return nil
             }
-            
-            print("[Kiro] 📥 Response status: \(httpResponse.statusCode)")
-            
+
             guard httpResponse.statusCode == 200 else {
-                print("[Kiro] ❌ HTTP error: \(httpResponse.statusCode)")
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("[Kiro]    Response body: \(responseString)")
-                }
+                print("[Kiro] ❌ IdC token refresh failed: HTTP \(httpResponse.statusCode)")
                 return nil
             }
 
             let tokenResponse = try JSONDecoder().decode(KiroTokenResponse.self, from: data)
-            print("[Kiro] ✅ IdC token decoded successfully")
-            print("[Kiro]    New access token: \(tokenResponse.accessToken.prefix(20))...")
-            print("[Kiro]    Expires in: \(tokenResponse.expiresIn) seconds")
-            print("[Kiro]    Has new refresh token: \(tokenResponse.refreshToken != nil)")
 
-            // Persist refreshed token to disk
             await persistRefreshedToken(
                 filePath: filePath,
                 newAccessToken: tokenResponse.accessToken,
@@ -439,11 +407,8 @@ actor KiroQuotaFetcher {
             )
 
             return tokenResponse.accessToken
-        } catch let decodingError as DecodingError {
-            print("[Kiro] ❌ JSON decoding error: \(decodingError)")
-            return nil
         } catch {
-            print("[Kiro] ❌ Network error: \(error.localizedDescription)")
+            print("[Kiro] ❌ IdC token refresh error: \(error.localizedDescription)")
             return nil
         }
     }
@@ -455,45 +420,30 @@ actor KiroQuotaFetcher {
         newRefreshToken: String?,
         expiresIn: Int
     ) async {
-        let filename = (filePath as NSString).lastPathComponent
-        print("[Kiro] 💾 Persisting refreshed token to \(filename)")
-        
-        // Read existing file to preserve other fields
         guard let existingData = fileManager.contents(atPath: filePath),
               var json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
-            print("[Kiro] ❌ Failed to read existing auth file")
+            print("[Kiro] ❌ Failed to read auth file for token persist")
             return
         }
 
-        // Update token fields
         json["access_token"] = newAccessToken
         if let newRefresh = newRefreshToken {
             json["refresh_token"] = newRefresh
-            print("[Kiro]    Updated refresh token")
         }
 
-        // Calculate new expiry time
+        // Calculate new expiry time - ALWAYS use UTC for consistency
         let newExpiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        formatter.timeZone = TimeZone.current
-        let expiryString = formatter.string(from: newExpiresAt)
-        json["expires_at"] = expiryString
-        print("[Kiro]    New expiry: \(expiryString)")
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        json["expires_at"] = formatter.string(from: newExpiresAt)
+        json["last_refresh"] = formatter.string(from: Date())
 
-        // Update last_refresh timestamp
-        let lastRefreshString = formatter.string(from: Date())
-        json["last_refresh"] = lastRefreshString
-        print("[Kiro]    Last refresh: \(lastRefreshString)")
-
-        // Write back to disk
         do {
             let updatedData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
             try updatedData.write(to: URL(fileURLWithPath: filePath), options: .atomic)
-            print("[Kiro] ✅ Token persisted successfully")
         } catch {
-            print("[Kiro] ⚠️ Failed to write auth file: \(error.localizedDescription)")
-            print("[Kiro]    (Token refresh still succeeded in memory)")
+            print("[Kiro] ⚠️ Failed to persist token: \(error.localizedDescription)")
         }
     }
 

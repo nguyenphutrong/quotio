@@ -113,7 +113,12 @@ final class FallbackSettingsManager {
     /// Update a virtual model
     func updateVirtualModel(_ model: VirtualModel) {
         if let index = configuration.virtualModels.firstIndex(where: { $0.id == model.id }) {
+            let oldEntries = configuration.virtualModels[index].fallbackEntries
             configuration.virtualModels[index] = model
+            
+            if oldEntries != model.fallbackEntries {
+                clearRouteState(for: model.name)
+            }
         }
     }
 
@@ -125,7 +130,12 @@ final class FallbackSettingsManager {
     /// Toggle virtual model enabled state
     func toggleVirtualModel(id: UUID) {
         if let index = configuration.virtualModels.firstIndex(where: { $0.id == id }) {
+            let wasEnabled = configuration.virtualModels[index].isEnabled
             configuration.virtualModels[index].isEnabled.toggle()
+            
+            if wasEnabled {
+                clearRouteState(for: configuration.virtualModels[index].name)
+            }
         }
     }
 

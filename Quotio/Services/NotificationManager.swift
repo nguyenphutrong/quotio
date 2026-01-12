@@ -61,7 +61,7 @@ final class NotificationManager {
         get { UserDefaults.standard.object(forKey: "notifyOnUpgradeAvailable") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "notifyOnUpgradeAvailable") }
     }
-    
+
     private init() {
         // Enable notifications by default on first launch
         if UserDefaults.standard.object(forKey: "notificationsEnabled") == nil {

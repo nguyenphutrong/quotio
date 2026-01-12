@@ -472,6 +472,7 @@ final class QuotaViewModel {
         refreshTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: intervalNs)
+                await kiroFetcher.refreshAllTokensIfNeeded()
                 await refreshQuotasDirectly()
             }
         }
@@ -489,6 +490,7 @@ final class QuotaViewModel {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: intervalNs)
                 if !proxyManager.proxyStatus.running {
+                    await kiroFetcher.refreshAllTokensIfNeeded()
                     await refreshQuotasUnified()
                 }
             }
