@@ -54,9 +54,10 @@ final class FallbackSettingsManager {
     /// Callback when route state changes (for UI updates)
     var onRouteStateChanged: (() -> Void)?
 
-    // Thread-safe cache for entry indices (accessed from ProxyBridge on background threads)
+    // Thread-safe cache for entry IDs (accessed from ProxyBridge on background threads)
+    // Using entry ID instead of index to handle reordering correctly
     // Marked nonisolated(unsafe) because we handle thread safety manually with NSLock
-    @ObservationIgnored nonisolated(unsafe) private var cachedEntryIndices: [String: Int] = [:]
+    @ObservationIgnored nonisolated(unsafe) private var cachedEntryIds: [String: UUID] = [:]
     @ObservationIgnored nonisolated private let cacheLock = NSLock()
 
     private init() {
@@ -245,24 +246,24 @@ extension FallbackSettingsManager {
 // MARK: - Route State Management
 
 extension FallbackSettingsManager {
-    /// Get the current cached entry index for a virtual model (thread-safe, for ProxyBridge)
-    nonisolated func getCachedEntryIndex(for virtualModelName: String) -> Int {
+    /// Get the current cached entry ID for a virtual model (thread-safe, for ProxyBridge)
+    nonisolated func getCachedEntryId(for virtualModelName: String) -> UUID? {
         cacheLock.lock()
         defer { cacheLock.unlock() }
-        return cachedEntryIndices[virtualModelName] ?? 0
+        return cachedEntryIds[virtualModelName]
     }
 
-    /// Update cached entry index (thread-safe, called from ProxyBridge)
-    nonisolated func setCachedEntryIndex(for virtualModelName: String, index: Int) {
+    /// Update cached entry ID (thread-safe, called from ProxyBridge)
+    nonisolated func setCachedEntryId(for virtualModelName: String, entryId: UUID) {
         cacheLock.lock()
-        cachedEntryIndices[virtualModelName] = index
+        cachedEntryIds[virtualModelName] = entryId
         cacheLock.unlock()
     }
 
-    /// Clear cached entry index (thread-safe)
-    nonisolated func clearCachedEntryIndex(for virtualModelName: String) {
+    /// Clear cached entry ID (thread-safe)
+    nonisolated func clearCachedEntryId(for virtualModelName: String) {
         cacheLock.lock()
-        cachedEntryIndices.removeValue(forKey: virtualModelName)
+        cachedEntryIds.removeValue(forKey: virtualModelName)
         cacheLock.unlock()
     }
 
@@ -277,9 +278,9 @@ extension FallbackSettingsManager {
         )
         routeStates[virtualModelName] = state
 
-        // Also update thread-safe cache
+        // Also update thread-safe cache with entry ID
         cacheLock.lock()
-        cachedEntryIndices[virtualModelName] = entryIndex
+        cachedEntryIds[virtualModelName] = entry.id
         cacheLock.unlock()
 
         onRouteStateChanged?()
@@ -291,7 +292,7 @@ extension FallbackSettingsManager {
 
         // Also clear thread-safe cache
         cacheLock.lock()
-        cachedEntryIndices.removeValue(forKey: virtualModelName)
+        cachedEntryIds.removeValue(forKey: virtualModelName)
         cacheLock.unlock()
 
         onRouteStateChanged?()
@@ -303,7 +304,7 @@ extension FallbackSettingsManager {
 
         // Also clear thread-safe cache
         cacheLock.lock()
-        cachedEntryIndices.removeAll()
+        cachedEntryIds.removeAll()
         cacheLock.unlock()
 
         onRouteStateChanged?()

@@ -639,11 +639,17 @@ private struct ModelSlotRow: View {
     let onModelChange: (String) -> Void
     
     private var effectiveSelection: String {
-        // Check if selected model exists in available list, fallback to default if not
+        // Check if selected model exists in available list
         if !selectedModel.isEmpty && availableModels.contains(where: { $0.name == selectedModel }) {
             return selectedModel
         }
-        return AvailableModel.defaultModels[slot]?.name ?? AvailableModel.allModels.first?.name ?? ""
+        // Check if default model is available
+        if let defaultModel = AvailableModel.defaultModels[slot],
+           availableModels.contains(where: { $0.name == defaultModel.name }) {
+            return defaultModel.name
+        }
+        // Final fallback to first available model
+        return availableModels.first?.name ?? ""
     }
     
     var body: some View {

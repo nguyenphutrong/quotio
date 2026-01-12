@@ -400,6 +400,10 @@ final class ProxyBridge {
             let resolvedBody: String
 
             if fallbackContext.hasFallback, let entry = fallbackContext.currentEntry {
+                // Log fallback activation
+                FallbackLogger.log(.info, "🚀 Fallback activated for virtual model: \(fallbackContext.virtualModelName ?? "unknown")")
+                FallbackLogger.log(.info, "📍 Using entry \(fallbackContext.currentIndex + 1)/\(fallbackContext.fallbackEntries.count): \(entry.provider.rawValue) → \(entry.modelId)")
+
                 // Replace model in body with resolved model, using the entry's provider for param format
                 resolvedBody = self.replaceModelInBody(body, with: entry.modelId, provider: entry.provider)
             } else {
@@ -435,6 +439,7 @@ final class ProxyBridge {
 
         // Check if fallback is enabled
         guard settings.isEnabled else {
+            FallbackLogger.log(.debug, "Fallback disabled in settings")
             return .empty
         }
 
@@ -442,26 +447,35 @@ final class ProxyBridge {
         guard let bodyData = body.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
               let model = json["model"] as? String else {
+            FallbackLogger.log(.debug, "Cannot extract model from request body")
             return .empty
         }
 
         // Check if this is a virtual model
         guard settings.isVirtualModel(model) else {
+            FallbackLogger.log(.debug, "Model '\(model)' is not a virtual model")
             return .empty
         }
 
         guard let virtualModel = settings.findVirtualModel(name: model) else {
+            FallbackLogger.log(.warning, "Virtual model '\(model)' not found in settings")
             return .empty
         }
 
         let entries = virtualModel.sortedEntries
         guard !entries.isEmpty else {
+            FallbackLogger.log(.warning, "Virtual model '\(model)' has no fallback entries")
             return .empty
         }
 
-        // Get cached entry index (resume from where we left off)
-        let cachedIndex = settings.getCachedEntryIndex(for: model)
-        let startIndex = cachedIndex < entries.count ? cachedIndex : 0
+        // Get cached entry ID and find its current index (handles reordering correctly)
+        var startIndex = 0
+        if let cachedEntryId = settings.getCachedEntryId(for: model),
+           let cachedIndex = entries.firstIndex(where: { $0.id == cachedEntryId }) {
+            startIndex = cachedIndex
+        }
+
+        FallbackLogger.log(.info, "📋 Virtual model '\(model)' has \(entries.count) fallback entries, starting at index \(startIndex)")
 
         return FallbackContext(
             virtualModelName: model,
@@ -471,34 +485,22 @@ final class ProxyBridge {
         )
     }
 
-    private nonisolated let providerSpecificParams: [AIProvider: [String]] = [
-        .antigravity: ["maxOutputTokens", "temperature", "topP", "topK"],
-        .kiro: ["maxTokens", "temperature", "topP", "topK"],
-        .codex: ["max_completion_tokens", "temperature", "top_p"],
-        .claude: ["max_tokens", "temperature", "top_p", "top_k"],
-    ]
+    // MARK: - Request Body Transformation
 
+    /// Transform request body for the target provider
+    /// Handles model replacement and full API format conversion
     private nonisolated func replaceModelInBody(_ body: String, with newModel: String, provider: AIProvider) -> String {
         guard let bodyData = body.data(using: .utf8),
               var json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] else {
             return body
         }
 
+        // Update model name
         json["model"] = newModel
 
-        // Use the actual provider from the FallbackEntry for param formatting
-        let targetProvider = provider
-
-        let providerParamsToRemove: [String] = providerSpecificParams.flatMap { (prov, params) -> [String] in
-            guard prov != targetProvider else { return [] }
-            return params
-        }
-
-        for param in providerParamsToRemove {
-            json.removeValue(forKey: param)
-        }
-
-        fixInvalidParameters(in: &json, for: targetProvider)
+        // Perform full format conversion using FallbackFormatConverter
+        // This handles: message format, system prompt, parameters, tools, thinking blocks
+        FallbackFormatConverter.convertRequest(&json, from: nil, to: provider)
 
         guard let newData = try? JSONSerialization.data(withJSONObject: json),
               let newBody = String(data: newData, encoding: .utf8) else {
@@ -508,170 +510,10 @@ final class ProxyBridge {
         return newBody
     }
 
-    private nonisolated func fixInvalidParameters(in json: inout [String: Any], for provider: AIProvider) {
-        // All possible max tokens parameter names across different APIs
-        let allMaxTokensParams = ["maxOutputTokens", "maxTokens", "max_tokens", "max_completion_tokens"]
-
-        // The correct param name for the target provider
-        let targetMaxTokensParam: String = {
-            switch provider {
-            case .antigravity: return "maxOutputTokens"
-            case .kiro: return "maxTokens"
-            case .codex: return "max_completion_tokens"
-            case .claude: return "max_tokens"
-            default: return "max_tokens"
-            }
-        }()
-
-        // Helper to extract valid max tokens value
-        func extractValidMaxTokens(_ value: Any) -> Int? {
-            if let intValue = value as? Int, intValue >= 1 { return intValue }
-            if let doubleValue = value as? Double, doubleValue >= 1 { return Int(doubleValue) }
-            if let numberValue = value as? NSNumber, numberValue.intValue >= 1 { return numberValue.intValue }
-            return nil
-        }
-
-        // Try to find a valid max tokens value from any of the param names
-        var validMaxTokens: Int?
-        for param in allMaxTokensParams {
-            if let value = json[param], let valid = extractValidMaxTokens(value) {
-                validMaxTokens = valid
-                break
-            }
-        }
-
-        // Remove all max tokens params
-        for param in allMaxTokensParams {
-            json.removeValue(forKey: param)
-        }
-
-        // Set the target param with a valid value
-        if let valid = validMaxTokens {
-            json[targetMaxTokensParam] = valid
-        }
-        // If no valid value found, don't set any - let the API use its default
-
-        // Also handle generationConfig nested object (Gemini/Google format)
-        // Extract any valid maxOutputTokens from it, then remove the entire generationConfig
-        // since most providers don't use nested config
-        if let generationConfig = json["generationConfig"] as? [String: Any] {
-            // If we didn't find a valid value yet, try to get it from generationConfig
-            if validMaxTokens == nil {
-                for param in allMaxTokensParams {
-                    if let value = generationConfig[param], let valid = extractValidMaxTokens(value) {
-                        json[targetMaxTokensParam] = valid
-                        break
-                    }
-                }
-            }
-            // Remove generationConfig as it's provider-specific
-            json.removeValue(forKey: "generationConfig")
-        }
-
-        // Handle temperature - remove if invalid
-        if let value = json["temperature"] {
-            var shouldRemove = false
-            if let doubleValue = value as? Double, (doubleValue < 0 || doubleValue > 2) {
-                shouldRemove = true
-            } else if let intValue = value as? Int, (intValue < 0 || intValue > 2) {
-                shouldRemove = true
-            } else if let numberValue = value as? NSNumber {
-                let dVal = numberValue.doubleValue
-                if dVal < 0 || dVal > 2 {
-                    shouldRemove = true
-                }
-            }
-            if shouldRemove {
-                json.removeValue(forKey: "temperature")
-            }
-        }
-
-        // Handle topP - remove if invalid
-        if let value = json["topP"] {
-            var shouldRemove = false
-            if let doubleValue = value as? Double, (doubleValue < 0 || doubleValue > 1) {
-                shouldRemove = true
-            } else if let intValue = value as? Int, (intValue < 0 || intValue > 1) {
-                shouldRemove = true
-            } else if let numberValue = value as? NSNumber {
-                let dVal = numberValue.doubleValue
-                if dVal < 0 || dVal > 1 {
-                    shouldRemove = true
-                }
-            }
-            if shouldRemove {
-                json.removeValue(forKey: "topP")
-            }
-        }
-
-        // Handle top_p (OpenAI/Claude format) - remove if invalid
-        if let value = json["top_p"] {
-            var shouldRemove = false
-            if let doubleValue = value as? Double, (doubleValue < 0 || doubleValue > 1) {
-                shouldRemove = true
-            } else if let intValue = value as? Int, (intValue < 0 || intValue > 1) {
-                shouldRemove = true
-            } else if let numberValue = value as? NSNumber {
-                let dVal = numberValue.doubleValue
-                if dVal < 0 || dVal > 1 {
-                    shouldRemove = true
-                }
-            }
-            if shouldRemove {
-                json.removeValue(forKey: "top_p")
-            }
-        }
-
-        // Handle topK - remove if invalid
-        if let value = json["topK"] {
-            var shouldRemove = false
-            if let intValue = value as? Int, intValue < 1 {
-                shouldRemove = true
-            } else if let doubleValue = value as? Double, doubleValue < 1 {
-                shouldRemove = true
-            } else if let numberValue = value as? NSNumber, numberValue.intValue < 1 {
-                shouldRemove = true
-            }
-            if shouldRemove {
-                json.removeValue(forKey: "topK")
-            }
-        }
-
-        // Handle top_k (OpenAI/Claude format) - remove if invalid
-        if let value = json["top_k"] {
-            var shouldRemove = false
-            if let intValue = value as? Int, intValue < 1 {
-                shouldRemove = true
-            } else if let doubleValue = value as? Double, doubleValue < 1 {
-                shouldRemove = true
-            } else if let numberValue = value as? NSNumber, numberValue.intValue < 1 {
-                shouldRemove = true
-            }
-            if shouldRemove {
-                json.removeValue(forKey: "top_k")
-            }
-        }
-    }
-
-    /// Check if response indicates quota exhaustion
-    private nonisolated func isQuotaExceeded(responseData: Data) -> Bool {
-        guard let responseString = String(data: responseData.prefix(2048), encoding: .utf8) else {
-            return false
-        }
-
-        if let firstLine = responseString.components(separatedBy: "\r\n").first {
-            let parts = firstLine.components(separatedBy: " ")
-            if parts.count >= 2, let code = Int(parts[1]), code == 429 || code == 503 {
-                return true
-            }
-        }
-
-        let lowercased = responseString.lowercased()
-        let quotaPatterns = [
-            "quota exceeded", "rate limit", "limit reached", "no available account",
-            "insufficient_quota", "resource_exhausted", "overloaded", "capacity"
-        ]
-        return quotaPatterns.contains { lowercased.contains($0) }
+    /// Check if response indicates an error that should trigger fallback
+    /// Includes quota exhaustion, rate limits, format errors, and server errors
+    private nonisolated func shouldTriggerFallback(responseData: Data) -> Bool {
+        return FallbackFormatConverter.shouldTriggerFallback(responseData: responseData)
     }
     
     // MARK: - Metadata Extraction
@@ -878,9 +720,9 @@ final class ProxyBridge {
             // Check for quota exceeded BEFORE forwarding to client (within first 4KB to catch streaming errors)
             let quotaCheckThreshold = 4096
             if accumulatedResponse.count <= quotaCheckThreshold && !accumulatedResponse.isEmpty && fallbackContext.hasFallback {
-                let quotaExceeded = self.isQuotaExceeded(responseData: accumulatedResponse)
+                let shouldFallback = self.shouldTriggerFallback(responseData: accumulatedResponse)
 
-                if quotaExceeded && fallbackContext.hasMoreFallbacks {
+                if shouldFallback && fallbackContext.hasMoreFallbacks {
                     // Don't forward error to client, try next fallback instead
                     targetConnection.cancel()
 
@@ -888,6 +730,10 @@ final class ProxyBridge {
                     let nextContext = fallbackContext.next()
                     if let nextEntry = nextContext.currentEntry,
                        let virtualModelName = nextContext.virtualModelName {
+
+                        // Log fallback switch
+                        FallbackLogger.log(.warning, "🔄 Switching to fallback entry \(nextContext.currentIndex + 1)/\(nextContext.fallbackEntries.count)")
+                        FallbackLogger.log(.info, "📍 New target: \(nextEntry.provider.rawValue) → \(nextEntry.modelId)")
 
                         // Update cache and route state for UI (must be done on MainActor)
                         Task { @MainActor in
@@ -919,6 +765,8 @@ final class ProxyBridge {
                         )
                     }
                     return
+                } else if shouldFallback && !fallbackContext.hasMoreFallbacks {
+                    FallbackLogger.log(.error, "❌ All fallback entries exhausted, forwarding error to client")
                 }
             }
 
