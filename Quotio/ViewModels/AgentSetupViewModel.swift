@@ -82,8 +82,37 @@ final class AgentSetupViewModel {
             apiKey: apiKey
         )
 
+        // Load previously saved model slots from existing config
+        if agent == .claudeCode {
+            loadSavedModelSlots()
+        }
+
         // Load models for this agent
         Task { await loadModels() }
+    }
+
+    /// Load previously saved model slots from ~/.claude/settings.json
+    private func loadSavedModelSlots() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let configPath = "\(home)/.claude/settings.json"
+
+        guard FileManager.default.fileExists(atPath: configPath),
+              let data = FileManager.default.contents(atPath: configPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let env = json["env"] as? [String: String] else {
+            return
+        }
+
+        // Load saved model selections
+        if let opusModel = env["ANTHROPIC_DEFAULT_OPUS_MODEL"], !opusModel.isEmpty {
+            currentConfiguration?.modelSlots[.opus] = opusModel
+        }
+        if let sonnetModel = env["ANTHROPIC_DEFAULT_SONNET_MODEL"], !sonnetModel.isEmpty {
+            currentConfiguration?.modelSlots[.sonnet] = sonnetModel
+        }
+        if let haikuModel = env["ANTHROPIC_DEFAULT_HAIKU_MODEL"], !haikuModel.isEmpty {
+            currentConfiguration?.modelSlots[.haiku] = haikuModel
+        }
     }
 
     func updateModelSlot(_ slot: ModelSlot, model: String) {

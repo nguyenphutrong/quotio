@@ -639,7 +639,8 @@ private struct ModelSlotRow: View {
     let onModelChange: (String) -> Void
     
     private var effectiveSelection: String {
-        if !selectedModel.isEmpty {
+        // 检查已选模型是否在可用列表中，不存在则 fallback 到默认值
+        if !selectedModel.isEmpty && availableModels.contains(where: { $0.name == selectedModel }) {
             return selectedModel
         }
         return AvailableModel.defaultModels[slot]?.name ?? AvailableModel.allModels.first?.name ?? ""
@@ -672,7 +673,8 @@ private struct ModelSlotRow: View {
             .frame(maxWidth: 280)
         }
         .onAppear {
-            if selectedModel.isEmpty {
+            // 如果模型为空或不在可用列表中，触发 fallback 更新
+            if selectedModel.isEmpty || !availableModels.contains(where: { $0.name == selectedModel }) {
                 onModelChange(effectiveSelection)
             }
         }
