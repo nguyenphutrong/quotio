@@ -1,13 +1,22 @@
 import { parseArgs } from "node:util";
 import { registerCommand, type CLIContext, type CommandResult } from "../index.ts";
-import { ManagementAPIClient } from "../../services/management-api.ts";
-import { logger, formatJson, colors } from "../../utils/index.ts";
+import { logger } from "../../utils/index.ts";
+import {
+  proxyStart,
+  proxyStop,
+  proxyRestart,
+  proxyInstall,
+  proxyUninstall,
+  proxyStatus,
+  healthCheck,
+} from "./proxy/index.ts";
 
 async function handleProxy(args: string[], ctx: CLIContext): Promise<CommandResult> {
   const { values, positionals } = parseArgs({
     args,
     options: {
       help: { type: "boolean", short: "h", default: false },
+      port: { type: "string", short: "p" },
     },
     allowPositionals: true,
     strict: false,
@@ -20,16 +29,23 @@ async function handleProxy(args: string[], ctx: CLIContext): Promise<CommandResu
     return { success: true };
   }
 
-  const client = new ManagementAPIClient({
-    baseURL: ctx.baseUrl,
-    authKey: "",
-  });
+  const port = typeof values.port === "string" ? Number.parseInt(values.port, 10) : 8217;
 
   switch (subcommand) {
+    case "start":
+      return await proxyStart(port, ctx);
+    case "stop":
+      return await proxyStop(ctx);
+    case "restart":
+      return await proxyRestart(port, ctx);
+    case "install":
+      return await proxyInstall(ctx);
+    case "uninstall":
+      return await proxyUninstall(ctx);
     case "status":
-      return await proxyStatus(client, ctx);
+      return await proxyStatus(port, ctx);
     case "health":
-      return await healthCheck(client, ctx);
+      return await healthCheck(port, ctx);
     default:
       logger.error(`Unknown proxy subcommand: ${subcommand}`);
       printProxyHelp();
@@ -46,66 +62,26 @@ Usage: quotio proxy <subcommand> [options]
 Subcommands:
   status        Show proxy status (default)
   health        Check if proxy is healthy
+  start         Start the proxy server
+  stop          Stop the proxy server
+  restart       Restart the proxy server
+  install       Extract and install the proxy binary
+  uninstall     Remove the installed proxy binary
 
 Options:
-  --help, -h    Show this help message
+  --port, -p <port>   Port to run the proxy on (default: 8217)
+  --help, -h          Show this help message
 
 Examples:
-  quotio proxy
-  quotio proxy status
-  quotio proxy health
+  quotio proxy                    # Show status
+  quotio proxy start              # Start on default port
+  quotio proxy start -p 9000      # Start on port 9000
+  quotio proxy stop               # Stop the proxy
+  quotio proxy restart            # Restart the proxy
+  quotio proxy install            # Install the embedded binary
 `.trim();
 
   logger.print(help);
-}
-
-async function proxyStatus(client: ManagementAPIClient, ctx: CLIContext): Promise<CommandResult> {
-  try {
-    const healthy = await client.healthCheck();
-    const config = healthy ? await client.fetchConfig() : null;
-
-    if (ctx.format === "json") {
-      logger.print(formatJson({ healthy, config }));
-    } else {
-      if (healthy) {
-        logger.print(`Status: ${colors.green("Running")}`);
-        logger.print(`URL: ${ctx.baseUrl}`);
-        if (config) {
-        logger.print(`Debug: ${config.debug ? "enabled" : "disabled"}`);
-        logger.print(`Routing: ${config.routing?.strategy ?? "round-robin"}`);
-        }
-      } else {
-        logger.print(`Status: ${colors.red("Not running")}`);
-        logger.print(`Expected URL: ${ctx.baseUrl}`);
-      }
-    }
-
-    return { success: true, data: { healthy, config } };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { success: false, message: `Failed to get proxy status: ${message}` };
-  }
-}
-
-async function healthCheck(client: ManagementAPIClient, ctx: CLIContext): Promise<CommandResult> {
-  try {
-    const healthy = await client.healthCheck();
-
-    if (ctx.format === "json") {
-      logger.print(formatJson({ healthy }));
-    } else {
-      if (healthy) {
-        logger.print(colors.green("Proxy is healthy"));
-      } else {
-        logger.print(colors.red("Proxy is not responding"));
-      }
-    }
-
-    return { success: healthy, data: { healthy } };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { success: false, message: `Health check failed: ${message}` };
-  }
 }
 
 registerCommand("proxy", handleProxy);
