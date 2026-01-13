@@ -289,7 +289,7 @@ struct LogsScreen: View {
 
 struct RequestRow: View {
     let request: RequestLog
-    
+
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             // Timestamp
@@ -297,26 +297,48 @@ struct RequestRow: View {
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .frame(width: 70, alignment: .leading)
-            
+
             // Status Badge
             statusBadge
-            
-            // Provider & Model
+
+            // Provider & Model with Fallback Route
             VStack(alignment: .leading, spacing: 2) {
-                if let provider = request.provider {
-                    Text(provider.capitalized)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                }
-                if let model = request.model {
-                    Text(model)
+                if request.hasFallbackRoute {
+                    // Show fallback route: virtual model → resolved model
+                    HStack(spacing: 4) {
+                        Text(request.model ?? "unknown")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.orange)
+                        Image(systemName: "arrow.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(request.resolvedProvider?.capitalized ?? "")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.blue)
+                    }
+                    Text(request.resolvedModel ?? "")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                } else {
+                    // Normal display
+                    if let provider = request.provider {
+                        Text(provider.capitalized)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                    if let model = request.model {
+                        Text(model)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
             }
-            .frame(width: 140, alignment: .leading)
-            
+            .frame(width: 180, alignment: .leading)
+
             // Tokens
             if let tokens = request.formattedTokens {
                 HStack(spacing: 4) {
@@ -333,15 +355,15 @@ struct RequestRow: View {
                     .foregroundStyle(.tertiary)
                     .frame(width: 70, alignment: .trailing)
             }
-            
+
             // Duration
             Text(request.formattedDuration)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .frame(width: 60, alignment: .trailing)
-            
+
             Spacer()
-            
+
             // Size
             HStack(spacing: 4) {
                 Text("\(request.requestSize.formatted())B")
@@ -356,7 +378,7 @@ struct RequestRow: View {
         }
         .padding(.vertical, 4)
     }
-    
+
     private var statusBadge: some View {
         Text(request.statusBadge)
             .font(.system(.caption2, design: .monospaced, weight: .bold))
@@ -366,7 +388,7 @@ struct RequestRow: View {
             .background(statusColor)
             .clipShape(RoundedRectangle(cornerRadius: 4))
     }
-    
+
     private var statusColor: Color {
         guard let code = request.statusCode else { return .gray }
         switch code {

@@ -100,6 +100,8 @@ final class RequestTracker {
             endpoint: metadata.path,
             provider: metadata.provider,
             model: metadata.model,
+            resolvedModel: metadata.resolvedModel,
+            resolvedProvider: metadata.resolvedProvider,
             inputTokens: nil,
             outputTokens: nil,
             durationMs: metadata.durationMs,
@@ -108,7 +110,7 @@ final class RequestTracker {
             responseSize: metadata.responseSize,
             errorMessage: nil
         )
-        
+
         addEntry(entry)
     }
     
