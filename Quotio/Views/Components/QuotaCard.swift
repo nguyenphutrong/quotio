@@ -287,41 +287,55 @@ private struct QuotaAccountRow: View {
     let account: AuthFile
     var quotaData: ProviderQuotaData?
     @State private var settings = MenuBarSettingsManager.shared
-    
+
     private var displayName: String {
         let name = account.email ?? account.name
         return name.masked(if: settings.hideSensitiveInfo)
     }
-    
+
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(account.statusColor)
-                .frame(width: 8, height: 8)
-            
-            Text(displayName)
-                .font(.caption)
-                .lineLimit(1)
-            
-            Spacer()
-            
-            if let quotaData = quotaData, !quotaData.models.isEmpty {
-                HStack(spacing: 4) {
-                    ForEach(quotaData.models.prefix(2)) { model in
-                        Text(verbatim: "\(model.percentage)%")
-                            .font(.caption2)
-                            .foregroundStyle(model.percentage > 50 ? .green : (model.percentage > 20 ? .orange : .red))
-                    }
-                }
-            } else if let statusMessage = account.statusMessage, !statusMessage.isEmpty {
-                Text(statusMessage)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            } else {
-                Text(account.status.capitalized)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(account.statusColor)
+                    .frame(width: 8, height: 8)
+
+                Text(displayName)
                     .font(.caption)
-                    .foregroundStyle(account.statusColor)
+                    .lineLimit(1)
+
+                Spacer()
+
+                if let quotaData = quotaData, !quotaData.models.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(quotaData.models.prefix(2)) { model in
+                            Text(verbatim: "\(model.percentage)%")
+                                .font(.caption2)
+                                .foregroundStyle(model.percentage > 50 ? .green : (model.percentage > 20 ? .orange : .red))
+                        }
+                    }
+                } else if let statusMessage = account.statusMessage, !statusMessage.isEmpty {
+                    Text(statusMessage)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text(account.status.capitalized)
+                        .font(.caption)
+                        .foregroundStyle(account.statusColor)
+                }
+            }
+
+            // Show token expiry for Kiro accounts
+            if let quotaData = quotaData, let tokenExpiry = quotaData.formattedTokenExpiry {
+                HStack(spacing: 4) {
+                    Image(systemName: "key")
+                        .font(.caption2)
+                    Text(tokenExpiry)
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.leading, 16)
             }
         }
         .padding(.vertical, 2)

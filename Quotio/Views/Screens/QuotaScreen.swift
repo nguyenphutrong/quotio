@@ -535,7 +535,7 @@ private struct AccountQuotaCardV2: View {
     }
     
     // MARK: - Account Header
-    
+
     private var accountHeader: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
@@ -545,13 +545,24 @@ private struct AccountQuotaCardV2: View {
                     } else if let planName = account.quotaData?.planDisplayName {
                         PlanBadgeV2Compact(planName: planName)
                     }
-                    
+
                     Text(displayEmail)
                         .font(.headline)
                         .fontWeight(.semibold)
                         .lineLimit(1)
                 }
-                
+
+                // Show token expiry for Kiro accounts
+                if let quotaData = account.quotaData, let tokenExpiry = quotaData.formattedTokenExpiry {
+                    HStack(spacing: 4) {
+                        Image(systemName: "key")
+                            .font(.caption2)
+                        Text(tokenExpiry)
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+
                 if account.status != "ready" && account.status != "active" {
                     Text(account.status.capitalized)
                         .font(.caption)
