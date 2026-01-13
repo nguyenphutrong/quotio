@@ -6,6 +6,14 @@
 import Foundation
 import Observation
 
+// MARK: - Cached Entry Info
+
+/// Cached entry information with timestamp for expiration
+struct CachedEntryInfo: Sendable {
+    let entryId: UUID
+    let cachedAt: Date
+}
+
 // MARK: - Fallback Route State
 
 /// Represents the current routing state for a virtual model
@@ -57,8 +65,12 @@ final class FallbackSettingsManager {
     // Thread-safe cache for entry IDs (accessed from ProxyBridge on background threads)
     // Using entry ID instead of index to handle reordering correctly
     // Marked nonisolated(unsafe) because we handle thread safety manually with NSLock
-    @ObservationIgnored nonisolated(unsafe) private var cachedEntryIds: [String: UUID] = [:]
+    @ObservationIgnored nonisolated(unsafe) private var cachedEntryIds: [String: CachedEntryInfo] = [:]
     @ObservationIgnored nonisolated private let cacheLock = NSLock()
+
+    /// Cache expiration time in seconds (60 minutes)
+    /// After expiration, fallback will restart from the first entry
+    nonisolated static let cacheExpirationSeconds: TimeInterval = 3600
 
     private init() {
         if let data = defaults.data(forKey: configurationKey),
@@ -247,16 +259,30 @@ extension FallbackSettingsManager {
 
 extension FallbackSettingsManager {
     /// Get the current cached entry ID for a virtual model (thread-safe, for ProxyBridge)
+    /// Returns nil if cache is expired (after 60 minutes)
     nonisolated func getCachedEntryId(for virtualModelName: String) -> UUID? {
         cacheLock.lock()
         defer { cacheLock.unlock() }
-        return cachedEntryIds[virtualModelName]
+
+        guard let cached = cachedEntryIds[virtualModelName] else {
+            return nil
+        }
+
+        // Check if cache is expired
+        let elapsed = Date().timeIntervalSince(cached.cachedAt)
+        if elapsed > Self.cacheExpirationSeconds {
+            // Cache expired, remove it and return nil to restart from first entry
+            cachedEntryIds.removeValue(forKey: virtualModelName)
+            return nil
+        }
+
+        return cached.entryId
     }
 
     /// Update cached entry ID (thread-safe, called from ProxyBridge)
     nonisolated func setCachedEntryId(for virtualModelName: String, entryId: UUID) {
         cacheLock.lock()
-        cachedEntryIds[virtualModelName] = entryId
+        cachedEntryIds[virtualModelName] = CachedEntryInfo(entryId: entryId, cachedAt: Date())
         cacheLock.unlock()
     }
 
@@ -268,6 +294,7 @@ extension FallbackSettingsManager {
     }
 
     /// Update route state when a fallback is triggered (called from ProxyBridge)
+    /// This updates the UI display only, not the cache
     func updateRouteState(virtualModelName: String, entryIndex: Int, entry: FallbackEntry, totalEntries: Int) {
         let state = FallbackRouteState(
             virtualModelName: virtualModelName,
@@ -277,12 +304,6 @@ extension FallbackSettingsManager {
             totalEntries: totalEntries
         )
         routeStates[virtualModelName] = state
-
-        // Also update thread-safe cache with entry ID
-        cacheLock.lock()
-        cachedEntryIds[virtualModelName] = entry.id
-        cacheLock.unlock()
-
         onRouteStateChanged?()
     }
 

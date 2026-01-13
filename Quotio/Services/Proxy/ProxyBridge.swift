@@ -21,9 +21,11 @@ import Network
 /// Context for tracking fallback state during request processing
 struct FallbackContext: Sendable {
     let virtualModelName: String?
+    let sourceProvider: AIProvider?  // Provider that originally received the request
     let fallbackEntries: [FallbackEntry]
     let currentIndex: Int
     let originalBody: String
+    let wasLoadedFromCache: Bool  // Whether currentIndex was loaded from cache
 
     /// Whether this request has fallback enabled
     nonisolated var hasFallback: Bool { !fallbackEntries.isEmpty }
@@ -35,9 +37,11 @@ struct FallbackContext: Sendable {
     nonisolated func next() -> FallbackContext {
         FallbackContext(
             virtualModelName: virtualModelName,
+            sourceProvider: sourceProvider,
             fallbackEntries: fallbackEntries,
             currentIndex: currentIndex + 1,
-            originalBody: originalBody
+            originalBody: originalBody,
+            wasLoadedFromCache: false  // Next fallback is not from cache
         )
     }
 
@@ -50,9 +54,11 @@ struct FallbackContext: Sendable {
     /// Empty context for non-fallback requests
     nonisolated static let empty = FallbackContext(
         virtualModelName: nil,
+        sourceProvider: nil,
         fallbackEntries: [],
         currentIndex: 0,
-        originalBody: ""
+        originalBody: "",
+        wasLoadedFromCache: false
     )
 }
 
@@ -98,7 +104,7 @@ final class ProxyBridge {
     var onRequestCompleted: ((RequestMetadata) -> Void)?
     
     // MARK: - Request Metadata
-    
+
     /// Metadata extracted from proxied requests
     struct RequestMetadata: Sendable {
         let timestamp: Date
@@ -106,6 +112,8 @@ final class ProxyBridge {
         let path: String
         let provider: String?
         let model: String?
+        let resolvedModel: String?  // Actual model used after fallback resolution
+        let resolvedProvider: String?  // Actual provider used after fallback resolution
         let statusCode: Int?
         let durationMs: Int
         let requestSize: Int
@@ -392,20 +400,19 @@ final class ProxyBridge {
         // Extract metadata for tracking
         let metadata = extractMetadata(method: method, path: path, body: body)
 
+        // Convert provider string to AIProvider enum
+        let sourceProvider = self.providerFromString(metadata.provider)
+
         // Check for virtual model and create fallback context
         Task { @MainActor [weak self] in
             guard let self = self else { return }
 
-            let fallbackContext = self.createFallbackContext(body: body)
+            let fallbackContext = self.createFallbackContext(body: body, sourceProvider: sourceProvider)
             let resolvedBody: String
 
             if fallbackContext.hasFallback, let entry = fallbackContext.currentEntry {
-                // Log fallback activation
-                FallbackLogger.log(.info, "🚀 Fallback activated for virtual model: \(fallbackContext.virtualModelName ?? "unknown")")
-                FallbackLogger.log(.info, "📍 Using entry \(fallbackContext.currentIndex + 1)/\(fallbackContext.fallbackEntries.count): \(entry.provider.rawValue) → \(entry.modelId)")
-
-                // Replace model in body with resolved model, using the entry's provider for param format
-                resolvedBody = self.replaceModelInBody(body, with: entry.modelId, provider: entry.provider)
+                // Replace model in body with resolved model, using source provider for format detection
+                resolvedBody = self.replaceModelInBody(body, with: entry.modelId, provider: entry.provider, sourceProvider: sourceProvider)
             } else {
                 resolvedBody = body
             }
@@ -433,13 +440,25 @@ final class ProxyBridge {
 
     // MARK: - Fallback Support
 
+    /// Convert provider string to AIProvider enum
+    private nonisolated func providerFromString(_ providerStr: String?) -> AIProvider? {
+        guard let str = providerStr else { return nil }
+        switch str.lowercased() {
+        case "claude": return .claude
+        case "gemini": return .gemini
+        case "openai": return .codex
+        case "copilot": return .copilot
+        case "kiro": return .kiro
+        default: return nil
+        }
+    }
+
     /// Create fallback context if the request uses a virtual model
-    private func createFallbackContext(body: String) -> FallbackContext {
+    private func createFallbackContext(body: String, sourceProvider: AIProvider?) -> FallbackContext {
         let settings = FallbackSettingsManager.shared
 
         // Check if fallback is enabled
         guard settings.isEnabled else {
-            FallbackLogger.log(.debug, "Fallback disabled in settings")
             return .empty
         }
 
@@ -447,49 +466,53 @@ final class ProxyBridge {
         guard let bodyData = body.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
               let model = json["model"] as? String else {
-            FallbackLogger.log(.debug, "Cannot extract model from request body")
             return .empty
         }
 
         // Check if this is a virtual model
         guard settings.isVirtualModel(model) else {
-            FallbackLogger.log(.debug, "Model '\(model)' is not a virtual model")
             return .empty
         }
 
         guard let virtualModel = settings.findVirtualModel(name: model) else {
-            FallbackLogger.log(.warning, "Virtual model '\(model)' not found in settings")
             return .empty
         }
 
         let entries = virtualModel.sortedEntries
         guard !entries.isEmpty else {
-            FallbackLogger.log(.warning, "Virtual model '\(model)' has no fallback entries")
             return .empty
         }
 
         // Get cached entry ID and find its current index (handles reordering correctly)
         var startIndex = 0
-        if let cachedEntryId = settings.getCachedEntryId(for: model),
-           let cachedIndex = entries.firstIndex(where: { $0.id == cachedEntryId }) {
-            startIndex = cachedIndex
+        var wasLoadedFromCache = false
+        if let cachedEntryId = settings.getCachedEntryId(for: model) {
+            if let cachedIndex = entries.firstIndex(where: { $0.id == cachedEntryId }) {
+                startIndex = cachedIndex
+                wasLoadedFromCache = true
+            }
         }
-
-        FallbackLogger.log(.info, "📋 Virtual model '\(model)' has \(entries.count) fallback entries, starting at index \(startIndex)")
 
         return FallbackContext(
             virtualModelName: model,
+            sourceProvider: sourceProvider,
             fallbackEntries: entries,
             currentIndex: startIndex,
-            originalBody: body
+            originalBody: body,
+            wasLoadedFromCache: wasLoadedFromCache
         )
     }
 
     // MARK: - Request Body Transformation
 
     /// Transform request body for the target provider
-    /// Handles model replacement and full API format conversion
-    private nonisolated func replaceModelInBody(_ body: String, with newModel: String, provider: AIProvider) -> String {
+    /// Converts format based on source and target providers
+    private nonisolated func replaceModelInBody(
+        _ body: String,
+        with newModel: String,
+        provider: AIProvider,
+        sourceProvider: AIProvider?
+    ) -> String {
         guard let bodyData = body.data(using: .utf8),
               var json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] else {
             return body
@@ -498,9 +521,19 @@ final class ProxyBridge {
         // Update model name
         json["model"] = newModel
 
-        // Perform full format conversion using FallbackFormatConverter
-        // This handles: message format, system prompt, parameters, tools, thinking blocks
-        FallbackFormatConverter.convertRequest(&json, from: nil, to: provider)
+        // Determine source and target formats
+        let sourceFormat = sourceProvider?.apiFormat ?? FallbackFormatConverter.detectFormat(from: json)
+        let targetFormat = provider.apiFormat
+
+        // If source and target formats are the same, no conversion needed
+        if sourceFormat == targetFormat {
+            // Only clean thinking blocks and validate parameters
+            FallbackFormatConverter.cleanThinkingBlocksInBody(&json, isClaudeModel: FallbackFormatConverter.isClaudeModel(newModel))
+            FallbackFormatConverter.validateParameters(in: &json)
+        } else {
+            // Different formats, perform conversion
+            FallbackFormatConverter.convertRequest(&json, from: sourceProvider, to: provider)
+        }
 
         guard let newData = try? JSONSerialization.data(withJSONObject: json),
               let newBody = String(data: newData, encoding: .utf8) else {
@@ -542,7 +575,7 @@ final class ProxyBridge {
             
             // Infer provider from model name if not already detected
             if provider == nil {
-                if modelValue.hasPrefix("claude") {
+                if FallbackFormatConverter.isClaudeModel(modelValue) {
                     provider = "claude"
                 } else if modelValue.hasPrefix("gemini") || modelValue.hasPrefix("models/gemini") {
                     provider = "gemini"
@@ -731,11 +764,7 @@ final class ProxyBridge {
                     if let nextEntry = nextContext.currentEntry,
                        let virtualModelName = nextContext.virtualModelName {
 
-                        // Log fallback switch
-                        FallbackLogger.log(.warning, "🔄 Switching to fallback entry \(nextContext.currentIndex + 1)/\(nextContext.fallbackEntries.count)")
-                        FallbackLogger.log(.info, "📍 New target: \(nextEntry.provider.rawValue) → \(nextEntry.modelId)")
-
-                        // Update cache and route state for UI (must be done on MainActor)
+                        // Update route state for UI display (cache is only updated on success)
                         Task { @MainActor in
                             let settings = FallbackSettingsManager.shared
                             settings.updateRouteState(
@@ -746,7 +775,7 @@ final class ProxyBridge {
                             )
                         }
 
-                        let nextBody = self.replaceModelInBody(fallbackContext.originalBody, with: nextEntry.modelId, provider: nextEntry.provider)
+                        let nextBody = self.replaceModelInBody(fallbackContext.originalBody, with: nextEntry.modelId, provider: nextEntry.provider, sourceProvider: fallbackContext.sourceProvider)
 
                         self.forwardRequest(
                             method: method,
@@ -765,8 +794,6 @@ final class ProxyBridge {
                         )
                     }
                     return
-                } else if shouldFallback && !fallbackContext.hasMoreFallbacks {
-                    FallbackLogger.log(.error, "❌ All fallback entries exhausted, forwarding error to client")
                 }
             }
 
@@ -781,7 +808,8 @@ final class ProxyBridge {
                             requestSize: requestSize,
                             responseSize: accumulatedResponse.count,
                             responseData: accumulatedResponse,
-                            metadata: metadata
+                            metadata: metadata,
+                            fallbackContext: fallbackContext
                         )
 
                         targetConnection.cancel()
@@ -818,7 +846,8 @@ final class ProxyBridge {
                     requestSize: requestSize,
                     responseSize: accumulatedResponse.count,
                     responseData: accumulatedResponse,
-                    metadata: metadata
+                    metadata: metadata,
+                    fallbackContext: fallbackContext
                 )
 
                 targetConnection.cancel()
@@ -830,14 +859,15 @@ final class ProxyBridge {
     }
     
     // MARK: - Completion Recording
-    
+
     private nonisolated func recordCompletion(
         connectionId: Int,
         startTime: Date,
         requestSize: Int,
         responseSize: Int,
         responseData: Data,
-        metadata: (provider: String?, model: String?, method: String, path: String)
+        metadata: (provider: String?, model: String?, method: String, path: String),
+        fallbackContext: FallbackContext
     ) {
         let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
@@ -855,15 +885,40 @@ final class ProxyBridge {
         // Capture variables for Sendable closure
         let capturedStatusCode = statusCode
         let capturedMetadata = metadata
-        
+
+        // Extract resolved model/provider from fallback context
+        let resolvedModel: String? = fallbackContext.currentEntry?.modelId
+        let resolvedProvider: String? = fallbackContext.currentEntry?.provider.rawValue
+
         // Notify callback on main thread
         Task { @MainActor [weak self] in
+            // Cache successful entry ONLY if:
+            // 1. Response is successful (HTTP 2xx)
+            // 2. Fallback was actually triggered (currentIndex > 0)
+            // 3. Entry was NOT loaded from cache (wasLoadedFromCache == false)
+            if let statusCode = capturedStatusCode, (200..<300).contains(statusCode),
+               fallbackContext.currentIndex > 0,
+               !fallbackContext.wasLoadedFromCache,
+               let virtualModelName = fallbackContext.virtualModelName,
+               let currentEntry = fallbackContext.currentEntry {
+                let settings = FallbackSettingsManager.shared
+                settings.setCachedEntryId(for: virtualModelName, entryId: currentEntry.id)
+                settings.updateRouteState(
+                    virtualModelName: virtualModelName,
+                    entryIndex: fallbackContext.currentIndex,
+                    entry: currentEntry,
+                    totalEntries: fallbackContext.fallbackEntries.count
+                )
+            }
+
             let requestMetadata = RequestMetadata(
                 timestamp: startTime,
                 method: capturedMetadata.method,
                 path: capturedMetadata.path,
                 provider: capturedMetadata.provider,
                 model: capturedMetadata.model,
+                resolvedModel: resolvedModel,
+                resolvedProvider: resolvedProvider,
                 statusCode: capturedStatusCode,
                 durationMs: durationMs,
                 requestSize: requestSize,
