@@ -569,9 +569,13 @@ struct UnifiedProxySettingsSection: View {
         }
         
         do {
-            let config = try await apiClient.fetchConfig()
+            async let configTask = apiClient.fetchConfig()
+            async let routingTask = apiClient.getRoutingStrategy()
+            
+            let (config, fetchedStrategy) = try await (configTask, routingTask)
+            
             proxyURL = config.proxyURL ?? ""
-            routingStrategy = config.routingStrategy ?? "round-robin"
+            routingStrategy = fetchedStrategy
             requestRetry = config.requestRetry ?? 3
             maxRetryInterval = config.maxRetryInterval ?? 30
             loggingToFile = config.loggingToFile ?? true
@@ -581,6 +585,8 @@ struct UnifiedProxySettingsSection: View {
             switchPreviewModel = config.quotaExceeded?.switchPreviewModel ?? true
             proxyURLValidation = ProxyURLValidator.validate(proxyURL)
             isLoading = false
+            
+            try? await Task.sleep(for: .milliseconds(100))
             isLoadingConfig = false
         } catch {
             loadError = error.localizedDescription

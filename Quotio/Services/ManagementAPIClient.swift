@@ -290,6 +290,21 @@ actor ManagementAPIClient {
         }
     }
     
+    /// Get routing strategy
+    func getRoutingStrategy() async throws -> String {
+        // Try new endpoint first (CLIProxyAPIPlus v6.6.92+)
+        do {
+            let data = try await makeRequest("/routing/strategy")
+            let response = try JSONDecoder().decode(RoutingStrategyResponse.self, from: data)
+            return response.strategy
+        } catch APIError.httpError(404) {
+            // Fall back to legacy endpoint for older CLIProxyAPI versions
+            let data = try await makeRequest("/routing")
+            let response = try JSONDecoder().decode(RoutingStrategyResponse.self, from: data)
+            return response.strategy
+        }
+    }
+    
     func setQuotaExceededSwitchProject(_ enabled: Bool) async throws {
         let body = try JSONEncoder().encode(["value": enabled])
         _ = try await makeRequest("/quota-exceeded/switch-project", method: "PATCH", body: body)
@@ -672,4 +687,8 @@ nonisolated struct SwitchPreviewModelResponse: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case switchPreviewModel = "switch-preview-model"
     }
+}
+
+nonisolated struct RoutingStrategyResponse: Codable, Sendable {
+    let strategy: String
 }
