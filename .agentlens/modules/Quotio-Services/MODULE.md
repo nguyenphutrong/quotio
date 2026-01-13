@@ -21,13 +21,13 @@
 | `Quotio/Services/KeychainHelper.swift` | 74 |  |
 | `Quotio/Services/LanguageManager.swift` | 115 |  |
 | `Quotio/Services/LaunchAtLoginManager.swift` | 189 |  |
-| `Quotio/Services/ManagementAPIClient.swift` | 675 | 📊 |
+| `Quotio/Services/ManagementAPIClient.swift` | 718 | 📊 |
 | `Quotio/Services/NotificationManager.swift` | 326 |  |
 | `Quotio/Services/ProxyConfigurationService.swift` | 96 |  |
 | `Quotio/Services/RequestTracker.swift` | 187 |  |
 | `Quotio/Services/ShellProfileManager.swift` | 121 |  |
 | `Quotio/Services/StatusBarManager.swift` | 238 |  |
-| `Quotio/Services/StatusBarMenuBuilder.swift` | 1359 | 📊 |
+| `Quotio/Services/StatusBarMenuBuilder.swift` | 1365 | 📊 |
 | `Quotio/Services/UpdaterService.swift` | 168 |  |
 | `Quotio/Services/WarmupService.swift` | 183 |  |
 

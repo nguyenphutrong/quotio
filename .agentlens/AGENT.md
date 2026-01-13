@@ -28,8 +28,8 @@ Follow this protocol to understand the codebase efficiently:
 
 ## Freshness Check
 
-**Generated:** 2026-01-13T12:36:12Z
-**Git HEAD:** `f8393a5`
+**Generated:** 2026-01-13T14:45:15Z
+**Git HEAD:** `3777d1f`
 
 ### How to verify freshness
 

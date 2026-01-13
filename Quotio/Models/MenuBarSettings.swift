@@ -247,6 +247,129 @@ enum RefreshCadence: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+// MARK: - Total Usage Calculation Mode
+
+/// Mode for calculating total usage indicators (session vs extra)
+enum TotalUsageMode: String, CaseIterable, Identifiable, Codable {
+    case sessionOnly = "sessionOnly"
+    case combined = "combined"
+    
+    var id: String { rawValue }
+    
+    var localizationKey: String {
+        switch self {
+        case .sessionOnly: return "settings.usageDisplay.totalMode.sessionOnly"
+        case .combined: return "settings.usageDisplay.totalMode.combined"
+        }
+    }
+}
+
+// MARK: - Model Aggregation Mode
+
+/// Mode for aggregating multi-model provider quotas
+enum ModelAggregationMode: String, CaseIterable, Identifiable, Codable {
+    case lowest = "lowest"
+    case average = "average"
+    
+    var id: String { rawValue }
+    
+    var localizationKey: String {
+        switch self {
+        case .lowest: return "settings.usageDisplay.modelAggregation.lowest"
+        case .average: return "settings.usageDisplay.modelAggregation.average"
+        }
+    }
+}
+
+// MARK: - Usage Calculation Helpers
+
+extension MenuBarSettingsManager {
+    /// Compute total usage percentage using session/extra logic
+    /// Treats extra-usage, codex-extra, on-demand as extra models; all others as session
+    func totalUsagePercent(models: [(name: String, percentage: Double)]) -> Double {
+        let extraModelNames: Set<String> = ["extra-usage", "codex-extra", "on-demand"]
+        
+        var sessionPercentages: [Double] = []
+        var extraPercentages: [Double] = []
+        
+        for model in models {
+            if extraModelNames.contains(model.name) {
+                extraPercentages.append(model.percentage)
+            } else {
+                sessionPercentages.append(model.percentage)
+            }
+        }
+        
+        let sessionRemaining = aggregateModelPercentages(sessionPercentages)
+        let extraRemaining = aggregateModelPercentages(extraPercentages)
+        
+        let hasExtraModels = !extraPercentages.isEmpty
+        
+        switch totalUsageMode {
+        case .sessionOnly:
+            if sessionRemaining >= 0 {
+                return sessionRemaining
+            }
+            if hasExtraModels {
+                return extraRemaining
+            }
+            return -1
+            
+        case .combined:
+            let session = sessionRemaining >= 0 ? sessionRemaining : -1
+            let extra = extraRemaining >= 0 ? extraRemaining : -1
+            
+            if session < 0 && extra < 0 {
+                return -1
+            }
+            if session < 0 {
+                return extra
+            }
+            if extra < 0 {
+                return session
+            }
+            return max(session, extra)
+        }
+    }
+    
+    func calculateTotalUsagePercent(sessionPercent: Double?, extraPercent: Double?) -> Double {
+        switch totalUsageMode {
+        case .sessionOnly:
+            if let session = sessionPercent {
+                return session
+            }
+            return extraPercent ?? -1
+            
+        case .combined:
+            let session = sessionPercent ?? -1
+            let extra = extraPercent ?? -1
+            
+            if session < 0 && extra < 0 {
+                return -1
+            }
+            if session < 0 {
+                return extra
+            }
+            if extra < 0 {
+                return session
+            }
+            return max(session, extra)
+        }
+    }
+    
+    func aggregateModelPercentages(_ percentages: [Double]) -> Double {
+        let validPercentages = percentages.filter { $0 >= 0 }
+        guard !validPercentages.isEmpty else { return -1 }
+        
+        switch modelAggregationMode {
+        case .lowest:
+            return validPercentages.min() ?? -1
+        case .average:
+            return validPercentages.reduce(0, +) / Double(validPercentages.count)
+        }
+    }
+}
+
 // MARK: - Refresh Settings Manager
 
 /// Manager for refresh cadence settings with persistence
@@ -308,6 +431,8 @@ final class MenuBarSettingsManager {
     private let quotaDisplayModeKey = "quotaDisplayMode"
     private let quotaDisplayStyleKey = "quotaDisplayStyle"
     private let hideSensitiveInfoKey = "hideSensitiveInfo"
+    private let totalUsageModeKey = "totalUsageMode"
+    private let modelAggregationModeKey = "modelAggregationMode"
     
     /// Whether to show menu bar icon at all
     var showMenuBarIcon: Bool {
@@ -344,6 +469,16 @@ final class MenuBarSettingsManager {
         didSet { defaults.set(hideSensitiveInfo, forKey: hideSensitiveInfoKey) }
     }
     
+    /// Total usage calculation mode (session-only vs combined)
+    var totalUsageMode: TotalUsageMode {
+        didSet { defaults.set(totalUsageMode.rawValue, forKey: totalUsageModeKey) }
+    }
+    
+    /// Model aggregation mode (lowest vs average)
+    var modelAggregationMode: ModelAggregationMode {
+        didSet { defaults.set(modelAggregationMode.rawValue, forKey: modelAggregationModeKey) }
+    }
+    
     /// Threshold for warning when adding more items
     let warningThreshold = 3
     
@@ -370,6 +505,8 @@ final class MenuBarSettingsManager {
         self.quotaDisplayStyle = QuotaDisplayStyle(rawValue: defaults.string(forKey: quotaDisplayStyleKey) ?? "") ?? .card
         self.selectedItems = Self.loadSelectedItems(from: defaults, key: selectedItemsKey)
         self.hideSensitiveInfo = defaults.bool(forKey: hideSensitiveInfoKey)
+        self.totalUsageMode = TotalUsageMode(rawValue: defaults.string(forKey: totalUsageModeKey) ?? "") ?? .sessionOnly
+        self.modelAggregationMode = ModelAggregationMode(rawValue: defaults.string(forKey: modelAggregationModeKey) ?? "") ?? .lowest
     }
     
     private func saveSelectedItems() {

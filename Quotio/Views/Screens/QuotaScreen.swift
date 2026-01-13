@@ -52,21 +52,19 @@ struct QuotaScreen: View {
         return accounts.count
     }
     
-    /// Get lowest quota percentage for a provider (for segment indicator)
     private func lowestQuotaPercent(for provider: AIProvider) -> Double? {
         guard let accounts = viewModel.providerQuotas[provider] else { return nil }
         
-        var lowestPercent: Double? = nil
+        var allTotals: [Double] = []
         for (_, quotaData) in accounts {
-            for model in quotaData.models {
-                if model.percentage >= 0 {
-                    if lowestPercent == nil || model.percentage < lowestPercent! {
-                        lowestPercent = model.percentage
-                    }
-                }
+            let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
+            let total = settings.totalUsagePercent(models: models)
+            if total >= 0 {
+                allTotals.append(total)
             }
         }
-        return lowestPercent
+        
+        return allTotals.min()
     }
     
     /// Check if we have any data to show
@@ -474,37 +472,40 @@ private struct AccountQuotaCardV2: View {
         
         var groups: [AntigravityDisplayGroup] = []
         
-        // Gemini 3 Pro (excluding image models)
         let gemini3ProModels = data.models.filter { 
             $0.name.contains("gemini-3-pro") && !$0.name.contains("image") 
         }
         if !gemini3ProModels.isEmpty {
-            let minQuota = gemini3ProModels.map(\.percentage).min() ?? 0
-            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Pro", percentage: minQuota, models: gemini3ProModels))
+            let aggregatedQuota = settings.aggregateModelPercentages(gemini3ProModels.map(\.percentage))
+            if aggregatedQuota >= 0 {
+                groups.append(AntigravityDisplayGroup(name: "Gemini 3 Pro", percentage: aggregatedQuota, models: gemini3ProModels))
+            }
         }
         
-        // Gemini 3 Flash
         let gemini3FlashModels = data.models.filter { $0.name.contains("gemini-3-flash") }
         if !gemini3FlashModels.isEmpty {
-            let minQuota = gemini3FlashModels.map(\.percentage).min() ?? 0
-            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Flash", percentage: minQuota, models: gemini3FlashModels))
+            let aggregatedQuota = settings.aggregateModelPercentages(gemini3FlashModels.map(\.percentage))
+            if aggregatedQuota >= 0 {
+                groups.append(AntigravityDisplayGroup(name: "Gemini 3 Flash", percentage: aggregatedQuota, models: gemini3FlashModels))
+            }
         }
         
-        // Gemini 3 Image (any model containing "image")
         let geminiImageModels = data.models.filter { $0.name.contains("image") }
         if !geminiImageModels.isEmpty {
-            let minQuota = geminiImageModels.map(\.percentage).min() ?? 0
-            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Image", percentage: minQuota, models: geminiImageModels))
+            let aggregatedQuota = settings.aggregateModelPercentages(geminiImageModels.map(\.percentage))
+            if aggregatedQuota >= 0 {
+                groups.append(AntigravityDisplayGroup(name: "Gemini 3 Image", percentage: aggregatedQuota, models: geminiImageModels))
+            }
         }
         
-        // Claude (any model containing "claude")
         let claudeModels = data.models.filter { $0.name.contains("claude") }
         if !claudeModels.isEmpty {
-            let minQuota = claudeModels.map(\.percentage).min() ?? 0
-            groups.append(AntigravityDisplayGroup(name: "Claude", percentage: minQuota, models: claudeModels))
+            let aggregatedQuota = settings.aggregateModelPercentages(claudeModels.map(\.percentage))
+            if aggregatedQuota >= 0 {
+                groups.append(AntigravityDisplayGroup(name: "Claude", percentage: aggregatedQuota, models: claudeModels))
+            }
         }
         
-        // Sort by lowest quota first (most urgent)
         return groups.sorted { $0.percentage < $1.percentage }
     }
     

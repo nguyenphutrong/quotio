@@ -48,41 +48,8 @@ struct QuotioApp: App {
                 }
                 
                 if let quotaData = quotaData, !quotaData.models.isEmpty {
-                    // Get display percentage based on provider-specific strategy
-                    switch provider {
-                    case .claude:
-                        // Claude Code: prefer Session (5-hour) quota
-                        let sessionModel = quotaData.models.first { 
-                            $0.name == "five-hour-session" || $0.name == "Session" 
-                        }
-                        displayPercent = sessionModel?.percentage ?? quotaData.models.first?.percentage ?? -1
-                        
-                    case .codex:
-                        // Codex: prefer Session quota
-                        let sessionModel = quotaData.models.first { 
-                            $0.name == "codex-session" 
-                        }
-                        displayPercent = sessionModel?.percentage ?? quotaData.models.first?.percentage ?? -1
-                        
-                    case .cursor:
-                        // Cursor: prefer Plan Usage
-                        let planModel = quotaData.models.first { 
-                            $0.name == "plan-usage" 
-                        }
-                        displayPercent = planModel?.percentage ?? quotaData.models.first?.percentage ?? -1
-                        
-                    case .trae:
-                        // Trae: prefer Fast Requests quota
-                        let fastModel = quotaData.models.first { 
-                            $0.name == "premium-fast" 
-                        }
-                        displayPercent = fastModel?.percentage ?? quotaData.models.first?.percentage ?? -1
-                        
-                    default:
-                        // Other providers: show lowest percentage
-                        let validPercentages = quotaData.models.map(\.percentage).filter { $0 >= 0 }
-                        displayPercent = validPercentages.min() ?? (quotaData.models.first?.percentage ?? -1)
-                    }
+                    let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
+                    displayPercent = menuBarSettings.totalUsagePercent(models: models)
                 }
             }
             
@@ -173,6 +140,14 @@ struct QuotioApp: App {
                 .onChange(of: menuBarSettings.colorMode) {
                     updateStatusBar()
                 }
+                .onChange(of: menuBarSettings.totalUsageMode) {
+                    updateStatusBar()
+                    statusBarManager.rebuildMenuInPlace()
+                }
+                .onChange(of: menuBarSettings.modelAggregationMode) {
+                    updateStatusBar()
+                    statusBarManager.rebuildMenuInPlace()
+                }
                 .onChange(of: modeManager.currentMode) {
                     updateStatusBar()
                 }
@@ -221,7 +196,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         UserDefaults.standard.register(defaults: [
             "useBridgeMode": true,
-            "showInDock": true
+            "showInDock": true,
+            "totalUsageMode": TotalUsageMode.sessionOnly.rawValue,
+            "modelAggregationMode": ModelAggregationMode.lowest.rawValue
         ])
         
         // Apply initial dock visibility based on saved preference

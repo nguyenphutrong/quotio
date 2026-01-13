@@ -4,24 +4,24 @@
 
 Symbol maps for 6 large files in this module.
 
-## Quotio/QuotioApp.swift (550 lines)
+## Quotio/QuotioApp.swift (527 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 13 | struct | QuotioApp | (internal) |
-| 100 | fn | updateStatusBar | (private) |
-| 114 | fn | initializeApp | (private) |
-| 212 | class | AppDelegate | (internal) |
-| 215 | fn | applicationDidFinishLaunching | (internal) |
-| 251 | fn | applicationShouldTerminateAfterLastWindowClosed | (internal) |
-| 255 | fn | applicationShouldHandleReopen | (internal) |
-| 273 | fn | applicationWillTerminate | (internal) |
-| 294 | fn | handleWindowDidBecomeKey | (private) |
-| 298 | fn | handleWindowWillClose | (private) |
-| 315 | struct | ContentView | (internal) |
-| 448 | struct | RemoteStatusRow | (internal) |
-| 491 | struct | ProxyStatusRow | (internal) |
-| 522 | struct | QuotaRefreshStatusRow | (internal) |
+| 67 | fn | updateStatusBar | (private) |
+| 81 | fn | initializeApp | (private) |
+| 187 | class | AppDelegate | (internal) |
+| 190 | fn | applicationDidFinishLaunching | (internal) |
+| 228 | fn | applicationShouldTerminateAfterLastWindowClosed | (internal) |
+| 232 | fn | applicationShouldHandleReopen | (internal) |
+| 250 | fn | applicationWillTerminate | (internal) |
+| 271 | fn | handleWindowDidBecomeKey | (private) |
+| 275 | fn | handleWindowWillClose | (private) |
+| 292 | struct | ContentView | (internal) |
+| 425 | struct | RemoteStatusRow | (internal) |
+| 468 | struct | ProxyStatusRow | (internal) |
+| 499 | struct | QuotaRefreshStatusRow | (internal) |
 
 ## Quotio/Services/Proxy/CLIProxyManager.swift (1860 lines)
 

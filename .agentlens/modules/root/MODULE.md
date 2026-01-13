@@ -8,7 +8,7 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `Quotio/QuotioApp.swift` | 550 | 📊 |
+| `Quotio/QuotioApp.swift` | 527 | 📊 |
 | `Quotio/Services/Proxy/CLIProxyManager.swift` | 1860 | 📊 |
 | `Quotio/Services/Proxy/FallbackFormatConverter.swift` | 1190 | 📊 |
 | `Quotio/Services/Proxy/ProxyBridge.swift` | 970 | 📊 |

@@ -20,7 +20,7 @@ Symbol maps for 3 large files in this module.
 | 575 | fn | fetchAvailableModels | (internal) |
 | 630 | fn | testConnection | (internal) |
 
-## Quotio/Services/ManagementAPIClient.swift (675 lines)
+## Quotio/Services/ManagementAPIClient.swift (718 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -46,40 +46,43 @@ Symbol maps for 3 large files in this module.
 | 269 | fn | clearLogs | (internal) |
 | 273 | fn | setDebug | (internal) |
 | 278 | fn | setRoutingStrategy | (internal) |
-| 292 | fn | setQuotaExceededSwitchProject | (internal) |
-| 297 | fn | setQuotaExceededSwitchPreviewModel | (internal) |
-| 302 | fn | setRequestRetry | (internal) |
-| 311 | fn | fetchConfig | (internal) |
-| 317 | fn | getDebug | (internal) |
-| 324 | fn | getProxyURL | (internal) |
-| 331 | fn | setProxyURL | (internal) |
-| 337 | fn | deleteProxyURL | (internal) |
-| 342 | fn | getLoggingToFile | (internal) |
-| 349 | fn | setLoggingToFile | (internal) |
-| 355 | fn | getRequestLog | (internal) |
-| 362 | fn | setRequestLog | (internal) |
-| 368 | fn | getRequestRetry | (internal) |
-| 375 | fn | getMaxRetryInterval | (internal) |
-| 382 | fn | setMaxRetryInterval | (internal) |
-| 388 | fn | getQuotaExceededSwitchProject | (internal) |
-| 395 | fn | getQuotaExceededSwitchPreviewModel | (internal) |
-| 400 | fn | uploadVertexServiceAccount | (internal) |
-| 406 | fn | uploadVertexServiceAccount | (internal) |
-| 410 | fn | fetchAPIKeys | (internal) |
-| 416 | fn | addAPIKey | (internal) |
-| 423 | fn | replaceAPIKeys | (internal) |
-| 428 | fn | updateAPIKey | (internal) |
-| 433 | fn | deleteAPIKey | (internal) |
-| 438 | fn | deleteAPIKeyByIndex | (internal) |
-| 447 | fn | fetchLatestVersion | (internal) |
-| 454 | fn | checkProxyResponding | (internal) |
-| 476 | class | SessionDelegate | (private) |
-| 479 | method | init | (internal) |
-| 485 | fn | urlSession | (internal) |
-| 490 | fn | urlSession | (internal) |
+| 294 | fn | getRoutingStrategy | (internal) |
+| 307 | fn | setQuotaExceededSwitchProject | (internal) |
+| 312 | fn | setQuotaExceededSwitchPreviewModel | (internal) |
+| 317 | fn | setRequestRetry | (internal) |
+| 326 | fn | fetchConfig | (internal) |
+| 332 | fn | getDebug | (internal) |
+| 339 | fn | getProxyURL | (internal) |
+| 346 | fn | setProxyURL | (internal) |
+| 352 | fn | deleteProxyURL | (internal) |
+| 357 | fn | getLoggingToFile | (internal) |
+| 364 | fn | setLoggingToFile | (internal) |
+| 370 | fn | getRequestLog | (internal) |
+| 377 | fn | setRequestLog | (internal) |
+| 383 | fn | getRequestRetry | (internal) |
+| 390 | fn | getMaxRetryInterval | (internal) |
+| 397 | fn | setMaxRetryInterval | (internal) |
+| 403 | fn | getQuotaExceededSwitchProject | (internal) |
+| 410 | fn | getQuotaExceededSwitchPreviewModel | (internal) |
+| 415 | fn | uploadVertexServiceAccount | (internal) |
+| 421 | fn | uploadVertexServiceAccount | (internal) |
+| 425 | fn | fetchAPIKeys | (internal) |
+| 431 | fn | addAPIKey | (internal) |
+| 438 | fn | replaceAPIKeys | (internal) |
+| 443 | fn | updateAPIKey | (internal) |
+| 448 | fn | deleteAPIKey | (internal) |
+| 453 | fn | deleteAPIKeyByIndex | (internal) |
+| 462 | fn | fetchLatestVersion | (internal) |
+| 469 | fn | checkProxyResponding | (internal) |
+| 491 | class | SessionDelegate | (private) |
+| 494 | method | init | (internal) |
 | 500 | fn | urlSession | (internal) |
+| 505 | fn | urlSession | (internal) |
+| 515 | fn | urlSession | (internal) |
+| 694 | method | init | (internal) |
+| 708 | fn | encode | (internal) |
 
-## Quotio/Services/StatusBarMenuBuilder.swift (1359 lines)
+## Quotio/Services/StatusBarMenuBuilder.swift (1365 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -110,20 +113,20 @@ Symbol maps for 3 large files in this module.
 | 576 | fn | setCopied | (private) |
 | 587 | fn | copyButton | (private) |
 | 604 | struct | MenuAccountCardView | (private) |
-| 838 | fn | formatLocalTime | (private) |
-| 848 | struct | ModelBadgeData | (private) |
-| 878 | struct | AntigravityDisplayGroup | (private) |
-| 885 | fn | menuDisplayPercent | (private) |
-| 889 | fn | menuStatusColor | (private) |
-| 907 | struct | LowestBarLayout | (private) |
-| 987 | struct | RingGridLayout | (private) |
-| 1031 | struct | CardGridLayout | (private) |
-| 1080 | struct | ModernProgressBar | (private) |
-| 1115 | struct | PercentageBadge | (private) |
-| 1151 | struct | MenuModelDetailView | (private) |
-| 1203 | struct | MenuEmptyStateView | (private) |
-| 1218 | struct | MenuViewMoreAccountsView | (private) |
-| 1266 | mod | extension AIProvider | (private) |
-| 1287 | struct | MenuActionsView | (private) |
-| 1325 | struct | MenuBarActionButton | (private) |
+| 844 | fn | formatLocalTime | (private) |
+| 854 | struct | ModelBadgeData | (private) |
+| 884 | struct | AntigravityDisplayGroup | (private) |
+| 891 | fn | menuDisplayPercent | (private) |
+| 895 | fn | menuStatusColor | (private) |
+| 913 | struct | LowestBarLayout | (private) |
+| 993 | struct | RingGridLayout | (private) |
+| 1037 | struct | CardGridLayout | (private) |
+| 1086 | struct | ModernProgressBar | (private) |
+| 1121 | struct | PercentageBadge | (private) |
+| 1157 | struct | MenuModelDetailView | (private) |
+| 1209 | struct | MenuEmptyStateView | (private) |
+| 1224 | struct | MenuViewMoreAccountsView | (private) |
+| 1272 | mod | extension AIProvider | (private) |
+| 1293 | struct | MenuActionsView | (private) |
+| 1331 | struct | MenuBarActionButton | (private) |
 

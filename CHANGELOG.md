@@ -7,9 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-01-13
+
+### Added
+
+- **fallback**: Cross-provider format conversion with FallbackFormatConverter (#169)
+  - APIFormat detection (openai, anthropic, google) for automatic conversion
+  - Message and tool_use/tool_calls conversion between Anthropic and OpenAI formats
+  - System message and parameter conversion across providers
+  - Thinking block cleanup for non-Claude models
+- **kiro**: Proactive token refresh with 5-min buffer before expiry (#169)
+  - Reactive refresh on 401/403 responses with automatic retry
+  - Display token expiry time in quota UI
+- **fallback**: Dynamic provider parameter adaptation for virtual models (#169)
+  - Fix maxOutputTokens error by adapting API parameters based on actual provider
+  - ModelCache with stale-while-revalidate pattern
+  - Cache by entry ID (not index) for correct reordering handling
+- **logs**: Display fallback route info (virtual → resolved model/provider) in request logs (#169)
+- **agent-setup**: Decoupled cache invalidation when provider accounts change (#169)
+
+### Fixed
+
+- **copilot**: Treat educational quota as Pro for GitHub Copilot (#164)
+  - Educational accounts (free_educational_quota) now display as 'Pro' with unlimited chat/completions
+- **fallback**: Model picker now falls back to default when saved model unavailable (#169)
+
 ## [0.7.2] - 2026-01-12
 
+### Fixed
+
+- **copilot**: Add missing plan types to planDisplayName (#162)
+  - Add 8 additional plan types: guest, go, free_workspace, business, education, quorum, k12, edu
+- **crash**: Prevent crash in String.index(after:) at boundary (#161)
+  - Add bounds checking to prevent EXC_BREAKPOINT at string boundaries (Fixes #103)
+
 ## [0.7.1] - 2026-01-12
+
+### Added
+
+- **tunnel**: Share Proxy via Cloudflare Tunnel (#137)
+  - Expose local proxy to internet with temporary public URL
+  - TunnelManager for lifecycle management with orphan cleanup
+  - Dashboard integration with status badge and public URL display
+  - Menu bar tunnel section with start/stop controls
+  - Auto-start tunnel option in Settings
+- **menu-bar**: Quota display styles with ring progress indicator (#146)
+  - QuotaDisplayStyle enum (card, lowestBar, ring)
+  - RingProgressView circular progress component
+  - Display style picker in Settings
+- **network**: Allow network access - bind to 0.0.0.0 (#147) - thanks @Benson 🎉
+- **proxy**: Upstream proxy support for all quota fetchers and managers (#145) - thanks @Tsingv 🎉
+  - ProxyConfigurationService for centralized proxy configuration
+  - All quota fetchers now route through user-configurable proxy
+
+### Fixed
+
+- **settings**: Launch at login setting not working (#130, #139)
+  - Add LaunchAtLoginManager with robust error handling
+  - App location validation (/Applications requirement)
+  - Handle .requiresApproval status from System Settings
+- **tunnel**: Clean build warnings and tunnel handling (ccbf9ff)
 
 ## [0.7.0] - 2026-01-09
 
