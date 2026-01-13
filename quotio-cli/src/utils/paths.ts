@@ -11,12 +11,12 @@ export type Platform = "darwin" | "linux" | "win32";
 
 /** Get current platform */
 export function getPlatform(): Platform {
-  const platform = process.platform;
-  if (platform === "darwin" || platform === "linux" || platform === "win32") {
-    return platform;
-  }
-  // Default to linux for other Unix-like systems
-  return "linux";
+	const platform = process.platform;
+	if (platform === "darwin" || platform === "linux" || platform === "win32") {
+		return platform;
+	}
+	// Default to linux for other Unix-like systems
+	return "linux";
 }
 
 /**
@@ -26,18 +26,24 @@ export function getPlatform(): Platform {
  * - Windows: %APPDATA%/quotio-cli
  */
 export function getConfigDir(): string {
-  const platform = getPlatform();
-  const home = homedir();
+	const platform = getPlatform();
+	const home = homedir();
 
-  switch (platform) {
-    case "darwin":
-      return join(home, "Library", "Application Support", "quotio-cli");
-    case "win32":
-      return join(process.env.APPDATA || join(home, "AppData", "Roaming"), "quotio-cli");
-    case "linux":
-    default:
-      return join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "quotio-cli");
-  }
+	switch (platform) {
+		case "darwin":
+			return join(home, "Library", "Application Support", "quotio-cli");
+		case "win32":
+			return join(
+				process.env.APPDATA || join(home, "AppData", "Roaming"),
+				"quotio-cli",
+			);
+		case "linux":
+		default:
+			return join(
+				process.env.XDG_CONFIG_HOME || join(home, ".config"),
+				"quotio-cli",
+			);
+	}
 }
 
 /**
@@ -47,18 +53,24 @@ export function getConfigDir(): string {
  * - Windows: %LOCALAPPDATA%/quotio-cli
  */
 export function getDataDir(): string {
-  const platform = getPlatform();
-  const home = homedir();
+	const platform = getPlatform();
+	const home = homedir();
 
-  switch (platform) {
-    case "darwin":
-      return join(home, "Library", "Application Support", "quotio-cli");
-    case "win32":
-      return join(process.env.LOCALAPPDATA || join(home, "AppData", "Local"), "quotio-cli");
-    case "linux":
-    default:
-      return join(process.env.XDG_DATA_HOME || join(home, ".local", "share"), "quotio-cli");
-  }
+	switch (platform) {
+		case "darwin":
+			return join(home, "Library", "Application Support", "quotio-cli");
+		case "win32":
+			return join(
+				process.env.LOCALAPPDATA || join(home, "AppData", "Local"),
+				"quotio-cli",
+			);
+		case "linux":
+		default:
+			return join(
+				process.env.XDG_DATA_HOME || join(home, ".local", "share"),
+				"quotio-cli",
+			);
+	}
 }
 
 /**
@@ -68,18 +80,25 @@ export function getDataDir(): string {
  * - Windows: %LOCALAPPDATA%/quotio-cli/cache
  */
 export function getCacheDir(): string {
-  const platform = getPlatform();
-  const home = homedir();
+	const platform = getPlatform();
+	const home = homedir();
 
-  switch (platform) {
-    case "darwin":
-      return join(home, "Library", "Caches", "quotio-cli");
-    case "win32":
-      return join(process.env.LOCALAPPDATA || join(home, "AppData", "Local"), "quotio-cli", "cache");
-    case "linux":
-    default:
-      return join(process.env.XDG_CACHE_HOME || join(home, ".cache"), "quotio-cli");
-  }
+	switch (platform) {
+		case "darwin":
+			return join(home, "Library", "Caches", "quotio-cli");
+		case "win32":
+			return join(
+				process.env.LOCALAPPDATA || join(home, "AppData", "Local"),
+				"quotio-cli",
+				"cache",
+			);
+		case "linux":
+		default:
+			return join(
+				process.env.XDG_CACHE_HOME || join(home, ".cache"),
+				"quotio-cli",
+			);
+	}
 }
 
 /**
@@ -89,18 +108,22 @@ export function getCacheDir(): string {
  * - Windows: %LOCALAPPDATA%/quotio-cli/logs
  */
 export function getLogsDir(): string {
-  const platform = getPlatform();
-  const home = homedir();
+	const platform = getPlatform();
+	const home = homedir();
 
-  switch (platform) {
-    case "darwin":
-      return join(home, "Library", "Logs", "quotio-cli");
-    case "win32":
-      return join(process.env.LOCALAPPDATA || join(home, "AppData", "Local"), "quotio-cli", "logs");
-    case "linux":
-    default:
-      return join(getDataDir(), "logs");
-  }
+	switch (platform) {
+		case "darwin":
+			return join(home, "Library", "Logs", "quotio-cli");
+		case "win32":
+			return join(
+				process.env.LOCALAPPDATA || join(home, "AppData", "Local"),
+				"quotio-cli",
+				"logs",
+			);
+		case "linux":
+		default:
+			return join(getDataDir(), "logs");
+	}
 }
 
 /** TCP port for Windows IPC (since Bun doesn't support named pipes on Windows yet) */
@@ -109,31 +132,31 @@ export const WINDOWS_IPC_HOST = "127.0.0.1";
 
 /** IPC connection info - either Unix socket path or TCP address */
 export type IPCConnectionInfo =
-  | { type: "unix"; path: string }
-  | { type: "tcp"; host: string; port: number };
+	| { type: "unix"; path: string }
+	| { type: "tcp"; host: string; port: number };
 
 /** Standard file paths within the config directory */
 export const ConfigFiles = {
-  /** Main configuration file */
-  config: () => join(getConfigDir(), "config.json"),
-  /** Credentials/auth tokens */
-  credentials: () => join(getConfigDir(), "credentials.json"),
-  /** CLI state (last used settings, etc.) */
-  state: () => join(getDataDir(), "state.json"),
-  /**
-   * Daemon socket path (for Unix) or display string (for Windows).
-   * Use getIPCConnectionInfo() for actual connection parameters.
-   * @deprecated Use getIPCConnectionInfo() for connection logic
-   */
-  socket: () => {
-    const platform = getPlatform();
-    if (platform === "win32") {
-      return `${WINDOWS_IPC_HOST}:${WINDOWS_IPC_PORT}`;
-    }
-    return join(getCacheDir(), "quotio.sock");
-  },
-  /** PID file for daemon */
-  pidFile: () => join(getCacheDir(), "quotio.pid"),
+	/** Main configuration file */
+	config: () => join(getConfigDir(), "config.json"),
+	/** Credentials/auth tokens */
+	credentials: () => join(getConfigDir(), "credentials.json"),
+	/** CLI state (last used settings, etc.) */
+	state: () => join(getDataDir(), "state.json"),
+	/**
+	 * Daemon socket path (for Unix) or display string (for Windows).
+	 * Use getIPCConnectionInfo() for actual connection parameters.
+	 * @deprecated Use getIPCConnectionInfo() for connection logic
+	 */
+	socket: () => {
+		const platform = getPlatform();
+		if (platform === "win32") {
+			return `${WINDOWS_IPC_HOST}:${WINDOWS_IPC_PORT}`;
+		}
+		return join(getCacheDir(), "quotio.sock");
+	},
+	/** PID file for daemon */
+	pidFile: () => join(getCacheDir(), "quotio.pid"),
 } as const;
 
 /**
@@ -142,31 +165,31 @@ export const ConfigFiles = {
  * - Windows: TCP socket (fallback since Bun doesn't support named pipes)
  */
 export function getIPCConnectionInfo(): IPCConnectionInfo {
-  const platform = getPlatform();
-  if (platform === "win32") {
-    return { type: "tcp", host: WINDOWS_IPC_HOST, port: WINDOWS_IPC_PORT };
-  }
-  return { type: "unix", path: join(getCacheDir(), "quotio.sock") };
+	const platform = getPlatform();
+	if (platform === "win32") {
+		return { type: "tcp", host: WINDOWS_IPC_HOST, port: WINDOWS_IPC_PORT };
+	}
+	return { type: "unix", path: join(getCacheDir(), "quotio.sock") };
 }
 
 /**
  * Ensure a directory exists, creating it if necessary.
  */
 export async function ensureDir(dir: string): Promise<void> {
-  const fs = await import("node:fs/promises");
-  await fs.mkdir(dir, { recursive: true });
+	const fs = await import("node:fs/promises");
+	await fs.mkdir(dir, { recursive: true });
 }
 
 /**
  * Ensure all quotio-cli directories exist.
  */
 export async function ensureAllDirs(): Promise<void> {
-  await Promise.all([
-    ensureDir(getConfigDir()),
-    ensureDir(getDataDir()),
-    ensureDir(getCacheDir()),
-    ensureDir(getLogsDir()),
-  ]);
+	await Promise.all([
+		ensureDir(getConfigDir()),
+		ensureDir(getDataDir()),
+		ensureDir(getCacheDir()),
+		ensureDir(getLogsDir()),
+	]);
 }
 
 /**
@@ -174,10 +197,12 @@ export async function ensureAllDirs(): Promise<void> {
  * Used for migration and compatibility.
  */
 export const CLIProxyPaths = {
-  /** Default CLIProxyAPI base URL */
-  defaultBaseURL: "http://localhost:8217",
-  /** macOS app support directory for CLIProxyAPI */
-  macOSAppSupport: () => join(homedir(), "Library", "Application Support", "CLIProxyAPI"),
-  /** Auth files location */
-  authFiles: () => join(homedir(), "Library", "Application Support", "CLIProxyAPI", "auth"),
+	/** Default CLIProxyAPI base URL */
+	defaultBaseURL: "http://localhost:8217",
+	/** macOS app support directory for CLIProxyAPI */
+	macOSAppSupport: () =>
+		join(homedir(), "Library", "Application Support", "CLIProxyAPI"),
+	/** Auth files location */
+	authFiles: () =>
+		join(homedir(), "Library", "Application Support", "CLIProxyAPI", "auth"),
 } as const;
