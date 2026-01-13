@@ -1,8 +1,8 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import type { CLIContext, CommandResult } from "../../index.ts";
-import { logger, colors } from "../../../utils/index.ts";
 import { getProxyLogDir } from "../../../services/proxy-binary/constants.ts";
+import { colors, logger } from "../../../utils/index.ts";
+import type { CLIContext, CommandResult } from "../../index.ts";
 
 export async function proxyLogs(
 	lines: number,

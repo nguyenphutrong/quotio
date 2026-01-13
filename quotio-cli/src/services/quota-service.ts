@@ -1,19 +1,19 @@
 import type { AIProvider } from "../models/provider.ts";
 import { PROVIDER_METADATA } from "../models/provider.ts";
 import type {
-	QuotaFetchResult,
 	ProviderQuotaData,
+	QuotaFetchResult,
 	QuotaFetcher,
 } from "./quota-fetchers/index.ts";
 import {
+	AntigravityQuotaFetcher,
 	ClaudeQuotaFetcher,
-	GeminiQuotaFetcher,
+	CodexQuotaFetcher,
 	CopilotQuotaFetcher,
 	CursorQuotaFetcher,
-	TraeQuotaFetcher,
+	GeminiQuotaFetcher,
 	KiroQuotaFetcher,
-	AntigravityQuotaFetcher,
-	CodexQuotaFetcher,
+	TraeQuotaFetcher,
 } from "./quota-fetchers/index.ts";
 
 export type QuotaMap = Map<string, ProviderQuotaData>;

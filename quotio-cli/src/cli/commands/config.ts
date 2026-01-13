@@ -1,11 +1,11 @@
 import { parseArgs } from "node:util";
+import { ManagementAPIClient } from "../../services/management-api.ts";
+import { colors, formatJson, logger } from "../../utils/index.ts";
 import {
-	registerCommand,
 	type CLIContext,
 	type CommandResult,
+	registerCommand,
 } from "../index.ts";
-import { ManagementAPIClient } from "../../services/management-api.ts";
-import { logger, formatJson, colors } from "../../utils/index.ts";
 
 async function handleConfig(
 	args: string[],

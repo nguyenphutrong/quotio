@@ -21,6 +21,18 @@ const Colors = {
 /** Check if output supports colors */
 const supportsColor = process.stdout.isTTY ?? false;
 
+/**
+ * Regex to strip ANSI escape codes from text.
+ * Uses ESC (0x1b) followed by CSI sequences.
+ */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: Required for ANSI escape sequence stripping
+const ANSI_STRIP_REGEX = /\x1b\[[0-9;]*m/g;
+
+/** Strip ANSI codes from text to get visible length */
+function stripAnsi(text: string): string {
+	return text.replace(ANSI_STRIP_REGEX, "");
+}
+
 /** Apply color if supported */
 function color(text: string, colorCode: string): string {
 	return supportsColor ? `${colorCode}${text}${Colors.reset}` : text;
@@ -66,8 +78,7 @@ export function formatTable<T extends Record<string, unknown>>(
 			...data.map((row) => {
 				const value = row[col.key];
 				const formatted = col.format ? col.format(value) : String(value ?? "");
-				// Strip ANSI codes for width calculation
-				return formatted.replace(/\x1b\[[0-9;]*m/g, "").length;
+				return stripAnsi(formatted).length;
 			}),
 		);
 		return col.width ?? Math.max(headerWidth, maxDataWidth);
@@ -100,8 +111,7 @@ function alignText(
 	width: number,
 	align: "left" | "right" | "center",
 ): string {
-	// Calculate visible length (strip ANSI codes)
-	const visibleLength = text.replace(/\x1b\[[0-9;]*m/g, "").length;
+	const visibleLength = stripAnsi(text).length;
 	const padding = Math.max(0, width - visibleLength);
 
 	switch (align) {
@@ -112,7 +122,6 @@ function alignText(
 			const right = padding - left;
 			return " ".repeat(left) + text + " ".repeat(right);
 		}
-		case "left":
 		default:
 			return text + " ".repeat(padding);
 	}
@@ -149,7 +158,7 @@ export function formatBytes(bytes: number): string {
 	const k = 1024;
 	const sizes = ["B", "KB", "MB", "GB", "TB"];
 	const i = Math.floor(Math.log(bytes) / Math.log(k));
-	return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+	return `${(bytes / k ** i).toFixed(1)} ${sizes[i]}`;
 }
 
 /** Format number with thousand separators */
@@ -232,7 +241,6 @@ export function formatStatus(
 			return colors.yellow("●");
 		case "pending":
 			return colors.blue("○");
-		case "unknown":
 		default:
 			return colors.dim("○");
 	}
@@ -254,7 +262,6 @@ export function formatOutput<T>(
 					.join("\n\n");
 			}
 			return formatPlain(data as Record<string, unknown>);
-		case "table":
 		default:
 			if (Array.isArray(data) && tableColumns) {
 				return formatTable(data as Record<string, unknown>[], tableColumns);

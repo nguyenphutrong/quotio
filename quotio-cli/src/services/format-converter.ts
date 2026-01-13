@@ -131,8 +131,8 @@ type JSONValue =
 	| boolean
 	| null
 	| JSONValue[]
-	| { [key: string]: JSONValue };
-type JSONObject = { [key: string]: JSONValue };
+	| { [key: string]: JSONValue | undefined };
+type JSONObject = { [key: string]: JSONValue | undefined };
 type MessageContent = string | JSONObject[];
 
 interface Message {
@@ -787,7 +787,7 @@ function convertToGoogleContent(content: JSONValue): JSONValue {
 				}
 				return null;
 			})
-			.filter((b): b is JSONObject => b !== null);
+			.filter((b): b is { text: string } => b !== null);
 	}
 
 	return [{ text: String(content) }];
@@ -816,8 +816,8 @@ function convertSystemMessage(
 			const messages = body.messages as JSONObject[] | undefined;
 			if (messages) {
 				const sysIdx = messages.findIndex((m) => m.role === "system");
-				if (sysIdx !== -1) {
-					const sysMsg = messages[sysIdx];
+				const sysMsg = sysIdx !== -1 ? messages[sysIdx] : undefined;
+				if (sysMsg) {
 					if (typeof sysMsg.content === "string") {
 						systemContent = sysMsg.content;
 					} else if (Array.isArray(sysMsg.content)) {
@@ -1253,8 +1253,9 @@ export function shouldTriggerFallback(responseData: string): boolean {
 	const firstLine = responseData.split("\r\n")[0];
 	if (firstLine) {
 		const parts = firstLine.split(" ");
-		if (parts.length >= 2) {
-			const code = Number.parseInt(parts[1], 10);
+		const statusCode = parts[1];
+		if (parts.length >= 2 && statusCode) {
+			const code = Number.parseInt(statusCode, 10);
 			if (!Number.isNaN(code)) {
 				if ([429, 503, 500, 400, 401, 403, 422].includes(code)) {
 					return true;

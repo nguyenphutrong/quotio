@@ -1,10 +1,10 @@
-import type { CLIContext, CommandResult } from "../../index.ts";
-import { logger, formatJson, colors } from "../../../utils/index.ts";
-import {
-	restartProxy,
-	getProcessState,
-} from "../../../services/proxy-process/index.ts";
 import { getBinaryInfo } from "../../../services/proxy-binary/index.ts";
+import {
+	getProcessState,
+	restartProxy,
+} from "../../../services/proxy-process/index.ts";
+import { colors, formatJson, logger } from "../../../utils/index.ts";
+import type { CLIContext, CommandResult } from "../../index.ts";
 
 export async function proxyRestart(
 	port: number,

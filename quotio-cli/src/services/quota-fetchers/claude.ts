@@ -1,15 +1,15 @@
 import { AIProvider } from "../../models/provider.ts";
 import type {
-	QuotaFetcher,
-	QuotaFetchResult,
 	LocalAuthFile,
 	ModelQuota,
 	ProviderQuotaData,
+	QuotaFetchResult,
+	QuotaFetcher,
 } from "./types.ts";
 import {
-	readAuthFiles,
-	fetchWithTimeout,
 	createEmptyQuotaData,
+	fetchWithTimeout,
+	readAuthFiles,
 } from "./types.ts";
 
 const ANTHROPIC_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";

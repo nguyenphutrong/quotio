@@ -1,22 +1,22 @@
+import { copyFile, mkdir, readdir, stat } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { mkdir, readdir, copyFile, stat } from "node:fs/promises";
-import {
-	registerCommand,
-	type CLIContext,
-	type CommandResult,
-} from "../index.ts";
-import { ManagementAPIClient } from "../../services/management-api.ts";
-import { sendCommand, isDaemonRunning } from "../../ipc/client.ts";
-import {
-	logger,
-	formatTable,
-	formatJson,
-	colors,
-	type TableColumn,
-} from "../../utils/index.ts";
+import { isDaemonRunning, sendCommand } from "../../ipc/client.ts";
 import type { AIProvider } from "../../models/index.ts";
 import { PROVIDER_METADATA, parseProvider } from "../../models/index.ts";
+import { ManagementAPIClient } from "../../services/management-api.ts";
 import { getAuthDir } from "../../services/quota-fetchers/types.ts";
+import {
+	type TableColumn,
+	colors,
+	formatJson,
+	formatTable,
+	logger,
+} from "../../utils/index.ts";
+import {
+	type CLIContext,
+	type CommandResult,
+	registerCommand,
+} from "../index.ts";
 
 const authColumns: TableColumn[] = [
 	{ key: "provider", header: "Provider", width: 15 },

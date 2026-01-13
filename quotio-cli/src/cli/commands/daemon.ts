@@ -1,12 +1,12 @@
-import type { CLIContext, CommandResult } from "../index.ts";
-import { registerCommand } from "../index.ts";
-import { logger } from "../../utils/index.ts";
+import { sendCommand } from "../../ipc/client.ts";
 import {
+	getDaemonStatus,
 	startDaemon,
 	stopDaemon,
-	getDaemonStatus,
 } from "../../services/daemon/index.ts";
-import { sendCommand } from "../../ipc/client.ts";
+import { logger } from "../../utils/index.ts";
+import type { CLIContext, CommandResult } from "../index.ts";
+import { registerCommand } from "../index.ts";
 
 function printHelp(): void {
 	const help = `

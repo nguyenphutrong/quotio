@@ -1,10 +1,10 @@
 import {
+	chmodSync,
+	copyFileSync,
 	existsSync,
 	mkdirSync,
-	writeFileSync,
 	readFileSync,
-	copyFileSync,
-	chmodSync,
+	writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import type { CLIAgent, CLIAgentId } from "./types";

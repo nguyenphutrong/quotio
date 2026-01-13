@@ -1,18 +1,18 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { getCacheDir } from "../../utils/paths.ts";
 import type {
+	RequestHistoryStore,
 	RequestLog,
 	RequestStats,
-	RequestHistoryStore,
 } from "../../models/request-log.ts";
 import {
-	createEmptyStore,
+	CURRENT_VERSION,
 	addEntryToStore,
 	calculateStats,
 	createEmptyStats,
-	CURRENT_VERSION,
+	createEmptyStore,
 } from "../../models/request-log.ts";
+import { getCacheDir } from "../../utils/paths.ts";
 
 const HISTORY_FILE = "request-history.json";
 

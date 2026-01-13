@@ -1,6 +1,6 @@
 import {
-	getProxyConfigPath,
 	getAuthDir,
+	getProxyConfigPath,
 	getProxyLogDir,
 } from "../proxy-binary/constants.ts";
 

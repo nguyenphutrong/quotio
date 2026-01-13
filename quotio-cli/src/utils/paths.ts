@@ -37,7 +37,6 @@ export function getConfigDir(): string {
 				process.env.APPDATA || join(home, "AppData", "Roaming"),
 				"quotio-cli",
 			);
-		case "linux":
 		default:
 			return join(
 				process.env.XDG_CONFIG_HOME || join(home, ".config"),
@@ -64,7 +63,6 @@ export function getDataDir(): string {
 				process.env.LOCALAPPDATA || join(home, "AppData", "Local"),
 				"quotio-cli",
 			);
-		case "linux":
 		default:
 			return join(
 				process.env.XDG_DATA_HOME || join(home, ".local", "share"),
@@ -92,7 +90,6 @@ export function getCacheDir(): string {
 				"quotio-cli",
 				"cache",
 			);
-		case "linux":
 		default:
 			return join(
 				process.env.XDG_CACHE_HOME || join(home, ".cache"),
@@ -120,7 +117,6 @@ export function getLogsDir(): string {
 				"quotio-cli",
 				"logs",
 			);
-		case "linux":
 		default:
 			return join(getDataDir(), "logs");
 	}

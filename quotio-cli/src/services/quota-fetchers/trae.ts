@@ -1,9 +1,9 @@
 import { AIProvider } from "../../models/provider.ts";
 import type {
-	QuotaFetcher,
-	QuotaFetchResult,
-	ProviderQuotaData,
 	ModelQuota,
+	ProviderQuotaData,
+	QuotaFetchResult,
+	QuotaFetcher,
 } from "./types.ts";
 import { fetchWithTimeout } from "./types.ts";
 

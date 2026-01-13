@@ -1,6 +1,6 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { type ChildProcess, spawn } from "node:child_process";
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 
 export type TunnelStatus =
 	| "idle"

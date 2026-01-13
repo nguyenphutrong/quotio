@@ -1,21 +1,21 @@
-import { connect, type Socket } from "bun";
 import { existsSync } from "node:fs";
+import { type Socket, connect } from "bun";
 import {
-	getIPCConnectionInfo,
 	type IPCConnectionInfo,
+	getIPCConnectionInfo,
 } from "../utils/paths.ts";
 import {
+	ErrorCodes,
+	JSONRPC_VERSION,
 	type JsonRpcResponse,
-	type RequestId,
 	type MethodName,
 	type MethodParams,
 	type MethodResult,
-	ErrorCodes,
+	type RequestId,
+	createMessageParser,
 	createRequest,
 	encodeMessage,
-	createMessageParser,
 	isErrorResponse,
-	JSONRPC_VERSION,
 } from "./protocol.ts";
 
 export class IPCClientError extends Error {

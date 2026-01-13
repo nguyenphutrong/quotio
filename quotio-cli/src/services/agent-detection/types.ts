@@ -1,5 +1,5 @@
-import { homedir } from "node:os";
 import { readdirSync } from "node:fs";
+import { homedir } from "node:os";
 
 export type CLIAgentId =
 	| "claude-code"

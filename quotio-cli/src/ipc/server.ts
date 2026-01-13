@@ -1,27 +1,27 @@
+import { chmodSync, existsSync, unlinkSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import type {
 	Socket,
 	SocketListener,
 	TCPSocketListener,
 	UnixSocketListener,
 } from "bun";
-import { existsSync, unlinkSync, chmodSync } from "node:fs";
-import { dirname } from "node:path";
-import { mkdir } from "node:fs/promises";
-import {
-	getIPCConnectionInfo,
-	type IPCConnectionInfo,
-} from "../utils/paths.ts";
 import { logger } from "../utils/logger.ts";
 import {
+	type IPCConnectionInfo,
+	getIPCConnectionInfo,
+} from "../utils/paths.ts";
+import {
+	ErrorCodes,
+	type JsonRpcErrorResponse,
 	type JsonRpcRequest,
 	type JsonRpcResponse,
-	type JsonRpcErrorResponse,
-	ErrorCodes,
-	parseRequest,
-	createSuccessResponse,
 	createErrorResponse,
-	encodeMessage,
 	createMessageParser,
+	createSuccessResponse,
+	encodeMessage,
+	parseRequest,
 } from "./protocol.ts";
 
 export type MethodHandler = (params: unknown) => Promise<unknown>;

@@ -33,19 +33,19 @@ export interface UsageStats {
 }
 
 export function parseUsageStats(json: Record<string, unknown>): UsageStats {
-	const usage = json["usage"] as Record<string, unknown> | undefined;
+	const usage = json.usage as Record<string, unknown> | undefined;
 	return {
 		usage: usage
 			? {
-					totalRequests: usage["total_requests"] as number | undefined,
-					successCount: usage["success_count"] as number | undefined,
-					failureCount: usage["failure_count"] as number | undefined,
-					totalTokens: usage["total_tokens"] as number | undefined,
-					inputTokens: usage["input_tokens"] as number | undefined,
-					outputTokens: usage["output_tokens"] as number | undefined,
+					totalRequests: usage.total_requests as number | undefined,
+					successCount: usage.success_count as number | undefined,
+					failureCount: usage.failure_count as number | undefined,
+					totalTokens: usage.total_tokens as number | undefined,
+					inputTokens: usage.input_tokens as number | undefined,
+					outputTokens: usage.output_tokens as number | undefined,
 				}
 			: undefined,
-		failedRequests: json["failed_requests"] as number | undefined,
+		failedRequests: json.failed_requests as number | undefined,
 	};
 }
 
@@ -59,7 +59,8 @@ export function calculateSuccessRate(usage: UsageData): number {
 export function formatCompactNumber(num: number): string {
 	if (num >= 1_000_000) {
 		return `${(num / 1_000_000).toFixed(1)}M`;
-	} else if (num >= 1_000) {
+	}
+	if (num >= 1_000) {
 		return `${(num / 1_000).toFixed(1)}K`;
 	}
 	return String(num);

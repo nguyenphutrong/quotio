@@ -3,8 +3,8 @@ import type {
 	LocalAuthFile,
 	ModelQuota,
 	ProviderQuotaData,
-	QuotaFetcher,
 	QuotaFetchResult,
+	QuotaFetcher,
 } from "./types.ts";
 import { fetchWithTimeout, getAuthDir, readAuthFiles } from "./types.ts";
 

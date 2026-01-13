@@ -1,9 +1,9 @@
 import { AIProvider } from "../../models/provider.ts";
 import type {
-	QuotaFetcher,
-	QuotaFetchResult,
 	ModelQuota,
 	ProviderQuotaData,
+	QuotaFetchResult,
+	QuotaFetcher,
 } from "./types.ts";
 import { decodeJWTPayload } from "./types.ts";
 

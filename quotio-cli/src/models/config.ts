@@ -62,19 +62,19 @@ export function getProxyEndpoint(status: ProxyStatus): string {
 
 export function parseAppConfig(json: Record<string, unknown>): AppConfig {
 	return {
-		host: String(json["host"] ?? ""),
-		port: Number(json["port"] ?? 8317),
+		host: String(json.host ?? ""),
+		port: Number(json.port ?? 8317),
 		authDir: String(json["auth-dir"] ?? "~/.cli-proxy-api"),
 		proxyURL: String(json["proxy-url"] ?? ""),
 		apiKeys: (json["api-keys"] as string[]) ?? [],
-		debug: Boolean(json["debug"]),
+		debug: Boolean(json.debug),
 		loggingToFile: Boolean(json["logging-to-file"]),
 		usageStatisticsEnabled: Boolean(json["usage-statistics-enabled"] ?? true),
 		requestRetry: Number(json["request-retry"] ?? 3),
 		maxRetryInterval: Number(json["max-retry-interval"] ?? 30),
 		wsAuth: Boolean(json["ws-auth"]),
 		routing: parseRoutingConfig(
-			(json["routing"] as Record<string, unknown>) ?? {},
+			(json.routing as Record<string, unknown>) ?? {},
 		),
 		quotaExceeded: parseQuotaExceededConfig(
 			(json["quota-exceeded"] as Record<string, unknown>) ?? {},
@@ -87,8 +87,7 @@ export function parseAppConfig(json: Record<string, unknown>): AppConfig {
 
 function parseRoutingConfig(json: Record<string, unknown>): RoutingConfig {
 	return {
-		strategy:
-			(json["strategy"] as "round-robin" | "fill-first") ?? "round-robin",
+		strategy: (json.strategy as "round-robin" | "fill-first") ?? "round-robin",
 	};
 }
 

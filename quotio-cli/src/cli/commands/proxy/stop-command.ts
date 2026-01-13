@@ -1,9 +1,9 @@
-import type { CLIContext, CommandResult } from "../../index.ts";
-import { logger, formatJson, colors } from "../../../utils/index.ts";
 import {
-	stopProxy,
 	isProxyRunning,
+	stopProxy,
 } from "../../../services/proxy-process/index.ts";
+import { colors, formatJson, logger } from "../../../utils/index.ts";
+import type { CLIContext, CommandResult } from "../../index.ts";
 
 export async function proxyStop(ctx: CLIContext): Promise<CommandResult> {
 	try {

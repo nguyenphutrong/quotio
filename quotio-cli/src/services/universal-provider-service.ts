@@ -1,10 +1,10 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import {
-	type UniversalProvider,
 	type ActiveProviderState,
 	BUILT_IN_PROVIDERS,
+	type UniversalProvider,
 } from "../models/universal-provider.ts";
 
 const CONFIG_DIR = join(homedir(), ".quotio");

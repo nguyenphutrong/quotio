@@ -1,11 +1,11 @@
 import { AIProvider } from "../../models/provider.ts";
 import type {
-	QuotaFetcher,
-	QuotaFetchResult,
-	ProviderQuotaData,
 	ModelQuota,
+	ProviderQuotaData,
+	QuotaFetchResult,
+	QuotaFetcher,
 } from "./types.ts";
-import { readAuthFiles, fetchWithTimeout, getAuthDir } from "./types.ts";
+import { fetchWithTimeout, getAuthDir, readAuthFiles } from "./types.ts";
 
 const QUOTA_API_URL =
 	"https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";

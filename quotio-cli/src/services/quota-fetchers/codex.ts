@@ -1,11 +1,11 @@
 import { AIProvider } from "../../models/provider.ts";
 import type {
-	QuotaFetcher,
-	QuotaFetchResult,
-	ProviderQuotaData,
 	ModelQuota,
+	ProviderQuotaData,
+	QuotaFetchResult,
+	QuotaFetcher,
 } from "./types.ts";
-import { fetchWithTimeout, decodeJWTPayload } from "./types.ts";
+import { decodeJWTPayload, fetchWithTimeout } from "./types.ts";
 
 const AUTH_FILE_PATH = "~/.codex/auth.json";
 const USAGE_API_URL = "https://chatgpt.com/backend-api/wham/usage";

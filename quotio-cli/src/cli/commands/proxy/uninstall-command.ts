@@ -1,13 +1,13 @@
-import type { CLIContext, CommandResult } from "../../index.ts";
-import { logger, formatJson, colors } from "../../../utils/index.ts";
-import {
-	stopProxy,
-	isProxyRunning,
-} from "../../../services/proxy-process/index.ts";
 import {
 	getBinaryInfo,
 	removeBinary,
 } from "../../../services/proxy-binary/index.ts";
+import {
+	isProxyRunning,
+	stopProxy,
+} from "../../../services/proxy-process/index.ts";
+import { colors, formatJson, logger } from "../../../utils/index.ts";
+import type { CLIContext, CommandResult } from "../../index.ts";
 
 export async function proxyUninstall(ctx: CLIContext): Promise<CommandResult> {
 	try {

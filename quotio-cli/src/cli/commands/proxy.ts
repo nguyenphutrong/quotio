@@ -1,19 +1,19 @@
 import { parseArgs } from "node:util";
-import {
-	registerCommand,
-	type CLIContext,
-	type CommandResult,
-} from "../index.ts";
 import { logger } from "../../utils/index.ts";
 import {
-	proxyStart,
-	proxyStop,
-	proxyRestart,
-	proxyInstall,
-	proxyUninstall,
-	proxyStatus,
+	type CLIContext,
+	type CommandResult,
+	registerCommand,
+} from "../index.ts";
+import {
 	healthCheck,
+	proxyInstall,
 	proxyLogs,
+	proxyRestart,
+	proxyStart,
+	proxyStatus,
+	proxyStop,
+	proxyUninstall,
 } from "./proxy/index.ts";
 
 async function handleProxy(

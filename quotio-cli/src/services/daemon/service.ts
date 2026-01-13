@@ -1,46 +1,46 @@
-import { existsSync, writeFileSync, unlinkSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
+import type {
+	AuthAccount,
+	DaemonStatus,
+	DetectedAgent,
+	ProviderQuotaInfo,
+} from "../../ipc/protocol.ts";
+import type { UniversalProviderInfo } from "../../ipc/protocol.ts";
+import {
+	type MethodHandler,
+	getConnectionCount,
+	getConnectionInfo,
+	isServerRunning,
+	registerHandlers,
+	startServer,
+	stopServer,
+} from "../../ipc/server.ts";
+import { PROVIDER_METADATA } from "../../models/provider.ts";
+import { createRequestLog } from "../../models/request-log.ts";
+import type { UniversalProvider } from "../../models/universal-provider.ts";
+import { logger } from "../../utils/logger.ts";
 import {
 	ConfigFiles,
 	ensureDir,
 	getCacheDir,
 	getConfigDir,
 } from "../../utils/paths.ts";
-import { logger } from "../../utils/logger.ts";
 import {
-	startServer,
-	stopServer,
-	registerHandlers,
-	isServerRunning,
-	getConnectionInfo,
-	getConnectionCount,
-	type MethodHandler,
-} from "../../ipc/server.ts";
-import type {
-	DaemonStatus,
-	ProviderQuotaInfo,
-	DetectedAgent,
-	AuthAccount,
-} from "../../ipc/protocol.ts";
+	type ConfigurationMode,
+	getAgentConfigurationService,
+} from "../agent-detection/configuration.ts";
+import { getAgentDetectionService } from "../agent-detection/service.ts";
+import { type CLIAgentId, CLI_AGENTS } from "../agent-detection/types.ts";
 import {
-	startProxy,
-	stopProxy,
 	checkHealth,
 	getProcessState,
 	isProxyRunning,
+	startProxy,
+	stopProxy,
 } from "../proxy-process/index.ts";
 import { getQuotaService } from "../quota-service.ts";
-import { getAgentDetectionService } from "../agent-detection/service.ts";
-import {
-	getAgentConfigurationService,
-	type ConfigurationMode,
-} from "../agent-detection/configuration.ts";
-import { CLI_AGENTS, type CLIAgentId } from "../agent-detection/types.ts";
-import { PROVIDER_METADATA } from "../../models/provider.ts";
-import type { UniversalProvider } from "../../models/universal-provider.ts";
-import type { UniversalProviderInfo } from "../../ipc/protocol.ts";
 import { requestTrackerService } from "./request-tracker-service.ts";
-import { createRequestLog } from "../../models/request-log.ts";
 
 function toProviderInfo(p: UniversalProvider): UniversalProviderInfo {
 	return {

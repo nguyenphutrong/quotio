@@ -1,24 +1,24 @@
 import { parseArgs } from "node:util";
+import { isAuthReady } from "../../models/auth.ts";
 import {
-	registerCommand,
-	type CLIContext,
-	type CommandResult,
-} from "../index.ts";
+	type AIProvider,
+	PROVIDER_METADATA,
+	getQuotaOnlyProviders,
+} from "../../models/index.ts";
 import { ManagementAPIClient } from "../../services/management-api.ts";
 import { getQuotaService } from "../../services/quota-service.ts";
 import {
-	logger,
-	formatTable,
-	formatJson,
-	colors,
 	type TableColumn,
+	colors,
+	formatJson,
+	formatTable,
+	logger,
 } from "../../utils/index.ts";
 import {
-	PROVIDER_METADATA,
-	type AIProvider,
-	getQuotaOnlyProviders,
-} from "../../models/index.ts";
-import { isAuthReady } from "../../models/auth.ts";
+	type CLIContext,
+	type CommandResult,
+	registerCommand,
+} from "../index.ts";
 
 const quotaColumns: TableColumn[] = [
 	{ key: "provider", header: "Provider", width: 15 },

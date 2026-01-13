@@ -1,10 +1,10 @@
 import { execSync, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, accessSync, constants } from "node:fs";
+import { constants, accessSync, existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import {
-	type CLIAgent,
-	type AgentStatus,
 	ALL_CLI_AGENTS,
+	type AgentStatus,
+	type CLIAgent,
 	COMMON_BINARY_PATHS,
 	expandPath,
 	getVersionManagerPaths,

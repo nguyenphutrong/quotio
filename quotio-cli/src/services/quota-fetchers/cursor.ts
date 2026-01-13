@@ -1,10 +1,10 @@
 import { Database } from "bun:sqlite";
 import { AIProvider } from "../../models/provider.ts";
 import type {
-	QuotaFetcher,
-	QuotaFetchResult,
-	ProviderQuotaData,
 	ModelQuota,
+	ProviderQuotaData,
+	QuotaFetchResult,
+	QuotaFetcher,
 } from "./types.ts";
 import { createEmptyQuotaData, fetchWithTimeout } from "./types.ts";
 

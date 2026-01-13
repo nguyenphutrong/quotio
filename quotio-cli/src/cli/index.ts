@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { logger, parseLogLevel, type OutputFormat } from "../utils/index.ts";
+import { type OutputFormat, logger, parseLogLevel } from "../utils/index.ts";
 
 export interface CLIContext {
 	format: OutputFormat;

@@ -199,7 +199,7 @@ export function getAgentMetadata(agent: CLIAgent): AgentMetadata {
 }
 
 export function getShellProfilePath(shell: ShellType): string {
-	const home = process.env["HOME"] ?? Bun.env["HOME"] ?? "~";
+	const home = process.env.HOME ?? Bun.env.HOME ?? "~";
 	switch (shell) {
 		case ShellType.ZSH:
 			return `${home}/.zshrc`;

@@ -1,22 +1,22 @@
 import { parseArgs } from "node:util";
 import {
-	registerCommand,
-	type CLIContext,
-	type CommandResult,
-} from "../index.ts";
+	ALL_CLI_AGENTS,
+	type AgentConfiguration,
+	type CLIAgentId,
+	getAgentConfigurationService,
+	getAgentDetectionService,
+} from "../../services/agent-detection/index.ts";
 import {
-	logger,
-	formatTable,
-	colors,
 	type TableColumn,
+	colors,
+	formatTable,
+	logger,
 } from "../../utils/index.ts";
 import {
-	getAgentDetectionService,
-	getAgentConfigurationService,
-	ALL_CLI_AGENTS,
-	type CLIAgentId,
-	type AgentConfiguration,
-} from "../../services/agent-detection/index.ts";
+	type CLIContext,
+	type CommandResult,
+	registerCommand,
+} from "../index.ts";
 
 const agentColumns: TableColumn[] = [
 	{ key: "name", header: "Agent", width: 18 },

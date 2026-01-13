@@ -1,13 +1,13 @@
-import type { CLIContext, CommandResult } from "../../index.ts";
 import { ManagementAPIClient } from "../../../services/management-api.ts";
-import { logger, formatJson, colors } from "../../../utils/index.ts";
+import { getBinaryInfo } from "../../../services/proxy-binary/index.ts";
 import {
 	checkHealth,
 	getProcessState,
-	isProxyRunning,
 	getProxyPid,
+	isProxyRunning,
 } from "../../../services/proxy-process/index.ts";
-import { getBinaryInfo } from "../../../services/proxy-binary/index.ts";
+import { colors, formatJson, logger } from "../../../utils/index.ts";
+import type { CLIContext, CommandResult } from "../../index.ts";
 
 export async function proxyStatus(
 	port: number,

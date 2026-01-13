@@ -1,16 +1,16 @@
 import type {
+	APIKeysResponse,
 	AuthFile,
 	AuthFilesResponse,
-	OAuthURLResponse,
 	OAuthStatusResponse,
-	APIKeysResponse,
+	OAuthURLResponse,
 } from "../models/auth.ts";
-import type { UsageStats } from "../models/quota.ts";
-import type { AppConfig, ProxyStatus } from "../models/config.ts";
-import type { AIProvider } from "../models/provider.ts";
 import { parseAuthFile } from "../models/auth.ts";
-import { parseUsageStats } from "../models/quota.ts";
+import type { AppConfig, ProxyStatus } from "../models/config.ts";
 import { parseAppConfig } from "../models/config.ts";
+import type { AIProvider } from "../models/provider.ts";
+import type { UsageStats } from "../models/quota.ts";
+import { parseUsageStats } from "../models/quota.ts";
 
 export class APIError extends Error {
 	constructor(
@@ -77,9 +77,9 @@ export class ManagementAPIClient {
 
 	private async makeRequest(
 		endpoint: string,
-		method: string = "GET",
+		method = "GET",
 		body?: unknown,
-		retryCount: number = 0,
+		retryCount = 0,
 	): Promise<unknown> {
 		const url = `${this.baseURL}${endpoint}`;
 		const controller = new AbortController();
@@ -330,8 +330,8 @@ export class ManagementAPIClient {
 }
 
 export function createLocalClient(
-	port: number = 8317,
-	authKey: string = "",
+	port = 8317,
+	authKey = "",
 ): ManagementAPIClient {
 	return new ManagementAPIClient({
 		baseURL: `http://localhost:${port}`,
