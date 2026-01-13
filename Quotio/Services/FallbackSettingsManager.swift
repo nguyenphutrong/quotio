@@ -2,6 +2,9 @@
 //  FallbackSettingsManager.swift
 //  Quotio - Model Fallback Configuration Manager
 //
+//  Reads/writes fallback configuration from ~/.quotio/fallback-config.json
+//  This allows sharing configuration between CLI (TypeScript) and macOS app (Swift)
+//
 
 import Foundation
 import Observation
@@ -35,18 +38,33 @@ struct FallbackRouteState: Sendable, Equatable {
     }
 }
 
+// MARK: - File-based Configuration Path
+
+private enum FallbackConfigPath {
+    /// Path to ~/.quotio/fallback-config.json
+    static var configFilePath: URL {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        return homeDir
+            .appendingPathComponent(".quotio")
+            .appendingPathComponent("fallback-config.json")
+    }
+    
+    /// Ensure ~/.quotio directory exists
+    static func ensureConfigDirectory() {
+        let dirPath = configFilePath.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dirPath, withIntermediateDirectories: true)
+    }
+}
+
 @MainActor
 @Observable
 final class FallbackSettingsManager {
     static let shared = FallbackSettingsManager()
 
-    private let defaults = UserDefaults.standard
-    private let configurationKey = "fallbackConfiguration"
-
     /// The current fallback configuration
     var configuration: FallbackConfiguration {
         didSet {
-            persist()
+            persistToFile()
             onConfigurationChanged?(configuration)
         }
     }
@@ -71,14 +89,121 @@ final class FallbackSettingsManager {
     /// Cache expiration time in seconds (60 minutes)
     /// After expiration, fallback will restart from the first entry
     nonisolated static let cacheExpirationSeconds: TimeInterval = 3600
+    
+    /// File system source for DispatchSource
+    @ObservationIgnored private var fileMonitorSource: DispatchSourceFileSystemObject?
+    @ObservationIgnored private var fileDescriptor: Int32 = -1
 
     private init() {
-        if let data = defaults.data(forKey: configurationKey),
-           let decoded = try? JSONDecoder().decode(FallbackConfiguration.self, from: data) {
-            self.configuration = decoded
+        // Load from file first, fallback to UserDefaults for migration, then default
+        if let config = Self.loadFromFile() {
+            self.configuration = config
         } else {
-            self.configuration = FallbackConfiguration()
+            // Check UserDefaults for migration from old format
+            let defaults = UserDefaults.standard
+            if let data = defaults.data(forKey: "fallbackConfiguration"),
+               let decoded = try? JSONDecoder().decode(FallbackConfiguration.self, from: data) {
+                self.configuration = decoded
+                // Migrate to file-based storage
+                persistToFile()
+                // Clean up UserDefaults
+                defaults.removeObject(forKey: "fallbackConfiguration")
+            } else {
+                self.configuration = FallbackConfiguration()
+            }
         }
+        
+        // Start watching the config file for external changes (CLI updates)
+        startFileWatcher()
+    }
+    
+    // MARK: - File-based Persistence
+    
+    /// Load configuration from ~/.quotio/fallback-config.json
+    private static func loadFromFile() -> FallbackConfiguration? {
+        let filePath = FallbackConfigPath.configFilePath
+        
+        guard FileManager.default.fileExists(atPath: filePath.path) else {
+            return nil
+        }
+        
+        do {
+            let data = try Data(contentsOf: filePath)
+            let decoder = JSONDecoder()
+            return try decoder.decode(FallbackConfiguration.self, from: data)
+        } catch {
+            return nil
+        }
+    }
+    
+    /// Save configuration to ~/.quotio/fallback-config.json
+    private func persistToFile() {
+        FallbackConfigPath.ensureConfigDirectory()
+        
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        
+        do {
+            let data = try encoder.encode(configuration)
+            try data.write(to: FallbackConfigPath.configFilePath, options: .atomic)
+        } catch {
+            // Silent failure - logging would be nice but not critical
+        }
+    }
+    
+    /// Reload configuration from file (called when file changes externally)
+    func reloadFromFile() {
+        if let config = Self.loadFromFile() {
+            // Only update if different to avoid triggering didSet unnecessarily
+            if config != self.configuration {
+                self.configuration = config
+            }
+        }
+    }
+    
+    // MARK: - File Watcher
+    
+    /// Watch the config file for changes made by CLI
+    private func startFileWatcher() {
+        let filePath = FallbackConfigPath.configFilePath
+        FallbackConfigPath.ensureConfigDirectory()
+        
+        // Create file if it doesn't exist
+        if !FileManager.default.fileExists(atPath: filePath.path) {
+            persistToFile()
+        }
+        
+        // Open file descriptor for monitoring
+        fileDescriptor = open(filePath.path, O_EVTONLY)
+        guard fileDescriptor >= 0 else { return }
+        
+        // Create dispatch source for file system events
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fileDescriptor,
+            eventMask: [.write, .delete, .rename],
+            queue: DispatchQueue.global(qos: .utility)
+        )
+        
+        source.setEventHandler { [weak self] in
+            Task { @MainActor in
+                self?.reloadFromFile()
+            }
+        }
+        
+        source.setCancelHandler { [weak self] in
+            guard let self = self, self.fileDescriptor >= 0 else { return }
+            close(self.fileDescriptor)
+            self.fileDescriptor = -1
+        }
+        
+        source.resume()
+        fileMonitorSource = source
+    }
+    
+    /// Stop watching the config file
+    private func stopFileWatcher() {
+        fileMonitorSource?.cancel()
+        fileMonitorSource = nil
     }
 
     // MARK: - Global Settings
@@ -211,11 +336,6 @@ final class FallbackSettingsManager {
     }
 
     // MARK: - Persistence
-
-    private func persist() {
-        guard let data = try? JSONEncoder().encode(configuration) else { return }
-        defaults.set(data, forKey: configurationKey)
-    }
 
     /// Export configuration as JSON string
     func exportConfiguration() -> String? {

@@ -31,13 +31,14 @@ quotio - CLI for managing CLIProxyAPI
 Usage: quotio <command> [options]
 
 Commands:
-  quota    Manage quota information
-  auth     Authentication management
-  proxy    Proxy server control
-  agent    CLI agent configuration
-  config   Configuration management
-  version  Show version information
-  help     Show this help message
+  quota     Manage quota information
+  auth      Authentication management
+  proxy     Proxy server control
+  agent     CLI agent configuration
+  config    Configuration management
+  fallback  Manage fallback virtual models
+  version   Show version information
+  help      Show this help message
 
 Global Options:
   --format <type>   Output format: table, json, plain (default: table)
@@ -51,6 +52,7 @@ Examples:
   quotio proxy status
   quotio agent detect
   quotio config get
+  quotio fallback list
 `.trim();
 
 	logger.print(help);

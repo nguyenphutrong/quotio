@@ -4,7 +4,9 @@ import type {
 	AuthAccount,
 	DaemonStatus,
 	DetectedAgent,
+	FallbackEntryInfo,
 	ProviderQuotaInfo,
+	VirtualModelInfo,
 } from "../../ipc/protocol.ts";
 import type { UniversalProviderInfo } from "../../ipc/protocol.ts";
 import {
@@ -55,6 +57,39 @@ function toProviderInfo(p: UniversalProvider): UniversalProviderInfo {
 		isEnabled: p.isEnabled,
 		createdAt: p.createdAt,
 		updatedAt: p.updatedAt,
+	};
+}
+
+function toVirtualModelInfo(vm: {
+	id: string;
+	name: string;
+	fallbackEntries: Array<{
+		id: string;
+		provider: string;
+		modelId: string;
+		priority: number;
+	}>;
+	isEnabled: boolean;
+}): VirtualModelInfo {
+	return {
+		id: vm.id,
+		name: vm.name,
+		fallbackEntries: vm.fallbackEntries.map(toFallbackEntryInfo),
+		isEnabled: vm.isEnabled,
+	};
+}
+
+function toFallbackEntryInfo(entry: {
+	id: string;
+	provider: string;
+	modelId: string;
+	priority: number;
+}): FallbackEntryInfo {
+	return {
+		id: entry.id,
+		provider: entry.provider,
+		modelId: entry.modelId,
+		priority: entry.priority,
 	};
 }
 
@@ -642,6 +677,177 @@ const handlers: Record<string, MethodHandler> = {
 		);
 		const service = getCloudflaredService();
 		return service.getInstallation();
+	},
+
+	"fallback.getConfig": async () => {
+		const { loadFallbackConfiguration } = await import(
+			"../fallback/settings-service.ts"
+		);
+		const config = await loadFallbackConfiguration();
+		return {
+			isEnabled: config.isEnabled,
+			virtualModels: config.virtualModels.map(toVirtualModelInfo),
+		};
+	},
+
+	"fallback.setEnabled": async (params: unknown) => {
+		const { enabled } = params as { enabled: boolean };
+		const { setFallbackEnabled } = await import(
+			"../fallback/settings-service.ts"
+		);
+		await setFallbackEnabled(enabled);
+		return { success: true as const };
+	},
+
+	"fallback.listModels": async () => {
+		const { getVirtualModels } = await import(
+			"../fallback/settings-service.ts"
+		);
+		const models = await getVirtualModels();
+		return { models: models.map(toVirtualModelInfo) };
+	},
+
+	"fallback.getModel": async (params: unknown) => {
+		const { id } = params as { id: string };
+		const { getVirtualModel } = await import("../fallback/settings-service.ts");
+		const model = await getVirtualModel(id);
+		return { model: model ? toVirtualModelInfo(model) : null };
+	},
+
+	"fallback.addModel": async (params: unknown) => {
+		const { name } = params as { name: string };
+		const { addVirtualModel } = await import("../fallback/settings-service.ts");
+		const model = await addVirtualModel(name);
+		return {
+			success: model !== null,
+			model: model ? toVirtualModelInfo(model) : undefined,
+		};
+	},
+
+	"fallback.removeModel": async (params: unknown) => {
+		const { id } = params as { id: string };
+		const { removeVirtualModel } = await import(
+			"../fallback/settings-service.ts"
+		);
+		const success = await removeVirtualModel(id);
+		return { success };
+	},
+
+	"fallback.updateModel": async (params: unknown) => {
+		const opts = params as { id: string; name?: string; isEnabled?: boolean };
+		const { getVirtualModel, updateVirtualModel, renameVirtualModel } =
+			await import("../fallback/settings-service.ts");
+
+		const model = await getVirtualModel(opts.id);
+		if (!model) {
+			return { success: false };
+		}
+
+		if (opts.name !== undefined && opts.name !== model.name) {
+			const renamed = await renameVirtualModel(opts.id, opts.name);
+			if (!renamed) {
+				return { success: false };
+			}
+		}
+
+		if (opts.isEnabled !== undefined && opts.isEnabled !== model.isEnabled) {
+			const updatedModel = await getVirtualModel(opts.id);
+			if (updatedModel) {
+				const success = await updateVirtualModel({
+					...updatedModel,
+					isEnabled: opts.isEnabled,
+				});
+				return { success };
+			}
+		}
+
+		return { success: true };
+	},
+
+	"fallback.addEntry": async (params: unknown) => {
+		const { modelId, provider, modelName } = params as {
+			modelId: string;
+			provider: string;
+			modelName: string;
+		};
+		const { addFallbackEntry } = await import(
+			"../fallback/settings-service.ts"
+		);
+		const { parseProvider } = await import("../../models/provider.ts");
+
+		const aiProvider = parseProvider(provider);
+		if (!aiProvider) {
+			return { success: false };
+		}
+
+		const entry = await addFallbackEntry(modelId, aiProvider, modelName);
+		return {
+			success: entry !== null,
+			entry: entry ? toFallbackEntryInfo(entry) : undefined,
+		};
+	},
+
+	"fallback.removeEntry": async (params: unknown) => {
+		const { modelId, entryId } = params as { modelId: string; entryId: string };
+		const { removeFallbackEntry } = await import(
+			"../fallback/settings-service.ts"
+		);
+		const success = await removeFallbackEntry(modelId, entryId);
+		return { success };
+	},
+
+	"fallback.moveEntry": async (params: unknown) => {
+		const { modelId, fromIndex, toIndex } = params as {
+			modelId: string;
+			fromIndex: number;
+			toIndex: number;
+		};
+		const { moveFallbackEntry } = await import(
+			"../fallback/settings-service.ts"
+		);
+		const success = await moveFallbackEntry(modelId, fromIndex, toIndex);
+		return { success };
+	},
+
+	"fallback.getRouteStates": async () => {
+		const { getAllRouteStates } = await import(
+			"../fallback/settings-service.ts"
+		);
+		const states = getAllRouteStates();
+		return {
+			states: states.map((s) => ({
+				virtualModelName: s.virtualModelName,
+				currentEntryIndex: s.currentEntryIndex,
+				currentEntry: toFallbackEntryInfo(s.currentEntry),
+				lastUpdated: s.lastUpdated.toISOString(),
+				totalEntries: s.totalEntries,
+			})),
+		};
+	},
+
+	"fallback.clearRouteStates": async () => {
+		const { clearAllRouteStates } = await import(
+			"../fallback/settings-service.ts"
+		);
+		clearAllRouteStates();
+		return { success: true as const };
+	},
+
+	"fallback.export": async () => {
+		const { exportConfiguration } = await import(
+			"../fallback/settings-service.ts"
+		);
+		const json = await exportConfiguration();
+		return { json };
+	},
+
+	"fallback.import": async (params: unknown) => {
+		const { json } = params as { json: string };
+		const { importConfiguration } = await import(
+			"../fallback/settings-service.ts"
+		);
+		const success = await importConfiguration(json);
+		return { success };
 	},
 };
 

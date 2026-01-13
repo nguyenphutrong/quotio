@@ -5,3 +5,4 @@ export * from "./quota.ts";
 export * from "./config.ts";
 export * from "./universal-provider.ts";
 export * from "./request-log.ts";
+export * from "./fallback.ts";

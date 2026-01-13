@@ -6,6 +6,7 @@ import "./cli/commands/proxy.ts";
 import "./cli/commands/agent.ts";
 import "./cli/commands/config.ts";
 import "./cli/commands/daemon.ts";
+import "./cli/commands/fallback.ts";
 
 import { run } from "./cli/index.ts";
 

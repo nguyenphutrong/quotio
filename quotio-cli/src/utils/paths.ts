@@ -20,29 +20,12 @@ export function getPlatform(): Platform {
 }
 
 /**
- * Get the base configuration directory for quotio-cli.
- * - macOS: ~/Library/Application Support/quotio-cli
- * - Linux: ~/.config/quotio-cli (XDG_CONFIG_HOME)
- * - Windows: %APPDATA%/quotio-cli
+ * Get the configuration directory for quotio-cli.
+ * Uses ~/.quotio for all platforms for consistency with Swift app.
  */
 export function getConfigDir(): string {
-	const platform = getPlatform();
 	const home = homedir();
-
-	switch (platform) {
-		case "darwin":
-			return join(home, "Library", "Application Support", "quotio-cli");
-		case "win32":
-			return join(
-				process.env.APPDATA || join(home, "AppData", "Roaming"),
-				"quotio-cli",
-			);
-		default:
-			return join(
-				process.env.XDG_CONFIG_HOME || join(home, ".config"),
-				"quotio-cli",
-			);
-	}
+	return join(home, ".quotio");
 }
 
 /**

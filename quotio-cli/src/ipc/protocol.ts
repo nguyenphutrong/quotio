@@ -272,6 +272,66 @@ export interface IPCMethods {
 		params: Record<string, never>;
 		result: TunnelInstallationResult;
 	};
+
+	// -------------------------------------------------------------------------
+	// Fallback / Virtual Model operations
+	// -------------------------------------------------------------------------
+	"fallback.getConfig": {
+		params: Record<string, never>;
+		result: FallbackConfigResult;
+	};
+	"fallback.setEnabled": {
+		params: { enabled: boolean };
+		result: { success: true };
+	};
+	"fallback.listModels": {
+		params: Record<string, never>;
+		result: FallbackListModelsResult;
+	};
+	"fallback.getModel": {
+		params: { id: string };
+		result: { model: VirtualModelInfo | null };
+	};
+	"fallback.addModel": {
+		params: { name: string };
+		result: { success: boolean; model?: VirtualModelInfo };
+	};
+	"fallback.removeModel": {
+		params: { id: string };
+		result: { success: boolean };
+	};
+	"fallback.updateModel": {
+		params: VirtualModelUpdateParams;
+		result: { success: boolean };
+	};
+	"fallback.addEntry": {
+		params: { modelId: string; provider: string; modelName: string };
+		result: { success: boolean; entry?: FallbackEntryInfo };
+	};
+	"fallback.removeEntry": {
+		params: { modelId: string; entryId: string };
+		result: { success: boolean };
+	};
+	"fallback.moveEntry": {
+		params: { modelId: string; fromIndex: number; toIndex: number };
+		result: { success: boolean };
+	};
+	"fallback.getRouteStates": {
+		params: Record<string, never>;
+		result: FallbackRouteStatesResult;
+	};
+	"fallback.clearRouteStates": {
+		params: Record<string, never>;
+		result: { success: true };
+	};
+	"fallback.export": {
+		params: Record<string, never>;
+		result: { json: string };
+	};
+	"fallback.import": {
+		params: { json: string };
+		result: { success: boolean };
+	};
 }
 
 /** All available method names */
@@ -509,6 +569,47 @@ export interface TunnelInstallationResult {
 	isInstalled: boolean;
 	path: string | null;
 	version: string | null;
+}
+
+export interface FallbackEntryInfo {
+	id: string;
+	provider: string;
+	modelId: string;
+	priority: number;
+}
+
+export interface VirtualModelInfo {
+	id: string;
+	name: string;
+	fallbackEntries: FallbackEntryInfo[];
+	isEnabled: boolean;
+}
+
+export interface FallbackConfigResult {
+	isEnabled: boolean;
+	virtualModels: VirtualModelInfo[];
+}
+
+export interface FallbackListModelsResult {
+	models: VirtualModelInfo[];
+}
+
+export interface VirtualModelUpdateParams {
+	id: string;
+	name?: string;
+	isEnabled?: boolean;
+}
+
+export interface FallbackRouteStateInfo {
+	virtualModelName: string;
+	currentEntryIndex: number;
+	currentEntry: FallbackEntryInfo;
+	lastUpdated: string;
+	totalEntries: number;
+}
+
+export interface FallbackRouteStatesResult {
+	states: FallbackRouteStateInfo[];
 }
 
 // ============================================================================

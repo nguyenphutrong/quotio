@@ -94,7 +94,7 @@ struct VirtualModel: Codable, Identifiable, Hashable, Sendable {
 // MARK: - Fallback Configuration
 
 /// Global fallback configuration
-struct FallbackConfiguration: Codable, Sendable {
+struct FallbackConfiguration: Codable, Sendable, Equatable {
     var isEnabled: Bool
     var virtualModels: [VirtualModel]
 
