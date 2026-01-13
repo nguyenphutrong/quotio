@@ -14,6 +14,9 @@ final class AgentSetupViewModel {
     private let configurationService = AgentConfigurationService()
     private let shellManager = ShellProfileManager()
     private let fallbackSettings = FallbackSettingsManager.shared
+    
+    private let daemonManager = DaemonManager.shared
+    private let daemonAgentService = DaemonAgentService.shared
 
     var agentStatuses: [AgentStatus] = []
     var isLoading = false
@@ -49,7 +52,14 @@ final class AgentSetupViewModel {
         isLoading = true
         defer { isLoading = false }
 
-        agentStatuses = await detectionService.detectAllAgents(forceRefresh: forceRefresh)
+        let daemonAvailable = await daemonManager.checkHealth()
+        
+        if daemonAvailable {
+            agentStatuses = await daemonAgentService.detectAllAgents(forceRefresh: forceRefresh)
+        } else {
+            agentStatuses = await detectionService.detectAllAgents(forceRefresh: forceRefresh)
+        }
+        
         detectedShell = await shellManager.detectShell()
     }
 

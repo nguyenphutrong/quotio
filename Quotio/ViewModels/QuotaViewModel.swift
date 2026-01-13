@@ -45,6 +45,10 @@ final class QuotaViewModel {
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
     @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
     
+    // Daemon services for IPC-based quota fetching
+    @ObservationIgnored private let daemonManager = DaemonManager.shared
+    @ObservationIgnored private let daemonQuotaService = DaemonQuotaService.shared
+    
     @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
     
     var currentPage: NavigationPage = .dashboard
@@ -294,27 +298,28 @@ final class QuotaViewModel {
         directAuthFiles = await directAuthService.scanAllAuthFiles()
     }
     
-    /// Refresh quotas directly without proxy (for Quota-Only Mode)
-    /// Note: Cursor and Trae are NOT auto-refreshed - user must use "Scan for IDEs" (issue #29)
     func refreshQuotasDirectly() async {
         guard !isLoadingQuotas else { return }
         
         isLoadingQuotas = true
         lastQuotaRefreshTime = Date()
         
-        // Fetch from available fetchers in parallel
-        // Note: Cursor and Trae removed from auto-refresh to address privacy concerns (issue #29)
-        // User must explicitly scan for IDEs to detect Cursor/Trae quotas
-        async let antigravity: () = refreshAntigravityQuotasInternal()
-        async let openai: () = refreshOpenAIQuotasInternal()
-        async let copilot: () = refreshCopilotQuotasInternal()
-        async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        async let codexCLI: () = refreshCodexCLIQuotasInternal()
-        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-        async let glm: () = refreshGlmQuotasInternal()
-        async let kiro: () = refreshKiroQuotasInternal()
+        let daemonAvailable = await daemonManager.checkHealth()
+        
+        if daemonAvailable {
+            await refreshQuotasViaDaemon()
+        } else {
+            async let antigravity: () = refreshAntigravityQuotasInternal()
+            async let openai: () = refreshOpenAIQuotasInternal()
+            async let copilot: () = refreshCopilotQuotasInternal()
+            async let claudeCode: () = refreshClaudeCodeQuotasInternal()
+            async let codexCLI: () = refreshCodexCLIQuotasInternal()
+            async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
+            async let glm: () = refreshGlmQuotasInternal()
+            async let kiro: () = refreshKiroQuotasInternal()
 
-        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, kiro)
+        }
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -1080,10 +1085,6 @@ final class QuotaViewModel {
         isLoadingQuotas = false
     }
     
-    /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
-    /// In Full Mode: uses direct fetchers (works without proxy)
-    /// In Quota-Only Mode: uses direct fetchers + CLI fetchers
-    /// Note: Cursor and Trae require explicit user scan (issue #29)
     func refreshQuotasUnified() async {
         guard !isLoadingQuotas else { return }
 
@@ -1091,8 +1092,29 @@ final class QuotaViewModel {
         lastQuotaRefreshTime = Date()
         lastQuotaRefresh = Date()
 
-        // Refresh direct fetchers (these don't need proxy)
-        // Note: Cursor and Trae removed - require explicit scan (issue #29)
+        let daemonAvailable = await daemonManager.checkHealth()
+        
+        if daemonAvailable {
+            await refreshQuotasViaDaemon()
+        } else {
+            await refreshQuotasViaDirectFetchers()
+        }
+
+        checkQuotaNotifications()
+        autoSelectMenuBarItems()
+
+        isLoadingQuotas = false
+    }
+    
+    private func refreshQuotasViaDaemon() async {
+        await daemonQuotaService.fetchAllQuotas(forceRefresh: true)
+        
+        for (provider, accountQuotas) in daemonQuotaService.quotas {
+            providerQuotas[provider] = accountQuotas
+        }
+    }
+    
+    private func refreshQuotasViaDirectFetchers() async {
         async let antigravity: () = refreshAntigravityQuotasInternal()
         async let openai: () = refreshOpenAIQuotasInternal()
         async let copilot: () = refreshCopilotQuotasInternal()
@@ -1100,7 +1122,6 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
 
-        // In Quota-Only Mode, also include CLI fetchers
         if modeManager.isMonitorMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
             async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
@@ -1108,11 +1129,6 @@ final class QuotaViewModel {
         } else {
             _ = await (antigravity, openai, copilot, claudeCode, glm, kiro)
         }
-
-        checkQuotaNotifications()
-        autoSelectMenuBarItems()
-
-        isLoadingQuotas = false
     }
     
     private func refreshAntigravityQuotasInternal() async {

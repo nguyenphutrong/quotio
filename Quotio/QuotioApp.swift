@@ -20,9 +20,11 @@ struct QuotioApp: App {
     @State private var modeManager = OperatingModeManager.shared
     @State private var appearanceManager = AppearanceManager.shared
     @State private var languageManager = LanguageManager.shared
+    @State private var daemonManager = DaemonManager.shared
     @State private var showOnboarding = false
-    @State private var hasInitialized = false  // Track initialization state
+    @State private var hasInitialized = false
     @AppStorage("autoStartProxy") private var autoStartProxy = false
+    @AppStorage("autoStartDaemon") private var autoStartDaemon = true
     @Environment(\.openWindow) private var openWindow
     
     private var quotaItems: [MenuBarQuotaDisplayItem] {
@@ -120,15 +122,15 @@ struct QuotioApp: App {
             return
         }
         
-        // Scan auth files immediately (fast filesystem scan)
-        // This allows menu bar to show providers before quota API calls complete
+        if autoStartDaemon {
+            try? await daemonManager.start()
+        }
+        
         await viewModel.loadDirectAuthFiles()
         
-        // Setup menu bar immediately so user can open it while data loads
         statusBarManager.setViewModel(viewModel)
         updateStatusBar()
         
-        // Load data in background
         await viewModel.initialize()
         
         #if canImport(Sparkle)
@@ -274,19 +276,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         CLIProxyManager.terminateProxyOnShutdown()
         
-        // Use semaphore to ensure tunnel cleanup completes before app terminates
-        // with a timeout to prevent hanging termination
         let semaphore = DispatchSemaphore(value: 0)
         let cleanupTimeout: DispatchTime = .now() + .milliseconds(1500)
         
         Task { @MainActor in
+            await DaemonManager.shared.stop()
             await TunnelManager.shared.stopTunnel()
             semaphore.signal()
         }
         
         let result = semaphore.wait(timeout: cleanupTimeout)
         if result == .timedOut {
-            // Fallback: force kill orphan processes if stopTunnel timed out
             TunnelManager.cleanupOrphans()
             NSLog("[AppDelegate] Tunnel cleanup timed out, forced orphan cleanup")
         }
