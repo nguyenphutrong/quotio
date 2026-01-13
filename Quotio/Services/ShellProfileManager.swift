@@ -36,7 +36,11 @@ actor ShellProfileManager {
             
             if let startRange = content.range(of: marker),
                let endRange = content.range(of: endMarker) {
-                let fullRange = startRange.lowerBound..<content.index(after: endRange.upperBound)
+                // Safe bounds check: only advance if not at end
+                let endBound = endRange.upperBound < content.endIndex
+                    ? content.index(after: endRange.upperBound)
+                    : endRange.upperBound
+                let fullRange = startRange.lowerBound..<endBound
                 content.removeSubrange(fullRange)
             }
         } else {

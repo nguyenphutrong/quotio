@@ -2,18 +2,40 @@
 
 [← Back to INDEX](../../INDEX.md)
 
-**Type:** root | **Files:** 10
+**Type:** root | **Files:** 32
 
 ## Files
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
 | `Quotio/QuotioApp.swift` | 550 | 📊 |
+| `Quotio/Services/AgentConfigurationService.swift` | 696 | 📊 |
+| `Quotio/Services/AgentDetectionService.swift` | 251 |  |
+| `Quotio/Services/CLIExecutor.swift` | 430 |  |
+| `Quotio/Services/ChecksumVerifier.swift` | 78 |  |
+| `Quotio/Services/CompatibilityChecker.swift` | 123 |  |
+| `Quotio/Services/CustomProviderService.swift` | 334 |  |
+| `Quotio/Services/DirectAuthFileService.swift` | 384 |  |
+| `Quotio/Services/FallbackSettingsManager.swift` | 306 |  |
+| `Quotio/Services/GLMQuotaFetcher.swift` | 180 |  |
+| `Quotio/Services/ImageCacheService.swift` | 135 |  |
+| `Quotio/Services/KeychainHelper.swift` | 74 |  |
+| `Quotio/Services/LanguageManager.swift` | 115 |  |
+| `Quotio/Services/LaunchAtLoginManager.swift` | 189 |  |
+| `Quotio/Services/ManagementAPIClient.swift` | 675 | 📊 |
+| `Quotio/Services/NotificationManager.swift` | 326 |  |
 | `Quotio/Services/Proxy/CLIProxyManager.swift` | 1860 | 📊 |
 | `Quotio/Services/Proxy/ProxyBridge.swift` | 902 | 📊 |
 | `Quotio/Services/Proxy/ProxyStorageManager.swift` | 400 |  |
+| `Quotio/Services/ProxyConfigurationService.swift` | 96 |  |
+| `Quotio/Services/RequestTracker.swift` | 185 |  |
+| `Quotio/Services/ShellProfileManager.swift` | 121 |  |
+| `Quotio/Services/StatusBarManager.swift` | 238 |  |
+| `Quotio/Services/StatusBarMenuBuilder.swift` | 1359 | 📊 |
 | `Quotio/Services/Tunnel/CloudflaredService.swift` | 266 |  |
 | `Quotio/Services/Tunnel/TunnelManager.swift` | 183 |  |
+| `Quotio/Services/UpdaterService.swift` | 168 |  |
+| `Quotio/Services/WarmupService.swift` | 183 |  |
 | `Quotio/ViewModels/AgentSetupViewModel.swift` | 355 |  |
 | `Quotio/ViewModels/LogsViewModel.swift` | 82 |  |
 | `Quotio/ViewModels/QuotaViewModel.swift` | 1757 | 📊 |

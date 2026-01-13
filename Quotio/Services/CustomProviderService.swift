@@ -235,6 +235,11 @@ final class CustomProviderService {
             return result
         }
         
+        guard startRange.upperBound < result.endIndex else {
+            result.removeSubrange(startRange.lowerBound..<result.endIndex)
+            return result
+        }
+        
         let searchStart = result.index(after: startRange.upperBound)
         guard searchStart < result.endIndex else {
             result.removeSubrange(startRange.lowerBound..<result.endIndex)
