@@ -183,6 +183,29 @@ nonisolated enum ModelSlot: String, CaseIterable, Identifiable, Codable, Sendabl
     }
 }
 
+// MARK: - OpenCode Model Slots
+
+nonisolated enum OpenCodeModelSlot: String, CaseIterable, Identifiable, Codable, Sendable {
+    case primary = "primary"
+    case small = "small"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .primary: return "agents.opencode.primaryModel".localizedStatic()
+        case .small: return "agents.opencode.smallModel".localizedStatic()
+        }
+    }
+
+    var configKey: String {
+        switch self {
+        case .primary: return "model"
+        case .small: return "small_model"
+        }
+    }
+}
+
 // MARK: - Available Models for Routing
 
 nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
@@ -201,6 +224,11 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
         .opus: AvailableModel(id: "opus", name: "gemini-claude-opus-4-5-thinking", provider: "openai", isDefault: true),
         .sonnet: AvailableModel(id: "sonnet", name: "gemini-claude-sonnet-4-5", provider: "openai", isDefault: true),
         .haiku: AvailableModel(id: "haiku", name: "gemini-3-flash-preview", provider: "openai", isDefault: true)
+    ]
+
+    static let openCodeDefaultModels: [OpenCodeModelSlot: AvailableModel] = [
+        .primary: AvailableModel(id: "primary", name: "gemini-claude-opus-4-5-thinking", provider: "anthropic", isDefault: true),
+        .small: AvailableModel(id: "small", name: "gemini-3-flash-preview", provider: "google", isDefault: true)
     ]
 
     static let allModels: [AvailableModel] = [
@@ -267,6 +295,7 @@ nonisolated struct AgentStatus: Identifiable, Sendable {
 nonisolated struct AgentConfiguration: Codable, Sendable {
     let agent: CLIAgent
     var modelSlots: [ModelSlot: String]
+    var openCodeModelSlots: [OpenCodeModelSlot: String]
     var proxyURL: String
     var apiKey: String
     var useOAuth: Bool
@@ -280,6 +309,10 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
             .opus: AvailableModel.defaultModels[.opus]!.name,
             .sonnet: AvailableModel.defaultModels[.sonnet]!.name,
             .haiku: AvailableModel.defaultModels[.haiku]!.name
+        ]
+        self.openCodeModelSlots = [
+            .primary: AvailableModel.openCodeDefaultModels[.primary]!.name,
+            .small: AvailableModel.openCodeDefaultModels[.small]!.name
         ]
     }
 }

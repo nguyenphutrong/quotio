@@ -11,6 +11,7 @@ struct AgentConfigSheet: View {
     
     @Environment(\.dismiss) private var dismiss
     @State private var previewConfig: AgentConfigResult?
+    @State private var showRestoreDefaultConfirmation = false
     
     private var hasResult: Bool {
         viewModel.configResult != nil
@@ -64,6 +65,14 @@ struct AgentConfigSheet: View {
             Button("OK") { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+        .confirmationDialog("agents.restoreDefault.title".localized(), isPresented: $showRestoreDefaultConfirmation) {
+            Button("agents.restoreDefault.confirm".localized(), role: .destructive) {
+                Task { await viewModel.restoreOpenCodeDefaults() }
+            }
+            Button("action.cancel".localized(), role: .cancel) {}
+        } message: {
+            Text("agents.restoreDefault.message".localized())
         }
     }
     
@@ -121,6 +130,10 @@ struct AgentConfigSheet: View {
             
             if agent == .claudeCode {
                 modelSlotsSection
+            }
+            
+            if agent == .openCode {
+                openCodeModelSlotsSection
             }
             
             if agent == .geminiCLI {
@@ -232,6 +245,48 @@ struct AgentConfigSheet: View {
                         availableModels: viewModel.availableModels,
                         onModelChange: { model in
                             viewModel.updateModelSlot(slot, model: model)
+                        }
+                    )
+                }
+            }
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+    
+    private var openCodeModelSlotsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("agents.modelSlots".localized())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Spacer()
+                
+                Button {
+                    Task { await viewModel.loadModels(forceRefresh: true) }
+                } label: {
+                    if viewModel.isFetchingModels {
+                        SmallProgressView()
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.borderless)
+                .help("Refresh models from proxy".localized())
+                .disabled(viewModel.isFetchingModels)
+            }
+            
+            VStack(spacing: 8) {
+                ForEach(OpenCodeModelSlot.allCases) { slot in
+                    OpenCodeModelSlotRow(
+                        slot: slot,
+                        selectedModel: viewModel.currentConfiguration?.openCodeModelSlots[slot] ?? "",
+                        availableModels: viewModel.availableModels,
+                        onModelChange: { model in
+                            viewModel.updateOpenCodeModelSlot(slot, model: model)
                         }
                     )
                 }
@@ -519,6 +574,18 @@ struct AgentConfigSheet: View {
                 
                 Spacer()
                 
+                if agent == .openCode {
+                    Button {
+                        showRestoreDefaultConfirmation = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.counterclockwise")
+                            Text("agents.restoreDefault".localized())
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                
                 Button {
                     Task { await viewModel.applyConfiguration() }
                 } label: {
@@ -639,16 +706,13 @@ private struct ModelSlotRow: View {
     let onModelChange: (String) -> Void
     
     private var effectiveSelection: String {
-        // Check if selected model exists in available list
         if !selectedModel.isEmpty && availableModels.contains(where: { $0.name == selectedModel }) {
             return selectedModel
         }
-        // Check if default model is available
         if let defaultModel = AvailableModel.defaultModels[slot],
            availableModels.contains(where: { $0.name == defaultModel.name }) {
             return defaultModel.name
         }
-        // Final fallback to first available model
         return availableModels.first?.name ?? ""
     }
     
@@ -679,7 +743,57 @@ private struct ModelSlotRow: View {
             .frame(maxWidth: 280)
         }
         .onAppear {
-            // Trigger fallback update if model is empty or not in available list
+            if selectedModel.isEmpty || !availableModels.contains(where: { $0.name == selectedModel }) {
+                onModelChange(effectiveSelection)
+            }
+        }
+    }
+}
+
+private struct OpenCodeModelSlotRow: View {
+    let slot: OpenCodeModelSlot
+    let selectedModel: String
+    let availableModels: [AvailableModel]
+    let onModelChange: (String) -> Void
+    
+    private var effectiveSelection: String {
+        if !selectedModel.isEmpty && availableModels.contains(where: { $0.name == selectedModel }) {
+            return selectedModel
+        }
+        if let defaultModel = AvailableModel.openCodeDefaultModels[slot],
+           availableModels.contains(where: { $0.name == defaultModel.name }) {
+            return defaultModel.name
+        }
+        return availableModels.first?.name ?? ""
+    }
+    
+    var body: some View {
+        HStack {
+            Text(slot.displayName)
+                .font(.caption)
+                .fontWeight(.medium)
+            
+            Spacer(minLength: 12)
+            
+            Picker("", selection: Binding(
+                get: { effectiveSelection },
+                set: { onModelChange($0) }
+            )) {
+                let providers = Set(availableModels.map { $0.provider }).sorted()
+                
+                ForEach(providers, id: \.self) { provider in
+                    Section(header: Text(provider.capitalized)) {
+                        ForEach(availableModels.filter { $0.provider == provider }) { model in
+                            Text(model.displayName)
+                                .tag(model.name)
+                        }
+                    }
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(maxWidth: 280)
+        }
+        .onAppear {
             if selectedModel.isEmpty || !availableModels.contains(where: { $0.name == selectedModel }) {
                 onModelChange(effectiveSelection)
             }

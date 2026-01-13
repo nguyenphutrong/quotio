@@ -413,6 +413,11 @@ actor AgentConfigurationService {
                 existingConfig["$schema"] = "https://opencode.ai/config.json"
             }
 
+            let primaryModel = config.openCodeModelSlots[.primary] ?? AvailableModel.openCodeDefaultModels[.primary]!.name
+            let smallModel = config.openCodeModelSlots[.small] ?? AvailableModel.openCodeDefaultModels[.small]!.name
+            existingConfig["model"] = "quotio/\(primaryModel)"
+            existingConfig["small_model"] = "quotio/\(smallModel)"
+
             var providers = existingConfig["provider"] as? [String: Any] ?? [:]
             providers["quotio"] = quotioProvider
             existingConfig["provider"] = providers
@@ -446,8 +451,8 @@ actor AgentConfigurationService {
                     mode: mode,
                     configPath: configPath,
                     rawConfigs: rawConfigs,
-                    instructions: "Configuration updated. Run 'opencode' and use /models to select a model (e.g., quotio/\(modelsToUse.first?.name ?? "model")).",
-                    modelsConfigured: quotioModels.count,
+                    instructions: "Configuration updated. Model: quotio/\(primaryModel), Small: quotio/\(smallModel)",
+                    modelsConfigured: quotioModels.count + 2,
                     backupPath: backupPath
                 )
             } else {
@@ -456,8 +461,8 @@ actor AgentConfigurationService {
                     mode: mode,
                     configPath: configPath,
                     rawConfigs: rawConfigs,
-                    instructions: "Merge provider.quotio section into your existing ~/.config/opencode/opencode.json:",
-                    modelsConfigured: quotioModels.count
+                    instructions: "Merge into ~/.config/opencode/opencode.json. Model: quotio/\(primaryModel), Small: quotio/\(smallModel)",
+                    modelsConfigured: quotioModels.count + 2
                 )
             }
         } catch {

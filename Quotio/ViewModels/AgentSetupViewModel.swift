@@ -73,7 +73,6 @@ final class AgentSetupViewModel {
 
         selectedAgent = agent
 
-        // Always use client endpoint - all traffic should go through Quotio's proxy
         let endpoint = proxyManager.clientEndpoint
 
         currentConfiguration = AgentConfiguration(
@@ -82,16 +81,15 @@ final class AgentSetupViewModel {
             apiKey: apiKey
         )
 
-        // Load previously saved model slots from existing config
         if agent == .claudeCode {
             loadSavedModelSlots()
+        } else if agent == .openCode {
+            loadSavedOpenCodeModelSlots()
         }
 
-        // Load models for this agent
         Task { await loadModels() }
     }
 
-    /// Load previously saved model slots from ~/.claude/settings.json
     private func loadSavedModelSlots() {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let configPath = "\(home)/.claude/settings.json"
@@ -103,7 +101,6 @@ final class AgentSetupViewModel {
             return
         }
 
-        // Load saved model selections
         if let opusModel = env["ANTHROPIC_DEFAULT_OPUS_MODEL"], !opusModel.isEmpty {
             currentConfiguration?.modelSlots[.opus] = opusModel
         }
@@ -115,8 +112,53 @@ final class AgentSetupViewModel {
         }
     }
 
+    private func loadSavedOpenCodeModelSlots() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let configPath = "\(home)/.config/opencode/opencode.json"
+
+        guard FileManager.default.fileExists(atPath: configPath),
+              let data = FileManager.default.contents(atPath: configPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+
+        if let model = json["model"] as? String, !model.isEmpty {
+            let cleanModel = model.hasPrefix("quotio/") ? String(model.dropFirst(7)) : model
+            currentConfiguration?.openCodeModelSlots[.primary] = cleanModel
+        }
+        if let smallModel = json["small_model"] as? String, !smallModel.isEmpty {
+            let cleanModel = smallModel.hasPrefix("quotio/") ? String(smallModel.dropFirst(7)) : smallModel
+            currentConfiguration?.openCodeModelSlots[.small] = cleanModel
+        }
+    }
+
     func updateModelSlot(_ slot: ModelSlot, model: String) {
         currentConfiguration?.modelSlots[slot] = model
+    }
+
+    func updateOpenCodeModelSlot(_ slot: OpenCodeModelSlot, model: String) {
+        currentConfiguration?.openCodeModelSlots[slot] = model
+    }
+
+    func restoreOpenCodeDefaults() async {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let configPath = "\(home)/.config/opencode/opencode.json"
+
+        guard FileManager.default.fileExists(atPath: configPath),
+              let data = FileManager.default.contents(atPath: configPath),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+
+        json.removeValue(forKey: "model")
+        json.removeValue(forKey: "small_model")
+
+        if let jsonData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) {
+            try? jsonData.write(to: URL(fileURLWithPath: configPath))
+        }
+
+        currentConfiguration?.openCodeModelSlots[.primary] = AvailableModel.openCodeDefaultModels[.primary]!.name
+        currentConfiguration?.openCodeModelSlots[.small] = AvailableModel.openCodeDefaultModels[.small]!.name
     }
 
     func applyConfiguration() async {
