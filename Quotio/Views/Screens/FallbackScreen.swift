@@ -105,12 +105,7 @@ struct FallbackScreen: View {
         // Load models using AgentSetupViewModel if not already loaded
         let agentVM = viewModel.agentSetupViewModel
         if agentVM.availableModels.isEmpty {
-            // Initialize a temporary configuration to trigger model loading
             guard viewModel.proxyManager.proxyStatus.running else { return }
-            agentVM.startConfiguration(
-                for: .claudeCode,
-                apiKey: viewModel.proxyManager.managementKey
-            )
             await agentVM.loadModels(forceRefresh: false)
         }
     }

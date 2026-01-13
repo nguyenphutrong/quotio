@@ -12,7 +12,7 @@
 | `Quotio/Views/Components/AccountsEmptyState.swift` | 80 |  |
 | `Quotio/Views/Components/AddProviderPopover.swift` | 158 |  |
 | `Quotio/Views/Components/AgentCard.swift` | 147 |  |
-| `Quotio/Views/Components/AgentConfigSheet.swift` | 791 | 📊 |
+| `Quotio/Views/Components/AgentConfigSheet.swift` | 799 | 📊 |
 | `Quotio/Views/Components/CurrentModeBadge.swift` | 122 |  |
 | `Quotio/Views/Components/CustomProviderSheet.swift` | 482 |  |
 | `Quotio/Views/Components/ExperimentalBadge.swift` | 40 |  |
@@ -23,7 +23,7 @@
 | `Quotio/Views/Components/ProviderDisclosureGroup.swift` | 129 |  |
 | `Quotio/Views/Components/ProviderIcon.swift` | 69 |  |
 | `Quotio/Views/Components/ProxyRequiredView.swift` | 103 |  |
-| `Quotio/Views/Components/QuotaCard.swift` | 368 |  |
+| `Quotio/Views/Components/QuotaCard.swift` | 382 |  |
 | `Quotio/Views/Components/QuotaProgressBar.swift` | 45 |  |
 | `Quotio/Views/Components/QuotioButtonStyles.swift` | 300 |  |
 | `Quotio/Views/Components/RemoteConnectionSheet.swift` | 331 |  |
