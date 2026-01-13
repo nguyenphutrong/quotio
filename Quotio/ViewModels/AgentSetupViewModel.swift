@@ -278,22 +278,41 @@ final class AgentSetupViewModel {
     }
 
     func loadModels(forceRefresh: Bool = false) async {
-        guard let config = currentConfiguration else { return }
+        // Create config if not exists (for FallbackScreen scenarios)
+        let config: AgentConfiguration
+        if let existingConfig = currentConfiguration {
+            config = existingConfig
+        } else {
+            guard let proxyManager = proxyManager else { return }
+            config = AgentConfiguration(
+                agent: .claudeCode,
+                proxyURL: proxyManager.clientEndpoint + "/v1",
+                apiKey: proxyManager.managementKey
+            )
+        }
 
         let cacheKey = "quotio.models.cache.\(config.agent.id)"
 
-        if !forceRefresh, let cache = loadCache(key: cacheKey) {
-            self.availableModels = cache.models
-            refreshVirtualModels()
+        // Check if auth files changed since cache was created (decoupled invalidation)
+        let authFilesChanged = UserDefaults.standard.double(forKey: QuotaViewModel.authFilesChangedKey)
 
-            if !cache.isStale {
+        if !forceRefresh, let cache = loadCache(key: cacheKey) {
+            // Invalidate cache if auth files changed after cache was created
+            let cacheInvalidated = authFilesChanged > cache.timestamp.timeIntervalSince1970
+
+            if !cacheInvalidated {
+                self.availableModels = cache.models
+                refreshVirtualModels()
+
+                if !cache.isStale {
+                    return
+                }
+
+                Task.detached { [weak self] in
+                    await self?.silentRefreshModels(cacheKey: cacheKey, config: config)
+                }
                 return
             }
-
-            Task.detached { [weak self] in
-                await self?.silentRefreshModels(cacheKey: cacheKey, config: config)
-            }
-            return
         }
 
         isFetchingModels = true

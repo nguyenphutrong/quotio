@@ -111,9 +111,12 @@ final class QuotaViewModel {
     }
     
     // MARK: - IDE Quota Persistence Keys
-    
+
     private static let ideQuotasKey = "persisted.ideQuotas"
     private static let ideProvidersToSave: Set<AIProvider> = [.cursor, .trae]
+
+    /// Key for tracking when auth files last changed (for model cache invalidation)
+    static let authFilesChangedKey = "quotio.authFiles.lastChanged"
 
     init() {
         self.proxyManager = CLIProxyManager.shared
@@ -1021,7 +1024,17 @@ final class QuotaViewModel {
         do {
             // Serialize requests to avoid connection contention (issue #37)
             // This reduces pressure on the connection pool
-            self.authFiles = try await client.fetchAuthFiles()
+            let newAuthFiles = try await client.fetchAuthFiles()
+
+            // Only update timestamp if auth files actually changed (account added/removed)
+            let oldNames = Set(self.authFiles.map { $0.name })
+            let newNames = Set(newAuthFiles.map { $0.name })
+            if oldNames != newNames {
+                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.authFilesChangedKey)
+            }
+
+            self.authFiles = newAuthFiles
+
             self.usageStats = try await client.fetchUsageStats()
             self.apiKeys = try await client.fetchAPIKeys()
             
