@@ -97,6 +97,7 @@ struct VirtualModelSheet: View {
 
 struct AddFallbackEntrySheet: View {
     let virtualModelId: UUID
+    let virtualModelName: String
     let existingEntries: [FallbackEntry]
     let availableModels: [AvailableModel]
     let onAdd: (AIProvider, String) -> Void
@@ -105,12 +106,18 @@ struct AddFallbackEntrySheet: View {
     @State private var selectedModelId: String = ""
     @State private var showValidationError = false
 
-    /// Filter out virtual models (provider == "fallback") and already added entries
+    /// The model type of the virtual model (determined by its name)
+    private var virtualModelType: ModelType {
+        ModelType.detect(from: virtualModelName)
+    }
+
+    /// Filter out virtual models, already added entries, and incompatible model types
     private var filteredModels: [AvailableModel] {
         let existingModelIds = Set(existingEntries.map { $0.modelId })
         return availableModels.filter { model in
             model.provider.lowercased() != "fallback" &&
-            !existingModelIds.contains(model.id)
+            !existingModelIds.contains(model.id) &&
+            ModelType.detect(from: model.id) == virtualModelType
         }
     }
 
