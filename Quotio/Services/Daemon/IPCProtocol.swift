@@ -392,7 +392,7 @@ nonisolated struct IPCAuthSetDisabledResult: Codable, Sendable {
 
 nonisolated struct IPCApiKeysListResult: Codable, Sendable {
     let success: Bool
-    let keys: [String]
+    let keys: [String]?
     let error: String?
 }
 
@@ -496,6 +496,16 @@ nonisolated enum IPCAnyCodable: Codable, Sendable, Equatable {
         case .string(let v): return v
         case .array(let v): return v.map(\.anyValue)
         case .object(let v): return v.mapValues(\.anyValue)
+        }
+    }
+    
+    var stringValue: String? {
+        switch self {
+        case .string(let v): return v
+        case .int(let v): return String(v)
+        case .double(let v): return String(v)
+        case .bool(let v): return String(v)
+        default: return nil
         }
     }
 }

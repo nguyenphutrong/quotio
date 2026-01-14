@@ -19,6 +19,7 @@ final class LogsViewModel {
     
     var logs: [LogEntry] = []
     @ObservationIgnored private var lastLogTimestamp: Int?
+    @ObservationIgnored private var lastLogId: Int?
     
     func configure(baseURL: String, authKey: String) {
         self.apiClient = ManagementAPIClient(baseURL: baseURL, authKey: authKey)
@@ -42,15 +43,15 @@ final class LogsViewModel {
     }
     
     private func refreshLogsViaDaemon() async {
-        let lines = await daemonLogsService.fetchLogs(after: lastLogTimestamp)
-        if !lines.isEmpty {
-            let newEntries = parseLogLines(lines)
+        let ipcEntries = await daemonLogsService.fetchLogs(after: lastLogId)
+        if !ipcEntries.isEmpty {
+            let newEntries = convertIPCLogEntries(ipcEntries)
             logs.append(contentsOf: newEntries)
             if logs.count > 50 {
                 logs = Array(logs.suffix(50))
             }
         }
-        lastLogTimestamp = daemonLogsService.latestTimestamp
+        lastLogId = daemonLogsService.lastId
     }
     
     private func refreshLogsViaAPI() async {
@@ -85,11 +86,62 @@ final class LogsViewModel {
         }
     }
     
+    private func convertIPCLogEntries(_ entries: [IPCLogEntry]) -> [LogEntry] {
+        entries.map { entry in
+            let level: LogEntry.LogLevel
+            if entry.statusCode >= 500 || entry.error != nil {
+                level = .error
+            } else if entry.statusCode >= 400 {
+                level = .warn
+            } else {
+                level = .info
+            }
+            
+            let message = formatLogMessage(entry)
+            let timestamp = parseTimestamp(entry.timestamp) ?? Date()
+            
+            return LogEntry(timestamp: timestamp, level: level, message: message)
+        }
+    }
+    
+    private func formatLogMessage(_ entry: IPCLogEntry) -> String {
+        var parts: [String] = []
+        parts.append("[\(entry.method)]")
+        parts.append(entry.path)
+        parts.append("→ \(entry.statusCode)")
+        parts.append("(\(entry.duration)ms)")
+        
+        if let provider = entry.provider {
+            parts.append("[\(provider)]")
+        }
+        if let model = entry.model {
+            parts.append(model)
+        }
+        if let input = entry.inputTokens, let output = entry.outputTokens {
+            parts.append("tokens: \(input)/\(output)")
+        }
+        if let error = entry.error {
+            parts.append("error: \(error)")
+        }
+        
+        return parts.joined(separator: " ")
+    }
+    
+    private func parseTimestamp(_ isoString: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: isoString) {
+            return date
+        }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: isoString)
+    }
+    
     func clearLogs() async {
         if await shouldUseDaemon() {
             try? await daemonLogsService.clearLogs()
             logs.removeAll()
-            lastLogTimestamp = nil
+            lastLogId = nil
         } else {
             guard let client = apiClient else { return }
             do {
@@ -103,6 +155,7 @@ final class LogsViewModel {
     func reset() {
         logs.removeAll()
         lastLogTimestamp = nil
+        lastLogId = nil
         apiClient = nil
         daemonLogsService.reset()
     }
