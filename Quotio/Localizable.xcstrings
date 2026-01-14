@@ -1019,6 +1019,166 @@
         }
       }
     },
+    "agents.availableBackups" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld available"
+          }
+        }
+      }
+    },
+    "agents.currentlyDefault" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currently: Default"
+          }
+        }
+      }
+    },
+    "agents.currentlyProxy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currently: Proxy"
+          }
+        }
+      }
+    },
+    "agents.defaultSetup" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default Setup"
+          }
+        }
+      }
+    },
+    "agents.defaultSetup.info" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will remove Quotio proxy configuration and restore the agent to use its default provider endpoints. Your other settings (permissions, MCP servers, etc.) will be preserved."
+          }
+        }
+      }
+    },
+    "agents.proxyRemovalWarning" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current proxy configuration will be removed"
+          }
+        }
+      }
+    },
+    "agents.restoreAction" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore"
+          }
+        }
+      }
+    },
+    "agents.restoreBackup" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore from Backup"
+          }
+        }
+      }
+    },
+    "agents.restoreBackup.confirm.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will replace the current configuration with the selected backup."
+          }
+        }
+      }
+    },
+    "agents.restoreBackup.confirm.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Backup?"
+          }
+        }
+      }
+    },
+    "agents.restoreBackup.info" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring a backup will replace the current configuration with the selected backup."
+          }
+        }
+      }
+    },
+    "agents.setup.default" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default (Direct)"
+          }
+        }
+      }
+    },
+    "agents.setup.default.desc" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use provider's default endpoint"
+          }
+        }
+      }
+    },
+    "agents.setup.proxy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy (CLIProxyAPI)"
+          }
+        }
+      }
+    },
+    "agents.setup.proxy.desc" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Route requests through Quotio proxy"
+          }
+        }
+      }
+    },
+    "agents.setupMode" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setup Mode"
+          }
+        }
+      }
+    },
     "agents.configFailed" : {
       "extractionState" : "stale",
       "localizations" : {

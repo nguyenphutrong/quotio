@@ -11,6 +11,8 @@ struct AgentConfigSheet: View {
     
     @Environment(\.dismiss) private var dismiss
     @State private var previewConfig: AgentConfigResult?
+    @State private var showRestoreConfirm = false
+    @State private var backupToRestore: AgentConfigurationService.BackupFile?
     
     private var hasResult: Bool {
         viewModel.configResult != nil
@@ -111,27 +113,157 @@ struct AgentConfigSheet: View {
     
     private var configurationView: some View {
         VStack(spacing: 16) {
+            setupModeSection
+            
             modeSelectionSection
             
             if agent == .claudeCode && !isManualMode {
                 storageOptionSection
             }
             
-            connectionInfoSection
-            
-            if agent == .claudeCode {
-                modelSlotsSection
+            // Only show proxy-specific options when in proxy mode
+            if viewModel.selectedSetupMode == .proxy {
+                connectionInfoSection
+                
+                if agent == .claudeCode {
+                    modelSlotsSection
+                }
+                
+                if agent == .geminiCLI {
+                    oauthToggleSection
+                }
+                
+                if isManualMode {
+                    manualPreviewSection
+                }
+                
+                testConnectionSection
+            } else {
+                defaultModeInfoSection
             }
             
-            if agent == .geminiCLI {
-                oauthToggleSection
+            if !viewModel.availableBackups.isEmpty {
+                backupSection
+            }
+        }
+    }
+    
+    // MARK: - Setup Mode Section
+    
+    private var setupModeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("agents.setupMode".localized())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Spacer()
+                
+                if let saved = viewModel.savedConfig {
+                    Label(
+                        saved.isProxyConfigured ? "agents.currentlyProxy".localized() : "agents.currentlyDefault".localized(),
+                        systemImage: saved.isProxyConfigured ? "checkmark.circle.fill" : "circle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(saved.isProxyConfigured ? .green : .secondary)
+                }
             }
             
-            if isManualMode {
-                manualPreviewSection
+            HStack(spacing: 12) {
+                ForEach(ConfigurationSetup.allCases) { setup in
+                    SetupModeButton(
+                        setup: setup,
+                        isSelected: viewModel.selectedSetupMode == setup,
+                        action: {
+                            viewModel.selectedSetupMode = setup
+                            viewModel.currentConfiguration?.setupMode = setup
+                        }
+                    )
+                }
             }
             
-            testConnectionSection
+            Text(viewModel.selectedSetupMode.description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+    
+    private var defaultModeInfoSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("agents.defaultSetup".localized())
+                .font(.subheadline)
+                .fontWeight(.medium)
+            
+            Text("agents.defaultSetup.info".localized())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            
+            if let saved = viewModel.savedConfig, saved.isProxyConfigured {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("agents.proxyRemovalWarning".localized())
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+    
+    // MARK: - Backup Section
+    
+    private var backupSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("agents.restoreBackup".localized())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Spacer()
+                
+                Text(String(format: "agents.availableBackups".localized(), viewModel.availableBackups.count))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(viewModel.availableBackups.prefix(5)) { backup in
+                        BackupButton(backup: backup) {
+                            backupToRestore = backup
+                            showRestoreConfirm = true
+                        }
+                    }
+                }
+            }
+            
+            Text("agents.restoreBackup.info".localized())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .alert("agents.restoreBackup.confirm.title".localized(), isPresented: $showRestoreConfirm) {
+            Button("action.cancel".localized(), role: .cancel) {
+                backupToRestore = nil
+            }
+            if let backup = backupToRestore {
+                Button("agents.restoreAction".localized(), role: .destructive) {
+                    Task { await viewModel.restoreFromBackup(backup) }
+                }
+            }
+        } message: {
+            Text("agents.restoreBackup.confirm.message".localized())
         }
     }
     
@@ -565,6 +697,64 @@ private struct ModeButton: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.borderless)
+    }
+}
+
+private struct SetupModeButton: View {
+    let setup: ConfigurationSetup
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button {
+            action()
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: setup.icon)
+                    .font(.title3)
+                Text(setup.displayName)
+                    .font(.caption)
+                    .fontWeight(.medium)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(isSelected ? Color.accentColor.opacity(0.15) : Color(.controlBackgroundColor))
+            .foregroundStyle(isSelected ? .primary : .secondary)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.borderless)
+    }
+}
+
+private struct BackupButton: View {
+    let backup: AgentConfigurationService.BackupFile
+    let action: () -> Void
+    
+    var body: some View {
+        Button {
+            action()
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.callout)
+                Text(backup.displayName)
+                    .font(.caption2)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(.controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
             )
         }
         .buttonStyle(.borderless)

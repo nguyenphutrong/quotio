@@ -32,6 +32,17 @@ final class AgentSetupViewModel {
     var configurationMode: ConfigurationMode = .automatic
     var configStorageOption: ConfigStorageOption = .jsonOnly
     var selectedRawConfigIndex: Int = 0
+    
+    // MARK: - Saved Configuration State
+    
+    /// Currently saved configuration read from agent's config files
+    var savedConfig: AgentConfigurationService.SavedAgentConfig?
+    
+    /// Available backup files for the selected agent
+    var availableBackups: [AgentConfigurationService.BackupFile] = []
+    
+    /// Selected setup mode (proxy or default)
+    var selectedSetupMode: ConfigurationSetup = .proxy
 
     weak var proxyManager: CLIProxyManager?
 
@@ -65,6 +76,9 @@ final class AgentSetupViewModel {
         configStorageOption = .jsonOnly
         isConfiguring = false
         isTesting = false
+        savedConfig = nil
+        availableBackups = []
+        selectedSetupMode = .proxy  // Reset to default
 
         guard let proxyManager = proxyManager else {
             errorMessage = "Proxy manager not available"
@@ -76,14 +90,69 @@ final class AgentSetupViewModel {
         // Always use client endpoint - all traffic should go through Quotio's proxy
         let endpoint = proxyManager.clientEndpoint
 
+        // Create configuration with defaults first
         currentConfiguration = AgentConfiguration(
             agent: agent,
             proxyURL: endpoint + "/v1",
-            apiKey: apiKey
+            apiKey: apiKey,
+            setupMode: selectedSetupMode
         )
 
-        // Load models for this agent
-        Task { await loadModels() }
+        // Then load existing config, apply saved values, and load models - all in sequence
+        Task {
+            await loadExistingConfiguration(for: agent)
+            await loadModels()
+        }
+    }
+    
+    /// Load existing configuration from agent's config files and apply to current configuration
+    private func loadExistingConfiguration(for agent: CLIAgent) async {
+        // Read saved configuration
+        savedConfig = await configurationService.readConfiguration(agent: agent)
+        
+        // Load available backups
+        availableBackups = await configurationService.listBackups(agent: agent)
+        
+        // Pre-populate configuration with saved values
+        guard let saved = savedConfig else { return }
+        
+        // Determine setup mode from saved config
+        selectedSetupMode = saved.isProxyConfigured ? .proxy : .defaultSetup
+        
+        // Update current configuration with saved model slots
+        for (slot, model) in saved.modelSlots {
+            currentConfiguration?.modelSlots[slot] = model
+        }
+        
+        // Update setup mode in current configuration
+        currentConfiguration?.setupMode = selectedSetupMode
+    }
+    
+    /// Switch to proxy setup mode
+    func switchToProxySetup() {
+        selectedSetupMode = .proxy
+        currentConfiguration?.setupMode = .proxy
+    }
+    
+    /// Switch to default (non-proxy) setup mode
+    func switchToDefaultSetup() {
+        selectedSetupMode = .defaultSetup
+        currentConfiguration?.setupMode = .defaultSetup
+    }
+    
+    /// Restore configuration from a backup file
+    func restoreFromBackup(_ backup: AgentConfigurationService.BackupFile) async {
+        do {
+            try await configurationService.restoreFromBackup(backup)
+            
+            // Reload configuration after restore
+            if let agent = selectedAgent {
+                await loadExistingConfiguration(for: agent)
+                await refreshAgentStatuses()
+            }
+        } catch {
+            errorMessage = "Failed to restore backup: \(error.localizedDescription)"
+        }
     }
 
     func updateModelSlot(_ slot: ModelSlot, model: String) {
@@ -235,6 +304,9 @@ final class AgentSetupViewModel {
         selectedRawConfigIndex = 0
         isConfiguring = false
         isTesting = false
+        savedConfig = nil
+        availableBackups = []
+        selectedSetupMode = .proxy
     }
 
     func resetSheetState() {
@@ -245,7 +317,9 @@ final class AgentSetupViewModel {
         configStorageOption = .jsonOnly
         isConfiguring = false
         isTesting = false
+        selectedSetupMode = .proxy
         // Don't reset availableModels here to allow caching to persist across dismissals
+        // Don't reset savedConfig/availableBackups - they persist while sheet is open
     }
 
     func loadModels(forceRefresh: Bool = false) async {
