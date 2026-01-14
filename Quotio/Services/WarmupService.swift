@@ -12,6 +12,62 @@ actor WarmupService {
         "https://cloudcode-pa.googleapis.com"
     ]
     
+    func warmup(daemonClient: DaemonIPCClient, authIndex: String, model: String) async throws {
+        let upstreamModel = mapAntigravityModelAlias(model)
+        let payload = AntigravityWarmupRequest(
+            project: "warmup-" + String(UUID().uuidString.prefix(5)).lowercased(),
+            requestId: "agent-" + UUID().uuidString.lowercased(),
+            userAgent: "antigravity",
+            model: upstreamModel,
+            request: AntigravityWarmupRequestBody(
+                sessionId: "-" + String(UUID().uuidString.prefix(12)),
+                contents: [
+                    AntigravityWarmupContent(
+                        role: "user",
+                        parts: [AntigravityWarmupPart(text: ".")]
+                    )
+                ],
+                generationConfig: AntigravityWarmupGenerationConfig(maxOutputTokens: 1)
+            )
+        )
+        
+        guard let body = try? String(data: JSONEncoder().encode(payload), encoding: .utf8) else {
+            throw WarmupError.encodingFailed
+        }
+        
+        let header = [
+            "Authorization": "Bearer $TOKEN$",
+            "Content-Type": "application/json",
+            "User-Agent": "antigravity/1.104.0"
+        ]
+        
+        var lastError: WarmupError?
+        for baseURL in antigravityBaseURLs {
+            let result = try await daemonClient.apiCall(
+                authIndex: authIndex,
+                method: "POST",
+                url: baseURL + "/v1internal:generateContent",
+                header: header,
+                data: body
+            )
+            
+            if !result.success {
+                lastError = WarmupError.httpError(0, result.error)
+                continue
+            }
+            
+            if let statusCode = result.statusCode, 200...299 ~= statusCode {
+                return
+            }
+            lastError = WarmupError.httpError(result.statusCode ?? 0, result.body)
+        }
+        
+        if let lastError {
+            throw lastError
+        }
+        throw WarmupError.invalidResponse
+    }
+    
     func warmup(managementClient: ManagementAPIClient, authIndex: String, model: String) async throws {
         let upstreamModel = mapAntigravityModelAlias(model)
         let payload = AntigravityWarmupRequest(

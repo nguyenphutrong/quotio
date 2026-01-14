@@ -97,6 +97,15 @@ nonisolated enum IPCMethod: String, Sendable {
     case apiKeysList = "apiKeys.list"
     case apiKeysAdd = "apiKeys.add"
     case apiKeysDelete = "apiKeys.delete"
+    
+    // API Call (for warmup and other proxy requests)
+    case apiCall = "api.call"
+    
+    // Remote mode
+    case remoteSetConfig = "remote.setConfig"
+    case remoteGetConfig = "remote.getConfig"
+    case remoteClearConfig = "remote.clearConfig"
+    case remoteTestConnection = "remote.testConnection"
 }
 
 // MARK: - Parameter Types
@@ -186,6 +195,28 @@ nonisolated struct IPCProxyConfigSetParams: Codable, Sendable {
 
 nonisolated struct IPCApiKeysDeleteParams: Codable, Sendable {
     let key: String
+}
+
+nonisolated struct IPCApiCallParams: Codable, Sendable {
+    let authIndex: String?
+    let method: String
+    let url: String
+    let header: [String: String]?
+    let data: String?
+}
+
+nonisolated struct IPCRemoteSetConfigParams: Codable, Sendable {
+    let endpointURL: String
+    let displayName: String?
+    let managementKey: String?
+    let verifySSL: Bool?
+    let timeoutSeconds: Int?
+}
+
+nonisolated struct IPCRemoteTestConnectionParams: Codable, Sendable {
+    let endpointURL: String
+    let managementKey: String?
+    let timeoutSeconds: Int?
 }
 
 // MARK: - Result Types
@@ -409,6 +440,41 @@ nonisolated struct IPCApiKeysDeleteResult: Codable, Sendable {
 
 nonisolated struct IPCProxyHealthCheckResult: Codable, Sendable {
     let healthy: Bool
+    let error: String?
+}
+
+nonisolated struct IPCApiCallResult: Codable, Sendable {
+    let success: Bool
+    let statusCode: Int?
+    let header: [String: [String]]?
+    let body: String?
+    let error: String?
+}
+
+nonisolated struct IPCRemoteSetConfigResult: Codable, Sendable {
+    let success: Bool
+}
+
+nonisolated struct IPCRemoteGetConfigResult: Codable, Sendable {
+    let config: IPCRemoteConfigData?
+    let hasKey: Bool
+}
+
+nonisolated struct IPCRemoteConfigData: Codable, Sendable {
+    let endpointURL: String
+    let displayName: String?
+    let managementKey: String?
+    let verifySSL: Bool?
+    let timeoutSeconds: Int?
+}
+
+nonisolated struct IPCRemoteClearConfigResult: Codable, Sendable {
+    let success: Bool
+}
+
+nonisolated struct IPCRemoteTestConnectionResult: Codable, Sendable {
+    let success: Bool
+    let statusCode: Int?
     let error: String?
 }
 

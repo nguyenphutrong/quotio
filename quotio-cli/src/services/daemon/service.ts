@@ -1221,6 +1221,163 @@ const handlers: Record<string, MethodHandler> = {
 			};
 		}
 	},
+
+	"api.call": async (params: unknown) => {
+		const opts = params as {
+			authIndex?: string;
+			method: string;
+			url: string;
+			header?: Record<string, string>;
+			data?: string;
+		};
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		try {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+			const requestUrl = `http://localhost:${proxyState.port}/api-call`;
+			const requestBody = JSON.stringify({
+				auth_index: opts.authIndex,
+				method: opts.method,
+				url: opts.url,
+				header: opts.header,
+				data: opts.data,
+			});
+
+			const response = await fetch(requestUrl, {
+				method: "POST",
+				headers: {
+					Authorization: "Bearer quotio-cli-key",
+					"Content-Type": "application/json",
+					Connection: "close",
+				},
+				body: requestBody,
+				signal: controller.signal,
+			});
+
+			clearTimeout(timeoutId);
+
+			const text = await response.text();
+			let result: {
+				status_code: number;
+				header?: Record<string, string[]>;
+				body?: string;
+			};
+
+			try {
+				result = JSON.parse(text);
+			} catch {
+				return {
+					success: false,
+					error: "Failed to parse response",
+				};
+			}
+
+			return {
+				success: true,
+				statusCode: result.status_code,
+				header: result.header,
+				body: result.body,
+			};
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
+	"remote.setConfig": async (params: unknown) => {
+		const opts = params as {
+			endpointURL: string;
+			displayName?: string;
+			managementKey: string;
+			verifySSL?: boolean;
+			timeoutSeconds?: number;
+		};
+		const store = await loadConfigStore();
+		store.remoteConfig = {
+			endpointURL: opts.endpointURL,
+			displayName: opts.displayName ?? "Remote Server",
+			verifySSL: opts.verifySSL ?? true,
+			timeoutSeconds: opts.timeoutSeconds ?? 30,
+		};
+		store.remoteManagementKey = opts.managementKey;
+		await saveConfigStore();
+		return { success: true };
+	},
+
+	"remote.getConfig": async () => {
+		const store = await loadConfigStore();
+		const config = store.remoteConfig as {
+			endpointURL: string;
+			displayName: string;
+			verifySSL: boolean;
+			timeoutSeconds: number;
+		} | undefined;
+		return {
+			config: config ?? null,
+			hasKey: Boolean(store.remoteManagementKey),
+		};
+	},
+
+	"remote.clearConfig": async () => {
+		const store = await loadConfigStore();
+		store.remoteConfig = undefined;
+		store.remoteManagementKey = undefined;
+		await saveConfigStore();
+		return { success: true };
+	},
+
+	"remote.testConnection": async (params: unknown) => {
+		const opts = params as {
+			endpointURL: string;
+			managementKey: string;
+			timeoutSeconds?: number;
+		};
+
+		try {
+			const controller = new AbortController();
+			const timeout = (opts.timeoutSeconds ?? 30) * 1000;
+			const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+			let baseURL = opts.endpointURL.replace(/\/+$/, "");
+			if (!baseURL.endsWith("/v0/management")) {
+				if (baseURL.endsWith("/v0")) {
+					baseURL += "/management";
+				} else {
+					baseURL += "/v0/management";
+				}
+			}
+
+			const response = await fetch(`${baseURL}/health`, {
+				method: "GET",
+				headers: {
+					Authorization: `Bearer ${opts.managementKey}`,
+					Connection: "close",
+				},
+				signal: controller.signal,
+			});
+
+			clearTimeout(timeoutId);
+
+			return {
+				success: response.ok,
+				statusCode: response.status,
+				error: response.ok ? undefined : `HTTP ${response.status}`,
+			};
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
 };
 
 export async function startDaemon(options?: {

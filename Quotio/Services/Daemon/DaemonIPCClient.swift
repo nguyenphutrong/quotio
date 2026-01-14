@@ -312,6 +312,58 @@ extension DaemonIPCClient {
     func proxyHealthCheck() async throws -> IPCProxyHealthCheckResult {
         try await call(.proxyHealthCheck)
     }
+    
+    func apiCall(
+        authIndex: String?,
+        method: String,
+        url: String,
+        header: [String: String]?,
+        data: String?
+    ) async throws -> IPCApiCallResult {
+        try await call(.apiCall, params: IPCApiCallParams(
+            authIndex: authIndex,
+            method: method,
+            url: url,
+            header: header,
+            data: data
+        ))
+    }
+    
+    func remoteSetConfig(
+        endpointURL: String,
+        displayName: String? = nil,
+        managementKey: String? = nil,
+        verifySSL: Bool? = nil,
+        timeoutSeconds: Int? = nil
+    ) async throws -> IPCRemoteSetConfigResult {
+        try await call(.remoteSetConfig, params: IPCRemoteSetConfigParams(
+            endpointURL: endpointURL,
+            displayName: displayName,
+            managementKey: managementKey,
+            verifySSL: verifySSL,
+            timeoutSeconds: timeoutSeconds
+        ))
+    }
+    
+    func remoteGetConfig() async throws -> IPCRemoteGetConfigResult {
+        try await call(.remoteGetConfig)
+    }
+    
+    func remoteClearConfig() async throws -> IPCRemoteClearConfigResult {
+        try await call(.remoteClearConfig)
+    }
+    
+    func remoteTestConnection(
+        endpointURL: String,
+        managementKey: String? = nil,
+        timeoutSeconds: Int? = nil
+    ) async throws -> IPCRemoteTestConnectionResult {
+        try await call(.remoteTestConnection, params: IPCRemoteTestConnectionParams(
+            endpointURL: endpointURL,
+            managementKey: managementKey,
+            timeoutSeconds: timeoutSeconds
+        ))
+    }
 }
 
 enum IPCClientError: LocalizedError {

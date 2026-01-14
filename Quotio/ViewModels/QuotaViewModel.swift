@@ -49,6 +49,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let daemonManager = DaemonManager.shared
     @ObservationIgnored private let daemonQuotaService = DaemonQuotaService.shared
     @ObservationIgnored private let daemonAuthService = DaemonAuthService.shared
+    @ObservationIgnored private let daemonAPIKeysService = DaemonAPIKeysService.shared
     
     private func shouldUseDaemonForAuth() async -> Bool {
         guard !modeManager.isRemoteProxyMode else { return false }
@@ -1572,47 +1573,77 @@ final class QuotaViewModel {
     }
     
     func fetchAPIKeys() async {
-        guard let client = apiClient else { return }
-        
-        do {
-            apiKeys = try await client.fetchAPIKeys()
-        } catch {
-            errorMessage = error.localizedDescription
+        if await shouldUseDaemonForAuth() {
+            apiKeys = await daemonAPIKeysService.fetchAPIKeys()
+        } else {
+            guard let client = apiClient else { return }
+            do {
+                apiKeys = try await client.fetchAPIKeys()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
     
     func addAPIKey(_ key: String) async {
-        guard let client = apiClient else { return }
         guard !key.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         
-        do {
-            try await client.addAPIKey(key)
-            await fetchAPIKeys()
-        } catch {
-            errorMessage = error.localizedDescription
+        if await shouldUseDaemonForAuth() {
+            do {
+                _ = try await daemonAPIKeysService.addAPIKey()
+                await fetchAPIKeys()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        } else {
+            guard let client = apiClient else { return }
+            do {
+                try await client.addAPIKey(key)
+                await fetchAPIKeys()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
     
     func updateAPIKey(old: String, new: String) async {
-        guard let client = apiClient else { return }
         guard !new.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         
-        do {
-            try await client.updateAPIKey(old: old, new: new)
-            await fetchAPIKeys()
-        } catch {
-            errorMessage = error.localizedDescription
+        if await shouldUseDaemonForAuth() {
+            do {
+                try await daemonAPIKeysService.deleteAPIKey(old)
+                _ = try await daemonAPIKeysService.addAPIKey()
+                await fetchAPIKeys()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        } else {
+            guard let client = apiClient else { return }
+            do {
+                try await client.updateAPIKey(old: old, new: new)
+                await fetchAPIKeys()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
     
     func deleteAPIKey(_ key: String) async {
-        guard let client = apiClient else { return }
-        
-        do {
-            try await client.deleteAPIKey(value: key)
-            await fetchAPIKeys()
-        } catch {
-            errorMessage = error.localizedDescription
+        if await shouldUseDaemonForAuth() {
+            do {
+                try await daemonAPIKeysService.deleteAPIKey(key)
+                await fetchAPIKeys()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        } else {
+            guard let client = apiClient else { return }
+            do {
+                try await client.deleteAPIKey(value: key)
+                await fetchAPIKeys()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
     

@@ -2,9 +2,17 @@
 //  ManagementAPIClient.swift
 //  Quotio - CLIProxyAPI GUI Wrapper
 //
+//  DEPRECATED: This class is deprecated and will be removed in a future version.
+//  Use DaemonIPCClient for all proxy communication. The daemon handles CLIProxyAPI
+//  internally via IPC. See:
+//  - DaemonIPCClient.swift for IPC methods
+//  - DaemonProxyConfigService.swift for config operations
+//  - DaemonAPIKeysService.swift for API key management
+//
 
 import Foundation
 
+@available(*, deprecated, message: "Use DaemonIPCClient instead. The daemon handles CLIProxyAPI communication internally.")
 actor ManagementAPIClient {
     private let baseURL: String
     private let authKey: String

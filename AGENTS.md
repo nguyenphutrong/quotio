@@ -40,14 +40,85 @@ docs/                         # Architecture docs
 
 | Symbol | Type | Location | Role |
 |--------|------|----------|------|
+| `DaemonIPCClient` | Actor | Services/Daemon/ | Primary IPC client for quotio-cli daemon |
+| `DaemonProxyConfigService` | Actor | Services/Daemon/ | Proxy config via daemon IPC |
+| `DaemonAPIKeysService` | Actor | Services/Daemon/ | API key management via daemon IPC |
 | `CLIProxyManager` | Class | Services/ | Proxy lifecycle, binary management, auth commands |
 | `QuotaViewModel` | Class | ViewModels/ | Central state: quotas, auth, providers, logs |
-| `ManagementAPIClient` | Actor | Services/ | HTTP client for CLIProxyAPI |
+| `ManagementAPIClient` | Actor | Services/ | **DEPRECATED** - Use DaemonIPCClient instead |
 | `AIProvider` | Enum | Models/ | Provider definitions (13 providers) |
 | `CLIAgent` | Enum | Models/ | CLI agent definitions (6 agents) |
 | `StatusBarManager` | Class | Services/ | Menu bar icon and menu |
 | `ProxyBridge` | Class | Services/ | TCP bridge layer for connection management |
 | `FallbackSettingsManager` | Class | Services/ | Fallback config via ~/.config/quotio/fallback-config.json |
+
+## Daemon Architecture
+
+The Swift app communicates with CLIProxyAPI exclusively through the quotio-cli daemon via Unix socket IPC.
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Swift/Tauri App                             │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────┐ │
+│  │ DaemonIPCClient  │  │ DaemonProxyConfig│  │ DaemonAPIKeys  │ │
+│  │                  │  │ Service          │  │ Service        │ │
+│  └────────┬─────────┘  └────────┬─────────┘  └───────┬────────┘ │
+│           │                     │                     │          │
+│           └─────────────────────┼─────────────────────┘          │
+│                                 │                                │
+│                    Unix Socket IPC (quotio.sock)                 │
+└─────────────────────────────────┼────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     quotio-cli daemon (Bun/TS)                   │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────┐ │
+│  │ Proxy Handlers   │  │ Auth Handlers    │  │ Config Store   │ │
+│  │ (start/stop/     │  │ (list/delete/    │  │ (remote mode,  │ │
+│  │  health/config)  │  │  OAuth/poll)     │  │  settings)     │ │
+│  └────────┬─────────┘  └────────┬─────────┘  └───────┬────────┘ │
+│           │                     │                     │          │
+│           └─────────────────────┼─────────────────────┘          │
+│                                 │                                │
+│                        HTTP (localhost:18317)                    │
+└─────────────────────────────────┼────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     CLIProxyAPI (Go binary)                      │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────┐ │
+│  │ Proxy Server     │  │ Auth Management  │  │ Request Routing│ │
+│  └──────────────────┘  └──────────────────┘  └────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### IPC Methods
+
+| Method | Description |
+|--------|-------------|
+| `daemon.ping` | Health check |
+| `daemon.status` | Get daemon status |
+| `proxy.start/stop/status` | Proxy lifecycle |
+| `proxy.healthCheck` | Check proxy health |
+| `proxyConfig.getAll/get/set` | Proxy configuration |
+| `auth.list/delete/deleteAll/setDisabled` | Auth management |
+| `oauth.start/poll` | OAuth flow |
+| `logs.fetch/clear` | Request logs |
+| `apiKeys.list/add/delete` | API key management |
+| `api.call` | Generic proxy API call |
+| `remote.setConfig/getConfig/clearConfig/testConnection` | Remote mode |
+
+### Key Files
+
+| Component | Location | Role |
+|-----------|----------|------|
+| `IPCProtocol.swift` | Services/Daemon/ | IPC types, methods, params, results |
+| `DaemonIPCClient.swift` | Services/Daemon/ | Unix socket client, method wrappers |
+| `DaemonProxyConfigService.swift` | Services/Daemon/ | Proxy config operations |
+| `DaemonAPIKeysService.swift` | Services/Daemon/ | API key operations |
+| `service.ts` | quotio-cli/src/services/daemon/ | IPC request handlers |
 
 ## Fallback Architecture
 
