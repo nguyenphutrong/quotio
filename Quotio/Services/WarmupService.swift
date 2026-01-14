@@ -68,56 +68,6 @@ actor WarmupService {
         throw WarmupError.invalidResponse
     }
     
-    @available(*, deprecated, message: "Use warmup(daemonClient:authIndex:model:) instead")
-    func warmup(managementClient: ManagementAPIClient, authIndex: String, model: String) async throws {
-        let upstreamModel = mapAntigravityModelAlias(model)
-        let payload = AntigravityWarmupRequest(
-            project: "warmup-" + String(UUID().uuidString.prefix(5)).lowercased(),
-            requestId: "agent-" + UUID().uuidString.lowercased(),
-            userAgent: "antigravity",
-            model: upstreamModel,
-            request: AntigravityWarmupRequestBody(
-                sessionId: "-" + String(UUID().uuidString.prefix(12)),
-                contents: [
-                    AntigravityWarmupContent(
-                        role: "user",
-                        parts: [AntigravityWarmupPart(text: ".")]
-                    )
-                ],
-                generationConfig: AntigravityWarmupGenerationConfig(maxOutputTokens: 1)
-            )
-        )
-        
-        guard let body = try? String(data: JSONEncoder().encode(payload), encoding: .utf8) else {
-            throw WarmupError.encodingFailed
-        }
-        
-        var lastError: WarmupError?
-        for baseURL in antigravityBaseURLs {
-            let response = try await managementClient.apiCall(APICallRequest(
-                authIndex: authIndex,
-                method: "POST",
-                url: baseURL + "/v1internal:generateContent",
-                header: [
-                    "Authorization": "Bearer $TOKEN$",
-                    "Content-Type": "application/json",
-                    "User-Agent": "antigravity/1.104.0"
-                ],
-                data: body
-            ))
-            
-            if 200...299 ~= response.statusCode {
-                return
-            }
-            lastError = WarmupError.httpError(response.statusCode, response.body)
-        }
-        
-        if let lastError {
-            throw lastError
-        }
-        throw WarmupError.invalidResponse
-    }
-    
     private func mapAntigravityModelAlias(_ model: String) -> String {
         switch model.lowercased() {
         case "gemini-3-pro-preview":
@@ -152,18 +102,6 @@ actor WarmupService {
                 id: model.id,
                 ownedBy: model.ownedBy,
                 provider: model.provider
-            )
-        }
-    }
-    
-    @available(*, deprecated, message: "Use fetchModels(daemonClient:authFileName:) instead")
-    func fetchModels(managementClient: ManagementAPIClient, authFileName: String) async throws -> [WarmupModelInfo] {
-        let models = try await managementClient.fetchAuthFileModels(name: authFileName)
-        return models.map { model in
-            WarmupModelInfo(
-                id: model.id,
-                ownedBy: model.ownedBy,
-                provider: model.type
             )
         }
     }
