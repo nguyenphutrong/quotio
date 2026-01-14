@@ -160,7 +160,7 @@ quotio fallback import < backup.json
 
 ### Configuration File
 
-Fallback configuration is stored at `~/.quotio/fallback-config.json` and shared between the CLI and macOS app. Changes made via CLI are automatically detected by the app.
+Fallback configuration is stored at `~/.config/quotio/fallback-config.json` and shared between the CLI and macOS app. Changes made via CLI are automatically detected by the app.
 
 ## 📸 Screenshots
 

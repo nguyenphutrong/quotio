@@ -47,7 +47,7 @@ docs/                         # Architecture docs
 | `CLIAgent` | Enum | Models/ | CLI agent definitions (6 agents) |
 | `StatusBarManager` | Class | Services/ | Menu bar icon and menu |
 | `ProxyBridge` | Class | Services/ | TCP bridge layer for connection management |
-| `FallbackSettingsManager` | Class | Services/ | Fallback config via ~/.quotio/fallback-config.json |
+| `FallbackSettingsManager` | Class | Services/ | Fallback config via ~/.config/quotio/fallback-config.json |
 
 ## Fallback Architecture
 
@@ -55,10 +55,10 @@ The fallback system enables automatic provider failover when requests fail (429/
 
 ### Shared Configuration
 
-Config stored at `~/.quotio/fallback-config.json`, shared between Swift app and CLI:
+Config stored at `~/.config/quotio/fallback-config.json`, shared between Swift app and CLI:
 
 ```
-~/.quotio/fallback-config.json  (shared config file)
+~/.config/quotio/fallback-config.json  (shared config file)
          ↑                  ↑
     CLI writes         Swift reads/writes
     (quotio fallback)  (FallbackSettingsManager)

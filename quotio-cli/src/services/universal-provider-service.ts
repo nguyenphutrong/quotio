@@ -7,7 +7,7 @@ import {
 	type UniversalProvider,
 } from "../models/universal-provider.ts";
 
-const CONFIG_DIR = join(homedir(), ".quotio");
+const CONFIG_DIR = join(homedir(), ".config", "quotio");
 const PROVIDERS_FILE = join(CONFIG_DIR, "universal-providers.json");
 const ACTIVE_STATE_FILE = join(CONFIG_DIR, "active-provider-state.json");
 const SECRETS_FILE = join(CONFIG_DIR, ".secrets.json");

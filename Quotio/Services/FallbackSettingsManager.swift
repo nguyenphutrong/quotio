@@ -2,7 +2,7 @@
 //  FallbackSettingsManager.swift
 //  Quotio - Model Fallback Configuration Manager
 //
-//  Reads/writes fallback configuration from ~/.quotio/fallback-config.json
+//  Reads/writes fallback configuration from ~/.config/quotio/fallback-config.json
 //  This allows sharing configuration between CLI (TypeScript) and macOS app (Swift)
 //
 
@@ -41,15 +41,16 @@ struct FallbackRouteState: Sendable, Equatable {
 // MARK: - File-based Configuration Path
 
 private enum FallbackConfigPath {
-    /// Path to ~/.quotio/fallback-config.json
+    /// Path to ~/.config/quotio/fallback-config.json
     static var configFilePath: URL {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         return homeDir
-            .appendingPathComponent(".quotio")
+            .appendingPathComponent(".config")
+            .appendingPathComponent("quotio")
             .appendingPathComponent("fallback-config.json")
     }
     
-    /// Ensure ~/.quotio directory exists
+    /// Ensure ~/.config/quotio directory exists
     static func ensureConfigDirectory() {
         let dirPath = configFilePath.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dirPath, withIntermediateDirectories: true)
@@ -119,7 +120,7 @@ final class FallbackSettingsManager {
     
     // MARK: - File-based Persistence
     
-    /// Load configuration from ~/.quotio/fallback-config.json
+    /// Load configuration from ~/.config/quotio/fallback-config.json
     private static func loadFromFile() -> FallbackConfiguration? {
         let filePath = FallbackConfigPath.configFilePath
         
@@ -136,7 +137,7 @@ final class FallbackSettingsManager {
         }
     }
     
-    /// Save configuration to ~/.quotio/fallback-config.json
+    /// Save configuration to ~/.config/quotio/fallback-config.json
     private func persistToFile() {
         FallbackConfigPath.ensureConfigDirectory()
         

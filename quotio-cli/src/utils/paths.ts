@@ -21,11 +21,11 @@ export function getPlatform(): Platform {
 
 /**
  * Get the configuration directory for quotio-cli.
- * Uses ~/.quotio for all platforms for consistency with Swift app.
+ * Uses ~/.config/quotio for all platforms (XDG-compliant).
  */
 export function getConfigDir(): string {
 	const home = homedir();
-	return join(home, ".quotio");
+	return join(home, ".config", "quotio");
 }
 
 /**
