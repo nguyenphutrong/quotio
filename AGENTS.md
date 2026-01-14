@@ -102,8 +102,10 @@ The Swift app communicates with CLIProxyAPI exclusively through the quotio-cli d
 | `daemon.status` | Get daemon status |
 | `proxy.start/stop/status` | Proxy lifecycle |
 | `proxy.healthCheck` | Check proxy health |
+| `proxy.latestVersion` | Get latest proxy version from GitHub |
 | `proxyConfig.getAll/get/set` | Proxy configuration |
 | `auth.list/delete/deleteAll/setDisabled` | Auth management |
+| `auth.models` | Get available models for an auth file |
 | `oauth.start/poll` | OAuth flow |
 | `logs.fetch/clear` | Request logs |
 | `apiKeys.list/add/delete` | API key management |

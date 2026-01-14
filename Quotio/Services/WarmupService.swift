@@ -68,6 +68,7 @@ actor WarmupService {
         throw WarmupError.invalidResponse
     }
     
+    @available(*, deprecated, message: "Use warmup(daemonClient:authIndex:model:) instead")
     func warmup(managementClient: ManagementAPIClient, authIndex: String, model: String) async throws {
         let upstreamModel = mapAntigravityModelAlias(model)
         let payload = AntigravityWarmupRequest(
@@ -144,6 +145,18 @@ actor WarmupService {
         }
     }
     
+    func fetchModels(daemonClient: DaemonIPCClient, authFileName: String) async throws -> [WarmupModelInfo] {
+        let result = try await daemonClient.getAuthModels(name: authFileName)
+        return result.models.map { model in
+            WarmupModelInfo(
+                id: model.id,
+                ownedBy: model.ownedBy,
+                provider: model.provider
+            )
+        }
+    }
+    
+    @available(*, deprecated, message: "Use fetchModels(daemonClient:authFileName:) instead")
     func fetchModels(managementClient: ManagementAPIClient, authFileName: String) async throws -> [WarmupModelInfo] {
         let models = try await managementClient.fetchAuthFileModels(name: authFileName)
         return models.map { model in

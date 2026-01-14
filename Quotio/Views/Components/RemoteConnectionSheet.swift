@@ -289,24 +289,26 @@ struct RemoteConnectionSheet: View {
         isTestingConnection = true
         testResult = nil
         
-        let config = RemoteConnectionConfig(
-            endpointURL: RemoteURLValidator.sanitize(endpointURL),
-            displayName: displayName,
-            verifySSL: verifySSL,
-            timeoutSeconds: timeoutSeconds
-        )
+        let sanitizedURL = RemoteURLValidator.sanitize(endpointURL)
+        let daemonClient = DaemonIPCClient.shared
         
-        let client = ManagementAPIClient(config: config, managementKey: managementKey)
-        defer {
-            Task { await client.invalidate() }
+        do {
+            let result = try await daemonClient.remoteTestConnection(
+                endpointURL: sanitizedURL,
+                managementKey: managementKey,
+                timeoutSeconds: timeoutSeconds
+            )
+            
+            testResult = RemoteTestResult(
+                success: result.success,
+                message: result.success ? nil : (result.error ?? "remote.test.cannotConnect".localized())
+            )
+        } catch {
+            testResult = RemoteTestResult(
+                success: false,
+                message: error.localizedDescription
+            )
         }
-        
-        let success = await client.checkProxyResponding()
-        
-        testResult = RemoteTestResult(
-            success: success,
-            message: success ? nil : "remote.test.cannotConnect".localized()
-        )
         
         isTestingConnection = false
     }

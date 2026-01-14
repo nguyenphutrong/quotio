@@ -1117,11 +1117,13 @@ const handlers: Record<string, MethodHandler> = {
 			}
 
 			const data = (await response.json()) as {
-				models?: Array<{ id?: string; model_id?: string; name?: string }>;
+				models?: Array<{ id?: string; model_id?: string; name?: string; owned_by?: string; type?: string }>;
 			};
 			const models = (data.models ?? []).map((m) => ({
 				id: m.id ?? m.model_id ?? "",
 				name: m.name ?? m.model_id ?? m.id ?? "",
+				ownedBy: m.owned_by ?? null,
+				provider: m.type ?? null,
 			}));
 
 			return { success: true, models };

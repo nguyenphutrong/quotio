@@ -468,6 +468,8 @@ nonisolated struct IPCAuthModelsResult: Codable, Sendable {
 nonisolated struct IPCAuthModelInfo: Codable, Sendable {
     let id: String
     let name: String
+    let ownedBy: String?
+    let provider: String?
 }
 
 nonisolated struct IPCProxyLatestVersionResult: Codable, Sendable {

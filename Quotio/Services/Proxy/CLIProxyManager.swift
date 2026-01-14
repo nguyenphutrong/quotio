@@ -1251,20 +1251,21 @@ extension CLIProxyManager {
     // MARK: - Upgrade Flow
     
     /// Check if an upgrade is available.
-    /// First tries to ask running proxy, then falls back to direct GitHub API fetch.
+    /// First tries to ask running proxy via daemon, then falls back to direct GitHub API fetch.
     func checkForUpgrade() async {
-        // Get latest version - try proxy first, fallback to direct GitHub fetch
+        // Get latest version - try daemon first, fallback to direct GitHub fetch
         let latestTag: String
         
         if proxyStatus.running {
-            // Try to get version from running proxy first
-            let apiClient = ManagementAPIClient(baseURL: managementURL, authKey: managementKey)
+            // Try to get version from daemon IPC first
+            let daemonClient = DaemonIPCClient.shared
             do {
-                let latestResponse = try await apiClient.fetchLatestVersion()
-                await apiClient.invalidate()
-                latestTag = latestResponse.latestVersion
+                let result = try await daemonClient.getProxyLatestVersion()
+                guard let version = result.latestVersion else {
+                    throw NSError(domain: "ProxyUpgrade", code: -1)
+                }
+                latestTag = version
             } catch {
-                await apiClient.invalidate()
                 // Fallback to direct GitHub fetch
                 do {
                     let release = try await fetchLatestRelease()

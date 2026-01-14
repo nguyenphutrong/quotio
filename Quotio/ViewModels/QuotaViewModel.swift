@@ -715,11 +715,6 @@ final class QuotaViewModel {
             return
         }
         
-        guard let apiClient else {
-            // Warmup skipped when management client is missing; no log.
-            return
-        }
-        
         guard let authInfo = warmupAuthInfo(provider: provider, accountKey: accountKey) else {
             // Warmup skipped when auth index is missing; no log.
             return
@@ -728,8 +723,7 @@ final class QuotaViewModel {
         let availableModels = await fetchWarmupModels(
             provider: provider,
             accountKey: accountKey,
-            authFileName: authInfo.authFileName,
-            apiClient: apiClient
+            authFileName: authInfo.authFileName
         )
         guard !availableModels.isEmpty else {
             // Warmup skipped when no models are available; no log.
@@ -739,8 +733,7 @@ final class QuotaViewModel {
             provider: provider,
             accountKey: accountKey,
             availableModels: availableModels,
-            authIndex: authInfo.authIndex,
-            apiClient: apiClient
+            authIndex: authInfo.authIndex
         )
     }
 
@@ -748,8 +741,7 @@ final class QuotaViewModel {
         provider: AIProvider,
         accountKey: String,
         availableModels: [WarmupModelInfo],
-        authIndex: String,
-        apiClient: ManagementAPIClient
+        authIndex: String
     ) async {
         guard provider == .antigravity else {
             // Warmup not supported for this provider; no log.
@@ -774,6 +766,8 @@ final class QuotaViewModel {
             }
         }
         
+        let daemonClient = DaemonIPCClient.shared
+        
         for model in models {
             if Task.isCancelled { break }
             do {
@@ -782,7 +776,7 @@ final class QuotaViewModel {
                     status.modelStates[model] = .running
                 }
                 try await warmupService.warmup(
-                    managementClient: apiClient,
+                    daemonClient: daemonClient,
                     authIndex: authIndex,
                     model: model
                 )
@@ -808,8 +802,7 @@ final class QuotaViewModel {
     private func fetchWarmupModels(
         provider: AIProvider,
         accountKey: String,
-        authFileName: String,
-        apiClient: ManagementAPIClient
+        authFileName: String
     ) async -> [WarmupModelInfo] {
         do {
             let key = WarmupAccountKey(provider: provider, accountKey: accountKey)
@@ -819,7 +812,8 @@ final class QuotaViewModel {
                     return cached.models
                 }
             }
-            let models = try await warmupService.fetchModels(managementClient: apiClient, authFileName: authFileName)
+            let daemonClient = DaemonIPCClient.shared
+            let models = try await warmupService.fetchModels(daemonClient: daemonClient, authFileName: authFileName)
             warmupModelCache[key] = (models: models, fetchedAt: Date())
             // Warmup fetched models; no log.
             return models
@@ -831,13 +825,11 @@ final class QuotaViewModel {
 
     func warmupAvailableModels(provider: AIProvider, accountKey: String) async -> [String] {
         guard provider == .antigravity else { return [] }
-        guard let apiClient else { return [] }
         guard let authInfo = warmupAuthInfo(provider: provider, accountKey: accountKey) else { return [] }
         let models = await fetchWarmupModels(
             provider: provider,
             accountKey: accountKey,
-            authFileName: authInfo.authFileName,
-            apiClient: apiClient
+            authFileName: authInfo.authFileName
         )
         return models.map(\.id).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
