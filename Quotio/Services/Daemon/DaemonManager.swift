@@ -20,11 +20,21 @@ final class DaemonManager {
     private init() {}
     
     var daemonBinaryPath: URL {
-        Bundle.main.resourceURL!.appendingPathComponent("quotio-cli")
+        // TODO: Add quotio-cli binary to app bundle via Copy Files build phase
+        // For now, check in bundle first, then fall back to development path
+        if let bundleURL = Bundle.main.resourceURL?.appendingPathComponent("quotio-cli"),
+           FileManager.default.fileExists(atPath: bundleURL.path) {
+            return bundleURL
+        }
+        // Development fallback: check quotio-cli/dist in project root
+        let projectRoot = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        return projectRoot.appendingPathComponent("quotio-cli/dist/quotio")
     }
     
     var socketPath: String {
-        FileManager.default.homeDirectoryForCurrentUser.path + "/.quotio/daemon.sock"
+        // Must match quotio-cli daemon socket path: ~/.config/quotio/quotio.sock
+        // Using XDG-compliant path for consistency with cross-platform CLI
+        FileManager.default.homeDirectoryForCurrentUser.path + "/.config/quotio/quotio.sock"
     }
     
     func start() async throws {
