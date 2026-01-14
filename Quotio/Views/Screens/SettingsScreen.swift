@@ -331,11 +331,13 @@ struct RemoteServerSection: View {
 
 // MARK: - Unified Proxy Settings Section
 // Works for both Local Proxy and Remote Proxy modes
-// Uses ManagementAPIClient for hot-reload settings
+// Local mode: Uses DaemonProxyConfigService (IPC)
+// Remote mode: Uses ManagementAPIClient (HTTP)
 
 struct UnifiedProxySettingsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var modeManager = OperatingModeManager.shared
+    private let proxyConfigService = DaemonProxyConfigService.shared
     
     @State private var isLoading = true
     @State private var loadError: String?
@@ -356,15 +358,19 @@ struct UnifiedProxySettingsSection: View {
     /// Check if API is available (proxy running for local, or connected for remote)
     private var isAPIAvailable: Bool {
         if modeManager.isLocalProxyMode {
-            return viewModel.proxyManager.proxyStatus.running && viewModel.apiClient != nil
+            return viewModel.proxyManager.proxyStatus.running
         } else {
             // For remote mode, check both connection status AND apiClient
-            // connectionStatus is observable, apiClient is not (@ObservationIgnored)
             if case .connected = modeManager.connectionStatus {
                 return viewModel.apiClient != nil
             }
             return false
         }
+    }
+    
+    /// Whether to use daemon IPC (local mode) or HTTP API (remote mode)
+    private var usesDaemonIPC: Bool {
+        modeManager.isLocalProxyMode
     }
     
     /// Header title based on mode
@@ -559,124 +565,224 @@ struct UnifiedProxySettingsSection: View {
         isLoadingConfig = true
         loadError = nil
         
-        guard let apiClient = viewModel.apiClient else {
-            loadError = modeManager.isLocalProxyMode
-                ? "settings.proxy.startToConfigureAdvanced".localized()
-                : "settings.remote.noConnection".localized()
-            isLoading = false
-            isLoadingConfig = false
-            return
-        }
-        
-        do {
-            async let configTask = apiClient.fetchConfig()
-            async let routingTask = apiClient.getRoutingStrategy()
+        if usesDaemonIPC {
+            // Local mode: Use DaemonProxyConfigService
+            if let config = await proxyConfigService.fetchAllConfig() {
+                proxyURL = config.proxyURL ?? ""
+                routingStrategy = config.routingStrategy ?? "round-robin"
+                requestRetry = config.requestRetry ?? 3
+                maxRetryInterval = config.maxRetryInterval ?? 30
+                loggingToFile = config.loggingToFile ?? true
+                requestLog = false  // Not in IPCProxyConfigData yet
+                debugMode = config.debug ?? false
+                // quotaExceeded fields not in IPCProxyConfigData, use defaults
+                switchProject = true
+                switchPreviewModel = true
+                proxyURLValidation = ProxyURLValidator.validate(proxyURL)
+                isLoading = false
+                
+                try? await Task.sleep(for: .milliseconds(100))
+                isLoadingConfig = false
+            } else {
+                loadError = proxyConfigService.lastError ?? "settings.proxy.startToConfigureAdvanced".localized()
+                isLoading = false
+                isLoadingConfig = false
+            }
+        } else {
+            // Remote mode: Use ManagementAPIClient
+            guard let apiClient = viewModel.apiClient else {
+                loadError = "settings.remote.noConnection".localized()
+                isLoading = false
+                isLoadingConfig = false
+                return
+            }
             
-            let (config, fetchedStrategy) = try await (configTask, routingTask)
-            
-            proxyURL = config.proxyURL ?? ""
-            routingStrategy = fetchedStrategy
-            requestRetry = config.requestRetry ?? 3
-            maxRetryInterval = config.maxRetryInterval ?? 30
-            loggingToFile = config.loggingToFile ?? true
-            requestLog = config.requestLog ?? false
-            debugMode = config.debug ?? false
-            switchProject = config.quotaExceeded?.switchProject ?? true
-            switchPreviewModel = config.quotaExceeded?.switchPreviewModel ?? true
-            proxyURLValidation = ProxyURLValidator.validate(proxyURL)
-            isLoading = false
-            
-            try? await Task.sleep(for: .milliseconds(100))
-            isLoadingConfig = false
-        } catch {
-            loadError = error.localizedDescription
-            isLoading = false
-            isLoadingConfig = false
+            do {
+                async let configTask = apiClient.fetchConfig()
+                async let routingTask = apiClient.getRoutingStrategy()
+                
+                let (config, fetchedStrategy) = try await (configTask, routingTask)
+                
+                proxyURL = config.proxyURL ?? ""
+                routingStrategy = fetchedStrategy
+                requestRetry = config.requestRetry ?? 3
+                maxRetryInterval = config.maxRetryInterval ?? 30
+                loggingToFile = config.loggingToFile ?? true
+                requestLog = config.requestLog ?? false
+                debugMode = config.debug ?? false
+                switchProject = config.quotaExceeded?.switchProject ?? true
+                switchPreviewModel = config.quotaExceeded?.switchPreviewModel ?? true
+                proxyURLValidation = ProxyURLValidator.validate(proxyURL)
+                isLoading = false
+                
+                try? await Task.sleep(for: .milliseconds(100))
+                isLoadingConfig = false
+            } catch {
+                loadError = error.localizedDescription
+                isLoading = false
+                isLoadingConfig = false
+            }
         }
     }
     
     private func saveProxyURL() async {
-        guard let apiClient = viewModel.apiClient else { return }
-        do {
-            if proxyURL.isEmpty {
-                try await apiClient.deleteProxyURL()
-            } else if proxyURLValidation == .valid {
-                try await apiClient.setProxyURL(ProxyURLValidator.sanitize(proxyURL))
+        if usesDaemonIPC {
+            do {
+                if proxyURL.isEmpty {
+                    try await proxyConfigService.deleteProxyURL()
+                } else if proxyURLValidation == .valid {
+                    try await proxyConfigService.setProxyURL(ProxyURLValidator.sanitize(proxyURL))
+                }
+            } catch {
+                NSLog("[ProxySettings] Failed to save proxy URL: \(error)")
             }
-        } catch {
-            NSLog("[RemoteSettings] Failed to save proxy URL: \(error)")
+        } else {
+            guard let apiClient = viewModel.apiClient else { return }
+            do {
+                if proxyURL.isEmpty {
+                    try await apiClient.deleteProxyURL()
+                } else if proxyURLValidation == .valid {
+                    try await apiClient.setProxyURL(ProxyURLValidator.sanitize(proxyURL))
+                }
+            } catch {
+                NSLog("[RemoteSettings] Failed to save proxy URL: \(error)")
+            }
         }
     }
     
     private func saveRoutingStrategy(_ strategy: String) async {
-        guard let apiClient = viewModel.apiClient else { return }
-        do {
-            try await apiClient.setRoutingStrategy(strategy)
-        } catch {
-            NSLog("[RemoteSettings] Failed to save routing strategy: \(error)")
+        if usesDaemonIPC {
+            do {
+                try await proxyConfigService.setRoutingStrategy(strategy)
+            } catch {
+                NSLog("[ProxySettings] Failed to save routing strategy: \(error)")
+            }
+        } else {
+            guard let apiClient = viewModel.apiClient else { return }
+            do {
+                try await apiClient.setRoutingStrategy(strategy)
+            } catch {
+                NSLog("[RemoteSettings] Failed to save routing strategy: \(error)")
+            }
         }
     }
     
     private func saveSwitchProject(_ enabled: Bool) async {
-        guard let apiClient = viewModel.apiClient else { return }
-        do {
-            try await apiClient.setQuotaExceededSwitchProject(enabled)
-        } catch {
-            NSLog("[RemoteSettings] Failed to save switch project: \(error)")
+        if usesDaemonIPC {
+            do {
+                try await proxyConfigService.setQuotaExceededSwitchProject(enabled)
+            } catch {
+                NSLog("[ProxySettings] Failed to save switch project: \(error)")
+            }
+        } else {
+            guard let apiClient = viewModel.apiClient else { return }
+            do {
+                try await apiClient.setQuotaExceededSwitchProject(enabled)
+            } catch {
+                NSLog("[RemoteSettings] Failed to save switch project: \(error)")
+            }
         }
     }
     
     private func saveSwitchPreviewModel(_ enabled: Bool) async {
-        guard let apiClient = viewModel.apiClient else { return }
-        do {
-            try await apiClient.setQuotaExceededSwitchPreviewModel(enabled)
-        } catch {
-            NSLog("[RemoteSettings] Failed to save switch preview model: \(error)")
+        if usesDaemonIPC {
+            do {
+                try await proxyConfigService.setQuotaExceededSwitchPreviewModel(enabled)
+            } catch {
+                NSLog("[ProxySettings] Failed to save switch preview model: \(error)")
+            }
+        } else {
+            guard let apiClient = viewModel.apiClient else { return }
+            do {
+                try await apiClient.setQuotaExceededSwitchPreviewModel(enabled)
+            } catch {
+                NSLog("[RemoteSettings] Failed to save switch preview model: \(error)")
+            }
         }
     }
     
     private func saveRequestRetry(_ count: Int) async {
-        guard let apiClient = viewModel.apiClient else { return }
-        do {
-            try await apiClient.setRequestRetry(count)
-        } catch {
-            NSLog("[RemoteSettings] Failed to save request retry: \(error)")
+        if usesDaemonIPC {
+            do {
+                try await proxyConfigService.setRequestRetry(count)
+            } catch {
+                NSLog("[ProxySettings] Failed to save request retry: \(error)")
+            }
+        } else {
+            guard let apiClient = viewModel.apiClient else { return }
+            do {
+                try await apiClient.setRequestRetry(count)
+            } catch {
+                NSLog("[RemoteSettings] Failed to save request retry: \(error)")
+            }
         }
     }
     
     private func saveMaxRetryInterval(_ seconds: Int) async {
-        guard let apiClient = viewModel.apiClient else { return }
-        do {
-            try await apiClient.setMaxRetryInterval(seconds)
-        } catch {
-            NSLog("[RemoteSettings] Failed to save max retry interval: \(error)")
+        if usesDaemonIPC {
+            do {
+                try await proxyConfigService.setMaxRetryInterval(seconds)
+            } catch {
+                NSLog("[ProxySettings] Failed to save max retry interval: \(error)")
+            }
+        } else {
+            guard let apiClient = viewModel.apiClient else { return }
+            do {
+                try await apiClient.setMaxRetryInterval(seconds)
+            } catch {
+                NSLog("[RemoteSettings] Failed to save max retry interval: \(error)")
+            }
         }
     }
     
     private func saveLoggingToFile(_ enabled: Bool) async {
-        guard let apiClient = viewModel.apiClient else { return }
-        do {
-            try await apiClient.setLoggingToFile(enabled)
-        } catch {
-            NSLog("[RemoteSettings] Failed to save logging to file: \(error)")
+        if usesDaemonIPC {
+            do {
+                try await proxyConfigService.setLoggingToFile(enabled)
+            } catch {
+                NSLog("[ProxySettings] Failed to save logging to file: \(error)")
+            }
+        } else {
+            guard let apiClient = viewModel.apiClient else { return }
+            do {
+                try await apiClient.setLoggingToFile(enabled)
+            } catch {
+                NSLog("[RemoteSettings] Failed to save logging to file: \(error)")
+            }
         }
     }
     
     private func saveRequestLog(_ enabled: Bool) async {
-        guard let apiClient = viewModel.apiClient else { return }
-        do {
-            try await apiClient.setRequestLog(enabled)
-        } catch {
-            NSLog("[RemoteSettings] Failed to save request log: \(error)")
+        if usesDaemonIPC {
+            do {
+                try await proxyConfigService.setRequestLog(enabled)
+            } catch {
+                NSLog("[ProxySettings] Failed to save request log: \(error)")
+            }
+        } else {
+            guard let apiClient = viewModel.apiClient else { return }
+            do {
+                try await apiClient.setRequestLog(enabled)
+            } catch {
+                NSLog("[RemoteSettings] Failed to save request log: \(error)")
+            }
         }
     }
     
     private func saveDebugMode(_ enabled: Bool) async {
-        guard let apiClient = viewModel.apiClient else { return }
-        do {
-            try await apiClient.setDebug(enabled)
-        } catch {
-            NSLog("[RemoteSettings] Failed to save debug mode: \(error)")
+        if usesDaemonIPC {
+            do {
+                try await proxyConfigService.setDebug(enabled)
+            } catch {
+                NSLog("[ProxySettings] Failed to save debug mode: \(error)")
+            }
+        } else {
+            guard let apiClient = viewModel.apiClient else { return }
+            do {
+                try await apiClient.setDebug(enabled)
+            } catch {
+                NSLog("[RemoteSettings] Failed to save debug mode: \(error)")
+            }
         }
     }
 }

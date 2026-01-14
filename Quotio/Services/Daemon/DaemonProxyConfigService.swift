@@ -110,6 +110,60 @@ final class DaemonProxyConfigService {
         try await setConfig(key: "disable-control-panel", value: disabled ? "true" : "false")
     }
     
+    // MARK: - Routing Strategy
+    
+    func getRoutingStrategy() async -> String? {
+        return await getConfig(key: "routing-strategy")
+    }
+    
+    func setRoutingStrategy(_ strategy: String) async throws {
+        try await setConfig(key: "routing-strategy", value: strategy)
+    }
+    
+    // MARK: - Proxy URL
+    
+    func getProxyURL() async -> String? {
+        return await getConfig(key: "proxy-url")
+    }
+    
+    func setProxyURL(_ url: String) async throws {
+        try await setConfig(key: "proxy-url", value: url)
+    }
+    
+    func deleteProxyURL() async throws {
+        try await setConfig(key: "proxy-url", value: "")
+    }
+    
+    // MARK: - Quota Exceeded Behavior
+    
+    func setQuotaExceededSwitchProject(_ enabled: Bool) async throws {
+        try await setConfig(key: "quota-exceeded-switch-project", value: enabled ? "true" : "false")
+    }
+    
+    func setQuotaExceededSwitchPreviewModel(_ enabled: Bool) async throws {
+        try await setConfig(key: "quota-exceeded-switch-preview-model", value: enabled ? "true" : "false")
+    }
+    
+    // MARK: - Retry Configuration
+    
+    func setRequestRetry(_ count: Int) async throws {
+        try await setConfig(key: "request-retry", value: String(count))
+    }
+    
+    func setMaxRetryInterval(_ seconds: Int) async throws {
+        try await setConfig(key: "max-retry-interval", value: String(seconds))
+    }
+    
+    // MARK: - Logging
+    
+    func setLoggingToFile(_ enabled: Bool) async throws {
+        try await setConfig(key: "logging-to-file", value: enabled ? "true" : "false")
+    }
+    
+    func setRequestLog(_ enabled: Bool) async throws {
+        try await setConfig(key: "request-log", value: enabled ? "true" : "false")
+    }
+    
     func reset() {
         config = nil
         lastError = nil
