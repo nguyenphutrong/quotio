@@ -283,25 +283,25 @@ actor DirectAuthFileService {
             if let accessToken = json["access_token"] as? String {
                 let refreshToken = json["refresh_token"] as? String
                 let expiresAt = json["expiry"] as? String ?? json["expires_at"] as? String
-                return AuthTokenData(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt, clientId: nil, clientSecret: nil, extras: nil)
+                return AuthTokenData(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt, clientId: nil, clientSecret: nil, authMethod: nil, extras: nil)
             }
-            
+
         case .codex:
             // OpenAI format - uses bearer token or API key
             if let token = json["access_token"] as? String ?? json["api_key"] as? String {
-                return AuthTokenData(accessToken: token, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, extras: nil)
+                return AuthTokenData(accessToken: token, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, authMethod: nil, extras: nil)
             }
-            
+
         case .copilot:
             // GitHub OAuth format
             if let accessToken = json["access_token"] as? String ?? json["oauth_token"] as? String {
-                return AuthTokenData(accessToken: accessToken, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, extras: nil)
+                return AuthTokenData(accessToken: accessToken, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, authMethod: nil, extras: nil)
             }
-            
+
         case .claude:
             // Anthropic OAuth
             if let sessionKey = json["session_key"] as? String ?? json["access_token"] as? String {
-                return AuthTokenData(accessToken: sessionKey, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, extras: nil)
+                return AuthTokenData(accessToken: sessionKey, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, authMethod: nil, extras: nil)
             }
             
         case .kiro:
@@ -309,7 +309,7 @@ actor DirectAuthFileService {
             if let accessToken = json["access_token"] as? String {
 
                 let refreshToken = json["refresh_token"] as? String
-                
+
                 // Robust parsing for expires_at (could be string or int/double)
                 var expiresAt: String?
                 if let expStr = json["expires_at"] as? String ?? json["expiry"] as? String {
@@ -318,10 +318,26 @@ actor DirectAuthFileService {
                     // Convert numeric timestamp to ISO string for consistency in AuthTokenData
                     expiresAt = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: expNum))
                 }
-                
-                let clientId = json["client_id"] as? String
-                let clientSecret = json["client_secret"] as? String
-                
+
+                // Get auth method: "Social" (Google) or "IdC" (AWS Builder ID)
+                // Default to "IdC" if not specified for backwards compatibility
+                let authMethod = json["auth_method"] as? String ?? json["authMethod"] as? String ?? "IdC"
+
+                var clientId = json["client_id"] as? String
+                var clientSecret = json["client_secret"] as? String
+
+                // For IdC auth, if clientId/clientSecret are missing, try to load from AWS SSO cache
+                // Social auth (Google) doesn't need these credentials
+                if authMethod == "IdC" && (clientId == nil || clientSecret == nil) {
+                    let (loadedClientId, loadedClientSecret) = loadKiroDeviceRegistration()
+                    if let cid = loadedClientId, let csec = loadedClientSecret {
+                        clientId = cid
+                        clientSecret = csec
+                        // Persist to auth file for future use
+                        updateKiroAuthFile(at: file.filePath, withClientId: cid, clientSecret: csec)
+                    }
+                }
+
                 var extras: [String: String] = [:]
                 if let startUrl = json["start_url"] as? String ?? json["startUrl"] as? String {
                     extras["start_url"] = startUrl
@@ -329,13 +345,14 @@ actor DirectAuthFileService {
                 if let region = json["region"] as? String {
                     extras["region"] = region
                 }
-                
+
                 return AuthTokenData(
-                    accessToken: accessToken, 
-                    refreshToken: refreshToken, 
+                    accessToken: accessToken,
+                    refreshToken: refreshToken,
                     expiresAt: expiresAt,
                     clientId: clientId,
                     clientSecret: clientSecret,
+                    authMethod: authMethod,
                     extras: extras
                 )
             }
@@ -343,11 +360,84 @@ actor DirectAuthFileService {
         default:
             // Generic token extraction
             if let token = json["access_token"] as? String ?? json["token"] as? String {
-                return AuthTokenData(accessToken: token, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, extras: nil)
+                return AuthTokenData(accessToken: token, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, authMethod: nil, extras: nil)
             }
         }
         
         return nil
+    }
+
+    // MARK: - Kiro Builder ID Device Registration Support
+
+    /// Load clientId and clientSecret from Kiro IDE device registration file
+    /// Kiro IDE stores these in ~/.aws/sso/cache/{clientIdHash}.json
+    /// The clientIdHash is found in ~/.aws/sso/cache/kiro-auth-token.json
+    /// - Returns: Tuple of (clientId?, clientSecret?)
+    private func loadKiroDeviceRegistration() -> (clientId: String?, clientSecret: String?) {
+        let cachePath = expandPath("~/.aws/sso/cache")
+
+        // First, try to get clientIdHash from kiro-auth-token.json
+        let kiroAuthTokenPath = (cachePath as NSString).appendingPathComponent("kiro-auth-token.json")
+
+        var clientIdHash: String?
+        if let data = fileManager.contents(atPath: kiroAuthTokenPath),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            clientIdHash = json["clientIdHash"] as? String
+        }
+
+        // If we have a clientIdHash, load from the device registration file
+        if let hash = clientIdHash {
+            let deviceRegPath = (cachePath as NSString).appendingPathComponent("\(hash).json")
+
+            if let data = fileManager.contents(atPath: deviceRegPath),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let clientId = json["clientId"] as? String,
+               let clientSecret = json["clientSecret"] as? String {
+                return (clientId, clientSecret)
+            }
+        }
+
+        // Fallback: scan all .json files in cache directory for device registration
+        // (in case kiro-auth-token.json doesn't exist or has different format)
+        if let files = try? fileManager.contentsOfDirectory(atPath: cachePath) {
+            for file in files where file.hasSuffix(".json") && file != "kiro-auth-token.json" {
+                let filePath = (cachePath as NSString).appendingPathComponent(file)
+                if let data = fileManager.contents(atPath: filePath),
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let clientId = json["clientId"] as? String,
+                   let clientSecret = json["clientSecret"] as? String {
+                    // Found a device registration file
+                    return (clientId, clientSecret)
+                }
+            }
+        }
+
+        return (nil, nil)
+    }
+
+    /// Update Kiro auth file with clientId and clientSecret
+    /// This modifies the auth file in place to include missing credentials
+    /// - Parameters:
+    ///   - filePath: Path to auth file to update
+    ///   - clientId: The clientId to add
+    ///   - clientSecret: The clientSecret to add
+    private func updateKiroAuthFile(at filePath: String, withClientId clientId: String, clientSecret: String) {
+        guard let data = fileManager.contents(atPath: filePath),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+
+        // Add missing fields
+        json["client_id"] = clientId
+        json["client_secret"] = clientSecret
+
+        // Write back to file atomically
+        do {
+            let updatedData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+            try updatedData.write(to: URL(fileURLWithPath: filePath), options: .atomic)
+        } catch {
+            // Silent failure
+        }
     }
 }
 
@@ -360,6 +450,7 @@ struct AuthTokenData: Sendable {
     let expiresAt: String?
     let clientId: String?
     let clientSecret: String?
+    let authMethod: String?  // "Social" (Google) or "IdC" (AWS Builder ID)
     let extras: [String: String]?
     
     var isExpired: Bool {
@@ -382,3 +473,4 @@ struct AuthTokenData: Sendable {
         return false
     }
 }
+

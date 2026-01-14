@@ -134,19 +134,21 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     // MARK: - Migration Helpers
     
     /// Create from legacy AppMode + ConnectionMode
-    static func fromLegacy(appMode: AppMode?, connectionMode: ConnectionMode?) -> OperatingMode {
-        guard let appMode = appMode else { return .monitor }
+    static func fromLegacy(appModeRaw: String?, connectionMode: ConnectionMode?) -> OperatingMode {
+        guard let appModeRaw = appModeRaw else { return .monitor }
         
-        switch appMode {
-        case .quotaOnly:
+        switch appModeRaw {
+        case "quotaOnly":
             return .monitor
-        case .full:
+        case "full":
             switch connectionMode {
             case .remote:
                 return .remoteProxy
             default:
                 return .localProxy
             }
+        default:
+            return .monitor
         }
     }
 }
@@ -348,13 +350,12 @@ final class OperatingModeManager {
     private static func performMigration() -> OperatingMode {
         // Read legacy values
         let legacyAppModeRaw = UserDefaults.standard.string(forKey: "appMode")
-        let legacyAppMode = legacyAppModeRaw.flatMap { AppMode(rawValue: $0) }
         
         let legacyConnectionModeRaw = UserDefaults.standard.string(forKey: "connectionMode")
         let legacyConnectionMode = legacyConnectionModeRaw.flatMap { ConnectionMode(rawValue: $0) }
         
         // Convert to new mode
-        let newMode = OperatingMode.fromLegacy(appMode: legacyAppMode, connectionMode: legacyConnectionMode)
+        let newMode = OperatingMode.fromLegacy(appModeRaw: legacyAppModeRaw, connectionMode: legacyConnectionMode)
         
         // Persist new mode
         UserDefaults.standard.set(newMode.rawValue, forKey: "operatingMode")

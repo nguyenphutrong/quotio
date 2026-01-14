@@ -40,13 +40,21 @@ struct TraeQuotaInfo: Sendable {
 
 /// Fetches quota from Trae using stored auth
 actor TraeQuotaFetcher {
-    private let session: URLSession
+    private var session: URLSession
     private let storageJsonPath = "~/Library/Application Support/Trae/User/globalStorage/storage.json"
     private let authKey = "iCubeAuthInfo://icube.cloudide"
     
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
+        config.httpAdditionalHeaders = [
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        ]
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         config.httpAdditionalHeaders = [
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
         ]

@@ -57,7 +57,18 @@ actor GeminiCLIQuotaFetcher {
     private let authFilePath = "~/.gemini/oauth_creds.json"
     private let accountsFilePath = "~/.gemini/google_accounts.json"
     private let executor = CLIExecutor.shared
-    
+
+    // Note: Gemini CLI interactions are handled by the executor, which spawns processes.
+    // The current CLIExecutor implementation does not seem to support explicit proxy configuration
+    // for the executed commands.
+    // However, if we were making HTTP requests here, we would use ProxyConfigurationService.
+
+    /// Update the URLSession with current proxy settings
+    /// (No-op for now as Gemini CLI uses shell commands, but kept for protocol conformance)
+    func updateProxyConfiguration() {
+        // Future: If GeminiFetcher starts making direct HTTP calls, update session here
+    }
+
     /// Check if Gemini CLI is installed
     func isInstalled() async -> Bool {
         return await executor.isCLIInstalled(name: "gemini")

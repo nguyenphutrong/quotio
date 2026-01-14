@@ -14,25 +14,31 @@ import Foundation
 nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     let timestamp: Date
-    
+
     /// HTTP method (GET, POST, etc.)
     let method: String
-    
+
     /// Request endpoint path (e.g., "/v1/messages")
     let endpoint: String
-    
+
     /// AI provider (e.g., "claude", "gemini", "openai")
     let provider: String?
-    
+
     /// Model used (e.g., "claude-sonnet-4", "gemini-2.0-flash")
     let model: String?
-    
+
+    /// Resolved model after fallback (e.g., "kiro-claude-opus-4-5-agentic")
+    let resolvedModel: String?
+
+    /// Resolved provider after fallback (e.g., "kiro")
+    let resolvedProvider: String?
+
     /// Number of input tokens (from API response)
     let inputTokens: Int?
-    
+
     /// Number of output tokens (from API response)
     let outputTokens: Int?
-    
+
     /// Total tokens (input + output)
     var totalTokens: Int? {
         guard let input = inputTokens, let output = outputTokens else {
@@ -40,28 +46,33 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
         }
         return input + output
     }
-    
+
     /// Request duration in milliseconds
     let durationMs: Int
-    
+
     /// HTTP status code from response
     let statusCode: Int?
-    
+
     /// Request body size in bytes
     let requestSize: Int
-    
+
     /// Response body size in bytes
     let responseSize: Int
-    
+
     /// Error message if request failed
     let errorMessage: String?
-    
+
     /// Whether the request was successful (2xx status)
     var isSuccess: Bool {
         guard let code = statusCode else { return false }
         return code >= 200 && code < 300
     }
-    
+
+    /// Whether this request used fallback routing
+    var hasFallbackRoute: Bool {
+        resolvedModel != nil && resolvedModel != model
+    }
+
     /// Default initializer
     init(
         id: UUID = UUID(),
@@ -70,6 +81,8 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
         endpoint: String,
         provider: String? = nil,
         model: String? = nil,
+        resolvedModel: String? = nil,
+        resolvedProvider: String? = nil,
         inputTokens: Int? = nil,
         outputTokens: Int? = nil,
         durationMs: Int,
@@ -84,6 +97,8 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
         self.endpoint = endpoint
         self.provider = provider
         self.model = model
+        self.resolvedModel = resolvedModel
+        self.resolvedProvider = resolvedProvider
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.durationMs = durationMs

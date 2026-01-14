@@ -5,7 +5,13 @@
 ## Summary
 
 | High 🔴 | Medium 🟡 | Low 🟢 |
-| 0 | 0 | 4 |
+| 1 | 0 | 4 |
+
+## 🔴 High Priority
+
+### `WARNING` (Quotio/Services/LaunchAtLoginManager.swift:97)
+
+> if app is not in /Applications (registration may fail or be non-persistent)
 
 ## 🟢 Low Priority
 

@@ -2,8 +2,6 @@
 //  QuotaScreen.swift
 //  Quotio
 //
-//  Redesigned Quota UI with segmented provider control and improved hierarchy
-//
 
 import SwiftUI
 
@@ -12,6 +10,7 @@ struct QuotaScreen: View {
     private let modeManager = OperatingModeManager.shared
     
     @State private var selectedProvider: AIProvider?
+    @State private var settings = MenuBarSettingsManager.shared
     
     // MARK: - Data Sources
     
@@ -53,21 +52,19 @@ struct QuotaScreen: View {
         return accounts.count
     }
     
-    /// Get lowest quota percentage for a provider (for segment indicator)
     private func lowestQuotaPercent(for provider: AIProvider) -> Double? {
         guard let accounts = viewModel.providerQuotas[provider] else { return nil }
         
-        var lowestPercent: Double? = nil
+        var allTotals: [Double] = []
         for (_, quotaData) in accounts {
-            for model in quotaData.models {
-                if model.percentage >= 0 {
-                    if lowestPercent == nil || model.percentage < lowestPercent! {
-                        lowestPercent = model.percentage
-                    }
-                }
+            let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
+            let total = settings.totalUsagePercent(models: models)
+            if total >= 0 {
+                allTotals.append(total)
             }
         }
-        return lowestPercent
+        
+        return allTotals.min()
     }
     
     /// Check if we have any data to show
@@ -93,6 +90,42 @@ struct QuotaScreen: View {
         .navigationTitle("nav.quota".localized())
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        // Display Style
+                        Picker(selection: Binding(
+                            get: { settings.quotaDisplayStyle },
+                            set: { settings.quotaDisplayStyle = $0 }
+                        )) {
+                            ForEach(QuotaDisplayStyle.allCases) { style in
+                                Label(style.localizationKey.localized(), systemImage: style.iconName)
+                                    .tag(style)
+                            }
+                        } label: {
+                            Text("settings.quota.displayStyle".localized())
+                        }
+                        .pickerStyle(.inline)
+                        
+                        Divider()
+                        
+                        // Display Mode (Used vs Remaining)
+                        Picker(selection: Binding(
+                            get: { settings.quotaDisplayMode },
+                            set: { settings.quotaDisplayMode = $0 }
+                        )) {
+                            ForEach(QuotaDisplayMode.allCases) { mode in
+                                Text(mode.localizationKey.localized())
+                                    .tag(mode)
+                            }
+                        } label: {
+                            Text("display_mode".localized())
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                    }
+                }
+                
+                ToolbarItem(placement: .primaryAction) {
                 Button {
                     Task {
                         await viewModel.refreshQuotasUnified()
@@ -122,9 +155,9 @@ struct QuotaScreen: View {
             // Provider Segmented Control
             if availableProviders.count > 1 {
                 providerSegmentedControl
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
+                    .padding(.bottom, 12)
             }
             
             // Selected Provider Content
@@ -137,16 +170,18 @@ struct QuotaScreen: View {
                         subscriptionInfos: viewModel.subscriptionInfos,
                         isLoading: viewModel.isLoadingQuotas
                     )
-                    .padding(20)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
                 } else {
                     ContentUnavailableView(
                         "empty.noQuotaData".localized(),
                         systemImage: "chart.bar.xaxis",
                         description: Text("empty.refreshToLoad".localized())
                     )
-                    .padding(20)
+                    .padding(24)
                 }
             }
+            .scrollContentBackground(.hidden)
         }
     }
     
@@ -154,8 +189,7 @@ struct QuotaScreen: View {
     
     private var providerSegmentedControl: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                // availableProviders is already sorted; AIProvider is Identifiable
+            HStack(spacing: 10) {
                 ForEach(availableProviders) { provider in
                     ProviderSegmentButton(
                         provider: provider,
@@ -163,14 +197,41 @@ struct QuotaScreen: View {
                         accountCount: accountCount(for: provider),
                         isSelected: selectedProvider == provider
                     ) {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(.easeOut(duration: 0.2)) {
                             selectedProvider = provider
                         }
                     }
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 2)
+            .padding(.vertical, 2)
         }
+        .scrollClipDisabled()
+    }
+}
+
+fileprivate struct QuotaDisplayHelper {
+    let displayMode: QuotaDisplayMode
+    
+    func statusColor(remainingPercent: Double) -> Color {
+        let clamped = max(0, min(100, remainingPercent))
+        let usedPercent = 100 - clamped
+        let checkValue = displayMode == .used ? usedPercent : clamped
+        
+        if displayMode == .used {
+            if checkValue < 70 { return .green }
+            if checkValue < 90 { return .yellow }
+            return .red
+        }
+        
+        if checkValue > 50 { return .green }
+        if checkValue > 20 { return .orange }
+        return .red
+    }
+    
+    func displayPercent(remainingPercent: Double) -> Double {
+        let clamped = max(0, min(100, remainingPercent))
+        return displayMode == .used ? (100 - clamped) : clamped
     }
 }
 
@@ -182,56 +243,73 @@ private struct ProviderSegmentButton: View {
     let accountCount: Int
     let isSelected: Bool
     let action: () -> Void
-    
-    private var statusColor: Color {
-        guard let percent = quotaPercent else { return .gray }
-        if percent > 30 { return .green }    // >30% remaining = healthy
-        if percent > 10 { return .yellow }   // 10-30% remaining = warning
-        return .red                           // <10% remaining = critical
+
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
     
-    private var usedPercent: Double {
-        guard let percent = quotaPercent else { return 0 }
-        return 100 - percent
+    private var statusColor: Color {
+        guard let percent = quotaPercent else { return .secondary }
+        return displayHelper.statusColor(remainingPercent: percent)
+    }
+    
+    private var remainingPercent: Double {
+        max(0, min(100, quotaPercent ?? 0))
     }
     
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                ProviderIcon(provider: provider, size: 18)
+                ProviderIcon(provider: provider, size: 20)
                 
                 Text(provider.displayName)
                     .font(.subheadline)
                     .fontWeight(isSelected ? .semibold : .medium)
                 
-                // Account count badge
-                if accountCount > 0 {
-                    Text("\(accountCount)")
+                if accountCount > 1 {
+                    Text(String(accountCount))
                         .font(.caption2)
                         .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
+                        .foregroundStyle(isSelected ? .white : .secondary)
+                        .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(isSelected ? Color.accentColor : Color.secondary)
+                        .background(isSelected ? statusColor : Color.primary.opacity(0.08))
                         .clipShape(Capsule())
                 }
                 
-                // Status indicator
                 if quotaPercent != nil {
-                    QuotaStatusDot(usedPercent: usedPercent, size: 8)
+                    ZStack {
+                        Circle()
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 2)
+                        Circle()
+                            .trim(from: 0, to: remainingPercent / 100)
+                            .stroke(statusColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                    }
+                    .frame(width: 12, height: 12)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(statusColor.opacity(0.3), lineWidth: 1)
+                        )
+                } else {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.primary.opacity(0.04))
+                }
+            }
             .foregroundStyle(isSelected ? .primary : .secondary)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 1.5)
-            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.15), value: isSelected)
     }
 }
 
@@ -302,7 +380,6 @@ private struct ProviderQuotaView: View {
     
     var body: some View {
         VStack(spacing: 16) {
-            // Account Cards
             if allAccounts.isEmpty && isLoading {
                 QuotaLoadingView()
             } else if allAccounts.isEmpty {
@@ -320,18 +397,20 @@ private struct ProviderQuotaView: View {
     }
     
     private var emptyState: some View {
-        GroupBox {
-            VStack(spacing: 12) {
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
-                Text("quota.noDataYet".localized())
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
+        VStack(spacing: 12) {
+            Image(systemName: "chart.bar.xaxis")
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text("quota.noDataYet".localized())
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+        )
     }
 }
 
@@ -393,78 +472,98 @@ private struct AccountQuotaCardV2: View {
         
         var groups: [AntigravityDisplayGroup] = []
         
-        // Gemini 3 Pro (excluding image models)
         let gemini3ProModels = data.models.filter { 
             $0.name.contains("gemini-3-pro") && !$0.name.contains("image") 
         }
         if !gemini3ProModels.isEmpty {
-            let minQuota = gemini3ProModels.map(\.percentage).min() ?? 0
-            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Pro", percentage: minQuota, models: gemini3ProModels))
+            let aggregatedQuota = settings.aggregateModelPercentages(gemini3ProModels.map(\.percentage))
+            if aggregatedQuota >= 0 {
+                groups.append(AntigravityDisplayGroup(name: "Gemini 3 Pro", percentage: aggregatedQuota, models: gemini3ProModels))
+            }
         }
         
-        // Gemini 3 Flash
         let gemini3FlashModels = data.models.filter { $0.name.contains("gemini-3-flash") }
         if !gemini3FlashModels.isEmpty {
-            let minQuota = gemini3FlashModels.map(\.percentage).min() ?? 0
-            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Flash", percentage: minQuota, models: gemini3FlashModels))
+            let aggregatedQuota = settings.aggregateModelPercentages(gemini3FlashModels.map(\.percentage))
+            if aggregatedQuota >= 0 {
+                groups.append(AntigravityDisplayGroup(name: "Gemini 3 Flash", percentage: aggregatedQuota, models: gemini3FlashModels))
+            }
         }
         
-        // Gemini 3 Image (any model containing "image")
         let geminiImageModels = data.models.filter { $0.name.contains("image") }
         if !geminiImageModels.isEmpty {
-            let minQuota = geminiImageModels.map(\.percentage).min() ?? 0
-            groups.append(AntigravityDisplayGroup(name: "Gemini 3 Image", percentage: minQuota, models: geminiImageModels))
+            let aggregatedQuota = settings.aggregateModelPercentages(geminiImageModels.map(\.percentage))
+            if aggregatedQuota >= 0 {
+                groups.append(AntigravityDisplayGroup(name: "Gemini 3 Image", percentage: aggregatedQuota, models: geminiImageModels))
+            }
         }
         
-        // Claude (any model containing "claude")
         let claudeModels = data.models.filter { $0.name.contains("claude") }
         if !claudeModels.isEmpty {
-            let minQuota = claudeModels.map(\.percentage).min() ?? 0
-            groups.append(AntigravityDisplayGroup(name: "Claude", percentage: minQuota, models: claudeModels))
+            let aggregatedQuota = settings.aggregateModelPercentages(claudeModels.map(\.percentage))
+            if aggregatedQuota >= 0 {
+                groups.append(AntigravityDisplayGroup(name: "Claude", percentage: aggregatedQuota, models: claudeModels))
+            }
         }
         
-        // Sort by lowest quota first (most urgent)
         return groups.sorted { $0.percentage < $1.percentage }
     }
     
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 16) {
-                // Account Header
-                accountHeader
-                
-                // Usage Section
-                if isLoading {
-                    QuotaLoadingView()
-                } else if hasQuotaData {
-                    usageSection
-                } else if let message = account.authFile?.statusMessage, !message.isEmpty {
-                    Text(message)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            accountHeader
+            
+            if isLoading {
+                QuotaLoadingView()
+            } else if hasQuotaData {
+                usageSection
+            } else if let message = account.authFile?.statusMessage, !message.isEmpty {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            .padding(16)
         }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.background)
+                .shadow(color: .primary.opacity(0.06), radius: 8, x: 0, y: 2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
+        )
     }
     
     // MARK: - Account Header
-    
+
     private var accountHeader: some View {
-        HStack(spacing: 12) {
-            // Tier badge (before email) - Antigravity uses SubscriptionBadgeV2, others use PlanBadgeV2
-            if let info = account.subscriptionInfo {
-                SubscriptionBadgeV2(info: info)
-            } else if let planName = account.quotaData?.planDisplayName {
-                PlanBadgeV2Compact(planName: planName)
-            }
-            
-            // Email
-            VStack(alignment: .leading, spacing: 2) {
-                Text(displayEmail)
-                    .font(.headline)
-                    .lineLimit(1)
-                
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    if let info = account.subscriptionInfo {
+                        SubscriptionBadgeV2(info: info)
+                    } else if let planName = account.quotaData?.planDisplayName {
+                        PlanBadgeV2Compact(planName: planName)
+                    }
+
+                    Text(displayEmail)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                }
+
+                // Show token expiry for Kiro accounts
+                if let quotaData = account.quotaData, let tokenExpiry = quotaData.formattedTokenExpiry {
+                    HStack(spacing: 4) {
+                        Image(systemName: "key")
+                            .font(.caption2)
+                        Text(tokenExpiry)
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+
                 if account.status != "ready" && account.status != "active" {
                     Text(account.status.capitalized)
                         .font(.caption)
@@ -474,121 +573,122 @@ private struct AccountQuotaCardV2: View {
             
             Spacer()
             
-            if provider == .antigravity {
-                Button {
-                    showWarmupSheet = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: isWarmupEnabled ? "bolt.fill" : "bolt")
-                            .font(.caption)
-                        Text("action.warmup".localized())
-                            .font(.caption)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(isWarmupEnabled ? provider.color.opacity(0.15) : Color.secondary.opacity(0.1))
-                    .foregroundStyle(isWarmupEnabled ? provider.color : .secondary)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-            
-            // Active badge (Antigravity only)
-            if isActiveInIDE {
-                Text("antigravity.active".localized())
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundStyle(Color(red: 0.13, green: 0.55, blue: 0.13))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(red: 0.85, green: 0.95, blue: 0.85))
-                    .clipShape(Capsule())
-            }
-            
-            // Switch account button (Antigravity, non-active)
-            if provider == .antigravity && !isActiveInIDE {
-                Button {
-                    showSwitchSheet = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .font(.caption)
-                        Text("antigravity.useInIDE".localized())
-                            .font(.caption)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.1))
-                    .foregroundStyle(.blue)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-            
-            // Refresh button - shows loader when loading
-            Button {
-                Task {
-                    isRefreshing = true
-                    await viewModel.refreshQuotaForProvider(provider)
-                    isRefreshing = false
-                }
-            } label: {
-                if isRefreshing || isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(width: 24, height: 24)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.subheadline)
-                        .frame(width: 24, height: 24)
-                }
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .disabled(isRefreshing || isLoading)
-            
-            // Forbidden badge or Re-authenticate button
-            if let data = account.quotaData, data.isForbidden {
-                if provider == .claude {
-                    // Claude Code: Token expired, show re-authenticate button
+            HStack(spacing: 6) {
+                if provider == .antigravity {
                     Button {
-                        Task {
-                            await viewModel.startOAuth(for: .claude)
-                        }
+                        showWarmupSheet = true
                     } label: {
-                        if isReauthenticating {
-                            HStack(spacing: 4) {
-                                ProgressView()
-                                    .controlSize(.mini)
-                                Text("quota.reauthenticating".localized())
-                                    .font(.caption)
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.orange.opacity(0.1))
-                            .foregroundStyle(.orange)
-                            .clipShape(Capsule())
-                        } else {
-                            Label("quota.reauthenticate".localized(), systemImage: "arrow.clockwise.circle.fill")
+                        HStack(spacing: 4) {
+                            Image(systemName: isWarmupEnabled ? "bolt.fill" : "bolt")
                                 .font(.caption)
-                                .foregroundStyle(.orange)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(.orange.opacity(0.1))
-                                .clipShape(Capsule())
+                            Text("Warm Up")
+                                .font(.caption)
+                                .fontWeight(.medium)
                         }
+                            .foregroundStyle(isWarmupEnabled ? provider.color : .secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(isWarmupEnabled ? provider.color.opacity(0.12) : Color.primary.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                     .buttonStyle(.plain)
-                    .disabled(isReauthenticating)
-                } else {
-                    // Other providers: Limit reached badge
-                    Label("Limit Reached", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                    .help("action.warmup".localized())
+                }
+                
+                if isActiveInIDE {
+                    Text("antigravity.active".localized())
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.green)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(.red.opacity(0.1))
+                        .background(Color.green.opacity(0.1))
                         .clipShape(Capsule())
+                }
+                
+                if provider == .antigravity && !isActiveInIDE {
+                    Button {
+                        showSwitchSheet = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.right.square")
+                                .font(.caption)
+                            Text("Use in IDE")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                            .foregroundStyle(.blue)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(Color.blue.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .help("antigravity.useInIDE".localized())
+                }
+                
+                Button {
+                    Task {
+                        isRefreshing = true
+                        await viewModel.refreshQuotaForProvider(provider)
+                        isRefreshing = false
+                    }
+                } label: {
+                    if isRefreshing || isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption)
+                            Text("Refresh")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(Color.primary.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(isRefreshing || isLoading)
+                
+                if let data = account.quotaData, data.isForbidden {
+                    if provider == .claude {
+                        Button {
+                            Task {
+                                await viewModel.startOAuth(for: .claude)
+                            }
+                        } label: {
+                            if isReauthenticating {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                    .frame(width: 28, height: 28)
+                            } else {
+                                Image(systemName: "arrow.clockwise.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                                    .frame(width: 28, height: 28)
+                                    .background(Color.orange.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isReauthenticating)
+                        .help("quota.reauthenticate".localized())
+                    } else {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .frame(width: 28, height: 28)
+                            .background(Color.red.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .help("Limit Reached")
+                    }
                 }
             }
         }
@@ -614,30 +714,29 @@ private struct AccountQuotaCardV2: View {
         }
     }
     
-    // MARK: - Plan Section (removed - now in header)
-    
     // MARK: - Usage Section
 
-    /// Check if all models have unavailable quota (percentage == -1)
     private var isQuotaUnavailable: Bool {
         guard let data = account.quotaData else { return false }
         return data.models.allSatisfy { $0.percentage < 0 }
     }
+    
+    private var displayStyle: QuotaDisplayStyle { settings.quotaDisplayStyle }
 
     @ViewBuilder
     private var usageSection: some View {
         if let data = account.quotaData {
-            VStack(alignment: .leading, spacing: 4) {
-                // Header with Details button for Antigravity
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Usage")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.tertiary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
 
                     Spacer()
 
-                    // Details button for Antigravity (shows all models)
                     if provider == .antigravity && data.models.count > 4 {
                         Button {
                             showModelsDetailSheet = true
@@ -655,45 +754,84 @@ private struct AccountQuotaCardV2: View {
                 }
 
                 Divider()
+                    .opacity(0.5)
 
-                VStack(spacing: 14) {
-                    // Check if quota is unavailable (e.g., Gemini CLI has no public quota API)
-                    if isQuotaUnavailable {
-                        HStack {
-                            Image(systemName: "info.circle")
-                                .foregroundStyle(.secondary)
-                            Text("quota.notAvailable".localized())
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 8)
-                    }
-                    // Antigravity uses 4-group display (non-expandable)
-                    else if provider == .antigravity && !antigravityDisplayGroups.isEmpty {
-                        ForEach(antigravityDisplayGroups) { group in
-                            AntigravityGroupRow(group: group)
-                        }
-                    } else {
-                        // Other providers show individual models
-                        ForEach(data.models) { model in
-                            UsageRowV2(
-                                name: model.displayName,
-                                icon: nil,
-                                usedPercent: model.usedPercentage,
-                                used: model.used,
-                                limit: model.limit,
-                                resetTime: model.formattedResetTime
-                            )
-                        }
-                    }
+                // Display based on quotaDisplayStyle setting
+                if isQuotaUnavailable {
+                    quotaUnavailableView
+                } else {
+                    quotaContentByStyle
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, 4)
             .sheet(isPresented: $showModelsDetailSheet) {
                 AntigravityModelsDetailSheet(
                     email: account.email,
                     models: data.models
                 )
+            }
+        }
+    }
+    
+    private var quotaUnavailableView: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "info.circle")
+                .font(.subheadline)
+                .foregroundStyle(.tertiary)
+            Text("quota.notAvailable".localized())
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+    }
+    
+    @ViewBuilder
+    private var quotaContentByStyle: some View {
+        if provider == .antigravity && !antigravityDisplayGroups.isEmpty {
+            // Antigravity uses grouped display
+            antigravityContentByStyle
+        } else if let data = account.quotaData {
+            // Standard providers
+            standardContentByStyle(data: data)
+        }
+    }
+    
+    @ViewBuilder
+    private var antigravityContentByStyle: some View {
+        switch displayStyle {
+        case .lowestBar:
+            AntigravityLowestBarLayout(groups: antigravityDisplayGroups)
+        case .ring:
+            AntigravityRingLayout(groups: antigravityDisplayGroups)
+        case .card:
+            VStack(spacing: 12) {
+                ForEach(antigravityDisplayGroups) { group in
+                    AntigravityGroupRow(group: group)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func standardContentByStyle(data: ProviderQuotaData) -> some View {
+        switch displayStyle {
+        case .lowestBar:
+            StandardLowestBarLayout(models: data.models)
+        case .ring:
+            StandardRingLayout(models: data.models)
+        case .card:
+            VStack(spacing: 12) {
+                ForEach(data.models) { model in
+                    UsageRowV2(
+                        name: model.displayName,
+                        icon: nil,
+                        usedPercent: model.usedPercentage,
+                        used: model.used,
+                        limit: model.limit,
+                        resetTime: model.formattedResetTime
+                    )
+                }
             }
         }
     }
@@ -704,32 +842,32 @@ private struct AccountQuotaCardV2: View {
 private struct PlanBadgeV2Compact: View {
     let planName: String
     
-    private var tierConfig: (name: String, bgColor: Color, textColor: Color) {
+    private var tierConfig: (name: String, color: Color) {
         let lowercased = planName.lowercased()
         
         // Check for Pro variants
         if lowercased.contains("pro") {
-            return ("Pro", Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
+            return ("Pro", .purple)
         }
         
         // Check for Plus
         if lowercased.contains("plus") {
-            return ("Plus", Color(red: 0.85, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.3, blue: 0.6))
+            return ("Plus", .blue)
         }
         
         // Check for Team
         if lowercased.contains("team") {
-            return ("Team", Color(red: 1.0, green: 0.9, blue: 0.8), Color(red: 0.6, green: 0.3, blue: 0.0))
+            return ("Team", .orange)
         }
         
         // Check for Enterprise
         if lowercased.contains("enterprise") {
-            return ("Enterprise", Color(red: 1.0, green: 0.85, blue: 0.85), Color(red: 0.5, green: 0.0, blue: 0.0))
+            return ("Enterprise", .red)
         }
         
         // Free/Standard
         if lowercased.contains("free") || lowercased.contains("standard") {
-            return ("Free", Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
+            return ("Free", .secondary)
         }
         
         // Default: use display name
@@ -738,17 +876,17 @@ private struct PlanBadgeV2Compact: View {
             .split(separator: " ")
             .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
             .joined(separator: " ")
-        return (displayName, Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
+        return (displayName, .secondary)
     }
     
     var body: some View {
         Text(tierConfig.name)
-            .font(.caption)
+            .font(.caption2)
             .fontWeight(.medium)
-            .foregroundStyle(tierConfig.textColor)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(tierConfig.bgColor)
+            .foregroundStyle(tierConfig.color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(tierConfig.color.opacity(0.12))
             .clipShape(Capsule())
     }
 }
@@ -758,29 +896,29 @@ private struct PlanBadgeV2Compact: View {
 private struct PlanBadgeV2: View {
     let planName: String
     
-    private var planConfig: (color: Color, icon: String, description: String) {
+    private var planConfig: (color: Color, icon: String) {
         let lowercased = planName.lowercased()
         
         // Handle compound names like "Pro Student"
         if lowercased.contains("pro") && lowercased.contains("student") {
-            return (.purple, "graduationcap.fill", "Student Pro Plan")
+            return (.purple, "graduationcap.fill")
         }
         
         switch lowercased {
         case "pro":
-            return (.purple, "crown.fill", "Premium features unlocked")
+            return (.purple, "crown.fill")
         case "plus":
-            return (.blue, "plus.circle.fill", "Enhanced features")
+            return (.blue, "plus.circle.fill")
         case "team":
-            return (.orange, "person.3.fill", "Team collaboration")
+            return (.orange, "person.3.fill")
         case "enterprise":
-            return (.red, "building.2.fill", "Enterprise features")
+            return (.red, "building.2.fill")
         case "free":
-            return (.gray, "person.fill", "Free tier")
+            return (.secondary, "person.fill")
         case "student":
-            return (.green, "graduationcap.fill", "Student plan")
+            return (.green, "graduationcap.fill")
         default:
-            return (.secondary, "person.fill", "")
+            return (.secondary, "person.fill")
         }
     }
     
@@ -793,28 +931,18 @@ private struct PlanBadgeV2: View {
     }
     
     var body: some View {
-        HStack(spacing: 10) {
-            // Icon and name
-            HStack(spacing: 6) {
-                Image(systemName: planConfig.icon)
-                    .font(.subheadline)
-                Text(displayName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-            }
-            .foregroundStyle(planConfig.color)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(planConfig.color.opacity(0.12))
-            .clipShape(Capsule())
-            
-            // Description tooltip (for Pro/Plus differentiation)
-            if !planConfig.description.isEmpty {
-                Text(planConfig.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        HStack(spacing: 4) {
+            Image(systemName: planConfig.icon)
+                .font(.caption)
+            Text(displayName)
+                .font(.caption)
+                .fontWeight(.medium)
         }
+        .foregroundStyle(planConfig.color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(planConfig.color.opacity(0.1))
+        .clipShape(Capsule())
     }
 }
 
@@ -823,38 +951,38 @@ private struct PlanBadgeV2: View {
 private struct SubscriptionBadgeV2: View {
     let info: SubscriptionInfo
     
-    private var tierConfig: (name: String, bgColor: Color, textColor: Color) {
+    private var tierConfig: (name: String, color: Color) {
         let tierId = info.tierId.lowercased()
         let tierName = info.tierDisplayName.lowercased()
         
         // Check for Ultra tier (highest priority)
         if tierId.contains("ultra") || tierName.contains("ultra") {
-            return ("Ultra", Color(red: 1.0, green: 0.95, blue: 0.8), Color(red: 0.52, green: 0.39, blue: 0.02))
+            return ("Ultra", .orange)
         }
         
         // Check for Pro tier
         if tierId.contains("pro") || tierName.contains("pro") {
-            return ("Pro", Color(red: 0.8, green: 0.9, blue: 1.0), Color(red: 0.0, green: 0.25, blue: 0.52))
+            return ("Pro", .purple)
         }
         
         // Check for Free/Standard tier
         if tierId.contains("standard") || tierId.contains("free") || 
            tierName.contains("standard") || tierName.contains("free") {
-            return ("Free", Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
+            return ("Free", .secondary)
         }
         
         // Fallback: use the display name from API
-        return (info.tierDisplayName, Color(red: 0.91, green: 0.93, blue: 0.94), Color(red: 0.42, green: 0.46, blue: 0.49))
+        return (info.tierDisplayName, .secondary)
     }
     
     var body: some View {
         Text(tierConfig.name)
-            .font(.caption)
+            .font(.caption2)
             .fontWeight(.medium)
-            .foregroundStyle(tierConfig.textColor)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(tierConfig.bgColor)
+            .foregroundStyle(tierConfig.color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(tierConfig.color.opacity(0.12))
             .clipShape(Capsule())
     }
 }
@@ -869,20 +997,15 @@ private struct AntigravityDisplayGroup: Identifiable {
     var id: String { name }
 }
 
-// MARK: - Antigravity Group Row (non-expandable)
+// MARK: - Antigravity Group Row
 
 private struct AntigravityGroupRow: View {
     let group: AntigravityDisplayGroup
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
-    private var usedPercent: Double {
-        100 - group.percentage
-    }
-    
-    private var statusColor: Color {
-        if usedPercent < 70 { return .green }
-        if usedPercent < 90 { return .yellow }
-        return .red
+
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
     
     private var remainingPercent: Double {
@@ -893,75 +1016,321 @@ private struct AntigravityGroupRow: View {
         if group.name.contains("Claude") { return "brain.head.profile" }
         if group.name.contains("Image") { return "photo" }
         if group.name.contains("Flash") { return "bolt.fill" }
-        return "sparkles" // Gemini Pro
+        return "sparkles"
     }
     
     var body: some View {
-        let displayMode = settings.quotaDisplayMode
-        let displayPercent = displayMode == .used ? usedPercent : remainingPercent
+        let displayPercent = displayHelper.displayPercent(remainingPercent: remainingPercent)
+        let statusColor = displayHelper.statusColor(remainingPercent: remainingPercent)
         
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                // Group icon and name
-                HStack(spacing: 6) {
-                    Image(systemName: groupIcon)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(group.name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: groupIcon)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 16)
                 
-                // Model count badge
+                Text(group.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
                 if group.models.count > 1 {
-                    Text("\(group.models.count)")
+                    Text(String(group.models.count))
                         .font(.caption2)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(.quaternary)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.primary.opacity(0.05))
                         .clipShape(Capsule())
                 }
                 
                 Spacer()
                 
-                // Usage info
-                HStack(spacing: 10) {
-                    Text(String(format: "%.0f%% %@", displayPercent, displayMode.suffixKey.localized()))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(statusColor)
-                    
-                    // Reset time from first model
-                    if let firstModel = group.models.first,
-                       firstModel.formattedResetTime != "—" && !firstModel.formattedResetTime.isEmpty {
-                        HStack(spacing: 3) {
-                            Image(systemName: "clock")
-                                .font(.caption2)
-                            Text(firstModel.formattedResetTime)
-                                .font(.caption)
-                        }
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(.quaternary)
-                        .clipShape(Capsule())
-                    }
+                Text(String(format: "%.0f%%", displayPercent))
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(statusColor)
+                    .monospacedDigit()
+                
+                if let firstModel = group.models.first,
+                   firstModel.formattedResetTime != "—" && !firstModel.formattedResetTime.isEmpty {
+                    Text(firstModel.formattedResetTime)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             }
             
-            // Progress bar
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(.quaternary)
+                        .fill(Color.primary.opacity(0.06))
                     Capsule()
                         .fill(statusColor.gradient)
-                        .frame(width: proxy.size.width * (remainingPercent / 100))
+                        .frame(width: proxy.size.width * (displayPercent / 100))
                 }
             }
-            .frame(height: 8)
+            .frame(height: 6)
+        }
+    }
+}
+
+// MARK: - Antigravity Lowest Bar Layout
+
+private struct AntigravityLowestBarLayout: View {
+    let groups: [AntigravityDisplayGroup]
+    
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
+    
+    private var sorted: [AntigravityDisplayGroup] {
+        groups.sorted { $0.percentage < $1.percentage }
+    }
+    
+    private var lowest: AntigravityDisplayGroup? {
+        sorted.first
+    }
+    
+    private var others: [AntigravityDisplayGroup] {
+        Array(sorted.dropFirst())
+    }
+    
+    private func displayPercent(for remainingPercent: Double) -> Double {
+        displayHelper.displayPercent(remainingPercent: remainingPercent)
+    }
+    
+    var body: some View {
+        VStack(spacing: 10) {
+            if let lowest = lowest {
+                // Hero row for bottleneck
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(lowest.name)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text(String(format: "%.0f%%", displayPercent(for: lowest.percentage)))
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(displayHelper.statusColor(remainingPercent: lowest.percentage))
+                            .monospacedDigit()
+                    }
+                    
+                    GeometryReader { proxy in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.primary.opacity(0.06))
+                            Capsule()
+                                .fill(displayHelper.statusColor(remainingPercent: lowest.percentage).gradient)
+                                .frame(width: proxy.size.width * (displayPercent(for: lowest.percentage) / 100))
+                        }
+                    }
+                    .frame(height: 8)
+                }
+                .padding(10)
+                .background(displayHelper.statusColor(remainingPercent: lowest.percentage).opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            
+            // Others as compact text rows
+            if !others.isEmpty {
+                VStack(spacing: 4) {
+                    ForEach(others) { group in
+                        HStack {
+                            Text(group.name)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(String(format: "%.0f%%", displayPercent(for: group.percentage)))
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(displayHelper.statusColor(remainingPercent: group.percentage))
+                                .monospacedDigit()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Antigravity Ring Layout
+
+private struct AntigravityRingLayout: View {
+    let groups: [AntigravityDisplayGroup]
+    
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
+    
+    private var columns: [GridItem] {
+        let count = min(max(groups.count, 1), 4)
+        return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
+    }
+    
+    private func displayPercent(for remainingPercent: Double) -> Double {
+        displayHelper.displayPercent(remainingPercent: remainingPercent)
+    }
+    
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(groups) { group in
+                VStack(spacing: 6) {
+                    RingProgressView(
+                        percent: displayPercent(for: group.percentage),
+                        size: 44,
+                        lineWidth: 5,
+                        tint: displayHelper.statusColor(remainingPercent: group.percentage),
+                        showLabel: true
+                    )
+                    
+                    Text(group.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Standard Lowest Bar Layout
+
+private struct StandardLowestBarLayout: View {
+    let models: [ModelQuota]
+    
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
+    
+    private var sorted: [ModelQuota] {
+        models.sorted { $0.percentage < $1.percentage }
+    }
+    
+    private var lowest: ModelQuota? {
+        sorted.first
+    }
+    
+    private var others: [ModelQuota] {
+        Array(sorted.dropFirst())
+    }
+    
+    private func displayPercent(for remainingPercent: Double) -> Double {
+        displayHelper.displayPercent(remainingPercent: remainingPercent)
+    }
+    
+    var body: some View {
+        VStack(spacing: 10) {
+            if let lowest = lowest {
+                // Hero row for bottleneck
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(lowest.displayName)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text(String(format: "%.0f%%", displayPercent(for: lowest.percentage)))
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(displayHelper.statusColor(remainingPercent: lowest.percentage))
+                            .monospacedDigit()
+                    }
+                    
+                    GeometryReader { proxy in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.primary.opacity(0.06))
+                            Capsule()
+                                .fill(displayHelper.statusColor(remainingPercent: lowest.percentage).gradient)
+                                .frame(width: proxy.size.width * (displayPercent(for: lowest.percentage) / 100))
+                        }
+                    }
+                    .frame(height: 8)
+                    
+                    if lowest.formattedResetTime != "—" && !lowest.formattedResetTime.isEmpty {
+                        Text(lowest.formattedResetTime)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(10)
+                .background(displayHelper.statusColor(remainingPercent: lowest.percentage).opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            
+            // Others as compact text rows
+            if !others.isEmpty {
+                VStack(spacing: 4) {
+                    ForEach(others) { model in
+                        HStack {
+                            Text(model.displayName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            if model.formattedResetTime != "—" && !model.formattedResetTime.isEmpty {
+                                Text(model.formattedResetTime)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Text(String(format: "%.0f%%", displayPercent(for: model.percentage)))
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(displayHelper.statusColor(remainingPercent: model.percentage))
+                                .monospacedDigit()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Standard Ring Layout
+
+private struct StandardRingLayout: View {
+    let models: [ModelQuota]
+    
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
+    
+    private var columns: [GridItem] {
+        let count = min(max(models.count, 1), 4)
+        return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
+    }
+    
+    private func displayPercent(for remainingPercent: Double) -> Double {
+        displayHelper.displayPercent(remainingPercent: remainingPercent)
+    }
+    
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(models) { model in
+                VStack(spacing: 6) {
+                    RingProgressView(
+                        percent: displayPercent(for: model.percentage),
+                        size: 44,
+                        lineWidth: 5,
+                        tint: displayHelper.statusColor(remainingPercent: model.percentage),
+                        showLabel: true
+                    )
+                    
+                    Text(model.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    
+                    if model.formattedResetTime != "—" && !model.formattedResetTime.isEmpty {
+                        Text(model.formattedResetTime)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
         }
     }
 }
@@ -1004,15 +1373,20 @@ private struct AntigravityModelsDetailSheet: View {
                 Button {
                     dismiss()
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .background(Color.primary.opacity(0.06))
+                        .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
+                .help("action.close".localized())
             }
             .padding()
             
             Divider()
+                .opacity(0.5)
             
             // Models Grid
             ScrollView {
@@ -1023,8 +1397,10 @@ private struct AntigravityModelsDetailSheet: View {
                 }
                 .padding()
             }
+            .scrollContentBackground(.hidden)
         }
-        .frame(minWidth: 500, minHeight: 400)
+        .frame(minWidth: 480, minHeight: 360)
+        .background(.background)
     }
 }
 
@@ -1034,67 +1410,64 @@ private struct ModelDetailCard: View {
     let model: ModelQuota
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
-    
-    private var usedPercent: Double {
-        model.usedPercentage
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
     
     private var remainingPercent: Double {
         max(0, min(100, model.percentage))
     }
     
-    private var statusColor: Color {
-        if usedPercent >= 90 { return .red }
-        if usedPercent >= 70 { return .yellow }
-        return .green
-    }
-    
     var body: some View {
-        let displayMode = settings.quotaDisplayMode
-        let displayPercent = displayMode == .used ? usedPercent : remainingPercent
+        let displayPercent = displayHelper.displayPercent(remainingPercent: remainingPercent)
+        let statusColor = displayHelper.statusColor(remainingPercent: remainingPercent)
         
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             // Model name (raw name)
             Text(model.name)
                 .font(.caption)
                 .fontDesign(.monospaced)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
             
             // Progress bar
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(.quaternary)
+                        .fill(Color.primary.opacity(0.06))
                     Capsule()
                         .fill(statusColor.gradient)
-                        .frame(width: proxy.size.width * (remainingPercent / 100))
+                        .frame(width: proxy.size.width * (displayPercent / 100))
                 }
             }
             .frame(height: 6)
             
             // Footer: Percentage + Reset time
             HStack {
-                Text(String(format: "%.0f%% %@", displayPercent, displayMode.suffixKey.localized()))
+                Text(String(format: "%.0f%%", displayPercent))
                     .font(.caption)
-                    .fontWeight(.semibold)
+                    .fontWeight(.medium)
                     .foregroundStyle(statusColor)
+                    .monospacedDigit()
                 
                 Spacer()
                 
                 if model.formattedResetTime != "—" && !model.formattedResetTime.isEmpty {
-                    HStack(spacing: 3) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 9))
-                        Text(model.formattedResetTime)
-                            .font(.caption2)
-                    }
-                    .foregroundStyle(.tertiary)
+                    Text(model.formattedResetTime)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             }
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                )
+        )
     }
 }
 
@@ -1109,16 +1482,12 @@ private struct UsageRowV2: View {
     let resetTime: String
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
     
     private var isUnknown: Bool {
         usedPercent < 0 || usedPercent > 100
-    }
-    
-    private var statusColor: Color {
-        if isUnknown { return .gray }
-        if usedPercent < 70 { return .green }   // <70% used = healthy
-        if usedPercent < 90 { return .yellow }  // 70-90% used = warning
-        return .red                              // >90% used = critical
     }
     
     private var remainingPercent: Double {
@@ -1126,82 +1495,63 @@ private struct UsageRowV2: View {
     }
     
     var body: some View {
-        let displayMode = settings.quotaDisplayMode
-        let displayPercent = displayMode == .used ? usedPercent : remainingPercent
+        let displayPercent = displayHelper.displayPercent(remainingPercent: remainingPercent)
+        let statusColor = displayHelper.statusColor(remainingPercent: remainingPercent)
         
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                // Model name with icon
-                HStack(spacing: 6) {
-                    if let icon = icon {
-                        Image(systemName: icon)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                if let icon = icon {
+                    Image(systemName: icon)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 16)
                 }
+                
+                Text(name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
                 
                 Spacer()
                 
-                // Usage info
-                HStack(spacing: 10) {
-                    // Count (e.g., "150/2000")
-                    if let used = used {
-                        if let limit = limit, limit > 0 {
-                            Text("\(used)/\(limit)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                        } else {
-                            Text("\(used) used")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                if let used = used {
+                    if let limit = limit, limit > 0 {
+                        Text(String(used) + "/" + String(limit))
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
                     }
-                    
-                    // Percentage with color
-                    if !isUnknown {
-                        Text(String(format: "%.0f%% %@", displayPercent, displayMode.suffixKey.localized()))
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(statusColor)
-                    } else {
-                        Text("—")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    // Reset time
-                    if resetTime != "—" && !resetTime.isEmpty {
-                        HStack(spacing: 3) {
-                            Image(systemName: "clock")
-                                .font(.caption2)
-                            Text(resetTime)
-                                .font(.caption)
-                        }
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(.quaternary)
-                        .clipShape(Capsule())
-                    }
+                }
+                
+                if !isUnknown {
+                    Text(String(format: "%.0f%%", displayPercent))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(statusColor)
+                        .monospacedDigit()
+                } else {
+                    Text("—")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                }
+                
+                if resetTime != "—" && !resetTime.isEmpty {
+                    Text(resetTime)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             }
             
-            // Progress bar (showing remaining)
             if !isUnknown {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(.quaternary)
+                            .fill(Color.primary.opacity(0.06))
                         Capsule()
                             .fill(statusColor.gradient)
-                            .frame(width: proxy.size.width * (remainingPercent / 100))
+                            .frame(width: proxy.size.width * (displayPercent / 100))
                     }
                 }
-                .frame(height: 8)
+                .frame(height: 6)
             }
         }
     }
@@ -1213,26 +1563,26 @@ private struct QuotaLoadingView: View {
     @State private var isAnimating = false
     
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             ForEach(0..<2, id: \.self) { _ in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.quaternary)
-                            .frame(width: 100, height: 14)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.primary.opacity(0.06))
+                            .frame(width: 100, height: 12)
                         Spacer()
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.quaternary)
-                            .frame(width: 60, height: 14)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.primary.opacity(0.06))
+                            .frame(width: 48, height: 12)
                     }
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.quaternary)
-                        .frame(height: 8)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Color.primary.opacity(0.06))
+                        .frame(height: 6)
                 }
             }
         }
-        .opacity(isAnimating ? 0.5 : 1)
-        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isAnimating)
+        .opacity(isAnimating ? 0.4 : 1)
+        .animation(.easeOut(duration: 0.8).repeatForever(autoreverses: true), value: isAnimating)
         .onAppear { isAnimating = true }
     }
 }

@@ -69,6 +69,9 @@ struct SettingsScreen: View {
             // Quota Display
             QuotaDisplaySettingsSection()
             
+            // Usage Display
+            UsageDisplaySettingsSection()
+            
             // Refresh Cadence
             RefreshCadenceSettingsSection()
             
@@ -336,6 +339,7 @@ struct UnifiedProxySettingsSection: View {
     
     @State private var isLoading = true
     @State private var loadError: String?
+    @State private var isLoadingConfig = false  // Prevents onChange from firing during load
     
     @State private var proxyURL = ""
     @State private var routingStrategy = "round-robin"
@@ -469,6 +473,7 @@ struct UnifiedProxySettingsSection: View {
             }
             .pickerStyle(.segmented)
             .onChange(of: routingStrategy) { _, newValue in
+                guard !isLoadingConfig else { return }
                 Task { await saveRoutingStrategy(newValue) }
             }
         } header: {
@@ -485,10 +490,12 @@ struct UnifiedProxySettingsSection: View {
         Section {
             Toggle("settings.autoSwitchAccount".localized(), isOn: $switchProject)
                 .onChange(of: switchProject) { _, newValue in
+                    guard !isLoadingConfig else { return }
                     Task { await saveSwitchProject(newValue) }
                 }
             Toggle("settings.autoSwitchPreview".localized(), isOn: $switchPreviewModel)
                 .onChange(of: switchPreviewModel) { _, newValue in
+                    guard !isLoadingConfig else { return }
                     Task { await saveSwitchPreviewModel(newValue) }
                 }
         } header: {
@@ -503,11 +510,13 @@ struct UnifiedProxySettingsSection: View {
         Section {
             Stepper("settings.maxRetries".localized() + ": \(requestRetry)", value: $requestRetry, in: 0...10)
                 .onChange(of: requestRetry) { _, newValue in
+                    guard !isLoadingConfig else { return }
                     Task { await saveRequestRetry(newValue) }
                 }
             
             Stepper("settings.maxRetryInterval".localized() + ": \(maxRetryInterval)s", value: $maxRetryInterval, in: 5...300, step: 5)
                 .onChange(of: maxRetryInterval) { _, newValue in
+                    guard !isLoadingConfig else { return }
                     Task { await saveMaxRetryInterval(newValue) }
                 }
         } header: {
@@ -522,16 +531,19 @@ struct UnifiedProxySettingsSection: View {
         Section {
             Toggle("settings.loggingToFile".localized(), isOn: $loggingToFile)
                 .onChange(of: loggingToFile) { _, newValue in
+                    guard !isLoadingConfig else { return }
                     Task { await saveLoggingToFile(newValue) }
                 }
             
             Toggle("settings.requestLog".localized(), isOn: $requestLog)
                 .onChange(of: requestLog) { _, newValue in
+                    guard !isLoadingConfig else { return }
                     Task { await saveRequestLog(newValue) }
                 }
             
             Toggle("settings.debugMode".localized(), isOn: $debugMode)
                 .onChange(of: debugMode) { _, newValue in
+                    guard !isLoadingConfig else { return }
                     Task { await saveDebugMode(newValue) }
                 }
         } header: {
@@ -544,6 +556,7 @@ struct UnifiedProxySettingsSection: View {
     
     private func loadConfig() async {
         isLoading = true
+        isLoadingConfig = true
         loadError = nil
         
         guard let apiClient = viewModel.apiClient else {
@@ -551,13 +564,18 @@ struct UnifiedProxySettingsSection: View {
                 ? "settings.proxy.startToConfigureAdvanced".localized()
                 : "settings.remote.noConnection".localized()
             isLoading = false
+            isLoadingConfig = false
             return
         }
         
         do {
-            let config = try await apiClient.fetchConfig()
+            async let configTask = apiClient.fetchConfig()
+            async let routingTask = apiClient.getRoutingStrategy()
+            
+            let (config, fetchedStrategy) = try await (configTask, routingTask)
+            
             proxyURL = config.proxyURL ?? ""
-            routingStrategy = config.routingStrategy ?? "round-robin"
+            routingStrategy = fetchedStrategy
             requestRetry = config.requestRetry ?? 3
             maxRetryInterval = config.maxRetryInterval ?? 30
             loggingToFile = config.loggingToFile ?? true
@@ -567,9 +585,13 @@ struct UnifiedProxySettingsSection: View {
             switchPreviewModel = config.quotaExceeded?.switchPreviewModel ?? true
             proxyURLValidation = ProxyURLValidator.validate(proxyURL)
             isLoading = false
+            
+            try? await Task.sleep(for: .milliseconds(100))
+            isLoadingConfig = false
         } catch {
             loadError = error.localizedDescription
             isLoading = false
+            isLoadingConfig = false
         }
     }
     
@@ -665,6 +687,7 @@ struct LocalProxyServerSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     @AppStorage("autoStartTunnel") private var autoStartTunnel = false
+    @AppStorage("allowNetworkAccess") private var allowNetworkAccess = false
     @State private var portText: String = ""
     
     var body: some View {
@@ -703,6 +726,13 @@ struct LocalProxyServerSection: View {
             
             Toggle("settings.autoStartTunnel".localized(), isOn: $autoStartTunnel)
                 .disabled(!viewModel.tunnelManager.installation.isInstalled)
+                
+            NetworkAccessSection(allowNetworkAccess: $allowNetworkAccess)
+                .onChange(of: allowNetworkAccess) { _, newValue in
+                    viewModel.proxyManager.allowNetworkAccess = newValue
+                }
+                
+
         } header: {
             Label("settings.proxyServer".localized(), systemImage: "server.rack")
         } footer: {
@@ -711,6 +741,38 @@ struct LocalProxyServerSection: View {
         }
         .onAppear {
             portText = String(viewModel.proxyManager.port)
+        }
+    }
+}
+
+struct NetworkAccessSection: View {
+    @Binding var allowNetworkAccess: Bool
+    
+    var body: some View {
+        Section {
+            Toggle("settings.allowNetworkAccess".localized(), isOn: $allowNetworkAccess)
+            
+            LabeledContent("settings.bindAddress".localized()) {
+                Text(allowNetworkAccess ? "0.0.0.0 (All Interfaces)" : "127.0.0.1 (Localhost)")
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(allowNetworkAccess ? .orange : .secondary)
+            }
+            
+            if allowNetworkAccess {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("settings.networkAccessWarning".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Label("settings.networkAccess".localized(), systemImage: "network")
+        } footer: {
+            Text("settings.networkAccessFooter".localized())
+                .font(.caption)
         }
     }
 }
@@ -845,11 +907,25 @@ struct QuotaDisplaySettingsSection: View {
         )
     }
     
+    private var displayStyleBinding: Binding<QuotaDisplayStyle> {
+        Binding(
+            get: { settings.quotaDisplayStyle },
+            set: { settings.quotaDisplayStyle = $0 }
+        )
+    }
+    
     var body: some View {
         Section {
             Picker("settings.quota.displayMode".localized(), selection: displayModeBinding) {
                 Text("settings.quota.displayMode.used".localized()).tag(QuotaDisplayMode.used)
                 Text("settings.quota.displayMode.remaining".localized()).tag(QuotaDisplayMode.remaining)
+            }
+            .pickerStyle(.segmented)
+            
+            Picker("settings.quota.displayStyle".localized(), selection: displayStyleBinding) {
+                ForEach(QuotaDisplayStyle.allCases) { style in
+                    Text(style.localizationKey.localized()).tag(style)
+                }
             }
             .pickerStyle(.segmented)
         } header: {
@@ -2728,6 +2804,73 @@ struct LaunchAtLoginToggle: View {
             }
         } message: {
             Text(errorMessage)
+        }
+    }
+}
+
+// MARK: - Usage Display Settings Section
+
+struct UsageDisplaySettingsSection: View {
+    @State private var settings = MenuBarSettingsManager.shared
+    
+    private var totalUsageModeBinding: Binding<TotalUsageMode> {
+        Binding(
+            get: { settings.totalUsageMode },
+            set: { settings.totalUsageMode = $0 }
+        )
+    }
+    
+    private var modelAggregationModeBinding: Binding<ModelAggregationMode> {
+        Binding(
+            get: { settings.modelAggregationMode },
+            set: { settings.modelAggregationMode = $0 }
+        )
+    }
+    
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("settings.usageDisplay.totalMode.title".localized())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Picker("", selection: totalUsageModeBinding) {
+                    ForEach(TotalUsageMode.allCases) { mode in
+                        Text(mode.localizationKey.localized()).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                
+                Text("settings.usageDisplay.totalMode.description".localized())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 4)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text("settings.usageDisplay.modelAggregation.title".localized())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Picker("", selection: modelAggregationModeBinding) {
+                    ForEach(ModelAggregationMode.allCases) { mode in
+                        Text(mode.localizationKey.localized()).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                
+                Text("settings.usageDisplay.modelAggregation.description".localized())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Label("settings.usageDisplay.title".localized(), systemImage: "chart.bar.doc.horizontal")
+        } footer: {
+            Text("settings.usageDisplay.description".localized())
+                .font(.caption)
         }
     }
 }

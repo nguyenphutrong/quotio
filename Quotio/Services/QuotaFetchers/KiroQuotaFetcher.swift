@@ -50,29 +50,33 @@ nonisolated struct KiroUsageResponse: Decodable {
 nonisolated struct KiroTokenResponse: Codable {
     let accessToken: String
     let expiresIn: Int
-    let tokenType: String
+    let tokenType: String?
     let refreshToken: String?
 
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case expiresIn = "expires_in"
-        case tokenType = "token_type"
-        case refreshToken = "refresh_token"
-    }
+    // AWS OIDC returns camelCase keys, not snake_case
+    // No CodingKeys needed - Swift will match camelCase by default
 }
 
 // MARK: - Kiro Quota Fetcher
 
 actor KiroQuotaFetcher {
     private let usageEndpoint = "https://codewhisperer.us-east-1.amazonaws.com/getUsageLimits"
-    private let tokenEndpoint = "https://oidc.us-east-1.amazonaws.com/token"
 
-    private let session: URLSession
+    // Token refresh endpoints for different auth methods
+    private let socialTokenEndpoint = "https://prod.us-east-1.auth.desktop.kiro.dev/refreshToken"  // For Google OAuth
+    private let idcTokenEndpoint = "https://oidc.us-east-1.amazonaws.com/token"  // For AWS Builder ID
+
+    private var session: URLSession
     private let fileManager = FileManager.default
 
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 20
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 20)
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 20)
         self.session = URLSession(configuration: config)
     }
 
@@ -109,51 +113,134 @@ actor KiroQuotaFetcher {
         }
     }
 
-    /// Check if token is expired (local implementation to avoid actor isolation issues)
-    private func isTokenExpired(_ tokenData: AuthTokenData) -> Bool {
-        guard let expiresAt = tokenData.expiresAt else { return false }
+    private let refreshBufferSeconds: TimeInterval = 5 * 60  // Refresh 5 minutes before expiry
+    
+    func refreshAllTokensIfNeeded() async -> Int {
+        let authService = DirectAuthFileService()
+        let allFiles = await authService.scanAllAuthFiles()
+        let kiroFiles = allFiles.filter { $0.provider == .kiro }
+
+        guard !kiroFiles.isEmpty else {
+            return 0
+        }
+
+        var refreshedCount = 0
+
+        for authFile in kiroFiles {
+            guard let tokenData = await authService.readAuthToken(from: authFile) else {
+                continue
+            }
+
+            let (needsRefresh, _) = shouldRefreshToken(tokenData)
+            if needsRefresh {
+                if let _ = await refreshTokenWithExpiry(tokenData: tokenData, filePath: authFile.filePath) {
+                    refreshedCount += 1
+                }
+            }
+        }
+
+        return refreshedCount
+    }
+    
+    private func shouldRefreshToken(_ tokenData: AuthTokenData) -> (shouldRefresh: Bool, reason: String) {
+        guard let expiresAt = tokenData.expiresAt else { 
+            return (false, "no expiry info") 
+        }
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var expiryDate: Date?
+        
         if let date = formatter.date(from: expiresAt) {
-            return date < Date()
+            expiryDate = date
+        } else {
+            formatter.formatOptions = [.withInternetDateTime]
+            expiryDate = formatter.date(from: expiresAt)
         }
-
-        formatter.formatOptions = [.withInternetDateTime]
-        if let date = formatter.date(from: expiresAt) {
-            return date < Date()
+        
+        guard let date = expiryDate else {
+            return (false, "unparseable expiry")
         }
-
-        return false
+        
+        let timeRemaining = date.timeIntervalSinceNow
+        
+        if timeRemaining <= 0 {
+            return (true, "expired \(Int(-timeRemaining))s ago")
+        } else if timeRemaining < refreshBufferSeconds {
+            return (true, "expiring in \(Int(timeRemaining))s (< 5min buffer)")
+        }
+        
+        return (false, "\(Int(timeRemaining))s remaining")
     }
 
     /// Fetch quota for a single token
+    /// Implements reactive token refresh: if API returns 401/403, refresh token and retry once
     private func fetchQuota(tokenData: AuthTokenData, filePath: String) async -> ProviderQuotaData? {
         var currentToken = tokenData.accessToken
+        var hasAttemptedRefresh = false
+        var tokenExpiresAt: Date? = parseExpiryDate(tokenData.expiresAt)
 
-        // 1. Check if token needs refresh
-        if isTokenExpired(tokenData) {
-            if let refreshed = await refreshToken(tokenData: tokenData, filePath: filePath) {
+        let (needsRefresh, _) = shouldRefreshToken(tokenData)
+        if needsRefresh {
+            if let (refreshed, newExpiry) = await refreshTokenWithExpiry(tokenData: tokenData, filePath: filePath) {
                 currentToken = refreshed
+                tokenExpiresAt = newExpiry
+                hasAttemptedRefresh = true
             } else {
-                 return ProviderQuotaData(
+                return ProviderQuotaData(
                     models: [ModelQuota(name: "Error", percentage: 0, resetTime: "Token Refresh Failed")],
                     lastUpdated: Date(),
                     isForbidden: true,
-                    planType: "Expired"
+                    planType: "Expired",
+                    tokenExpiresAt: tokenExpiresAt
                 )
             }
         }
 
-        // 2. Fetch Usage - Remove resourceType filter to get all quota types including Bonus Credits
+        // Fetch Usage (with retry on 401/403)
+        let result = await fetchUsageAPI(token: currentToken, tokenExpiresAt: tokenExpiresAt)
+
+        // Reactive refresh: If 401/403 and haven't tried refresh yet, refresh and retry
+        if (result.statusCode == 401 || result.statusCode == 403) && !hasAttemptedRefresh {
+            if let (refreshed, newExpiry) = await refreshTokenWithExpiry(tokenData: tokenData, filePath: filePath) {
+                let retryResult = await fetchUsageAPI(token: refreshed, tokenExpiresAt: newExpiry)
+                return retryResult.quotaData ?? ProviderQuotaData(models: [], lastUpdated: Date(), isForbidden: true, planType: "Unauthorized", tokenExpiresAt: newExpiry)
+            }
+        }
+
+        return result.quotaData
+    }
+
+    /// Parse expiry date from ISO8601 string
+    private func parseExpiryDate(_ expiresAt: String?) -> Date? {
+        guard let expiresAt = expiresAt else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: expiresAt) {
+            return date
+        }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: expiresAt)
+    }
+    
+    /// Internal struct for API result
+    private struct UsageAPIResult {
+        let statusCode: Int
+        let quotaData: ProviderQuotaData?
+    }
+
+    /// Fetch usage from API with given token
+    private func fetchUsageAPI(token: String, tokenExpiresAt: Date?) async -> UsageAPIResult {
         guard let url = URL(string: "\(usageEndpoint)?isEmailRequired=true&origin=AI_EDITOR") else {
-            return ProviderQuotaData(models: [ModelQuota(name: "Error", percentage: 0, resetTime: "Invalid URL")], lastUpdated: Date(), isForbidden: false, planType: "Error")
+            return UsageAPIResult(statusCode: 0, quotaData: ProviderQuotaData(
+                models: [ModelQuota(name: "Error", percentage: 0, resetTime: "Invalid URL")],
+                lastUpdated: Date(), isForbidden: false, planType: "Error", tokenExpiresAt: tokenExpiresAt
+            ))
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.addValue("Bearer \(currentToken)", forHTTPHeaderField: "Authorization")
-        // Headers mimicking Kiro IDE
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.addValue("aws-sdk-js/3.0.0 KiroIDE-0.1.0 os/macos lang/js md/nodejs/18.0.0", forHTTPHeaderField: "User-Agent")
         request.addValue("aws-sdk-js/3.0.0", forHTTPHeaderField: "x-amz-user-agent")
 
@@ -161,96 +248,93 @@ actor KiroQuotaFetcher {
             let (data, response) = try await session.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                 return ProviderQuotaData(models: [ModelQuota(name: "Error", percentage: 0, resetTime: "Invalid Response Type")], lastUpdated: Date(), isForbidden: false, planType: "Error")
+                return UsageAPIResult(statusCode: 0, quotaData: ProviderQuotaData(
+                    models: [ModelQuota(name: "Error", percentage: 0, resetTime: "Invalid Response Type")],
+                    lastUpdated: Date(), isForbidden: false, planType: "Error", tokenExpiresAt: tokenExpiresAt
+                ))
             }
 
             if httpResponse.statusCode != 200 {
-                // If 401/403 despite valid check, access denied
                 if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-                    return ProviderQuotaData(models: [], lastUpdated: Date(), isForbidden: true, planType: "Unauthorized")
+                    return UsageAPIResult(statusCode: httpResponse.statusCode, quotaData: nil)
                 }
-
-                // Return generic error with status code
                 let errorMsg = "HTTP \(httpResponse.statusCode)"
-                return ProviderQuotaData(models: [ModelQuota(name: "Error", percentage: 0, resetTime: errorMsg)], lastUpdated: Date(), isForbidden: false, planType: "Error")
+                return UsageAPIResult(statusCode: httpResponse.statusCode, quotaData: ProviderQuotaData(
+                    models: [ModelQuota(name: "Error", percentage: 0, resetTime: errorMsg)],
+                    lastUpdated: Date(), isForbidden: false, planType: "Error", tokenExpiresAt: tokenExpiresAt
+                ))
             }
 
             // Decode response
             do {
                 let usageResponse = try JSONDecoder().decode(KiroUsageResponse.self, from: data)
-
-                // Determine Plan Type from subscription info
                 let planType = usageResponse.subscriptionInfo?.subscriptionTitle ?? "Standard"
-
-                return convertToQuotaData(usageResponse, planType: planType)
+                return UsageAPIResult(statusCode: 200, quotaData: convertToQuotaData(usageResponse, planType: planType, tokenExpiresAt: tokenExpiresAt))
             } catch {
-                // Debug: If decoding failed, show raw keys
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     let keys = json.keys.sorted().joined(separator: ",")
-                    return ProviderQuotaData(
+                    return UsageAPIResult(statusCode: 200, quotaData: ProviderQuotaData(
                         models: [ModelQuota(name: "Debug: Keys: \(keys)", percentage: 0, resetTime: "Decode Error: \(error.localizedDescription)")],
-                        lastUpdated: Date(),
-                        isForbidden: false,
-                        planType: "Error"
-                    )
+                        lastUpdated: Date(), isForbidden: false, planType: "Error", tokenExpiresAt: tokenExpiresAt
+                    ))
                 }
-
-                return ProviderQuotaData(
+                return UsageAPIResult(statusCode: 200, quotaData: ProviderQuotaData(
                     models: [ModelQuota(name: "Error", percentage: 0, resetTime: error.localizedDescription)],
-                    lastUpdated: Date(),
-                    isForbidden: false,
-                    planType: "Error"
-                )
+                    lastUpdated: Date(), isForbidden: false, planType: "Error", tokenExpiresAt: tokenExpiresAt
+                ))
             }
-
         } catch {
-            // Return error as a quota item for visibility
-            return ProviderQuotaData(
+            return UsageAPIResult(statusCode: 0, quotaData: ProviderQuotaData(
                 models: [ModelQuota(name: "Error", percentage: 0, resetTime: error.localizedDescription)],
-                lastUpdated: Date(),
-                isForbidden: false,
-                planType: "Error"
-            )
+                lastUpdated: Date(), isForbidden: false, planType: "Error", tokenExpiresAt: tokenExpiresAt
+            ))
         }
     }
 
-    /// Refresh Kiro token using AWS OIDC and persist to disk
-    private func refreshToken(tokenData: AuthTokenData, filePath: String) async -> String? {
-        guard let refreshToken = tokenData.refreshToken,
-              let clientId = tokenData.clientId,
-              let clientSecret = tokenData.clientSecret,
-              let url = URL(string: tokenEndpoint) else {
+    /// Refresh Kiro token based on auth method and persist to disk
+    /// Returns tuple of (newAccessToken, newExpiryDate)
+    private func refreshTokenWithExpiry(tokenData: AuthTokenData, filePath: String) async -> (String, Date?)? {
+        guard let refreshToken = tokenData.refreshToken else {
+            return nil
+        }
+
+        // Determine auth method: "Social" (Google) or "IdC" (AWS Builder ID)
+        let authMethod = tokenData.authMethod ?? "IdC"
+
+        if authMethod == "Social" {
+            return await refreshSocialTokenWithExpiry(refreshToken: refreshToken, filePath: filePath)
+        } else {
+            return await refreshIdCTokenWithExpiry(tokenData: tokenData, filePath: filePath)
+        }
+    }
+
+    /// Refresh token for Social auth (Google OAuth) using Kiro's endpoint
+    private func refreshSocialTokenWithExpiry(refreshToken: String, filePath: String) async -> (String, Date?)? {
+        guard let url = URL(string: socialTokenEndpoint) else {
             return nil
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Basic Auth with Client ID & Secret
-        let authString = "\(clientId):\(clientSecret)"
-        guard let authData = authString.data(using: .utf8) else { return nil }
-        let base64Auth = authData.base64EncodedString()
-        request.addValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")
-
-        let bodyComponents = [
-            "grant_type": "refresh_token",
-            "refresh_token": refreshToken,
-            "client_id": clientId
-        ]
-
-        let bodyString = bodyComponents.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-        request.httpBody = bodyString.data(using: .utf8)
+        let body: [String: String] = ["refreshToken": refreshToken]
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
+            return nil
+        }
+        request.httpBody = bodyData
 
         do {
             let (data, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
                 return nil
             }
 
             let tokenResponse = try JSONDecoder().decode(KiroTokenResponse.self, from: data)
+            let newExpiry = Date().addingTimeInterval(TimeInterval(tokenResponse.expiresIn))
 
-            // Persist refreshed token to disk for CLIProxyAPI to use
             await persistRefreshedToken(
                 filePath: filePath,
                 newAccessToken: tokenResponse.accessToken,
@@ -258,7 +342,63 @@ actor KiroQuotaFetcher {
                 expiresIn: tokenResponse.expiresIn
             )
 
-            return tokenResponse.accessToken
+            return (tokenResponse.accessToken, newExpiry)
+        } catch {
+            return nil
+        }
+    }
+
+    /// Refresh token for IdC auth (AWS Builder ID) using AWS OIDC endpoint
+    private func refreshIdCTokenWithExpiry(tokenData: AuthTokenData, filePath: String) async -> (String, Date?)? {
+        guard let refreshToken = tokenData.refreshToken,
+              let clientId = tokenData.clientId,
+              let clientSecret = tokenData.clientSecret,
+              let url = URL(string: idcTokenEndpoint) else {
+            return nil
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("oidc.us-east-1.amazonaws.com", forHTTPHeaderField: "Host")
+        request.addValue("keep-alive", forHTTPHeaderField: "Connection")
+        request.addValue("aws-sdk-js/3.738.0 ua/2.1 os/other lang/js md/browser#unknown_unknown api/sso-oidc#3.738.0 m/E KiroIDE", forHTTPHeaderField: "x-amz-user-agent")
+        request.addValue("*/*", forHTTPHeaderField: "Accept")
+        request.addValue("*", forHTTPHeaderField: "Accept-Language")
+        request.addValue("cors", forHTTPHeaderField: "sec-fetch-mode")
+        request.addValue("node", forHTTPHeaderField: "User-Agent")
+
+        let body: [String: String] = [
+            "clientId": clientId,
+            "clientSecret": clientSecret,
+            "grantType": "refresh_token",
+            "refreshToken": refreshToken
+        ]
+
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
+            return nil
+        }
+        request.httpBody = bodyData
+
+        do {
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                return nil
+            }
+
+            let tokenResponse = try JSONDecoder().decode(KiroTokenResponse.self, from: data)
+            let newExpiry = Date().addingTimeInterval(TimeInterval(tokenResponse.expiresIn))
+
+            await persistRefreshedToken(
+                filePath: filePath,
+                newAccessToken: tokenResponse.accessToken,
+                newRefreshToken: tokenResponse.refreshToken,
+                expiresIn: tokenResponse.expiresIn
+            )
+
+            return (tokenResponse.accessToken, newExpiry)
         } catch {
             return nil
         }
@@ -271,39 +411,34 @@ actor KiroQuotaFetcher {
         newRefreshToken: String?,
         expiresIn: Int
     ) async {
-        // Read existing file to preserve other fields
         guard let existingData = fileManager.contents(atPath: filePath),
               var json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
             return
         }
 
-        // Update token fields
         json["access_token"] = newAccessToken
         if let newRefresh = newRefreshToken {
             json["refresh_token"] = newRefresh
         }
 
-        // Calculate new expiry time
+        // Calculate new expiry time - ALWAYS use UTC for consistency
         let newExpiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        formatter.timeZone = TimeZone.current
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(identifier: "UTC")
         json["expires_at"] = formatter.string(from: newExpiresAt)
-
-        // Update last_refresh timestamp
         json["last_refresh"] = formatter.string(from: Date())
 
-        // Write back to disk
         do {
             let updatedData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
             try updatedData.write(to: URL(fileURLWithPath: filePath), options: .atomic)
         } catch {
-            // Silent failure - token refresh still succeeded in memory
+            // Silent failure - token will be refreshed again on next request
         }
     }
 
     /// Convert Kiro response to standard Quota Data
-    private func convertToQuotaData(_ response: KiroUsageResponse, planType: String) -> ProviderQuotaData {
+    private func convertToQuotaData(_ response: KiroUsageResponse, planType: String, tokenExpiresAt: Date?) -> ProviderQuotaData {
         var models: [ModelQuota] = []
 
         // Calculate reset time from nextDateReset timestamp
@@ -353,8 +488,6 @@ actor KiroQuotaFetcher {
                 let regularTotal = breakdown.usageLimitWithPrecision ?? breakdown.usageLimit ?? 0
 
                 // Add regular quota if it has meaningful limits
-                // For trial users: this shows the base plan quota (e.g., 50)
-                // For paid users: this shows the paid plan quota
                 if regularTotal > 0 {
                     var percentage: Double = 0
                     percentage = max(0, (regularTotal - regularUsed) / regularTotal * 100)
@@ -379,7 +512,8 @@ actor KiroQuotaFetcher {
             models: models,
             lastUpdated: Date(),
             isForbidden: false,
-            planType: planType
+            planType: planType,
+            tokenExpiresAt: tokenExpiresAt
         )
     }
 }

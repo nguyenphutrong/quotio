@@ -88,24 +88,33 @@ nonisolated struct CopilotEntitlement: Codable, Sendable {
         let sku = accessTypeSku?.lowercased() ?? ""
         let plan = copilotPlan?.lowercased() ?? ""
 
-        // Check free first - sku takes priority as it's more specific
-        if sku.contains("free") {
-            return "Free"
-        }
+        // Enterprise/Business check first (highest tiers)
         if sku.contains("enterprise") || plan == "enterprise" {
             return "Enterprise"
         }
         if sku.contains("business") || plan == "business" {
             return "Business"
         }
+        
+        // Educational quota is treated as Pro (unlimited chat/completions)
+        if sku.contains("educational") {
+            return "Pro"
+        }
+        
+        // Pro checks
         if sku.contains("pro") || plan.contains("pro") {
             return "Pro"
         }
-        // individual without free sku means paid Pro
-        if plan == "individual" || sku.contains("individual") {
+        
+        // Individual plan without "free_limited" sku means paid Pro
+        if plan == "individual" && !sku.contains("free_limited") {
             return "Pro"
         }
-        // Fallback for other free plans
+        
+        // Free tier: only "free_limited_user" or explicit free plan
+        if sku.contains("free_limited") || sku == "free" {
+            return "Free"
+        }
         if plan.contains("free") {
             return "Free"
         }
@@ -195,15 +204,20 @@ actor CopilotQuotaFetcher {
     private let entitlementURL = "https://api.github.com/copilot_internal/user"
     private let tokenURL = "https://api.github.com/copilot_internal/v2/token"
     private let modelsURL = "https://api.githubcopilot.com/models"
-    private let session: URLSession
+    private var session: URLSession
 
     // Cache for available models (per access token)
     private var modelsCache: [String: (models: [CopilotModelInfo], expiry: Date)] = [:]
     private let modelsCacheTTL: TimeInterval = 300 // 5 minutes
 
     init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
+        self.session = URLSession(configuration: config)
+    }
+
+    /// Update the URLSession with current proxy settings
+    func updateProxyConfiguration() {
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         self.session = URLSession(configuration: config)
     }
     

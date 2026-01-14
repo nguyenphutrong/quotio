@@ -1271,7 +1271,9 @@ actor AgentConfigurationService {
         request.addValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 10
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let proxyConfig = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 10)
+        let session = URLSession(configuration: proxyConfig)
+        let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw URLError(.badServerResponse)
@@ -1332,9 +1334,11 @@ actor AgentConfigurationService {
         request.timeoutInterval = 10
         
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let proxyConfig = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 10)
+            let session = URLSession(configuration: proxyConfig)
+            let (data, response) = try await session.data(for: request)
             let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-            
+
             guard let httpResponse = response as? HTTPURLResponse else {
                 return ConnectionTestResult(
                     success: false,
