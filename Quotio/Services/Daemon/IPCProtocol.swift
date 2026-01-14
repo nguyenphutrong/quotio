@@ -51,20 +51,41 @@ nonisolated enum IPCErrorCode: Int, Sendable {
 }
 
 nonisolated enum IPCMethod: String, Sendable {
+    // Daemon
     case daemonPing = "daemon.ping"
     case daemonStatus = "daemon.status"
     case daemonShutdown = "daemon.shutdown"
+    
+    // Quota
     case quotaFetch = "quota.fetch"
     case quotaList = "quota.list"
+    
+    // Agent
     case agentDetect = "agent.detect"
     case agentConfigure = "agent.configure"
+    
+    // Proxy
     case proxyStart = "proxy.start"
     case proxyStop = "proxy.stop"
     case proxyStatus = "proxy.status"
     case proxyHealth = "proxy.health"
+    
+    // Auth
     case authList = "auth.list"
+    case authDelete = "auth.delete"
+    case authOAuth = "auth.oauth"
+    case authPoll = "auth.poll"
+    
+    // Logs
+    case logsFetch = "logs.fetch"
+    case logsClear = "logs.clear"
+    
+    // Config
     case configGet = "config.get"
     case configSet = "config.set"
+    case configRouting = "config.routing"
+    case configDebug = "config.debug"
+    case configProxyUrl = "config.proxyUrl"
 }
 
 // MARK: - Parameter Types
@@ -104,6 +125,36 @@ nonisolated struct IPCConfigSetParams: Codable, Sendable {
 
 nonisolated struct IPCDaemonShutdownParams: Codable, Sendable {
     var graceful: Bool?
+}
+
+nonisolated struct IPCAuthDeleteParams: Codable, Sendable {
+    let name: String
+}
+
+nonisolated struct IPCAuthOAuthParams: Codable, Sendable {
+    let provider: String
+    var projectId: String?
+    var isWebUI: Bool?
+}
+
+nonisolated struct IPCAuthPollParams: Codable, Sendable {
+    let state: String
+}
+
+nonisolated struct IPCLogsFetchParams: Codable, Sendable {
+    var after: Int?
+}
+
+nonisolated struct IPCConfigRoutingParams: Codable, Sendable {
+    var strategy: String?
+}
+
+nonisolated struct IPCConfigDebugParams: Codable, Sendable {
+    var enabled: Bool?
+}
+
+nonisolated struct IPCConfigProxyUrlParams: Codable, Sendable {
+    var url: String?
 }
 
 // MARK: - Result Types
@@ -216,6 +267,43 @@ nonisolated struct IPCConfigGetResult: Codable, Sendable {
 
 nonisolated struct IPCConfigSetResult: Codable, Sendable {
     let success: Bool
+}
+
+nonisolated struct IPCAuthDeleteResult: Codable, Sendable {
+    let success: Bool
+}
+
+nonisolated struct IPCAuthOAuthResult: Codable, Sendable {
+    let url: String
+    let state: String
+}
+
+nonisolated struct IPCAuthPollResult: Codable, Sendable {
+    let status: String
+    let email: String?
+    let error: String?
+}
+
+nonisolated struct IPCLogsFetchResult: Codable, Sendable {
+    let lines: [String]?
+    let lineCount: Int?
+    let latestTimestamp: Int?
+}
+
+nonisolated struct IPCLogsClearResult: Codable, Sendable {
+    let success: Bool
+}
+
+nonisolated struct IPCConfigRoutingResult: Codable, Sendable {
+    let strategy: String
+}
+
+nonisolated struct IPCConfigDebugResult: Codable, Sendable {
+    let debug: Bool
+}
+
+nonisolated struct IPCConfigProxyUrlResult: Codable, Sendable {
+    let proxyUrl: String?
 }
 
 // MARK: - Dynamic Value Type

@@ -232,6 +232,50 @@ extension DaemonIPCClient {
     func listAuth(provider: String? = nil) async throws -> IPCAuthListResult {
         try await call(.authList, params: IPCAuthListParams(provider: provider))
     }
+    
+    func deleteAuth(name: String) async throws -> IPCAuthDeleteResult {
+        try await call(.authDelete, params: IPCAuthDeleteParams(name: name))
+    }
+    
+    func startOAuth(provider: String, projectId: String? = nil, isWebUI: Bool = true) async throws -> IPCAuthOAuthResult {
+        try await call(.authOAuth, params: IPCAuthOAuthParams(provider: provider, projectId: projectId, isWebUI: isWebUI))
+    }
+    
+    func pollOAuthStatus(state: String) async throws -> IPCAuthPollResult {
+        try await call(.authPoll, params: IPCAuthPollParams(state: state))
+    }
+    
+    func fetchLogs(after: Int? = nil) async throws -> IPCLogsFetchResult {
+        try await call(.logsFetch, params: IPCLogsFetchParams(after: after))
+    }
+    
+    func clearLogs() async throws -> IPCLogsClearResult {
+        try await call(.logsClear)
+    }
+    
+    func getRoutingStrategy() async throws -> IPCConfigRoutingResult {
+        try await call(.configRouting, params: IPCConfigRoutingParams())
+    }
+    
+    func setRoutingStrategy(_ strategy: String) async throws -> IPCConfigRoutingResult {
+        try await call(.configRouting, params: IPCConfigRoutingParams(strategy: strategy))
+    }
+    
+    func getDebugMode() async throws -> IPCConfigDebugResult {
+        try await call(.configDebug, params: IPCConfigDebugParams())
+    }
+    
+    func setDebugMode(_ enabled: Bool) async throws -> IPCConfigDebugResult {
+        try await call(.configDebug, params: IPCConfigDebugParams(enabled: enabled))
+    }
+    
+    func getProxyUrl() async throws -> IPCConfigProxyUrlResult {
+        try await call(.configProxyUrl, params: IPCConfigProxyUrlParams())
+    }
+    
+    func setProxyUrl(_ url: String?) async throws -> IPCConfigProxyUrlResult {
+        try await call(.configProxyUrl, params: IPCConfigProxyUrlParams(url: url))
+    }
 }
 
 enum IPCClientError: LocalizedError {

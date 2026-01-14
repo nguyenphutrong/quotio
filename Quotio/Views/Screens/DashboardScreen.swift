@@ -19,6 +19,7 @@ struct DashboardScreen: View {
     @State private var showTunnelSheet = false
     
     private var tunnelManager: TunnelManager { TunnelManager.shared }
+    private var daemonManager: DaemonManager { DaemonManager.shared }
     
     private var showGettingStarted: Bool {
         guard !hideGettingStarted else { return false }
@@ -158,6 +159,7 @@ struct DashboardScreen: View {
             providerSection
             endpointSection
             tunnelSection
+            daemonStatusSection
         }
     }
     
@@ -799,6 +801,53 @@ struct DashboardScreen: View {
         .sheet(isPresented: $showTunnelSheet) {
             TunnelSheet()
                 .environment(viewModel)
+        }
+    }
+    
+    // MARK: - Daemon Status Section
+    
+    private var daemonStatusSection: some View {
+        GroupBox {
+            HStack(spacing: 12) {
+                // Status indicator
+                Circle()
+                    .fill(daemonManager.isRunning ? Color.green : Color.gray.opacity(0.5))
+                    .frame(width: 8, height: 8)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("dashboard.daemonIPC".localized())
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Text(daemonManager.isRunning ? "dashboard.daemonActive".localized() : "dashboard.daemonInactive".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                if daemonManager.isRunning {
+                    Text("IPC")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.1))
+                        .clipShape(Capsule())
+                } else {
+                    Text("HTTP")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+            }
+        } label: {
+            Label("dashboard.communicationMode".localized(), systemImage: "bolt.horizontal")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }

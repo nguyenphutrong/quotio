@@ -477,6 +477,7 @@ private struct MenuNetworkInfoView: View {
     let onCopyTunnelURL: () -> Void
 
     private let tunnelManager = TunnelManager.shared
+    private let daemonManager = DaemonManager.shared
     private var tunnelStatus: CloudflareTunnelStatus { tunnelManager.tunnelState.status }
     private var tunnelURL: String? { tunnelManager.tunnelState.publicURL }
     private var proxyURL: String { "http://127.0.0.1:" + port }
@@ -567,6 +568,23 @@ private struct MenuNetworkInfoView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(tunnelStatus == .starting || tunnelStatus == .stopping)
+                }
+                
+                // Daemon IPC Row (informational)
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(daemonManager.isRunning ? Color.green : Color.gray)
+                        .frame(width: 6, height: 6)
+                    
+                    Text("IPC")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(daemonManager.isRunning ? .primary : .tertiary)
+                    
+                    Text(daemonManager.isRunning ? "menubar.daemonActive".localized() : "menubar.daemonInactive".localized())
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                    
+                    Spacer()
                 }
             }
         }

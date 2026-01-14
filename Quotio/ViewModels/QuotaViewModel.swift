@@ -45,9 +45,15 @@ final class QuotaViewModel {
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
     @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
     
-    // Daemon services for IPC-based quota fetching
+    // Daemon services for IPC-based operations
     @ObservationIgnored private let daemonManager = DaemonManager.shared
     @ObservationIgnored private let daemonQuotaService = DaemonQuotaService.shared
+    @ObservationIgnored private let daemonAuthService = DaemonAuthService.shared
+    
+    private func shouldUseDaemonForAuth() async -> Bool {
+        guard !modeManager.isRemoteProxyMode else { return false }
+        return await daemonManager.checkHealth()
+    }
     
     @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
     
@@ -1258,18 +1264,41 @@ final class QuotaViewModel {
     }
     
     func startOAuth(for provider: AIProvider, projectId: String? = nil, authMethod: AuthCommand? = nil) async {
-        // GitHub Copilot uses Device Code Flow via CLI binary, not Management API
         if provider == .copilot {
             await startCopilotAuth()
             return
         }
         
-        // Kiro uses CLI-based auth with multiple options
         if provider == .kiro {
             await startKiroAuth(method: authMethod ?? .kiroGoogleLogin)
             return
         }
 
+        if await shouldUseDaemonForAuth() {
+            await startOAuthViaDaemon(for: provider, projectId: projectId)
+        } else {
+            await startOAuthViaAPI(for: provider, projectId: projectId)
+        }
+    }
+    
+    private func startOAuthViaDaemon(for provider: AIProvider, projectId: String? = nil) async {
+        oauthState = OAuthState(provider: provider, status: .waiting)
+        
+        do {
+            let daemonState = try await daemonAuthService.startOAuth(provider: provider, projectId: projectId)
+            
+            if let url = URL(string: daemonState.url) {
+                NSWorkspace.shared.open(url)
+            }
+            
+            oauthState = OAuthState(provider: provider, status: .polling, state: daemonState.state)
+            await pollOAuthStatusViaDaemon(state: daemonState.state, provider: provider)
+        } catch {
+            oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
+        }
+    }
+    
+    private func startOAuthViaAPI(for provider: AIProvider, projectId: String? = nil) async {
         guard let client = apiClient else {
             oauthState = OAuthState(provider: provider, status: .error, error: "Proxy not running. Please start the proxy first.")
             return
@@ -1413,28 +1442,57 @@ final class QuotaViewModel {
         oauthState = OAuthState(provider: provider, status: .error, error: "OAuth timeout")
     }
     
+    private func pollOAuthStatusViaDaemon(state: String, provider: AIProvider) async {
+        for _ in 0..<60 {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            
+            do {
+                let result = try await daemonAuthService.pollOAuthStatus(state: state)
+                
+                switch result.status {
+                case .completed:
+                    oauthState = OAuthState(provider: provider, status: .success)
+                    await refreshData()
+                    return
+                case .failed:
+                    oauthState = OAuthState(provider: provider, status: .error, error: result.error)
+                    return
+                case .expired:
+                    oauthState = OAuthState(provider: provider, status: .error, error: "OAuth session expired")
+                    return
+                case .pending:
+                    continue
+                }
+            } catch {
+                continue
+            }
+        }
+        
+        oauthState = OAuthState(provider: provider, status: .error, error: "OAuth timeout")
+    }
+    
     func cancelOAuth() {
         oauthState = nil
     }
     
     func deleteAuthFile(_ file: AuthFile) async {
-        guard let client = apiClient else { return }
-        
         do {
-            try await client.deleteAuthFile(name: file.name)
+            if await shouldUseDaemonForAuth() {
+                try await daemonAuthService.deleteAuthFile(name: file.name)
+            } else {
+                guard let client = apiClient else { return }
+                try await client.deleteAuthFile(name: file.name)
+            }
             
-            // Remove quota data for this account
             if let provider = file.providerType {
                 let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
                 providerQuotas[provider]?.removeValue(forKey: accountKey)
                 
-                // Also try with email if different
                 if let email = file.email, email != accountKey {
                     providerQuotas[provider]?.removeValue(forKey: email)
                 }
             }
             
-            // Prune menu bar items that no longer exist
             pruneMenuBarItems()
             
             await refreshData()
