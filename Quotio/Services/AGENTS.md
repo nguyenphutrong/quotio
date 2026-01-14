@@ -1,29 +1,48 @@
 # Services Layer
 
-30 services implementing business logic, API clients, and system integrations.
+30+ services implementing business logic, API clients, daemon IPC, and system integrations.
 
 ## Architecture
+
+**Current Architecture (January 2026):**
+- **Local Mode**: Swift app communicates with quotio-cli daemon via IPC (Unix Socket)
+- **Remote Mode**: Swift app uses ManagementAPIClient for HTTP communication with remote proxy servers
 
 Three concurrency patterns used:
 
 | Pattern | Count | Use Case |
 |---------|-------|----------|
-| `@MainActor @Observable` | 11 | UI-bound state (StatusBarManager, CLIProxyManager) |
-| `actor` | 13 | Thread-safe async (API clients, quota fetchers) |
-| Singleton (`static let shared`) | 12 | App-wide coordination |
+| `@MainActor @Observable` | 11+ | UI-bound state (DaemonProxyConfigService, StatusBarManager) |
+| `actor` | 13+ | Thread-safe async (API clients, quota fetchers, ManagementAPIClient) |
+| Singleton (`static let shared`) | 12+ | App-wide coordination (DaemonManager, services) |
 
 ## Where to Look
 
 | Task | File | Pattern |
 |------|------|---------|
+| Add IPC method | `DaemonIPCClient.swift` + `quotio-cli/src/services/daemon/service.ts` | IPC protocol |
+| Add daemon service | Create `Daemon*Service.swift` | Singleton wrapping DaemonIPCClient |
 | Add quota fetcher | Create `*QuotaFetcher.swift` | Actor, see `ClaudeCodeQuotaFetcher` |
-| Add API endpoint | `ManagementAPIClient.swift` | Actor methods with `async throws` |
+| ~~Add API endpoint~~ | **DEPRECATED** - Use daemon IPC instead | ~~Actor methods~~ |
 | Menu bar changes | `StatusBarManager.swift` + `StatusBarMenuBuilder.swift` | Singleton + builder |
 | Proxy lifecycle | `CLIProxyManager.swift` | `start()`, `stop()`, `toggle()` |
-| Auth commands | `CLIProxyManager.swift` | `runAuthCommand()` extension |
+| Auth commands | `DaemonAuthService.swift` | Daemon IPC methods |
 | Binary management | `ProxyStorageManager.swift` | Versioned storage with symlinks |
 
 ## Service Categories
+
+### Daemon IPC Services (Local Mode)
+- `DaemonIPCClient` - Unix Socket IPC client for quotio-cli daemon
+- `DaemonManager` - Daemon lifecycle management and health checks
+- `DaemonProxyConfigService` - Proxy configuration via daemon
+- `DaemonAuthService` - Auth file operations via daemon
+- `DaemonQuotaService` - Quota and stats via daemon
+- `DaemonAPIKeysService` - API key management via daemon
+- `DaemonLogsService` - Log fetching and clearing via daemon
+- `DaemonProxyService` - Proxy health and version checks via daemon
+- `DaemonAgentService` - Agent detection and configuration via daemon
+- `DaemonConfigService` - App config storage via daemon
+- `DaemonTunnelService` - Tunnel management via daemon
 
 ### Core Infrastructure
 - `CLIProxyManager` - Proxy process lifecycle, binary download, auth commands
@@ -31,8 +50,8 @@ Three concurrency patterns used:
 - `ProxyStorageManager` - Versioned binary storage, SHA256 verification
 - `CompatibilityChecker` - Version compatibility validation
 
-### API Clients
-- `ManagementAPIClient` - Primary HTTP client for CLIProxyAPI (actor)
+### API Clients (Remote Mode Only)
+- `ManagementAPIClient` - **DEPRECATED for local use** - HTTP client for remote CLIProxyAPI servers only (actor)
 
 ### Quota Fetchers (all actors)
 | Fetcher | Provider | Method |
@@ -119,22 +138,44 @@ actor NewProviderQuotaFetcher {
 
 ## Critical Rules
 
+- **DaemonIPCClient**: Local mode ONLY - cannot work over network (Unix Socket limitation)
+- **ManagementAPIClient**: Remote mode ONLY - deprecated for local use
 - **CLIProxyManager**: Base URL always points to CLIProxyAPI directly
 - **ProxyStorageManager**: Never delete current version symlink
 - **ProxyBridge**: Target host always localhost
-- **ManagementAPIClient**: Uses `Connection: close` to prevent stale connections
+- **DaemonManager**: Health check before all IPC operations
 
 ## Dependencies Between Services
 
+**Local Mode:**
 ```
 QuotaViewModel
-├── CLIProxyManager (weak ref)
-├── ManagementAPIClient
+├── DaemonQuotaService → DaemonIPCClient → quotio-cli daemon → CLIProxyAPI
+├── DaemonAuthService
 ├── All QuotaFetchers
 ├── DirectAuthFileService
 ├── NotificationManager
 └── RequestTracker
 
+SettingsScreen
+└── DaemonProxyConfigService → DaemonIPCClient → quotio-cli daemon
+
+LogsViewModel
+└── DaemonLogsService → DaemonIPCClient → quotio-cli daemon
+```
+
+**Remote Mode:**
+```
+QuotaViewModel
+├── ManagementAPIClient (HTTP) → Remote CLIProxyAPI server
+├── All QuotaFetchers
+├── DirectAuthFileService
+├── NotificationManager
+└── RequestTracker
+```
+
+**Core Services:**
+```
 CLIProxyManager
 ├── ProxyBridge
 ├── ProxyStorageManager
@@ -142,4 +183,8 @@ CLIProxyManager
 
 StatusBarManager
 └── StatusBarMenuBuilder
+
+DaemonManager
+├── DaemonIPCClient
+└── Health check logic
 ```
