@@ -276,6 +276,42 @@ extension DaemonIPCClient {
     func setProxyUrl(_ url: String?) async throws -> IPCConfigProxyUrlResult {
         try await call(.configProxyUrl, params: IPCConfigProxyUrlParams(url: url))
     }
+    
+    func deleteAllAuth() async throws -> IPCAuthDeleteAllResult {
+        try await call(.authDeleteAll, params: IPCAuthDeleteAllParams())
+    }
+    
+    func setAuthDisabled(name: String, disabled: Bool) async throws -> IPCAuthSetDisabledResult {
+        try await call(.authSetDisabled, params: IPCAuthSetDisabledParams(name: name, disabled: disabled))
+    }
+    
+    func getProxyConfigAll() async throws -> IPCProxyConfigGetAllResult {
+        try await call(.proxyConfigGetAll)
+    }
+    
+    func getProxyConfig(key: String) async throws -> IPCProxyConfigGetResult {
+        try await call(.proxyConfigGet, params: IPCProxyConfigGetParams(key: key))
+    }
+    
+    func setProxyConfig(key: String, value: Any) async throws -> IPCProxyConfigSetResult {
+        try await call(.proxyConfigSet, params: IPCProxyConfigSetParams(key: key, value: IPCAnyCodable(value)))
+    }
+    
+    func listApiKeys() async throws -> IPCApiKeysListResult {
+        try await call(.apiKeysList)
+    }
+    
+    func addApiKey() async throws -> IPCApiKeysAddResult {
+        try await call(.apiKeysAdd)
+    }
+    
+    func deleteApiKey(_ key: String) async throws -> IPCApiKeysDeleteResult {
+        try await call(.apiKeysDelete, params: IPCApiKeysDeleteParams(key: key))
+    }
+    
+    func proxyHealthCheck() async throws -> IPCProxyHealthCheckResult {
+        try await call(.proxyHealthCheck)
+    }
 }
 
 enum IPCClientError: LocalizedError {

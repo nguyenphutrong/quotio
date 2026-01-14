@@ -43,6 +43,26 @@ export interface APIKeysResponse {
 	"api-keys": string[];
 }
 
+export interface LogEntry {
+	id: number;
+	timestamp: string;
+	method: string;
+	path: string;
+	statusCode: number;
+	duration: number;
+	provider?: string;
+	model?: string;
+	inputTokens?: number;
+	outputTokens?: number;
+	error?: string;
+}
+
+export interface LogsResponse {
+	logs: LogEntry[];
+	total: number;
+	lastId: number;
+}
+
 export function parseAuthFile(json: Record<string, unknown>): AuthFile {
 	return {
 		id: String(json.id ?? ""),

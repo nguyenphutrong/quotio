@@ -849,6 +849,378 @@ const handlers: Record<string, MethodHandler> = {
 		const success = await importConfiguration(json);
 		return { success };
 	},
+
+	"proxyConfig.getAll": async () => {
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			const [config, debug, routingStrategy, requestRetry, maxRetryInterval, proxyURL, loggingToFile] =
+				await Promise.all([
+					client.fetchConfig(),
+					client.getDebug().catch(() => false),
+					client.getRoutingStrategy().catch(() => "round-robin"),
+					client.getRequestRetry().catch(() => 3),
+					client.getMaxRetryInterval().catch(() => 60),
+					client.getProxyURL().catch(() => ""),
+					client.getLoggingToFile().catch(() => false),
+				]);
+
+			return {
+				success: true,
+				config: {
+					...config,
+					debug,
+					routingStrategy,
+					requestRetry,
+					maxRetryInterval,
+					proxyURL,
+					loggingToFile,
+				},
+			};
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
+	"proxyConfig.get": async (params: unknown) => {
+		const { key } = params as { key: string };
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			let value: unknown;
+			switch (key) {
+				case "debug":
+					value = await client.getDebug();
+					break;
+				case "routingStrategy":
+					value = await client.getRoutingStrategy();
+					break;
+				case "requestRetry":
+					value = await client.getRequestRetry();
+					break;
+				case "maxRetryInterval":
+					value = await client.getMaxRetryInterval();
+					break;
+				case "proxyURL":
+					value = await client.getProxyURL();
+					break;
+				case "loggingToFile":
+					value = await client.getLoggingToFile();
+					break;
+				default:
+					return { success: false, error: `Unknown config key: ${key}` };
+			}
+			return { success: true, key, value };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
+	"proxyConfig.set": async (params: unknown) => {
+		const { key, value } = params as { key: string; value: unknown };
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			switch (key) {
+				case "debug":
+					await client.setDebug(Boolean(value));
+					break;
+				case "routingStrategy":
+					await client.setRoutingStrategy(value as "round-robin" | "fill-first");
+					break;
+				case "requestRetry":
+					await client.setRequestRetry(Number(value));
+					break;
+				case "maxRetryInterval":
+					await client.setMaxRetryInterval(Number(value));
+					break;
+				case "proxyURL":
+					if (value) {
+						await client.setProxyURL(String(value));
+					} else {
+						await client.deleteProxyURL();
+					}
+					break;
+				case "loggingToFile":
+					await client.setLoggingToFile(Boolean(value));
+					break;
+				case "quotaExceededSwitchProject":
+					await client.setQuotaExceededSwitchProject(Boolean(value));
+					break;
+				case "quotaExceededSwitchPreviewModel":
+					await client.setQuotaExceededSwitchPreviewModel(Boolean(value));
+					break;
+				default:
+					return { success: false, error: `Unknown config key: ${key}` };
+			}
+			return { success: true };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
+	"auth.delete": async (params: unknown) => {
+		const { name } = params as { name: string };
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			await client.deleteAuthFile(name);
+			return { success: true };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
+	"auth.deleteAll": async () => {
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			await client.deleteAllAuthFiles();
+			return { success: true };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
+	"auth.setDisabled": async (params: unknown) => {
+		const { name, disabled } = params as { name: string; disabled: boolean };
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			await client.setAuthFileDisabled(name, disabled);
+			return { success: true };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
+	"apiKeys.list": async () => {
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running", keys: [] };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			const keys = await client.fetchAPIKeys();
+			return { success: true, keys };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+				keys: [],
+			};
+		}
+	},
+
+	"apiKeys.add": async () => {
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			const key = await client.addAPIKey();
+			return { success: true, key };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
+	"apiKeys.delete": async (params: unknown) => {
+		const { key } = params as { key: string };
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			await client.deleteAPIKey(key);
+			return { success: true };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
+	"proxy.healthCheck": async () => {
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { healthy: false, error: "Proxy not running" };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			const healthy = await client.healthCheck();
+			return { healthy };
+		} catch (err) {
+			return {
+				healthy: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
+	"logs.fetch": async (params: unknown) => {
+		const opts = params as { after?: number } | undefined;
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running", logs: [], total: 0, lastId: 0 };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			const response = await client.fetchLogs(opts?.after);
+			return { success: true, ...response };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+				logs: [],
+				total: 0,
+				lastId: 0,
+			};
+		}
+	},
+
+	"logs.clear": async () => {
+		const { ManagementAPIClient } = await import("../management-api.ts");
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		const client = new ManagementAPIClient({
+			baseURL: `http://localhost:${proxyState.port}`,
+			authKey: "quotio-cli-key",
+		});
+
+		try {
+			await client.clearLogs();
+			return { success: true };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
 };
 
 export async function startDaemon(options?: {

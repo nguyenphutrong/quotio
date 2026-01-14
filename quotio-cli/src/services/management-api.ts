@@ -2,6 +2,7 @@ import type {
 	APIKeysResponse,
 	AuthFile,
 	AuthFilesResponse,
+	LogsResponse,
 	OAuthStatusResponse,
 	OAuthURLResponse,
 } from "../models/auth.ts";
@@ -326,6 +327,18 @@ export class ManagementAPIClient {
 		} catch {
 			return false;
 		}
+	}
+
+	async fetchLogs(after?: number): Promise<LogsResponse> {
+		let endpoint = "/logs";
+		if (after !== undefined) {
+			endpoint += `?after=${after}`;
+		}
+		return (await this.makeRequest(endpoint)) as LogsResponse;
+	}
+
+	async clearLogs(): Promise<void> {
+		await this.makeRequest("/logs", "DELETE");
 	}
 }
 

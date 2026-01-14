@@ -332,6 +332,59 @@ export interface IPCMethods {
 		params: { json: string };
 		result: { success: boolean };
 	};
+
+	"proxyConfig.getAll": {
+		params: Record<string, never>;
+		result: ProxyConfigGetAllResult;
+	};
+	"proxyConfig.get": {
+		params: { key: string };
+		result: ProxyConfigGetResult;
+	};
+	"proxyConfig.set": {
+		params: { key: string; value: unknown };
+		result: { success: boolean; error?: string };
+	};
+
+	"auth.delete": {
+		params: { name: string };
+		result: { success: boolean; error?: string };
+	};
+	"auth.deleteAll": {
+		params: Record<string, never>;
+		result: { success: boolean; error?: string };
+	};
+	"auth.setDisabled": {
+		params: { name: string; disabled: boolean };
+		result: { success: boolean; error?: string };
+	};
+
+	"apiKeys.list": {
+		params: Record<string, never>;
+		result: APIKeysListResult;
+	};
+	"apiKeys.add": {
+		params: Record<string, never>;
+		result: { success: boolean; key?: string; error?: string };
+	};
+	"apiKeys.delete": {
+		params: { key: string };
+		result: { success: boolean; error?: string };
+	};
+
+	"proxy.healthCheck": {
+		params: Record<string, never>;
+		result: { healthy: boolean; error?: string };
+	};
+
+	"logs.fetch": {
+		params: { after?: number };
+		result: LogsFetchResult;
+	};
+	"logs.clear": {
+		params: Record<string, never>;
+		result: { success: boolean; error?: string };
+	};
 }
 
 /** All available method names */
@@ -610,6 +663,54 @@ export interface FallbackRouteStateInfo {
 
 export interface FallbackRouteStatesResult {
 	states: FallbackRouteStateInfo[];
+}
+
+export interface ProxyConfigGetAllResult {
+	success: boolean;
+	config?: {
+		debug: boolean;
+		routingStrategy: string;
+		requestRetry: number;
+		maxRetryInterval: number;
+		proxyURL: string;
+		loggingToFile: boolean;
+	};
+	error?: string;
+}
+
+export interface ProxyConfigGetResult {
+	success: boolean;
+	key?: string;
+	value?: unknown;
+	error?: string;
+}
+
+export interface APIKeysListResult {
+	success: boolean;
+	keys: string[];
+	error?: string;
+}
+
+export interface LogEntryInfo {
+	id: number;
+	timestamp: string;
+	method: string;
+	path: string;
+	statusCode: number;
+	duration: number;
+	provider?: string;
+	model?: string;
+	inputTokens?: number;
+	outputTokens?: number;
+	error?: string;
+}
+
+export interface LogsFetchResult {
+	success: boolean;
+	logs: LogEntryInfo[];
+	total: number;
+	lastId: number;
+	error?: string;
 }
 
 // ============================================================================

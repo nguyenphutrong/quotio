@@ -11,8 +11,8 @@ final class DaemonLogsService {
     
     private(set) var isLoading = false
     private(set) var lastError: String?
-    private(set) var logLines: [String] = []
-    private(set) var latestTimestamp: Int?
+    private(set) var logEntries: [IPCLogEntry] = []
+    private(set) var lastId: Int?
     
     private let ipcClient = DaemonIPCClient.shared
     private let daemonManager = DaemonManager.shared
@@ -26,7 +26,7 @@ final class DaemonLogsService {
         }
     }
     
-    func fetchLogs(after: Int? = nil) async -> [String] {
+    func fetchLogs(after: Int? = nil) async -> [IPCLogEntry] {
         guard await isDaemonReady else {
             lastError = "Daemon not running"
             return []
@@ -39,19 +39,24 @@ final class DaemonLogsService {
         do {
             let result = try await ipcClient.fetchLogs(after: after)
             
-            if let lines = result.lines {
+            guard result.success else {
+                lastError = result.error ?? "Failed to fetch logs"
+                return []
+            }
+            
+            if let logs = result.logs {
                 if after == nil {
-                    logLines = lines
+                    logEntries = logs
                 } else {
-                    logLines.append(contentsOf: lines)
+                    logEntries.append(contentsOf: logs)
                 }
             }
             
-            if let timestamp = result.latestTimestamp {
-                latestTimestamp = timestamp
+            if let fetchedLastId = result.lastId {
+                lastId = fetchedLastId
             }
             
-            return result.lines ?? []
+            return result.logs ?? []
         } catch {
             lastError = error.localizedDescription
             return []
@@ -70,8 +75,8 @@ final class DaemonLogsService {
         do {
             let result = try await ipcClient.clearLogs()
             if result.success {
-                logLines = []
-                latestTimestamp = nil
+                logEntries = []
+                lastId = nil
             } else {
                 throw DaemonLogsError.clearFailed
             }
@@ -82,12 +87,12 @@ final class DaemonLogsService {
     }
     
     func refreshLogs() async {
-        _ = await fetchLogs(after: latestTimestamp)
+        _ = await fetchLogs(after: lastId)
     }
     
     func reset() {
-        logLines = []
-        latestTimestamp = nil
+        logEntries = []
+        lastId = nil
         lastError = nil
     }
 }

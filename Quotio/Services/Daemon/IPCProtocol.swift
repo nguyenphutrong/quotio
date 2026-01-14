@@ -69,12 +69,15 @@ nonisolated enum IPCMethod: String, Sendable {
     case proxyStop = "proxy.stop"
     case proxyStatus = "proxy.status"
     case proxyHealth = "proxy.health"
+    case proxyHealthCheck = "proxy.healthCheck"
     
     // Auth
     case authList = "auth.list"
     case authDelete = "auth.delete"
-    case authOAuth = "auth.oauth"
-    case authPoll = "auth.poll"
+    case authDeleteAll = "auth.deleteAll"
+    case authSetDisabled = "auth.setDisabled"
+    case authOAuth = "oauth.start"
+    case authPoll = "oauth.poll"
     
     // Logs
     case logsFetch = "logs.fetch"
@@ -86,6 +89,14 @@ nonisolated enum IPCMethod: String, Sendable {
     case configRouting = "config.routing"
     case configDebug = "config.debug"
     case configProxyUrl = "config.proxyUrl"
+    
+    case proxyConfigGetAll = "proxyConfig.getAll"
+    case proxyConfigGet = "proxyConfig.get"
+    case proxyConfigSet = "proxyConfig.set"
+    
+    case apiKeysList = "apiKeys.list"
+    case apiKeysAdd = "apiKeys.add"
+    case apiKeysDelete = "apiKeys.delete"
 }
 
 // MARK: - Parameter Types
@@ -155,6 +166,26 @@ nonisolated struct IPCConfigDebugParams: Codable, Sendable {
 
 nonisolated struct IPCConfigProxyUrlParams: Codable, Sendable {
     var url: String?
+}
+
+nonisolated struct IPCAuthDeleteAllParams: Codable, Sendable {}
+
+nonisolated struct IPCAuthSetDisabledParams: Codable, Sendable {
+    let name: String
+    let disabled: Bool
+}
+
+nonisolated struct IPCProxyConfigGetParams: Codable, Sendable {
+    let key: String
+}
+
+nonisolated struct IPCProxyConfigSetParams: Codable, Sendable {
+    let key: String
+    let value: IPCAnyCodable
+}
+
+nonisolated struct IPCApiKeysDeleteParams: Codable, Sendable {
+    let key: String
 }
 
 // MARK: - Result Types
@@ -285,9 +316,25 @@ nonisolated struct IPCAuthPollResult: Codable, Sendable {
 }
 
 nonisolated struct IPCLogsFetchResult: Codable, Sendable {
-    let lines: [String]?
-    let lineCount: Int?
-    let latestTimestamp: Int?
+    let success: Bool
+    let logs: [IPCLogEntry]?
+    let total: Int?
+    let lastId: Int?
+    let error: String?
+}
+
+nonisolated struct IPCLogEntry: Codable, Sendable {
+    let id: Int
+    let timestamp: String
+    let method: String
+    let path: String
+    let statusCode: Int
+    let duration: Int
+    let provider: String?
+    let model: String?
+    let inputTokens: Int?
+    let outputTokens: Int?
+    let error: String?
 }
 
 nonisolated struct IPCLogsClearResult: Codable, Sendable {
@@ -304,6 +351,65 @@ nonisolated struct IPCConfigDebugResult: Codable, Sendable {
 
 nonisolated struct IPCConfigProxyUrlResult: Codable, Sendable {
     let proxyUrl: String?
+}
+
+nonisolated struct IPCProxyConfigGetAllResult: Codable, Sendable {
+    let success: Bool
+    let config: IPCProxyConfigData?
+    let error: String?
+}
+
+nonisolated struct IPCProxyConfigData: Codable, Sendable {
+    let debug: Bool
+    let routingStrategy: String
+    let requestRetry: Int
+    let maxRetryInterval: Int
+    let proxyURL: String
+    let loggingToFile: Bool
+}
+
+nonisolated struct IPCProxyConfigGetResult: Codable, Sendable {
+    let success: Bool
+    let key: String?
+    let value: IPCAnyCodable?
+    let error: String?
+}
+
+nonisolated struct IPCProxyConfigSetResult: Codable, Sendable {
+    let success: Bool
+    let error: String?
+}
+
+nonisolated struct IPCAuthDeleteAllResult: Codable, Sendable {
+    let success: Bool
+    let error: String?
+}
+
+nonisolated struct IPCAuthSetDisabledResult: Codable, Sendable {
+    let success: Bool
+    let error: String?
+}
+
+nonisolated struct IPCApiKeysListResult: Codable, Sendable {
+    let success: Bool
+    let keys: [String]
+    let error: String?
+}
+
+nonisolated struct IPCApiKeysAddResult: Codable, Sendable {
+    let success: Bool
+    let key: String?
+    let error: String?
+}
+
+nonisolated struct IPCApiKeysDeleteResult: Codable, Sendable {
+    let success: Bool
+    let error: String?
+}
+
+nonisolated struct IPCProxyHealthCheckResult: Codable, Sendable {
+    let healthy: Bool
+    let error: String?
 }
 
 // MARK: - Dynamic Value Type
