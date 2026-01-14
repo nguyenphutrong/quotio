@@ -285,6 +285,10 @@ extension DaemonIPCClient {
         try await call(.authSetDisabled, params: IPCAuthSetDisabledParams(name: name, disabled: disabled))
     }
     
+    func getAuthModels(name: String) async throws -> IPCAuthModelsResult {
+        try await call(.authModels, params: IPCAuthModelsParams(name: name))
+    }
+    
     func getProxyConfigAll() async throws -> IPCProxyConfigGetAllResult {
         try await call(.proxyConfigGetAll)
     }
@@ -311,6 +315,10 @@ extension DaemonIPCClient {
     
     func proxyHealthCheck() async throws -> IPCProxyHealthCheckResult {
         try await call(.proxyHealthCheck)
+    }
+    
+    func getProxyLatestVersion() async throws -> IPCProxyLatestVersionResult {
+        try await call(.proxyLatestVersion)
     }
     
     func apiCall(

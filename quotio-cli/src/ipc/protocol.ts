@@ -358,6 +358,10 @@ export interface IPCMethods {
 		params: { name: string; disabled: boolean };
 		result: { success: boolean; error?: string };
 	};
+	"auth.models": {
+		params: { name: string };
+		result: AuthModelsResult;
+	};
 
 	"apiKeys.list": {
 		params: Record<string, never>;
@@ -384,6 +388,11 @@ export interface IPCMethods {
 	"logs.clear": {
 		params: Record<string, never>;
 		result: { success: boolean; error?: string };
+	};
+
+	"proxy.latestVersion": {
+		params: Record<string, never>;
+		result: ProxyLatestVersionResult;
 	};
 }
 
@@ -471,8 +480,25 @@ export interface ProxyStatusResult {
 	healthy: boolean;
 }
 
+export interface ProxyLatestVersionResult {
+	success: boolean;
+	latestVersion?: string;
+	error?: string;
+}
+
 export interface AuthListResult {
 	accounts: AuthAccount[];
+}
+
+export interface AuthModelsResult {
+	success: boolean;
+	models: AuthModelInfo[];
+	error?: string;
+}
+
+export interface AuthModelInfo {
+	id: string;
+	name: string;
 }
 
 export interface AuthAccount {

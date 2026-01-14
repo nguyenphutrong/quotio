@@ -864,16 +864,23 @@ const handlers: Record<string, MethodHandler> = {
 		});
 
 		try {
-			const [config, debug, routingStrategy, requestRetry, maxRetryInterval, proxyURL, loggingToFile] =
-				await Promise.all([
-					client.fetchConfig(),
-					client.getDebug().catch(() => false),
-					client.getRoutingStrategy().catch(() => "round-robin"),
-					client.getRequestRetry().catch(() => 3),
-					client.getMaxRetryInterval().catch(() => 60),
-					client.getProxyURL().catch(() => ""),
-					client.getLoggingToFile().catch(() => false),
-				]);
+			const [
+				config,
+				debug,
+				routingStrategy,
+				requestRetry,
+				maxRetryInterval,
+				proxyURL,
+				loggingToFile,
+			] = await Promise.all([
+				client.fetchConfig(),
+				client.getDebug().catch(() => false),
+				client.getRoutingStrategy().catch(() => "round-robin"),
+				client.getRequestRetry().catch(() => 3),
+				client.getMaxRetryInterval().catch(() => 60),
+				client.getProxyURL().catch(() => ""),
+				client.getLoggingToFile().catch(() => false),
+			]);
 
 			return {
 				success: true,
@@ -962,7 +969,9 @@ const handlers: Record<string, MethodHandler> = {
 					await client.setDebug(Boolean(value));
 					break;
 				case "routingStrategy":
-					await client.setRoutingStrategy(value as "round-robin" | "fill-first");
+					await client.setRoutingStrategy(
+						value as "round-robin" | "fill-first",
+					);
 					break;
 				case "requestRetry":
 					await client.setRequestRetry(Number(value));
@@ -1072,6 +1081,59 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
+	"auth.models": async (params: unknown) => {
+		const { name } = params as { name: string };
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running", models: [] };
+		}
+
+		try {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+			const encoded = encodeURIComponent(name);
+			const response = await fetch(
+				`http://localhost:${proxyState.port}/auth-files/models?name=${encoded}`,
+				{
+					method: "GET",
+					headers: {
+						Authorization: "Bearer quotio-cli-key",
+						Connection: "close",
+					},
+					signal: controller.signal,
+				},
+			);
+
+			clearTimeout(timeoutId);
+
+			if (!response.ok) {
+				return {
+					success: false,
+					error: `HTTP ${response.status}`,
+					models: [],
+				};
+			}
+
+			const data = (await response.json()) as {
+				models?: Array<{ id?: string; model_id?: string; name?: string }>;
+			};
+			const models = (data.models ?? []).map((m) => ({
+				id: m.id ?? m.model_id ?? "",
+				name: m.name ?? m.model_id ?? m.id ?? "",
+			}));
+
+			return { success: true, models };
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+				models: [],
+			};
+		}
+	},
+
 	"apiKeys.list": async () => {
 		const { ManagementAPIClient } = await import("../management-api.ts");
 		const proxyState = getProcessState();
@@ -1170,13 +1232,64 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
+	"proxy.latestVersion": async () => {
+		const proxyState = getProcessState();
+
+		if (!proxyState.running) {
+			return { success: false, error: "Proxy not running" };
+		}
+
+		try {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+			const response = await fetch(
+				`http://localhost:${proxyState.port}/latest-version`,
+				{
+					method: "GET",
+					headers: {
+						Authorization: "Bearer quotio-cli-key",
+						Connection: "close",
+					},
+					signal: controller.signal,
+				},
+			);
+
+			clearTimeout(timeoutId);
+
+			if (!response.ok) {
+				return {
+					success: false,
+					error: `HTTP ${response.status}`,
+				};
+			}
+
+			const data = (await response.json()) as { "latest-version"?: string };
+			return {
+				success: true,
+				latestVersion: data["latest-version"] ?? "",
+			};
+		} catch (err) {
+			return {
+				success: false,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
+
 	"logs.fetch": async (params: unknown) => {
 		const opts = params as { after?: number } | undefined;
 		const { ManagementAPIClient } = await import("../management-api.ts");
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running", logs: [], total: 0, lastId: 0 };
+			return {
+				success: false,
+				error: "Proxy not running",
+				logs: [],
+				total: 0,
+				lastId: 0,
+			};
 		}
 
 		const client = new ManagementAPIClient({
@@ -1314,12 +1427,14 @@ const handlers: Record<string, MethodHandler> = {
 
 	"remote.getConfig": async () => {
 		const store = await loadConfigStore();
-		const config = store.remoteConfig as {
-			endpointURL: string;
-			displayName: string;
-			verifySSL: boolean;
-			timeoutSeconds: number;
-		} | undefined;
+		const config = store.remoteConfig as
+			| {
+					endpointURL: string;
+					displayName: string;
+					verifySSL: boolean;
+					timeoutSeconds: number;
+			  }
+			| undefined;
 		return {
 			config: config ?? null,
 			hasKey: Boolean(store.remoteManagementKey),

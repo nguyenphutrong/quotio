@@ -76,6 +76,7 @@ nonisolated enum IPCMethod: String, Sendable {
     case authDelete = "auth.delete"
     case authDeleteAll = "auth.deleteAll"
     case authSetDisabled = "auth.setDisabled"
+    case authModels = "auth.models"
     case authOAuth = "oauth.start"
     case authPoll = "oauth.poll"
     
@@ -100,6 +101,9 @@ nonisolated enum IPCMethod: String, Sendable {
     
     // API Call (for warmup and other proxy requests)
     case apiCall = "api.call"
+    
+    // Proxy version
+    case proxyLatestVersion = "proxy.latestVersion"
     
     // Remote mode
     case remoteSetConfig = "remote.setConfig"
@@ -182,6 +186,10 @@ nonisolated struct IPCAuthDeleteAllParams: Codable, Sendable {}
 nonisolated struct IPCAuthSetDisabledParams: Codable, Sendable {
     let name: String
     let disabled: Bool
+}
+
+nonisolated struct IPCAuthModelsParams: Codable, Sendable {
+    let name: String
 }
 
 nonisolated struct IPCProxyConfigGetParams: Codable, Sendable {
@@ -448,6 +456,23 @@ nonisolated struct IPCApiCallResult: Codable, Sendable {
     let statusCode: Int?
     let header: [String: [String]]?
     let body: String?
+    let error: String?
+}
+
+nonisolated struct IPCAuthModelsResult: Codable, Sendable {
+    let success: Bool
+    let models: [IPCAuthModelInfo]
+    let error: String?
+}
+
+nonisolated struct IPCAuthModelInfo: Codable, Sendable {
+    let id: String
+    let name: String
+}
+
+nonisolated struct IPCProxyLatestVersionResult: Codable, Sendable {
+    let success: Bool
+    let latestVersion: String?
     let error: String?
 }
 
