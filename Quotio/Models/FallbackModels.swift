@@ -6,6 +6,55 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Model Type
+
+/// Model type for fallback compatibility checking
+/// Only models of the same type can be in a fallback chain
+enum ModelType: String, Codable, Sendable, CaseIterable {
+    case claude      // claude, opus, sonnet, haiku
+    case gpt         // gpt-*, o1-*, o3-*, o4-*
+    case gemini      // gemini-*
+    case compatible  // glm, qwen, deepseek, and other OpenAI-compatible models
+
+    var displayName: String {
+        switch self {
+        case .claude: return "Claude"
+        case .gpt: return "GPT"
+        case .gemini: return "Gemini"
+        case .compatible: return "Compatible"
+        }
+    }
+
+    /// Detect model type from model name
+    static func detect(from modelName: String) -> ModelType {
+        let lower = modelName.lowercased()
+
+        // Claude family
+        let claudeKeywords = ["claude", "opus", "sonnet", "haiku"]
+        if claudeKeywords.contains(where: { lower.contains($0) }) {
+            return .claude
+        }
+
+        // GPT family
+        if lower.hasPrefix("gpt") || lower.hasPrefix("o1") || lower.hasPrefix("o3") || lower.hasPrefix("o4") {
+            return .gpt
+        }
+
+        // Gemini family
+        if lower.contains("gemini") {
+            return .gemini
+        }
+
+        // Default to compatible (OpenAI-compatible format)
+        return .compatible
+    }
+
+    /// Check if two model names are compatible for fallback
+    static func areCompatible(_ model1: String, _ model2: String) -> Bool {
+        detect(from: model1) == detect(from: model2)
+    }
+}
+
 // MARK: - Fallback Entry
 
 /// A single entry in a fallback chain, representing a Provider + Model combination
