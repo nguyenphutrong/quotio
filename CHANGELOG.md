@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-01-15
+
+### Changed
+
+- **fallback**: Simplify fallback logic by removing format conversion (#186)
+
 ## [0.7.4] - 2026-01-13
 
 ## [0.7.3] - 2026-01-13

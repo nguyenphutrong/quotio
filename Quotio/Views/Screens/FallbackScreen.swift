@@ -70,9 +70,11 @@ struct FallbackScreen: View {
             )
         }
         .sheet(item: $addingEntryToModelId) { modelId in
+            let virtualModel = fallbackSettings.virtualModels.first(where: { $0.id == modelId })
             AddFallbackEntrySheet(
                 virtualModelId: modelId,
-                existingEntries: fallbackSettings.virtualModels.first(where: { $0.id == modelId })?.fallbackEntries ?? [],
+                virtualModelName: virtualModel?.name ?? "",
+                existingEntries: virtualModel?.fallbackEntries ?? [],
                 availableModels: availableModels,
                 onAdd: { provider, modelName in
                     fallbackSettings.addFallbackEntry(to: modelId, provider: provider, modelName: modelName)
