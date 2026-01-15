@@ -43,6 +43,9 @@ final class AgentSetupViewModel {
     
     /// Selected setup mode (proxy or default)
     var selectedSetupMode: ConfigurationSetup = .proxy
+    
+    /// Task reference for cancellation when switching agents quickly
+    private var configurationLoadTask: Task<Void, Never>?
 
     weak var proxyManager: CLIProxyManager?
 
@@ -98,10 +101,19 @@ final class AgentSetupViewModel {
             setupMode: selectedSetupMode
         )
 
+        // Cancel any previous configuration load task to prevent race conditions
+        configurationLoadTask?.cancel()
+        
         // Then load existing config, apply saved values, and load models - all in sequence
-        Task {
-            await loadExistingConfiguration(for: agent)
-            await loadModels()
+        configurationLoadTask = Task { [weak self] in
+            guard let self else { return }
+            
+            await self.loadExistingConfiguration(for: agent)
+            
+            // Guard that selectedAgent still matches after async work
+            guard !Task.isCancelled, self.selectedAgent == agent else { return }
+            
+            await self.loadModels()
         }
     }
     
