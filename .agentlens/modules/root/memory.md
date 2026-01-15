@@ -5,7 +5,7 @@
 ## Summary
 
 | High 🔴 | Medium 🟡 | Low 🟢 |
-| 1 | 0 | 14 |
+| 1 | 0 | 13 |
 
 ## 🔴 High Priority
 
@@ -39,11 +39,7 @@
 
 > Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
 
-### `NOTE` (Quotio/Services/Proxy/FallbackFormatConverter.swift:46)
-
-> All providers go through cli-proxy-api which uses OpenAI-compatible format
-
-### `NOTE` (Quotio/ViewModels/AgentSetupViewModel.swift:436)
+### `NOTE` (Quotio/ViewModels/AgentSetupViewModel.swift:495)
 
 > Actual fallback resolution happens at request time in ProxyBridge
 

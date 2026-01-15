@@ -11,7 +11,7 @@
 | `Quotio/Views/Screens/APIKeysScreen.swift` | 260 |  |
 | `Quotio/Views/Screens/AgentSetupScreen.swift` | 200 |  |
 | `Quotio/Views/Screens/DashboardScreen.swift` | 1014 | 📊 |
-| `Quotio/Views/Screens/FallbackScreen.swift` | 526 | 📊 |
+| `Quotio/Views/Screens/FallbackScreen.swift` | 528 | 📊 |
 | `Quotio/Views/Screens/LogsScreen.swift` | 445 |  |
 | `Quotio/Views/Screens/ProvidersScreen.swift` | 916 | 📊 |
 | `Quotio/Views/Screens/QuotaScreen.swift` | 1596 | 📊 |

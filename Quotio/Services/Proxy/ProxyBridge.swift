@@ -21,11 +21,10 @@ import Network
 /// Context for tracking fallback state during request processing
 struct FallbackContext: Sendable {
     let virtualModelName: String?
-    let sourceProvider: AIProvider?  // Provider that originally received the request
     let fallbackEntries: [FallbackEntry]
     let currentIndex: Int
     let originalBody: String
-    let wasLoadedFromCache: Bool  // Whether currentIndex was loaded from cache
+    let wasLoadedFromCache: Bool
 
     /// Whether this request has fallback enabled
     nonisolated var hasFallback: Bool { !fallbackEntries.isEmpty }
@@ -37,11 +36,10 @@ struct FallbackContext: Sendable {
     nonisolated func next() -> FallbackContext {
         FallbackContext(
             virtualModelName: virtualModelName,
-            sourceProvider: sourceProvider,
             fallbackEntries: fallbackEntries,
             currentIndex: currentIndex + 1,
             originalBody: originalBody,
-            wasLoadedFromCache: false  // Next fallback is not from cache
+            wasLoadedFromCache: false
         )
     }
 
@@ -54,7 +52,6 @@ struct FallbackContext: Sendable {
     /// Empty context for non-fallback requests
     nonisolated static let empty = FallbackContext(
         virtualModelName: nil,
-        sourceProvider: nil,
         fallbackEntries: [],
         currentIndex: 0,
         originalBody: "",
@@ -397,22 +394,18 @@ final class ProxyBridge {
             body = String(requestString[bodyRange.upperBound...])
         }
 
-        // Extract metadata for tracking
         let metadata = extractMetadata(method: method, path: path, body: body)
-
-        // Convert provider string to AIProvider enum
-        let sourceProvider = self.providerFromString(metadata.provider)
 
         // Check for virtual model and create fallback context
         Task { @MainActor [weak self] in
             guard let self = self else { return }
 
-            let fallbackContext = self.createFallbackContext(body: body, sourceProvider: sourceProvider)
+            let fallbackContext = self.createFallbackContext(body: body)
             let resolvedBody: String
 
             if fallbackContext.hasFallback, let entry = fallbackContext.currentEntry {
-                // Replace model in body with resolved model, using source provider for format detection
-                resolvedBody = self.replaceModelInBody(body, with: entry.modelId, provider: entry.provider, sourceProvider: sourceProvider)
+                // Replace model in body with resolved model
+                resolvedBody = self.replaceModelInBody(body, with: entry.modelId)
             } else {
                 resolvedBody = body
             }
@@ -440,21 +433,8 @@ final class ProxyBridge {
 
     // MARK: - Fallback Support
 
-    /// Convert provider string to AIProvider enum
-    private nonisolated func providerFromString(_ providerStr: String?) -> AIProvider? {
-        guard let str = providerStr else { return nil }
-        switch str.lowercased() {
-        case "claude": return .claude
-        case "gemini": return .gemini
-        case "openai": return .codex
-        case "copilot": return .copilot
-        case "kiro": return .kiro
-        default: return nil
-        }
-    }
-
     /// Create fallback context if the request uses a virtual model
-    private func createFallbackContext(body: String, sourceProvider: AIProvider?) -> FallbackContext {
+    private func createFallbackContext(body: String) -> FallbackContext {
         let settings = FallbackSettingsManager.shared
 
         // Check if fallback is enabled
@@ -495,7 +475,6 @@ final class ProxyBridge {
 
         return FallbackContext(
             virtualModelName: model,
-            sourceProvider: sourceProvider,
             fallbackEntries: entries,
             currentIndex: startIndex,
             originalBody: body,
@@ -505,42 +484,23 @@ final class ProxyBridge {
 
     // MARK: - Request Body Transformation
 
-    /// Transform request body for the target provider
-    /// Converts format based on source and target providers
+    /// Replace model name in request body (simple string replacement)
+    /// No format conversion needed - fallback only works between same model types
     private nonisolated func replaceModelInBody(
         _ body: String,
-        with newModel: String,
-        provider: AIProvider,
-        sourceProvider: AIProvider?
+        with newModel: String
     ) -> String {
         guard let bodyData = body.data(using: .utf8),
-              var json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] else {
+              let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
+              let originalModel = json["model"] as? String else {
             return body
         }
 
-        // Update model name
-        json["model"] = newModel
-
-        // Determine source and target formats
-        let sourceFormat = sourceProvider?.apiFormat ?? FallbackFormatConverter.detectFormat(from: json)
-        let targetFormat = provider.apiFormat
-
-        // If source and target formats are the same, no conversion needed
-        if sourceFormat == targetFormat {
-            // Only clean thinking blocks and validate parameters
-            FallbackFormatConverter.cleanThinkingBlocksInBody(&json, isClaudeModel: FallbackFormatConverter.isClaudeModel(newModel))
-            FallbackFormatConverter.validateParameters(in: &json)
-        } else {
-            // Different formats, perform conversion
-            FallbackFormatConverter.convertRequest(&json, from: sourceProvider, to: provider)
-        }
-
-        guard let newData = try? JSONSerialization.data(withJSONObject: json),
-              let newBody = String(data: newData, encoding: .utf8) else {
-            return body
-        }
-
-        return newBody
+        // Simple string replacement to preserve original JSON format
+        return body.replacingOccurrences(
+            of: "\"\(originalModel)\"",
+            with: "\"\(newModel)\""
+        )
     }
 
     /// Check if response indicates an error that should trigger fallback
@@ -775,7 +735,7 @@ final class ProxyBridge {
                             )
                         }
 
-                        let nextBody = self.replaceModelInBody(fallbackContext.originalBody, with: nextEntry.modelId, provider: nextEntry.provider, sourceProvider: fallbackContext.sourceProvider)
+                        let nextBody = self.replaceModelInBody(fallbackContext.originalBody, with: nextEntry.modelId)
 
                         self.forwardRequest(
                             method: method,

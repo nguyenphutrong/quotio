@@ -20,15 +20,15 @@ Symbol maps for 5 large files in this module.
 | 938 | fn | layout | (private) |
 | 966 | struct | QuotaProviderRow | (internal) |
 
-## Quotio/Views/Screens/FallbackScreen.swift (526 lines)
+## Quotio/Views/Screens/FallbackScreen.swift (528 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 8 | struct | FallbackScreen | (internal) |
-| 103 | fn | loadModelsIfNeeded | (private) |
-| 312 | struct | VirtualModelsEmptyState | (internal) |
-| 354 | struct | VirtualModelRow | (internal) |
-| 472 | struct | FallbackEntryRow | (internal) |
+| 105 | fn | loadModelsIfNeeded | (private) |
+| 314 | struct | VirtualModelsEmptyState | (internal) |
+| 356 | struct | VirtualModelRow | (internal) |
+| 474 | struct | FallbackEntryRow | (internal) |
 
 ## Quotio/Views/Screens/ProvidersScreen.swift (916 lines)
 

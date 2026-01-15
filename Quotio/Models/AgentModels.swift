@@ -115,6 +115,37 @@ nonisolated enum AgentConfigType: String, Codable, Sendable {
     case both = "both"
 }
 
+// MARK: - Configuration Setup Mode
+
+/// Determines whether to use proxy or default provider endpoints
+nonisolated enum ConfigurationSetup: String, CaseIterable, Identifiable, Codable, Sendable {
+    case proxy = "proxy"
+    case defaultSetup = "default"
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .proxy: return "agents.setup.proxy".localizedStatic()
+        case .defaultSetup: return "agents.setup.default".localizedStatic()
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .proxy: return "agents.setup.proxy.desc".localizedStatic()
+        case .defaultSetup: return "agents.setup.default.desc".localizedStatic()
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .proxy: return "arrow.triangle.branch"
+        case .defaultSetup: return "arrow.right"
+        }
+    }
+}
+
 // MARK: - Configuration Mode
 
 nonisolated enum ConfigurationMode: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -270,17 +301,35 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
     var proxyURL: String
     var apiKey: String
     var useOAuth: Bool
+    var setupMode: ConfigurationSetup
 
-    init(agent: CLIAgent, proxyURL: String, apiKey: String) {
+    init(agent: CLIAgent, proxyURL: String, apiKey: String, setupMode: ConfigurationSetup = .proxy) {
         self.agent = agent
         self.proxyURL = proxyURL
         self.apiKey = apiKey
         self.useOAuth = agent == .geminiCLI
-        self.modelSlots = [
-            .opus: AvailableModel.defaultModels[.opus]!.name,
-            .sonnet: AvailableModel.defaultModels[.sonnet]!.name,
-            .haiku: AvailableModel.defaultModels[.haiku]!.name
-        ]
+        self.setupMode = setupMode
+        self.modelSlots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
+            AvailableModel.defaultModels[slot].map { (slot, $0.name) }
+        })
+    }
+    
+    /// Initialize with saved model slots (for restoring existing configuration)
+    init(agent: CLIAgent, proxyURL: String, apiKey: String, setupMode: ConfigurationSetup = .proxy, savedModelSlots: [ModelSlot: String]) {
+        self.agent = agent
+        self.proxyURL = proxyURL
+        self.apiKey = apiKey
+        self.useOAuth = agent == .geminiCLI
+        self.setupMode = setupMode
+        
+        // Start with defaults, then overlay saved slots
+        var slots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
+            AvailableModel.defaultModels[slot].map { (slot, $0.name) }
+        })
+        for (slot, model) in savedModelSlots {
+            slots[slot] = model
+        }
+        self.modelSlots = slots
     }
 }
 

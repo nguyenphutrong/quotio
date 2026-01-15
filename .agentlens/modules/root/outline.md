@@ -2,7 +2,7 @@
 
 [← Back to MODULE](MODULE.md) | [← Back to INDEX](../../INDEX.md)
 
-Symbol maps for 9 large files in this module.
+Symbol maps for 8 large files in this module.
 
 ## Quotio/QuotioApp.swift (527 lines)
 
@@ -23,21 +23,39 @@ Symbol maps for 9 large files in this module.
 | 468 | struct | ProxyStatusRow | (internal) |
 | 499 | struct | QuotaRefreshStatusRow | (internal) |
 
-## Quotio/Services/AgentConfigurationService.swift (696 lines)
+## Quotio/Services/AgentConfigurationService.swift (1385 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 8 | class | AgentConfigurationService | (internal) |
-| 10 | fn | generateConfiguration | (internal) |
-| 53 | fn | generateClaudeCodeConfig | (private) |
-| 174 | fn | generateCodexConfig | (private) |
-| 252 | fn | generateGeminiCLIConfig | (private) |
-| 295 | fn | generateAmpConfig | (private) |
-| 378 | fn | generateOpenCodeConfig | (private) |
-| 469 | fn | buildOpenCodeModelConfig | (private) |
-| 505 | fn | generateFactoryDroidConfig | (private) |
-| 575 | fn | fetchAvailableModels | (internal) |
-| 630 | fn | testConnection | (internal) |
+| 46 | fn | readConfiguration | (internal) |
+| 64 | fn | listBackups | (internal) |
+| 93 | fn | restoreFromBackup | (internal) |
+| 111 | fn | readClaudeCodeConfig | (private) |
+| 147 | fn | readCodexConfig | (private) |
+| 190 | fn | readGeminiCLIConfig | (private) |
+| 229 | fn | readAmpConfig | (private) |
+| 252 | fn | readOpenCodeConfig | (private) |
+| 289 | fn | readFactoryDroidConfig | (private) |
+| 326 | fn | extractTOMLValue | (private) |
+| 337 | fn | extractExportValue | (private) |
+| 349 | fn | generateConfiguration | (internal) |
+| 388 | fn | generateDefaultConfiguration | (private) |
+| 404 | fn | generateClaudeCodeDefaultConfig | (private) |
+| 489 | fn | generateCodexDefaultConfig | (private) |
+| 554 | fn | generateGeminiCLIDefaultConfig | (private) |
+| 582 | fn | generateAmpDefaultConfig | (private) |
+| 628 | fn | generateOpenCodeDefaultConfig | (private) |
+| 677 | fn | generateFactoryDroidDefaultConfig | (private) |
+| 742 | fn | generateClaudeCodeConfig | (private) |
+| 863 | fn | generateCodexConfig | (private) |
+| 941 | fn | generateGeminiCLIConfig | (private) |
+| 984 | fn | generateAmpConfig | (private) |
+| 1067 | fn | generateOpenCodeConfig | (private) |
+| 1158 | fn | buildOpenCodeModelConfig | (private) |
+| 1194 | fn | generateFactoryDroidConfig | (private) |
+| 1264 | fn | fetchAvailableModels | (internal) |
+| 1319 | fn | testConnection | (internal) |
 
 ## Quotio/Services/ManagementAPIClient.swift (718 lines)
 
@@ -166,52 +184,19 @@ Symbol maps for 9 large files in this module.
 | 1822 | fn | findPreviousVersion | (private) |
 | 1835 | fn | migrateToVersionedStorage | (internal) |
 
-## Quotio/Services/Proxy/FallbackFormatConverter.swift (1190 lines)
-
-| Line | Kind | Name | Visibility |
-| ---- | ---- | ---- | ---------- |
-| 44 | mod | extension AIProvider | (internal) |
-| 93 | fn | convertRequest | (internal) |
-| 131 | fn | isClaudeModel | (internal) |
-| 144 | fn | detectFormat | (internal) |
-| 187 | fn | convertMessages | (internal) |
-| 230 | fn | convertAnthropicMessagesToOpenAI | (internal) |
-| 266 | fn | convertAnthropicAssistantToOpenAI | (internal) |
-| 336 | fn | convertAnthropicUserToOpenAI | (internal) |
-| 392 | fn | convertOpenAIMessagesToAnthropic | (internal) |
-| 452 | fn | convertOpenAIAssistantToAnthropic | (internal) |
-| 487 | fn | convertRole | (internal) |
-| 509 | fn | convertContent | (internal) |
-| 535 | fn | convertAnthropicContentToOpenAI | (internal) |
-| 604 | fn | convertOpenAIContentToAnthropic | (internal) |
-| 660 | fn | convertGoogleContentToOpenAI | (internal) |
-| 681 | fn | convertToGoogleContent | (internal) |
-| 706 | fn | convertSystemMessage | (internal) |
-| 770 | fn | convertParameters | (internal) |
-| 840 | fn | extractIntValue | (internal) |
-| 849 | fn | convertStopSequences | (internal) |
-| 878 | fn | validateParameters | (internal) |
-| 914 | fn | convertTools | (internal) |
-| 959 | fn | convertToolFieldsInMessage | (internal) |
-| 1018 | fn | cleanupIncompatibleFields | (internal) |
-| 1049 | fn | cleanThinkingBlocksInBody | (internal) |
-| 1087 | fn | cleanThinkingBlocks | (internal) |
-| 1119 | fn | cleanThinkingFromContent | (internal) |
-| 1148 | mod | extension FallbackFormatConverter | (internal) |
-
-## Quotio/Services/Proxy/ProxyBridge.swift (970 lines)
+## Quotio/Services/Proxy/ProxyBridge.swift (930 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 22 | struct | FallbackContext | (internal) |
-| 67 | class | ProxyBridge | (internal) |
-| 124 | method | init | (internal) |
-| 133 | fn | configure | (internal) |
-| 156 | fn | start | (internal) |
-| 196 | fn | stop | (internal) |
-| 206 | fn | handleListenerState | (private) |
-| 222 | fn | handleNewConnection | (private) |
-| 457 | fn | createFallbackContext | (private) |
+| 64 | class | ProxyBridge | (internal) |
+| 121 | method | init | (internal) |
+| 130 | fn | configure | (internal) |
+| 153 | fn | start | (internal) |
+| 193 | fn | stop | (internal) |
+| 203 | fn | handleListenerState | (private) |
+| 219 | fn | handleNewConnection | (private) |
+| 437 | fn | createFallbackContext | (private) |
 
 ## Quotio/Services/StatusBarMenuBuilder.swift (1365 lines)
 
