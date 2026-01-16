@@ -4263,62 +4263,6 @@
         }
       }
     },
-    "customProviders.type.warp" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Warp"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Warp"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Warp"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Warp"
-          }
-        }
-      }
-    },
-    "customProviders.type.warp.desc" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Warp AI Terminal"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Terminal Warp AI"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Warp AI Terminal"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Warp AI 终端"
-          }
-        }
-      }
-    },
     "customProviders.upstreamModel" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -20410,30 +20354,30 @@
         }
       }
     },
-    "warp.requests.label" : {
+    "warp.credits.label" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Requests"
+            "value" : "Credits"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Requêtes"
+            "value" : "Crédits"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yêu cầu"
+            "value" : "Tín dụng"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请求"
+            "value" : "额度"
           }
         }
       }

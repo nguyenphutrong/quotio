@@ -198,7 +198,7 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         // Windsurf quota names
         case "windsurf-usage": return "Usage"
         // Warp quota names
-        case "warp-usage": return "warp.requests.label".localizedStatic()
+        case "warp-usage": return "warp.credits.label".localizedStatic()
         default: return name
         }
     }
