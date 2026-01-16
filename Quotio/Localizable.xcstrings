@@ -1164,6 +1164,7 @@
       }
     },
     "agents.availableBackups" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1220,157 +1221,6 @@
         }
       }
     },
-    "agents.currentlyDefault" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Currently: Default"
-          }
-        }
-      }
-    },
-    "agents.currentlyProxy" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Currently: Proxy"
-          }
-        }
-      }
-    },
-    "agents.defaultSetup" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Default Setup"
-          }
-        }
-      }
-    },
-    "agents.defaultSetup.info" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This will remove Quotio proxy configuration and restore the agent to use its default provider endpoints. Your other settings (permissions, MCP servers, etc.) will be preserved."
-          }
-        }
-      }
-    },
-    "agents.proxyRemovalWarning" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Current proxy configuration will be removed"
-          }
-        }
-      }
-    },
-    "agents.restoreAction" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore"
-          }
-        }
-      }
-    },
-    "agents.restoreBackup" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore from Backup"
-          }
-        }
-      }
-    },
-    "agents.restoreBackup.confirm.message" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This will replace the current configuration with the selected backup."
-          }
-        }
-      }
-    },
-    "agents.restoreBackup.confirm.title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore Backup?"
-          }
-        }
-      }
-    },
-    "agents.restoreBackup.info" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restoring a backup will replace the current configuration with the selected backup."
-          }
-        }
-      }
-    },
-    "agents.setup.default" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Default (Direct)"
-          }
-        }
-      }
-    },
-    "agents.setup.default.desc" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use provider's default endpoint"
-          }
-        }
-      }
-    },
-    "agents.setup.proxy" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Proxy (CLIProxyAPI)"
-          }
-        }
-      }
-    },
-    "agents.setup.proxy.desc" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Route requests through Quotio proxy"
-          }
-        }
-      }
-    },
-    "agents.setupMode" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Setup Mode"
-          }
-        }
-      }
-    },
-
     "agents.configMode" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1516,6 +1366,50 @@
         }
       }
     },
+    "agents.currentlyDefault" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currently: Default"
+          }
+        }
+      }
+    },
+    "agents.currentlyProxy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currently: Proxy"
+          }
+        }
+      }
+    },
+    "agents.defaultSetup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default Setup"
+          }
+        }
+      }
+    },
+    "agents.defaultSetup.info" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will remove Quotio proxy configuration and restore the agent to use its default provider endpoints. Your other settings (permissions, MCP servers, etc.) will be preserved."
+          }
+        }
+      }
+    },
     "agents.filesModified" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1632,6 +1526,17 @@
         }
       }
     },
+    "agents.proxyRemovalWarning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current proxy configuration will be removed"
+          }
+        }
+      }
+    },
     "agents.proxyURL" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1719,6 +1624,61 @@
         }
       }
     },
+    "agents.restoreAction" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore"
+          }
+        }
+      }
+    },
+    "agents.restoreBackup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore from Backup"
+          }
+        }
+      }
+    },
+    "agents.restoreBackup.confirm.message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will replace the current configuration with the selected backup."
+          }
+        }
+      }
+    },
+    "agents.restoreBackup.confirm.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Backup?"
+          }
+        }
+      }
+    },
+    "agents.restoreBackup.info" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring a backup will replace the current configuration with the selected backup."
+          }
+        }
+      }
+    },
     "agents.saveConfig" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1744,6 +1704,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存配置"
+          }
+        }
+      }
+    },
+    "agents.setup.default" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default (Direct)"
+          }
+        }
+      }
+    },
+    "agents.setup.default.desc" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use provider's default endpoint"
+          }
+        }
+      }
+    },
+    "agents.setup.proxy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy (CLIProxyAPI)"
+          }
+        }
+      }
+    },
+    "agents.setup.proxy.desc" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Route requests through Quotio proxy"
+          }
+        }
+      }
+    },
+    "agents.setupMode" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setup Mode"
           }
         }
       }
@@ -2927,6 +2942,9 @@
     "Config" : {
       "comment" : "A segmented control that lets the user select which raw configuration to view.",
       "isCommentAutoGenerated" : true
+    },
+    "Connect Warp AI" : {
+
     },
     "Cooling" : {
       "comment" : "A label describing the status of the AI provider accounts.",
@@ -4263,6 +4281,40 @@
         }
       }
     },
+    "customProviders.type.warp" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warp"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warp"
+          }
+        }
+      }
+    },
+    "customProviders.type.warp.desc" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warp AI Terminal"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warp AI Terminal"
+          }
+        }
+      }
+    },
     "customProviders.upstreamModel" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5249,9 +5301,15 @@
         }
       }
     },
+    "e.g., My Warp Account" : {
+
+    },
     "e.g., OpenRouter, Ollama Local" : {
       "comment" : "A placeholder text for a text field where the user can enter the name of a custom AI provider.",
       "isCommentAutoGenerated" : true
+    },
+    "Edit Warp Connection" : {
+
     },
     "empty.addProviderAccounts" : {
       "extractionState" : "stale",
@@ -5397,6 +5455,9 @@
           }
         }
       }
+    },
+    "Enter your Warp API Token" : {
+
     },
     "Error" : {
       "comment" : "A title for an alert that shows an error message.",
@@ -6794,6 +6855,9 @@
           }
         }
       }
+    },
+    "Get Token" : {
+
     },
     "GitHub: CLIProxyAPI" : {
       "comment" : "A link to the CLIProxyAPI repository on GitHub.",
@@ -8928,6 +8992,9 @@
           }
         }
       }
+    },
+    "Monitor your Warp AI request limits" : {
+
     },
     "nav.about" : {
       "extractionState" : "stale",
@@ -18170,6 +18237,9 @@
       "comment" : "A label for a segmented control used in the Logs screen to switch between different types of logs.",
       "isCommentAutoGenerated" : true
     },
+    "The token is used to fetch your terminal usage quotas only. Quotio does not proxy your traffic for Warp." : {
+
+    },
     "Tunnel" : {
       "comment" : "A label displayed next to the tunnel status indicator.",
       "extractionState" : "stale",
@@ -20213,6 +20283,9 @@
           }
         }
       }
+    },
+    "Warp API Token" : {
+
     }
   },
   "version" : "1.1"

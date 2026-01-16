@@ -1284,6 +1284,7 @@ private extension AIProvider {
         case .vertex: return "Vertex"
         case .kiro: return "Kiro"
         case .glm: return "GLM"
+        case .warp: return "Warp"
         }
     }
 }

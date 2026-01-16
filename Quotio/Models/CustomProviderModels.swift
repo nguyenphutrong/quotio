@@ -103,7 +103,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .openaiCompatibility, .codexCompatibility:
             return true
         case .claudeCompatibility, .geminiCompatibility, .glmCompatibility:
-            return false // Has default base URL
+            return false // Has default base URL or is internal
         }
     }
     
@@ -130,7 +130,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
             return false
         }
     }
-
+    
     /// Whether this provider type supports custom headers
     var supportsCustomHeaders: Bool {
         switch self {

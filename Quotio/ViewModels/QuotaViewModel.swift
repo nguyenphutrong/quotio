@@ -19,6 +19,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let openAIFetcher = OpenAIQuotaFetcher()
     @ObservationIgnored private let copilotFetcher = CopilotQuotaFetcher()
     @ObservationIgnored private let glmFetcher = GLMQuotaFetcher()
+    @ObservationIgnored private let warpFetcher = WarpQuotaFetcher()
     @ObservationIgnored private let directAuthService = DirectAuthFileService()
     @ObservationIgnored private let notificationManager = NotificationManager.shared
     @ObservationIgnored private let modeManager = OperatingModeManager.shared
@@ -164,6 +165,7 @@ final class QuotaViewModel {
         await cursorFetcher.updateProxyConfiguration()
         await codexCLIFetcher.updateProxyConfiguration()
         await geminiCLIFetcher.updateProxyConfiguration()
+        await warpFetcher.updateProxyConfiguration()
         await traeFetcher.updateProxyConfiguration()
         await kiroFetcher.updateProxyConfiguration()
     }
@@ -315,9 +317,10 @@ final class QuotaViewModel {
         async let codexCLI: () = refreshCodexCLIQuotasInternal()
         async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
         async let glm: () = refreshGlmQuotasInternal()
+        async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
 
-        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, kiro)
+        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, warp, kiro)
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -437,6 +440,30 @@ final class QuotaViewModel {
             providerQuotas[.glm] = quotas
         } else {
             providerQuotas.removeValue(forKey: .glm)
+        }
+    }
+    
+    /// Refresh Warp quota using API keys from WarpService
+    private func refreshWarpQuotasInternal() async {
+        let warpTokens = await MainActor.run {
+            WarpService.shared.tokens.filter { $0.isEnabled }
+        }
+        
+        var results: [String: ProviderQuotaData] = [:]
+        
+        for entry in warpTokens {
+            do {
+                let quota = try await warpFetcher.fetchQuota(apiKey: entry.token)
+                results[entry.name] = quota
+            } catch {
+                print("[Warp] Failed to fetch quota for \(entry.name): \(error)")
+            }
+        }
+        
+        if !results.isEmpty {
+            providerQuotas[.warp] = results
+        } else {
+            providerQuotas.removeValue(forKey: .warp)
         }
     }
     
@@ -1085,9 +1112,10 @@ final class QuotaViewModel {
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
         async let glm: () = refreshGlmQuotasInternal()
+        async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
 
-        _ = await (antigravity, openai, copilot, claudeCode, glm, kiro)
+        _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
 
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -1113,15 +1141,16 @@ final class QuotaViewModel {
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
         async let glm: () = refreshGlmQuotasInternal()
+        async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
 
         // In Quota-Only Mode, also include CLI fetchers
         if modeManager.isMonitorMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
             async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-            _ = await (antigravity, openai, copilot, claudeCode, glm, kiro, codexCLI, geminiCLI)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, codexCLI, geminiCLI)
         } else {
-            _ = await (antigravity, openai, copilot, claudeCode, glm, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
         }
 
         checkQuotaNotifications()
@@ -1222,6 +1251,8 @@ final class QuotaViewModel {
             await refreshTraeQuotasInternal()
         case .glm:
             await refreshGlmQuotasInternal()
+        case .warp:
+            await refreshWarpQuotasInternal()
         case .kiro:
             await refreshKiroQuotasInternal()
         default:

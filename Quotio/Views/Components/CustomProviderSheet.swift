@@ -454,7 +454,7 @@ struct CustomProviderSheet: View {
         )
         
         // Validate
-        validationErrors = CustomProviderService.shared.validateProvider(newProvider)
+        validationErrors = newProvider.validate()
         
         if validationErrors.isEmpty {
             onSave(newProvider)
