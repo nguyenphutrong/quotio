@@ -116,11 +116,14 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
     let name: String
     let percentage: Double
     let resetTime: String
-    
+
     // Optional usage details for providers that support it (e.g., Cursor)
     var used: Int?
     var limit: Int?
     var remaining: Int?
+
+    // Optional tooltip message (e.g., Warp bonus userFacingMessage)
+    var tooltip: String?
     
     var id: String { name }
     
@@ -199,6 +202,9 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         case "windsurf-usage": return "Usage"
         // Warp quota names
         case "warp-usage": return "warp.credits.label".localizedStatic()
+        case let name where name.hasPrefix("warp-bonus-"):
+            let index = Int(String(name.dropFirst("warp-bonus-".count))) ?? 0
+            return "Bonus \(index + 1)"
         default: return name
         }
     }

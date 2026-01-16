@@ -829,7 +829,8 @@ private struct AccountQuotaCardV2: View {
                         usedPercent: model.usedPercentage,
                         used: model.used,
                         limit: model.limit,
-                        resetTime: model.formattedResetTime
+                        resetTime: model.formattedResetTime,
+                        tooltip: model.tooltip
                     )
                 }
             }
@@ -1480,6 +1481,7 @@ private struct UsageRowV2: View {
     let used: Int?
     let limit: Int?
     let resetTime: String
+    let tooltip: String?
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
     private var displayHelper: QuotaDisplayHelper {
@@ -1510,6 +1512,7 @@ private struct UsageRowV2: View {
                 Text(name)
                     .font(.subheadline)
                     .fontWeight(.medium)
+                    .help(tooltip ?? "")
                 
                 Spacer()
                 

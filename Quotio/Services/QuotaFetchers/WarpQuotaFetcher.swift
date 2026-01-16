@@ -20,6 +20,27 @@ struct WarpQuotaResponse: Codable, Sendable {
     
     struct WarpUser: Codable, Sendable {
         let requestLimitInfo: WarpRequestLimitInfo?
+        let workspaces: [WarpWorkspace]?
+        let bonusGrants: [WarpBonusGrant]?
+    }
+    
+    struct WarpWorkspace: Codable, Sendable {
+        let uid: String?
+        let bonusGrantsInfo: WarpBonusGrantsInfo?
+    }
+    
+    struct WarpBonusGrantsInfo: Codable, Sendable {
+        let grants: [WarpBonusGrant]?
+    }
+    
+    struct WarpBonusGrant: Codable, Sendable {
+        let createdAt: String?
+        let costCents: Int?
+        let expiration: String?
+        let reason: String?
+        let userFacingMessage: String?
+        let requestCreditsGranted: Int?
+        let requestCreditsRemaining: Int?
     }
     
     struct WarpRequestLimitInfo: Codable, Sendable {
@@ -71,6 +92,34 @@ actor WarpQuotaFetcher {
                   requestLimit
                   requestsUsedSinceLastRefresh
                 }
+                workspaces {
+                  uid
+                  bonusGrantsInfo {
+                    grants {
+                      createdAt
+                      costCents
+                      expiration
+                      reason
+                      userFacingMessage
+                      requestCreditsGranted
+                      requestCreditsRemaining
+                    }
+                    spendingInfo {
+                      currentMonthCreditsPurchased
+                      currentMonthPeriodEnd
+                      currentMonthSpendCents
+                    }
+                  }
+                }
+                bonusGrants {
+                  createdAt
+                  costCents
+                  expiration
+                  reason
+                  userFacingMessage
+                  requestCreditsGranted
+                  requestCreditsRemaining
+                }
               }
             }
           }
@@ -118,14 +167,17 @@ actor WarpQuotaFetcher {
             throw QuotaFetchError.invalidResponse
         }
 
+        let workspaces = warpResponse.data?.user?.user?.workspaces ?? []
+        let userBonusGrants = warpResponse.data?.user?.user?.bonusGrants ?? []
+
         return await MainActor.run {
             var models: [ModelQuota] = []
-            
+
             let used = info.requestsUsedSinceLastRefresh ?? 0
             let limit = info.requestLimit ?? 0
             let remaining = max(0, limit - used)
             let isUnlimited = info.isUnlimited ?? false
-            
+
             let percentage: Double
             if isUnlimited {
                 percentage = 100
@@ -134,7 +186,7 @@ actor WarpQuotaFetcher {
             } else {
                 percentage = 0
             }
-            
+
             models.append(ModelQuota(
                 name: "warp-usage",
                 percentage: percentage,
@@ -143,6 +195,54 @@ actor WarpQuotaFetcher {
                 limit: limit,
                 remaining: remaining
             ))
+
+            let dateFormatter = ISO8601DateFormatter()
+            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+            var allGrants: [WarpQuotaResponse.WarpBonusGrant] = []
+
+            for workspace in workspaces {
+                if let grants = workspace.bonusGrantsInfo?.grants {
+                    allGrants.append(contentsOf: grants)
+                }
+            }
+
+            allGrants.append(contentsOf: userBonusGrants)
+
+            for (index, grant) in allGrants.enumerated() {
+                guard let granted = grant.requestCreditsGranted,
+                      let remainingCredits = grant.requestCreditsRemaining,
+                      granted > 0 else {
+                    continue
+                }
+
+                let bonusPercentage: Double
+                if granted > 0 {
+                    bonusPercentage = Double(remainingCredits) / Double(granted) * 100
+                } else {
+                    bonusPercentage = 0
+                }
+
+                var bonusResetTime = ""
+                if let expiration = grant.expiration,
+                   let expiryDate = dateFormatter.date(from: expiration) {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "MM/dd"
+                    bonusResetTime = "expires " + formatter.string(from: expiryDate)
+                }
+
+                let _ = grant.userFacingMessage?.components(separatedBy: ".").first ?? grant.reason ?? "bonus-\(index)"
+
+                models.append(ModelQuota(
+                    name: "warp-bonus-\(index)",
+                    percentage: bonusPercentage,
+                    resetTime: bonusResetTime,
+                    used: granted - remainingCredits,
+                    limit: granted,
+                    remaining: remainingCredits,
+                    tooltip: grant.userFacingMessage
+                ))
+            }
 
             return ProviderQuotaData(models: models, lastUpdated: Date())
         }
