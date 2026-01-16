@@ -14,7 +14,7 @@
 | `Quotio/Services/QuotaFetchers/CursorQuotaFetcher.swift` | 406 |  |
 | `Quotio/Services/QuotaFetchers/GeminiCLIQuotaFetcher.swift` | 186 |  |
 | `Quotio/Services/QuotaFetchers/KiroQuotaFetcher.swift` | 519 | 📊 |
-| `Quotio/Services/QuotaFetchers/OpenAIQuotaFetcher.swift` | 291 |  |
+| `Quotio/Services/QuotaFetchers/OpenAIQuotaFetcher.swift` | 418 |  |
 | `Quotio/Services/QuotaFetchers/TraeQuotaFetcher.swift` | 368 |  |
 
 ## Documentation

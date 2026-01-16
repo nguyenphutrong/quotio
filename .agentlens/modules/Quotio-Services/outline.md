@@ -4,21 +4,39 @@
 
 Symbol maps for 3 large files in this module.
 
-## Quotio/Services/AgentConfigurationService.swift (696 lines)
+## Quotio/Services/AgentConfigurationService.swift (1385 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 8 | class | AgentConfigurationService | (internal) |
-| 10 | fn | generateConfiguration | (internal) |
-| 53 | fn | generateClaudeCodeConfig | (private) |
-| 174 | fn | generateCodexConfig | (private) |
-| 252 | fn | generateGeminiCLIConfig | (private) |
-| 295 | fn | generateAmpConfig | (private) |
-| 378 | fn | generateOpenCodeConfig | (private) |
-| 469 | fn | buildOpenCodeModelConfig | (private) |
-| 505 | fn | generateFactoryDroidConfig | (private) |
-| 575 | fn | fetchAvailableModels | (internal) |
-| 630 | fn | testConnection | (internal) |
+| 46 | fn | readConfiguration | (internal) |
+| 64 | fn | listBackups | (internal) |
+| 93 | fn | restoreFromBackup | (internal) |
+| 111 | fn | readClaudeCodeConfig | (private) |
+| 147 | fn | readCodexConfig | (private) |
+| 190 | fn | readGeminiCLIConfig | (private) |
+| 229 | fn | readAmpConfig | (private) |
+| 252 | fn | readOpenCodeConfig | (private) |
+| 289 | fn | readFactoryDroidConfig | (private) |
+| 326 | fn | extractTOMLValue | (private) |
+| 337 | fn | extractExportValue | (private) |
+| 349 | fn | generateConfiguration | (internal) |
+| 388 | fn | generateDefaultConfiguration | (private) |
+| 404 | fn | generateClaudeCodeDefaultConfig | (private) |
+| 489 | fn | generateCodexDefaultConfig | (private) |
+| 554 | fn | generateGeminiCLIDefaultConfig | (private) |
+| 582 | fn | generateAmpDefaultConfig | (private) |
+| 628 | fn | generateOpenCodeDefaultConfig | (private) |
+| 677 | fn | generateFactoryDroidDefaultConfig | (private) |
+| 742 | fn | generateClaudeCodeConfig | (private) |
+| 863 | fn | generateCodexConfig | (private) |
+| 941 | fn | generateGeminiCLIConfig | (private) |
+| 984 | fn | generateAmpConfig | (private) |
+| 1067 | fn | generateOpenCodeConfig | (private) |
+| 1158 | fn | buildOpenCodeModelConfig | (private) |
+| 1194 | fn | generateFactoryDroidConfig | (private) |
+| 1264 | fn | fetchAvailableModels | (internal) |
+| 1319 | fn | testConnection | (internal) |
 
 ## Quotio/Services/ManagementAPIClient.swift (718 lines)
 

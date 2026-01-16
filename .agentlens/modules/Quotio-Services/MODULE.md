@@ -8,7 +8,7 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `Quotio/Services/AgentConfigurationService.swift` | 696 | 📊 |
+| `Quotio/Services/AgentConfigurationService.swift` | 1385 | 📊 |
 | `Quotio/Services/AgentDetectionService.swift` | 251 |  |
 | `Quotio/Services/CLIExecutor.swift` | 430 |  |
 | `Quotio/Services/ChecksumVerifier.swift` | 78 |  |
