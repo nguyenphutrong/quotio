@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 // MARK: - Models
 
@@ -196,12 +197,17 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         case "auto-completion": return "Completions"
         // Windsurf quota names
         case "windsurf-usage": return "Usage"
+        // Warp quota names
+        case "warp-usage": return "warp.requests.label".localizedStatic()
         default: return name
         }
     }
     
     var formattedResetTime: String {
-        guard let date = ISO8601DateFormatter().date(from: resetTime) else {
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        guard let date = isoFormatter.date(from: resetTime) else {
             return "—"
         }
         

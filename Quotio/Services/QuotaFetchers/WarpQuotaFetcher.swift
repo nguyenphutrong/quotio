@@ -136,9 +136,9 @@ actor WarpQuotaFetcher {
             }
             
             models.append(ModelQuota(
-                name: "warp.requests.label".localized(),
+                name: "warp-usage",
                 percentage: percentage,
-                resetTime: info.nextRefreshTime ?? "",
+                resetTime: stripMilliseconds(from: info.nextRefreshTime) ?? "",
                 used: used,
                 limit: limit,
                 remaining: remaining
@@ -146,5 +146,16 @@ actor WarpQuotaFetcher {
 
             return ProviderQuotaData(models: models, lastUpdated: Date())
         }
+    }
+
+    private nonisolated func stripMilliseconds(from timeString: String?) -> String? {
+        guard let timeString = timeString else { return nil }
+        let pattern = #"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d+Z$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: timeString, range: NSRange(timeString.startIndex..., in: timeString)),
+              let range = Range(match.range(at: 1), in: timeString) else {
+            return timeString
+        }
+        return String(timeString[range]) + "Z"
     }
 }
