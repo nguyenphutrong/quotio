@@ -136,7 +136,7 @@ actor WarpQuotaFetcher {
             }
             
             models.append(ModelQuota(
-                name: "Requests",
+                name: "warp.requests.label".localized(),
                 percentage: percentage,
                 resetTime: info.nextRefreshTime ?? "",
                 used: used,

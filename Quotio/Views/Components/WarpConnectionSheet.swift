@@ -32,31 +32,31 @@ struct WarpConnectionSheet: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     
-                    TextField("e.g., My Warp Account", text: $name)
+                    TextField("warp.name.placeholder".localized(), text: $name)
                         .textFieldStyle(.roundedBorder)
                 }
                 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Warp API Token")
+                        Text("warp.token.label".localized())
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         
                         Spacer()
                         
-                        Link(destination: URL(string: "https://app.warp.dev/settings/api")!) {
+                        Link(destination: URL(string: "https://docs.warp.dev/platform/cli#generating-api-keys")!) {
                             HStack(spacing: 4) {
-                                Text("Get Token")
+                                Text("warp.token.get".localized())
                                 Image(systemName: "arrow.up.right")
                             }
                             .font(.caption)
                         }
                     }
                     
-                    SecureField("Enter your Warp API Token", text: $tokenString)
+                    SecureField("warp.token.placeholder".localized(), text: $tokenString)
                         .textFieldStyle(.roundedBorder)
                     
-                    Text("The token is used to fetch your terminal usage quotas only. Quotio does not proxy your traffic for Warp.")
+                    Text("warp.token.description".localized())
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -87,10 +87,10 @@ struct WarpConnectionSheet: View {
                 .frame(width: 32, height: 32)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(isEditing ? "Edit Warp Connection" : "Connect Warp AI")
+                Text(isEditing ? "warp.connection.edit".localized() : "warp.connection.title".localized())
                     .font(.headline)
                 
-                Text("Monitor your Warp AI request limits")
+                Text("warp.connection.subtitle".localized())
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

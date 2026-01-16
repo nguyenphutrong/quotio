@@ -195,9 +195,6 @@ actor CursorQuotaFetcher {
                 return nil
             }
             
-            if httpResponse.statusCode != 200 {
-                print("[Cursor] API error: \(httpResponse.statusCode)")
-            }
             // If unauthorized, return basic info from local auth
             if httpResponse.statusCode == 401 {
                 return CursorQuotaInfo(

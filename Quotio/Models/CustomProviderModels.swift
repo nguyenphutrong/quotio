@@ -130,7 +130,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
             return false
         }
     }
-    
+
     /// Whether this provider type supports custom headers
     var supportsCustomHeaders: Bool {
         switch self {
