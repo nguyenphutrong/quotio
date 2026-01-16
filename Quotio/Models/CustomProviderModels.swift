@@ -103,7 +103,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .openaiCompatibility, .codexCompatibility:
             return true
         case .claudeCompatibility, .geminiCompatibility, .glmCompatibility:
-            return false // Has default base URL or is internal
+            return false // Has default base URL
         }
     }
     

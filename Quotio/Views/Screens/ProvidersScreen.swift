@@ -397,8 +397,10 @@ struct ProvidersScreen: View {
 
         // Handle GLM accounts (stored in CustomProviderService)
         if account.provider == .glm {
-            if let customProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
-                customProviderService.deleteProvider(id: customProvider.id)
+            // GLM accounts are stored as custom providers
+            // Find the GLM provider by ID and delete it
+            if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
+                customProviderService.deleteProvider(id: glmProvider.id)
                 syncCustomProvidersToConfig()
             }
             return
@@ -421,8 +423,8 @@ struct ProvidersScreen: View {
 
     private func handleEditGlmAccount(_ account: AccountRowData) {
         // Find the GLM provider by ID and open edit sheet using CustomProviderSheet
-        if let customProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
-            editingCustomProvider = customProvider
+        if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
+            editingCustomProvider = glmProvider
             showCustomProviderSheet = true
         }
     }
