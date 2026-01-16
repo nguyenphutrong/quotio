@@ -20293,25 +20293,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Monitor your Warp AI request limits"
+            "value" : "Monitor your Warp AI credit limits"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Surveillez vos limites de requêtes Warp AI"
+            "value" : "Surveillez vos limites de crédits Warp AI"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Theo dõi giới hạn yêu cầu Warp AI của bạn"
+            "value" : "Theo dõi giới hạn tín dụng Warp AI của bạn"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "监控您的 Warp AI 请求限制"
+            "value" : "监控您的 Warp AI 信用额度限制"
           }
         }
       }

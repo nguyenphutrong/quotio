@@ -44,12 +44,14 @@ struct WarpConnectionSheet: View {
                         
                         Spacer()
                         
-                        Link(destination: URL(string: "https://docs.warp.dev/platform/cli#generating-api-keys")!) {
-                            HStack(spacing: 4) {
-                                Text("warp.token.get".localized())
-                                Image(systemName: "arrow.up.right")
+                        if let docsURL = URL(string: "https://docs.warp.dev/platform/cli#generating-api-keys") {
+                            Link(destination: docsURL) {
+                                HStack(spacing: 4) {
+                                    Text("warp.token.get".localized())
+                                    Image(systemName: "arrow.up.right")
+                                }
+                                .font(.caption)
                             }
-                            .font(.caption)
                         }
                     }
                     

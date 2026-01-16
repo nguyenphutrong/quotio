@@ -76,7 +76,8 @@ actor WarpQuotaFetcher {
     }
 
     func fetchQuota(apiKey: String) async throws -> ProviderQuotaData {
-        var request = URLRequest(url: URL(string: apiURL)!)
+        guard let url = URL(string: apiURL) else { throw QuotaFetchError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         
