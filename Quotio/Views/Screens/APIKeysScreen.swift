@@ -16,7 +16,7 @@ struct APIKeysScreen: View {
     
     var body: some View {
         Group {
-            if !viewModel.proxyManager.proxyStatus.running {
+            if !viewModel.daemonProxyService.isRunning {
                 proxyNotRunningView
             } else {
                 apiKeysListView
@@ -24,7 +24,7 @@ struct APIKeysScreen: View {
         }
         .navigationTitle("nav.apiKeys".localized())
         .toolbar {
-            if viewModel.proxyManager.proxyStatus.running {
+            if viewModel.daemonProxyService.isRunning {
                 ToolbarItemGroup {
                     Button {
                         newAPIKey = generateRandomKey()

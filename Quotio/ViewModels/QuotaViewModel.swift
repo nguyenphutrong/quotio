@@ -11,7 +11,6 @@ import Observation
 @MainActor
 @Observable
 final class QuotaViewModel {
-    let proxyManager: CLIProxyManager
     @ObservationIgnored private var _apiClient: ManagementAPIClient?
     
     var apiClient: ManagementAPIClient? { _apiClient }
@@ -29,23 +28,25 @@ final class QuotaViewModel {
     @ObservationIgnored private let warmupModelCacheTTL: TimeInterval = 28800
     @ObservationIgnored private var lastProxyURL: String?
     
-    /// Request tracker for monitoring API requests through ProxyBridge
-    let requestTracker = RequestTracker.shared
-    
     /// Tunnel manager for Cloudflare Tunnel integration
     let tunnelManager = TunnelManager.shared
     
+    
     // Quota-Only Mode Fetchers (CLI-based)
+
     @ObservationIgnored private let cursorFetcher = CursorQuotaFetcher()
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
 
     
     // Daemon services for IPC-based operations
     @ObservationIgnored private let daemonManager = DaemonManager.shared
+    let daemonProxyService = DaemonProxyService.shared
     @ObservationIgnored private let daemonQuotaService = DaemonQuotaService.shared
     @ObservationIgnored private let daemonAuthService = DaemonAuthService.shared
     @ObservationIgnored private let daemonAPIKeysService = DaemonAPIKeysService.shared
     @ObservationIgnored private let daemonStatsService = DaemonStatsService.shared
+    
+    let requestTracker = RequestTracker.shared
     
     private func shouldUseDaemonForAuth() async -> Bool {
         guard !modeManager.isRemoteProxyMode else { return false }
@@ -76,7 +77,7 @@ final class QuotaViewModel {
             return vm
         }
         let vm = AgentSetupViewModel()
-        vm.setup(proxyManager: proxyManager, quotaViewModel: self)
+        vm.setup(daemonProxyService: daemonProxyService, quotaViewModel: self)
         _agentSetupViewModel = vm
         return vm
     }
@@ -123,7 +124,6 @@ final class QuotaViewModel {
     static let authFilesChangedKey = "quotio.authFiles.lastChanged"
 
     init() {
-        self.proxyManager = CLIProxyManager.shared
         loadPersistedIDEQuotas()
         setupRefreshCadenceCallback()
         setupWarmupCallback()
@@ -197,7 +197,7 @@ final class QuotaViewModel {
     private func restartAutoRefresh() {
         if modeManager.isMonitorMode {
             startQuotaOnlyAutoRefresh()
-        } else if proxyManager.proxyStatus.running {
+        } else if daemonProxyService.isRunning {
             startAutoRefresh()
         } else {
             startQuotaAutoRefreshWithoutProxy()
@@ -221,7 +221,7 @@ final class QuotaViewModel {
         await refreshQuotasUnified()
         
         let autoStartProxy = UserDefaults.standard.bool(forKey: "autoStartProxy")
-        let binaryInstalled = proxyManager.isBinaryInstalled
+        let binaryInstalled = FileManager.default.fileExists(atPath: daemonManager.daemonBinaryPath.path)
         
         NSLog("[QuotaViewModel] initializeFullMode: autoStartProxy=%@, binaryInstalled=%@", 
               autoStartProxy ? "true" : "false", 
@@ -231,14 +231,12 @@ final class QuotaViewModel {
             NSLog("[QuotaViewModel] Auto-starting proxy...")
             await startProxy()
             
-            if proxyManager.proxyStatus.running {
+            if daemonProxyService.isRunning {
                 NSLog("[QuotaViewModel] Proxy started successfully")
             } else {
                 NSLog("[QuotaViewModel] Proxy failed to start: %@", errorMessage ?? "unknown error")
             }
             
-            // Check for proxy upgrade after starting
-            await checkForProxyUpgrade()
         } else {
             if !autoStartProxy {
                 NSLog("[QuotaViewModel] Skipping proxy auto-start: autoStartProxy is disabled")
@@ -251,10 +249,6 @@ final class QuotaViewModel {
         }
     }
     
-    /// Check for proxy upgrade (non-blocking)
-    private func checkForProxyUpgrade() async {
-        await proxyManager.checkForUpgrade()
-    }
     
     /// Initialize for Quota-Only Mode (no proxy)
     private func initializeQuotaOnlyMode() async {
@@ -500,7 +494,7 @@ final class QuotaViewModel {
         refreshTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: intervalNs)
-                if !proxyManager.proxyStatus.running {
+                if !daemonProxyService.isRunning {
                     _ = try? await DaemonIPCClient.shared.refreshQuotaTokens(provider: "kiro")
                     await refreshQuotasUnified()
                 }
@@ -594,7 +588,7 @@ final class QuotaViewModel {
         let targets = warmupTargets()
         guard !targets.isEmpty else { return }
         
-        guard proxyManager.proxyStatus.running else {
+        guard daemonProxyService.isRunning else {
             let now = Date()
             for target in targets {
                 let mode = warmupSettings.warmupScheduleMode(provider: target.provider, accountKey: target.accountKey)
@@ -663,7 +657,7 @@ final class QuotaViewModel {
             return
         }
         defer { warmupRunningAccounts.remove(account) }
-        guard proxyManager.proxyStatus.running else {
+        guard daemonProxyService.isRunning else {
             // Warmup skipped when proxy is not running; no log.
             return
         }
@@ -855,19 +849,11 @@ final class QuotaViewModel {
     func startProxy() async {
         NSLog("[QuotaViewModel] startProxy: beginning proxy start sequence")
         do {
-            // Wire up ProxyBridge callback to RequestTracker before starting
-            proxyManager.proxyBridge.onRequestCompleted = { [weak self] metadata in
-                self?.requestTracker.addRequest(from: metadata)
-            }
-            
-            try await proxyManager.start()
+            try await daemonProxyService.start()
             NSLog("[QuotaViewModel] startProxy: proxy started, setting up API client")
             setupAPIClient()
             startAutoRefresh()
             restartWarmupScheduler()
-            
-            // Start RequestTracker
-            requestTracker.start()
             
             NSLog("[QuotaViewModel] startProxy: calling refreshData() after proxy start")
             await refreshData()
@@ -875,7 +861,7 @@ final class QuotaViewModel {
             
             let autoStartTunnel = UserDefaults.standard.bool(forKey: "autoStartTunnel")
             if autoStartTunnel && tunnelManager.installation.isInstalled {
-                await tunnelManager.startTunnel(port: proxyManager.port)
+                await tunnelManager.startTunnel(port: daemonProxyService.port)
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -892,10 +878,9 @@ final class QuotaViewModel {
             }
         }
         
-        // Stop RequestTracker
-        requestTracker.stop()
-        
-        proxyManager.stop()
+        Task { @MainActor in
+            await daemonProxyService.stop()
+        }
         restartWarmupScheduler()
         
         // Invalidate URLSession to close all connections
@@ -911,7 +896,7 @@ final class QuotaViewModel {
     }
     
     func toggleProxy() async {
-        if proxyManager.proxyStatus.running {
+        if daemonProxyService.isRunning {
             stopProxy()
         } else {
             await startProxy()
@@ -919,10 +904,8 @@ final class QuotaViewModel {
     }
     
     private func setupAPIClient() {
-        _apiClient = ManagementAPIClient(
-            baseURL: proxyManager.managementURL,
-            authKey: proxyManager.managementKey
-        )
+        _apiClient = nil
+        // ManagementAPIClient is no longer needed - daemon IPC handles all communication
     }
     
     private func startAutoRefresh() {
@@ -963,7 +946,7 @@ final class QuotaViewModel {
     /// Attempt to recover an unresponsive proxy
     private func attemptProxyRecovery() async {
         // Check if process is still running
-        if proxyManager.proxyStatus.running {
+        if daemonProxyService.isRunning {
             // Proxy process is running but not responding - likely hung
             // Stop and restart
             stopProxy()
@@ -1001,7 +984,28 @@ final class QuotaViewModel {
         do {
             let ipcAuthAccounts = await daemonAuthService.listAuthFiles()
             NSLog("[QuotaViewModel] refreshDataViaDaemon: got %d IPC accounts", ipcAuthAccounts.count)
-            let newAuthFiles = ipcAuthAccounts.map { $0.toAuthFile() }
+            let newAuthFiles = ipcAuthAccounts.map { account in
+                AuthFile(
+                    id: account.id,
+                    name: account.name,
+                    provider: account.provider,
+                    label: nil,
+                    status: account.status,
+                    statusMessage: nil,
+                    disabled: account.disabled,
+                    unavailable: false,
+                    runtimeOnly: nil,
+                    source: nil,
+                    path: nil,
+                    email: account.email,
+                    accountType: nil,
+                    account: nil,
+                    authIndex: nil,
+                    createdAt: nil,
+                    updatedAt: nil,
+                    lastRefresh: nil
+                )
+            }
             NSLog("[QuotaViewModel] refreshDataViaDaemon: converted to %d AuthFiles", newAuthFiles.count)
             
             let oldNames = Set(self.authFiles.map { $0.name })
@@ -1076,7 +1080,7 @@ final class QuotaViewModel {
     func manualRefresh() async {
         if modeManager.isMonitorMode {
             await refreshQuotasDirectly()
-        } else if proxyManager.proxyStatus.running {
+        } else if daemonProxyService.isRunning {
             await refreshData()
         } else {
             await refreshQuotasUnified()
@@ -1335,27 +1339,27 @@ final class QuotaViewModel {
     private func startCopilotAuth() async {
         oauthState = OAuthState(provider: .copilot, status: .waiting)
         
-        let result = await proxyManager.runAuthCommand(.copilotLogin)
+        let authResult = await daemonAuthService.startCopilotAuth()
         
-        if result.success {
-            if let deviceCode = result.deviceCode {
-                oauthState = OAuthState(provider: .copilot, status: .polling, state: deviceCode, error: result.message)
+        if authResult.success {
+            if let deviceCode = authResult.deviceCode {
+                oauthState = OAuthState(provider: .copilot, status: .polling, state: deviceCode, error: authResult.message)
             } else {
-                oauthState = OAuthState(provider: .copilot, status: .polling, error: result.message)
+                oauthState = OAuthState(provider: .copilot, status: .polling, error: authResult.message)
             }
             
             await pollCopilotAuthCompletion()
         } else {
-            oauthState = OAuthState(provider: .copilot, status: .error, error: result.message)
+            oauthState = OAuthState(provider: .copilot, status: .error, error: authResult.message)
         }
     }
     
     private func startKiroAuth(method: AuthCommand) async {
         oauthState = OAuthState(provider: .kiro, status: .waiting)
         
-        let result = await proxyManager.runAuthCommand(method)
+        let authResult = await daemonAuthService.startKiroAuth(method: method)
         
-        if result.success {
+        if authResult.success {
             // Check if it's an import - simply wait and refresh, don't poll for new files (files might already exist)
             if method == .kiroImport {
                 oauthState = OAuthState(provider: .kiro, status: .polling, error: "Importing quotas...")
@@ -1370,15 +1374,15 @@ final class QuotaViewModel {
             }
             
             // For other methods (login), poll for new auth files
-            if let deviceCode = result.deviceCode {
-                oauthState = OAuthState(provider: .kiro, status: .polling, state: deviceCode, error: result.message)
+            if let deviceCode = authResult.deviceCode {
+                oauthState = OAuthState(provider: .kiro, status: .polling, state: deviceCode, error: authResult.message)
             } else {
-                oauthState = OAuthState(provider: .kiro, status: .polling, error: result.message)
+                oauthState = OAuthState(provider: .kiro, status: .polling, error: authResult.message)
             }
             
             await pollKiroAuthCompletion()
         } else {
-            oauthState = OAuthState(provider: .kiro, status: .error, error: result.message)
+            oauthState = OAuthState(provider: .kiro, status: .error, error: authResult.message)
         }
     }
     

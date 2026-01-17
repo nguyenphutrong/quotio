@@ -4,6 +4,10 @@
 //
 
 import Foundation
+import struct Foundation.UUID
+import SwiftUI
+
+
 
 let ipcJsonRPCVersion = "2.0"
 
@@ -108,6 +112,8 @@ nonisolated enum IPCMethod: String, Sendable {
     
     // Stats
     case statsGet = "stats.get"
+    case statsList = "stats.list"
+    case statsClear = "stats.clear"
     
     // Config
     case configGet = "config.get"
@@ -204,8 +210,17 @@ nonisolated struct IPCAuthPollParams: Codable, Sendable {
     let state: String
 }
 
+nonisolated struct IPCCopilotPollDeviceCodeParams: Codable, Sendable {
+    let deviceCode: String
+}
+
 nonisolated struct IPCLogsFetchParams: Codable, Sendable {
     var after: Int?
+}
+
+nonisolated struct IPCStatsListParams: Codable, Sendable {
+    var provider: String?
+    var minutes: Int?
 }
 
 nonisolated struct IPCConfigRoutingParams: Codable, Sendable {
@@ -368,30 +383,8 @@ nonisolated struct IPCAuthAccount: Codable, Sendable {
     let email: String?
     let status: String
     let disabled: Bool
-    
-    func toAuthFile() -> AuthFile {
-        AuthFile(
-            id: id,
-            name: name,
-            provider: provider,
-            label: nil,
-            status: status,
-            statusMessage: nil,
-            disabled: disabled,
-            unavailable: false,
-            runtimeOnly: nil,
-            source: nil,
-            path: nil,
-            email: email,
-            accountType: nil,
-            account: nil,
-            authIndex: nil,
-            createdAt: nil,
-            updatedAt: nil,
-            lastRefresh: nil
-        )
-    }
 }
+
 
 nonisolated struct IPCConfigGetResult: Codable, Sendable {
     let value: IPCAnyCodable
@@ -581,8 +574,32 @@ nonisolated struct IPCCopilotAvailableModelsResult: Codable, Sendable {
 
 // MARK: - Stats Types
 
+nonisolated struct IPCStatsListResult: Codable, Sendable {
+    let entries: [IPCRequestLog]
+}
+
 nonisolated struct IPCStatsGetResult: Codable, Sendable {
     let stats: IPCRequestStats
+}
+
+nonisolated struct IPCStatsClearResult: Codable, Sendable {
+    let success: Bool
+}
+
+nonisolated struct IPCRequestLog: Codable, Sendable {
+    let id: String
+    let timestamp: String
+    let method: String
+    let endpoint: String
+    let provider: String?
+    let model: String?
+    let inputTokens: Int?
+    let outputTokens: Int?
+    let durationMs: Int
+    let statusCode: Int?
+    let requestSize: Int
+    let responseSize: Int
+    let errorMessage: String?
 }
 
 nonisolated struct IPCRequestStats: Codable, Sendable {

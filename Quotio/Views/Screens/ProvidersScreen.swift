@@ -322,7 +322,7 @@ struct ProvidersScreen: View {
 
     private func handleAddProvider(_ provider: AIProvider) {
         // In Local Proxy Mode, require proxy to be running for OAuth
-        if modeManager.isLocalProxyMode && !viewModel.proxyManager.proxyStatus.running {
+        if modeManager.isLocalProxyMode && !viewModel.daemonProxyService.isRunning {
             showProxyRequiredAlert = true
             return
         }
@@ -367,7 +367,9 @@ struct ProvidersScreen: View {
     private func syncCustomProvidersToConfig() {
         // Silent failure - custom provider sync is non-critical
         // Config will be synced on next proxy start
-        try? customProviderService.syncToConfigFile(configPath: viewModel.proxyManager.configPath)
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+        let configPath = appSupport.appendingPathComponent("Quotio/config.yaml").path
+        try? customProviderService.syncToConfigFile(configPath: configPath)
     }
 }
 

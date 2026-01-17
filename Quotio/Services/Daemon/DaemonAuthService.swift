@@ -135,6 +135,84 @@ final class DaemonAuthService {
     func cancelOAuth() {
         oauthState = nil
     }
+    
+    // MARK: - Copilot Device Code Authentication
+    
+    func startCopilotAuth() async -> CopilotAuthResult {
+        guard await isDaemonReady else {
+            return CopilotAuthResult(success: false, message: "Daemon not running")
+        }
+        
+        isLoading = true
+        lastError = nil
+        defer { isLoading = false }
+        
+        do {
+            let result = try await ipcClient.copilotStartDeviceCode()
+            
+            if result.success {
+                return CopilotAuthResult(
+                    success: true,
+                    deviceCode: result.userCode,
+                    message: "Please complete authentication in browser"
+                )
+            } else {
+                return CopilotAuthResult(
+                    success: false,
+                    message: result.error ?? "Failed to start Copilot authentication"
+                )
+            }
+        } catch {
+            lastError = error.localizedDescription
+            return CopilotAuthResult(success: false, message: error.localizedDescription)
+        }
+    }
+    
+    // MARK: - Kiro Authentication
+    
+    func startKiroAuth(method: AuthCommand) async -> KiroAuthResult {
+        guard await isDaemonReady else {
+            return KiroAuthResult(success: false, message: "Daemon not running")
+        }
+        
+        isLoading = true
+        lastError = nil
+        defer { isLoading = false }
+        
+        do {
+            switch method {
+            case .kiroGoogleLogin:
+                let result = try await ipcClient.kiroStartGoogle()
+                // Kiro Google OAuth returns a URL to open, not a device code
+                return KiroAuthResult(
+                    success: result.success,
+                    deviceCode: nil,
+                    message: result.success ? "Check browser for login" : (result.error ?? "Failed to start Google auth")
+                )
+                
+            case .kiroAWSLogin:
+                let result = try await ipcClient.kiroStartAws()
+                return KiroAuthResult(
+                    success: result.success,
+                    deviceCode: result.userCode,
+                    message: result.success ? "Check browser for AWS SSO" : (result.error ?? "Failed to start AWS auth")
+                )
+                
+            case .kiroImport:
+                let result = try await ipcClient.kiroImport()
+                return KiroAuthResult(
+                    success: result.success,
+                    message: result.success ? "Imported \(result.imported) account(s)" : (result.error ?? "Import failed")
+                )
+                
+            default:
+                return KiroAuthResult(success: false, message: "Unsupported Kiro auth method")
+            }
+        } catch {
+            lastError = error.localizedDescription
+            return KiroAuthResult(success: false, message: error.localizedDescription)
+        }
+    }
 }
 
 struct DaemonOAuthState: Sendable {
@@ -155,6 +233,22 @@ struct DaemonOAuthPollResult: Sendable {
     let status: DaemonOAuthStatus
     let email: String?
     let error: String?
+}
+
+// MARK: - Copilot Auth Result
+
+struct CopilotAuthResult {
+    let success: Bool
+    var deviceCode: String?
+    let message: String
+}
+
+// MARK: - Kiro Auth Result
+
+struct KiroAuthResult {
+    let success: Bool
+    var deviceCode: String?
+    let message: String
 }
 
 enum DaemonAuthError: LocalizedError {

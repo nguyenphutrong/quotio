@@ -13,7 +13,7 @@ struct TunnelSheet: View {
     @Environment(QuotaViewModel.self) private var viewModel
     
     private var tunnelManager: TunnelManager { TunnelManager.shared }
-    private var proxyPort: UInt16 { viewModel.proxyManager.port }
+    private var proxyPort: UInt16 { viewModel.daemonProxyService.port }
     
     @State private var isHoveringCopy = false
     

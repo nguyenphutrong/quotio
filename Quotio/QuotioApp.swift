@@ -106,7 +106,7 @@ struct QuotioApp: App {
         
         NSLog("[QuotioApp] initializeApp: calling viewModel.initialize()...")
         await viewModel.initialize()
-        NSLog("[QuotioApp] initializeApp: completed. proxyRunning=%@", viewModel.proxyManager.proxyStatus.running ? "true" : "false")
+        NSLog("[QuotioApp] initializeApp: completed. proxyRunning=%@", viewModel.daemonProxyService.isRunning ? "true" : "false")
         
         #if canImport(Sparkle)
         UpdaterService.shared.checkForUpdatesInBackground()
@@ -126,7 +126,7 @@ struct QuotioApp: App {
                     hasInitialized = true
                     await initializeApp()
                 }
-                .onChange(of: viewModel.proxyManager.proxyStatus.running) {
+                .onChange(of: viewModel.daemonProxyService.isRunning) {
                     updateStatusBar()
                 }
                 .onChange(of: viewModel.isLoadingQuotas) {
@@ -380,15 +380,15 @@ struct ContentView: View {
                 ToolbarItem {
                     if modeManager.isLocalProxyMode {
                         // Local proxy mode: proxy controls
-                        if viewModel.proxyManager.isStarting {
+                        if viewModel.daemonProxyService.isStarting {
                             SmallProgressView()
                         } else {
                             Button {
                                 Task { await viewModel.toggleProxy() }
                             } label: {
-                                Image(systemName: viewModel.proxyManager.proxyStatus.running ? "stop.fill" : "play.fill")
+                                Image(systemName: viewModel.daemonProxyService.isRunning ? "stop.fill" : "play.fill")
                             }
-                            .help(viewModel.proxyManager.proxyStatus.running ? "action.stopProxy".localized() : "action.startProxy".localized())
+                            .help(viewModel.daemonProxyService.isRunning ? "action.stopProxy".localized() : "action.startProxy".localized())
                         }
                     } else {
                         // Monitor or remote mode: refresh button
@@ -478,25 +478,25 @@ struct ProxyStatusRow: View {
     
     var body: some View {
         HStack {
-            if viewModel.proxyManager.isStarting {
+            if viewModel.daemonProxyService.isStarting {
                 SmallProgressView(size: 8)
             } else {
                 Circle()
-                    .fill(viewModel.proxyManager.proxyStatus.running ? .green : .gray)
+                    .fill(viewModel.daemonProxyService.isRunning ? .green : .gray)
                     .frame(width: 8, height: 8)
             }
             
-            if viewModel.proxyManager.isStarting {
+            if viewModel.daemonProxyService.isStarting {
                 Text("status.starting".localized())
                     .font(.caption)
             } else {
-                Text(viewModel.proxyManager.proxyStatus.running ? "status.running".localized() : "status.stopped".localized())
+                Text(viewModel.daemonProxyService.isRunning ? "status.running".localized() : "status.stopped".localized())
                     .font(.caption)
             }
             
             Spacer()
             
-            Text(":" + String(viewModel.proxyManager.port))
+            Text(":" + String(viewModel.daemonProxyService.port))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

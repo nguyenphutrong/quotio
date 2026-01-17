@@ -2,14 +2,30 @@
 //  RequestTracker.swift
 //  Quotio - Request History Tracking Service
 //
-//  This service tracks API requests through ProxyBridge callbacks.
-//  Request history is persisted to disk for session continuity.
+//  This service wraps DaemonStatsService to provide request history and stats
+//  for the UI layer. It fetches data from the daemon via IPC.
 //
 
 import Foundation
 import AppKit
+import Observation
 
-/// Service for tracking API request history with persistence
+/// Error types for RequestTracker operations
+enum RequestTrackerError: LocalizedError {
+    case daemonNotRunning
+    case fetchFailed(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .daemonNotRunning:
+            return "Daemon is not running"
+        case .fetchFailed(let reason):
+            return "Failed to fetch stats: \(reason)"
+        }
+    }
+}
+
+/// Service for tracking API request history via daemon IPC
 @MainActor
 @Observable
 final class RequestTracker {
@@ -29,54 +45,21 @@ final class RequestTracker {
     /// Whether the tracker is active
     private(set) var isActive = false
     
+    /// Loading state
+    private(set) var isLoading = false
+    
     /// Last error message
     private(set) var lastError: String?
     
     // MARK: - Private Properties
     
-    /// Storage container
-    private var store: RequestHistoryStore = .empty
-    
-    /// Queue for file operations
-    private let fileQueue = DispatchQueue(label: "io.quotio.request-tracker-file")
-    
-    /// Storage file URL
-    private var storageURL: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let quotioDir = appSupport.appendingPathComponent("Quotio")
-        try? FileManager.default.createDirectory(at: quotioDir, withIntermediateDirectories: true)
-        return quotioDir.appendingPathComponent("request-history.json")
-    }
+    @ObservationIgnored private let daemonStatsService = DaemonStatsService.shared
+    @ObservationIgnored private let daemonManager = DaemonManager.shared
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
     
     // MARK: - Initialization
     
-    private init() {
-        loadFromDisk()
-        setupMemoryWarningObserver()
-    }
-    
-    private func setupMemoryWarningObserver() {
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.trimHistoryForBackground()
-            }
-        }
-    }
-    
-    private func trimHistoryForBackground() {
-        let reducedLimit = 10
-        if store.entries.count > reducedLimit {
-            store.entries = Array(store.entries.prefix(reducedLimit))
-            requestHistory = store.entries
-            stats = store.calculateStats()
-            saveToDisk()
-            NSLog("[RequestTracker] Trimmed to \(reducedLimit) entries for background")
-        }
-    }
+    private init() {}
     
     // MARK: - Public Methods
     
@@ -84,50 +67,61 @@ final class RequestTracker {
     func start() {
         isActive = true
         NSLog("[RequestTracker] Started tracking")
+        
+        // Start periodic refresh
+        startPeriodicRefresh()
     }
     
     /// Stop tracking (called when proxy stops)
     func stop() {
         isActive = false
+        refreshTask?.cancel()
+        refreshTask = nil
         NSLog("[RequestTracker] Stopped tracking")
     }
     
-    /// Add a request from ProxyBridge callback
-    func addRequest(from metadata: ProxyBridge.RequestMetadata) {
-        let entry = RequestLog(
-            timestamp: metadata.timestamp,
-            method: metadata.method,
-            endpoint: metadata.path,
-            provider: metadata.provider,
-            model: metadata.model,
-            resolvedModel: metadata.resolvedModel,
-            resolvedProvider: metadata.resolvedProvider,
-            inputTokens: nil,
-            outputTokens: nil,
-            durationMs: metadata.durationMs,
-            statusCode: metadata.statusCode,
-            requestSize: metadata.requestSize,
-            responseSize: metadata.responseSize,
-            errorMessage: nil
-        )
-
-        addEntry(entry)
-    }
-    
-    /// Add a request entry directly
-    func addEntry(_ entry: RequestLog) {
-        store.addEntry(entry)
-        requestHistory = store.entries
-        stats = store.calculateStats()
-        saveToDisk()
+    /// Refresh request history and stats from daemon
+    func refresh() async {
+        guard isActive else { return }
+        
+        isLoading = true
+        lastError = nil
+        defer { isLoading = false }
+        
+        // Fetch request logs
+        if let logs = await daemonStatsService.fetchRequestLogs() {
+            requestHistory = logs
+        } else if let error = daemonStatsService.lastError {
+            lastError = error
+            NSLog("[RequestTracker] Failed to fetch logs: \(error)")
+        }
+        
+        // Fetch aggregated stats
+        if let fetchedStats = await daemonStatsService.fetchRequestStats() {
+            stats = fetchedStats
+        } else if let error = daemonStatsService.lastError {
+            lastError = error
+            NSLog("[RequestTracker] Failed to fetch stats: \(error)")
+        }
     }
     
     /// Clear all history
-    func clearHistory() {
-        store = .empty
-        requestHistory = []
-        stats = .empty
-        saveToDisk()
+    func clearHistory() async {
+        isLoading = true
+        lastError = nil
+        defer { isLoading = false }
+        
+        do {
+            let success = try await daemonStatsService.clearRequestStats()
+            if success {
+                requestHistory = []
+                stats = .empty
+                NSLog("[RequestTracker] Cleared history")
+            }
+        } catch {
+            lastError = error.localizedDescription
+            NSLog("[RequestTracker] Failed to clear history: \(error)")
+        }
     }
     
     /// Get requests filtered by provider
@@ -141,46 +135,15 @@ final class RequestTracker {
         return requestHistory.filter { $0.timestamp >= cutoff }
     }
     
-    // MARK: - Persistence
+    // MARK: - Private Methods
     
-    private func loadFromDisk() {
-        guard FileManager.default.fileExists(atPath: storageURL.path) else {
-            NSLog("[RequestTracker] No history file found, starting fresh")
-            return
-        }
-
-        do {
-            let data = try Data(contentsOf: storageURL)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601  // Match the encoding strategy
-            store = try decoder.decode(RequestHistoryStore.self, from: data)
-            requestHistory = store.entries
-            stats = store.calculateStats()
-            NSLog("[RequestTracker] Loaded \(store.entries.count) entries from disk")
-        } catch {
-            NSLog("[RequestTracker] Failed to load history: \(error)")
-            lastError = error.localizedDescription
-            // If decoding fails due to format mismatch, clear the corrupt file
-            try? FileManager.default.removeItem(at: storageURL)
-            NSLog("[RequestTracker] Removed corrupt history file, starting fresh")
-        }
-    }
-    
-    private func saveToDisk() {
-        // Capture store snapshot on MainActor to avoid data race
-        let storeSnapshot = self.store
-        let storageURLSnapshot = self.storageURL
-
-        fileQueue.async {
-            do {
-                let encoder = JSONEncoder()
-                encoder.dateEncodingStrategy = .iso8601
-                encoder.outputFormatting = .prettyPrinted
-
-                let data = try encoder.encode(storeSnapshot)
-                try data.write(to: storageURLSnapshot)
-            } catch {
-                NSLog("[RequestTracker] Failed to save history: \(error)")
+    private func startPeriodicRefresh() {
+        refreshTask?.cancel()
+        
+        refreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refresh()
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
             }
         }
     }

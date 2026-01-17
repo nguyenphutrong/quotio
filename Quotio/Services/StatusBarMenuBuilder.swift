@@ -150,20 +150,20 @@ final class StatusBarMenuBuilder {
 
     private func buildNetworkInfoItem() -> NSMenuItem {
         let networkView = MenuNetworkInfoView(
-            port: String(viewModel.proxyManager.port),
-            isProxyRunning: viewModel.proxyManager.proxyStatus.running,
+            port: String(viewModel.daemonProxyService.port),
+            isProxyRunning: viewModel.daemonProxyService.isRunning,
             onProxyToggle: { [weak viewModel] in
                 Task { await viewModel?.toggleProxy() }
             },
             onCopyProxyURL: {
-                let url = "http://127.0.0.1:\(self.viewModel.proxyManager.port)"
+                let url = "http://127.0.0.1:\(self.viewModel.daemonProxyService.port)"
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(url, forType: .string)
             },
             onTunnelToggle: { [weak viewModel] in
                 guard let viewModel = viewModel else { return }
                 Task {
-                    await TunnelManager.shared.toggle(port: viewModel.proxyManager.port)
+                    await TunnelManager.shared.toggle(port: viewModel.daemonProxyService.port)
                 }
             },
             onCopyTunnelURL: {

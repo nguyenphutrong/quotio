@@ -531,6 +531,14 @@ extension DaemonIPCClient {
         ))
     }
     
+    func setLocalManagementKey(_ key: String) async throws -> IPCConfigSetResult {
+        try await call(.configSetLocalManagementKey, params: IPCConfigSetLocalManagementKeyParams(key: key))
+    }
+    
+    func getLocalManagementKey() async throws -> IPCConfigGetLocalManagementKeyResult {
+        try await call(.configGetLocalManagementKey)
+    }
+    
     func refreshQuotaTokens(provider: String? = nil) async throws -> IPCQuotaRefreshTokensResult {
         try await call(.quotaRefreshTokens, params: IPCQuotaRefreshTokensParams(provider: provider))
     }
@@ -539,8 +547,60 @@ extension DaemonIPCClient {
         try await call(.copilotAvailableModels)
     }
     
+    // MARK: - Copilot Device Code
+    
+    func copilotStartDeviceCode() async throws -> IPCCopilotStartDeviceCodeResult {
+        try await call(.authCopilotStartDeviceCode)
+    }
+    
+    func copilotPollDeviceCode(deviceCode: String) async throws -> IPCCopilotPollDeviceCodeResult {
+        try await call(.authCopilotPollDeviceCode, params: IPCCopilotPollDeviceCodeParams(deviceCode: deviceCode))
+    }
+    
+    func copilotCancel() async throws -> IPCConfigSetResult {
+        try await call(.authCopilotCancel)
+    }
+    
+    // MARK: - Kiro Authentication
+    
+    func kiroStartGoogle() async throws -> IPCKiroGoogleAuthResult {
+        try await call(.authKiroGoogle)
+    }
+    
+    func kiroPollGoogle() async throws -> IPCKiroGooglePollResult {
+        try await call(.authKiroPollGoogle)
+    }
+    
+    func kiroCancelGoogle() async throws -> IPCConfigSetResult {
+        try await call(.authKiroCancelGoogle)
+    }
+    
+    func kiroStartAws() async throws -> IPCKiroAwsAuthResult {
+        try await call(.authKiroAws)
+    }
+    
+    func kiroPollAws() async throws -> IPCKiroAwsPollResult {
+        try await call(.authKiroPollAws)
+    }
+    
+    func kiroCancelAws() async throws -> IPCConfigSetResult {
+        try await call(.authKiroCancelAws)
+    }
+    
+    func kiroImport() async throws -> IPCKiroImportResult {
+        try await call(.authKiroImport)
+    }
+    
     func fetchStats() async throws -> IPCStatsGetResult {
         try await call(.statsGet)
+    }
+    
+    func listRequestStats(provider: String? = nil, minutes: Int? = nil) async throws -> IPCStatsListResult {
+        try await call(.statsList, params: IPCStatsListParams(provider: provider, minutes: minutes))
+    }
+    
+    func clearRequestStats() async throws -> IPCStatsClearResult {
+        try await call(.statsClear)
     }
 }
 

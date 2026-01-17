@@ -120,7 +120,7 @@ struct AgentSetupScreen: View {
                     AgentCard(
                         status: status,
                         onConfigure: {
-                            let apiKey = quotaViewModel.apiKeys.first ?? quotaViewModel.proxyManager.managementKey
+                            let apiKey = quotaViewModel.apiKeys.first ?? UserDefaults.standard.string(forKey: "managementKey") ?? ""
                             viewModel.startConfiguration(for: status.agent, apiKey: apiKey)
                             sheetPresentationID = UUID()
                             selectedAgentForConfig = status.agent

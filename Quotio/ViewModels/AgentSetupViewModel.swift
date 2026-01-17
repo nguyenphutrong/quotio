@@ -36,15 +36,15 @@ final class AgentSetupViewModel {
     var configStorageOption: ConfigStorageOption = .jsonOnly
     var selectedRawConfigIndex: Int = 0
 
-    weak var proxyManager: CLIProxyManager?
+    weak var daemonProxyService: DaemonProxyService?
 
     /// Reference to QuotaViewModel for quota checking
     weak var quotaViewModel: QuotaViewModel?
 
     init() {}
 
-    func setup(proxyManager: CLIProxyManager, quotaViewModel: QuotaViewModel? = nil) {
-        self.proxyManager = proxyManager
+    func setup(daemonProxyService: DaemonProxyService? = nil, quotaViewModel: QuotaViewModel? = nil) {
+        self.daemonProxyService = daemonProxyService
         self.quotaViewModel = quotaViewModel
     }
 
@@ -76,15 +76,15 @@ final class AgentSetupViewModel {
         isConfiguring = false
         isTesting = false
 
-        guard let proxyManager = proxyManager else {
-            errorMessage = "Proxy manager not available"
+        guard let daemonProxyService = daemonProxyService else {
+            errorMessage = "Proxy service not available"
             return
         }
 
         selectedAgent = agent
 
         // Always use client endpoint - all traffic should go through Quotio's proxy
-        let endpoint = proxyManager.clientEndpoint
+        let endpoint = daemonProxyService.endpoint
 
         currentConfiguration = AgentConfiguration(
             agent: agent,
@@ -293,11 +293,13 @@ final class AgentSetupViewModel {
         if let existingConfig = currentConfiguration {
             config = existingConfig
         } else {
-            guard let proxyManager = proxyManager else { return }
+            guard let daemonProxyService = daemonProxyService else { return }
+            let proxyURL = daemonProxyService.endpoint + "/v1"
+            let apiKey = quotaViewModel?.apiKeys.first ?? ""
             config = AgentConfiguration(
                 agent: .claudeCode,
-                proxyURL: proxyManager.clientEndpoint + "/v1",
-                apiKey: proxyManager.managementKey
+                proxyURL: proxyURL,
+                apiKey: apiKey
             )
         }
 

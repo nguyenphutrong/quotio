@@ -15,10 +15,11 @@ struct FallbackScreen: View {
     @State private var showReconfigureAlert = false
     @State private var showDuplicateNameAlert = false
     @State private var previousFallbackEnabled: Bool?
+    @AppStorage("useBridgeMode") private var useBridgeMode = true
 
     /// Check if Bridge Mode is enabled
     private var isBridgeModeEnabled: Bool {
-        viewModel.proxyManager.useBridgeMode
+        useBridgeMode
     }
 
     /// Get available models from AgentSetupViewModel
@@ -107,7 +108,7 @@ struct FallbackScreen: View {
         // Load models using AgentSetupViewModel if not already loaded
         let agentVM = viewModel.agentSetupViewModel
         if agentVM.availableModels.isEmpty {
-            guard viewModel.proxyManager.proxyStatus.running else { return }
+            guard viewModel.daemonProxyService.isRunning else { return }
             await agentVM.loadModels(forceRefresh: false)
         }
     }

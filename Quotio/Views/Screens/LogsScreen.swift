@@ -12,7 +12,6 @@ struct LogsScreen: View {
     @State private var autoScroll = true
     @State private var filterLevel: LogEntry.LogLevel? = nil
     @State private var searchText = ""
-    @State private var requestFilterProvider: String? = nil
     
     enum LogsTab: String, CaseIterable {
         case requests = "requests"
@@ -35,7 +34,7 @@ struct LogsScreen: View {
     
     var body: some View {
         Group {
-            if !viewModel.proxyManager.proxyStatus.running {
+            if !viewModel.daemonProxyService.isRunning {
                 ProxyRequiredView(
                     description: "logs.startProxy".localized()
                 ) {
@@ -71,14 +70,6 @@ struct LogsScreen: View {
             toolbarContent
         }
         .task {
-            // Configure LogsViewModel with proxy connection when screen appears
-            if !logsViewModel.isConfigured {
-                logsViewModel.configure(
-                    baseURL: viewModel.proxyManager.managementURL,
-                    authKey: viewModel.proxyManager.managementKey
-                )
-            }
-            
             while !Task.isCancelled {
                 if selectedTab == .proxyLogs {
                     await logsViewModel.refreshLogs()
@@ -147,16 +138,6 @@ struct LogsScreen: View {
             
             Spacer()
             
-            // Provider Filter
-            Picker("Provider", selection: $requestFilterProvider) {
-                Text("logs.filter.allProviders".localized()).tag(nil as String?)
-                Divider()
-                ForEach(Array(stats.byProvider.keys.sorted()), id: \.self) { provider in
-                    Text(provider.capitalized).tag(provider as String?)
-                }
-            }
-            .pickerStyle(.menu)
-            .frame(width: 140)
         }
         .padding()
         .background(.regularMaterial)
@@ -164,10 +145,6 @@ struct LogsScreen: View {
     
     private var filteredRequests: [RequestLog] {
         var requests = viewModel.requestTracker.requestHistory
-        
-        if let provider = requestFilterProvider {
-            requests = requests.filter { $0.provider == provider }
-        }
         
         if !searchText.isEmpty {
             requests = requests.filter {
@@ -262,24 +239,18 @@ struct LogsScreen: View {
                 Label("logs.autoScroll".localized(), systemImage: "arrow.down.to.line")
             }
             
-            Button {
-                if selectedTab == .requests {
-                    // Refresh handled by RequestTracker automatically
-                } else {
+            if selectedTab == .proxyLogs {
+                Button {
                     Task { await logsViewModel.refreshLogs() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
                 }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            
-            Button(role: .destructive) {
-                if selectedTab == .requests {
-                    viewModel.requestTracker.clearHistory()
-                } else {
+                
+                Button(role: .destructive) {
                     Task { await logsViewModel.clearLogs() }
+                } label: {
+                    Image(systemName: "trash")
                 }
-            } label: {
-                Image(systemName: "trash")
             }
         }
     }

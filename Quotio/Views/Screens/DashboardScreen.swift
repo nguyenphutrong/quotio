@@ -28,8 +28,7 @@ struct DashboardScreen: View {
     }
     
     private var isSetupComplete: Bool {
-        viewModel.proxyManager.isBinaryInstalled &&
-        viewModel.proxyManager.proxyStatus.running &&
+        viewModel.daemonProxyService.isRunning &&
         !viewModel.authFiles.isEmpty &&
         viewModel.agentSetupViewModel.agentStatuses.contains(where: { $0.configured })
     }
@@ -39,7 +38,7 @@ struct DashboardScreen: View {
         if modeManager.isMonitorMode {
             return true // Always show content in quota-only mode
         }
-        return viewModel.proxyManager.proxyStatus.running
+        return viewModel.daemonProxyService.isRunning
     }
     
     // MARK: - Precomputed Properties (performance optimization)
@@ -77,10 +76,8 @@ struct DashboardScreen: View {
                     // Remote Mode: Show remote connection status and data
                     remoteModeContent
                 } else if modeManager.isLocalProxyMode {
-                    // Full Mode: Check binary and proxy status
-                    if !viewModel.proxyManager.isBinaryInstalled {
-                        installBinarySection
-                    } else if !viewModel.proxyManager.proxyStatus.running {
+                    // Full Mode: Check proxy status
+                    if !viewModel.daemonProxyService.isRunning {
                         startProxySection
                     } else {
                         fullModeContent
@@ -97,7 +94,7 @@ struct DashboardScreen: View {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     Task {
-                        if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
+                        if modeManager.isLocalProxyMode && viewModel.daemonProxyService.isRunning {
                             await viewModel.refreshData()
                         } else {
                             await viewModel.refreshQuotasUnified()
@@ -468,39 +465,6 @@ struct DashboardScreen: View {
         }
     }
     
-    // MARK: - Install Binary
-    
-    private var installBinarySection: some View {
-        ContentUnavailableView {
-            Label("dashboard.cliNotInstalled".localized(), systemImage: "arrow.down.circle")
-        } description: {
-            Text("dashboard.clickToInstall".localized())
-        } actions: {
-            if viewModel.proxyManager.isDownloading {
-                ProgressView(value: viewModel.proxyManager.downloadProgress)
-                    .progressViewStyle(.linear)
-                    .frame(width: 200)
-            } else {
-                Button("dashboard.installCLI".localized()) {
-                    Task {
-                        do {
-                            try await viewModel.proxyManager.downloadAndInstallBinary()
-                        } catch {
-                            viewModel.errorMessage = error.localizedDescription
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            
-            if let error = viewModel.proxyManager.lastError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: 300)
-    }
     
     // MARK: - Start Proxy
     
@@ -608,7 +572,7 @@ struct DashboardScreen: View {
         let installedAgents = viewModel.agentSetupViewModel.agentStatuses.filter { $0.installed }
         guard let firstAgent = installedAgents.first else { return }
         
-        let apiKey = viewModel.apiKeys.first ?? viewModel.proxyManager.managementKey
+        let apiKey = viewModel.apiKeys.first ?? UserDefaults.standard.string(forKey: "managementKey") ?? ""
         viewModel.agentSetupViewModel.startConfiguration(for: firstAgent.agent, apiKey: apiKey)
         sheetPresentationID = UUID()
         selectedAgentForConfig = firstAgent.agent
@@ -689,7 +653,7 @@ struct DashboardScreen: View {
     /// The display endpoint for clients to connect to
     private var displayEndpoint: String {
         // Always use client endpoint - all traffic should go through Quotio's proxy
-        return viewModel.proxyManager.clientEndpoint + "/v1"
+        return "http://localhost:" + String(viewModel.daemonProxyService.port) + "/v1"
     }
 
     private var endpointSection: some View {

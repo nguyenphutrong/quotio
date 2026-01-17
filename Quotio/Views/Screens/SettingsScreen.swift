@@ -358,7 +358,7 @@ struct UnifiedProxySettingsSection: View {
     /// Check if API is available (proxy running for local, or connected for remote)
     private var isAPIAvailable: Bool {
         if modeManager.isLocalProxyMode {
-            return viewModel.proxyManager.proxyStatus.running
+            return viewModel.daemonProxyService.isRunning
         } else {
             // For remote mode, check both connection status AND apiClient
             if case .connected = modeManager.connectionStatus {
@@ -806,7 +806,7 @@ struct LocalProxyServerSection: View {
                     .frame(width: 100)
                     .onChange(of: portText) { _, newValue in
                         if let port = UInt16(newValue), port > 0 {
-                            viewModel.proxyManager.port = port
+                            CLIProxyManager.shared.port = port
                         }
                     }
             }
@@ -814,14 +814,14 @@ struct LocalProxyServerSection: View {
             LabeledContent("settings.status".localized()) {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(viewModel.proxyManager.proxyStatus.running ? .green : .gray)
+                        .fill(viewModel.daemonProxyService.isRunning ? .green : .gray)
                         .frame(width: 8, height: 8)
-                    Text(viewModel.proxyManager.proxyStatus.running ? "status.running".localized() : "status.stopped".localized())
+                    Text(viewModel.daemonProxyService.isRunning ? "status.running".localized() : "status.stopped".localized())
                 }
             }
             
             LabeledContent("settings.endpoint".localized()) {
-                Text(viewModel.proxyManager.proxyStatus.endpoint)
+                Text("http://localhost:" + String(viewModel.daemonProxyService.port))
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
             }
@@ -834,9 +834,6 @@ struct LocalProxyServerSection: View {
                 .disabled(!viewModel.tunnelManager.installation.isInstalled)
                 
             NetworkAccessSection(allowNetworkAccess: $allowNetworkAccess)
-                .onChange(of: allowNetworkAccess) { _, newValue in
-                    viewModel.proxyManager.allowNetworkAccess = newValue
-                }
                 
 
         } header: {
@@ -846,7 +843,7 @@ struct LocalProxyServerSection: View {
                 .font(.caption)
         }
         .onAppear {
-            portText = String(viewModel.proxyManager.port)
+            portText = String(viewModel.daemonProxyService.port)
         }
     }
 }
@@ -888,18 +885,37 @@ struct NetworkAccessSection: View {
 struct LocalPathsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
     
+    // Static paths for display - matches CLIProxyManager initialization
+    private var binaryPath: String {
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            return appSupport.appendingPathComponent("Quotio/CLIProxyAPI").path
+        }
+        return "~/Library/Application Support/Quotio/CLIProxyAPI"
+    }
+    
+    private var configPath: String {
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            return appSupport.appendingPathComponent("Quotio/config.yaml").path
+        }
+        return "~/Library/Application Support/Quotio/config.yaml"
+    }
+    
+    private var authDir: String {
+        NSHomeDirectory() + "/.cli-proxy-api"
+    }
+    
     var body: some View {
         Section {
             LabeledContent("settings.binary".localized()) {
-                PathLabel(path: viewModel.proxyManager.effectiveBinaryPath)
+                PathLabel(path: binaryPath)
             }
             
             LabeledContent("settings.config".localized()) {
-                PathLabel(path: viewModel.proxyManager.configPath)
+                PathLabel(path: configPath)
             }
             
             LabeledContent("settings.authDir".localized()) {
-                PathLabel(path: viewModel.proxyManager.authDir)
+                PathLabel(path: authDir)
             }
         } header: {
             Label("settings.paths".localized(), systemImage: "folder")
@@ -1134,7 +1150,7 @@ struct ProxyUpdateSettingsSection: View {
     @State private var showAdvancedSheet = false
     
     private var proxyManager: CLIProxyManager {
-        viewModel.proxyManager
+        CLIProxyManager.shared
     }
     
     var body: some View {
@@ -1181,7 +1197,7 @@ struct ProxyUpdateSettingsSection: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(isUpgrading || !proxyManager.proxyStatus.running)
+                    .disabled(isUpgrading || !viewModel.daemonProxyService.isRunning)
                 }
             } else {
                 HStack {
@@ -1222,7 +1238,7 @@ struct ProxyUpdateSettingsSection: View {
             }
             
             // Proxy must be running hint (only shown when upgrade available but proxy not running)
-            if proxyManager.upgradeAvailable && !proxyManager.proxyStatus.running {
+            if proxyManager.upgradeAvailable && !viewModel.daemonProxyService.isRunning {
                 HStack {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.blue)
@@ -1302,7 +1318,7 @@ struct ProxyVersionManagerSheet: View {
     @State private var versionsToDelete: [String] = []
     
     private var proxyManager: CLIProxyManager {
-        viewModel.proxyManager
+        CLIProxyManager.shared
     }
     
     var body: some View {
@@ -1524,7 +1540,7 @@ struct ProxyVersionManagerSheet: View {
     private func activateVersion(_ version: String) {
         Task { @MainActor in
             do {
-                let wasRunning = proxyManager.proxyStatus.running
+                let wasRunning = viewModel.daemonProxyService.isRunning
                 if wasRunning {
                     proxyManager.stop()
                 }
@@ -2187,7 +2203,7 @@ struct AboutProxyUpdateSection: View {
     @State private var showAdvancedSheet = false
     
     private var proxyManager: CLIProxyManager {
-        viewModel.proxyManager
+        CLIProxyManager.shared
     }
     
     var body: some View {
@@ -2240,7 +2256,7 @@ struct AboutProxyUpdateSection: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(isUpgrading || !proxyManager.proxyStatus.running)
+                    .disabled(isUpgrading || !viewModel.daemonProxyService.isRunning)
                 }
             } else {
                 HStack {
@@ -2266,7 +2282,7 @@ struct AboutProxyUpdateSection: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .disabled(isCheckingForUpdate || !proxyManager.proxyStatus.running)
+                    .disabled(isCheckingForUpdate || !viewModel.daemonProxyService.isRunning)
                 }
             }
             
@@ -2282,7 +2298,7 @@ struct AboutProxyUpdateSection: View {
             }
             
             // Proxy must be running hint
-            if !proxyManager.proxyStatus.running {
+            if !viewModel.daemonProxyService.isRunning {
                 HStack {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.blue)
@@ -2496,7 +2512,7 @@ struct AboutProxyUpdateCard: View {
     @State private var upgradeError: String?
     
     private var proxyManager: CLIProxyManager {
-        viewModel.proxyManager
+        CLIProxyManager.shared
     }
     
     var body: some View {
@@ -2553,7 +2569,7 @@ struct AboutProxyUpdateCard: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                    .disabled(isUpgrading || !proxyManager.proxyStatus.running)
+                    .disabled(isUpgrading || !viewModel.daemonProxyService.isRunning)
                 }
             } else {
                 HStack {
@@ -2597,7 +2613,7 @@ struct AboutProxyUpdateCard: View {
             }
             
             // Proxy must be running hint (only for Update action, not Check)
-            if proxyManager.upgradeAvailable && !proxyManager.proxyStatus.running {
+            if proxyManager.upgradeAvailable && !viewModel.daemonProxyService.isRunning {
                 HStack {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.blue)
@@ -2761,18 +2777,21 @@ struct LinkCard: View {
 // MARK: - Management Key Row
 
 struct ManagementKeyRow: View {
-    @Environment(QuotaViewModel.self) private var viewModel
     @State private var settings = MenuBarSettingsManager.shared
     @State private var regenerateError: String?
     @State private var showRegenerateConfirmation = false
     @State private var showCopyConfirmation = false
     
+    private var proxyManager: CLIProxyManager {
+        CLIProxyManager.shared
+    }
+    
     private var displayKey: String {
         if settings.hideSensitiveInfo {
-            let key = viewModel.proxyManager.managementKey
+            let key = proxyManager.managementKey
             return String(repeating: "•", count: 8) + "..." + key.suffix(4)
         }
-        return viewModel.proxyManager.managementKey
+        return proxyManager.managementKey
     }
     
     var body: some View {
@@ -2787,7 +2806,7 @@ struct ManagementKeyRow: View {
                 Button {
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
-                    pasteboard.setString(viewModel.proxyManager.managementKey, forType: .string)
+                    pasteboard.setString(proxyManager.managementKey, forType: .string)
                     showCopyConfirmation = true
                     Task {
                         try? await Task.sleep(for: .seconds(1.5))
@@ -2806,7 +2825,7 @@ struct ManagementKeyRow: View {
                 Button {
                     showRegenerateConfirmation = true
                 } label: {
-                    if viewModel.proxyManager.isRegeneratingKey {
+                    if proxyManager.isRegeneratingKey {
                         ProgressView()
                             .controlSize(.small)
                             .scaleEffect(0.7)
@@ -2816,7 +2835,7 @@ struct ManagementKeyRow: View {
                     }
                 }
                 .buttonStyle(.borderless)
-                .disabled(viewModel.proxyManager.isRegeneratingKey)
+                .disabled(proxyManager.isRegeneratingKey)
                 .help("settings.managementKey.regenerate".localized())
             }
         }
@@ -2829,7 +2848,7 @@ struct ManagementKeyRow: View {
                 Task {
                     regenerateError = nil
                     do {
-                        try await viewModel.proxyManager.regenerateManagementKey()
+                        try await proxyManager.regenerateManagementKey()
                     } catch {
                         regenerateError = error.localizedDescription
                     }
