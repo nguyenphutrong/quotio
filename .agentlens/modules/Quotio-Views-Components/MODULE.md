@@ -2,7 +2,7 @@
 
 [← Back to INDEX](../../INDEX.md)
 
-**Type:** implicit | **Files:** 26
+**Type:** implicit | **Files:** 27
 
 ## Files
 
@@ -34,6 +34,7 @@
 | `Quotio/Views/Components/TunnelSheet.swift` | 390 |  |
 | `Quotio/Views/Components/TunnelStatusBadge.swift` | 81 |  |
 | `Quotio/Views/Components/WarmupSheet.swift` | 354 |  |
+| `Quotio/Views/Components/WarpConnectionSheet.swift` | 122 |  |
 
 ## Documentation
 

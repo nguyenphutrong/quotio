@@ -17,11 +17,11 @@
 
 | Module | Type | Files | Warnings | Hub |
 | ------ | ---- | ----- | -------- | --- |
-| [root](modules/root/MODULE.md) | root | 33 | 1 |  |
+| [root](modules/root/MODULE.md) | root | 34 | 1 |  |
 | [Quotio/Models](modules/Quotio-Models/MODULE.md) | implicit | 15 | 1 |  |
 | [Quotio/Services/Antigravity](modules/Quotio-Services-Antigravity/MODULE.md) | implicit | 5 | - |  |
-| [Quotio/Services/QuotaFetchers](modules/Quotio-Services-QuotaFetchers/MODULE.md) | implicit | 8 | - |  |
-| [Quotio/Views/Components](modules/Quotio-Views-Components/MODULE.md) | implicit | 26 | - |  |
+| [Quotio/Services/QuotaFetchers](modules/Quotio-Services-QuotaFetchers/MODULE.md) | implicit | 9 | - |  |
+| [Quotio/Views/Components](modules/Quotio-Views-Components/MODULE.md) | implicit | 27 | - |  |
 | [Quotio/Views/Onboarding](modules/Quotio-Views-Onboarding/MODULE.md) | implicit | 6 | - |  |
 | [Quotio/Views/Screens](modules/Quotio-Views-Screens/MODULE.md) | implicit | 8 | - |  |
 

@@ -16,17 +16,70 @@ actor OpenAIQuotaFetcher {
         self.session = URLSession(configuration: config)
     }
 
+#if DEBUG
+    private func debugMask(_ value: String?) -> String {
+        guard let value, !value.isEmpty else { return "<nil>" }
+        if value.count <= 8 { return "\(value) (len=\(value.count))" }
+        let prefix = value.prefix(4)
+        let suffix = value.suffix(4)
+        return "\(prefix)…\(suffix) (len=\(value.count))"
+    }
+#endif
+
     /// Update the URLSession with current proxy settings
     func updateProxyConfiguration() {
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         self.session = URLSession(configuration: config)
     }
     
-    func fetchQuota(accessToken: String) async throws -> CodexQuotaData {
+    private func extractAccountId(from authFile: CodexAuthFile, rawJSON: [String: Any]) -> String? {
+        if let accountId = authFile.accountId, !accountId.isEmpty {
+            return accountId
+        }
+        if let accountId = rawJSON["chatgpt_account_id"] as? String, !accountId.isEmpty {
+            return accountId
+        }
+        if let idToken = authFile.idToken, let accountId = decodeAccountId(fromJWT: idToken) {
+            return accountId
+        }
+        return nil
+    }
+    
+    private func decodeAccountId(fromJWT token: String) -> String? {
+        let segments = token.split(separator: ".")
+        guard segments.count >= 2 else { return nil }
+        
+        var base64 = String(segments[1])
+        let padLength = (4 - base64.count % 4) % 4
+        base64 += String(repeating: "=", count: padLength)
+        base64 = base64.replacingOccurrences(of: "-", with: "+")
+        base64 = base64.replacingOccurrences(of: "_", with: "/")
+        
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        
+        if let authInfo = json["https://api.openai.com/auth"] as? [String: Any],
+           let accountId = authInfo["chatgpt_account_id"] as? String,
+           !accountId.isEmpty {
+            return accountId
+        }
+        
+        return nil
+    }
+    
+    func fetchQuota(accessToken: String, accountId: String?) async throws -> CodexQuotaData {
         var request = URLRequest(url: URL(string: usageURL)!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
+        if let accountId, !accountId.isEmpty {
+            request.addValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
+        }
+#if DEBUG
+        print("[OpenAIQuotaFetcher] GET \(usageURL) accountId=\(debugMask(accountId))")
+#endif
         
         let (data, response) = try await session.data(for: request)
         
@@ -39,6 +92,9 @@ actor OpenAIQuotaFetcher {
         }
         
         let quotaResponse = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
+#if DEBUG
+        print("[OpenAIQuotaFetcher] plan_type=\(quotaResponse.planType ?? "<nil>")")
+#endif
         return CodexQuotaData(from: quotaResponse)
     }
     
@@ -46,6 +102,8 @@ actor OpenAIQuotaFetcher {
         let url = URL(fileURLWithPath: path)
         let data = try Data(contentsOf: url)
         var authFile = try JSONDecoder().decode(CodexAuthFile.self, from: data)
+        let rawJSON = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        let accountId = extractAccountId(from: authFile, rawJSON: rawJSON)
         
         var accessToken = authFile.accessToken
         
@@ -62,7 +120,7 @@ actor OpenAIQuotaFetcher {
             }
         }
         
-        return try await fetchQuota(accessToken: accessToken)
+        return try await fetchQuota(accessToken: accessToken, accountId: accountId)
     }
     
     private func refreshAccessToken(refreshToken: String) async throws -> String {

@@ -29,6 +29,7 @@ actor AgentDetectionService {
         "~/.npm-global/bin",     // npm global
         // Tool-specific
         "~/.opencode/bin",       // OpenCode
+        "~/.warp/bin",           // Warp (if any)
         // Version managers (static shim paths)
         "~/.volta/bin",          // Volta
         "~/.asdf/shims",         // asdf

@@ -2,7 +2,7 @@
 
 [← Back to INDEX](../../INDEX.md)
 
-**Type:** root | **Files:** 33
+**Type:** root | **Files:** 34
 
 ## Files
 
@@ -10,7 +10,7 @@
 | ---- | ----- | ----- |
 | `Quotio/QuotioApp.swift` | 527 | 📊 |
 | `Quotio/Services/AgentConfigurationService.swift` | 1385 | 📊 |
-| `Quotio/Services/AgentDetectionService.swift` | 251 |  |
+| `Quotio/Services/AgentDetectionService.swift` | 252 |  |
 | `Quotio/Services/CLIExecutor.swift` | 430 |  |
 | `Quotio/Services/ChecksumVerifier.swift` | 78 |  |
 | `Quotio/Services/CompatibilityChecker.swift` | 123 |  |
@@ -32,14 +32,15 @@
 | `Quotio/Services/RequestTracker.swift` | 187 |  |
 | `Quotio/Services/ShellProfileManager.swift` | 121 |  |
 | `Quotio/Services/StatusBarManager.swift` | 238 |  |
-| `Quotio/Services/StatusBarMenuBuilder.swift` | 1365 | 📊 |
+| `Quotio/Services/StatusBarMenuBuilder.swift` | 1397 | 📊 |
 | `Quotio/Services/Tunnel/CloudflaredService.swift` | 266 |  |
 | `Quotio/Services/Tunnel/TunnelManager.swift` | 183 |  |
 | `Quotio/Services/UpdaterService.swift` | 168 |  |
 | `Quotio/Services/WarmupService.swift` | 183 |  |
+| `Quotio/Services/WarpService.swift` | 79 |  |
 | `Quotio/ViewModels/AgentSetupViewModel.swift` | 499 |  |
 | `Quotio/ViewModels/LogsViewModel.swift` | 82 |  |
-| `Quotio/ViewModels/QuotaViewModel.swift` | 1772 | 📊 |
+| `Quotio/ViewModels/QuotaViewModel.swift` | 1807 | 📊 |
 | `scripts/capture-screenshots.ts` | 763 | 📊 |
 
 ## Documentation

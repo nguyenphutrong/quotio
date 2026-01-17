@@ -12,7 +12,7 @@
 | `Quotio/Services/Antigravity/AntigravityDatabaseService.swift` | 378 |  |
 | `Quotio/Services/Antigravity/AntigravityProcessManager.swift` | 206 |  |
 | `Quotio/Services/Antigravity/AntigravityProtobufHandler.swift` | 313 |  |
-| `Quotio/Services/Antigravity/AntigravityQuotaFetcher.swift` | 843 | 📊 |
+| `Quotio/Services/Antigravity/AntigravityQuotaFetcher.swift` | 855 | 📊 |
 
 ## Documentation
 

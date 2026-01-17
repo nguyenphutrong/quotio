@@ -30,36 +30,37 @@ Symbol maps for 5 large files in this module.
 | 356 | struct | VirtualModelRow | (internal) |
 | 474 | struct | FallbackEntryRow | (internal) |
 
-## Quotio/Views/Screens/ProvidersScreen.swift (916 lines)
+## Quotio/Views/Screens/ProvidersScreen.swift (973 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 16 | struct | ProvidersScreen | (internal) |
-| 338 | fn | handleAddProvider | (private) |
-| 353 | fn | deleteAccount | (private) |
-| 374 | fn | handleEditGlmAccount | (private) |
-| 382 | fn | syncCustomProvidersToConfig | (private) |
-| 392 | struct | CustomProviderRow | (internal) |
-| 493 | struct | MenuBarBadge | (internal) |
-| 516 | class | TooltipWindow | (private) |
-| 528 | method | init | (private) |
-| 558 | fn | show | (internal) |
-| 587 | fn | hide | (internal) |
-| 593 | class | TooltipTrackingView | (private) |
-| 595 | fn | updateTrackingAreas | (internal) |
-| 606 | fn | mouseEntered | (internal) |
-| 610 | fn | mouseExited | (internal) |
-| 614 | fn | hitTest | (internal) |
-| 620 | struct | NativeTooltipView | (private) |
-| 622 | fn | makeNSView | (internal) |
-| 628 | fn | updateNSView | (internal) |
-| 634 | mod | extension View | (private) |
-| 635 | fn | nativeTooltip | (internal) |
-| 642 | struct | MenuBarHintView | (internal) |
-| 657 | struct | OAuthSheet | (internal) |
-| 783 | struct | OAuthStatusView | (private) |
+| 375 | fn | handleAddProvider | (private) |
+| 393 | fn | deleteAccount | (private) |
+| 423 | fn | handleEditGlmAccount | (private) |
+| 431 | fn | handleEditWarpAccount | (private) |
+| 439 | fn | syncCustomProvidersToConfig | (private) |
+| 449 | struct | CustomProviderRow | (internal) |
+| 550 | struct | MenuBarBadge | (internal) |
+| 573 | class | TooltipWindow | (private) |
+| 585 | method | init | (private) |
+| 615 | fn | show | (internal) |
+| 644 | fn | hide | (internal) |
+| 650 | class | TooltipTrackingView | (private) |
+| 652 | fn | updateTrackingAreas | (internal) |
+| 663 | fn | mouseEntered | (internal) |
+| 667 | fn | mouseExited | (internal) |
+| 671 | fn | hitTest | (internal) |
+| 677 | struct | NativeTooltipView | (private) |
+| 679 | fn | makeNSView | (internal) |
+| 685 | fn | updateNSView | (internal) |
+| 691 | mod | extension View | (private) |
+| 692 | fn | nativeTooltip | (internal) |
+| 699 | struct | MenuBarHintView | (internal) |
+| 714 | struct | OAuthSheet | (internal) |
+| 840 | struct | OAuthStatusView | (private) |
 
-## Quotio/Views/Screens/QuotaScreen.swift (1596 lines)
+## Quotio/Views/Screens/QuotaScreen.swift (1599 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -75,23 +76,23 @@ Symbol maps for 5 large files in this module.
 | 419 | struct | AccountInfo | (private) |
 | 431 | struct | AccountQuotaCardV2 | (private) |
 | 815 | fn | standardContentByStyle | (private) |
-| 842 | struct | PlanBadgeV2Compact | (private) |
-| 896 | struct | PlanBadgeV2 | (private) |
-| 951 | struct | SubscriptionBadgeV2 | (private) |
-| 992 | struct | AntigravityDisplayGroup | (private) |
-| 1002 | struct | AntigravityGroupRow | (private) |
-| 1079 | struct | AntigravityLowestBarLayout | (private) |
-| 1098 | fn | displayPercent | (private) |
-| 1160 | struct | AntigravityRingLayout | (private) |
-| 1172 | fn | displayPercent | (private) |
-| 1201 | struct | StandardLowestBarLayout | (private) |
-| 1220 | fn | displayPercent | (private) |
-| 1293 | struct | StandardRingLayout | (private) |
-| 1305 | fn | displayPercent | (private) |
-| 1340 | struct | AntigravityModelsDetailSheet | (private) |
-| 1409 | struct | ModelDetailCard | (private) |
-| 1476 | struct | UsageRowV2 | (private) |
-| 1562 | struct | QuotaLoadingView | (private) |
+| 843 | struct | PlanBadgeV2Compact | (private) |
+| 897 | struct | PlanBadgeV2 | (private) |
+| 952 | struct | SubscriptionBadgeV2 | (private) |
+| 993 | struct | AntigravityDisplayGroup | (private) |
+| 1003 | struct | AntigravityGroupRow | (private) |
+| 1080 | struct | AntigravityLowestBarLayout | (private) |
+| 1099 | fn | displayPercent | (private) |
+| 1161 | struct | AntigravityRingLayout | (private) |
+| 1173 | fn | displayPercent | (private) |
+| 1202 | struct | StandardLowestBarLayout | (private) |
+| 1221 | fn | displayPercent | (private) |
+| 1294 | struct | StandardRingLayout | (private) |
+| 1306 | fn | displayPercent | (private) |
+| 1341 | struct | AntigravityModelsDetailSheet | (private) |
+| 1410 | struct | ModelDetailCard | (private) |
+| 1477 | struct | UsageRowV2 | (private) |
+| 1565 | struct | QuotaLoadingView | (private) |
 
 ## Quotio/Views/Screens/SettingsScreen.swift (2876 lines)
 

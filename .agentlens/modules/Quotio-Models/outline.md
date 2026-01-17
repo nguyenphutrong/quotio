@@ -40,13 +40,13 @@ Symbol maps for 2 large files in this module.
 | 557 | fn | pruneInvalidItems | (internal) |
 | 561 | fn | autoSelectNewAccounts | (internal) |
 
-## Quotio/Models/Models.swift (594 lines)
+## Quotio/Models/Models.swift (602 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
-| 294 | fn | hash | (internal) |
-| 481 | method | init | (internal) |
-| 498 | mod | extension Int | (internal) |
-| 544 | fn | validate | (internal) |
-| 584 | fn | sanitize | (internal) |
+| 302 | fn | hash | (internal) |
+| 489 | method | init | (internal) |
+| 506 | mod | extension Int | (internal) |
+| 552 | fn | validate | (internal) |
+| 592 | fn | sanitize | (internal) |
 

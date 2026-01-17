@@ -409,6 +409,35 @@
         }
       }
     },
+    "action.connect" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecter"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết nối"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接"
+          }
+        }
+      }
+    },
     "action.copy" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1164,6 +1193,7 @@
       }
     },
     "agents.availableBackups" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1220,157 +1250,6 @@
         }
       }
     },
-    "agents.currentlyDefault" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Currently: Default"
-          }
-        }
-      }
-    },
-    "agents.currentlyProxy" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Currently: Proxy"
-          }
-        }
-      }
-    },
-    "agents.defaultSetup" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Default Setup"
-          }
-        }
-      }
-    },
-    "agents.defaultSetup.info" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This will remove Quotio proxy configuration and restore the agent to use its default provider endpoints. Your other settings (permissions, MCP servers, etc.) will be preserved."
-          }
-        }
-      }
-    },
-    "agents.proxyRemovalWarning" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Current proxy configuration will be removed"
-          }
-        }
-      }
-    },
-    "agents.restoreAction" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore"
-          }
-        }
-      }
-    },
-    "agents.restoreBackup" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore from Backup"
-          }
-        }
-      }
-    },
-    "agents.restoreBackup.confirm.message" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This will replace the current configuration with the selected backup."
-          }
-        }
-      }
-    },
-    "agents.restoreBackup.confirm.title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore Backup?"
-          }
-        }
-      }
-    },
-    "agents.restoreBackup.info" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restoring a backup will replace the current configuration with the selected backup."
-          }
-        }
-      }
-    },
-    "agents.setup.default" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Default (Direct)"
-          }
-        }
-      }
-    },
-    "agents.setup.default.desc" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use provider's default endpoint"
-          }
-        }
-      }
-    },
-    "agents.setup.proxy" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Proxy (CLIProxyAPI)"
-          }
-        }
-      }
-    },
-    "agents.setup.proxy.desc" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Route requests through Quotio proxy"
-          }
-        }
-      }
-    },
-    "agents.setupMode" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Setup Mode"
-          }
-        }
-      }
-    },
-
     "agents.configMode" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1516,6 +1395,50 @@
         }
       }
     },
+    "agents.currentlyDefault" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currently: Default"
+          }
+        }
+      }
+    },
+    "agents.currentlyProxy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currently: Proxy"
+          }
+        }
+      }
+    },
+    "agents.defaultSetup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default Setup"
+          }
+        }
+      }
+    },
+    "agents.defaultSetup.info" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will remove Quotio proxy configuration and restore the agent to use its default provider endpoints. Your other settings (permissions, MCP servers, etc.) will be preserved."
+          }
+        }
+      }
+    },
     "agents.filesModified" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1632,6 +1555,17 @@
         }
       }
     },
+    "agents.proxyRemovalWarning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current proxy configuration will be removed"
+          }
+        }
+      }
+    },
     "agents.proxyURL" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1719,6 +1653,61 @@
         }
       }
     },
+    "agents.restoreAction" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore"
+          }
+        }
+      }
+    },
+    "agents.restoreBackup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore from Backup"
+          }
+        }
+      }
+    },
+    "agents.restoreBackup.confirm.message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will replace the current configuration with the selected backup."
+          }
+        }
+      }
+    },
+    "agents.restoreBackup.confirm.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Backup?"
+          }
+        }
+      }
+    },
+    "agents.restoreBackup.info" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring a backup will replace the current configuration with the selected backup."
+          }
+        }
+      }
+    },
     "agents.saveConfig" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1744,6 +1733,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存配置"
+          }
+        }
+      }
+    },
+    "agents.setup.default" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default (Direct)"
+          }
+        }
+      }
+    },
+    "agents.setup.default.desc" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use provider's default endpoint"
+          }
+        }
+      }
+    },
+    "agents.setup.proxy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy (CLIProxyAPI)"
+          }
+        }
+      }
+    },
+    "agents.setup.proxy.desc" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Route requests through Quotio proxy"
+          }
+        }
+      }
+    },
+    "agents.setupMode" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setup Mode"
           }
         }
       }
@@ -20210,6 +20254,267 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "预热"
+          }
+        }
+      }
+    },
+    "warp.connection.edit" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Warp Connection"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier la connexion Warp"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sửa kết nối Warp"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑 Warp 连接"
+          }
+        }
+      }
+    },
+    "warp.connection.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitor your Warp AI credit limits"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Surveillez vos limites de crédits Warp AI"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Theo dõi giới hạn tín dụng Warp AI của bạn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "监控您的 Warp AI 信用额度限制"
+          }
+        }
+      }
+    },
+    "warp.connection.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect Warp AI"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecter Warp AI"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết nối Warp AI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接 Warp AI"
+          }
+        }
+      }
+    },
+    "warp.credits.label" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Credits"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crédits"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tín dụng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "额度"
+          }
+        }
+      }
+    },
+    "warp.name.placeholder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g., My Warp Account"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ex: Mon compte Warp"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VD: Tài khoản Warp của tôi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：我的 Warp 账户"
+          }
+        }
+      }
+    },
+    "warp.token.description" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The API key is used to fetch your terminal usage quotas only. Quotio does not proxy your traffic for Warp."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clé API est utilisée uniquement pour récupérer vos quotas d'utilisation du terminal. Quotio ne sert pas de proxy pour votre trafic Warp."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key chỉ được sử dụng để lấy hạn mức sử dụng terminal của bạn. Quotio không proxy lưu lượng của bạn cho Warp."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该 API 密钥仅用于获取您的终端使用配额。Quotio 不会代理您的 Warp 流量。"
+          }
+        }
+      }
+    },
+    "warp.token.get" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get API Key"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obtenir une clé API"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lấy API Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取 API 密钥"
+          }
+        }
+      }
+    },
+    "warp.token.label" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warp API Key"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé API Warp"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warp API Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warp API 密钥"
+          }
+        }
+      }
+    },
+    "warp.token.placeholder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter your Warp API Key"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrez votre clé API Warp"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập Warp API Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入您的 Warp API 密钥"
           }
         }
       }

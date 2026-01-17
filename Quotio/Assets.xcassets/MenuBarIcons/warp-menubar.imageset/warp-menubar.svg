@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="320px" height="263px" viewBox="0 0 320 263" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Graphic Copy</title>
+    <g id="Graphic-Copy" stroke="none" fill="none" fill-rule="evenodd" stroke-width="1">
+        <g id="Group" transform="translate(0, 2.921)" fill="#000000">
+            <path d="M161.804673,0 L281.137743,0 C300.454337,0 316.114376,16.181684 316.114376,36.142777 L316.114376,176.461193 C316.114376,196.422856 300.454337,212.604401 281.137743,212.604401 L110.368317,212.604401 L161.804673,0 Z" id="Path" fill-rule="nonzero"></path>
+            <path d="M130.80903,40.2777473 L34.6788119,40.2777473 C15.5262099,40.2777473 0,56.4592919 0,76.4203216 L0,216.739054 C0,236.700401 15.5262099,252.881945 34.6788119,252.881945 L152.994218,252.881945 L157.738772,233.102777 L84.5554059,233.102777 L130.80903,40.2777473 Z" id="Path" fill-rule="nonzero"></path>
+        </g>
+    </g>
+</svg>

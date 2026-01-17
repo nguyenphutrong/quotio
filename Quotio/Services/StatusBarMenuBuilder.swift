@@ -180,7 +180,7 @@ final class StatusBarMenuBuilder {
         data: ProviderQuotaData,
         provider: AIProvider
     ) -> NSMenuItem {
-        let subscriptionInfo = viewModel.subscriptionInfos[email]
+        let subscriptionInfo = viewModel.subscriptionInfos[provider]?[email]
         let isActiveInIDE = provider == .antigravity && viewModel.isAntigravityAccountActive(email: email)
 
         let cardView = MenuAccountCardView(
@@ -620,22 +620,53 @@ private struct MenuAccountCardView: View {
     
     // Modern Tier Badge Config
     private var tierConfig: (name: String, bgColor: Color, textColor: Color)? {
-        guard let info = subscriptionInfo else { return nil }
+        if let info = subscriptionInfo {
+            let tierId = info.tierId.lowercased()
+            let tierName = info.tierDisplayName.lowercased()
+            
+            if tierId.contains("ultra") || tierName.contains("ultra") {
+                return ("Ultra", .orange.opacity(0.15), .orange)
+            }
+            if tierId.contains("pro") || tierName.contains("pro") {
+                return ("Pro", .blue.opacity(0.15), .blue)
+            }
+            if tierId.contains("standard") || tierId.contains("free") ||
+               tierName.contains("standard") || tierName.contains("free") {
+                return ("Free", .secondary.opacity(0.1), .secondary)
+            }
+            return (info.tierDisplayName, .secondary.opacity(0.1), .secondary)
+        }
         
-        let tierId = info.tierId.lowercased()
-        let tierName = info.tierDisplayName.lowercased()
+        guard let planName = data.planDisplayName else { return nil }
+        return planConfig(for: planName)
+    }
+    
+    private func planConfig(for planName: String) -> (name: String, bgColor: Color, textColor: Color) {
+        let lowercased = planName.lowercased()
         
-        if tierId.contains("ultra") || tierName.contains("ultra") {
+        if lowercased.contains("ultra") {
             return ("Ultra", .orange.opacity(0.15), .orange)
         }
-        if tierId.contains("pro") || tierName.contains("pro") {
+        if lowercased.contains("pro") {
             return ("Pro", .blue.opacity(0.15), .blue)
         }
-        if tierId.contains("standard") || tierId.contains("free") ||
-           tierName.contains("standard") || tierName.contains("free") {
+        if lowercased.contains("plus") {
+            return ("Plus", .blue.opacity(0.15), .blue)
+        }
+        if lowercased.contains("team") {
+            return ("Team", .orange.opacity(0.15), .orange)
+        }
+        if lowercased.contains("enterprise") {
+            return ("Enterprise", .red.opacity(0.15), .red)
+        }
+        if lowercased.contains("business") {
+            return ("Business", .red.opacity(0.15), .red)
+        }
+        if lowercased.contains("free") || lowercased.contains("standard") {
             return ("Free", .secondary.opacity(0.1), .secondary)
         }
-        return (info.tierDisplayName, .secondary.opacity(0.1), .secondary)
+        
+        return (planName, .secondary.opacity(0.1), .secondary)
     }
     
     private var isAntigravity: Bool {
@@ -1284,6 +1315,7 @@ private extension AIProvider {
         case .vertex: return "Vertex"
         case .kiro: return "Kiro"
         case .glm: return "GLM"
+        case .warp: return "Warp"
         }
     }
 }

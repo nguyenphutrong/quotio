@@ -77,6 +77,16 @@ actor CodexCLIQuotaFetcher {
         self.session = URLSession(configuration: config)
     }
 
+#if DEBUG
+    private func debugMask(_ value: String?) -> String {
+        guard let value, !value.isEmpty else { return "<nil>" }
+        if value.count <= 8 { return "\(value) (len=\(value.count))" }
+        let prefix = value.prefix(4)
+        let suffix = value.suffix(4)
+        return "\(prefix)…\(suffix) (len=\(value.count))"
+    }
+#endif
+
     /// Update the URLSession with current proxy settings
     func updateProxyConfiguration() {
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
@@ -158,11 +168,17 @@ actor CodexCLIQuotaFetcher {
     }
     
     /// Fetch quota from ChatGPT usage API
-    func fetchQuota(accessToken: String) async throws -> CodexCLIQuotaInfo {
+    func fetchQuota(accessToken: String, accountId: String?) async throws -> CodexCLIQuotaInfo {
         var request = URLRequest(url: URL(string: usageURL)!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
+        if let accountId, !accountId.isEmpty {
+            request.addValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
+        }
+#if DEBUG
+        print("[CodexCLIQuotaFetcher] GET \(usageURL) accountId=\(debugMask(accountId))")
+#endif
         
         let (data, response) = try await session.data(for: request)
         
@@ -179,7 +195,11 @@ actor CodexCLIQuotaFetcher {
             throw CodexCLIQuotaError.invalidResponse
         }
         
-        return parseUsageResponse(json)
+        let quotaInfo = parseUsageResponse(json)
+#if DEBUG
+        print("[CodexCLIQuotaFetcher] plan_type=\(quotaInfo.planType ?? "<nil>")")
+#endif
+        return quotaInfo
     }
     
     /// Parse usage API response
@@ -286,10 +306,14 @@ actor CodexCLIQuotaFetcher {
         // Get email and plan from id_token
         var email = "Codex User"
         var planType: String? = nil
+        var accountId: String? = tokens.accountId
         
         if let idToken = tokens.idToken, let claims = decodeJWT(token: idToken) {
             email = claims.email ?? email
             planType = claims.planType
+            if accountId == nil {
+                accountId = claims.accountId
+            }
         }
         
         // Check if token is expired and try to refresh
@@ -305,7 +329,7 @@ actor CodexCLIQuotaFetcher {
         
         // Fetch quota from API
         do {
-            let quotaInfo = try await fetchQuota(accessToken: currentAccessToken)
+            let quotaInfo = try await fetchQuota(accessToken: currentAccessToken, accountId: accountId)
             
             // Build model quotas
             var models: [ModelQuota] = []
@@ -340,8 +364,11 @@ actor CodexCLIQuotaFetcher {
                 models: models,
                 lastUpdated: Date(),
                 isForbidden: quotaInfo.limitReached,
-                planType: planType ?? quotaInfo.planType
+                planType: quotaInfo.planType ?? planType
             )
+#if DEBUG
+            print("[CodexCLIQuotaFetcher] finalPlan=\(providerQuota.planType ?? "<nil>") usage=\(quotaInfo.planType ?? "<nil>") jwt=\(planType ?? "<nil>")")
+#endif
             
             return [email: providerQuota]
         } catch {
