@@ -25,6 +25,7 @@ struct FallbackContext: Sendable {
     let currentIndex: Int
     let originalBody: String
     let wasLoadedFromCache: Bool
+    let attempts: [FallbackAttempt]
 
     /// Whether this request has fallback enabled
     nonisolated var hasFallback: Bool { !fallbackEntries.isEmpty }
@@ -39,7 +40,20 @@ struct FallbackContext: Sendable {
             fallbackEntries: fallbackEntries,
             currentIndex: currentIndex + 1,
             originalBody: originalBody,
-            wasLoadedFromCache: false
+            wasLoadedFromCache: false,
+            attempts: attempts
+        )
+    }
+
+    /// Append a new attempt entry
+    nonisolated func appendingAttempt(_ attempt: FallbackAttempt) -> FallbackContext {
+        FallbackContext(
+            virtualModelName: virtualModelName,
+            fallbackEntries: fallbackEntries,
+            currentIndex: currentIndex,
+            originalBody: originalBody,
+            wasLoadedFromCache: wasLoadedFromCache,
+            attempts: attempts + [attempt]
         )
     }
 
@@ -55,7 +69,8 @@ struct FallbackContext: Sendable {
         fallbackEntries: [],
         currentIndex: 0,
         originalBody: "",
-        wasLoadedFromCache: false
+        wasLoadedFromCache: false,
+        attempts: []
     )
 }
 
@@ -115,6 +130,9 @@ final class ProxyBridge {
         let durationMs: Int
         let requestSize: Int
         let responseSize: Int
+        let fallbackAttempts: [FallbackAttempt]
+        let fallbackStartedFromCache: Bool
+        let responseSnippet: String?
     }
     
     // MARK: - Initialization
@@ -473,12 +491,19 @@ final class ProxyBridge {
             }
         }
 
+        var attempts: [FallbackAttempt] = []
+        if wasLoadedFromCache, startIndex < entries.count {
+            let cachedEntry = entries[startIndex]
+            attempts.append(FallbackAttempt(entry: cachedEntry, outcome: .skipped, reason: .cachedRoute))
+        }
+
         return FallbackContext(
             virtualModelName: model,
             fallbackEntries: entries,
             currentIndex: startIndex,
             originalBody: body,
-            wasLoadedFromCache: wasLoadedFromCache
+            wasLoadedFromCache: wasLoadedFromCache,
+            attempts: attempts
         )
     }
 
@@ -503,10 +528,21 @@ final class ProxyBridge {
         )
     }
 
-    /// Check if response indicates an error that should trigger fallback
-    /// Includes quota exhaustion, rate limits, format errors, and server errors
-    private nonisolated func shouldTriggerFallback(responseData: Data) -> Bool {
-        return FallbackFormatConverter.shouldTriggerFallback(responseData: responseData)
+    /// Check why a response should trigger fallback (if any)
+    private nonisolated func fallbackReason(responseData: Data) -> FallbackTriggerReason? {
+        return FallbackFormatConverter.fallbackReason(responseData: responseData)
+    }
+
+    private nonisolated func responseBodySnippet(from responseData: Data, limit: Int = 512) -> String? {
+        guard let responseString = String(data: responseData.prefix(4096), encoding: .utf8) else {
+            return nil
+        }
+        let parts = responseString.components(separatedBy: "\r\n\r\n")
+        let body = parts.dropFirst().joined(separator: "\r\n\r\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else {
+            return nil
+        }
+        return String(body.prefix(limit))
     }
     
     // MARK: - Metadata Extraction
@@ -713,14 +749,21 @@ final class ProxyBridge {
             // Check for quota exceeded BEFORE forwarding to client (within first 4KB to catch streaming errors)
             let quotaCheckThreshold = 4096
             if accumulatedResponse.count <= quotaCheckThreshold && !accumulatedResponse.isEmpty && fallbackContext.hasFallback {
-                let shouldFallback = self.shouldTriggerFallback(responseData: accumulatedResponse)
+                let fallbackReason = self.fallbackReason(responseData: accumulatedResponse)
 
-                if shouldFallback && fallbackContext.hasMoreFallbacks {
+                if let reason = fallbackReason, fallbackContext.hasMoreFallbacks {
                     // Don't forward error to client, try next fallback instead
                     targetConnection.cancel()
 
                     // Try next fallback
-                    let nextContext = fallbackContext.next()
+                    let updatedContext: FallbackContext
+                    if let failedEntry = fallbackContext.currentEntry {
+                        let failedAttempt = FallbackAttempt(entry: failedEntry, outcome: .failed, reason: reason)
+                        updatedContext = fallbackContext.appendingAttempt(failedAttempt)
+                    } else {
+                        updatedContext = fallbackContext
+                    }
+                    let nextContext = updatedContext.next()
                     if let nextEntry = nextContext.currentEntry,
                        let virtualModelName = nextContext.virtualModelName {
 
@@ -850,6 +893,27 @@ final class ProxyBridge {
         let resolvedModel: String? = fallbackContext.currentEntry?.modelId
         let resolvedProvider: String? = fallbackContext.currentEntry?.provider.rawValue
 
+        let finalReason: FallbackTriggerReason?
+        if let statusCode = statusCode, !(200..<300).contains(statusCode) {
+            finalReason = fallbackReason(responseData: responseData) ?? .httpStatus(statusCode)
+        } else {
+            finalReason = nil
+        }
+
+        var attempts = fallbackContext.attempts
+        if fallbackContext.hasFallback,
+           (fallbackContext.wasLoadedFromCache ||
+            fallbackContext.currentIndex > 0 ||
+            !attempts.isEmpty ||
+            finalReason != nil),
+           let entry = fallbackContext.currentEntry {
+            let outcome: FallbackAttemptOutcome = finalReason == nil ? .success : .failed
+            let finalAttempt = FallbackAttempt(entry: entry, outcome: outcome, reason: finalReason)
+            attempts.append(finalAttempt)
+        }
+
+        let responseSnippet: String? = finalReason == nil ? nil : responseBodySnippet(from: responseData)
+
         // Notify callback on main thread
         Task { @MainActor [weak self] in
             // Cache successful entry ONLY if:
@@ -882,7 +946,10 @@ final class ProxyBridge {
                 statusCode: capturedStatusCode,
                 durationMs: durationMs,
                 requestSize: requestSize,
-                responseSize: responseSize
+                responseSize: responseSize,
+                fallbackAttempts: attempts,
+                fallbackStartedFromCache: fallbackContext.wasLoadedFromCache,
+                responseSnippet: responseSnippet
             )
             self?.onRequestCompleted?(requestMetadata)
         }

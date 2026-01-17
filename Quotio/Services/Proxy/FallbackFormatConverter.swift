@@ -20,11 +20,10 @@ nonisolated struct FallbackFormatConverter {
         return ["claude", "opus", "haiku", "sonnet"].contains { lower.contains($0) }
     }
 
-    /// Check if response indicates an error that should trigger fallback
-    /// Includes quota exhaustion, rate limits, format errors, and server errors
-    static func shouldTriggerFallback(responseData: Data) -> Bool {
+    /// Determine the reason a response should trigger fallback.
+    static func fallbackReason(responseData: Data) -> FallbackTriggerReason? {
         guard let responseString = String(data: responseData.prefix(4096), encoding: .utf8) else {
-            return false
+            return nil
         }
 
         // Check HTTP status code
@@ -33,9 +32,9 @@ nonisolated struct FallbackFormatConverter {
             if parts.count >= 2, let code = Int(parts[1]) {
                 switch code {
                 case 429, 503, 500, 400, 401, 403, 422:
-                    return true
+                    return .httpStatus(code)
                 case 200..<300:
-                    return false
+                    return nil
                 default:
                     break
                 }
@@ -54,10 +53,16 @@ nonisolated struct FallbackFormatConverter {
 
         for pattern in errorPatterns {
             if lowercased.contains(pattern) {
-                return true
+                return .pattern(pattern)
             }
         }
 
-        return false
+        return nil
+    }
+
+    /// Check if response indicates an error that should trigger fallback
+    /// Includes quota exhaustion, rate limits, format errors, and server errors
+    static func shouldTriggerFallback(responseData: Data) -> Bool {
+        fallbackReason(responseData: responseData) != nil
     }
 }

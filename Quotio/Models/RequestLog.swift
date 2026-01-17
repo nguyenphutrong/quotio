@@ -10,6 +10,50 @@ import Foundation
 
 // MARK: - Request Log Entry
 
+nonisolated enum FallbackAttemptOutcome: String, Codable, Hashable, Sendable {
+    case failed
+    case success
+    case skipped
+}
+
+nonisolated enum FallbackTriggerReason: Codable, Hashable, Sendable {
+    case httpStatus(Int)
+    case pattern(String)
+    case cachedRoute
+    case unknown
+
+    var displayValue: String {
+        switch self {
+        case .httpStatus(let code):
+            return "HTTP \(code)"
+        case .pattern(let pattern):
+            return "pattern: \(pattern)"
+        case .cachedRoute:
+            return "cached route"
+        case .unknown:
+            return "unknown"
+        }
+    }
+}
+
+nonisolated struct FallbackAttempt: Codable, Hashable, Sendable {
+    let provider: String
+    let modelId: String
+    let outcome: FallbackAttemptOutcome
+    let reason: FallbackTriggerReason?
+
+    init(provider: String, modelId: String, outcome: FallbackAttemptOutcome, reason: FallbackTriggerReason? = nil) {
+        self.provider = provider
+        self.modelId = modelId
+        self.outcome = outcome
+        self.reason = reason
+    }
+
+    init(entry: FallbackEntry, outcome: FallbackAttemptOutcome, reason: FallbackTriggerReason? = nil) {
+        self.init(provider: entry.provider.displayName, modelId: entry.modelId, outcome: outcome, reason: reason)
+    }
+}
+
 /// Represents a single API request/response pair with associated metadata
 nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
@@ -62,6 +106,12 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
     /// Error message if request failed
     let errorMessage: String?
 
+    /// Fallback attempt trace for virtual model routing
+    let fallbackAttempts: [FallbackAttempt]?
+
+    /// Whether routing started from a cached fallback entry
+    let fallbackStartedFromCache: Bool
+
     /// Whether the request was successful (2xx status)
     var isSuccess: Bool {
         guard let code = statusCode else { return false }
@@ -89,7 +139,9 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
         statusCode: Int? = nil,
         requestSize: Int = 0,
         responseSize: Int = 0,
-        errorMessage: String? = nil
+        errorMessage: String? = nil,
+        fallbackAttempts: [FallbackAttempt]? = nil,
+        fallbackStartedFromCache: Bool = false
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -106,6 +158,8 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
         self.requestSize = requestSize
         self.responseSize = responseSize
         self.errorMessage = errorMessage
+        self.fallbackAttempts = fallbackAttempts
+        self.fallbackStartedFromCache = fallbackStartedFromCache
     }
 }
 
