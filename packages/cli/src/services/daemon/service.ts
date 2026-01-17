@@ -901,6 +901,22 @@ const handlers: Record<string, MethodHandler> = {
 		return { success: true };
 	},
 
+	'auth.kiro.aws': async () => {
+		const { startKiroAwsAuth } = await import('../auth/kiro-auth-service.ts');
+		return startKiroAwsAuth();
+	},
+
+	'auth.kiro.pollAws': async (params: unknown) => {
+		const { deviceCode } = params as { deviceCode: string };
+		const { pollKiroAwsAuth } = await import('../auth/kiro-auth-service.ts');
+		return pollKiroAwsAuth(deviceCode);
+	},
+
+	'auth.kiro.cancelAws': async () => {
+		// OAuth flow cancellation - just acknowledge since we don't track state server-side
+		return { success: true };
+	},
+
 	'proxyConfig.getAll': async () => {
 		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();

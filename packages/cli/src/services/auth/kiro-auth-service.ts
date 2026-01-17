@@ -12,6 +12,12 @@ const KIRO_GOOGLE_AUTH_URL = 'https://prod.us-east-1.auth.desktop.kiro.dev/oauth
 const KIRO_TOKEN_URL = 'https://prod.us-east-1.auth.desktop.kiro.dev/oauth2/token';
 const KIRO_CLIENT_ID = '0c1f5541-7f7d-4321-9c20-9f2c935e74c9';
 
+// AWS SSO OIDC endpoints for Builder ID
+const AWS_SSO_OIDC_REGISTRATION_URL =
+	'https://oidc.us-east-1.amazonaws.com/us-east-1/amazoncognito';
+const AWS_SSO_OIDC_TOKEN_URL =
+	'https://oidc.us-east-1.amazonaws.com/us-east-1/amazoncognito/oauth2/token';
+
 interface KiroGoogleAuthResponse {
 	url?: string;
 	state?: string;
@@ -279,4 +285,224 @@ export async function listKiroAuthFiles(): Promise<
 function getAuthDir(): string {
 	const home = process.env.HOME ?? Bun.env.HOME ?? '';
 	return `${home}/.cli-proxy-api`;
+}
+
+// ============================================================================
+// Kiro AWS Builder ID Authentication
+// ============================================================================
+
+export interface KiroAwsAuthResult {
+	success: boolean;
+	userCode?: string;
+	verificationUri?: string;
+	deviceCode?: string;
+	expiresIn?: number;
+	error?: string;
+}
+
+export interface KiroAwsPollResult {
+	status: 'pending' | 'success' | 'error';
+	email?: string;
+	error?: string;
+}
+
+interface AwsDeviceCodeResponse {
+	deviceCode: string;
+	userCode: string;
+	verificationUri: string;
+	expiresIn: number;
+	interval: number;
+}
+
+interface AwsTokenResponse {
+	access_token: string;
+	refresh_token: string;
+	expires_in: number;
+	token_type: string;
+	id_token?: string;
+}
+
+/**
+ * Start Kiro AWS Builder ID Device Code flow
+ */
+export async function startKiroAwsAuth(): Promise<KiroAwsAuthResult> {
+	try {
+		// Register client with AWS SSO OIDC
+		const registerResponse = await fetch(AWS_SSO_OIDC_REGISTRATION_URL, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Accept: 'application/json',
+			},
+			body: JSON.stringify({
+				clientName: 'KiroIDE',
+				redirectUris: ['http://localhost:9876/callback'],
+				scopes: ['openid', 'profile', 'email'],
+			}),
+		});
+
+		if (!registerResponse.ok) {
+			const error = await registerResponse.text();
+			return {
+				success: false,
+				error: `AWS OIDC registration failed: ${registerResponse.status} - ${error}`,
+			};
+		}
+
+		const registration = (await registerResponse.json()) as {
+			clientId: string;
+			clientSecret: string;
+		};
+
+		// Start device authorization
+		const deviceResponse = await fetch(`${AWS_SSO_OIDC_REGISTRATION_URL}/device/authorization`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Accept: 'application/json',
+			},
+			body: JSON.stringify({
+				clientId: registration.clientId,
+				scope: 'openid profile email',
+			}),
+		});
+
+		if (!deviceResponse.ok) {
+			const error = await deviceResponse.text();
+			return {
+				success: false,
+				error: `AWS device authorization failed: ${deviceResponse.status} - ${error}`,
+			};
+		}
+
+		const deviceData = (await deviceResponse.json()) as AwsDeviceCodeResponse;
+
+		// Store client credentials for polling (simplified - in production use secure storage)
+		await saveAwsClientCredentials(registration.clientId, registration.clientSecret);
+
+		return {
+			success: true,
+			userCode: deviceData.userCode,
+			verificationUri: deviceData.verificationUri,
+			deviceCode: deviceData.deviceCode,
+			expiresIn: deviceData.expiresIn,
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : String(err),
+		};
+	}
+}
+
+/**
+ * Poll for Kiro AWS Builder ID token completion
+ */
+export async function pollKiroAwsAuth(deviceCode: string): Promise<KiroAwsPollResult> {
+	try {
+		const { clientId, clientSecret } = await loadAwsClientCredentials();
+
+		if (!clientId || !clientSecret) {
+			return {
+				status: 'error',
+				error: 'AWS client credentials not found',
+			};
+		}
+
+		const response = await fetch(AWS_SSO_OIDC_TOKEN_URL, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+				Accept: 'application/json',
+			},
+			body: new URLSearchParams({
+				grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+				clientId,
+				deviceCode,
+			}),
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+
+			if (errorText.includes('authorization_pending')) {
+				return { status: 'pending' };
+			}
+			if (errorText.includes('slow_down')) {
+				return {
+					status: 'pending',
+					error: 'Please wait before polling again',
+				};
+			}
+
+			return {
+				status: 'error',
+				error: `AWS token error: ${response.status}`,
+			};
+		}
+
+		const data = (await response.json()) as AwsTokenResponse;
+
+		if (data.access_token) {
+			// Extract email from ID token if available
+			let email = 'aws-user';
+			if (data.id_token) {
+				try {
+					const payload = data.id_token.split('.')[1];
+					const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
+					email = decoded.email || email;
+				} catch {
+					// Ignore ID token parse errors
+				}
+			}
+
+			await saveKiroAuthFile('aws', email, data.access_token, data.refresh_token);
+
+			return {
+				status: 'success',
+				email,
+			};
+		}
+
+		return { status: 'pending' };
+	} catch (err) {
+		return {
+			status: 'error',
+			error: err instanceof Error ? err.message : String(err),
+		};
+	}
+}
+
+async function saveAwsClientCredentials(clientId: string, clientSecret: string): Promise<void> {
+	const authDir = getAuthDir();
+	const filePath = `${authDir}/kiro-aws-credentials.json`;
+	const content = JSON.stringify(
+		{
+			clientId,
+			clientSecret,
+			createdAt: Date.now(),
+		},
+		null,
+		2,
+	);
+	writeFileSync(filePath, content);
+}
+
+async function loadAwsClientCredentials(): Promise<{
+	clientId: string | null;
+	clientSecret: string | null;
+}> {
+	const authDir = getAuthDir();
+	const filePath = `${authDir}/kiro-aws-credentials.json`;
+
+	try {
+		const content = readFileSync(filePath, 'utf-8');
+		const data = JSON.parse(content);
+		return {
+			clientId: data.clientId || null,
+			clientSecret: data.clientSecret || null,
+		};
+	} catch {
+		return { clientId: null, clientSecret: null };
+	}
 }

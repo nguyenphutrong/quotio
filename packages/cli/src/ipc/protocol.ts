@@ -432,6 +432,22 @@ export interface IPCMethods {
 		params: { state: string };
 		result: { success: true };
 	};
+
+	// -------------------------------------------------------------------------
+	// Kiro AWS Builder ID Auth
+	// -------------------------------------------------------------------------
+	'auth.kiro.aws': {
+		params: Record<string, never>;
+		result: KiroAwsAuthResult;
+	};
+	'auth.kiro.pollAws': {
+		params: { deviceCode: string };
+		result: KiroAwsPollResult;
+	};
+	'auth.kiro.cancelAws': {
+		params: { deviceCode: string };
+		result: { success: true };
+	};
 }
 
 /** All available method names */
@@ -807,6 +823,25 @@ export interface KiroGoogleAuthResult {
 }
 
 export interface KiroGooglePollResult {
+	status: 'pending' | 'success' | 'error';
+	email?: string;
+	error?: string;
+}
+
+// ============================================================================
+// Kiro AWS Builder ID Auth Types
+// ============================================================================
+
+export interface KiroAwsAuthResult {
+	success: boolean;
+	userCode?: string;
+	verificationUri?: string;
+	deviceCode?: string;
+	expiresIn?: number;
+	error?: string;
+}
+
+export interface KiroAwsPollResult {
 	status: 'pending' | 'success' | 'error';
 	email?: string;
 	error?: string;
