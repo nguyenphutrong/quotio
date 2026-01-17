@@ -11,6 +11,10 @@ import {
 	RoundRobinSelector,
 	ClaudeExecutor,
 	GeminiExecutor,
+	OpenAIExecutor,
+	CopilotExecutor,
+	QwenExecutor,
+	IFlowExecutor,
 	type ProviderExecutor,
 	type ExecutorRequest,
 	type ExecutorOptions,
@@ -84,12 +88,32 @@ export class ProxyDispatcher {
 		const gemini = new GeminiExecutor({
 			defaultMaxTokens: this.config.defaultMaxTokens,
 		});
+		const openai = new OpenAIExecutor({
+			defaultMaxTokens: this.config.defaultMaxTokens,
+		});
+		const copilot = new CopilotExecutor({
+			defaultMaxTokens: this.config.defaultMaxTokens,
+		});
+		const qwen = new QwenExecutor({
+			defaultMaxTokens: this.config.defaultMaxTokens,
+		});
+		const iflow = new IFlowExecutor({
+			defaultMaxTokens: this.config.defaultMaxTokens,
+		});
 
 		this.executors.set(claude.identifier(), claude);
 		this.executors.set(gemini.identifier(), gemini);
+		this.executors.set(openai.identifier(), openai);
+		this.executors.set(copilot.identifier(), copilot);
+		this.executors.set(qwen.identifier(), qwen);
+		this.executors.set(iflow.identifier(), iflow);
 
 		this.pool.registerExecutor(claude);
 		this.pool.registerExecutor(gemini);
+		this.pool.registerExecutor(openai);
+		this.pool.registerExecutor(copilot);
+		this.pool.registerExecutor(qwen);
+		this.pool.registerExecutor(iflow);
 	}
 
 	/**
@@ -253,8 +277,24 @@ export class ProxyDispatcher {
 					"gemini-1.5-flash",
 				];
 			case "openai":
+				return ["gpt-4o", "gpt-4o-mini", "o1", "o1-mini", "o3", "o3-mini"];
 			case "copilot":
-				return ["gpt-4o", "gpt-4o-mini", "o1", "o1-mini"];
+				return ["gpt-4o", "gpt-4o-mini", "claude-3.5-sonnet", "o1", "o1-mini"];
+			case "qwen":
+				return [
+					"qwen-turbo",
+					"qwen-plus",
+					"qwen-max",
+					"qwen-coder-turbo",
+					"qwen-coder-plus",
+				];
+			case "iflow":
+				return [
+					"claude-3-5-sonnet",
+					"claude-3-opus",
+					"gpt-4o",
+					"gpt-4-turbo",
+				];
 			default:
 				return [];
 		}

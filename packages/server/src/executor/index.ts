@@ -26,3 +26,7 @@ export { CredentialPool } from "./pool.js";
 
 export { ClaudeExecutor } from "./claude.js";
 export { GeminiExecutor } from "./gemini.js";
+export { OpenAIExecutor } from "./openai.js";
+export { CopilotExecutor } from "./copilot.js";
+export { QwenExecutor } from "./qwen.js";
+export { IFlowExecutor } from "./iflow.js";
