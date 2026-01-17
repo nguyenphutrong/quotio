@@ -11,7 +11,7 @@ server/
 │   │   ├── routes/v1/    # OpenAI-compatible endpoints
 │   │   ├── routes/management/ # Admin API (health, logs, usage)
 │   │   ├── routes/oauth/ # OAuth callbacks
-│   │   └── middleware/   # Logging, CORS, passthrough
+│   │   └── middleware/   # Logging, CORS
 │   ├── executor/         # Provider-specific request execution (10 files)
 │   ├── translator/       # Request/response format conversion
 │   ├── auth/             # OAuth, Device Code, Service Account handlers
@@ -80,7 +80,6 @@ export class ClaudeExecutor implements ProviderExecutor {
 ### Middleware Stack Order
 1. `loggingMiddleware` - Request/response logging
 2. `corsMiddleware` - CORS headers
-3. `passthroughMiddleware` - Fallback to legacy server (port 18317)
 
 ## Anti-Patterns
 
@@ -92,7 +91,6 @@ export class ClaudeExecutor implements ProviderExecutor {
 
 ## Critical Rules
 
-- **Passthrough Mode**: Unhandled routes forward to `localhost:18317` (CLIProxyAPI)
 - **Streaming**: MUST use Hono's `stream` helper for SSE responses
 - **Cooldowns**: 429 errors trigger cooldown in `CredentialPool`, auto-retry with next account
 
@@ -100,7 +98,6 @@ export class ClaudeExecutor implements ProviderExecutor {
 
 | Variable | Purpose |
 |----------|---------|
-| `QUOTIO_PASSTHROUGH_ENABLED` | Enable legacy server forwarding |
 | `PORT` | Override default port (18317) |
 
 ## Commands

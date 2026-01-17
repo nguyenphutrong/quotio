@@ -36,8 +36,6 @@ Environment variables:
 | `QUOTIO_AUTH_DIR` | `~/.cli-proxy-api` | Auth files directory |
 | `QUOTIO_CONFIG_DIR` | `~/.config/quotio` | Config directory |
 | `QUOTIO_DEBUG` | `false` | Enable debug logging |
-| `QUOTIO_PASSTHROUGH_ENABLED` | `true` | Forward to CLIProxyAPI |
-| `QUOTIO_CLI_PROXY_PORT` | `18317` | CLIProxyAPI port |
 
 ## API Reference
 
