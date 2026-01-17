@@ -9,6 +9,7 @@ import type { AuthManager } from '../../../auth/index.js';
 import type { Config } from '../../../config/index.js';
 import type { MetricsRegistry, RequestLogger } from '../../../logging/index.js';
 import type { TokenStore } from '../../../store/index.js';
+import { authRoutes } from './auth.js';
 import { lifecycleRoutes } from './lifecycle.js';
 
 export interface ApiRoutesDeps {
@@ -26,8 +27,10 @@ export function apiRoutes(deps: ApiRoutesDeps): Hono {
 	// Mount lifecycle routes (/api/health, /api/status, /api/proxy/*)
 	app.route('/', lifecycleRoutes({ config }));
 
+	// Auth routes (/api/auth, /api/oauth, /api/device-code)
+	app.route('/', authRoutes({ authManager: deps.authManager, store: deps.store }));
+
 	// Future routes will be mounted here:
-	// app.route('/', authRoutes({ authManager, store }));       // QUO-38
 	// app.route('/', quotaRoutes({ store }));                   // QUO-39
 	// app.route('/', agentRoutes({ ... }));                     // QUO-40
 	// app.route('/', configRoutes({ config }));                 // QUO-41
