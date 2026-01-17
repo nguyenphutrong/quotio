@@ -1,5 +1,8 @@
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
+import { PROVIDER_METADATA, createRequestLog, parseProvider } from '@quotio/core';
+import type { UniversalProvider } from '@quotio/core';
+import { registerHTTPHandlers, startHTTPServer, stopHTTPServer } from '../../ipc/http-server.ts';
 import type {
 	AuthAccount,
 	DaemonStatus,
@@ -7,8 +10,8 @@ import type {
 	FallbackEntryInfo,
 	ProviderQuotaInfo,
 	VirtualModelInfo,
-} from "../../ipc/protocol.ts";
-import type { UniversalProviderInfo } from "../../ipc/protocol.ts";
+} from '../../ipc/protocol.ts';
+import type { UniversalProviderInfo } from '../../ipc/protocol.ts';
 import {
 	type MethodHandler,
 	getConnectionCount,
@@ -17,31 +20,15 @@ import {
 	registerHandlers,
 	startServer,
 	stopServer,
-} from "../../ipc/server.ts";
-import { PROVIDER_METADATA, createRequestLog, parseProvider } from "@quotio/core";
-import type { UniversalProvider } from "@quotio/core";
-import { logger } from "../../utils/logger.ts";
-import {
-	ConfigFiles,
-	ensureDir,
-	getCacheDir,
-	getConfigDir,
-} from "../../utils/paths.ts";
-import {
-	type ConfigurationMode,
-	getAgentConfigurationService,
-} from "../agent-detection/configuration.ts";
-import { getAgentDetectionService } from "../agent-detection/service.ts";
-import { type CLIAgentId, CLI_AGENTS } from "../agent-detection/types.ts";
-import {
-	checkHealth,
-	getProcessState,
-	isProxyRunning,
-	startProxy,
-	stopProxy,
-} from "../proxy-process/index.ts";
-import { getQuotaService } from "../quota-service.ts";
-import { requestTrackerService } from "./request-tracker-service.ts";
+} from '../../ipc/server.ts';
+import { logger } from '../../utils/logger.ts';
+import { ConfigFiles, ensureDir, getCacheDir, getConfigDir } from '../../utils/paths.ts';
+import { getAgentConfigurationService } from '../agent-detection/configuration.ts';
+import { getAgentDetectionService } from '../agent-detection/service.ts';
+import { type CLIAgentId, CLI_AGENTS } from '../agent-detection/types.ts';
+import { checkHealth, getProcessState, startProxy, stopProxy } from '../proxy-process/index.ts';
+import { getQuotaService } from '../quota-service.ts';
+import { requestTrackerService } from './request-tracker-service.ts';
 
 function toProviderInfo(p: UniversalProvider): UniversalProviderInfo {
 	return {
@@ -104,10 +91,10 @@ const state: DaemonState = {
 
 function getVersion(): string {
 	try {
-		const pkg = require("../../../package.json");
-		return pkg.version ?? "0.0.0";
+		const pkg = require('../../../package.json');
+		return pkg.version ?? '0.0.0';
 	} catch {
-		return "0.0.0";
+		return '0.0.0';
 	}
 }
 
@@ -133,7 +120,7 @@ async function loadConfigStore(): Promise<ConfigStore> {
 	const configPath = ConfigFiles.config();
 	try {
 		if (existsSync(configPath)) {
-			const content = readFileSync(configPath, "utf-8");
+			const content = readFileSync(configPath, 'utf-8');
 			configStore = JSON.parse(content) as ConfigStore;
 		} else {
 			configStore = {};
@@ -153,17 +140,17 @@ async function saveConfigStore(): Promise<void> {
 }
 
 function getAuthDir(): string {
-	const home = process.env.HOME ?? Bun.env.HOME ?? "";
+	const home = process.env.HOME ?? Bun.env.HOME ?? '';
 	return `${home}/.cli-proxy-api`;
 }
 
 const handlers: Record<string, MethodHandler> = {
-	"daemon.ping": async () => ({
+	'daemon.ping': async () => ({
 		pong: true as const,
 		timestamp: Date.now(),
 	}),
 
-	"daemon.status": async (): Promise<DaemonStatus> => {
+	'daemon.status': async (): Promise<DaemonStatus> => {
 		const proxyState = getProcessState();
 		const uptime = state.startedAt ? Date.now() - state.startedAt.getTime() : 0;
 
@@ -178,7 +165,7 @@ const handlers: Record<string, MethodHandler> = {
 		};
 	},
 
-	"daemon.shutdown": async (params: unknown) => {
+	'daemon.shutdown': async (params: unknown) => {
 		const opts = params as { graceful?: boolean } | undefined;
 		const graceful = opts?.graceful ?? true;
 
@@ -194,7 +181,7 @@ const handlers: Record<string, MethodHandler> = {
 		return { success: true as const };
 	},
 
-	"proxy.start": async (params: unknown) => {
+	'proxy.start': async (params: unknown) => {
 		const opts = params as { port?: number } | undefined;
 		const port = opts?.port ?? 8217;
 
@@ -208,16 +195,14 @@ const handlers: Record<string, MethodHandler> = {
 		};
 	},
 
-	"proxy.stop": async () => {
+	'proxy.stop': async () => {
 		await stopProxy();
 		return { success: true as const };
 	},
 
-	"proxy.status": async () => {
+	'proxy.status': async () => {
 		const proxyState = getProcessState();
-		const healthy = proxyState.running
-			? await checkHealth(proxyState.port)
-			: false;
+		const healthy = proxyState.running ? await checkHealth(proxyState.port) : false;
 
 		return {
 			running: proxyState.running,
@@ -228,18 +213,14 @@ const handlers: Record<string, MethodHandler> = {
 		};
 	},
 
-	"proxy.health": async () => {
+	'proxy.health': async () => {
 		const proxyState = getProcessState();
-		const healthy = proxyState.running
-			? await checkHealth(proxyState.port)
-			: false;
+		const healthy = proxyState.running ? await checkHealth(proxyState.port) : false;
 		return { healthy };
 	},
 
-	"quota.fetch": async (params: unknown) => {
-		const opts = params as
-			| { provider?: string; forceRefresh?: boolean }
-			| undefined;
+	'quota.fetch': async (params: unknown) => {
+		const opts = params as { provider?: string; forceRefresh?: boolean } | undefined;
 		const quotaService = getQuotaService();
 
 		try {
@@ -247,14 +228,12 @@ const handlers: Record<string, MethodHandler> = {
 			const quotas: ProviderQuotaInfo[] = [];
 
 			for (const [key, data] of result.quotas) {
-				const [provider, email] = key.split(":");
-				const providerMeta = Object.values(PROVIDER_METADATA).find(
-					(p) => p.id === provider,
-				);
+				const [provider, email] = key.split(':');
+				const providerMeta = Object.values(PROVIDER_METADATA).find((p) => p.id === provider);
 
 				quotas.push({
-					provider: providerMeta?.id ?? provider ?? "unknown",
-					email: email ?? "unknown",
+					provider: providerMeta?.id ?? provider ?? 'unknown',
+					email: email ?? 'unknown',
 					models: data.models.map((m) => ({
 						name: m.name,
 						percentage: m.percentage,
@@ -284,7 +263,7 @@ const handlers: Record<string, MethodHandler> = {
 				quotas: [],
 				errors: [
 					{
-						provider: "all",
+						provider: 'all',
 						error: err instanceof Error ? err.message : String(err),
 					},
 				],
@@ -292,18 +271,16 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"quota.list": async () => ({
+	'quota.list': async () => ({
 		quotas: quotaCache.quotas,
 		lastFetched: quotaCache.lastFetched?.toISOString() ?? null,
 	}),
 
-	"agent.detect": async (params: unknown) => {
+	'agent.detect': async (params: unknown) => {
 		const opts = params as { forceRefresh?: boolean } | undefined;
 		const detectionService = getAgentDetectionService();
 
-		const statuses = await detectionService.detectAllAgents(
-			opts?.forceRefresh ?? false,
-		);
+		const statuses = await detectionService.detectAllAgents(opts?.forceRefresh ?? false);
 		const agents: DetectedAgent[] = statuses.map((status) => ({
 			id: status.agent.id,
 			name: status.agent.displayName,
@@ -316,8 +293,8 @@ const handlers: Record<string, MethodHandler> = {
 		return { agents };
 	},
 
-	"agent.configure": async (params: unknown) => {
-		const opts = params as { agent: string; mode: "auto" | "manual" };
+	'agent.configure': async (params: unknown) => {
+		const opts = params as { agent: string; mode: 'auto' | 'manual' };
 		const agentId = opts.agent as CLIAgentId;
 
 		if (!CLI_AGENTS[agentId]) {
@@ -338,9 +315,9 @@ const handlers: Record<string, MethodHandler> = {
 			{
 				agent: CLI_AGENTS[agentId],
 				proxyURL: `http://localhost:${port}/v1`,
-				apiKey: "quotio-cli-key",
+				apiKey: 'quotio-cli-key',
 			},
-			opts.mode === "auto" ? "automatic" : "manual",
+			opts.mode === 'auto' ? 'automatic' : 'manual',
 		);
 
 		return {
@@ -351,7 +328,7 @@ const handlers: Record<string, MethodHandler> = {
 		};
 	},
 
-	"auth.list": async (params: unknown) => {
+	'auth.list': async (params: unknown) => {
 		const opts = params as { provider?: string } | undefined;
 		const authDir = getAuthDir();
 		const accounts: AuthAccount[] = [];
@@ -360,42 +337,44 @@ const handlers: Record<string, MethodHandler> = {
 			const files = await readdir(authDir);
 
 			for (const fileName of files) {
-				if (!fileName.endsWith(".json")) continue;
+				if (!fileName.endsWith('.json')) continue;
 				if (opts?.provider && !fileName.startsWith(opts.provider)) continue;
 
 				const filePath = `${authDir}/${fileName}`;
 				try {
-					const content = JSON.parse(readFileSync(filePath, "utf-8"));
-					const provider = fileName.split("-")[0] ?? "unknown";
+					const content = JSON.parse(readFileSync(filePath, 'utf-8'));
+					const provider = fileName.split('-')[0] ?? 'unknown';
 					const providerMeta = Object.values(PROVIDER_METADATA).find(
 						(p) => p.id === provider || fileName.startsWith(p.id),
 					);
 
-				// Extract account identifier with fallbacks:
-				// 1. email (if non-empty)
-				// 2. username (GitHub Copilot uses this)
-				// 3. account field
-				// 4. Derive from filename (strip provider prefix and .json suffix)
-				const email = content.email && content.email.length > 0 ? content.email : undefined;
-				const username = content.username && content.username.length > 0 ? content.username : undefined;
-				const account = content.account && content.account.length > 0 ? content.account : undefined;
-				
-				// For filename fallback, strip provider prefix (e.g., "kiro-google-XXX" -> "google-XXX")
-				const fileId = fileName.replace(".json", "");
-				const filenameFallback = fileId.startsWith(`${provider}-`)
-					? fileId.slice(`${provider}-`.length)
-					: fileId;
-				
-				const accountIdentifier = email ?? username ?? account ?? filenameFallback;
-				
-				accounts.push({
-					id: fileId,
-					name: accountIdentifier,
-					provider: providerMeta?.id ?? provider,
-					email: email ?? username, // For quota lookup key matching
-					status: content.status ?? "ready",
-					disabled: Boolean(content.disabled),
-				});
+					// Extract account identifier with fallbacks:
+					// 1. email (if non-empty)
+					// 2. username (GitHub Copilot uses this)
+					// 3. account field
+					// 4. Derive from filename (strip provider prefix and .json suffix)
+					const email = content.email && content.email.length > 0 ? content.email : undefined;
+					const username =
+						content.username && content.username.length > 0 ? content.username : undefined;
+					const account =
+						content.account && content.account.length > 0 ? content.account : undefined;
+
+					// For filename fallback, strip provider prefix (e.g., "kiro-google-XXX" -> "google-XXX")
+					const fileId = fileName.replace('.json', '');
+					const filenameFallback = fileId.startsWith(`${provider}-`)
+						? fileId.slice(`${provider}-`.length)
+						: fileId;
+
+					const accountIdentifier = email ?? username ?? account ?? filenameFallback;
+
+					accounts.push({
+						id: fileId,
+						name: accountIdentifier,
+						provider: providerMeta?.id ?? provider,
+						email: email ?? username, // For quota lookup key matching
+						status: content.status ?? 'ready',
+						disabled: Boolean(content.disabled),
+					});
 				} catch {}
 			}
 		} catch {}
@@ -403,13 +382,13 @@ const handlers: Record<string, MethodHandler> = {
 		return { accounts };
 	},
 
-	"config.get": async (params: unknown) => {
+	'config.get': async (params: unknown) => {
 		const opts = params as { key: string };
 		const store = await loadConfigStore();
 		return { value: store[opts.key] ?? null };
 	},
 
-	"config.set": async (params: unknown) => {
+	'config.set': async (params: unknown) => {
 		const opts = params as { key: string; value: unknown };
 		const store = await loadConfigStore();
 		store[opts.key] = opts.value;
@@ -417,40 +396,36 @@ const handlers: Record<string, MethodHandler> = {
 		return { success: true as const };
 	},
 
-	"config.setLocalManagementKey": async (params: unknown) => {
+	'config.setLocalManagementKey': async (params: unknown) => {
 		const opts = params as { key: string };
 		const store = await loadConfigStore();
 		store.localManagementKey = opts.key;
 		await saveConfigStore();
-		logger.debug("Local management key stored");
+		logger.debug('Local management key stored');
 		return { success: true as const };
 	},
 
-	"config.getLocalManagementKey": async () => {
+	'config.getLocalManagementKey': async () => {
 		const store = await loadConfigStore();
 		return { hasKey: Boolean(store.localManagementKey) };
 	},
 
-	"universal.list": async () => {
-		const { getUniversalProviderService } = await import(
-			"../universal-provider-service.ts"
-		);
+	'universal.list': async () => {
+		const { getUniversalProviderService } = await import('../universal-provider-service.ts');
 		const service = getUniversalProviderService();
 		const providers = service.getAllProviders().map(toProviderInfo);
 		return { providers };
 	},
 
-	"universal.get": async (params: unknown) => {
+	'universal.get': async (params: unknown) => {
 		const { id } = params as { id: string };
-		const { getUniversalProviderService } = await import(
-			"../universal-provider-service.ts"
-		);
+		const { getUniversalProviderService } = await import('../universal-provider-service.ts');
 		const service = getUniversalProviderService();
 		const provider = service.getProvider(id);
 		return { provider: provider ? toProviderInfo(provider) : null };
 	},
 
-	"universal.add": async (params: unknown) => {
+	'universal.add': async (params: unknown) => {
 		const opts = params as {
 			name: string;
 			baseURL: string;
@@ -459,27 +434,23 @@ const handlers: Record<string, MethodHandler> = {
 			supportedAgents?: string[];
 			isEnabled?: boolean;
 		};
-		const { getUniversalProviderService } = await import(
-			"../universal-provider-service.ts"
-		);
+		const { getUniversalProviderService } = await import('../universal-provider-service.ts');
 		const service = getUniversalProviderService();
 		const provider = service.addProvider({
 			name: opts.name,
 			baseURL: opts.baseURL,
-			modelId: opts.modelId ?? "",
+			modelId: opts.modelId ?? '',
 			isBuiltIn: false,
-			color: opts.color ?? "#6366F1",
+			color: opts.color ?? '#6366F1',
 			supportedAgents: opts.supportedAgents ?? [],
 			isEnabled: opts.isEnabled ?? true,
 		});
 		return { success: true, provider: toProviderInfo(provider) };
 	},
 
-	"universal.update": async (params: unknown) => {
+	'universal.update': async (params: unknown) => {
 		const { id, ...updates } = params as { id: string; [key: string]: unknown };
-		const { getUniversalProviderService } = await import(
-			"../universal-provider-service.ts"
-		);
+		const { getUniversalProviderService } = await import('../universal-provider-service.ts');
 		const service = getUniversalProviderService();
 		const provider = service.updateProvider(id, updates);
 		return {
@@ -488,46 +459,38 @@ const handlers: Record<string, MethodHandler> = {
 		};
 	},
 
-	"universal.delete": async (params: unknown) => {
+	'universal.delete': async (params: unknown) => {
 		const { id } = params as { id: string };
-		const { getUniversalProviderService } = await import(
-			"../universal-provider-service.ts"
-		);
+		const { getUniversalProviderService } = await import('../universal-provider-service.ts');
 		const service = getUniversalProviderService();
 		return { success: service.deleteProvider(id) };
 	},
 
-	"universal.setActive": async (params: unknown) => {
+	'universal.setActive': async (params: unknown) => {
 		const { agentId, providerId } = params as {
 			agentId: string;
 			providerId: string;
 		};
-		const { getUniversalProviderService } = await import(
-			"../universal-provider-service.ts"
-		);
+		const { getUniversalProviderService } = await import('../universal-provider-service.ts');
 		const service = getUniversalProviderService();
 		service.setActiveProvider(agentId, providerId);
 		return { success: true as const };
 	},
 
-	"universal.getActive": async (params: unknown) => {
+	'universal.getActive': async (params: unknown) => {
 		const { agentId } = params as { agentId: string };
-		const { getUniversalProviderService } = await import(
-			"../universal-provider-service.ts"
-		);
+		const { getUniversalProviderService } = await import('../universal-provider-service.ts');
 		const service = getUniversalProviderService();
 		const provider = service.getActiveProvider(agentId);
 		return { provider: provider ? toProviderInfo(provider) : null };
 	},
 
-	"universal.storeKey": async (params: unknown) => {
+	'universal.storeKey': async (params: unknown) => {
 		const { providerId, apiKey } = params as {
 			providerId: string;
 			apiKey: string;
 		};
-		const { getUniversalProviderService } = await import(
-			"../universal-provider-service.ts"
-		);
+		const { getUniversalProviderService } = await import('../universal-provider-service.ts');
 		const service = getUniversalProviderService();
 		const validation = service.validateAPIKey(apiKey);
 		if (!validation.valid) {
@@ -537,25 +500,23 @@ const handlers: Record<string, MethodHandler> = {
 		return { success: true };
 	},
 
-	"universal.hasKey": async (params: unknown) => {
+	'universal.hasKey': async (params: unknown) => {
 		const { providerId } = params as { providerId: string };
-		const { getUniversalProviderService } = await import(
-			"../universal-provider-service.ts"
-		);
+		const { getUniversalProviderService } = await import('../universal-provider-service.ts');
 		const service = getUniversalProviderService();
 		return { hasKey: service.hasAPIKey(providerId) };
 	},
 
-	"oauth.start": async (params: unknown) => {
+	'oauth.start': async (params: unknown) => {
 		const { provider, projectId } = params as {
 			provider: string;
 			projectId?: string;
 		};
-		const { ManagementAPIClient } = await import("../management-api.ts");
+		const { ManagementAPIClient } = await import('../management-api.ts');
 
 		const proxyState = getProcessState();
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		const aiProvider = parseProvider(provider);
@@ -566,11 +527,11 @@ const handlers: Record<string, MethodHandler> = {
 		try {
 			const client = new ManagementAPIClient({
 				baseURL: `http://localhost:${proxyState.port}`,
-				authKey: "quotio-cli-key",
+				authKey: 'quotio-cli-key',
 			});
 			const result = await client.getOAuthURL(aiProvider, { projectId });
 			return {
-				success: result.status === "success",
+				success: result.status === 'success',
 				url: result.url,
 				state: result.state,
 				error: result.error,
@@ -583,57 +544,55 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"oauth.poll": async (params: unknown) => {
+	'oauth.poll': async (params: unknown) => {
 		const { state } = params as { state: string };
-		const { ManagementAPIClient } = await import("../management-api.ts");
+		const { ManagementAPIClient } = await import('../management-api.ts');
 
 		const proxyState = getProcessState();
 		if (!proxyState.running) {
-			return { status: "error" as const, error: "Proxy not running" };
+			return { status: 'error' as const, error: 'Proxy not running' };
 		}
 
 		try {
 			const client = new ManagementAPIClient({
 				baseURL: `http://localhost:${proxyState.port}`,
-				authKey: "quotio-cli-key",
+				authKey: 'quotio-cli-key',
 			});
 			const result = await client.pollOAuthStatus(state);
 
-			if (result.status === "success") {
-				return { status: "success" as const };
+			if (result.status === 'success') {
+				return { status: 'success' as const };
 			}
 			if (result.error) {
-				return { status: "error" as const, error: result.error };
+				return { status: 'error' as const, error: result.error };
 			}
-			return { status: "pending" as const };
+			return { status: 'pending' as const };
 		} catch (err) {
 			return {
-				status: "error" as const,
+				status: 'error' as const,
 				error: err instanceof Error ? err.message : String(err),
 			};
 		}
 	},
 
-	"stats.list": async (params: unknown) => {
+	'stats.list': async (params: unknown) => {
 		const opts = params as { provider?: string; minutes?: number } | undefined;
 		let entries = requestTrackerService.getHistory();
 		if (opts?.provider) {
 			entries = entries.filter((e) => e.provider === opts.provider);
 		}
 		if (opts?.minutes) {
-			const cutoff = new Date(
-				Date.now() - opts.minutes * 60 * 1000,
-			).toISOString();
+			const cutoff = new Date(Date.now() - opts.minutes * 60 * 1000).toISOString();
 			entries = entries.filter((e) => e.timestamp >= cutoff);
 		}
 		return { entries };
 	},
 
-	"stats.get": async () => {
+	'stats.get': async () => {
 		return { stats: requestTrackerService.getStats() };
 	},
 
-	"stats.add": async (params: unknown) => {
+	'stats.add': async (params: unknown) => {
 		const opts = params as {
 			method: string;
 			endpoint: string;
@@ -664,53 +623,43 @@ const handlers: Record<string, MethodHandler> = {
 		return { success: true as const };
 	},
 
-	"stats.clear": async () => {
+	'stats.clear': async () => {
 		requestTrackerService.clear();
 		return { success: true as const };
 	},
 
-	"stats.status": async () => {
+	'stats.status': async () => {
 		return requestTrackerService.getStatus();
 	},
 
-	"tunnel.start": async (params: unknown) => {
+	'tunnel.start': async (params: unknown) => {
 		const opts = params as { port: number };
-		const { getCloudflaredService } = await import(
-			"../tunnel/cloudflared-service.ts"
-		);
+		const { getCloudflaredService } = await import('../tunnel/cloudflared-service.ts');
 		const service = getCloudflaredService();
 		return await service.start(opts.port);
 	},
 
-	"tunnel.stop": async () => {
-		const { getCloudflaredService } = await import(
-			"../tunnel/cloudflared-service.ts"
-		);
+	'tunnel.stop': async () => {
+		const { getCloudflaredService } = await import('../tunnel/cloudflared-service.ts');
 		const service = getCloudflaredService();
 		await service.stop();
 		return { success: true as const };
 	},
 
-	"tunnel.status": async () => {
-		const { getCloudflaredService } = await import(
-			"../tunnel/cloudflared-service.ts"
-		);
+	'tunnel.status': async () => {
+		const { getCloudflaredService } = await import('../tunnel/cloudflared-service.ts');
 		const service = getCloudflaredService();
 		return service.getState();
 	},
 
-	"tunnel.installation": async () => {
-		const { getCloudflaredService } = await import(
-			"../tunnel/cloudflared-service.ts"
-		);
+	'tunnel.installation': async () => {
+		const { getCloudflaredService } = await import('../tunnel/cloudflared-service.ts');
 		const service = getCloudflaredService();
 		return service.getInstallation();
 	},
 
-	"fallback.getConfig": async () => {
-		const { loadFallbackConfiguration } = await import(
-			"../fallback/settings-service.ts"
-		);
+	'fallback.getConfig': async () => {
+		const { loadFallbackConfiguration } = await import('../fallback/settings-service.ts');
 		const config = await loadFallbackConfiguration();
 		return {
 			isEnabled: config.isEnabled,
@@ -718,33 +667,29 @@ const handlers: Record<string, MethodHandler> = {
 		};
 	},
 
-	"fallback.setEnabled": async (params: unknown) => {
+	'fallback.setEnabled': async (params: unknown) => {
 		const { enabled } = params as { enabled: boolean };
-		const { setFallbackEnabled } = await import(
-			"../fallback/settings-service.ts"
-		);
+		const { setFallbackEnabled } = await import('../fallback/settings-service.ts');
 		await setFallbackEnabled(enabled);
 		return { success: true as const };
 	},
 
-	"fallback.listModels": async () => {
-		const { getVirtualModels } = await import(
-			"../fallback/settings-service.ts"
-		);
+	'fallback.listModels': async () => {
+		const { getVirtualModels } = await import('../fallback/settings-service.ts');
 		const models = await getVirtualModels();
 		return { models: models.map(toVirtualModelInfo) };
 	},
 
-	"fallback.getModel": async (params: unknown) => {
+	'fallback.getModel': async (params: unknown) => {
 		const { id } = params as { id: string };
-		const { getVirtualModel } = await import("../fallback/settings-service.ts");
+		const { getVirtualModel } = await import('../fallback/settings-service.ts');
 		const model = await getVirtualModel(id);
 		return { model: model ? toVirtualModelInfo(model) : null };
 	},
 
-	"fallback.addModel": async (params: unknown) => {
+	'fallback.addModel': async (params: unknown) => {
 		const { name } = params as { name: string };
-		const { addVirtualModel } = await import("../fallback/settings-service.ts");
+		const { addVirtualModel } = await import('../fallback/settings-service.ts');
 		const model = await addVirtualModel(name);
 		return {
 			success: model !== null,
@@ -752,19 +697,18 @@ const handlers: Record<string, MethodHandler> = {
 		};
 	},
 
-	"fallback.removeModel": async (params: unknown) => {
+	'fallback.removeModel': async (params: unknown) => {
 		const { id } = params as { id: string };
-		const { removeVirtualModel } = await import(
-			"../fallback/settings-service.ts"
-		);
+		const { removeVirtualModel } = await import('../fallback/settings-service.ts');
 		const success = await removeVirtualModel(id);
 		return { success };
 	},
 
-	"fallback.updateModel": async (params: unknown) => {
+	'fallback.updateModel': async (params: unknown) => {
 		const opts = params as { id: string; name?: string; isEnabled?: boolean };
-		const { getVirtualModel, updateVirtualModel, renameVirtualModel } =
-			await import("../fallback/settings-service.ts");
+		const { getVirtualModel, updateVirtualModel, renameVirtualModel } = await import(
+			'../fallback/settings-service.ts'
+		);
 
 		const model = await getVirtualModel(opts.id);
 		if (!model) {
@@ -792,15 +736,13 @@ const handlers: Record<string, MethodHandler> = {
 		return { success: true };
 	},
 
-	"fallback.addEntry": async (params: unknown) => {
+	'fallback.addEntry': async (params: unknown) => {
 		const { modelId, provider, modelName } = params as {
 			modelId: string;
 			provider: string;
 			modelName: string;
 		};
-		const { addFallbackEntry } = await import(
-			"../fallback/settings-service.ts"
-		);
+		const { addFallbackEntry } = await import('../fallback/settings-service.ts');
 
 		const aiProvider = parseProvider(provider);
 		if (!aiProvider) {
@@ -814,32 +756,26 @@ const handlers: Record<string, MethodHandler> = {
 		};
 	},
 
-	"fallback.removeEntry": async (params: unknown) => {
+	'fallback.removeEntry': async (params: unknown) => {
 		const { modelId, entryId } = params as { modelId: string; entryId: string };
-		const { removeFallbackEntry } = await import(
-			"../fallback/settings-service.ts"
-		);
+		const { removeFallbackEntry } = await import('../fallback/settings-service.ts');
 		const success = await removeFallbackEntry(modelId, entryId);
 		return { success };
 	},
 
-	"fallback.moveEntry": async (params: unknown) => {
+	'fallback.moveEntry': async (params: unknown) => {
 		const { modelId, fromIndex, toIndex } = params as {
 			modelId: string;
 			fromIndex: number;
 			toIndex: number;
 		};
-		const { moveFallbackEntry } = await import(
-			"../fallback/settings-service.ts"
-		);
+		const { moveFallbackEntry } = await import('../fallback/settings-service.ts');
 		const success = await moveFallbackEntry(modelId, fromIndex, toIndex);
 		return { success };
 	},
 
-	"fallback.getRouteStates": async () => {
-		const { getAllRouteStates } = await import(
-			"../fallback/settings-service.ts"
-		);
+	'fallback.getRouteStates': async () => {
+		const { getAllRouteStates } = await import('../fallback/settings-service.ts');
 		const states = getAllRouteStates();
 		return {
 			states: states.map((s) => ({
@@ -852,40 +788,32 @@ const handlers: Record<string, MethodHandler> = {
 		};
 	},
 
-	"fallback.clearRouteStates": async () => {
-		const { clearAllRouteStates } = await import(
-			"../fallback/settings-service.ts"
-		);
+	'fallback.clearRouteStates': async () => {
+		const { clearAllRouteStates } = await import('../fallback/settings-service.ts');
 		clearAllRouteStates();
 		return { success: true as const };
 	},
 
-	"fallback.export": async () => {
-		const { exportConfiguration } = await import(
-			"../fallback/settings-service.ts"
-		);
+	'fallback.export': async () => {
+		const { exportConfiguration } = await import('../fallback/settings-service.ts');
 		const json = await exportConfiguration();
 		return { json };
 	},
 
-	"fallback.import": async (params: unknown) => {
+	'fallback.import': async (params: unknown) => {
 		const { json } = params as { json: string };
-		const { importConfiguration } = await import(
-			"../fallback/settings-service.ts"
-		);
+		const { importConfiguration } = await import('../fallback/settings-service.ts');
 		const success = await importConfiguration(json);
 		return { success };
 	},
 
-	"quota.refreshTokens": async (params: unknown) => {
+	'quota.refreshTokens': async (params: unknown) => {
 		const opts = params as { provider?: string } | undefined;
 		const provider = opts?.provider;
 
 		try {
-			if (!provider || provider === "kiro") {
-				const { KiroQuotaFetcher } = await import(
-					"../quota-fetchers/kiro.ts"
-				);
+			if (!provider || provider === 'kiro') {
+				const { KiroQuotaFetcher } = await import('../quota-fetchers/kiro.ts');
 				const fetcher = new KiroQuotaFetcher();
 				const refreshedCount = await fetcher.refreshAllTokensIfNeeded();
 				return { success: true, refreshedCount };
@@ -901,11 +829,9 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"copilot.availableModels": async () => {
+	'copilot.availableModels': async () => {
 		try {
-			const { CopilotAvailableModelsFetcher } = await import(
-				"../quota-fetchers/copilot-models.ts"
-			);
+			const { CopilotAvailableModelsFetcher } = await import('../quota-fetchers/copilot-models.ts');
 			const fetcher = new CopilotAvailableModelsFetcher();
 			const modelIds = await fetcher.fetchUserAvailableModelIds();
 			return { success: true, modelIds: Array.from(modelIds) };
@@ -918,17 +844,17 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"proxyConfig.getAll": async () => {
-		const { ManagementAPIClient } = await import("../management-api.ts");
+	'proxyConfig.getAll': async () => {
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
-			authKey: "quotio-cli-key",
+			authKey: 'quotio-cli-key',
 		});
 
 		try {
@@ -943,10 +869,10 @@ const handlers: Record<string, MethodHandler> = {
 			] = await Promise.all([
 				client.fetchConfig(),
 				client.getDebug().catch(() => false),
-				client.getRoutingStrategy().catch(() => "round-robin"),
+				client.getRoutingStrategy().catch(() => 'round-robin'),
 				client.getRequestRetry().catch(() => 3),
 				client.getMaxRetryInterval().catch(() => 60),
-				client.getProxyURL().catch(() => ""),
+				client.getProxyURL().catch(() => ''),
 				client.getLoggingToFile().catch(() => false),
 			]);
 
@@ -970,39 +896,39 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"proxyConfig.get": async (params: unknown) => {
+	'proxyConfig.get': async (params: unknown) => {
 		const { key } = params as { key: string };
-		const { ManagementAPIClient } = await import("../management-api.ts");
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
-			authKey: "quotio-cli-key",
+			authKey: 'quotio-cli-key',
 		});
 
 		try {
 			let value: unknown;
 			switch (key) {
-				case "debug":
+				case 'debug':
 					value = await client.getDebug();
 					break;
-				case "routingStrategy":
+				case 'routingStrategy':
 					value = await client.getRoutingStrategy();
 					break;
-				case "requestRetry":
+				case 'requestRetry':
 					value = await client.getRequestRetry();
 					break;
-				case "maxRetryInterval":
+				case 'maxRetryInterval':
 					value = await client.getMaxRetryInterval();
 					break;
-				case "proxyURL":
+				case 'proxyURL':
 					value = await client.getProxyURL();
 					break;
-				case "loggingToFile":
+				case 'loggingToFile':
 					value = await client.getLoggingToFile();
 					break;
 				default:
@@ -1017,50 +943,48 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"proxyConfig.set": async (params: unknown) => {
+	'proxyConfig.set': async (params: unknown) => {
 		const { key, value } = params as { key: string; value: unknown };
-		const { ManagementAPIClient } = await import("../management-api.ts");
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
-			authKey: "quotio-cli-key",
+			authKey: 'quotio-cli-key',
 		});
 
 		try {
 			switch (key) {
-				case "debug":
+				case 'debug':
 					await client.setDebug(Boolean(value));
 					break;
-				case "routingStrategy":
-					await client.setRoutingStrategy(
-						value as "round-robin" | "fill-first",
-					);
+				case 'routingStrategy':
+					await client.setRoutingStrategy(value as 'round-robin' | 'fill-first');
 					break;
-				case "requestRetry":
+				case 'requestRetry':
 					await client.setRequestRetry(Number(value));
 					break;
-				case "maxRetryInterval":
+				case 'maxRetryInterval':
 					await client.setMaxRetryInterval(Number(value));
 					break;
-				case "proxyURL":
+				case 'proxyURL':
 					if (value) {
 						await client.setProxyURL(String(value));
 					} else {
 						await client.deleteProxyURL();
 					}
 					break;
-				case "loggingToFile":
+				case 'loggingToFile':
 					await client.setLoggingToFile(Boolean(value));
 					break;
-				case "quotaExceededSwitchProject":
+				case 'quotaExceededSwitchProject':
 					await client.setQuotaExceededSwitchProject(Boolean(value));
 					break;
-				case "quotaExceededSwitchPreviewModel":
+				case 'quotaExceededSwitchPreviewModel':
 					await client.setQuotaExceededSwitchPreviewModel(Boolean(value));
 					break;
 				default:
@@ -1075,24 +999,27 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"auth.delete": async (params: unknown) => {
+	'auth.delete': async (params: unknown) => {
 		const { name } = params as { name: string };
-		const { ManagementAPIClient } = await import("../management-api.ts");
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		const store = await loadConfigStore();
 		const managementKey = store.localManagementKey as string | undefined;
 
 		if (!managementKey) {
-			return { success: false, error: "Management key not configured. Please restart the proxy from Quotio app." };
+			return {
+				success: false,
+				error: 'Management key not configured. Please restart the proxy from Quotio app.',
+			};
 		}
 
 		// Ensure name doesn't have .json extension for consistency
-		const baseName = name.endsWith(".json") ? name.slice(0, -5) : name;
+		const baseName = name.endsWith('.json') ? name.slice(0, -5) : name;
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
@@ -1110,19 +1037,22 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"auth.deleteAll": async () => {
-		const { ManagementAPIClient } = await import("../management-api.ts");
+	'auth.deleteAll': async () => {
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		const store = await loadConfigStore();
 		const managementKey = store.localManagementKey as string | undefined;
 
 		if (!managementKey) {
-			return { success: false, error: "Management key not configured. Please restart the proxy from Quotio app." };
+			return {
+				success: false,
+				error: 'Management key not configured. Please restart the proxy from Quotio app.',
+			};
 		}
 
 		const client = new ManagementAPIClient({
@@ -1141,18 +1071,18 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"auth.setDisabled": async (params: unknown) => {
+	'auth.setDisabled': async (params: unknown) => {
 		const { name, disabled } = params as { name: string; disabled: boolean };
-		const { ManagementAPIClient } = await import("../management-api.ts");
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
-			authKey: "quotio-cli-key",
+			authKey: 'quotio-cli-key',
 		});
 
 		try {
@@ -1166,12 +1096,12 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"auth.models": async (params: unknown) => {
+	'auth.models': async (params: unknown) => {
 		const { name } = params as { name: string };
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running", models: [] };
+			return { success: false, error: 'Proxy not running', models: [] };
 		}
 
 		try {
@@ -1182,10 +1112,10 @@ const handlers: Record<string, MethodHandler> = {
 			const response = await fetch(
 				`http://localhost:${proxyState.port}/auth-files/models?name=${encoded}`,
 				{
-					method: "GET",
+					method: 'GET',
 					headers: {
-						Authorization: "Bearer quotio-cli-key",
-						Connection: "close",
+						Authorization: 'Bearer quotio-cli-key',
+						Connection: 'close',
 					},
 					signal: controller.signal,
 				},
@@ -1202,11 +1132,17 @@ const handlers: Record<string, MethodHandler> = {
 			}
 
 			const data = (await response.json()) as {
-				models?: Array<{ id?: string; model_id?: string; name?: string; owned_by?: string; type?: string }>;
+				models?: Array<{
+					id?: string;
+					model_id?: string;
+					name?: string;
+					owned_by?: string;
+					type?: string;
+				}>;
 			};
 			const models = (data.models ?? []).map((m) => ({
-				id: m.id ?? m.model_id ?? "",
-				name: m.name ?? m.model_id ?? m.id ?? "",
+				id: m.id ?? m.model_id ?? '',
+				name: m.name ?? m.model_id ?? m.id ?? '',
 				ownedBy: m.owned_by ?? null,
 				provider: m.type ?? null,
 			}));
@@ -1221,17 +1157,17 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"apiKeys.list": async () => {
-		const { ManagementAPIClient } = await import("../management-api.ts");
+	'apiKeys.list': async () => {
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running", keys: [] };
+			return { success: false, error: 'Proxy not running', keys: [] };
 		}
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
-			authKey: "quotio-cli-key",
+			authKey: 'quotio-cli-key',
 		});
 
 		try {
@@ -1246,17 +1182,17 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"apiKeys.add": async () => {
-		const { ManagementAPIClient } = await import("../management-api.ts");
+	'apiKeys.add': async () => {
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
-			authKey: "quotio-cli-key",
+			authKey: 'quotio-cli-key',
 		});
 
 		try {
@@ -1270,18 +1206,18 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"apiKeys.delete": async (params: unknown) => {
+	'apiKeys.delete': async (params: unknown) => {
 		const { key } = params as { key: string };
-		const { ManagementAPIClient } = await import("../management-api.ts");
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
-			authKey: "quotio-cli-key",
+			authKey: 'quotio-cli-key',
 		});
 
 		try {
@@ -1295,17 +1231,17 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"proxy.healthCheck": async () => {
-		const { ManagementAPIClient } = await import("../management-api.ts");
+	'proxy.healthCheck': async () => {
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { healthy: false, error: "Proxy not running" };
+			return { healthy: false, error: 'Proxy not running' };
 		}
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
-			authKey: "quotio-cli-key",
+			authKey: 'quotio-cli-key',
 		});
 
 		try {
@@ -1319,28 +1255,25 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"proxy.latestVersion": async () => {
+	'proxy.latestVersion': async () => {
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		try {
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-			const response = await fetch(
-				`http://localhost:${proxyState.port}/latest-version`,
-				{
-					method: "GET",
-					headers: {
-						Authorization: "Bearer quotio-cli-key",
-						Connection: "close",
-					},
-					signal: controller.signal,
+			const response = await fetch(`http://localhost:${proxyState.port}/latest-version`, {
+				method: 'GET',
+				headers: {
+					Authorization: 'Bearer quotio-cli-key',
+					Connection: 'close',
 				},
-			);
+				signal: controller.signal,
+			});
 
 			clearTimeout(timeoutId);
 
@@ -1351,10 +1284,10 @@ const handlers: Record<string, MethodHandler> = {
 				};
 			}
 
-			const data = (await response.json()) as { "latest-version"?: string };
+			const data = (await response.json()) as { 'latest-version'?: string };
 			return {
 				success: true,
-				latestVersion: data["latest-version"] ?? "",
+				latestVersion: data['latest-version'] ?? '',
 			};
 		} catch (err) {
 			return {
@@ -1364,15 +1297,15 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"logs.fetch": async (params: unknown) => {
+	'logs.fetch': async (params: unknown) => {
 		const opts = params as { after?: number } | undefined;
-		const { ManagementAPIClient } = await import("../management-api.ts");
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
 			return {
 				success: false,
-				error: "Proxy not running",
+				error: 'Proxy not running',
 				logs: [],
 				total: 0,
 				lastId: 0,
@@ -1381,7 +1314,7 @@ const handlers: Record<string, MethodHandler> = {
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
-			authKey: "quotio-cli-key",
+			authKey: 'quotio-cli-key',
 		});
 
 		try {
@@ -1398,17 +1331,17 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"logs.clear": async () => {
-		const { ManagementAPIClient } = await import("../management-api.ts");
+	'logs.clear': async () => {
+		const { ManagementAPIClient } = await import('../management-api.ts');
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		const client = new ManagementAPIClient({
 			baseURL: `http://localhost:${proxyState.port}`,
-			authKey: "quotio-cli-key",
+			authKey: 'quotio-cli-key',
 		});
 
 		try {
@@ -1422,7 +1355,7 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"api.call": async (params: unknown) => {
+	'api.call': async (params: unknown) => {
 		const opts = params as {
 			authIndex?: string;
 			method: string;
@@ -1433,7 +1366,7 @@ const handlers: Record<string, MethodHandler> = {
 		const proxyState = getProcessState();
 
 		if (!proxyState.running) {
-			return { success: false, error: "Proxy not running" };
+			return { success: false, error: 'Proxy not running' };
 		}
 
 		try {
@@ -1450,11 +1383,11 @@ const handlers: Record<string, MethodHandler> = {
 			});
 
 			const response = await fetch(requestUrl, {
-				method: "POST",
+				method: 'POST',
 				headers: {
-					Authorization: "Bearer quotio-cli-key",
-					"Content-Type": "application/json",
-					Connection: "close",
+					Authorization: 'Bearer quotio-cli-key',
+					'Content-Type': 'application/json',
+					Connection: 'close',
 				},
 				body: requestBody,
 				signal: controller.signal,
@@ -1474,7 +1407,7 @@ const handlers: Record<string, MethodHandler> = {
 			} catch {
 				return {
 					success: false,
-					error: "Failed to parse response",
+					error: 'Failed to parse response',
 				};
 			}
 
@@ -1492,7 +1425,7 @@ const handlers: Record<string, MethodHandler> = {
 		}
 	},
 
-	"remote.setConfig": async (params: unknown) => {
+	'remote.setConfig': async (params: unknown) => {
 		const opts = params as {
 			endpointURL: string;
 			displayName?: string;
@@ -1503,7 +1436,7 @@ const handlers: Record<string, MethodHandler> = {
 		const store = await loadConfigStore();
 		store.remoteConfig = {
 			endpointURL: opts.endpointURL,
-			displayName: opts.displayName ?? "Remote Server",
+			displayName: opts.displayName ?? 'Remote Server',
 			verifySSL: opts.verifySSL ?? true,
 			timeoutSeconds: opts.timeoutSeconds ?? 30,
 		};
@@ -1512,7 +1445,7 @@ const handlers: Record<string, MethodHandler> = {
 		return { success: true };
 	},
 
-	"remote.getConfig": async () => {
+	'remote.getConfig': async () => {
 		const store = await loadConfigStore();
 		const config = store.remoteConfig as
 			| {
@@ -1528,7 +1461,7 @@ const handlers: Record<string, MethodHandler> = {
 		};
 	},
 
-	"remote.clearConfig": async () => {
+	'remote.clearConfig': async () => {
 		const store = await loadConfigStore();
 		store.remoteConfig = undefined;
 		store.remoteManagementKey = undefined;
@@ -1536,7 +1469,7 @@ const handlers: Record<string, MethodHandler> = {
 		return { success: true };
 	},
 
-	"remote.testConnection": async (params: unknown) => {
+	'remote.testConnection': async (params: unknown) => {
 		const opts = params as {
 			endpointURL: string;
 			managementKey: string;
@@ -1548,20 +1481,20 @@ const handlers: Record<string, MethodHandler> = {
 			const timeout = (opts.timeoutSeconds ?? 30) * 1000;
 			const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-			let baseURL = opts.endpointURL.replace(/\/+$/, "");
-			if (!baseURL.endsWith("/v0/management")) {
-				if (baseURL.endsWith("/v0")) {
-					baseURL += "/management";
+			let baseURL = opts.endpointURL.replace(/\/+$/, '');
+			if (!baseURL.endsWith('/v0/management')) {
+				if (baseURL.endsWith('/v0')) {
+					baseURL += '/management';
 				} else {
-					baseURL += "/v0/management";
+					baseURL += '/v0/management';
 				}
 			}
 
 			const response = await fetch(`${baseURL}/health`, {
-				method: "GET",
+				method: 'GET',
 				headers: {
 					Authorization: `Bearer ${opts.managementKey}`,
-					Connection: "close",
+					Connection: 'close',
 				},
 				signal: controller.signal,
 			});
@@ -1588,16 +1521,13 @@ export async function startDaemon(options?: {
 	const pidPath = ConfigFiles.pidFile();
 
 	if (existsSync(pidPath)) {
-		const existingPid = Number.parseInt(
-			readFileSync(pidPath, "utf-8").trim(),
-			10,
-		);
+		const existingPid = Number.parseInt(readFileSync(pidPath, 'utf-8').trim(), 10);
 		if (!Number.isNaN(existingPid) && existingPid > 0) {
 			try {
 				process.kill(existingPid, 0);
 				throw new Error(`Daemon already running with PID ${existingPid}`);
 			} catch (e) {
-				if ((e as NodeJS.ErrnoException).code !== "ESRCH") {
+				if ((e as NodeJS.ErrnoException).code !== 'ESRCH') {
 					throw e;
 				}
 				unlinkSync(pidPath);
@@ -1609,7 +1539,9 @@ export async function startDaemon(options?: {
 	writeFileSync(pidPath, String(process.pid));
 
 	registerHandlers(handlers);
+	registerHTTPHandlers(handlers);
 	await startServer();
+	await startHTTPServer();
 
 	state.startedAt = new Date();
 	state.pid = process.pid;
@@ -1626,18 +1558,18 @@ export async function stopDaemon(): Promise<void> {
 	const pidPath = ConfigFiles.pidFile();
 
 	if (!existsSync(pidPath)) {
-		logger.warn("Daemon is not running (no PID file found)");
+		logger.warn('Daemon is not running (no PID file found)');
 		return;
 	}
 
-	const pid = Number.parseInt(readFileSync(pidPath, "utf-8").trim(), 10);
+	const pid = Number.parseInt(readFileSync(pidPath, 'utf-8').trim(), 10);
 	if (Number.isNaN(pid) || pid <= 0) {
 		unlinkSync(pidPath);
 		return;
 	}
 
 	try {
-		process.kill(pid, "SIGTERM");
+		process.kill(pid, 'SIGTERM');
 		logger.info(`Sent SIGTERM to daemon (PID ${pid})`);
 
 		const deadline = Date.now() + 5000;
@@ -1652,12 +1584,12 @@ export async function stopDaemon(): Promise<void> {
 
 		try {
 			process.kill(pid, 0);
-			process.kill(pid, "SIGKILL");
-			logger.warn("Daemon did not stop gracefully, sent SIGKILL");
+			process.kill(pid, 'SIGKILL');
+			logger.warn('Daemon did not stop gracefully, sent SIGKILL');
 		} catch {}
 	} catch (e) {
-		if ((e as NodeJS.ErrnoException).code === "ESRCH") {
-			logger.info("Daemon was not running");
+		if ((e as NodeJS.ErrnoException).code === 'ESRCH') {
+			logger.info('Daemon was not running');
 		} else {
 			throw e;
 		}
@@ -1680,7 +1612,7 @@ export async function getDaemonStatus(): Promise<{
 		return { running: false, pid: null, socketPath };
 	}
 
-	const pid = Number.parseInt(readFileSync(pidPath, "utf-8").trim(), 10);
+	const pid = Number.parseInt(readFileSync(pidPath, 'utf-8').trim(), 10);
 	if (Number.isNaN(pid) || pid <= 0) {
 		return { running: false, pid: null, socketPath };
 	}
@@ -1694,13 +1626,14 @@ export async function getDaemonStatus(): Promise<{
 }
 
 async function shutdown(): Promise<void> {
-	logger.info("Shutting down daemon...");
+	logger.info('Shutting down daemon...');
 
 	try {
 		await stopProxy();
 	} catch {}
 
 	await stopServer();
+	await stopHTTPServer();
 
 	const pidPath = ConfigFiles.pidFile();
 	if (existsSync(pidPath)) {
@@ -1709,7 +1642,7 @@ async function shutdown(): Promise<void> {
 		} catch {}
 	}
 
-	logger.info("Daemon stopped");
+	logger.info('Daemon stopped');
 }
 
 function setupSignalHandlers(): void {
@@ -1719,8 +1652,8 @@ function setupSignalHandlers(): void {
 		process.exit(0);
 	};
 
-	process.on("SIGINT", () => handleSignal("SIGINT"));
-	process.on("SIGTERM", () => handleSignal("SIGTERM"));
+	process.on('SIGINT', () => handleSignal('SIGINT'));
+	process.on('SIGTERM', () => handleSignal('SIGTERM'));
 }
 
 function waitForever(): Promise<never> {

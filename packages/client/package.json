@@ -1,0 +1,34 @@
+{
+	"name": "@quotio/client",
+	"version": "0.1.0",
+	"description": "TypeScript HTTP client for quotio-cli daemon",
+	"private": true,
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"typecheck": "tsc --noEmit",
+		"clean": "rm -rf dist",
+		"lint": "bunx @biomejs/biome check src/",
+		"format": "bunx @biomejs/biome format --write src/"
+	},
+	"dependencies": {
+		"@quotio/cli": "workspace:*"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/node": "^22.0.0",
+		"typescript": "^5.8.0"
+	},
+	"keywords": ["quotio", "client", "daemon", "ipc", "http"],
+	"author": "Quotio Team",
+	"license": "MIT"
+}

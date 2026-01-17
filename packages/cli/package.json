@@ -1,42 +1,46 @@
 {
-  "name": "@quotio/cli",
-  "version": "0.1.0",
-  "description": "Cross-platform CLI for managing Quotio - quota tracking, agent configuration, and proxy management",
-  "private": true,
-  "type": "module",
-  "bin": {
-    "quotio": "./dist/quotio"
-  },
-  "scripts": {
-    "build": "bun build src/index.ts --compile --outfile dist/quotio",
-    "build:all": "bun run scripts/build.ts",
-    "dev": "bun run src/index.ts",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist",
-    "test": "bun test",
-    "lint": "bunx @biomejs/biome check src/",
-    "format": "bunx @biomejs/biome format --write src/"
-  },
-  "dependencies": {
-    "@quotio/core": "workspace:*"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@types/bun": "^1.3.5",
-    "typescript": "^5.8.0"
-  },
-  "engines": {
-    "bun": ">=1.1.0"
-  },
-  "keywords": [
-    "cli",
-    "ai",
-    "proxy",
-    "quota",
-    "claude",
-    "gemini",
-    "copilot"
-  ],
-  "author": "Quotio Team",
-  "license": "MIT"
+	"name": "@quotio/cli",
+	"version": "0.1.0",
+	"description": "Cross-platform CLI for managing Quotio - quota tracking, agent configuration, and proxy management",
+	"private": true,
+	"type": "module",
+	"main": "./src/index.ts",
+	"types": "./src/index.ts",
+	"exports": {
+		".": {
+			"types": "./src/ipc/protocol.ts",
+			"import": "./src/index.ts"
+		},
+		"./protocol": {
+			"types": "./src/ipc/protocol.ts",
+			"import": "./src/ipc/protocol.ts"
+		}
+	},
+	"bin": {
+		"quotio": "./dist/quotio"
+	},
+	"scripts": {
+		"build": "bun build src/index.ts --compile --outfile dist/quotio",
+		"build:all": "bun run scripts/build.ts",
+		"dev": "bun run src/index.ts",
+		"typecheck": "tsc --noEmit",
+		"clean": "rm -rf dist",
+		"test": "bun test",
+		"lint": "bunx @biomejs/biome check src/",
+		"format": "bunx @biomejs/biome format --write src/"
+	},
+	"dependencies": {
+		"@quotio/core": "workspace:*"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/bun": "^1.3.5",
+		"typescript": "^5.8.0"
+	},
+	"engines": {
+		"bun": ">=1.1.0"
+	},
+	"keywords": ["cli", "ai", "proxy", "quota", "claude", "gemini", "copilot"],
+	"author": "Quotio Team",
+	"license": "MIT"
 }
