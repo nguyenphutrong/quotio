@@ -1,0 +1,1480 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Quotio Server API",
+    "description": "TypeScript-native proxy server for AI coding agents. OpenAI-compatible API with multi-provider support.",
+    "version": "0.1.0",
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8317",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Chat",
+      "description": "OpenAI-compatible chat completions"
+    },
+    {
+      "name": "Models",
+      "description": "Model listing"
+    },
+    {
+      "name": "Health",
+      "description": "Health and status endpoints"
+    },
+    {
+      "name": "Auth",
+      "description": "Authentication management"
+    },
+    {
+      "name": "OAuth",
+      "description": "OAuth flow management"
+    },
+    {
+      "name": "Usage",
+      "description": "Usage statistics and metrics"
+    },
+    {
+      "name": "Logs",
+      "description": "Request logging"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Basic health check",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Server is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Get server version",
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "Version information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "tags": ["Models"],
+        "summary": "List available models",
+        "operationId": "listModels",
+        "responses": {
+          "200": {
+            "description": "List of models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "tags": ["Chat"],
+        "summary": "Create chat completion",
+        "operationId": "createChatCompletion",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chat completion response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "SSE stream of chat completion chunks"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/messages": {
+      "post": {
+        "tags": ["Chat"],
+        "summary": "Create message (Anthropic-style)",
+        "operationId": "createMessage",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Detailed health check",
+        "operationId": "getDetailedHealth",
+        "responses": {
+          "200": {
+            "description": "Detailed health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailedHealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/ready": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Readiness probe",
+        "operationId": "getReady",
+        "responses": {
+          "200": {
+            "description": "Server is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ready": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/live": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Liveness probe",
+        "operationId": "getLive",
+        "responses": {
+          "200": {
+            "description": "Server is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "alive": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/auth": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "List all auth files",
+        "operationId": "listAuthFiles",
+        "responses": {
+          "200": {
+            "description": "List of auth files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthFilesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/auth/{provider}": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get auth file by provider",
+        "operationId": "getAuthByProvider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Auth file details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthFile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/v0/management/auth/{id}": {
+      "delete": {
+        "tags": ["Auth"],
+        "summary": "Delete auth file by ID",
+        "operationId": "deleteAuthById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/auth/provider/{provider}": {
+      "delete": {
+        "tags": ["Auth"],
+        "summary": "Delete all auth files for provider",
+        "operationId": "deleteAuthByProvider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/oauth/start": {
+      "post": {
+        "tags": ["OAuth"],
+        "summary": "Start OAuth flow",
+        "operationId": "startOAuth",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["provider"],
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": ["gemini-cli", "claude", "codex", "kiro"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OAuth started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthStartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/oauth/status": {
+      "get": {
+        "tags": ["OAuth"],
+        "summary": "Check OAuth status",
+        "operationId": "getOAuthStatus",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/oauth/device-start": {
+      "post": {
+        "tags": ["OAuth"],
+        "summary": "Start Device Code flow",
+        "operationId": "startDeviceCode",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["provider"],
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": ["github-copilot"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device code response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCodeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/oauth/device-poll": {
+      "post": {
+        "tags": ["OAuth"],
+        "summary": "Poll Device Code for token",
+        "operationId": "pollDeviceCode",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["provider", "device_code"],
+                "properties": {
+                  "provider": {
+                    "type": "string"
+                  },
+                  "device_code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Poll result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicePollResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/oauth/import-service-account": {
+      "post": {
+        "tags": ["OAuth"],
+        "summary": "Import service account",
+        "operationId": "importServiceAccount",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["provider", "key_file"],
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": ["vertex"]
+                  },
+                  "key_file": {
+                    "type": "string",
+                    "description": "JSON content of service account key"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceAccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/oauth/refresh/{provider}": {
+      "post": {
+        "tags": ["OAuth"],
+        "summary": "Refresh token for provider",
+        "operationId": "refreshToken",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token refreshed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/oauth/providers": {
+      "get": {
+        "tags": ["OAuth"],
+        "summary": "List supported providers",
+        "operationId": "listProviders",
+        "responses": {
+          "200": {
+            "description": "Supported providers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/usage": {
+      "get": {
+        "tags": ["Usage"],
+        "summary": "Get usage overview",
+        "operationId": "getUsage",
+        "responses": {
+          "200": {
+            "description": "Usage statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/usage/{provider}": {
+      "get": {
+        "tags": ["Usage"],
+        "summary": "Get usage for provider",
+        "operationId": "getUsageByProvider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderUsageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/usage/quotas/all": {
+      "get": {
+        "tags": ["Usage"],
+        "summary": "Get all quota statuses",
+        "operationId": "getAllQuotas",
+        "responses": {
+          "200": {
+            "description": "Quota statuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotasResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/usage/reset": {
+      "post": {
+        "tags": ["Usage"],
+        "summary": "Reset metrics",
+        "operationId": "resetUsage",
+        "responses": {
+          "200": {
+            "description": "Metrics reset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/logs": {
+      "get": {
+        "tags": ["Logs"],
+        "summary": "Get recent logs",
+        "operationId": "getLogs",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Logs"],
+        "summary": "Clear logs",
+        "operationId": "clearLogs",
+        "responses": {
+          "200": {
+            "description": "Logs cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/logs/provider/{provider}": {
+      "get": {
+        "tags": ["Logs"],
+        "summary": "Get logs by provider",
+        "operationId": "getLogsByProvider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Filtered logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/management/logs/status/{range}": {
+      "get": {
+        "tags": ["Logs"],
+        "summary": "Get logs by status range",
+        "operationId": "getLogsByStatus",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["2xx", "4xx", "5xx", "errors"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Filtered logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ok"]
+          },
+          "version": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VersionResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "runtime": {
+            "type": "string"
+          },
+          "framework": {
+            "type": "string"
+          }
+        }
+      },
+      "DetailedHealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "services": {
+            "type": "object",
+            "properties": {
+              "server": {
+                "type": "string"
+              },
+              "cliProxy": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ModelsResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": ["list"]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          }
+        }
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "enum": ["model"]
+          },
+          "created": {
+            "type": "integer"
+          },
+          "owned_by": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatCompletionRequest": {
+        "type": "object",
+        "required": ["model", "messages"],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "max_tokens": {
+            "type": "integer"
+          },
+          "top_p": {
+            "type": "number"
+          },
+          "stop": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["system", "user", "assistant", "tool"]
+          },
+          "content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "tool_call_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "enum": ["chat.completion"]
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Choice"
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        }
+      },
+      "Choice": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "message": {
+            "$ref": "#/components/schemas/Message"
+          },
+          "finish_reason": {
+            "type": "string",
+            "enum": ["stop", "length", "tool_calls", "content_filter"]
+          }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "properties": {
+          "prompt_tokens": {
+            "type": "integer"
+          },
+          "completion_tokens": {
+            "type": "integer"
+          },
+          "total_tokens": {
+            "type": "integer"
+          }
+        }
+      },
+      "MessageRequest": {
+        "type": "object",
+        "required": ["model", "messages", "max_tokens"],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "max_tokens": {
+            "type": "integer"
+          },
+          "system": {
+            "type": "string"
+          },
+          "stream": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["message"]
+          },
+          "role": {
+            "type": "string",
+            "enum": ["assistant"]
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "model": {
+            "type": "string"
+          },
+          "stop_reason": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "input_tokens": {
+                "type": "integer"
+              },
+              "output_tokens": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthFilesResponse": {
+        "type": "object",
+        "properties": {
+          "auth_files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthFile"
+            }
+          }
+        }
+      },
+      "AuthFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ready", "cooling", "error", "refreshing"]
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_expired": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OAuthStartResponse": {
+        "type": "object",
+        "properties": {
+          "auth_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "state": {
+            "type": "string"
+          },
+          "incognito": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OAuthStatusResponse": {
+        "type": "object",
+        "properties": {
+          "completed": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "DeviceCodeResponse": {
+        "type": "object",
+        "properties": {
+          "device_code": {
+            "type": "string"
+          },
+          "user_code": {
+            "type": "string"
+          },
+          "verification_uri": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expires_in": {
+            "type": "integer"
+          },
+          "interval": {
+            "type": "integer"
+          }
+        }
+      },
+      "DevicePollResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "completed", "error", "expired"]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "ServiceAccountResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RefreshResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProvidersResponse": {
+        "type": "object",
+        "properties": {
+          "oauth": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "device_code": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "service_account": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "all": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "UsageResponse": {
+        "type": "object",
+        "properties": {
+          "totalRequests": {
+            "type": "integer"
+          },
+          "totalTokens": {
+            "type": "integer"
+          },
+          "totalErrors": {
+            "type": "integer"
+          },
+          "avgLatencyMs": {
+            "type": "number"
+          },
+          "byProvider": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderStats"
+            }
+          },
+          "uptime": {
+            "type": "integer",
+            "description": "Uptime in seconds"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProviderStats": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "requests": {
+            "type": "integer"
+          },
+          "tokens": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "avgLatencyMs": {
+            "type": "number"
+          }
+        }
+      },
+      "ProviderUsageResponse": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "requests": {
+            "type": "integer"
+          },
+          "tokens": {
+            "type": "integer"
+          }
+        }
+      },
+      "QuotasResponse": {
+        "type": "object",
+        "properties": {
+          "quotas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuotaStatus"
+            }
+          }
+        }
+      },
+      "QuotaStatus": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "quotaUsed": {
+            "type": "integer"
+          },
+          "quotaLimit": {
+            "type": "integer"
+          },
+          "quotaResetAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tier": {
+            "type": "string",
+            "enum": ["paid", "free", "unknown"]
+          },
+          "status": {
+            "type": "string"
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "cooldownUntil": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LogsResponse": {
+        "type": "object",
+        "properties": {
+          "logs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            }
+          },
+          "count": {
+            "type": "integer"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "range": {
+            "type": "string"
+          }
+        }
+      },
+      "LogEntry": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "query": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "integer"
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
