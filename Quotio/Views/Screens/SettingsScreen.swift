@@ -1611,6 +1611,8 @@ struct MenuBarSettingsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
     private let settings = MenuBarSettingsManager.shared
     @AppStorage("showInDock") private var showInDock = true
+    @State private var showTruncationAlert = false
+    @State private var pendingMaxItems: Int?
     
     private var showMenuBarIconBinding: Binding<Bool> {
         Binding(
@@ -1666,8 +1668,16 @@ struct MenuBarSettingsSection: View {
         Binding(
             get: { settings.menuBarMaxItems },
             set: { newValue in
-                settings.menuBarMaxItems = newValue
-                viewModel.syncMenuBarSelection()
+                let clamped = min(max(newValue, MenuBarSettingsManager.minMenuBarItems), MenuBarSettingsManager.maxMenuBarItems)
+
+                // Check if reducing max items would truncate current selection
+                if clamped < settings.menuBarMaxItems && settings.selectedItems.count > clamped {
+                    pendingMaxItems = clamped
+                    showTruncationAlert = true
+                } else {
+                    settings.menuBarMaxItems = clamped
+                    viewModel.syncMenuBarSelection()
+                }
             }
         )
     }
@@ -1706,6 +1716,32 @@ struct MenuBarSettingsSection: View {
             }
         } header: {
             Label("settings.menubar".localized(), systemImage: "menubar.rectangle")
+        } footer: {
+            Text(String(
+                format: "settings.menubar.help".localized(),
+                settings.menuBarMaxItems
+            ))
+            .font(.caption)
+        }
+        .alert("menubar.truncation.title".localized(), isPresented: $showTruncationAlert) {
+            Button("action.cancel".localized(), role: .cancel) {
+                pendingMaxItems = nil
+            }
+            Button("action.ok".localized(), role: .destructive) {
+                if let newMax = pendingMaxItems {
+                    settings.menuBarMaxItems = newMax
+                    viewModel.syncMenuBarSelection()
+                    pendingMaxItems = nil
+                }
+            }
+        } message: {
+            if let newMax = pendingMaxItems {
+                Text(String(
+                    format: "menubar.truncation.message".localized(),
+                    settings.selectedItems.count,
+                    newMax
+                ))
+            }
         }
     }
 }

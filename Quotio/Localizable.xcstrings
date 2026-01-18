@@ -8829,7 +8829,7 @@
       }
     },
     "menubar.maxItems.title" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8858,7 +8858,7 @@
       }
     },
     "menubar.maxItems.message" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8882,6 +8882,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "菜单栏最多可显示 %d 个提供商。"
+          }
+        }
+      }
+    },
+    "menubar.truncation.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reduce Menu Bar Items?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réduire les éléments de la barre de menus ?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giảm số mục trên Menu Bar?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "减少菜单栏项目？"
+          }
+        }
+      }
+    },
+    "menubar.truncation.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You currently have %d items selected. Reducing the limit to %d will remove some of your selections."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous avez actuellement %d éléments sélectionnés. Réduire la limite à %d supprimera certaines de vos sélections."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bạn hiện có %d mục đã chọn. Giảm giới hạn xuống %d sẽ xóa một số lựa chọn của bạn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您当前已选择 %d 项。将限制减少到 %d 将删除部分选择。"
           }
         }
       }
@@ -14674,7 +14732,7 @@
       }
     },
     "settings.menubar.help" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -14703,7 +14761,7 @@
       }
     },
     "settings.menubar.maxItems" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
