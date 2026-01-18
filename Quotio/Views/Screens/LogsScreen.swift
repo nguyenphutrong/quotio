@@ -13,6 +13,7 @@ struct LogsScreen: View {
     @State private var filterLevel: LogEntry.LogLevel? = nil
     @State private var searchText = ""
     @State private var requestFilterProvider: String? = nil
+    @State private var expandedTraces: Set<UUID> = []
     
     enum LogsTab: String, CaseIterable {
         case requests = "requests"
@@ -183,8 +184,18 @@ struct LogsScreen: View {
     private var requestList: some View {
         ScrollViewReader { proxy in
             List(filteredRequests) { request in
-                RequestRow(request: request)
-                    .id(request.id)
+                RequestRow(
+                    request: request,
+                    isTraceExpanded: expandedTraces.contains(request.id),
+                    onToggleTrace: {
+                        if expandedTraces.contains(request.id) {
+                            expandedTraces.remove(request.id)
+                        } else {
+                            expandedTraces.insert(request.id)
+                        }
+                    }
+                )
+                .id("\(request.id)-\(expandedTraces.contains(request.id))")
             }
             .onChange(of: viewModel.requestTracker.requestHistory.count) { _, _ in
                 if autoScroll, let first = filteredRequests.first {
@@ -289,7 +300,8 @@ struct LogsScreen: View {
 
 struct RequestRow: View {
     let request: RequestLog
-    @State private var isTraceExpanded = false
+    let isTraceExpanded: Bool
+    let onToggleTrace: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -381,7 +393,7 @@ struct RequestRow: View {
 
             if let attempts = request.fallbackAttempts, !attempts.isEmpty {
                 Button {
-                    isTraceExpanded.toggle()
+                    onToggleTrace()
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: isTraceExpanded ? "chevron.down" : "chevron.right")
