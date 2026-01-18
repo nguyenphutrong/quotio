@@ -28,7 +28,6 @@ struct AccountRowData: Identifiable, Hashable {
     let id: String
     let provider: AIProvider
     let displayName: String       // Email or account identifier
-    let accountKey: String        // Stable key for quota lookup/menu bar
     let source: AccountSource
     let status: String?           // "ready", "cooling", "error", etc.
     let statusMessage: String?
@@ -42,7 +41,6 @@ struct AccountRowData: Identifiable, Hashable {
         id: String,
         provider: AIProvider,
         displayName: String,
-        accountKey: String,
         source: AccountSource,
         status: String?,
         statusMessage: String?,
@@ -54,7 +52,6 @@ struct AccountRowData: Identifiable, Hashable {
         self.id = id
         self.provider = provider
         self.displayName = displayName
-        self.accountKey = accountKey
         self.source = source
         self.status = status
         self.statusMessage = statusMessage
@@ -66,7 +63,7 @@ struct AccountRowData: Identifiable, Hashable {
 
     // For menu bar selection
     var menuBarItem: MenuBarQuotaItem {
-        MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey)
+        MenuBarQuotaItem(provider: provider.rawValue, accountKey: displayName)
     }
 
     // MARK: - Factory Methods
@@ -74,12 +71,10 @@ struct AccountRowData: Identifiable, Hashable {
     /// Create from AuthFile (proxy mode)
     static func from(authFile: AuthFile) -> AccountRowData {
         let name = authFile.email ?? authFile.name
-        let accountKey = authFile.quotaLookupKey.isEmpty ? authFile.name : authFile.quotaLookupKey
         return AccountRowData(
             id: authFile.id,
             provider: authFile.providerType ?? .gemini,
             displayName: name,
-            accountKey: accountKey,
             source: .proxy,
             status: authFile.status,
             statusMessage: authFile.statusMessage,
@@ -91,12 +86,10 @@ struct AccountRowData: Identifiable, Hashable {
     /// Create from DirectAuthFile (quota-only mode or proxy stopped)
     static func from(directAuthFile: DirectAuthFile) -> AccountRowData {
         let name = directAuthFile.email ?? directAuthFile.filename
-        let accountKey = directAuthFile.email ?? directAuthFile.filename
         return AccountRowData(
             id: directAuthFile.id,
             provider: directAuthFile.provider,
             displayName: name,
-            accountKey: accountKey,
             source: .direct,
             status: nil,
             statusMessage: nil,
@@ -111,7 +104,6 @@ struct AccountRowData: Identifiable, Hashable {
             id: "\(provider.rawValue)_\(accountKey)",
             provider: provider,
             displayName: accountKey,
-            accountKey: accountKey,
             source: .autoDetected,
             status: nil,
             statusMessage: nil,
@@ -346,7 +338,6 @@ struct AccountRow: View {
                 id: "1",
                 provider: .gemini,
                 displayName: "user@gmail.com",
-                accountKey: "user@gmail.com",
                 source: .proxy,
                 status: "ready",
                 statusMessage: nil,
@@ -361,7 +352,6 @@ struct AccountRow: View {
                 id: "2",
                 provider: .claude,
                 displayName: "work@company.com",
-                accountKey: "work@company.com",
                 source: .direct,
                 status: nil,
                 statusMessage: nil,
@@ -375,7 +365,6 @@ struct AccountRow: View {
                 id: "3",
                 provider: .cursor,
                 displayName: "dev@example.com",
-                accountKey: "dev@example.com",
                 source: .autoDetected,
                 status: nil,
                 statusMessage: nil,

@@ -425,7 +425,6 @@ final class MenuBarSettingsManager {
     
     private let defaults = UserDefaults.standard
     private let selectedItemsKey = "menuBarSelectedQuotaItems"
-    private let hasCustomSelectionKey = "menuBarHasCustomSelection"
     private let colorModeKey = "menuBarColorMode"
     private let showMenuBarIconKey = "showMenuBarIcon"
     private let showQuotaKey = "menuBarShowQuota"
@@ -448,11 +447,6 @@ final class MenuBarSettingsManager {
     /// Selected items to display
     var selectedItems: [MenuBarQuotaItem] {
         didSet { saveSelectedItems() }
-    }
-    
-    /// Whether user has customized menu bar selection
-    var hasCustomSelection: Bool {
-        didSet { defaults.set(hasCustomSelection, forKey: hasCustomSelectionKey) }
     }
     
     /// Color mode (colored vs monochrome)
@@ -509,15 +503,7 @@ final class MenuBarSettingsManager {
         self.colorMode = MenuBarColorMode(rawValue: defaults.string(forKey: colorModeKey) ?? "") ?? .colored
         self.quotaDisplayMode = QuotaDisplayMode(rawValue: defaults.string(forKey: quotaDisplayModeKey) ?? "") ?? .used
         self.quotaDisplayStyle = QuotaDisplayStyle(rawValue: defaults.string(forKey: quotaDisplayStyleKey) ?? "") ?? .card
-        
-        let loadedItems = Self.loadSelectedItems(from: defaults, key: selectedItemsKey)
-        self.selectedItems = loadedItems
-        if defaults.object(forKey: hasCustomSelectionKey) == nil {
-            let hasStoredSelection = defaults.object(forKey: selectedItemsKey) != nil
-            defaults.set(hasStoredSelection, forKey: hasCustomSelectionKey)
-        }
-        self.hasCustomSelection = defaults.bool(forKey: hasCustomSelectionKey)
-        
+        self.selectedItems = Self.loadSelectedItems(from: defaults, key: selectedItemsKey)
         self.hideSensitiveInfo = defaults.bool(forKey: hideSensitiveInfoKey)
         self.totalUsageMode = TotalUsageMode(rawValue: defaults.string(forKey: totalUsageModeKey) ?? "") ?? .sessionOnly
         self.modelAggregationMode = ModelAggregationMode(rawValue: defaults.string(forKey: modelAggregationModeKey) ?? "") ?? .lowest
@@ -560,7 +546,6 @@ final class MenuBarSettingsManager {
     
     /// Toggle item selection
     func toggleItem(_ item: MenuBarQuotaItem) {
-        hasCustomSelection = true
         if isSelected(item) {
             removeItem(item)
         } else {
@@ -575,7 +560,6 @@ final class MenuBarSettingsManager {
     }
     
     func autoSelectNewAccounts(availableItems: [MenuBarQuotaItem]) {
-        guard !hasCustomSelection else { return }
         let existingIds = Set(selectedItems.map(\.id))
         let newItems = availableItems.filter { !existingIds.contains($0.id) }
         
