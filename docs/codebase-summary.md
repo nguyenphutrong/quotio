@@ -418,7 +418,8 @@ Quotio/Assets.xcassets/
 | `autoStartProxy` | Bool | Auto-start proxy on launch |
 | `appMode` | String | Current app mode |
 | `hasCompletedOnboarding` | Bool | Onboarding completion status |
-| `menuBarSelectedQuotaItems` | Data | Selected menu bar items |
+| `menuBarSelectedQuotaItems` | Data | Selected menu bar items (normalized account key) |
+| `menuBarMaxItems` | Int | Maximum number of menu bar items to display |
 | `menuBarColorMode` | String | Menu bar color mode |
 | `showMenuBarIcon` | Bool | Show menu bar icon |
 | `menuBarShowQuota` | Bool | Show quota in menu bar |

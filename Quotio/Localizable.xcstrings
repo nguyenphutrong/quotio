@@ -8828,6 +8828,64 @@
         }
       }
     },
+    "menubar.maxItems.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menu Bar Provider Limit Reached"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limite de fournisseurs dans la barre de menus atteinte"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã đạt giới hạn nhà cung cấp trên Menu Bar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已达到菜单栏提供商上限"
+          }
+        }
+      }
+    },
+    "menubar.maxItems.message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can show up to %d providers in the menu bar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous pouvez afficher jusqu'à %d fournisseurs dans la barre de menus."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bạn có thể hiển thị tối đa %d nhà cung cấp trên Menu Bar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "菜单栏最多可显示 %d 个提供商。"
+          }
+        }
+      }
+    },
     "mode.full" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14621,25 +14679,54 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose which accounts to show in the menu bar. Maximum 3 items will be displayed."
+            "value" : "Choose which accounts to show in the menu bar. You can show up to %d items."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choisissez les comptes à afficher dans la barre de menus. Maximum 3 éléments."
+            "value" : "Choisissez les comptes à afficher dans la barre de menus. Vous pouvez afficher jusqu'à %d éléments."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chọn tài khoản muốn hiển thị trên thanh menu. Tối đa 3 mục."
+            "value" : "Chọn tài khoản muốn hiển thị trên thanh menu. Bạn có thể hiển thị tối đa %d mục."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "选择要在菜单栏显示的账户。最多显示 3 项。"
+            "value" : "选择要在菜单栏显示的账户。最多可显示 %d 项。"
+          }
+        }
+      }
+    },
+    "settings.menubar.maxItems" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menu Bar Provider Count"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombre de fournisseurs affichés dans la barre de menus"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Số nhà cung cấp hiển thị trên Menu Bar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "菜单栏显示提供商数量"
           }
         }
       }

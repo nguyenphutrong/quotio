@@ -1608,6 +1608,7 @@ private struct AvailableVersionRow: View {
 // MARK: - Menu Bar Settings Section
 
 struct MenuBarSettingsSection: View {
+    @Environment(QuotaViewModel.self) private var viewModel
     private let settings = MenuBarSettingsManager.shared
     @AppStorage("showInDock") private var showInDock = true
     
@@ -1661,6 +1662,16 @@ struct MenuBarSettingsSection: View {
         )
     }
     
+    private var maxItemsBinding: Binding<Int> {
+        Binding(
+            get: { settings.menuBarMaxItems },
+            set: { newValue in
+                settings.menuBarMaxItems = newValue
+                viewModel.syncMenuBarSelection()
+            }
+        )
+    }
+    
     var body: some View {
         Section {
             Toggle("settings.showInDock".localized(), isOn: showInDockBinding)
@@ -1671,6 +1682,21 @@ struct MenuBarSettingsSection: View {
                 Toggle("settings.menubar.showQuota".localized(), isOn: showQuotaBinding)
                 
                 if settings.showQuotaInMenuBar {
+                    HStack {
+                        Text("settings.menubar.maxItems".localized())
+                        Spacer()
+                        Text("\(settings.menuBarMaxItems)")
+                            .monospacedDigit()
+                            .foregroundStyle(.primary)
+                        Stepper(
+                            "",
+                            value: maxItemsBinding,
+                            in: MenuBarSettingsManager.minMenuBarItems...MenuBarSettingsManager.maxMenuBarItems,
+                            step: 1
+                        )
+                        .labelsHidden()
+                    }
+                    
                     Picker("settings.menubar.colorMode".localized(), selection: colorModeBinding) {
                         Text("settings.menubar.colored".localized()).tag(MenuBarColorMode.colored)
                         Text("settings.menubar.monochrome".localized()).tag(MenuBarColorMode.monochrome)
@@ -1680,9 +1706,6 @@ struct MenuBarSettingsSection: View {
             }
         } header: {
             Label("settings.menubar".localized(), systemImage: "menubar.rectangle")
-        } footer: {
-            Text("settings.menubar.help".localized())
-                .font(.caption)
         }
     }
 }
