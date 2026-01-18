@@ -415,6 +415,10 @@ nonisolated struct AntigravityAuthFile: Codable, Sendable {
     let refreshToken: String?
     let timestamp: Int?
     let type: String?
+    // Fields preserved during token refresh (used by CLIProxyAPI)
+    var prefix: String?
+    var projectId: String?
+    var proxyUrl: String?
     
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
@@ -424,6 +428,9 @@ nonisolated struct AntigravityAuthFile: Codable, Sendable {
         case refreshToken = "refresh_token"
         case timestamp
         case type
+        case prefix
+        case projectId = "project_id"
+        case proxyUrl = "proxy_url"
     }
     
     nonisolated var isExpired: Bool {
