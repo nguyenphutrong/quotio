@@ -193,18 +193,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.global(qos: .utility).async {
             TunnelManager.cleanupOrphans()
         }
-        
+
         UserDefaults.standard.register(defaults: [
             "useBridgeMode": true,
             "showInDock": true,
             "totalUsageMode": TotalUsageMode.sessionOnly.rawValue,
             "modelAggregationMode": ModelAggregationMode.lowest.rawValue
         ])
-        
+
         // Apply initial dock visibility based on saved preference
         let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
         NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
-        
+
+        // Start background polling for CLIProxyAPI updates (every 5 minutes)
+        // Uses Atom feed with ETag caching for efficiency
+        Task { @MainActor in
+            AtomFeedUpdateService.shared.startPolling {
+                CLIProxyManager.shared.currentVersion ?? CLIProxyManager.shared.installedProxyVersion
+            }
+        }
+
         windowWillCloseObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: nil,
@@ -214,7 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.handleWindowWillClose()
             }
         }
-        
+
         windowDidBecomeKeyObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
             object: nil,
@@ -249,6 +257,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Stop background polling
+        AtomFeedUpdateService.shared.stopPolling()
+
         CLIProxyManager.terminateProxyOnShutdown()
         
         // Use semaphore to ensure tunnel cleanup completes before app terminates

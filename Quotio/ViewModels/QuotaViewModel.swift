@@ -225,9 +225,7 @@ final class QuotaViewModel {
         let autoStartProxy = UserDefaults.standard.bool(forKey: "autoStartProxy")
         if autoStartProxy && proxyManager.isBinaryInstalled {
             await startProxy()
-            
-            // Check for proxy upgrade after starting
-            await checkForProxyUpgrade()
+            // Note: checkForProxyUpgrade() is now called inside startProxy()
         } else {
             // If not auto-starting proxy, start quota auto-refresh
             startQuotaAutoRefreshWithoutProxy()
@@ -939,7 +937,12 @@ final class QuotaViewModel {
             
             await refreshData()
             await runWarmupCycle()
-            
+
+            // Check for proxy upgrade (non-blocking, fire-and-forget)
+            Task {
+                await checkForProxyUpgrade()
+            }
+
             let autoStartTunnel = UserDefaults.standard.bool(forKey: "autoStartTunnel")
             if autoStartTunnel && tunnelManager.installation.isInstalled {
                 await tunnelManager.startTunnel(port: proxyManager.port)
