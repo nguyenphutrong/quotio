@@ -80,7 +80,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         case .geminiCLI: return URL(string: "https://github.com/google-gemini/gemini-cli")
         case .ampCLI: return URL(string: "https://ampcode.com/manual")
         case .openCode: return URL(string: "https://github.com/sst/opencode")
-        case .factoryDroid: return URL(string: "https://github.com/github/github-spark")
+        case .factoryDroid: return URL(string: "https://docs.factory.ai/welcome")
         }
     }
 
