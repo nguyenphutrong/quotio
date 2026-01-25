@@ -67,31 +67,31 @@ nonisolated struct GroupedModelQuota: Identifiable, Sendable {
     // Uses earliest reset time among all models in the group
     var resetTime: String {
         models.compactMap { model -> Date? in
-            ISO8601DateFormatter().date(from: model.resetTime)
+            parseISO8601Date(model.resetTime)
         }.min().map { date in
             ISO8601DateFormatter().string(from: date)
         } ?? ""
     }
-    
+
     var formattedResetTime: String {
         guard !resetTime.isEmpty,
-              let date = ISO8601DateFormatter().date(from: resetTime) else {
+              let date = parseISO8601Date(resetTime) else {
             return "—"
         }
-        
+
         let now = Date()
         let interval = date.timeIntervalSince(now)
-        
+
         if interval <= 0 {
             return "now"
         }
-        
+
         let totalMinutes = Int(interval / 60)
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
         let days = hours / 24
         let remainingHours = hours % 24
-        
+
         if days > 0 {
             if remainingHours > 0 {
                 return "\(days)d \(remainingHours)h"
@@ -105,6 +105,18 @@ nonisolated struct GroupedModelQuota: Identifiable, Sendable {
         } else {
             return "\(max(1, minutes))m"
         }
+    }
+
+    /// Parse ISO8601 date string, trying both with and without fractional seconds
+    private func parseISO8601Date(_ dateString: String) -> Date? {
+        let isoFormatterWithFractional = ISO8601DateFormatter()
+        isoFormatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let isoFormatterStandard = ISO8601DateFormatter()
+        isoFormatterStandard.formatOptions = [.withInternetDateTime]
+
+        return isoFormatterWithFractional.date(from: dateString)
+            ?? isoFormatterStandard.date(from: dateString)
     }
     
     var displayName: String { group.displayName }
@@ -210,26 +222,33 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
     }
     
     var formattedResetTime: String {
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        guard let date = isoFormatter.date(from: resetTime) else {
+        guard !resetTime.isEmpty else { return "—" }
+
+        // Try parsing with fractional seconds first, then standard format
+        let isoFormatterWithFractional = ISO8601DateFormatter()
+        isoFormatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let isoFormatterStandard = ISO8601DateFormatter()
+        isoFormatterStandard.formatOptions = [.withInternetDateTime]
+
+        guard let date = isoFormatterWithFractional.date(from: resetTime)
+              ?? isoFormatterStandard.date(from: resetTime) else {
             return "—"
         }
-        
+
         let now = Date()
         let interval = date.timeIntervalSince(now)
-        
+
         if interval <= 0 {
             return "now"
         }
-        
+
         let totalMinutes = Int(interval / 60)
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
         let days = hours / 24
         let remainingHours = hours % 24
-        
+
         if days > 0 {
             if remainingHours > 0 {
                 return "\(days)d \(remainingHours)h"
