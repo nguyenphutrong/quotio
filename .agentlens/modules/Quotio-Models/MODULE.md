@@ -16,11 +16,11 @@
 | `Quotio/Models/CustomProviderModels.swift` | 487 |  |
 | `Quotio/Models/FallbackModels.swift` | 164 |  |
 | `Quotio/Models/IDEScanSettings.swift` | 168 |  |
-| `Quotio/Models/MenuBarSettings.swift` | 572 | 📊 |
-| `Quotio/Models/Models.swift` | 602 | 📊 |
+| `Quotio/Models/MenuBarSettings.swift` | 617 | 📊 |
+| `Quotio/Models/Models.swift` | 607 | 📊 |
 | `Quotio/Models/OperatingMode.swift` | 370 |  |
 | `Quotio/Models/ProxyVersionModels.swift` | 201 |  |
-| `Quotio/Models/RequestLog.swift` | 379 |  |
+| `Quotio/Models/RequestLog.swift` | 433 |  |
 | `Quotio/Models/TunnelModels.swift` | 78 |  |
 | `Quotio/Models/WarmupSettings.swift` | 337 |  |
 

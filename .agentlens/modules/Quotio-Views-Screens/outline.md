@@ -2,7 +2,7 @@
 
 [← Back to MODULE](MODULE.md) | [← Back to INDEX](../../INDEX.md)
 
-Symbol maps for 5 large files in this module.
+Symbol maps for 6 large files in this module.
 
 ## Quotio/Views/Screens/DashboardScreen.swift (1014 lines)
 
@@ -30,35 +30,46 @@ Symbol maps for 5 large files in this module.
 | 356 | struct | VirtualModelRow | (internal) |
 | 474 | struct | FallbackEntryRow | (internal) |
 
-## Quotio/Views/Screens/ProvidersScreen.swift (973 lines)
+## Quotio/Views/Screens/LogsScreen.swift (541 lines)
+
+| Line | Kind | Name | Visibility |
+| ---- | ---- | ---- | ---------- |
+| 8 | struct | LogsScreen | (internal) |
+| 301 | struct | RequestRow | (internal) |
+| 475 | fn | attemptOutcomeLabel | (private) |
+| 486 | fn | attemptOutcomeColor | (private) |
+| 501 | struct | StatItem | (internal) |
+| 518 | struct | LogRow | (internal) |
+
+## Quotio/Views/Screens/ProvidersScreen.swift (975 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 16 | struct | ProvidersScreen | (internal) |
-| 375 | fn | handleAddProvider | (private) |
-| 393 | fn | deleteAccount | (private) |
-| 423 | fn | handleEditGlmAccount | (private) |
-| 431 | fn | handleEditWarpAccount | (private) |
-| 439 | fn | syncCustomProvidersToConfig | (private) |
-| 449 | struct | CustomProviderRow | (internal) |
-| 550 | struct | MenuBarBadge | (internal) |
-| 573 | class | TooltipWindow | (private) |
-| 585 | method | init | (private) |
-| 615 | fn | show | (internal) |
-| 644 | fn | hide | (internal) |
-| 650 | class | TooltipTrackingView | (private) |
-| 652 | fn | updateTrackingAreas | (internal) |
-| 663 | fn | mouseEntered | (internal) |
-| 667 | fn | mouseExited | (internal) |
-| 671 | fn | hitTest | (internal) |
-| 677 | struct | NativeTooltipView | (private) |
-| 679 | fn | makeNSView | (internal) |
-| 685 | fn | updateNSView | (internal) |
-| 691 | mod | extension View | (private) |
-| 692 | fn | nativeTooltip | (internal) |
-| 699 | struct | MenuBarHintView | (internal) |
-| 714 | struct | OAuthSheet | (internal) |
-| 840 | struct | OAuthStatusView | (private) |
+| 377 | fn | handleAddProvider | (private) |
+| 395 | fn | deleteAccount | (private) |
+| 425 | fn | handleEditGlmAccount | (private) |
+| 433 | fn | handleEditWarpAccount | (private) |
+| 441 | fn | syncCustomProvidersToConfig | (private) |
+| 451 | struct | CustomProviderRow | (internal) |
+| 552 | struct | MenuBarBadge | (internal) |
+| 575 | class | TooltipWindow | (private) |
+| 587 | method | init | (private) |
+| 617 | fn | show | (internal) |
+| 646 | fn | hide | (internal) |
+| 652 | class | TooltipTrackingView | (private) |
+| 654 | fn | updateTrackingAreas | (internal) |
+| 665 | fn | mouseEntered | (internal) |
+| 669 | fn | mouseExited | (internal) |
+| 673 | fn | hitTest | (internal) |
+| 679 | struct | NativeTooltipView | (private) |
+| 681 | fn | makeNSView | (internal) |
+| 687 | fn | updateNSView | (internal) |
+| 693 | mod | extension View | (private) |
+| 694 | fn | nativeTooltip | (internal) |
+| 701 | struct | MenuBarHintView | (internal) |
+| 716 | struct | OAuthSheet | (internal) |
+| 842 | struct | OAuthStatusView | (private) |
 
 ## Quotio/Views/Screens/QuotaScreen.swift (1599 lines)
 
@@ -94,7 +105,7 @@ Symbol maps for 5 large files in this module.
 | 1477 | struct | UsageRowV2 | (private) |
 | 1565 | struct | QuotaLoadingView | (private) |
 
-## Quotio/Views/Screens/SettingsScreen.swift (2876 lines)
+## Quotio/Views/Screens/SettingsScreen.swift (2935 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -140,22 +151,22 @@ Symbol maps for 5 large files in this module.
 | 1506 | struct | AvailableVersionRow | (private) |
 | 1592 | fn | formatDate | (private) |
 | 1610 | struct | MenuBarSettingsSection | (internal) |
-| 1692 | struct | AppearanceSettingsSection | (internal) |
-| 1721 | struct | PrivacySettingsSection | (internal) |
-| 1743 | struct | GeneralSettingsTab | (internal) |
-| 1782 | struct | AboutTab | (internal) |
-| 1809 | struct | AboutScreen | (internal) |
-| 2024 | struct | AboutUpdateSection | (internal) |
-| 2080 | struct | AboutProxyUpdateSection | (internal) |
-| 2216 | fn | checkForUpdate | (private) |
-| 2226 | fn | performUpgrade | (private) |
-| 2245 | struct | VersionBadge | (internal) |
-| 2297 | struct | AboutUpdateCard | (internal) |
-| 2388 | struct | AboutProxyUpdateCard | (internal) |
-| 2545 | fn | checkForUpdate | (private) |
-| 2555 | fn | performUpgrade | (private) |
-| 2574 | struct | LinkCard | (internal) |
-| 2661 | struct | ManagementKeyRow | (internal) |
-| 2755 | struct | LaunchAtLoginToggle | (internal) |
-| 2813 | struct | UsageDisplaySettingsSection | (internal) |
+| 1751 | struct | AppearanceSettingsSection | (internal) |
+| 1780 | struct | PrivacySettingsSection | (internal) |
+| 1802 | struct | GeneralSettingsTab | (internal) |
+| 1841 | struct | AboutTab | (internal) |
+| 1868 | struct | AboutScreen | (internal) |
+| 2083 | struct | AboutUpdateSection | (internal) |
+| 2139 | struct | AboutProxyUpdateSection | (internal) |
+| 2275 | fn | checkForUpdate | (private) |
+| 2285 | fn | performUpgrade | (private) |
+| 2304 | struct | VersionBadge | (internal) |
+| 2356 | struct | AboutUpdateCard | (internal) |
+| 2447 | struct | AboutProxyUpdateCard | (internal) |
+| 2604 | fn | checkForUpdate | (private) |
+| 2614 | fn | performUpgrade | (private) |
+| 2633 | struct | LinkCard | (internal) |
+| 2720 | struct | ManagementKeyRow | (internal) |
+| 2814 | struct | LaunchAtLoginToggle | (internal) |
+| 2872 | struct | UsageDisplaySettingsSection | (internal) |
 

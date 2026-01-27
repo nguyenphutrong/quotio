@@ -4,21 +4,39 @@
 
 Symbol maps for 3 large files in this module.
 
-## Quotio/Services/AgentConfigurationService.swift (696 lines)
+## Quotio/Services/AgentConfigurationService.swift (1385 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 8 | class | AgentConfigurationService | (internal) |
-| 10 | fn | generateConfiguration | (internal) |
-| 53 | fn | generateClaudeCodeConfig | (private) |
-| 174 | fn | generateCodexConfig | (private) |
-| 252 | fn | generateGeminiCLIConfig | (private) |
-| 295 | fn | generateAmpConfig | (private) |
-| 378 | fn | generateOpenCodeConfig | (private) |
-| 469 | fn | buildOpenCodeModelConfig | (private) |
-| 505 | fn | generateFactoryDroidConfig | (private) |
-| 575 | fn | fetchAvailableModels | (internal) |
-| 630 | fn | testConnection | (internal) |
+| 46 | fn | readConfiguration | (internal) |
+| 64 | fn | listBackups | (internal) |
+| 93 | fn | restoreFromBackup | (internal) |
+| 111 | fn | readClaudeCodeConfig | (private) |
+| 147 | fn | readCodexConfig | (private) |
+| 190 | fn | readGeminiCLIConfig | (private) |
+| 229 | fn | readAmpConfig | (private) |
+| 252 | fn | readOpenCodeConfig | (private) |
+| 289 | fn | readFactoryDroidConfig | (private) |
+| 326 | fn | extractTOMLValue | (private) |
+| 337 | fn | extractExportValue | (private) |
+| 349 | fn | generateConfiguration | (internal) |
+| 388 | fn | generateDefaultConfiguration | (private) |
+| 404 | fn | generateClaudeCodeDefaultConfig | (private) |
+| 489 | fn | generateCodexDefaultConfig | (private) |
+| 554 | fn | generateGeminiCLIDefaultConfig | (private) |
+| 582 | fn | generateAmpDefaultConfig | (private) |
+| 628 | fn | generateOpenCodeDefaultConfig | (private) |
+| 677 | fn | generateFactoryDroidDefaultConfig | (private) |
+| 742 | fn | generateClaudeCodeConfig | (private) |
+| 863 | fn | generateCodexConfig | (private) |
+| 941 | fn | generateGeminiCLIConfig | (private) |
+| 984 | fn | generateAmpConfig | (private) |
+| 1067 | fn | generateOpenCodeConfig | (private) |
+| 1158 | fn | buildOpenCodeModelConfig | (private) |
+| 1194 | fn | generateFactoryDroidConfig | (private) |
+| 1264 | fn | fetchAvailableModels | (internal) |
+| 1319 | fn | testConnection | (internal) |
 
 ## Quotio/Services/ManagementAPIClient.swift (718 lines)
 
@@ -82,7 +100,7 @@ Symbol maps for 3 large files in this module.
 | 694 | method | init | (internal) |
 | 708 | fn | encode | (internal) |
 
-## Quotio/Services/StatusBarMenuBuilder.swift (1365 lines)
+## Quotio/Services/StatusBarMenuBuilder.swift (1397 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -113,20 +131,21 @@ Symbol maps for 3 large files in this module.
 | 576 | fn | setCopied | (private) |
 | 587 | fn | copyButton | (private) |
 | 604 | struct | MenuAccountCardView | (private) |
-| 844 | fn | formatLocalTime | (private) |
-| 854 | struct | ModelBadgeData | (private) |
-| 884 | struct | AntigravityDisplayGroup | (private) |
-| 891 | fn | menuDisplayPercent | (private) |
-| 895 | fn | menuStatusColor | (private) |
-| 913 | struct | LowestBarLayout | (private) |
-| 993 | struct | RingGridLayout | (private) |
-| 1037 | struct | CardGridLayout | (private) |
-| 1086 | struct | ModernProgressBar | (private) |
-| 1121 | struct | PercentageBadge | (private) |
-| 1157 | struct | MenuModelDetailView | (private) |
-| 1209 | struct | MenuEmptyStateView | (private) |
-| 1224 | struct | MenuViewMoreAccountsView | (private) |
-| 1272 | mod | extension AIProvider | (private) |
-| 1293 | struct | MenuActionsView | (private) |
-| 1331 | struct | MenuBarActionButton | (private) |
+| 643 | fn | planConfig | (private) |
+| 875 | fn | formatLocalTime | (private) |
+| 885 | struct | ModelBadgeData | (private) |
+| 915 | struct | AntigravityDisplayGroup | (private) |
+| 922 | fn | menuDisplayPercent | (private) |
+| 926 | fn | menuStatusColor | (private) |
+| 944 | struct | LowestBarLayout | (private) |
+| 1024 | struct | RingGridLayout | (private) |
+| 1068 | struct | CardGridLayout | (private) |
+| 1117 | struct | ModernProgressBar | (private) |
+| 1152 | struct | PercentageBadge | (private) |
+| 1188 | struct | MenuModelDetailView | (private) |
+| 1240 | struct | MenuEmptyStateView | (private) |
+| 1255 | struct | MenuViewMoreAccountsView | (private) |
+| 1303 | mod | extension AIProvider | (private) |
+| 1325 | struct | MenuActionsView | (private) |
+| 1363 | struct | MenuBarActionButton | (private) |
 

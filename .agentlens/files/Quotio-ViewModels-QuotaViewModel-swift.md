@@ -4,9 +4,9 @@
 
 ## Overview
 
-- **Lines:** 1807
+- **Lines:** 1803
 - **Language:** Swift
-- **Symbols:** 86
+- **Symbols:** 87
 - **Public symbols:** 0
 
 ## Symbol Table
@@ -31,74 +31,75 @@
 | 298 | fn | loadDirectAuthFiles | (internal) | `func loadDirectAuthFiles() async` |
 | 304 | fn | refreshQuotasDirectly | (internal) | `func refreshQuotasDirectly() async` |
 | 330 | fn | autoSelectMenuBarItems | (private) | `private func autoSelectMenuBarItems()` |
-| 367 | fn | refreshClaudeCodeQuotasInternal | (private) | `private func refreshClaudeCodeQuotasInternal() ...` |
-| 388 | fn | refreshCursorQuotasInternal | (private) | `private func refreshCursorQuotasInternal() async` |
-| 399 | fn | refreshCodexCLIQuotasInternal | (private) | `private func refreshCodexCLIQuotasInternal() async` |
-| 419 | fn | refreshGeminiCLIQuotasInternal | (private) | `private func refreshGeminiCLIQuotasInternal() a...` |
-| 437 | fn | refreshGlmQuotasInternal | (private) | `private func refreshGlmQuotasInternal() async` |
-| 447 | fn | refreshWarpQuotasInternal | (private) | `private func refreshWarpQuotasInternal() async` |
-| 471 | fn | refreshTraeQuotasInternal | (private) | `private func refreshTraeQuotasInternal() async` |
-| 481 | fn | refreshKiroQuotasInternal | (private) | `private func refreshKiroQuotasInternal() async` |
-| 487 | fn | cleanName | (internal) | `func cleanName(_ name: String) -> String` |
-| 537 | fn | startQuotaOnlyAutoRefresh | (private) | `private func startQuotaOnlyAutoRefresh()` |
-| 555 | fn | startQuotaAutoRefreshWithoutProxy | (private) | `private func startQuotaAutoRefreshWithoutProxy()` |
-| 574 | fn | isWarmupEnabled | (internal) | `func isWarmupEnabled(for provider: AIProvider, ...` |
-| 578 | fn | warmupStatus | (internal) | `func warmupStatus(provider: AIProvider, account...` |
-| 583 | fn | warmupNextRunDate | (internal) | `func warmupNextRunDate(provider: AIProvider, ac...` |
-| 588 | fn | toggleWarmup | (internal) | `func toggleWarmup(for provider: AIProvider, acc...` |
-| 597 | fn | setWarmupEnabled | (internal) | `func setWarmupEnabled(_ enabled: Bool, provider...` |
-| 609 | fn | nextDailyRunDate | (private) | `private func nextDailyRunDate(minutes: Int, now...` |
-| 620 | fn | restartWarmupScheduler | (private) | `private func restartWarmupScheduler()` |
-| 653 | fn | runWarmupCycle | (private) | `private func runWarmupCycle() async` |
-| 716 | fn | warmupAccount | (private) | `private func warmupAccount(provider: AIProvider...` |
-| 761 | fn | warmupAccount | (private) | `private func warmupAccount(     provider: AIPro...` |
-| 822 | fn | fetchWarmupModels | (private) | `private func fetchWarmupModels(     provider: A...` |
-| 846 | fn | warmupAvailableModels | (internal) | `func warmupAvailableModels(provider: AIProvider...` |
-| 859 | fn | warmupAuthInfo | (private) | `private func warmupAuthInfo(provider: AIProvide...` |
-| 881 | fn | warmupTargets | (private) | `private func warmupTargets() -> [WarmupAccountKey]` |
-| 895 | fn | updateWarmupStatus | (private) | `private func updateWarmupStatus(for key: Warmup...` |
-| 924 | fn | startProxy | (internal) | `func startProxy() async` |
-| 951 | fn | stopProxy | (internal) | `func stopProxy()` |
-| 979 | fn | toggleProxy | (internal) | `func toggleProxy() async` |
-| 987 | fn | setupAPIClient | (private) | `private func setupAPIClient()` |
-| 994 | fn | startAutoRefresh | (private) | `private func startAutoRefresh()` |
-| 1031 | fn | attemptProxyRecovery | (private) | `private func attemptProxyRecovery() async` |
-| 1047 | fn | refreshData | (internal) | `func refreshData() async` |
-| 1090 | fn | manualRefresh | (internal) | `func manualRefresh() async` |
-| 1101 | fn | refreshAllQuotas | (internal) | `func refreshAllQuotas() async` |
-| 1130 | fn | refreshQuotasUnified | (internal) | `func refreshQuotasUnified() async` |
-| 1161 | fn | refreshAntigravityQuotasInternal | (private) | `private func refreshAntigravityQuotasInternal()...` |
-| 1181 | fn | refreshAntigravityQuotasWithoutDetect | (private) | `private func refreshAntigravityQuotasWithoutDet...` |
-| 1198 | fn | isAntigravityAccountActive | (internal) | `func isAntigravityAccountActive(email: String) ...` |
-| 1203 | fn | switchAntigravityAccount | (internal) | `func switchAntigravityAccount(email: String) async` |
-| 1215 | fn | beginAntigravitySwitch | (internal) | `func beginAntigravitySwitch(accountId: String, ...` |
-| 1220 | fn | cancelAntigravitySwitch | (internal) | `func cancelAntigravitySwitch()` |
-| 1225 | fn | dismissAntigravitySwitchResult | (internal) | `func dismissAntigravitySwitchResult()` |
-| 1228 | fn | refreshOpenAIQuotasInternal | (private) | `private func refreshOpenAIQuotasInternal() async` |
-| 1233 | fn | refreshCopilotQuotasInternal | (private) | `private func refreshCopilotQuotasInternal() async` |
-| 1238 | fn | refreshQuotaForProvider | (internal) | `func refreshQuotaForProvider(_ provider: AIProv...` |
-| 1271 | fn | refreshAutoDetectedProviders | (internal) | `func refreshAutoDetectedProviders() async` |
-| 1278 | fn | startOAuth | (internal) | `func startOAuth(for provider: AIProvider, proje...` |
-| 1320 | fn | startCopilotAuth | (private) | `private func startCopilotAuth() async` |
-| 1337 | fn | startKiroAuth | (private) | `private func startKiroAuth(method: AuthCommand)...` |
-| 1371 | fn | pollCopilotAuthCompletion | (private) | `private func pollCopilotAuthCompletion() async` |
-| 1388 | fn | pollKiroAuthCompletion | (private) | `private func pollKiroAuthCompletion() async` |
-| 1406 | fn | pollOAuthStatus | (private) | `private func pollOAuthStatus(state: String, pro...` |
-| 1434 | fn | cancelOAuth | (internal) | `func cancelOAuth()` |
-| 1438 | fn | deleteAuthFile | (internal) | `func deleteAuthFile(_ file: AuthFile) async` |
-| 1466 | fn | pruneMenuBarItems | (private) | `private func pruneMenuBarItems()` |
-| 1510 | fn | importVertexServiceAccount | (internal) | `func importVertexServiceAccount(url: URL) async` |
-| 1534 | fn | fetchAPIKeys | (internal) | `func fetchAPIKeys() async` |
-| 1544 | fn | addAPIKey | (internal) | `func addAPIKey(_ key: String) async` |
-| 1556 | fn | updateAPIKey | (internal) | `func updateAPIKey(old: String, new: String) async` |
-| 1568 | fn | deleteAPIKey | (internal) | `func deleteAPIKey(_ key: String) async` |
-| 1581 | fn | checkAccountStatusChanges | (private) | `private func checkAccountStatusChanges()` |
-| 1602 | fn | checkQuotaNotifications | (internal) | `func checkQuotaNotifications()` |
-| 1634 | fn | scanIDEsWithConsent | (internal) | `func scanIDEsWithConsent(options: IDEScanOption...` |
-| 1701 | fn | savePersistedIDEQuotas | (private) | `private func savePersistedIDEQuotas()` |
-| 1724 | fn | loadPersistedIDEQuotas | (private) | `private func loadPersistedIDEQuotas()` |
-| 1786 | fn | shortenAccountKey | (private) | `private func shortenAccountKey(_ key: String) -...` |
-| 1798 | struct | OAuthState | (internal) | `struct OAuthState` |
+| 364 | fn | syncMenuBarSelection | (internal) | `func syncMenuBarSelection()` |
+| 371 | fn | refreshClaudeCodeQuotasInternal | (private) | `private func refreshClaudeCodeQuotasInternal() ...` |
+| 392 | fn | refreshCursorQuotasInternal | (private) | `private func refreshCursorQuotasInternal() async` |
+| 403 | fn | refreshCodexCLIQuotasInternal | (private) | `private func refreshCodexCLIQuotasInternal() async` |
+| 423 | fn | refreshGeminiCLIQuotasInternal | (private) | `private func refreshGeminiCLIQuotasInternal() a...` |
+| 441 | fn | refreshGlmQuotasInternal | (private) | `private func refreshGlmQuotasInternal() async` |
+| 451 | fn | refreshWarpQuotasInternal | (private) | `private func refreshWarpQuotasInternal() async` |
+| 475 | fn | refreshTraeQuotasInternal | (private) | `private func refreshTraeQuotasInternal() async` |
+| 485 | fn | refreshKiroQuotasInternal | (private) | `private func refreshKiroQuotasInternal() async` |
+| 491 | fn | cleanName | (internal) | `func cleanName(_ name: String) -> String` |
+| 541 | fn | startQuotaOnlyAutoRefresh | (private) | `private func startQuotaOnlyAutoRefresh()` |
+| 559 | fn | startQuotaAutoRefreshWithoutProxy | (private) | `private func startQuotaAutoRefreshWithoutProxy()` |
+| 578 | fn | isWarmupEnabled | (internal) | `func isWarmupEnabled(for provider: AIProvider, ...` |
+| 582 | fn | warmupStatus | (internal) | `func warmupStatus(provider: AIProvider, account...` |
+| 587 | fn | warmupNextRunDate | (internal) | `func warmupNextRunDate(provider: AIProvider, ac...` |
+| 592 | fn | toggleWarmup | (internal) | `func toggleWarmup(for provider: AIProvider, acc...` |
+| 601 | fn | setWarmupEnabled | (internal) | `func setWarmupEnabled(_ enabled: Bool, provider...` |
+| 613 | fn | nextDailyRunDate | (private) | `private func nextDailyRunDate(minutes: Int, now...` |
+| 624 | fn | restartWarmupScheduler | (private) | `private func restartWarmupScheduler()` |
+| 657 | fn | runWarmupCycle | (private) | `private func runWarmupCycle() async` |
+| 720 | fn | warmupAccount | (private) | `private func warmupAccount(provider: AIProvider...` |
+| 765 | fn | warmupAccount | (private) | `private func warmupAccount(     provider: AIPro...` |
+| 826 | fn | fetchWarmupModels | (private) | `private func fetchWarmupModels(     provider: A...` |
+| 850 | fn | warmupAvailableModels | (internal) | `func warmupAvailableModels(provider: AIProvider...` |
+| 863 | fn | warmupAuthInfo | (private) | `private func warmupAuthInfo(provider: AIProvide...` |
+| 885 | fn | warmupTargets | (private) | `private func warmupTargets() -> [WarmupAccountKey]` |
+| 899 | fn | updateWarmupStatus | (private) | `private func updateWarmupStatus(for key: Warmup...` |
+| 928 | fn | startProxy | (internal) | `func startProxy() async` |
+| 955 | fn | stopProxy | (internal) | `func stopProxy()` |
+| 983 | fn | toggleProxy | (internal) | `func toggleProxy() async` |
+| 991 | fn | setupAPIClient | (private) | `private func setupAPIClient()` |
+| 998 | fn | startAutoRefresh | (private) | `private func startAutoRefresh()` |
+| 1035 | fn | attemptProxyRecovery | (private) | `private func attemptProxyRecovery() async` |
+| 1051 | fn | refreshData | (internal) | `func refreshData() async` |
+| 1094 | fn | manualRefresh | (internal) | `func manualRefresh() async` |
+| 1105 | fn | refreshAllQuotas | (internal) | `func refreshAllQuotas() async` |
+| 1134 | fn | refreshQuotasUnified | (internal) | `func refreshQuotasUnified() async` |
+| 1165 | fn | refreshAntigravityQuotasInternal | (private) | `private func refreshAntigravityQuotasInternal()...` |
+| 1185 | fn | refreshAntigravityQuotasWithoutDetect | (private) | `private func refreshAntigravityQuotasWithoutDet...` |
+| 1202 | fn | isAntigravityAccountActive | (internal) | `func isAntigravityAccountActive(email: String) ...` |
+| 1207 | fn | switchAntigravityAccount | (internal) | `func switchAntigravityAccount(email: String) async` |
+| 1219 | fn | beginAntigravitySwitch | (internal) | `func beginAntigravitySwitch(accountId: String, ...` |
+| 1224 | fn | cancelAntigravitySwitch | (internal) | `func cancelAntigravitySwitch()` |
+| 1229 | fn | dismissAntigravitySwitchResult | (internal) | `func dismissAntigravitySwitchResult()` |
+| 1232 | fn | refreshOpenAIQuotasInternal | (private) | `private func refreshOpenAIQuotasInternal() async` |
+| 1237 | fn | refreshCopilotQuotasInternal | (private) | `private func refreshCopilotQuotasInternal() async` |
+| 1242 | fn | refreshQuotaForProvider | (internal) | `func refreshQuotaForProvider(_ provider: AIProv...` |
+| 1275 | fn | refreshAutoDetectedProviders | (internal) | `func refreshAutoDetectedProviders() async` |
+| 1282 | fn | startOAuth | (internal) | `func startOAuth(for provider: AIProvider, proje...` |
+| 1324 | fn | startCopilotAuth | (private) | `private func startCopilotAuth() async` |
+| 1341 | fn | startKiroAuth | (private) | `private func startKiroAuth(method: AuthCommand)...` |
+| 1375 | fn | pollCopilotAuthCompletion | (private) | `private func pollCopilotAuthCompletion() async` |
+| 1392 | fn | pollKiroAuthCompletion | (private) | `private func pollKiroAuthCompletion() async` |
+| 1410 | fn | pollOAuthStatus | (private) | `private func pollOAuthStatus(state: String, pro...` |
+| 1438 | fn | cancelOAuth | (internal) | `func cancelOAuth()` |
+| 1442 | fn | deleteAuthFile | (internal) | `func deleteAuthFile(_ file: AuthFile) async` |
+| 1470 | fn | pruneMenuBarItems | (private) | `private func pruneMenuBarItems()` |
+| 1506 | fn | importVertexServiceAccount | (internal) | `func importVertexServiceAccount(url: URL) async` |
+| 1530 | fn | fetchAPIKeys | (internal) | `func fetchAPIKeys() async` |
+| 1540 | fn | addAPIKey | (internal) | `func addAPIKey(_ key: String) async` |
+| 1552 | fn | updateAPIKey | (internal) | `func updateAPIKey(old: String, new: String) async` |
+| 1564 | fn | deleteAPIKey | (internal) | `func deleteAPIKey(_ key: String) async` |
+| 1577 | fn | checkAccountStatusChanges | (private) | `private func checkAccountStatusChanges()` |
+| 1598 | fn | checkQuotaNotifications | (internal) | `func checkQuotaNotifications()` |
+| 1630 | fn | scanIDEsWithConsent | (internal) | `func scanIDEsWithConsent(options: IDEScanOption...` |
+| 1697 | fn | savePersistedIDEQuotas | (private) | `private func savePersistedIDEQuotas()` |
+| 1720 | fn | loadPersistedIDEQuotas | (private) | `private func loadPersistedIDEQuotas()` |
+| 1782 | fn | shortenAccountKey | (private) | `private func shortenAccountKey(_ key: String) -...` |
+| 1794 | struct | OAuthState | (internal) | `struct OAuthState` |
 
 ## Memory Markers
 
@@ -110,19 +111,19 @@
 
 > Cursor and Trae removed from auto-refresh to address privacy concerns (issue #29)
 
-### 🟢 `NOTE` (line 1108)
+### 🟢 `NOTE` (line 1112)
 
 > Cursor and Trae removed from auto-refresh (issue #29)
 
-### 🟢 `NOTE` (line 1129)
+### 🟢 `NOTE` (line 1133)
 
 > Cursor and Trae require explicit user scan (issue #29)
 
-### 🟢 `NOTE` (line 1138)
+### 🟢 `NOTE` (line 1142)
 
 > Cursor and Trae removed - require explicit scan (issue #29)
 
-### 🟢 `NOTE` (line 1191)
+### 🟢 `NOTE` (line 1195)
 
 > Don't call detectActiveAccount() here - already set by switch operation
 

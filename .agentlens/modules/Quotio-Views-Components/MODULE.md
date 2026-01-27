@@ -8,7 +8,7 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `Quotio/Views/Components/AccountRow.swift` | 376 |  |
+| `Quotio/Views/Components/AccountRow.swift` | 393 |  |
 | `Quotio/Views/Components/AccountsEmptyState.swift` | 80 |  |
 | `Quotio/Views/Components/AddProviderPopover.swift` | 158 |  |
 | `Quotio/Views/Components/AgentCard.swift` | 147 |  |
