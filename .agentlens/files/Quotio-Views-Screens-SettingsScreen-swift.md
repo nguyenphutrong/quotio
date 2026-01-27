@@ -4,7 +4,7 @@
 
 ## Overview
 
-- **Lines:** 2876
+- **Lines:** 2935
 - **Language:** Swift
 - **Symbols:** 60
 - **Public symbols:** 0
@@ -55,22 +55,22 @@
 | 1506 | struct | AvailableVersionRow | (private) | `struct AvailableVersionRow` |
 | 1592 | fn | formatDate | (private) | `private func formatDate(_ isoString: String) ->...` |
 | 1610 | struct | MenuBarSettingsSection | (internal) | `struct MenuBarSettingsSection` |
-| 1692 | struct | AppearanceSettingsSection | (internal) | `struct AppearanceSettingsSection` |
-| 1721 | struct | PrivacySettingsSection | (internal) | `struct PrivacySettingsSection` |
-| 1743 | struct | GeneralSettingsTab | (internal) | `struct GeneralSettingsTab` |
-| 1782 | struct | AboutTab | (internal) | `struct AboutTab` |
-| 1809 | struct | AboutScreen | (internal) | `struct AboutScreen` |
-| 2024 | struct | AboutUpdateSection | (internal) | `struct AboutUpdateSection` |
-| 2080 | struct | AboutProxyUpdateSection | (internal) | `struct AboutProxyUpdateSection` |
-| 2216 | fn | checkForUpdate | (private) | `private func checkForUpdate()` |
-| 2226 | fn | performUpgrade | (private) | `private func performUpgrade(to version: ProxyVe...` |
-| 2245 | struct | VersionBadge | (internal) | `struct VersionBadge` |
-| 2297 | struct | AboutUpdateCard | (internal) | `struct AboutUpdateCard` |
-| 2388 | struct | AboutProxyUpdateCard | (internal) | `struct AboutProxyUpdateCard` |
-| 2545 | fn | checkForUpdate | (private) | `private func checkForUpdate()` |
-| 2555 | fn | performUpgrade | (private) | `private func performUpgrade(to version: ProxyVe...` |
-| 2574 | struct | LinkCard | (internal) | `struct LinkCard` |
-| 2661 | struct | ManagementKeyRow | (internal) | `struct ManagementKeyRow` |
-| 2755 | struct | LaunchAtLoginToggle | (internal) | `struct LaunchAtLoginToggle` |
-| 2813 | struct | UsageDisplaySettingsSection | (internal) | `struct UsageDisplaySettingsSection` |
+| 1751 | struct | AppearanceSettingsSection | (internal) | `struct AppearanceSettingsSection` |
+| 1780 | struct | PrivacySettingsSection | (internal) | `struct PrivacySettingsSection` |
+| 1802 | struct | GeneralSettingsTab | (internal) | `struct GeneralSettingsTab` |
+| 1841 | struct | AboutTab | (internal) | `struct AboutTab` |
+| 1868 | struct | AboutScreen | (internal) | `struct AboutScreen` |
+| 2083 | struct | AboutUpdateSection | (internal) | `struct AboutUpdateSection` |
+| 2139 | struct | AboutProxyUpdateSection | (internal) | `struct AboutProxyUpdateSection` |
+| 2275 | fn | checkForUpdate | (private) | `private func checkForUpdate()` |
+| 2285 | fn | performUpgrade | (private) | `private func performUpgrade(to version: ProxyVe...` |
+| 2304 | struct | VersionBadge | (internal) | `struct VersionBadge` |
+| 2356 | struct | AboutUpdateCard | (internal) | `struct AboutUpdateCard` |
+| 2447 | struct | AboutProxyUpdateCard | (internal) | `struct AboutProxyUpdateCard` |
+| 2604 | fn | checkForUpdate | (private) | `private func checkForUpdate()` |
+| 2614 | fn | performUpgrade | (private) | `private func performUpgrade(to version: ProxyVe...` |
+| 2633 | struct | LinkCard | (internal) | `struct LinkCard` |
+| 2720 | struct | ManagementKeyRow | (internal) | `struct ManagementKeyRow` |
+| 2814 | struct | LaunchAtLoginToggle | (internal) | `struct LaunchAtLoginToggle` |
+| 2872 | struct | UsageDisplaySettingsSection | (internal) | `struct UsageDisplaySettingsSection` |
 

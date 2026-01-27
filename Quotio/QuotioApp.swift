@@ -10,66 +10,72 @@ import ServiceManagement
 import Sparkle
 #endif
 
-@main
-struct QuotioApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var viewModel = QuotaViewModel()
-    @State private var logsViewModel = LogsViewModel()
-    @State private var menuBarSettings = MenuBarSettingsManager.shared
-    @State private var statusBarManager = StatusBarManager.shared
-    @State private var modeManager = OperatingModeManager.shared
-    @State private var appearanceManager = AppearanceManager.shared
-    @State private var languageManager = LanguageManager.shared
-    @State private var showOnboarding = false
-    @State private var hasInitialized = false  // Track initialization state
-    @AppStorage("autoStartProxy") private var autoStartProxy = false
-    @Environment(\.openWindow) private var openWindow
-    
-    private var quotaItems: [MenuBarQuotaDisplayItem] {
-        guard menuBarSettings.showQuotaInMenuBar else { return [] }
-        
-        // Show quota in menu bar regardless of proxy status
-        // Quota fetching works independently via CLI/cookies/auth files
-        
-        var items: [MenuBarQuotaDisplayItem] = []
-        
-        for selectedItem in menuBarSettings.selectedItems {
-            guard let provider = selectedItem.aiProvider else { continue }
-            
-            var displayPercent: Double = -1
-            
-            if let accountQuotas = viewModel.providerQuotas[provider] {
-                
-                // Robust key lookup: Try exact match first, then clean key (no .json)
-                var quotaData = accountQuotas[selectedItem.accountKey]
-                if quotaData == nil {
-                    let cleanKey = selectedItem.accountKey.replacingOccurrences(of: ".json", with: "")
-                    quotaData = accountQuotas[cleanKey]
-                }
-                
-                if let quotaData = quotaData, !quotaData.models.isEmpty {
-                    let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
-                    displayPercent = menuBarSettings.totalUsagePercent(models: models)
-                }
-            }
-            
-            items.append(MenuBarQuotaDisplayItem(
-                id: selectedItem.id,
-                providerSymbol: provider.menuBarSymbol,
-                accountShort: selectedItem.accountKey,
-                percentage: displayPercent,
-                provider: provider
-            ))
+// MARK: - App Bootstrap (Singleton for headless initialization)
+
+/// Manages app-wide initialization that must happen regardless of window visibility.
+/// This ensures the app works correctly when launched at login without opening a window.
+@MainActor
+final class AppBootstrap {
+    static let shared = AppBootstrap()
+
+    let viewModel = QuotaViewModel()
+    let logsViewModel = LogsViewModel()
+
+    private(set) var hasInitialized = false
+    private(set) var needsOnboarding = false
+
+    private let modeManager = OperatingModeManager.shared
+    private let appearanceManager = AppearanceManager.shared
+    private let statusBarManager = StatusBarManager.shared
+    private let menuBarSettings = MenuBarSettingsManager.shared
+
+    private init() {}
+
+    /// Initialize core app services. Safe to call multiple times - only runs once.
+    /// Called from AppDelegate.applicationDidFinishLaunching for headless launch support.
+    func initializeIfNeeded() async {
+        guard !hasInitialized else { return }
+        hasInitialized = true
+
+        appearanceManager.applyAppearance()
+
+        // Check if onboarding is needed - if so, defer full initialization until after onboarding
+        if !modeManager.hasCompletedOnboarding {
+            needsOnboarding = true
+            return
         }
-        
-        return items
+
+        await performFullInitialization()
     }
-    
-    private func updateStatusBar() {
+
+    /// Called after onboarding completes to finish initialization
+    func completeOnboarding() async {
+        needsOnboarding = false
+        await performFullInitialization()
+    }
+
+    private func performFullInitialization() async {
+        // Scan auth files immediately (fast filesystem scan)
+        // This allows menu bar to show providers before quota API calls complete
+        await viewModel.loadDirectAuthFiles()
+
+        // Setup menu bar immediately so user can open it while data loads
+        statusBarManager.setViewModel(viewModel)
+        updateStatusBar()
+
+        // Load data in background (includes proxy auto-start if enabled)
+        await viewModel.initialize()
+
+        #if canImport(Sparkle)
+        UpdaterService.shared.checkForUpdatesInBackground()
+        #endif
+    }
+
+    func updateStatusBar() {
         // Menu bar should show quota data regardless of proxy status
         // The quota is fetched directly and doesn't need proxy
         let hasQuotaData = !viewModel.providerQuotas.isEmpty
-        
+
         statusBarManager.updateStatusBar(
             items: quotaItems,
             colorMode: menuBarSettings.colorMode,
@@ -78,31 +84,61 @@ struct QuotioApp: App {
             showQuota: menuBarSettings.showQuotaInMenuBar
         )
     }
-    
-    private func initializeApp() async {
-        appearanceManager.applyAppearance()
-        
-        if !modeManager.hasCompletedOnboarding {
-            showOnboarding = true
-            return
+
+    private var quotaItems: [MenuBarQuotaDisplayItem] {
+        guard menuBarSettings.showQuotaInMenuBar else { return [] }
+
+        var items: [MenuBarQuotaDisplayItem] = []
+
+        for selectedItem in menuBarSettings.selectedItems {
+            guard let provider = selectedItem.aiProvider else { continue }
+
+            var displayPercent: Double = -1
+
+            if let accountQuotas = viewModel.providerQuotas[provider] {
+                // Robust key lookup: Try exact match first, then clean key (no .json)
+                var quotaData = accountQuotas[selectedItem.accountKey]
+                if quotaData == nil {
+                    let cleanKey = selectedItem.accountKey.replacingOccurrences(of: ".json", with: "")
+                    quotaData = accountQuotas[cleanKey]
+                }
+
+                if let quotaData = quotaData, !quotaData.models.isEmpty {
+                    let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
+                    displayPercent = menuBarSettings.totalUsagePercent(models: models)
+                }
+            }
+
+            items.append(MenuBarQuotaDisplayItem(
+                id: selectedItem.id,
+                providerSymbol: provider.menuBarSymbol,
+                accountShort: selectedItem.accountKey,
+                percentage: displayPercent,
+                provider: provider
+            ))
         }
-        
-        // Scan auth files immediately (fast filesystem scan)
-        // This allows menu bar to show providers before quota API calls complete
-        await viewModel.loadDirectAuthFiles()
-        
-        // Setup menu bar immediately so user can open it while data loads
-        statusBarManager.setViewModel(viewModel)
-        updateStatusBar()
-        
-        // Load data in background
-        await viewModel.initialize()
-        
-        #if canImport(Sparkle)
-        UpdaterService.shared.checkForUpdatesInBackground()
-        #endif
+
+        return items
     }
-    
+}
+
+@main
+struct QuotioApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    // Use shared bootstrap instance for viewModel
+    private var bootstrap: AppBootstrap { AppBootstrap.shared }
+    @State private var logsViewModel = LogsViewModel()
+    @State private var menuBarSettings = MenuBarSettingsManager.shared
+    @State private var statusBarManager = StatusBarManager.shared
+    @State private var modeManager = OperatingModeManager.shared
+    @State private var appearanceManager = AppearanceManager.shared
+    @State private var languageManager = LanguageManager.shared
+    @State private var showOnboarding = false
+    @Environment(\.openWindow) private var openWindow
+
+    private var viewModel: QuotaViewModel { bootstrap.viewModel }
+
+
     var body: some Scene {
         Window("Quotio", id: "main") {
             ContentView()
@@ -111,16 +147,20 @@ struct QuotioApp: App {
                 .environment(logsViewModel)
                 .environment(\.locale, languageManager.locale)
                 .task {
-                    // Only initialize once, not every time the window appears
-                    guard !hasInitialized else { return }
-                    hasInitialized = true
-                    await initializeApp()
+                    // Initialize via bootstrap (idempotent - safe to call multiple times)
+                    // This handles the case where window opens before AppDelegate finishes
+                    await bootstrap.initializeIfNeeded()
+
+                    // Show onboarding if needed
+                    if bootstrap.needsOnboarding {
+                        showOnboarding = true
+                    }
                 }
                 .onChange(of: viewModel.proxyManager.proxyStatus.running) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                 }
                 .onChange(of: viewModel.isLoadingQuotas) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                     // Rebuild menu when loading state changes so loader updates
                     statusBarManager.rebuildMenuInPlace()
                 }
@@ -129,41 +169,40 @@ struct QuotioApp: App {
                     statusBarManager.rebuildMenuInPlace()
                 }
                 .onChange(of: menuBarSettings.showQuotaInMenuBar) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                 }
                 .onChange(of: menuBarSettings.showMenuBarIcon) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                 }
                 .onChange(of: menuBarSettings.selectedItems) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                 }
                 .onChange(of: menuBarSettings.colorMode) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                 }
                 .onChange(of: menuBarSettings.totalUsageMode) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                     statusBarManager.rebuildMenuInPlace()
                 }
                 .onChange(of: menuBarSettings.modelAggregationMode) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                     statusBarManager.rebuildMenuInPlace()
                 }
                 .onChange(of: modeManager.currentMode) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                 }
                 .onChange(of: viewModel.providerQuotas.count) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                     statusBarManager.rebuildMenuInPlace()
                 }
                 .onChange(of: viewModel.directAuthFiles.count) {
-                    updateStatusBar()
+                    bootstrap.updateStatusBar()
                     statusBarManager.rebuildMenuInPlace()
                 }
                 .sheet(isPresented: $showOnboarding) {
                     OnboardingFlow {
                         Task {
-                            hasInitialized = true
-                            await initializeApp()
+                            await bootstrap.completeOnboarding()
                         }
                     }
                 }
@@ -171,7 +210,7 @@ struct QuotioApp: App {
         .defaultSize(width: 1000, height: 700)
         .commands {
             CommandGroup(replacing: .newItem) { }
-            
+
             #if canImport(Sparkle)
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {
@@ -187,24 +226,34 @@ struct QuotioApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private nonisolated(unsafe) var windowWillCloseObserver: NSObjectProtocol?
     private nonisolated(unsafe) var windowDidBecomeKeyObserver: NSObjectProtocol?
-    
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Move orphan cleanup off main thread to avoid blocking app launch
         DispatchQueue.global(qos: .utility).async {
             TunnelManager.cleanupOrphans()
         }
-        
+
         UserDefaults.standard.register(defaults: [
             "useBridgeMode": true,
             "showInDock": true,
             "totalUsageMode": TotalUsageMode.sessionOnly.rawValue,
             "modelAggregationMode": ModelAggregationMode.lowest.rawValue
         ])
-        
+
         // Apply initial dock visibility based on saved preference
         let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
         NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
-        
+
+        // CRITICAL: Initialize app services immediately on launch.
+        // This ensures proxy auto-start works even when launched at login
+        // without opening a window (e.g., when showInDock=false).
+        // The bootstrap.initializeIfNeeded() is idempotent and safe to call
+        // multiple times - the window's .task will also call it but it's a no-op
+        // if already initialized.
+        Task { @MainActor in
+            await AppBootstrap.shared.initializeIfNeeded()
+        }
+
         windowWillCloseObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: nil,

@@ -20,11 +20,10 @@ nonisolated struct FallbackFormatConverter {
         return ["claude", "opus", "haiku", "sonnet"].contains { lower.contains($0) }
     }
 
-    /// Check if response indicates an error that should trigger fallback
-    /// Includes quota exhaustion, rate limits, format errors, and server errors
-    static func shouldTriggerFallback(responseData: Data) -> Bool {
+    /// Determine the reason a response should trigger fallback.
+    static func fallbackReason(responseData: Data) -> FallbackTriggerReason? {
         guard let responseString = String(data: responseData.prefix(4096), encoding: .utf8) else {
-            return false
+            return nil
         }
 
         // Check HTTP status code
@@ -33,9 +32,9 @@ nonisolated struct FallbackFormatConverter {
             if parts.count >= 2, let code = Int(parts[1]) {
                 switch code {
                 case 429, 503, 500, 400, 401, 403, 422:
-                    return true
+                    return .httpStatus(code)
                 case 200..<300:
-                    return false
+                    return nil
                 default:
                     break
                 }
@@ -54,10 +53,57 @@ nonisolated struct FallbackFormatConverter {
 
         for pattern in errorPatterns {
             if lowercased.contains(pattern) {
-                return true
+                return .pattern(pattern)
             }
         }
 
-        return false
+        return nil
+    }
+
+    /// Check if response indicates an error that should trigger fallback
+    /// Includes quota exhaustion, rate limits, format errors, and server errors
+    static func shouldTriggerFallback(responseData: Data) -> Bool {
+        fallbackReason(responseData: responseData) != nil
+    }
+
+    static func isThinkingSignatureError(responseData: Data) -> Bool {
+        guard let responseString = String(data: responseData.prefix(4096), encoding: .utf8) else {
+            return false
+        }
+
+        let errorMessage = extractErrorMessage(from: responseString)
+        let message = errorMessage.lowercased()
+
+        let isSignatureError = message.contains("signature") && message.contains("thinking")
+        let isMustMatchError = message.contains("thinking") &&
+            (message.contains("must match") || message.contains("parameters during the original request"))
+
+        return isSignatureError || isMustMatchError
+    }
+
+    private static func extractErrorMessage(from response: String) -> String {
+        guard let bodyStart = response.range(of: "\r\n\r\n") else {
+            return response
+        }
+
+        let body = String(response[bodyStart.upperBound...])
+
+        guard let bodyData = body.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] else {
+            return body
+        }
+
+        if let error = json["error"] as? [String: Any] {
+            if let message = error["message"] as? String {
+                return message
+            }
+            if let upstreamError = error["upstream_error"] as? [String: Any],
+               let innerError = upstreamError["error"] as? [String: Any],
+               let message = innerError["message"] as? String {
+                return message
+            }
+        }
+
+        return body
     }
 }

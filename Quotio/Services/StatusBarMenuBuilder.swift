@@ -874,7 +874,16 @@ private struct MenuAccountCardView: View {
     }
     
     private func formatLocalTime(_ isoString: String) -> String {
-        guard let date = ISO8601DateFormatter().date(from: isoString) else { return "" }
+        // Try parsing with fractional seconds first, then standard format
+        let isoFormatterWithFractional = ISO8601DateFormatter()
+        isoFormatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let isoFormatterStandard = ISO8601DateFormatter()
+        isoFormatterStandard.formatOptions = [.withInternetDateTime]
+
+        guard let date = isoFormatterWithFractional.date(from: isoString)
+              ?? isoFormatterStandard.date(from: isoString) else { return "" }
+
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
@@ -890,8 +899,17 @@ private struct ModelBadgeData: Identifiable {
     var id: String { name }
 
     var formattedResetTime: String? {
-        guard let resetTime = resetTime,
-              let date = ISO8601DateFormatter().date(from: resetTime) else { return nil }
+        guard let resetTime = resetTime else { return nil }
+
+        // Try parsing with fractional seconds first, then standard format
+        let isoFormatterWithFractional = ISO8601DateFormatter()
+        isoFormatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let isoFormatterStandard = ISO8601DateFormatter()
+        isoFormatterStandard.formatOptions = [.withInternetDateTime]
+
+        guard let date = isoFormatterWithFractional.date(from: resetTime)
+              ?? isoFormatterStandard.date(from: resetTime) else { return nil }
 
         let now = Date()
         let diff = date.timeIntervalSince(now)

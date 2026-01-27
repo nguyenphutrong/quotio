@@ -49,6 +49,17 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
         }
         return filename
     }
+
+    /// Stable key for menu bar selection and quota lookup
+    var menuBarAccountKey: String {
+        if provider == .kiro {
+            return filename.replacingOccurrences(of: ".json", with: "")
+        }
+        if let email = email, !email.isEmpty {
+            return email
+        }
+        return filename
+    }
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -473,4 +484,3 @@ struct AuthTokenData: Sendable {
         return false
     }
 }
-

@@ -293,6 +293,9 @@ nonisolated struct CodexAuthFile: Codable, Sendable {
     let idToken: String?
     let refreshToken: String?
     let type: String?
+    // Fields preserved during token refresh (used by CLIProxyAPI)
+    var prefix: String?
+    var proxyUrl: String?
     
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
@@ -302,6 +305,8 @@ nonisolated struct CodexAuthFile: Codable, Sendable {
         case idToken = "id_token"
         case refreshToken = "refresh_token"
         case type
+        case prefix
+        case proxyUrl = "proxy_url"
     }
     
     nonisolated var isExpired: Bool {

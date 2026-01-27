@@ -19,11 +19,11 @@
 
 > Only checks file existence (metadata), does NOT read file content
 
-### `NOTE` (Quotio/Services/AgentDetectionService.swift:91)
+### `NOTE` (Quotio/Services/AgentDetectionService.swift:92)
 
 > May not work in GUI apps due to limited PATH inheritance
 
-### `NOTE` (Quotio/Services/AgentDetectionService.swift:97)
+### `NOTE` (Quotio/Services/AgentDetectionService.swift:98)
 
 > Only checks file existence (metadata), does NOT read file content
 

@@ -1608,8 +1608,11 @@ private struct AvailableVersionRow: View {
 // MARK: - Menu Bar Settings Section
 
 struct MenuBarSettingsSection: View {
+    @Environment(QuotaViewModel.self) private var viewModel
     private let settings = MenuBarSettingsManager.shared
     @AppStorage("showInDock") private var showInDock = true
+    @State private var showTruncationAlert = false
+    @State private var pendingMaxItems: Int?
     
     private var showMenuBarIconBinding: Binding<Bool> {
         Binding(
@@ -1661,6 +1664,24 @@ struct MenuBarSettingsSection: View {
         )
     }
     
+    private var maxItemsBinding: Binding<Int> {
+        Binding(
+            get: { settings.menuBarMaxItems },
+            set: { newValue in
+                let clamped = min(max(newValue, MenuBarSettingsManager.minMenuBarItems), MenuBarSettingsManager.maxMenuBarItems)
+
+                // Check if reducing max items would truncate current selection
+                if clamped < settings.menuBarMaxItems && settings.selectedItems.count > clamped {
+                    pendingMaxItems = clamped
+                    showTruncationAlert = true
+                } else {
+                    settings.menuBarMaxItems = clamped
+                    viewModel.syncMenuBarSelection()
+                }
+            }
+        )
+    }
+    
     var body: some View {
         Section {
             Toggle("settings.showInDock".localized(), isOn: showInDockBinding)
@@ -1671,6 +1692,21 @@ struct MenuBarSettingsSection: View {
                 Toggle("settings.menubar.showQuota".localized(), isOn: showQuotaBinding)
                 
                 if settings.showQuotaInMenuBar {
+                    HStack {
+                        Text("settings.menubar.maxItems".localized())
+                        Spacer()
+                        Text("\(settings.menuBarMaxItems)")
+                            .monospacedDigit()
+                            .foregroundStyle(.primary)
+                        Stepper(
+                            "",
+                            value: maxItemsBinding,
+                            in: MenuBarSettingsManager.minMenuBarItems...MenuBarSettingsManager.maxMenuBarItems,
+                            step: 1
+                        )
+                        .labelsHidden()
+                    }
+                    
                     Picker("settings.menubar.colorMode".localized(), selection: colorModeBinding) {
                         Text("settings.menubar.colored".localized()).tag(MenuBarColorMode.colored)
                         Text("settings.menubar.monochrome".localized()).tag(MenuBarColorMode.monochrome)
@@ -1681,8 +1717,31 @@ struct MenuBarSettingsSection: View {
         } header: {
             Label("settings.menubar".localized(), systemImage: "menubar.rectangle")
         } footer: {
-            Text("settings.menubar.help".localized())
-                .font(.caption)
+            Text(String(
+                format: "settings.menubar.help".localized(),
+                settings.menuBarMaxItems
+            ))
+            .font(.caption)
+        }
+        .alert("menubar.truncation.title".localized(), isPresented: $showTruncationAlert) {
+            Button("action.cancel".localized(), role: .cancel) {
+                pendingMaxItems = nil
+            }
+            Button("action.ok".localized(), role: .destructive) {
+                if let newMax = pendingMaxItems {
+                    settings.menuBarMaxItems = newMax
+                    viewModel.syncMenuBarSelection()
+                    pendingMaxItems = nil
+                }
+            }
+        } message: {
+            if let newMax = pendingMaxItems {
+                Text(String(
+                    format: "menubar.truncation.message".localized(),
+                    settings.selectedItems.count,
+                    newMax
+                ))
+            }
         }
     }
 }

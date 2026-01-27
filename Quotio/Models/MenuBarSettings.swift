@@ -428,20 +428,33 @@ final class MenuBarSettingsManager {
     private let colorModeKey = "menuBarColorMode"
     private let showMenuBarIconKey = "showMenuBarIcon"
     private let showQuotaKey = "menuBarShowQuota"
+    private let menuBarMaxItemsKey = "menuBarMaxItems"
     private let quotaDisplayModeKey = "quotaDisplayMode"
     private let quotaDisplayStyleKey = "quotaDisplayStyle"
     private let hideSensitiveInfoKey = "hideSensitiveInfo"
     private let totalUsageModeKey = "totalUsageMode"
     private let modelAggregationModeKey = "modelAggregationMode"
-    
+
+    static let minMenuBarItems = 1
+    static let maxMenuBarItems = 10
+    static let defaultMenuBarMaxItems = 3
+
     /// Whether to show menu bar icon at all
     var showMenuBarIcon: Bool {
         didSet { defaults.set(showMenuBarIcon, forKey: showMenuBarIconKey) }
     }
-    
+
     /// Whether to show quota in menu bar (only effective when showMenuBarIcon is true)
     var showQuotaInMenuBar: Bool {
         didSet { defaults.set(showQuotaInMenuBar, forKey: showQuotaKey) }
+    }
+
+    /// Maximum number of items to display in menu bar
+    var menuBarMaxItems: Int {
+        didSet {
+            defaults.set(menuBarMaxItems, forKey: menuBarMaxItemsKey)
+            enforceMaxItems()
+        }
     }
     
     /// Selected items to display
@@ -478,13 +491,17 @@ final class MenuBarSettingsManager {
     var modelAggregationMode: ModelAggregationMode {
         didSet { defaults.set(modelAggregationMode.rawValue, forKey: modelAggregationModeKey) }
     }
-    
-    /// Threshold for warning when adding more items
-    let warningThreshold = 3
-    
+
     /// Check if adding another item would exceed the warning threshold
+    /// Warning shows when approaching the limit (at maxItems - 1)
     var shouldWarnOnAdd: Bool {
-        selectedItems.count >= warningThreshold
+        let threshold = max(menuBarMaxItems - 1, 1)
+        return selectedItems.count >= threshold && selectedItems.count < menuBarMaxItems
+    }
+
+    /// Check if selection has reached the maximum items
+    var isAtMaxItems: Bool {
+        selectedItems.count >= menuBarMaxItems
     }
     
     private init() {
@@ -500,13 +517,28 @@ final class MenuBarSettingsManager {
         }
         self.showQuotaInMenuBar = defaults.bool(forKey: showQuotaKey)
         
+        if defaults.object(forKey: menuBarMaxItemsKey) == nil {
+            defaults.set(Self.defaultMenuBarMaxItems, forKey: menuBarMaxItemsKey)
+        }
+
         self.colorMode = MenuBarColorMode(rawValue: defaults.string(forKey: colorModeKey) ?? "") ?? .colored
         self.quotaDisplayMode = QuotaDisplayMode(rawValue: defaults.string(forKey: quotaDisplayModeKey) ?? "") ?? .used
         self.quotaDisplayStyle = QuotaDisplayStyle(rawValue: defaults.string(forKey: quotaDisplayStyleKey) ?? "") ?? .card
         self.selectedItems = Self.loadSelectedItems(from: defaults, key: selectedItemsKey)
+
+        // Load and clamp menuBarMaxItems, then persist the clamped value
+        let loadedMax = defaults.integer(forKey: menuBarMaxItemsKey)
+        let clampedMax = Self.clampedMenuBarMax(loadedMax)
+        self.menuBarMaxItems = clampedMax
+        if loadedMax != clampedMax {
+            defaults.set(clampedMax, forKey: menuBarMaxItemsKey)
+        }
+
         self.hideSensitiveInfo = defaults.bool(forKey: hideSensitiveInfoKey)
         self.totalUsageMode = TotalUsageMode(rawValue: defaults.string(forKey: totalUsageModeKey) ?? "") ?? .sessionOnly
         self.modelAggregationMode = ModelAggregationMode(rawValue: defaults.string(forKey: modelAggregationModeKey) ?? "") ?? .lowest
+
+        enforceMaxItems()
     }
     
     private func saveSelectedItems() {
@@ -525,6 +557,7 @@ final class MenuBarSettingsManager {
     
     func addItem(_ item: MenuBarQuotaItem) {
         guard !selectedItems.contains(item) else { return }
+        guard selectedItems.count < menuBarMaxItems else { return }
         if !showQuotaInMenuBar {
             showQuotaInMenuBar = true
         }
@@ -560,13 +593,25 @@ final class MenuBarSettingsManager {
     }
     
     func autoSelectNewAccounts(availableItems: [MenuBarQuotaItem]) {
+        enforceMaxItems()
         let existingIds = Set(selectedItems.map(\.id))
         let newItems = availableItems.filter { !existingIds.contains($0.id) }
-        
-        let remainingSlots = warningThreshold - selectedItems.count
+
+        let remainingSlots = menuBarMaxItems - selectedItems.count
         if remainingSlots > 0 {
             let itemsToAdd = Array(newItems.prefix(remainingSlots))
             selectedItems.append(contentsOf: itemsToAdd)
         }
+    }
+
+    @discardableResult
+    private func enforceMaxItems() -> Bool {
+        guard selectedItems.count > menuBarMaxItems else { return false }
+        selectedItems = Array(selectedItems.prefix(menuBarMaxItems))
+        return true
+    }
+
+    private static func clampedMenuBarMax(_ value: Int) -> Int {
+        min(max(value, minMenuBarItems), maxMenuBarItems)
     }
 }
