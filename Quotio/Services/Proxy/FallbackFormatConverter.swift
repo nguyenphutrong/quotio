@@ -65,4 +65,45 @@ nonisolated struct FallbackFormatConverter {
     static func shouldTriggerFallback(responseData: Data) -> Bool {
         fallbackReason(responseData: responseData) != nil
     }
+
+    static func isThinkingSignatureError(responseData: Data) -> Bool {
+        guard let responseString = String(data: responseData.prefix(4096), encoding: .utf8) else {
+            return false
+        }
+
+        let errorMessage = extractErrorMessage(from: responseString)
+        let message = errorMessage.lowercased()
+
+        let isSignatureError = message.contains("signature") && message.contains("thinking")
+        let isMustMatchError = message.contains("thinking") &&
+            (message.contains("must match") || message.contains("parameters during the original request"))
+
+        return isSignatureError || isMustMatchError
+    }
+
+    private static func extractErrorMessage(from response: String) -> String {
+        guard let bodyStart = response.range(of: "\r\n\r\n") else {
+            return response
+        }
+
+        let body = String(response[bodyStart.upperBound...])
+
+        guard let bodyData = body.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] else {
+            return body
+        }
+
+        if let error = json["error"] as? [String: Any] {
+            if let message = error["message"] as? String {
+                return message
+            }
+            if let upstreamError = error["upstream_error"] as? [String: Any],
+               let innerError = upstreamError["error"] as? [String: Any],
+               let message = innerError["message"] as? String {
+                return message
+            }
+        }
+
+        return body
+    }
 }

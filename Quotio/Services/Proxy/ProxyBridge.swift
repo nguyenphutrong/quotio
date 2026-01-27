@@ -26,6 +26,7 @@ struct FallbackContext: Sendable {
     let originalBody: String
     let wasLoadedFromCache: Bool
     let attempts: [FallbackAttempt]
+    let triedSanitization: Bool
 
     /// Whether this request has fallback enabled
     nonisolated var hasFallback: Bool { !fallbackEntries.isEmpty }
@@ -41,7 +42,8 @@ struct FallbackContext: Sendable {
             currentIndex: currentIndex + 1,
             originalBody: originalBody,
             wasLoadedFromCache: false,
-            attempts: attempts
+            attempts: attempts,
+            triedSanitization: false
         )
     }
 
@@ -53,7 +55,21 @@ struct FallbackContext: Sendable {
             currentIndex: currentIndex,
             originalBody: originalBody,
             wasLoadedFromCache: wasLoadedFromCache,
-            attempts: attempts + [attempt]
+            attempts: attempts + [attempt],
+            triedSanitization: triedSanitization
+        )
+    }
+
+    /// Mark that sanitization has been attempted for this context
+    nonisolated func withSanitizationAttempted() -> FallbackContext {
+        FallbackContext(
+            virtualModelName: virtualModelName,
+            fallbackEntries: fallbackEntries,
+            currentIndex: currentIndex,
+            originalBody: originalBody,
+            wasLoadedFromCache: wasLoadedFromCache,
+            attempts: attempts,
+            triedSanitization: true
         )
     }
 
@@ -70,7 +86,8 @@ struct FallbackContext: Sendable {
         currentIndex: 0,
         originalBody: "",
         wasLoadedFromCache: false,
-        attempts: []
+        attempts: [],
+        triedSanitization: false
     )
 }
 
@@ -503,29 +520,74 @@ final class ProxyBridge {
             currentIndex: startIndex,
             originalBody: body,
             wasLoadedFromCache: wasLoadedFromCache,
-            attempts: attempts
+            attempts: attempts,
+            triedSanitization: false
         )
     }
 
     // MARK: - Request Body Transformation
 
-    /// Replace model name in request body (simple string replacement)
-    /// No format conversion needed - fallback only works between same model types
     private nonisolated func replaceModelInBody(
         _ body: String,
         with newModel: String
     ) -> String {
         guard let bodyData = body.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
-              let originalModel = json["model"] as? String else {
+              var json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
+              json["model"] != nil else {
             return body
         }
 
-        // Simple string replacement to preserve original JSON format
-        return body.replacingOccurrences(
-            of: "\"\(originalModel)\"",
-            with: "\"\(newModel)\""
-        )
+        json["model"] = newModel
+
+        guard let newData = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]),
+              let newBody = String(data: newData, encoding: .utf8) else {
+            return body
+        }
+
+        return newBody
+    }
+
+    private nonisolated func sanitizeThinkingBlocks(_ body: String, targetModelId: String) -> String {
+        guard let bodyData = body.data(using: .utf8),
+              var json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
+              var messages = json["messages"] as? [[String: Any]] else {
+            return body
+        }
+
+        var modified = false
+
+        for i in messages.indices {
+            guard let content = messages[i]["content"] as? [[String: Any]] else { continue }
+
+            let filteredContent = content.filter { block in
+                guard let blockType = block["type"] as? String else { return true }
+                if blockType == "thinking" || blockType == "redacted_thinking" {
+                    modified = true
+                    return false
+                }
+                return true
+            }
+
+            if filteredContent.count != content.count {
+                if filteredContent.isEmpty {
+                    messages[i]["content"] = [["type": "text", "text": "[reasoning omitted]"]]
+                } else {
+                    messages[i]["content"] = filteredContent
+                }
+            }
+        }
+
+        guard modified else { return body }
+
+        json["messages"] = messages
+        json["model"] = targetModelId
+
+        guard let newData = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]),
+              let newBody = String(data: newData, encoding: .utf8) else {
+            return body
+        }
+
+        return newBody
     }
 
     /// Check why a response should trigger fallback (if any)
@@ -650,8 +712,8 @@ final class ProxyBridge {
                 // Build forwarded request with Connection: close
                 var forwardedRequest = "\(capturedMethod) \(capturedPath) \(capturedVersion)\r\n"
 
-                // Forward headers, excluding ones we'll override
-                let excludedHeaders: Set<String> = ["connection", "content-length", "host", "transfer-encoding"]
+                // Forward headers, excluding ones we'll override or that break error detection
+                let excludedHeaders: Set<String> = ["connection", "content-length", "host", "transfer-encoding", "accept-encoding"]
                 for (name, value) in capturedHeaders {
                     if !excludedHeaders.contains(name.lowercased()) {
                         forwardedRequest += "\(name): \(value)\r\n"
@@ -750,6 +812,38 @@ final class ProxyBridge {
             let quotaCheckThreshold = 4096
             if accumulatedResponse.count <= quotaCheckThreshold && !accumulatedResponse.isEmpty && fallbackContext.hasFallback {
                 let fallbackReason = self.fallbackReason(responseData: accumulatedResponse)
+
+                // Check for thinking signature errors - retry same provider with sanitized body
+                if fallbackReason != nil {
+                    let isSignatureError = FallbackFormatConverter.isThinkingSignatureError(responseData: accumulatedResponse)
+
+                    if isSignatureError && !fallbackContext.triedSanitization,
+                       let currentEntry = fallbackContext.currentEntry {
+                        let sanitizedBody = self.sanitizeThinkingBlocks(fallbackContext.originalBody, targetModelId: currentEntry.modelId)
+
+                        if sanitizedBody != fallbackContext.originalBody {
+                            targetConnection.cancel()
+                            let retryContext = fallbackContext.withSanitizationAttempted()
+
+                            self.forwardRequest(
+                                method: method,
+                                path: path,
+                                version: version,
+                                headers: headers,
+                                body: sanitizedBody,
+                                originalConnection: originalConnection,
+                                connectionId: connectionId,
+                                startTime: startTime,
+                                requestSize: requestSize,
+                                metadata: metadata,
+                                targetPort: targetPort,
+                                targetHost: targetHost,
+                                fallbackContext: retryContext
+                            )
+                            return
+                        }
+                    }
+                }
 
                 if let reason = fallbackReason, fallbackContext.hasMoreFallbacks {
                     // Don't forward error to client, try next fallback instead
