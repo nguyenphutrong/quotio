@@ -60,14 +60,30 @@ nonisolated struct KiroTokenResponse: Codable {
 // MARK: - Kiro Quota Fetcher
 
 actor KiroQuotaFetcher {
-    private let usageEndpoint = "https://codewhisperer.us-east-1.amazonaws.com/getUsageLimits"
-
-    // Token refresh endpoints for different auth methods
-    private let socialTokenEndpoint = "https://prod.us-east-1.auth.desktop.kiro.dev/refreshToken"  // For Google OAuth
-    private let idcTokenEndpoint = "https://oidc.us-east-1.amazonaws.com/token"  // For AWS Builder ID
+    // Default region for usage endpoint (most users are on us-east-1)
+    private let defaultRegion = "us-east-1"
+    
+    // Token refresh endpoint templates - region is dynamically substituted
+    // For Google OAuth (Social auth)
+    private func socialTokenEndpoint(region: String) -> String {
+        "https://prod.\(region).auth.desktop.kiro.dev/refreshToken"
+    }
+    
+    // For AWS Builder ID / Enterprise (IdC auth)
+    private func idcTokenEndpoint(region: String) -> String {
+        "https://oidc.\(region).amazonaws.com/token"
+    }
+    
+    // Usage endpoint - uses region from token data if available
+    private func usageEndpoint(region: String) -> String {
+        "https://codewhisperer.\(region).amazonaws.com/getUsageLimits"
+    }
 
     private var session: URLSession
     private let fileManager = FileManager.default
+    
+    /// Path to Kiro IDE auth token file
+    private let kiroIDEAuthPath = NSString(string: "~/.aws/sso/cache/kiro-auth-token.json").expandingTildeInPath
 
     init() {
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 20)
@@ -302,15 +318,16 @@ actor KiroQuotaFetcher {
         let authMethod = tokenData.authMethod ?? "IdC"
 
         if authMethod == "Social" {
-            return await refreshSocialTokenWithExpiry(refreshToken: refreshToken, filePath: filePath)
+            let region = tokenData.extras?["region"] ?? defaultRegion
+            return await refreshSocialTokenWithExpiry(refreshToken: refreshToken, region: region, filePath: filePath)
         } else {
             return await refreshIdCTokenWithExpiry(tokenData: tokenData, filePath: filePath)
         }
     }
 
-    /// Refresh token for Social auth (Google OAuth) using Kiro's endpoint
-    private func refreshSocialTokenWithExpiry(refreshToken: String, filePath: String) async -> (String, Date?)? {
-        guard let url = URL(string: socialTokenEndpoint) else {
+    private func refreshSocialTokenWithExpiry(refreshToken: String, region: String, filePath: String) async -> (String, Date?)? {
+        let endpoint = socialTokenEndpoint(region: region)
+        guard let url = URL(string: endpoint) else {
             return nil
         }
 
@@ -341,6 +358,12 @@ actor KiroQuotaFetcher {
                 newRefreshToken: tokenResponse.refreshToken,
                 expiresIn: tokenResponse.expiresIn
             )
+            
+            await syncToKiroIDEAuthFile(
+                newAccessToken: tokenResponse.accessToken,
+                newRefreshToken: tokenResponse.refreshToken,
+                expiresIn: tokenResponse.expiresIn
+            )
 
             return (tokenResponse.accessToken, newExpiry)
         } catch {
@@ -348,19 +371,27 @@ actor KiroQuotaFetcher {
         }
     }
 
-    /// Refresh token for IdC auth (AWS Builder ID) using AWS OIDC endpoint
+    /// Refresh token for IdC auth (AWS Builder ID / Enterprise) using AWS OIDC endpoint
+    /// Supports dynamic region from token data (e.g., ap-northeast-2 for Enterprise users)
     private func refreshIdCTokenWithExpiry(tokenData: AuthTokenData, filePath: String) async -> (String, Date?)? {
         guard let refreshToken = tokenData.refreshToken,
               let clientId = tokenData.clientId,
-              let clientSecret = tokenData.clientSecret,
-              let url = URL(string: idcTokenEndpoint) else {
+              let clientSecret = tokenData.clientSecret else {
+            return nil
+        }
+        
+        // Use region from token data, fallback to us-east-1
+        let region = tokenData.extras?["region"] ?? defaultRegion
+        let endpoint = idcTokenEndpoint(region: region)
+        
+        guard let url = URL(string: endpoint) else {
             return nil
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("oidc.us-east-1.amazonaws.com", forHTTPHeaderField: "Host")
+        request.addValue("oidc.\(region).amazonaws.com", forHTTPHeaderField: "Host")
         request.addValue("keep-alive", forHTTPHeaderField: "Connection")
         request.addValue("aws-sdk-js/3.738.0 ua/2.1 os/other lang/js md/browser#unknown_unknown api/sso-oidc#3.738.0 m/E KiroIDE", forHTTPHeaderField: "x-amz-user-agent")
         request.addValue("*/*", forHTTPHeaderField: "Accept")
@@ -391,8 +422,16 @@ actor KiroQuotaFetcher {
             let tokenResponse = try JSONDecoder().decode(KiroTokenResponse.self, from: data)
             let newExpiry = Date().addingTimeInterval(TimeInterval(tokenResponse.expiresIn))
 
+            // Persist to Quotio's auth file
             await persistRefreshedToken(
                 filePath: filePath,
+                newAccessToken: tokenResponse.accessToken,
+                newRefreshToken: tokenResponse.refreshToken,
+                expiresIn: tokenResponse.expiresIn
+            )
+            
+            // Also sync to Kiro IDE auth file if it exists
+            await syncToKiroIDEAuthFile(
                 newAccessToken: tokenResponse.accessToken,
                 newRefreshToken: tokenResponse.refreshToken,
                 expiresIn: tokenResponse.expiresIn
@@ -401,6 +440,39 @@ actor KiroQuotaFetcher {
             return (tokenResponse.accessToken, newExpiry)
         } catch {
             return nil
+        }
+    }
+    
+    /// Sync refreshed token to Kiro IDE auth file (~/.aws/sso/cache/kiro-auth-token.json)
+    /// This keeps Kiro IDE in sync when Quotio refreshes the token
+    private func syncToKiroIDEAuthFile(
+        newAccessToken: String,
+        newRefreshToken: String?,
+        expiresIn: Int
+    ) async {
+        guard fileManager.fileExists(atPath: kiroIDEAuthPath),
+              let existingData = fileManager.contents(atPath: kiroIDEAuthPath),
+              var json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
+            return
+        }
+        
+        // Kiro IDE uses camelCase keys (accessToken, refreshToken, expiresAt)
+        json["accessToken"] = newAccessToken
+        if let newRefresh = newRefreshToken {
+            json["refreshToken"] = newRefresh
+        }
+        
+        let newExpiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        json["expiresAt"] = formatter.string(from: newExpiresAt)
+        
+        do {
+            let updatedData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+            try updatedData.write(to: URL(fileURLWithPath: kiroIDEAuthPath), options: .atomic)
+        } catch {
+            // Silent failure - Kiro IDE will refresh on its own if needed
         }
     }
 
