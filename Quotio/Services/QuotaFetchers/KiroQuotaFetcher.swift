@@ -213,13 +213,14 @@ actor KiroQuotaFetcher {
             }
         }
 
-        // Fetch Usage (with retry on 401/403)
-        let result = await fetchUsageAPI(token: currentToken, tokenExpiresAt: tokenExpiresAt)
+        let region = tokenData.extras?["region"] ?? defaultRegion
+        
+        let result = await fetchUsageAPI(token: currentToken, tokenExpiresAt: tokenExpiresAt, region: region)
 
         // Reactive refresh: If 401/403 and haven't tried refresh yet, refresh and retry
         if (result.statusCode == 401 || result.statusCode == 403) && !hasAttemptedRefresh {
             if let (refreshed, newExpiry) = await refreshTokenWithExpiry(tokenData: tokenData, filePath: filePath) {
-                let retryResult = await fetchUsageAPI(token: refreshed, tokenExpiresAt: newExpiry)
+                let retryResult = await fetchUsageAPI(token: refreshed, tokenExpiresAt: newExpiry, region: region)
                 return retryResult.quotaData ?? ProviderQuotaData(models: [], lastUpdated: Date(), isForbidden: true, planType: "Unauthorized", tokenExpiresAt: newExpiry)
             }
         }
@@ -245,9 +246,9 @@ actor KiroQuotaFetcher {
         let quotaData: ProviderQuotaData?
     }
 
-    /// Fetch usage from API with given token
-    private func fetchUsageAPI(token: String, tokenExpiresAt: Date?) async -> UsageAPIResult {
-        guard let url = URL(string: "\(usageEndpoint)?isEmailRequired=true&origin=AI_EDITOR") else {
+    private func fetchUsageAPI(token: String, tokenExpiresAt: Date?, region: String) async -> UsageAPIResult {
+        let endpoint = usageEndpoint(region: region)
+        guard let url = URL(string: "\(endpoint)?isEmailRequired=true&origin=AI_EDITOR") else {
             return UsageAPIResult(statusCode: 0, quotaData: ProviderQuotaData(
                 models: [ModelQuota(name: "Error", percentage: 0, resetTime: "Invalid URL")],
                 lastUpdated: Date(), isForbidden: false, planType: "Error", tokenExpiresAt: tokenExpiresAt
