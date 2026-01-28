@@ -434,6 +434,7 @@ final class MenuBarSettingsManager {
     private let hideSensitiveInfoKey = "hideSensitiveInfo"
     private let totalUsageModeKey = "totalUsageMode"
     private let modelAggregationModeKey = "modelAggregationMode"
+    private let hasUserModifiedMenuBarKey = "hasUserModifiedMenuBar"
 
     static let minMenuBarItems = 1
     static let maxMenuBarItems = 10
@@ -492,6 +493,12 @@ final class MenuBarSettingsManager {
         didSet { defaults.set(modelAggregationMode.rawValue, forKey: modelAggregationModeKey) }
     }
 
+    /// Whether user has manually modified the menu bar selection
+    /// When true, autoSelectNewAccounts will not add new items
+    private(set) var hasUserModifiedMenuBar: Bool {
+        didSet { defaults.set(hasUserModifiedMenuBar, forKey: hasUserModifiedMenuBarKey) }
+    }
+
     /// Check if adding another item would exceed the warning threshold
     /// Warning shows when approaching the limit (at maxItems - 1)
     var shouldWarnOnAdd: Bool {
@@ -537,6 +544,7 @@ final class MenuBarSettingsManager {
         self.hideSensitiveInfo = defaults.bool(forKey: hideSensitiveInfoKey)
         self.totalUsageMode = TotalUsageMode(rawValue: defaults.string(forKey: totalUsageModeKey) ?? "") ?? .sessionOnly
         self.modelAggregationMode = ModelAggregationMode(rawValue: defaults.string(forKey: modelAggregationModeKey) ?? "") ?? .lowest
+        self.hasUserModifiedMenuBar = defaults.bool(forKey: hasUserModifiedMenuBarKey)
 
         enforceMaxItems()
     }
@@ -567,20 +575,22 @@ final class MenuBarSettingsManager {
         selectedItems.append(item)
     }
     
-    /// Remove an item
+    /// Remove an item (marks as user-modified to prevent auto-add)
     func removeItem(_ item: MenuBarQuotaItem) {
         selectedItems.removeAll { $0.id == item.id }
+        hasUserModifiedMenuBar = true
     }
-    
+
     /// Check if item is selected
     func isSelected(_ item: MenuBarQuotaItem) -> Bool {
         selectedItems.contains(item)
     }
-    
-    /// Toggle item selection
+
+    /// Toggle item selection (marks as user-modified to prevent auto-add)
     func toggleItem(_ item: MenuBarQuotaItem) {
+        hasUserModifiedMenuBar = true
         if isSelected(item) {
-            removeItem(item)
+            selectedItems.removeAll { $0.id == item.id }
         } else {
             addItem(item)
         }
@@ -593,6 +603,9 @@ final class MenuBarSettingsManager {
     }
     
     func autoSelectNewAccounts(availableItems: [MenuBarQuotaItem]) {
+        // Don't auto-add if user has manually modified the menu bar selection
+        guard !hasUserModifiedMenuBar else { return }
+
         enforceMaxItems()
         let existingIds = Set(selectedItems.map(\.id))
         let newItems = availableItems.filter { !existingIds.contains($0.id) }
