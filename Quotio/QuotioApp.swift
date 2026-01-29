@@ -63,6 +63,18 @@ final class AppBootstrap {
         statusBarManager.setViewModel(viewModel)
         updateStatusBar()
 
+        // Listen for quota data changes to update menu bar even when window is closed
+        NotificationCenter.default.addObserver(
+            forName: QuotaViewModel.quotaDataDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateStatusBar()
+                StatusBarManager.shared.rebuildMenuInPlace()
+            }
+        }
+
         // Load data in background (includes proxy auto-start if enabled)
         await viewModel.initialize()
 

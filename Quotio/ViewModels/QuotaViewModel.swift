@@ -56,6 +56,9 @@ final class QuotaViewModel {
     var isLoadingQuotas = false
     var errorMessage: String?
     var oauthState: OAuthState?
+
+    /// Notification name for quota data updates (used for menu bar refresh)
+    static let quotaDataDidChangeNotification = Notification.Name("QuotaViewModel.quotaDataDidChange")
     
     /// Direct auth files for quota-only mode
     var directAuthFiles: [DirectAuthFile] = []
@@ -118,6 +121,11 @@ final class QuotaViewModel {
 
     /// Key for tracking when auth files last changed (for model cache invalidation)
     static let authFilesChangedKey = "quotio.authFiles.lastChanged"
+
+    /// Post notification to trigger UI updates (works even when window is closed)
+    private func notifyQuotaDataChanged() {
+        NotificationCenter.default.post(name: Self.quotaDataDidChangeNotification, object: nil)
+    }
 
     init() {
         self.proxyManager = CLIProxyManager.shared
@@ -324,10 +332,11 @@ final class QuotaViewModel {
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
-        
+
+        notifyQuotaDataChanged()
         isLoadingQuotas = false
     }
-    
+
     private func autoSelectMenuBarItems() {
         var availableItems: [MenuBarQuotaItem] = []
         var seen = Set<String>()
@@ -1124,9 +1133,10 @@ final class QuotaViewModel {
         checkQuotaNotifications()
         autoSelectMenuBarItems()
 
+        notifyQuotaDataChanged()
         isLoadingQuotas = false
     }
-    
+
     /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
     /// In Full Mode: uses direct fetchers (works without proxy)
     /// In Quota-Only Mode: uses direct fetchers + CLI fetchers
@@ -1160,9 +1170,10 @@ final class QuotaViewModel {
         checkQuotaNotifications()
         autoSelectMenuBarItems()
 
+        notifyQuotaDataChanged()
         isLoadingQuotas = false
     }
-    
+
     private func refreshAntigravityQuotasInternal() async {
         // Fetch both quotas and subscriptions in one call (avoids duplicate API calls)
         let (quotas, subscriptions) = await antigravityFetcher.fetchAllAntigravityData()
@@ -1269,8 +1280,10 @@ final class QuotaViewModel {
 
         // Prune menu bar items after refresh to remove deleted accounts
         pruneMenuBarItems()
+
+        notifyQuotaDataChanged()
     }
-    
+
     /// Refresh all auto-detected providers (those that don't support manual auth)
     func refreshAutoDetectedProviders() async {
         let autoDetectedProviders = AIProvider.allCases.filter { !$0.supportsManualAuth }
@@ -1686,11 +1699,13 @@ final class QuotaViewModel {
         
         // Persist IDE quota data for Cursor and Trae
         savePersistedIDEQuotas()
-        
+
         // Update menu bar items
         autoSelectMenuBarItems()
+
+        notifyQuotaDataChanged()
     }
-    
+
     // MARK: - IDE Quota Persistence
     
     /// Save Cursor and Trae quota data to UserDefaults for persistence across app restarts
