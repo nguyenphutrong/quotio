@@ -1154,10 +1154,14 @@ struct ProxyUpdateSettingsSection: View {
     private func checkForUpdate() {
         isCheckingForUpdate = true
         upgradeError = nil
-        
+
         Task { @MainActor in
+            defer {
+                // Always reset loading state
+                isCheckingForUpdate = false
+            }
+
             await proxyManager.checkForUpgrade()
-            isCheckingForUpdate = false
         }
     }
     
@@ -2276,10 +2280,14 @@ struct AboutProxyUpdateSection: View {
     private func checkForUpdate() {
         isCheckingForUpdate = true
         upgradeError = nil
-        
+
         Task { @MainActor in
+            defer {
+                // Always reset loading state
+                isCheckingForUpdate = false
+            }
+
             await proxyManager.checkForUpgrade()
-            isCheckingForUpdate = false
         }
     }
     
@@ -2605,10 +2613,14 @@ struct AboutProxyUpdateCard: View {
     private func checkForUpdate() {
         isCheckingForUpdate = true
         upgradeError = nil
-        
+
         Task { @MainActor in
+            defer {
+                // Always reset loading state
+                isCheckingForUpdate = false
+            }
+
             await proxyManager.checkForUpgrade()
-            isCheckingForUpdate = false
         }
     }
     
