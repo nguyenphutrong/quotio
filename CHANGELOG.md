@@ -9,15 +9,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.7] - 2026-01-27
 
+### Added
+
+- **logs**: Display fallback trace details in request log (#200)
+
+### Fixed
+
+- **proxy**: Handle thinking block signature errors on provider switch (#218)
+  - Detect provider-bound cryptographic signatures that cause 400 errors
+  - Add response-driven sanitization with automatic retry
+  - Strip thinking/redacted_thinking blocks when forwarding between Claude providers
+- **quota**: Handle ISO8601 dates with and without fractional seconds (#233)
+  - Fix reset time not displaying for some providers (e.g., Codex)
+- **settings**: Initialize app services on launch for auto-start at login (#225)
+  - Fix proxy not auto-starting when app launches at login with dock hidden
+  - Move initialization to AppDelegate for immediate service startup
+- **agent**: Update Factory Droid URL to new documentation site (#224)
+- **auth**: Preserve prefix, project_id, and proxy_url fields when refreshing auth tokens (#210)
+- **menubar**: Add configurable max items with improved UX (#209)
+  - Add truncation confirmation dialog when reducing max items
+  - Fix warning threshold relative to maxItems
+
 ## [0.7.6] - 2026-01-17
 
+### Added
+
+- **warp**: Add support for Warp AI quota tracking (#197)
+  - Dedicated Warp provider with OAuth-based authentication
+  - Display bonus credits with expiration and tooltip
+  - Fetch bonus grants from workspaces and user level
+
+### Fixed
+
+- **quota**: Scope subscriptions by provider and show plan badges in menubar (#199)
+  - Store subscriptionInfos per provider to avoid cross-provider overrides
+  - Fall back to planDisplayName for menubar tier badge
+  - Improve Codex accountId extraction for ChatGPT-Account-Id header
+
 ## [0.7.5] - 2026-01-15
+
+### Added
+
+- **agent-config**: Agent configuration persistence, proxy switching & backups (#178)
+  - Load existing agent settings from disk and environment variables
+  - Toggle between routing through Quotio proxy or direct to providers
+  - Automatic configuration backups before applying new settings
+  - UI to view and restore from previous backups
 
 ### Changed
 
 - **fallback**: Simplify fallback logic by removing format conversion (#186)
 
 ## [0.7.4] - 2026-01-13
+
+### Added
+
+- **settings**: Customizable usage calculation and aggregation modes (#160)
+  - Total usage calculation: session-only vs combined
+  - Model aggregation: lowest vs average
+  - New Usage Display section in Settings
+
+### Fixed
+
+- **routing**: Fetch routing strategy from dedicated API endpoint (#174)
+  - Fix setting reset to 'round-robin' when navigating away from Settings
+  - Handle both legacy and new response formats
+- **routing**: Prevent routing strategy reset when leaving settings view (#173)
+- **i18n**: Add missing translations for zh-Hans, vi, and fr (#171)
 
 ## [0.7.3] - 2026-01-13
 
