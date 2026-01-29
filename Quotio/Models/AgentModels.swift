@@ -58,7 +58,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         case .geminiCLI: return ["gemini"]
         case .ampCLI: return ["amp"]
         case .openCode: return ["opencode", "oc"]
-        case .factoryDroid: return ["droid", "factory-droid", "fd"]
+        case .factoryDroid: return ["droid", "factory-droid"]
         }
     }
 
