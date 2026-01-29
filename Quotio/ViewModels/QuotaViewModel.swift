@@ -342,8 +342,7 @@ final class QuotaViewModel {
         
         for file in authFiles {
             guard let provider = file.providerType else { continue }
-            let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
-            let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey)
+            let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey)
             if !seen.contains(item.id) {
                 seen.insert(item.id)
                 availableItems.append(item)
@@ -351,7 +350,7 @@ final class QuotaViewModel {
         }
         
         for file in directAuthFiles {
-            let item = MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.email ?? file.filename)
+            let item = MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.menuBarAccountKey)
             if !seen.contains(item.id) {
                 seen.insert(item.id)
                 availableItems.append(item)
@@ -359,6 +358,11 @@ final class QuotaViewModel {
         }
         
         menuBarSettings.autoSelectNewAccounts(availableItems: availableItems)
+    }
+    
+    func syncMenuBarSelection() {
+        pruneMenuBarItems()
+        autoSelectMenuBarItems()
     }
     
     /// Refresh Claude Code quota using CLI
@@ -1484,8 +1488,7 @@ final class QuotaViewModel {
         // Add items from auth files
         for file in authFiles {
             guard let provider = file.providerType else { continue }
-            let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
-            let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey)
+            let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey)
             if !seen.contains(item.id) {
                 seen.insert(item.id)
                 validItems.append(item)
@@ -1494,14 +1497,7 @@ final class QuotaViewModel {
         
         // Add items from direct auth files (quota-only mode)
         for file in directAuthFiles {
-            var accountKey = file.email ?? file.filename
-            
-            // Kiro/CodeWhisperer special handling: Fetcher uses filename as key
-            if file.provider == .kiro {
-                accountKey = file.filename.replacingOccurrences(of: ".json", with: "")
-            }
-            
-            let item = MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: accountKey)
+            let item = MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.menuBarAccountKey)
             if !seen.contains(item.id) {
                 seen.insert(item.id)
                 validItems.append(item)

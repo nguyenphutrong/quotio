@@ -28,8 +28,8 @@ Follow this protocol to understand the codebase efficiently:
 
 ## Freshness Check
 
-**Generated:** 2026-01-17T08:37:01Z
-**Git HEAD:** `95f0ec7`
+**Generated:** 2026-01-28T15:03:02Z
+**Git HEAD:** `1022c26`
 
 ### How to verify freshness
 
@@ -79,7 +79,7 @@ If documentation seems outdated or inconsistent with the code:
 | ------ | ----- |
 | Total files | 104 |
 | Modules | 7 |
-| Warnings | 2 |
+| Warnings | 3 |
 
 ---
 

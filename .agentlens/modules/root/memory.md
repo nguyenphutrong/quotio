@@ -51,19 +51,19 @@
 
 > Cursor and Trae removed from auto-refresh to address privacy concerns (issue #29)
 
-### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1108)
+### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1112)
 
 > Cursor and Trae removed from auto-refresh (issue #29)
 
-### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1129)
+### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1133)
 
 > Cursor and Trae require explicit user scan (issue #29)
 
-### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1138)
+### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1142)
 
 > Cursor and Trae removed - require explicit scan (issue #29)
 
-### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1191)
+### `NOTE` (Quotio/ViewModels/QuotaViewModel.swift:1195)
 
 > Don't call detectActiveAccount() here - already set by switch operation
 

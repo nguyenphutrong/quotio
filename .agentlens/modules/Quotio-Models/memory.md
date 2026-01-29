@@ -5,13 +5,17 @@
 ## Summary
 
 | High 🔴 | Medium 🟡 | Low 🟢 |
-| 1 | 0 | 2 |
+| 2 | 0 | 2 |
 
 ## 🔴 High Priority
 
 ### `DEPRECATED` (Quotio/Models/AppMode.swift:5)
 
 > Use OperatingMode.swift instead
+
+### `WARNING` (Quotio/Models/MenuBarSettings.swift:503)
+
+> shows when approaching the limit (at maxItems - 1)
 
 ## 🟢 Low Priority
 

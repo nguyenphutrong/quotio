@@ -286,6 +286,11 @@ nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
         }
         return key
     }
+
+    var menuBarAccountKey: String {
+        let key = quotaLookupKey
+        return key.isEmpty ? name : key
+    }
     
     var isReady: Bool {
         status == "ready" && !disabled && !unavailable
