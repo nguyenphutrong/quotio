@@ -418,7 +418,16 @@ nonisolated enum ShellType: String, CaseIterable, Sendable {
     var profilePath: String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         switch self {
-        case .zsh: return "\(home)/.zshrc"
+        case .zsh:
+            if let zdotdir = ProcessInfo.processInfo.environment["ZDOTDIR"], !zdotdir.isEmpty {
+                return "\(zdotdir)/.zshrc"
+            }
+            let xdgConfigHome = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] ?? "\(home)/.config"
+            let xdgZshDir = "\(xdgConfigHome)/zsh"
+            if FileManager.default.fileExists(atPath: xdgZshDir) {
+                return "\(xdgZshDir)/.zshrc"
+            }
+            return "\(home)/.zshrc"
         case .bash: return "\(home)/.bashrc"
         case .fish: return "\(home)/.config/fish/config.fish"
         }
