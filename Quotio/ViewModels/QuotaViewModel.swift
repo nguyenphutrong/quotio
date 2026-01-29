@@ -333,8 +333,8 @@ final class QuotaViewModel {
         checkQuotaNotifications()
         autoSelectMenuBarItems()
 
-        notifyQuotaDataChanged()
         isLoadingQuotas = false
+        notifyQuotaDataChanged()
     }
 
     private func autoSelectMenuBarItems() {
@@ -1133,8 +1133,8 @@ final class QuotaViewModel {
         checkQuotaNotifications()
         autoSelectMenuBarItems()
 
-        notifyQuotaDataChanged()
         isLoadingQuotas = false
+        notifyQuotaDataChanged()
     }
 
     /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
@@ -1170,8 +1170,8 @@ final class QuotaViewModel {
         checkQuotaNotifications()
         autoSelectMenuBarItems()
 
-        notifyQuotaDataChanged()
         isLoadingQuotas = false
+        notifyQuotaDataChanged()
     }
 
     private func refreshAntigravityQuotasInternal() async {
