@@ -1249,78 +1249,46 @@ extension CLIProxyManager {
     }
     
     // MARK: - Upgrade Flow
-    
+
     /// Check if an upgrade is available.
-    /// First tries to ask running proxy, then falls back to direct GitHub API fetch.
+    /// Uses Atom feed with ETag caching for efficient polling.
+    /// Falls back to GitHub API only when needed for download URLs.
     func checkForUpgrade() async {
-        // Get latest version - try proxy first, fallback to direct GitHub fetch
-        let latestTag: String
-        
-        if proxyStatus.running {
-            // Try to get version from running proxy first
-            let apiClient = ManagementAPIClient(baseURL: managementURL, authKey: managementKey)
-            do {
-                let latestResponse = try await apiClient.fetchLatestVersion()
-                await apiClient.invalidate()
-                latestTag = latestResponse.latestVersion
-            } catch {
-                await apiClient.invalidate()
-                // Fallback to direct GitHub fetch
-                do {
-                    let release = try await fetchLatestRelease()
-                    latestTag = release.tagName
-                } catch {
-                    upgradeAvailable = false
-                    availableUpgrade = nil
-                    return
-                }
-            }
-        } else {
-            // Proxy not running - fetch directly from GitHub
-            do {
-                let release = try await fetchLatestRelease()
-                latestTag = release.tagName
-            } catch {
+        // Use AtomFeedUpdateService for efficient version checking
+        let currentVer = currentVersion ?? installedProxyVersion
+        let (latestVersion, isNewer) = await AtomFeedUpdateService.shared.checkForCLIProxyUpdate(currentVersion: currentVer)
+
+        guard isNewer, let latestTag = latestVersion else {
+            upgradeAvailable = false
+            availableUpgrade = nil
+            return
+        }
+
+        // New version available - fetch release details from GitHub API for download URL
+        do {
+            let release = try await fetchGitHubRelease(tag: latestTag)
+
+            guard let asset = findCompatibleAsset(from: release) else {
                 upgradeAvailable = false
                 availableUpgrade = nil
                 return
             }
-        }
-        
-        // Extract version without 'v' prefix
-        let latestVersion = latestTag.hasPrefix("v") ? String(latestTag.dropFirst()) : latestTag
-        
-        // Compare with current version using semantic versioning
-        let current = currentVersion ?? installedProxyVersion
-        
-        let needsUpgrade = current == nil || isNewerVersion(latestVersion, than: current!)
-        if needsUpgrade {
-            do {
-                // Fetch release info from GitHub to get checksum and download URL
-                let release = try await fetchGitHubRelease(tag: latestTag)
-                
-                guard let asset = findCompatibleAsset(from: release) else {
-                    upgradeAvailable = false
-                    availableUpgrade = nil
-                    return
-                }
-                
-                let versionInfo = ProxyVersionInfo(from: release, asset: asset)
-                guard let info = versionInfo else {
-                    upgradeAvailable = false
-                    availableUpgrade = nil
-                    return
-                }
-                upgradeAvailable = true
-                availableUpgrade = info
-                
-                // Send notification about available upgrade
-                NotificationManager.shared.notifyUpgradeAvailable(version: latestVersion)
-            } catch {
+
+            let versionInfo = ProxyVersionInfo(from: release, asset: asset)
+            guard let info = versionInfo else {
                 upgradeAvailable = false
                 availableUpgrade = nil
+                return
             }
-        } else {
+
+            upgradeAvailable = true
+            availableUpgrade = info
+
+            // Note: Notification is handled by AtomFeedUpdateService polling
+            let version = latestTag.hasPrefix("v") ? String(latestTag.dropFirst()) : latestTag
+            NSLog("[CLIProxyManager] Upgrade available: \(version)")
+        } catch {
+            NSLog("[CLIProxyManager] Failed to fetch release details: \(error.localizedDescription)")
             upgradeAvailable = false
             availableUpgrade = nil
         }
