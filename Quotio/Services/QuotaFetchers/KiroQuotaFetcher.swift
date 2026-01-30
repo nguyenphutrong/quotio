@@ -316,9 +316,10 @@ actor KiroQuotaFetcher {
         }
 
         // Determine auth method: "Social" (Google) or "IdC" (AWS Builder ID)
-        let authMethod = tokenData.authMethod ?? "IdC"
+        // Use case-insensitive comparison since CLIProxyAPI may store as "idc" or "social" (lowercase)
+        let authMethod = (tokenData.authMethod ?? "IdC").lowercased()
 
-        if authMethod == "Social" {
+        if authMethod == "social" {
             let region = tokenData.extras?["region"] ?? defaultRegion
             return await refreshSocialTokenWithExpiry(refreshToken: refreshToken, region: region, filePath: filePath)
         } else {
