@@ -350,65 +350,16 @@ final class AgentSetupViewModel {
             )
         }
 
-        let cacheKey = "quotio.models.cache.\(config.agent.id)"
-
-        // Check if auth files changed since cache was created (decoupled invalidation)
-        let authFilesChanged = UserDefaults.standard.double(forKey: QuotaViewModel.authFilesChangedKey)
-
-        if !forceRefresh, let cache = loadCache(key: cacheKey) {
-            // Invalidate cache if auth files changed after cache was created
-            let cacheInvalidated = authFilesChanged > cache.timestamp.timeIntervalSince1970
-
-            if !cacheInvalidated {
-                self.availableModels = cache.models
-                refreshVirtualModels()
-
-                if !cache.isStale {
-                    return
-                }
-
-                Task.detached { [weak self] in
-                    await self?.silentRefreshModels(cacheKey: cacheKey, config: config)
-                }
-                return
-            }
-        }
-
         isFetchingModels = true
         defer { isFetchingModels = false }
 
-        await fetchAndCacheModels(cacheKey: cacheKey, config: config)
-    }
-
-    private func silentRefreshModels(cacheKey: String, config: AgentConfiguration) async {
         do {
             let fetchedModels = try await configurationService.fetchAvailableModels(config: config)
             let processedModels = processModels(fetchedModels)
-
-            saveCache(models: processedModels, key: cacheKey, agentId: config.agent.id)
-
-            await MainActor.run {
-                if self.hasModelChanges(current: self.availableModels, new: processedModels) {
-                    self.availableModels = processedModels
-                    self.refreshVirtualModels()
-                }
-            }
-        } catch {
-            print("[ModelCache] Silent refresh failed: \(error.localizedDescription)")
-        }
-    }
-
-    private func fetchAndCacheModels(cacheKey: String, config: AgentConfiguration) async {
-        do {
-            let fetchedModels = try await configurationService.fetchAvailableModels(config: config)
-            let processedModels = processModels(fetchedModels)
-
             self.availableModels = processedModels
-            saveCache(models: processedModels, key: cacheKey, agentId: config.agent.id)
         } catch {
-            if let staleCache = loadCache(key: cacheKey, ignoreExpiry: true) {
-                self.availableModels = staleCache.models
-            } else if availableModels.isEmpty {
+            // On error, use default models if list is empty
+            if availableModels.isEmpty {
                 self.availableModels = AvailableModel.allModels
             }
         }
@@ -416,41 +367,13 @@ final class AgentSetupViewModel {
         refreshVirtualModels()
     }
 
-    private func loadCache(key: String, ignoreExpiry: Bool = false) -> ModelCache? {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              let cache = try? JSONDecoder().decode(ModelCache.self, from: data) else {
-            return nil
-        }
-        if ignoreExpiry || !cache.isExpired {
-            return cache
-        }
-        return nil
-    }
-
-    private func saveCache(models: [AvailableModel], key: String, agentId: String) {
-        let cache = ModelCache(models: models, timestamp: Date(), agentId: agentId)
-        if let data = try? JSONEncoder().encode(cache) {
-            UserDefaults.standard.set(data, forKey: key)
-        }
-    }
-
     private func processModels(_ fetchedModels: [AvailableModel]) -> [AvailableModel] {
-        var uniqueModels = fetchedModels
-
-        for defaultModel in AvailableModel.allModels {
-            if !uniqueModels.contains(where: { $0.id == defaultModel.id }) {
-                uniqueModels.append(defaultModel)
-            }
+        // If API returned models, use them; otherwise fallback to default models
+        if !fetchedModels.isEmpty {
+            return fetchedModels.sorted { $0.displayName < $1.displayName }
         }
 
-        uniqueModels.sort { $0.displayName < $1.displayName }
-        return uniqueModels
-    }
-
-    private func hasModelChanges(current: [AvailableModel], new: [AvailableModel]) -> Bool {
-        let currentIds = Set(current.filter { $0.provider.lowercased() != "fallback" }.map { $0.id })
-        let newIds = Set(new.map { $0.id })
-        return currentIds != newIds
+        return AvailableModel.allModels.sorted { $0.displayName < $1.displayName }
     }
 
     /// Refresh virtual models - removes old ones and adds current ones
