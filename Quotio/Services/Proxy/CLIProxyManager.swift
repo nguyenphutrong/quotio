@@ -996,7 +996,8 @@ final class CLIProxyManager {
     }
     
     func revealInFinder() {
-        NSWorkspace.shared.selectFile(binaryPath, inFileViewerRootedAtPath: (binaryPath as NSString).deletingLastPathComponent)
+        let path = effectiveBinaryPath
+        NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: (path as NSString).deletingLastPathComponent)
     }
 }
 
@@ -1086,7 +1087,7 @@ extension CLIProxyManager {
         
         return await withCheckedContinuation { continuation in
             let newAuthProcess = Process()
-            newAuthProcess.executableURL = URL(fileURLWithPath: binaryPath)
+            newAuthProcess.executableURL = URL(fileURLWithPath: effectiveBinaryPath)
             newAuthProcess.arguments = ["-config", configPath] + command.arguments
             
             let outputPipe = Pipe()
