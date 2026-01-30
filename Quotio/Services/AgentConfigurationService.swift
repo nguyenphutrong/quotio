@@ -1366,9 +1366,18 @@ actor AgentConfigurationService {
                     modelResponded: nil
                 )
             } else {
+                var errorMessage = "HTTP \(httpResponse.statusCode)"
+                
+                // Try to parse detailed error message from proxy response (OpenAI format)
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let errorObj = json["error"] as? [String: Any],
+                   let detailedMessage = errorObj["message"] as? String {
+                    errorMessage = detailedMessage
+                }
+                
                 return ConnectionTestResult(
                     success: false,
-                    message: "HTTP \(httpResponse.statusCode)",
+                    message: errorMessage,
                     latencyMs: latencyMs,
                     modelResponded: nil
                 )
