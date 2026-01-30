@@ -6,6 +6,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import os.log
 
 @MainActor
 @Observable
@@ -14,6 +15,7 @@ final class AgentSetupViewModel {
     private let configurationService = AgentConfigurationService()
     private let shellManager = ShellProfileManager()
     private let fallbackSettings = FallbackSettingsManager.shared
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Quotio", category: "AgentSetup")
 
     var agentStatuses: [AgentStatus] = []
     var isLoading = false
@@ -343,10 +345,15 @@ final class AgentSetupViewModel {
             config = existingConfig
         } else {
             guard let proxyManager = proxyManager else { return }
+
+            // Use the first API key from the API Keys management interface
+            // If no keys exist, fall back to managementKey
+            let apiKey = quotaViewModel?.apiKeys.first ?? proxyManager.managementKey
+
             config = AgentConfiguration(
                 agent: .claudeCode,
                 proxyURL: proxyManager.clientEndpoint + "/v1",
-                apiKey: proxyManager.managementKey
+                apiKey: apiKey
             )
         }
 
@@ -357,10 +364,16 @@ final class AgentSetupViewModel {
             let fetchedModels = try await configurationService.fetchAvailableModels(config: config)
             let processedModels = processModels(fetchedModels)
             self.availableModels = processedModels
+
+            // Log model list
+            let modelList = processedModels.map { "\($0.id) (provider: \($0.provider))" }.joined(separator: ", ")
+            logger.debug("[AgentSetupViewModel] Loaded \(processedModels.count) models: \(modelList)")
         } catch {
             // On error, use default models if list is empty
+            logger.error("[AgentSetupViewModel] Failed to load models: \(error.localizedDescription)")
             if availableModels.isEmpty {
                 self.availableModels = AvailableModel.allModels
+                logger.debug("[AgentSetupViewModel] Using \(AvailableModel.allModels.count) default models")
             }
         }
 
