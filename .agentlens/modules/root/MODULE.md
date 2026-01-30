@@ -2,15 +2,16 @@
 
 [← Back to INDEX](../../INDEX.md)
 
-**Type:** root | **Files:** 34
+**Type:** root | **Files:** 35
 
 ## Files
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `Quotio/QuotioApp.swift` | 576 | 📊 |
+| `Quotio/QuotioApp.swift` | 597 | 📊 |
 | `Quotio/Services/AgentConfigurationService.swift` | 1385 | 📊 |
 | `Quotio/Services/AgentDetectionService.swift` | 252 |  |
+| `Quotio/Services/AtomFeedUpdateService.swift` | 511 | 📊 |
 | `Quotio/Services/CLIExecutor.swift` | 430 |  |
 | `Quotio/Services/ChecksumVerifier.swift` | 78 |  |
 | `Quotio/Services/CompatibilityChecker.swift` | 123 |  |
@@ -24,7 +25,7 @@
 | `Quotio/Services/LaunchAtLoginManager.swift` | 189 |  |
 | `Quotio/Services/ManagementAPIClient.swift` | 718 | 📊 |
 | `Quotio/Services/NotificationManager.swift` | 326 |  |
-| `Quotio/Services/Proxy/CLIProxyManager.swift` | 1860 | 📊 |
+| `Quotio/Services/Proxy/CLIProxyManager.swift` | 1828 | 📊 |
 | `Quotio/Services/Proxy/FallbackFormatConverter.swift` | 109 |  |
 | `Quotio/Services/Proxy/ProxyBridge.swift` | 1091 | 📊 |
 | `Quotio/Services/Proxy/ProxyStorageManager.swift` | 400 |  |
@@ -40,7 +41,7 @@
 | `Quotio/Services/WarpService.swift` | 79 |  |
 | `Quotio/ViewModels/AgentSetupViewModel.swift` | 499 |  |
 | `Quotio/ViewModels/LogsViewModel.swift` | 82 |  |
-| `Quotio/ViewModels/QuotaViewModel.swift` | 1803 | 📊 |
+| `Quotio/ViewModels/QuotaViewModel.swift` | 1821 | 📊 |
 | `scripts/capture-screenshots.ts` | 763 | 📊 |
 
 ## Documentation

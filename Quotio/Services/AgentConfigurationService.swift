@@ -190,8 +190,7 @@ actor AgentConfigurationService {
     
     private func readGeminiCLIConfig() -> SavedAgentConfig? {
         // Gemini CLI uses environment variables, check shell profile
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let shellPaths = ["\(home)/.zshrc", "\(home)/.bashrc"]
+        let shellPaths = ShellType.allCases.map { $0.profilePath }
         
         for shellPath in shellPaths {
             guard let content = try? String(contentsOfFile: shellPath, encoding: .utf8) else { continue }
@@ -793,6 +792,7 @@ actor AgentConfigurationService {
             let jsonData = try JSONSerialization.data(withJSONObject: existingConfig, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
             let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
             
+            let shellProfilePath = ShellType.zsh.profilePath
             let rawConfigs = [
                 RawConfigOutput(
                     format: .json,
@@ -805,7 +805,7 @@ actor AgentConfigurationService {
                     format: .shellExport,
                     content: shellExports,
                     filename: nil,
-                    targetPath: "~/.zshrc or ~/.bashrc",
+                    targetPath: shellProfilePath,
                     instructions: "Option 2: Add to your shell profile"
                 )
             ]
@@ -965,7 +965,7 @@ actor AgentConfigurationService {
                 format: .shellExport,
                 content: exports,
                 filename: nil,
-                targetPath: "~/.zshrc or ~/.bashrc",
+                targetPath: ShellType.zsh.profilePath,
                 instructions: instructions
             )
         ]
@@ -1027,7 +1027,7 @@ actor AgentConfigurationService {
                 format: .shellExport,
                 content: envExports,
                 filename: nil,
-                targetPath: "~/.zshrc (alternative)",
+                targetPath: "\(ShellType.zsh.profilePath) (alternative)",
                 instructions: "Or add these environment variables instead"
             )
         ]

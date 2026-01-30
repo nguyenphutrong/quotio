@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.9] - 2026-01-29
+
+## [0.7.8] - 2026-01-29
+
+### Added
+
+- **proxy**: Efficient Atom feed polling for CLIProxyAPI updates (#226)
+  - Poll every 5 minutes using conditional requests (ETag caching, 304 Not Modified)
+  - Show "Last checked" time in Settings/About screens
+  - Start polling on app launch, stop on terminate
+- **kiro**: Dynamic region support for Enterprise/IdC authentication (#241)
+  - Make OIDC endpoint region dynamic based on token data
+  - Support both Social (Google) and IdC (AWS Builder ID/Enterprise) auth methods
+  - Sync refreshed tokens to Kiro IDE auth file (~/.aws/sso/cache/kiro-auth-token.json)
+
+### Fixed
+
+- **compatibility**: Lower minimum macOS version to 14.0 Sonoma
+  - App now runs on macOS 14.0+ instead of requiring macOS 15.0
+- **menubar**: Refresh quota data in background without main window (#248)
+  - Add NotificationCenter-based notification for quota data changes
+  - Menu bar now updates correctly when app runs in background
+- **shell**: Support XDG Base Directory for zsh config path (#247)
+  - Add ZDOTDIR environment variable support for custom zsh config location
+  - Add XDG_CONFIG_HOME fallback to ~/.config/zsh/.zshrc
+- **settings**: Prevent infinite loading when checking updates without network (#244)
+  - Add defer block to ensure loading state is always reset on timeout
+- **agent**: Remove `fd` from Factory Droid binary detection (#245)
+  - Prevent false positive detection when fd-find (sharkdp/fd) is installed
+- **menubar**: Prevent auto-adding providers after user modification (#232)
+  - Set flag to prevent autoSelectNewAccounts when user manually modifies selection
+
 ## [0.7.7] - 2026-01-27
 
 ### Added

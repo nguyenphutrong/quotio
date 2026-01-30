@@ -20,20 +20,20 @@
 | 111 | fn | readClaudeCodeConfig | (private) | `private func readClaudeCodeConfig() -> SavedAge...` |
 | 147 | fn | readCodexConfig | (private) | `private func readCodexConfig() -> SavedAgentCon...` |
 | 190 | fn | readGeminiCLIConfig | (private) | `private func readGeminiCLIConfig() -> SavedAgen...` |
-| 229 | fn | readAmpConfig | (private) | `private func readAmpConfig() -> SavedAgentConfig?` |
-| 252 | fn | readOpenCodeConfig | (private) | `private func readOpenCodeConfig() -> SavedAgent...` |
-| 289 | fn | readFactoryDroidConfig | (private) | `private func readFactoryDroidConfig() -> SavedA...` |
-| 326 | fn | extractTOMLValue | (private) | `private func extractTOMLValue(from line: String...` |
-| 337 | fn | extractExportValue | (private) | `private func extractExportValue(from line: Stri...` |
-| 349 | fn | generateConfiguration | (internal) | `func generateConfiguration(     agent: CLIAgent...` |
-| 388 | fn | generateDefaultConfiguration | (private) | `private func generateDefaultConfiguration(agent...` |
-| 404 | fn | generateClaudeCodeDefaultConfig | (private) | `private func generateClaudeCodeDefaultConfig(mo...` |
-| 489 | fn | generateCodexDefaultConfig | (private) | `private func generateCodexDefaultConfig(mode: C...` |
-| 554 | fn | generateGeminiCLIDefaultConfig | (private) | `private func generateGeminiCLIDefaultConfig(mod...` |
-| 582 | fn | generateAmpDefaultConfig | (private) | `private func generateAmpDefaultConfig(mode: Con...` |
-| 628 | fn | generateOpenCodeDefaultConfig | (private) | `private func generateOpenCodeDefaultConfig(mode...` |
-| 677 | fn | generateFactoryDroidDefaultConfig | (private) | `private func generateFactoryDroidDefaultConfig(...` |
-| 742 | fn | generateClaudeCodeConfig | (private) | `private func generateClaudeCodeConfig(config: A...` |
+| 228 | fn | readAmpConfig | (private) | `private func readAmpConfig() -> SavedAgentConfig?` |
+| 251 | fn | readOpenCodeConfig | (private) | `private func readOpenCodeConfig() -> SavedAgent...` |
+| 288 | fn | readFactoryDroidConfig | (private) | `private func readFactoryDroidConfig() -> SavedA...` |
+| 325 | fn | extractTOMLValue | (private) | `private func extractTOMLValue(from line: String...` |
+| 336 | fn | extractExportValue | (private) | `private func extractExportValue(from line: Stri...` |
+| 348 | fn | generateConfiguration | (internal) | `func generateConfiguration(     agent: CLIAgent...` |
+| 387 | fn | generateDefaultConfiguration | (private) | `private func generateDefaultConfiguration(agent...` |
+| 403 | fn | generateClaudeCodeDefaultConfig | (private) | `private func generateClaudeCodeDefaultConfig(mo...` |
+| 488 | fn | generateCodexDefaultConfig | (private) | `private func generateCodexDefaultConfig(mode: C...` |
+| 553 | fn | generateGeminiCLIDefaultConfig | (private) | `private func generateGeminiCLIDefaultConfig(mod...` |
+| 581 | fn | generateAmpDefaultConfig | (private) | `private func generateAmpDefaultConfig(mode: Con...` |
+| 627 | fn | generateOpenCodeDefaultConfig | (private) | `private func generateOpenCodeDefaultConfig(mode...` |
+| 676 | fn | generateFactoryDroidDefaultConfig | (private) | `private func generateFactoryDroidDefaultConfig(...` |
+| 741 | fn | generateClaudeCodeConfig | (private) | `private func generateClaudeCodeConfig(config: A...` |
 | 863 | fn | generateCodexConfig | (private) | `private func generateCodexConfig(config: AgentC...` |
 | 941 | fn | generateGeminiCLIConfig | (private) | `private func generateGeminiCLIConfig(config: Ag...` |
 | 984 | fn | generateAmpConfig | (private) | `private func generateAmpConfig(config: AgentCon...` |

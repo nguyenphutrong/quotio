@@ -4,7 +4,7 @@
 
 ## Overview
 
-- **Lines:** 1860
+- **Lines:** 1828
 - **Language:** Swift
 - **Symbols:** 60
 - **Public symbols:** 0
@@ -52,27 +52,27 @@
 | 1115 | fn | tryResume | (internal) | `func tryResume() -> Bool` |
 | 1126 | fn | safeResume | (internal) | `@Sendable func safeResume(_ result: AuthCommand...` |
 | 1226 | mod | extension CLIProxyManager | (internal) | - |
-| 1255 | fn | checkForUpgrade | (internal) | `func checkForUpgrade() async` |
-| 1336 | fn | saveInstalledVersion | (private) | `private func saveInstalledVersion(_ version: St...` |
-| 1344 | fn | fetchAvailableReleases | (internal) | `func fetchAvailableReleases(limit: Int = 10) as...` |
-| 1366 | fn | versionInfo | (internal) | `func versionInfo(from release: GitHubRelease) -...` |
-| 1372 | fn | fetchGitHubRelease | (private) | `private func fetchGitHubRelease(tag: String) as...` |
-| 1394 | fn | findCompatibleAsset | (private) | `private func findCompatibleAsset(from release: ...` |
-| 1427 | fn | performManagedUpgrade | (internal) | `func performManagedUpgrade(to version: ProxyVer...` |
-| 1481 | fn | downloadAndInstallVersion | (private) | `private func downloadAndInstallVersion(_ versio...` |
-| 1528 | fn | startDryRun | (private) | `private func startDryRun(version: String) async...` |
-| 1599 | fn | promote | (private) | `private func promote(version: String) async throws` |
-| 1634 | fn | rollback | (internal) | `func rollback() async throws` |
-| 1667 | fn | stopTestProxy | (private) | `private func stopTestProxy() async` |
-| 1696 | fn | stopTestProxySync | (private) | `private func stopTestProxySync()` |
-| 1722 | fn | findUnusedPort | (private) | `private func findUnusedPort() throws -> UInt16` |
-| 1732 | fn | isPortInUse | (private) | `private func isPortInUse(_ port: UInt16) -> Bool` |
-| 1751 | fn | createTestConfig | (private) | `private func createTestConfig(port: UInt16) -> ...` |
-| 1779 | fn | cleanupTestConfig | (private) | `private func cleanupTestConfig(_ configPath: St...` |
-| 1787 | fn | isNewerVersion | (private) | `private func isNewerVersion(_ newer: String, th...` |
-| 1790 | fn | parseVersion | (internal) | `func parseVersion(_ version: String) -> [Int]` |
-| 1822 | fn | findPreviousVersion | (private) | `private func findPreviousVersion() -> String?` |
-| 1835 | fn | migrateToVersionedStorage | (internal) | `func migrateToVersionedStorage() async throws` |
+| 1256 | fn | checkForUpgrade | (internal) | `func checkForUpgrade() async` |
+| 1304 | fn | saveInstalledVersion | (private) | `private func saveInstalledVersion(_ version: St...` |
+| 1312 | fn | fetchAvailableReleases | (internal) | `func fetchAvailableReleases(limit: Int = 10) as...` |
+| 1334 | fn | versionInfo | (internal) | `func versionInfo(from release: GitHubRelease) -...` |
+| 1340 | fn | fetchGitHubRelease | (private) | `private func fetchGitHubRelease(tag: String) as...` |
+| 1362 | fn | findCompatibleAsset | (private) | `private func findCompatibleAsset(from release: ...` |
+| 1395 | fn | performManagedUpgrade | (internal) | `func performManagedUpgrade(to version: ProxyVer...` |
+| 1449 | fn | downloadAndInstallVersion | (private) | `private func downloadAndInstallVersion(_ versio...` |
+| 1496 | fn | startDryRun | (private) | `private func startDryRun(version: String) async...` |
+| 1567 | fn | promote | (private) | `private func promote(version: String) async throws` |
+| 1602 | fn | rollback | (internal) | `func rollback() async throws` |
+| 1635 | fn | stopTestProxy | (private) | `private func stopTestProxy() async` |
+| 1664 | fn | stopTestProxySync | (private) | `private func stopTestProxySync()` |
+| 1690 | fn | findUnusedPort | (private) | `private func findUnusedPort() throws -> UInt16` |
+| 1700 | fn | isPortInUse | (private) | `private func isPortInUse(_ port: UInt16) -> Bool` |
+| 1719 | fn | createTestConfig | (private) | `private func createTestConfig(port: UInt16) -> ...` |
+| 1747 | fn | cleanupTestConfig | (private) | `private func cleanupTestConfig(_ configPath: St...` |
+| 1755 | fn | isNewerVersion | (private) | `private func isNewerVersion(_ newer: String, th...` |
+| 1758 | fn | parseVersion | (internal) | `func parseVersion(_ version: String) -> [Int]` |
+| 1790 | fn | findPreviousVersion | (private) | `private func findPreviousVersion() -> String?` |
+| 1803 | fn | migrateToVersionedStorage | (internal) | `func migrateToVersionedStorage() async throws` |
 
 ## Memory Markers
 
@@ -83,4 +83,8 @@
 ### 🟢 `NOTE` (line 297)
 
 > Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
+
+### 🟢 `NOTE` (line 1287)
+
+> Notification is handled by AtomFeedUpdateService polling
 

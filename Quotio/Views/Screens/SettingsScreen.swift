@@ -1026,9 +1026,13 @@ struct ProxyUpdateSettingsSection: View {
     @State private var isUpgrading = false
     @State private var upgradeError: String?
     @State private var showAdvancedSheet = false
-    
+
     private var proxyManager: CLIProxyManager {
         viewModel.proxyManager
+    }
+
+    private var atomFeedService: AtomFeedUpdateService {
+        AtomFeedUpdateService.shared
     }
     
     var body: some View {
@@ -1102,6 +1106,19 @@ struct ProxyUpdateSettingsSection: View {
                     }
                     .disabled(isCheckingForUpdate)
                 }
+
+                // Last checked time
+                if let lastCheck = atomFeedService.lastCLIProxyCheck {
+                    HStack {
+                        Text("Last checked")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(lastCheck, style: .relative)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             
             // Error message
@@ -1154,10 +1171,14 @@ struct ProxyUpdateSettingsSection: View {
     private func checkForUpdate() {
         isCheckingForUpdate = true
         upgradeError = nil
-        
+
         Task { @MainActor in
+            defer {
+                // Always reset loading state
+                isCheckingForUpdate = false
+            }
+
             await proxyManager.checkForUpgrade()
-            isCheckingForUpdate = false
         }
     }
     
@@ -2142,9 +2163,13 @@ struct AboutProxyUpdateSection: View {
     @State private var isUpgrading = false
     @State private var upgradeError: String?
     @State private var showAdvancedSheet = false
-    
+
     private var proxyManager: CLIProxyManager {
         viewModel.proxyManager
+    }
+
+    private var atomFeedService: AtomFeedUpdateService {
+        AtomFeedUpdateService.shared
     }
     
     var body: some View {
@@ -2223,7 +2248,20 @@ struct AboutProxyUpdateSection: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .disabled(isCheckingForUpdate || !proxyManager.proxyStatus.running)
+                    .disabled(isCheckingForUpdate)
+                }
+
+                // Last checked time
+                if let lastCheck = atomFeedService.lastCLIProxyCheck {
+                    HStack {
+                        Text("Last checked")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(lastCheck, style: .relative)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             
@@ -2276,10 +2314,14 @@ struct AboutProxyUpdateSection: View {
     private func checkForUpdate() {
         isCheckingForUpdate = true
         upgradeError = nil
-        
+
         Task { @MainActor in
+            defer {
+                // Always reset loading state
+                isCheckingForUpdate = false
+            }
+
             await proxyManager.checkForUpgrade()
-            isCheckingForUpdate = false
         }
     }
     
@@ -2451,9 +2493,13 @@ struct AboutProxyUpdateCard: View {
     @State private var isCheckingForUpdate = false
     @State private var isUpgrading = false
     @State private var upgradeError: String?
-    
+
     private var proxyManager: CLIProxyManager {
         viewModel.proxyManager
+    }
+
+    private var atomFeedService: AtomFeedUpdateService {
+        AtomFeedUpdateService.shared
     }
     
     var body: some View {
@@ -2540,6 +2586,19 @@ struct AboutProxyUpdateCard: View {
                     .controlSize(.small)
                     .disabled(isCheckingForUpdate)
                 }
+
+                // Last checked time
+                if let lastCheck = atomFeedService.lastCLIProxyCheck {
+                    HStack {
+                        Text("Last checked")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(lastCheck, style: .relative)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             
             // Error message
@@ -2605,10 +2664,14 @@ struct AboutProxyUpdateCard: View {
     private func checkForUpdate() {
         isCheckingForUpdate = true
         upgradeError = nil
-        
+
         Task { @MainActor in
+            defer {
+                // Always reset loading state
+                isCheckingForUpdate = false
+            }
+
             await proxyManager.checkForUpgrade()
-            isCheckingForUpdate = false
         }
     }
     

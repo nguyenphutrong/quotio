@@ -72,7 +72,7 @@ Quotio peut configurer automatiquement ces outils pour utiliser votre proxy cent
 ## 🚀 Installation
 
 ### Prérequis
-- macOS 15.0 (Sequoia) ou ultérieur
+- macOS 14.0 (Sonoma) ou ultérieur
 - Connexion Internet pour l'authentification OAuth
 
 ### Homebrew (Recommandé)

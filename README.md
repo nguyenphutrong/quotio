@@ -72,7 +72,7 @@ Quotio can automatically configure these tools to use your centralized proxy:
 ## 🚀 Installation
 
 ### Requirements
-- macOS 15.0 (Sequoia) or later
+- macOS 14.0 (Sonoma) or later
 - Internet connection for OAuth authentication
 
 ### Homebrew (Recommended)
