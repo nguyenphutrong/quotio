@@ -20,9 +20,8 @@ struct ProvidersScreen: View {
     @State private var projectId: String = ""
     @State private var showProxyRequiredAlert = false
     @State private var showIDEScanSheet = false
-    @State private var showCustomProviderSheet = false
+    @State private var customProviderSheetMode: CustomProviderSheetMode?
     @State private var showWarpConnectionSheet = false
-    @State private var editingCustomProvider: CustomProvider?
     @State private var editingWarpToken: WarpService.WarpToken?
     @State private var showAddProviderPopover = false
     @State private var switchingAccount: AccountRowData?
@@ -174,15 +173,14 @@ struct ProvidersScreen: View {
             IDEScanSheet {}
             .environment(viewModel)
         }
-        .sheet(isPresented: $showCustomProviderSheet) {
-            CustomProviderSheet(provider: editingCustomProvider) { provider in
+        .sheet(item: $customProviderSheetMode) { mode in
+            CustomProviderSheet(provider: mode.provider) { provider in
                 // Check if provider already exists by ID to determine if we're updating or adding
                 if customProviderService.providers.contains(where: { $0.id == provider.id }) {
                     customProviderService.updateProvider(provider)
                 } else {
                     customProviderService.addProvider(provider)
                 }
-                editingCustomProvider = nil
                 syncCustomProvidersToConfig()
             }
         }
@@ -211,8 +209,7 @@ struct ProvidersScreen: View {
                     showIDEScanSheet = true
                 },
                 onAddCustomProvider: {
-                    editingCustomProvider = nil
-                    showCustomProviderSheet = true
+                    customProviderSheetMode = .add
                 },
                 onDismiss: {
                     showAddProviderPopover = false
@@ -339,8 +336,7 @@ struct ProvidersScreen: View {
                 CustomProviderRow(
                     provider: provider,
                     onEdit: {
-                        editingCustomProvider = provider
-                        showCustomProviderSheet = true
+                        customProviderSheetMode = .edit(provider)
                     },
                     onDelete: {
                         customProviderService.deleteProvider(id: provider.id)
@@ -426,8 +422,7 @@ struct ProvidersScreen: View {
     private func handleEditGlmAccount(_ account: AccountRowData) {
         // Find the GLM provider by ID and open edit sheet using CustomProviderSheet
         if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
-            editingCustomProvider = glmProvider
-            showCustomProviderSheet = true
+            customProviderSheetMode = .edit(glmProvider)
         }
     }
     
@@ -971,5 +966,30 @@ private struct OAuthStatusView: View {
             }
         }
         .frame(minHeight: 100)
+    }
+}
+
+// MARK: - Custom Provider Sheet Mode
+
+enum CustomProviderSheetMode: Identifiable {
+    case add
+    case edit(CustomProvider)
+
+    var id: String {
+        switch self {
+        case .add:
+            return "add"
+        case .edit(let provider):
+            return provider.id.uuidString
+        }
+    }
+
+    var provider: CustomProvider? {
+        switch self {
+        case .add:
+            return nil
+        case .edit(let provider):
+            return provider
+        }
     }
 }
