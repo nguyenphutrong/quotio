@@ -17,15 +17,16 @@ struct ProviderDisclosureGroup: View {
     var onDeleteAccount: ((AccountRowData) -> Void)?
     var onEditAccount: ((AccountRowData) -> Void)?
     var onSwitchAccount: ((AccountRowData) -> Void)?
+    var onToggleDisabled: ((AccountRowData) -> Void)?
     var isAccountActive: ((AccountRowData) -> Bool)?
 
     @State private var isExpanded: Bool = true
-    
+
     /// Check if all accounts in this group are auto-detected
     private var isAllAutoDetected: Bool {
         accounts.allSatisfy { $0.source == .autoDetected }
     }
-    
+
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             ForEach(accounts) { account in
@@ -34,6 +35,7 @@ struct ProviderDisclosureGroup: View {
                     onDelete: onDeleteAccount != nil ? { onDeleteAccount?(account) } : nil,
                     onEdit: onEditAccount != nil ? { onEditAccount?(account) } : nil,
                     onSwitch: onSwitchAccount != nil ? { onSwitchAccount?(account) } : nil,
+                    onToggleDisabled: onToggleDisabled != nil ? { onToggleDisabled?(account) } : nil,
                     isActiveInIDE: isAccountActive?(account) ?? false
                 )
                 .padding(.leading, 4)

@@ -122,6 +122,40 @@ final class QuotaViewModel {
     /// Key for tracking when auth files last changed (for model cache invalidation)
     static let authFilesChangedKey = "quotio.authFiles.lastChanged"
 
+    // MARK: - Disabled Auth Files Persistence
+
+    private static let disabledAuthFilesKey = "persisted.disabledAuthFiles"
+
+    /// Load disabled auth file names from UserDefaults
+    private func loadDisabledAuthFiles() -> Set<String> {
+        let array = UserDefaults.standard.stringArray(forKey: Self.disabledAuthFilesKey) ?? []
+        return Set(array)
+    }
+
+    /// Save disabled auth file names to UserDefaults
+    private func saveDisabledAuthFiles(_ names: Set<String>) {
+        UserDefaults.standard.set(Array(names), forKey: Self.disabledAuthFilesKey)
+    }
+
+    /// Sync local disabled state to backend after proxy starts
+    private func syncDisabledStatesToBackend() async {
+        guard let client = apiClient else { return }
+
+        let localDisabled = loadDisabledAuthFiles()
+        guard !localDisabled.isEmpty else { return }
+
+        for name in localDisabled {
+            // Only sync if this auth file exists
+            guard authFiles.contains(where: { $0.name == name }) else { continue }
+
+            do {
+                try await client.setAuthFileDisabled(name: name, disabled: true)
+            } catch {
+                Log.error("syncDisabledStatesToBackend: Failed for \(name) - \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// Post notification to trigger UI updates (works even when window is closed)
     private func notifyQuotaDataChanged() {
         NotificationCenter.default.post(name: Self.quotaDataDidChangeNotification, object: nil)
@@ -944,11 +978,16 @@ final class QuotaViewModel {
             setupAPIClient()
             startAutoRefresh()
             restartWarmupScheduler()
-            
+
             // Start RequestTracker
             requestTracker.start()
-            
+
             await refreshData()
+
+            // Sync local disabled states to backend after data is loaded
+            await syncDisabledStatesToBackend()
+            await refreshData()
+
             await runWarmupCycle()
 
             // Check for proxy upgrade (non-blocking, fire-and-forget)
@@ -1462,30 +1501,59 @@ final class QuotaViewModel {
     
     func deleteAuthFile(_ file: AuthFile) async {
         guard let client = apiClient else { return }
-        
+
         do {
             try await client.deleteAuthFile(name: file.name)
-            
+
             // Remove quota data for this account
             if let provider = file.providerType {
                 let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
                 providerQuotas[provider]?.removeValue(forKey: accountKey)
-                
+
                 // Also try with email if different
                 if let email = file.email, email != accountKey {
                     providerQuotas[provider]?.removeValue(forKey: email)
                 }
             }
-            
+
             // Prune menu bar items that no longer exist
             pruneMenuBarItems()
-            
+
             await refreshData()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
-    
+
+    func toggleAuthFileDisabled(_ file: AuthFile) async {
+        guard let client = apiClient else {
+            Log.error("toggleAuthFileDisabled: No API client available")
+            return
+        }
+
+        let newDisabled = !file.disabled
+
+        do {
+            Log.debug("toggleAuthFileDisabled: Setting \(file.name) disabled=\(newDisabled)")
+            try await client.setAuthFileDisabled(name: file.name, disabled: newDisabled)
+
+            // Update local persistence
+            var disabledSet = loadDisabledAuthFiles()
+            if newDisabled {
+                disabledSet.insert(file.name)
+            } else {
+                disabledSet.remove(file.name)
+            }
+            saveDisabledAuthFiles(disabledSet)
+
+            Log.debug("toggleAuthFileDisabled: Success, refreshing data")
+            await refreshData()
+        } catch {
+            Log.error("toggleAuthFileDisabled: Failed - \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+        }
+    }
+
     /// Remove menu bar items that no longer have valid quota data
     private func pruneMenuBarItems() {
         var validItems: [MenuBarQuotaItem] = []
