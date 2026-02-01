@@ -299,6 +299,9 @@ struct ProvidersScreen: View {
                         onSwitchAccount: provider == .antigravity ? { account in
                             switchingAccount = account
                         } : nil,
+                        onToggleDisabled: { account in
+                            Task { await toggleAccountDisabled(account) }
+                        },
                         isAccountActive: provider == .antigravity ? { account in
                             viewModel.isAntigravityAccountActive(email: account.displayName)
                         } : nil
@@ -420,6 +423,16 @@ struct ProvidersScreen: View {
         // Find the original AuthFile to delete
         if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
             await viewModel.deleteAuthFile(authFile)
+        }
+    }
+
+    private func toggleAccountDisabled(_ account: AccountRowData) async {
+        // Only proxy accounts can be disabled via API
+        guard account.source == .proxy else { return }
+
+        // Find the original AuthFile to toggle
+        if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
+            await viewModel.toggleAuthFileDisabled(authFile)
         }
     }
 

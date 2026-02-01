@@ -226,6 +226,15 @@ actor ManagementAPIClient {
     func deleteAllAuthFiles() async throws {
         _ = try await makeRequest("/auth-files?all=true", method: "DELETE")
     }
+
+    func setAuthFileDisabled(name: String, disabled: Bool) async throws {
+        struct Request: Encodable {
+            let name: String
+            let disabled: Bool
+        }
+        let body = try JSONEncoder().encode(Request(name: name, disabled: disabled))
+        _ = try await makeRequest("/auth-files/status", method: "PATCH", body: body)
+    }
     
     func fetchUsageStats() async throws -> UsageStats {
         let data = try await makeRequest("/usage")

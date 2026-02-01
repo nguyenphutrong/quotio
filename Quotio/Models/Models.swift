@@ -307,10 +307,14 @@ nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(disabled)
+        hasher.combine(status)
     }
-    
+
     static func == (lhs: AuthFile, rhs: AuthFile) -> Bool {
-        lhs.id == rhs.id
+        lhs.id == rhs.id &&
+        lhs.disabled == rhs.disabled &&
+        lhs.status == rhs.status
     }
 }
 
