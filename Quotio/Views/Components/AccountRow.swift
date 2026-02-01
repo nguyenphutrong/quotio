@@ -268,8 +268,9 @@ struct AccountRow: View {
                             .foregroundStyle(account.isDisabled ? .red : .secondary)
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.rowAction)
                 .help(account.isDisabled ? "providers.enable".localized() : "providers.disable".localized())
+                .accessibilityLabel(account.isDisabled ? "providers.enable".localized() : "providers.disable".localized())
             }
 
             // Edit button (GLM only)

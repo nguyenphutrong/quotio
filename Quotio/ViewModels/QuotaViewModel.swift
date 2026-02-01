@@ -1505,9 +1505,10 @@ final class QuotaViewModel {
         do {
             try await client.deleteAuthFile(name: file.name)
 
+            let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
+
             // Remove quota data for this account
             if let provider = file.providerType {
-                let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
                 providerQuotas[provider]?.removeValue(forKey: accountKey)
 
                 // Also try with email if different
@@ -1515,6 +1516,15 @@ final class QuotaViewModel {
                     providerQuotas[provider]?.removeValue(forKey: email)
                 }
             }
+
+            // Clear persisted disabled flags for this account
+            var disabledSet = loadDisabledAuthFiles()
+            disabledSet.remove(file.name)
+            disabledSet.remove(accountKey)
+            if let email = file.email, email != accountKey {
+                disabledSet.remove(email)
+            }
+            saveDisabledAuthFiles(disabledSet)
 
             // Prune menu bar items that no longer exist
             pruneMenuBarItems()
