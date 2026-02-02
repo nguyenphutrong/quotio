@@ -27,22 +27,16 @@ final class CLIProxyManager {
     /// Whether to allow network access to the proxy (bind to 0.0.0.0)
     var allowNetworkAccess: Bool {
         get { UserDefaults.standard.bool(forKey: "allowNetworkAccess") }
-        set { 
+        set {
             UserDefaults.standard.set(newValue, forKey: "allowNetworkAccess")
             ensureConfigExists()
             if newValue {
                 ensureApiKeyExistsInConfig()
             }
             updateConfigHost(newValue ? "0.0.0.0" : "127.0.0.1")
-            
+
             // Restart proxy if running to apply changes
-            if proxyStatus.running {
-                Task {
-                    stop()
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                    try? await start()
-                }
-            }
+            restartProxyIfRunning()
         }
     }
     
@@ -157,6 +151,7 @@ final class CLIProxyManager {
             proxyStatus.port = newValue
             UserDefaults.standard.set(Int(newValue), forKey: "proxyPort")
             updateConfigPort(newValue)
+            restartProxyIfRunning()
         }
     }
     
@@ -216,7 +211,28 @@ final class CLIProxyManager {
         
         ensureConfigExists()
     }
-    
+
+    /// Restart the proxy if it is currently running.
+    /// This is used to apply configuration changes that require a restart.
+    private func restartProxyIfRunning() {
+        guard proxyStatus.running else { return }
+
+        Task {
+            NSLog("[CLIProxyManager] Restarting proxy to apply configuration changes...")
+            stop()
+            // Wait 0.5s for ports to clear
+            try? await Task.sleep(nanoseconds: 500_000_000)
+
+            do {
+                try await start()
+                NSLog("[CLIProxyManager] Proxy restarted successfully")
+            } catch {
+                NSLog("[CLIProxyManager] Failed to restart proxy: \(error)")
+                lastError = "Failed to restart: \(error.localizedDescription)"
+            }
+        }
+    }
+
     private func updateConfigValue(pattern: String, replacement: String) {
         guard FileManager.default.fileExists(atPath: configPath),
               var content = try? String(contentsOfFile: configPath, encoding: .utf8) else {
@@ -296,21 +312,23 @@ final class CLIProxyManager {
     
     func updateConfigLogging(enabled: Bool) {
         updateConfigValue(pattern: #"logging-to-file:\s*(true|false)"#, replacement: "logging-to-file: \(enabled)")
+        restartProxyIfRunning()
     }
     
     /// Update routing strategy in config file
     /// Note: Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
     func updateConfigRoutingStrategy(_ strategy: String) {
         updateConfigValue(pattern: #"strategy:\s*"[^"]*""#, replacement: "strategy: \"\(strategy)\"")
-        NSLog("[CLIProxyManager] Routing strategy updated to: \(strategy) (restart required)")
+        NSLog("[CLIProxyManager] Routing strategy updated to: \(strategy) (restarting proxy)")
+        restartProxyIfRunning()
     }
     
     func updateConfigProxyURL(_ url: String?) {
         guard FileManager.default.fileExists(atPath: configPath),
               var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
-        
+
         let proxyValue = url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        
+
         if let range = content.range(of: #"proxy-url:\s*\"[^\"]*\""#, options: .regularExpression) {
             content.replaceSubrange(range, with: "proxy-url: \"\(proxyValue)\"")
             try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
@@ -323,39 +341,41 @@ final class CLIProxyManager {
                 try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
             }
         }
+
+        restartProxyIfRunning()
     }
     
     private func ensureConfigExists() {
         guard !FileManager.default.fileExists(atPath: configPath) else { return }
-        
+
         let defaultConfig = """
         host: "\(allowNetworkAccess ? "0.0.0.0" : "127.0.0.1")"
         port: \(proxyStatus.port)
         auth-dir: "\(authDir)"
         proxy-url: ""
-        
+
         api-keys:
           - "quotio-local-\(UUID().uuidString)"
-        
+
         remote-management:
           allow-remote: false
           secret-key: "\(managementKey)"
-        
+
         debug: false
         logging-to-file: false
         usage-statistics-enabled: true
-        
+
         routing:
           strategy: "round-robin"
-        
+
         quota-exceeded:
           switch-project: true
           switch-preview-model: true
-        
+
         request-retry: 3
         max-retry-interval: 30
         """
-        
+
         try? defaultConfig.write(toFile: configPath, atomically: true, encoding: .utf8)
     }
     
