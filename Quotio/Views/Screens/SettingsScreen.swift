@@ -1104,6 +1104,19 @@ struct ProxyUpdateSettingsSection: View {
                 }
             }
             
+            // Last checked time
+            HStack {
+                Text("settings.lastChecked".localized())
+                Spacer()
+                if let date = proxyManager.lastProxyUpdateCheckDate {
+                    Text(date, style: .relative)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("settings.never".localized())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
             // Error message
             if let error = upgradeError {
                 HStack {

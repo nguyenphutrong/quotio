@@ -262,6 +262,11 @@ final class NotificationManager {
         sentNotifications.remove("upgrade_available_\(version)")
     }
     
+    /// Suppress upgrade notification for a version (call after successful upgrade to prevent duplicate notifications)
+    func suppressUpgradeNotification(version: String) {
+        sentNotifications.insert("upgrade_available_\(version)")
+    }
+    
     /// Send notification when proxy upgrade succeeds
     /// - Parameter version: The new version that was installed
     func notifyUpgradeSuccess(version: String) {

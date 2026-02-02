@@ -128,6 +128,12 @@ final class CLIProxyManager {
     /// Available upgrade version info.
     private(set) var availableUpgrade: ProxyVersionInfo?
     
+    /// Last time a proxy update check was performed.
+    var lastProxyUpdateCheckDate: Date? {
+        get { UserDefaults.standard.object(forKey: "lastProxyUpdateCheckDate") as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: "lastProxyUpdateCheckDate") }
+    }
+    
     /// Health monitor task for auto-recovery
     private var healthMonitorTask: Task<Void, Never>?
     
@@ -1253,6 +1259,9 @@ extension CLIProxyManager {
     /// Check if an upgrade is available.
     /// First tries to ask running proxy, then falls back to direct GitHub API fetch.
     func checkForUpgrade() async {
+        // Record when this check was performed
+        lastProxyUpdateCheckDate = Date()
+        
         // Get latest version - try proxy first, fallback to direct GitHub fetch
         let latestTag: String
         
@@ -1473,6 +1482,10 @@ extension CLIProxyManager {
         
         // Save the installed version
         saveInstalledVersion(installed.version)
+        
+        // Suppress any future upgrade notifications for this version
+        // This prevents the bug where a notification is shown immediately after upgrading
+        NotificationManager.shared.suppressUpgradeNotification(version: installed.version)
         
         NotificationManager.shared.notifyUpgradeSuccess(version: installed.version)
     }
