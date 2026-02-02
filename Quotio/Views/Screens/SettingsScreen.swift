@@ -51,6 +51,21 @@ struct SettingsScreen: View {
                 Label("settings.language".localized(), systemImage: "globe")
             }
 
+            // Troubleshooting
+            Section {
+                Button("Apply Workaround (Backup & Force URL)") {
+                    CLIProxyManager.shared.applyBaseURLWorkaround()
+                }
+
+                Button("Restore Original Settings") {
+                    CLIProxyManager.shared.removeBaseURLWorkaround()
+                }
+            } header: {
+                Label("Troubleshooting", systemImage: "hammer.fill")
+            } footer: {
+                Text("Forces the proxy to use the primary Google API URL to fix slowness. Original settings are backed up and can be restored.")
+            }
+
             // Appearance
             AppearanceSettingsSection()
             

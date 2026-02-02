@@ -308,9 +308,9 @@ final class CLIProxyManager {
     func updateConfigProxyURL(_ url: String?) {
         guard FileManager.default.fileExists(atPath: configPath),
               var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
-        
+
         let proxyValue = url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        
+
         if let range = content.range(of: #"proxy-url:\s*\"[^\"]*\""#, options: .regularExpression) {
             content.replaceSubrange(range, with: "proxy-url: \"\(proxyValue)\"")
             try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
@@ -324,7 +324,105 @@ final class CLIProxyManager {
             }
         }
     }
-    
+
+    // MARK: - Workarounds
+
+    /// Applies a workaround to force the primary Google API URL in all auth files.
+    /// This prevents fallback to the slow "sandbox" environment.
+    /// Backs up original files before modification.
+    func applyBaseURLWorkaround() {
+        let fileManager = FileManager.default
+        guard let files = try? fileManager.contentsOfDirectory(atPath: authDir) else { return }
+
+        for file in files where file.hasSuffix(".json") && file.starts(with: "antigravity-") {
+            let path = (authDir as NSString).appendingPathComponent(file)
+            let backupPath = path + ".bak"
+
+            // Create backup if it doesn't exist
+            if !fileManager.fileExists(atPath: backupPath) {
+                try? fileManager.copyItem(atPath: path, toPath: backupPath)
+            }
+
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  var json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else { continue }
+
+            var metadata = json["metadata"] as? [String: Any] ?? [:]
+            metadata["base_url"] = "https://daily-cloudcode-pa.googleapis.com"
+            json["metadata"] = metadata
+
+            if let newData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+                try? newData.write(to: URL(fileURLWithPath: path))
+            }
+        }
+
+        restartProxyIfRunning()
+    }
+
+    /// Restores the original auth files from backup, effectively reverting the URL workaround.
+    func removeBaseURLWorkaround() {
+        let fileManager = FileManager.default
+        guard let files = try? fileManager.contentsOfDirectory(atPath: authDir) else { return }
+
+        var restoredCount = 0
+
+        for file in files where file.hasSuffix(".json.bak") {
+            let backupPath = (authDir as NSString).appendingPathComponent(file)
+            let originalPath = backupPath.replacingOccurrences(of: ".bak", with: "")
+
+            // Restore from backup
+            do {
+                if fileManager.fileExists(atPath: originalPath) {
+                    try fileManager.removeItem(atPath: originalPath)
+                }
+                try fileManager.moveItem(atPath: backupPath, toPath: originalPath)
+                restoredCount += 1
+            } catch {
+                NSLog("[CLIProxyManager] Failed to restore backup for \(file): \(error)")
+            }
+        }
+
+        // Fallback: If no backups found, try to just remove the key from current files
+        if restoredCount == 0 {
+            for file in files where file.hasSuffix(".json") && file.starts(with: "antigravity-") {
+                let path = (authDir as NSString).appendingPathComponent(file)
+                guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                      var json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else { continue }
+
+                if var metadata = json["metadata"] as? [String: Any] {
+                    metadata.removeValue(forKey: "base_url")
+                    json["metadata"] = metadata
+
+                    if let newData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+                        try? newData.write(to: URL(fileURLWithPath: path))
+                    }
+                }
+            }
+        }
+
+        restartProxyIfRunning()
+    }
+
+    /// Restart the proxy if it is currently running.
+    /// This is used to apply configuration changes that require a restart.
+    private func restartProxyIfRunning() {
+        guard proxyStatus.running else { return }
+
+        Task {
+            NSLog("[CLIProxyManager] Restarting proxy to apply configuration changes...")
+            stop()
+            // Wait 0.5s for ports to clear
+            try? await Task.sleep(nanoseconds: 500_000_000)
+
+            do {
+                try await start()
+                NSLog("[CLIProxyManager] Proxy restarted successfully")
+            } catch {
+                NSLog("[CLIProxyManager] Failed to restart proxy: \(error)")
+                lastError = "Failed to restart: \(error.localizedDescription)"
+            }
+        }
+    }
+
     private func ensureConfigExists() {
         guard !FileManager.default.fileExists(atPath: configPath) else { return }
         
