@@ -34,7 +34,7 @@ nonisolated struct CursorQuotaInfo: Sendable {
         
         var remainingPercentage: Double {
             guard limit > 0 else { return 100 }
-            return Double(remaining) / Double(limit) * 100
+            return min(100, max(0, Double(remaining) / Double(limit) * 100))
         }
     }
     
@@ -357,7 +357,7 @@ actor CursorQuotaFetcher {
             // For on-demand, show used count (no limit typically)
             let percentage: Double
             if let limit = onDemand.limit, limit > 0, let remaining = onDemand.remaining {
-                percentage = Double(remaining) / Double(limit) * 100
+                percentage = min(100, max(0, Double(remaining) / Double(limit) * 100))
             } else {
                 percentage = 100 // Unlimited or no limit set
             }
