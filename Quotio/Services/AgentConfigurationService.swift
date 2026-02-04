@@ -1162,16 +1162,32 @@ actor AgentConfigurationService {
 
         var modelConfig: [String: Any] = ["name": displayName]
 
-        // Determine limits based on model family
+        // Determine limits and capabilities based on model family
         if modelName.contains("claude") {
             modelConfig["limit"] = ["context": 200000, "output": 64000]
+            // Claude models support vision
+            modelConfig["attachment"] = true
+            modelConfig["modalities"] = ["input": ["text", "image"], "output": ["text"]]
         } else if modelName.contains("gemini") {
             modelConfig["limit"] = ["context": 1048576, "output": 65536]
+            // Gemini models support vision
+            modelConfig["attachment"] = true
+            modelConfig["modalities"] = ["input": ["text", "image"], "output": ["text"]]
         } else if modelName.contains("gpt") {
             modelConfig["limit"] = ["context": 400000, "output": 32768]
-        } else {
-            // Default limits
+            // GPT-4+ models support vision
+            modelConfig["attachment"] = true
+            modelConfig["modalities"] = ["input": ["text", "image"], "output": ["text"]]
+        } else if modelName.contains("qwen") && modelName.contains("vl") {
+            // Qwen VL (vision-language) models
             modelConfig["limit"] = ["context": 128000, "output": 16384]
+            modelConfig["attachment"] = true
+            modelConfig["modalities"] = ["input": ["text", "image"], "output": ["text"]]
+        } else {
+            // Default: text-only models
+            modelConfig["limit"] = ["context": 128000, "output": 16384]
+            modelConfig["attachment"] = false
+            modelConfig["modalities"] = ["input": ["text"], "output": ["text"]]
         }
 
         // Add reasoning options for thinking/reasoning models
