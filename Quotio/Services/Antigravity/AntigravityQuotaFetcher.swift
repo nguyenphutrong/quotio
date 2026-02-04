@@ -577,7 +577,8 @@ actor AntigravityQuotaFetcher {
                     guard name.contains("gemini") || name.contains("claude") else { continue }
                     
                     if let quotaInfo = info.quotaInfo {
-                        let percentage = (quotaInfo.remainingFraction ?? 0) * 100
+                        // Clamp to 0-100 range (API can return remainingFraction > 1.0)
+                        let percentage = min(100, max(0, (quotaInfo.remainingFraction ?? 0) * 100))
                         let resetTime = quotaInfo.resetTime ?? ""
                         models.append(ModelQuota(name: name, percentage: percentage, resetTime: resetTime))
                     }
