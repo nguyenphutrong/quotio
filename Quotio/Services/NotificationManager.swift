@@ -86,10 +86,13 @@ final class NotificationManager {
         }
     }
     
-    func checkAuthorizationStatus() async {
+    nonisolated func checkAuthorizationStatus() async {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
-        isAuthorized = settings.authorizationStatus == .authorized
+        let authorized = settings.authorizationStatus == .authorized
+        await MainActor.run {
+            self.isAuthorized = authorized
+        }
     }
     
     // MARK: - Notification Sending

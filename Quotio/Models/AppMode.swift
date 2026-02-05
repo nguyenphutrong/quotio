@@ -87,7 +87,7 @@ enum AppMode: String, Codable, CaseIterable, Identifiable {
 // MARK: - App Mode Manager (DEPRECATED)
 
 @available(*, deprecated, message: "Use OperatingModeManager instead. AppModeManager will be removed in a future version.")
-@Observable
+@MainActor @Observable
 final class AppModeManager {
     static let shared = AppModeManager()
     

@@ -104,10 +104,10 @@ final class ImageCacheService: @unchecked Sendable {
     
     private func setupMemoryPressureHandler() {
         let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
-        source.setEventHandler { [weak self] in
-            Task { @MainActor in
-                self?.clearCache()
-            }
+        // Capture cache directly since NSCache is thread-safe
+        let cache = self.cache
+        source.setEventHandler {
+            cache.removeAllObjects()
         }
         memoryPressureSource = source
         source.resume()
@@ -116,20 +116,16 @@ final class ImageCacheService: @unchecked Sendable {
             forName: NSApplication.didResignActiveNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.cache.countLimit = 20
-            }
+        ) { [cache] _ in
+            cache.countLimit = 20
         }
         
         NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.cache.countLimit = 50
-            }
+        ) { [cache] _ in
+            cache.countLimit = 50
         }
     }
 }
