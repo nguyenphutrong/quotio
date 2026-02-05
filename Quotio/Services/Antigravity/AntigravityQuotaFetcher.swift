@@ -503,7 +503,10 @@ actor AntigravityQuotaFetcher {
     }
     
     func refreshAccessToken(refreshToken: String) async throws -> String {
-        var request = URLRequest(url: URL(string: tokenURL)!)
+        guard let url = URL(string: tokenURL) else {
+            throw QuotaFetchError.invalidURL
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
@@ -531,7 +534,10 @@ actor AntigravityQuotaFetcher {
     func fetchQuota(accessToken: String) async throws -> ProviderQuotaData {
         let projectId = await fetchProjectId(accessToken: accessToken)
         
-        var request = URLRequest(url: URL(string: quotaAPIURL)!)
+        guard let url = URL(string: quotaAPIURL) else {
+            throw QuotaFetchError.invalidURL
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.addValue(userAgent, forHTTPHeaderField: "User-Agent")
@@ -571,7 +577,8 @@ actor AntigravityQuotaFetcher {
                     guard name.contains("gemini") || name.contains("claude") else { continue }
                     
                     if let quotaInfo = info.quotaInfo {
-                        let percentage = (quotaInfo.remainingFraction ?? 0) * 100
+                        // Clamp to 0-100 range (API can return remainingFraction > 1.0)
+                        let percentage = min(100, max(0, (quotaInfo.remainingFraction ?? 0) * 100))
                         let resetTime = quotaInfo.resetTime ?? ""
                         models.append(ModelQuota(name: name, percentage: percentage, resetTime: resetTime))
                     }
@@ -603,7 +610,10 @@ actor AntigravityQuotaFetcher {
     }
     
     func fetchSubscriptionInfo(accessToken: String) async -> SubscriptionInfo? {
-        var request = URLRequest(url: URL(string: loadProjectAPIURL)!)
+        guard let url = URL(string: loadProjectAPIURL) else {
+            return nil
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.addValue(userAgent, forHTTPHeaderField: "User-Agent")
@@ -695,7 +705,7 @@ actor AntigravityQuotaFetcher {
                     try? updatedData.write(to: url)
                 }
             } catch {
-                print("Token refresh failed: \(error)")
+                Log.auth("Token refresh failed: \(error)")
             }
         }
         
@@ -850,7 +860,7 @@ actor AntigravityQuotaFetcher {
                     .replacingOccurrences(of: ".gmail.com", with: "@gmail.com")
                 results[email] = quota
             } catch {
-                print("Failed to fetch quota for \(file): \(error)")
+                Log.quota("Failed to fetch Antigravity quota for \(file): \(error)")
             }
         }
         

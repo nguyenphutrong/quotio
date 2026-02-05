@@ -284,7 +284,7 @@ actor TraeQuotaFetcher {
         // Add Premium Fast quota (most important for users)
         if info.premiumFastLimit > 0 {
             let remaining = max(0, info.premiumFastLimit - info.premiumFastUsed)
-            let percentage = Double(remaining) / Double(info.premiumFastLimit) * 100
+            let percentage = min(100, max(0, Double(remaining) / Double(info.premiumFastLimit) * 100))
             
             var quotaModel = ModelQuota(
                 name: "premium-fast",
@@ -300,7 +300,7 @@ actor TraeQuotaFetcher {
         // Add Premium Slow quota
         if info.premiumSlowLimit > 0 {
             let remaining = max(0, info.premiumSlowLimit - info.premiumSlowUsed)
-            let percentage = Double(remaining) / Double(info.premiumSlowLimit) * 100
+            let percentage = min(100, max(0, Double(remaining) / Double(info.premiumSlowLimit) * 100))
             
             var quotaModel = ModelQuota(
                 name: "premium-slow",
@@ -316,7 +316,7 @@ actor TraeQuotaFetcher {
         // Add Advanced Model quota
         if info.advancedModelLimit > 0 {
             let remaining = max(0, info.advancedModelLimit - info.advancedModelUsed)
-            let percentage = Double(remaining) / Double(info.advancedModelLimit) * 100
+            let percentage = min(100, max(0, Double(remaining) / Double(info.advancedModelLimit) * 100))
             
             var quotaModel = ModelQuota(
                 name: "advanced-model",
@@ -332,7 +332,7 @@ actor TraeQuotaFetcher {
         // Add Auto Completion quota
         if info.autoCompletionLimit > 0 {
             let remaining = max(0, info.autoCompletionLimit - info.autoCompletionUsed)
-            let percentage = Double(remaining) / Double(info.autoCompletionLimit) * 100
+            let percentage = min(100, max(0, Double(remaining) / Double(info.autoCompletionLimit) * 100))
             
             var quotaModel = ModelQuota(
                 name: "auto-completion",

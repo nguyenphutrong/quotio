@@ -4,7 +4,7 @@
 
 Symbol maps for 1 large files in this module.
 
-## Quotio/Services/QuotaFetchers/KiroQuotaFetcher.swift (592 lines)
+## Quotio/Services/QuotaFetchers/KiroQuotaFetcher.swift (593 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -21,9 +21,9 @@ Symbol maps for 1 large files in this module.
 | 232 | fn | parseExpiryDate | (private) |
 | 248 | fn | fetchUsageAPI | (private) |
 | 313 | fn | refreshTokenWithExpiry | (private) |
-| 328 | fn | refreshSocialTokenWithExpiry | (private) |
-| 377 | fn | refreshIdCTokenWithExpiry | (private) |
-| 449 | fn | syncToKiroIDEAuthFile | (private) |
-| 481 | fn | persistRefreshedToken | (private) |
-| 514 | fn | convertToQuotaData | (private) |
+| 329 | fn | refreshSocialTokenWithExpiry | (private) |
+| 378 | fn | refreshIdCTokenWithExpiry | (private) |
+| 450 | fn | syncToKiroIDEAuthFile | (private) |
+| 482 | fn | persistRefreshedToken | (private) |
+| 515 | fn | convertToQuotaData | (private) |
 

@@ -316,9 +316,10 @@ actor KiroQuotaFetcher {
         }
 
         // Determine auth method: "Social" (Google) or "IdC" (AWS Builder ID)
-        let authMethod = tokenData.authMethod ?? "IdC"
+        // Use case-insensitive comparison since CLIProxyAPI may store as "idc" or "social" (lowercase)
+        let authMethod = (tokenData.authMethod ?? "IdC").lowercased()
 
-        if authMethod == "Social" {
+        if authMethod == "social" {
             let region = tokenData.extras?["region"] ?? defaultRegion
             return await refreshSocialTokenWithExpiry(refreshToken: refreshToken, region: region, filePath: filePath)
         } else {
@@ -537,7 +538,7 @@ actor KiroQuotaFetcher {
 
                     var percentage: Double = 0
                     if total > 0 {
-                        percentage = max(0, (total - used) / total * 100)
+                        percentage = min(100, max(0, (total - used) / total * 100))
                     }
 
                     // Calculate free trial expiry time
@@ -563,7 +564,7 @@ actor KiroQuotaFetcher {
                 // Add regular quota if it has meaningful limits
                 if regularTotal > 0 {
                     var percentage: Double = 0
-                    percentage = max(0, (regularTotal - regularUsed) / regularTotal * 100)
+                    percentage = min(100, max(0, (regularTotal - regularUsed) / regularTotal * 100))
 
                     // Use different name based on whether trial is active
                     let quotaName = hasActiveTrial ? "\(displayName) (Base)" : displayName

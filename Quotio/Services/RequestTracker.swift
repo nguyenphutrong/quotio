@@ -42,7 +42,9 @@ final class RequestTracker {
     
     /// Storage file URL
     private var storageURL: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            fatalError("Application Support directory not found")
+        }
         let quotioDir = appSupport.appendingPathComponent("Quotio")
         try? FileManager.default.createDirectory(at: quotioDir, withIntermediateDirectories: true)
         return quotioDir.appendingPathComponent("request-history.json")

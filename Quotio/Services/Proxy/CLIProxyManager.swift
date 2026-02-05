@@ -27,22 +27,16 @@ final class CLIProxyManager {
     /// Whether to allow network access to the proxy (bind to 0.0.0.0)
     var allowNetworkAccess: Bool {
         get { UserDefaults.standard.bool(forKey: "allowNetworkAccess") }
-        set { 
+        set {
             UserDefaults.standard.set(newValue, forKey: "allowNetworkAccess")
             ensureConfigExists()
             if newValue {
                 ensureApiKeyExistsInConfig()
             }
             updateConfigHost(newValue ? "0.0.0.0" : "127.0.0.1")
-            
+
             // Restart proxy if running to apply changes
-            if proxyStatus.running {
-                Task {
-                    stop()
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                    try? await start()
-                }
-            }
+            restartProxyIfRunning()
         }
     }
     
@@ -163,6 +157,7 @@ final class CLIProxyManager {
             proxyStatus.port = newValue
             UserDefaults.standard.set(Int(newValue), forKey: "proxyPort")
             updateConfigPort(newValue)
+            restartProxyIfRunning()
         }
     }
     
@@ -186,7 +181,9 @@ final class CLIProxyManager {
     }
     
     init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            fatalError("Application Support directory not found")
+        }
         let quotioDir = appSupport.appendingPathComponent("Quotio")
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         
@@ -196,13 +193,16 @@ final class CLIProxyManager {
         self.configPath = quotioDir.appendingPathComponent("config.yaml").path
         self.authDir = homeDir.appendingPathComponent(".cli-proxy-api").path
         
-        // Always use key from UserDefaults, generate new if not exists
+        // Always use key from Keychain, generate new if not exists
         // Never read from config because CLIProxyAPI hashes the key on startup
-        if let savedKey = UserDefaults.standard.string(forKey: "managementKey"), !savedKey.hasPrefix("$2a$") {
+        if let savedKey = KeychainHelper.getLocalManagementKey(), !savedKey.hasPrefix("$2a$") {
             self.managementKey = savedKey
         } else {
-            self.managementKey = UUID().uuidString
-            UserDefaults.standard.set(managementKey, forKey: "managementKey")
+            let newKey = UUID().uuidString
+            self.managementKey = newKey
+            if !KeychainHelper.saveLocalManagementKey(newKey) {
+                Log.keychain("Failed to persist local management key, using in-memory value")
+            }
         }
         
         let savedPort = UserDefaults.standard.integer(forKey: "proxyPort")
@@ -217,7 +217,28 @@ final class CLIProxyManager {
         
         ensureConfigExists()
     }
-    
+
+    /// Restart the proxy if it is currently running.
+    /// This is used to apply configuration changes that require a restart.
+    private func restartProxyIfRunning() {
+        guard proxyStatus.running else { return }
+
+        Task {
+            NSLog("[CLIProxyManager] Restarting proxy to apply configuration changes...")
+            stop()
+            // Wait 0.5s for ports to clear
+            try? await Task.sleep(nanoseconds: 500_000_000)
+
+            do {
+                try await start()
+                NSLog("[CLIProxyManager] Proxy restarted successfully")
+            } catch {
+                NSLog("[CLIProxyManager] Failed to restart proxy: \(error)")
+                lastError = "Failed to restart: \(error.localizedDescription)"
+            }
+        }
+    }
+
     private func updateConfigValue(pattern: String, replacement: String) {
         guard FileManager.default.fileExists(atPath: configPath),
               var content = try? String(contentsOfFile: configPath, encoding: .utf8) else {
@@ -297,21 +318,23 @@ final class CLIProxyManager {
     
     func updateConfigLogging(enabled: Bool) {
         updateConfigValue(pattern: #"logging-to-file:\s*(true|false)"#, replacement: "logging-to-file: \(enabled)")
+        restartProxyIfRunning()
     }
     
     /// Update routing strategy in config file
     /// Note: Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
     func updateConfigRoutingStrategy(_ strategy: String) {
         updateConfigValue(pattern: #"strategy:\s*"[^"]*""#, replacement: "strategy: \"\(strategy)\"")
-        NSLog("[CLIProxyManager] Routing strategy updated to: \(strategy) (restart required)")
+        NSLog("[CLIProxyManager] Routing strategy updated to: \(strategy) (restarting proxy)")
+        restartProxyIfRunning()
     }
     
     func updateConfigProxyURL(_ url: String?) {
         guard FileManager.default.fileExists(atPath: configPath),
               var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
-        
+
         let proxyValue = url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        
+
         if let range = content.range(of: #"proxy-url:\s*\"[^\"]*\""#, options: .regularExpression) {
             content.replaceSubrange(range, with: "proxy-url: \"\(proxyValue)\"")
             try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
@@ -324,39 +347,118 @@ final class CLIProxyManager {
                 try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
             }
         }
+
+        restartProxyIfRunning()
     }
-    
+
+    // MARK: - Workarounds
+
+    /// Applies a workaround to force the primary Google API URL in all auth files.
+    /// This prevents fallback to the slow "sandbox" environment.
+    /// Backs up original files before modification.
+    func applyBaseURLWorkaround() {
+        let fileManager = FileManager.default
+        guard let files = try? fileManager.contentsOfDirectory(atPath: authDir) else { return }
+
+        for file in files where file.hasSuffix(".json") && file.starts(with: "antigravity-") {
+            let path = (authDir as NSString).appendingPathComponent(file)
+            let backupPath = path + ".bak"
+
+            // Create backup if it doesn't exist
+            if !fileManager.fileExists(atPath: backupPath) {
+                try? fileManager.copyItem(atPath: path, toPath: backupPath)
+            }
+
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  var json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else { continue }
+
+            var metadata = json["metadata"] as? [String: Any] ?? [:]
+            metadata["base_url"] = "https://daily-cloudcode-pa.googleapis.com"
+            json["metadata"] = metadata
+
+            if let newData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+                try? newData.write(to: URL(fileURLWithPath: path))
+            }
+        }
+
+        restartProxyIfRunning()
+    }
+
+    /// Restores the original auth files from backup, effectively reverting the URL workaround.
+    func removeBaseURLWorkaround() {
+        let fileManager = FileManager.default
+        guard let files = try? fileManager.contentsOfDirectory(atPath: authDir) else { return }
+
+        var restoredCount = 0
+
+        for file in files where file.hasSuffix(".json.bak") {
+            let backupPath = (authDir as NSString).appendingPathComponent(file)
+            let originalPath = backupPath.replacingOccurrences(of: ".bak", with: "")
+
+            // Restore from backup
+            do {
+                if fileManager.fileExists(atPath: originalPath) {
+                    try fileManager.removeItem(atPath: originalPath)
+                }
+                try fileManager.moveItem(atPath: backupPath, toPath: originalPath)
+                restoredCount += 1
+            } catch {
+                NSLog("[CLIProxyManager] Failed to restore backup for \(file): \(error)")
+            }
+        }
+
+        // Fallback: If no backups found, try to just remove the key from current files
+        if restoredCount == 0 {
+            for file in files where file.hasSuffix(".json") && file.starts(with: "antigravity-") {
+                let path = (authDir as NSString).appendingPathComponent(file)
+                guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                      var json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else { continue }
+
+                if var metadata = json["metadata"] as? [String: Any] {
+                    metadata.removeValue(forKey: "base_url")
+                    json["metadata"] = metadata
+
+                    if let newData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+                        try? newData.write(to: URL(fileURLWithPath: path))
+                    }
+                }
+            }
+        }
+
+        restartProxyIfRunning()
+    }
+
     private func ensureConfigExists() {
         guard !FileManager.default.fileExists(atPath: configPath) else { return }
-        
+
         let defaultConfig = """
         host: "\(allowNetworkAccess ? "0.0.0.0" : "127.0.0.1")"
         port: \(proxyStatus.port)
         auth-dir: "\(authDir)"
         proxy-url: ""
-        
+
         api-keys:
           - "quotio-local-\(UUID().uuidString)"
-        
+
         remote-management:
           allow-remote: false
           secret-key: "\(managementKey)"
-        
+
         debug: false
         logging-to-file: false
         usage-statistics-enabled: true
-        
+
         routing:
           strategy: "round-robin"
-        
+
         quota-exceeded:
           switch-project: true
           switch-preview-model: true
-        
+
         request-retry: 3
         max-retry-interval: 30
         """
-        
+
         try? defaultConfig.write(toFile: configPath, atomically: true, encoding: .utf8)
     }
     
@@ -389,7 +491,9 @@ final class CLIProxyManager {
         syncSecretKeyInConfig()
         
         guard proxyStatus.running else {
-            UserDefaults.standard.set(newKey, forKey: "managementKey")
+            if !KeychainHelper.saveLocalManagementKey(newKey) {
+                Log.keychain("Failed to persist regenerated management key while stopped")
+            }
             return
         }
         
@@ -397,7 +501,9 @@ final class CLIProxyManager {
             stop()
             try await Task.sleep(for: .milliseconds(500))
             try await start()
-            UserDefaults.standard.set(newKey, forKey: "managementKey")
+            if !KeychainHelper.saveLocalManagementKey(newKey) {
+                Log.keychain("Failed to persist regenerated management key after restart")
+            }
         } catch {
             managementKey = previousKey
             syncSecretKeyInConfig()
@@ -425,7 +531,7 @@ final class CLIProxyManager {
             try CustomProviderService.shared.syncToConfigFile(configPath: configPath)
         } catch {
             // Silent failure - custom providers are optional
-            print("Failed to sync custom providers to config: \(error)")
+            Log.proxy("Failed to sync custom providers to config: \\(error)")
         }
     }
     
@@ -1002,7 +1108,8 @@ final class CLIProxyManager {
     }
     
     func revealInFinder() {
-        NSWorkspace.shared.selectFile(binaryPath, inFileViewerRootedAtPath: (binaryPath as NSString).deletingLastPathComponent)
+        let path = effectiveBinaryPath
+        NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: (path as NSString).deletingLastPathComponent)
     }
 }
 
@@ -1092,7 +1199,7 @@ extension CLIProxyManager {
         
         return await withCheckedContinuation { continuation in
             let newAuthProcess = Process()
-            newAuthProcess.executableURL = URL(fileURLWithPath: binaryPath)
+            newAuthProcess.executableURL = URL(fileURLWithPath: effectiveBinaryPath)
             newAuthProcess.arguments = ["-config", configPath] + command.arguments
             
             let outputPipe = Pipe()
@@ -1255,81 +1362,49 @@ extension CLIProxyManager {
     }
     
     // MARK: - Upgrade Flow
-    
+
     /// Check if an upgrade is available.
-    /// First tries to ask running proxy, then falls back to direct GitHub API fetch.
+    /// Uses Atom feed with ETag caching for efficient polling.
+    /// Falls back to GitHub API only when needed for download URLs.
     func checkForUpgrade() async {
         // Record when this check was performed
         lastProxyUpdateCheckDate = Date()
         
-        // Get latest version - try proxy first, fallback to direct GitHub fetch
-        let latestTag: String
-        
-        if proxyStatus.running {
-            // Try to get version from running proxy first
-            let apiClient = ManagementAPIClient(baseURL: managementURL, authKey: managementKey)
-            do {
-                let latestResponse = try await apiClient.fetchLatestVersion()
-                await apiClient.invalidate()
-                latestTag = latestResponse.latestVersion
-            } catch {
-                await apiClient.invalidate()
-                // Fallback to direct GitHub fetch
-                do {
-                    let release = try await fetchLatestRelease()
-                    latestTag = release.tagName
-                } catch {
-                    upgradeAvailable = false
-                    availableUpgrade = nil
-                    return
-                }
-            }
-        } else {
-            // Proxy not running - fetch directly from GitHub
-            do {
-                let release = try await fetchLatestRelease()
-                latestTag = release.tagName
-            } catch {
+        // Use AtomFeedUpdateService for efficient version checking
+        let currentVer = currentVersion ?? installedProxyVersion
+        let (latestVersion, isNewer) = await AtomFeedUpdateService.shared.checkForCLIProxyUpdate(currentVersion: currentVer)
+
+        guard isNewer, let latestTag = latestVersion else {
+            upgradeAvailable = false
+            availableUpgrade = nil
+            return
+        }
+
+        // New version available - fetch release details from GitHub API for download URL
+        do {
+            let release = try await fetchGitHubRelease(tag: latestTag)
+
+            guard let asset = findCompatibleAsset(from: release) else {
                 upgradeAvailable = false
                 availableUpgrade = nil
                 return
             }
-        }
-        
-        // Extract version without 'v' prefix
-        let latestVersion = latestTag.hasPrefix("v") ? String(latestTag.dropFirst()) : latestTag
-        
-        // Compare with current version using semantic versioning
-        let current = currentVersion ?? installedProxyVersion
-        
-        let needsUpgrade = current == nil || isNewerVersion(latestVersion, than: current!)
-        if needsUpgrade {
-            do {
-                // Fetch release info from GitHub to get checksum and download URL
-                let release = try await fetchGitHubRelease(tag: latestTag)
-                
-                guard let asset = findCompatibleAsset(from: release) else {
-                    upgradeAvailable = false
-                    availableUpgrade = nil
-                    return
-                }
-                
-                let versionInfo = ProxyVersionInfo(from: release, asset: asset)
-                guard let info = versionInfo else {
-                    upgradeAvailable = false
-                    availableUpgrade = nil
-                    return
-                }
-                upgradeAvailable = true
-                availableUpgrade = info
-                
-                // Send notification about available upgrade
-                NotificationManager.shared.notifyUpgradeAvailable(version: latestVersion)
-            } catch {
+
+            let versionInfo = ProxyVersionInfo(from: release, asset: asset)
+            guard let info = versionInfo else {
                 upgradeAvailable = false
                 availableUpgrade = nil
+                return
             }
-        } else {
+
+            upgradeAvailable = true
+            availableUpgrade = info
+
+            // Note: Notification is handled by AtomFeedUpdateService polling
+            let version = latestTag.hasPrefix("v") ? String(latestTag.dropFirst()) : latestTag
+            NSLog("[CLIProxyManager] Upgrade available: \(version)")
+        } catch {
+            NSLog("[CLIProxyManager] Failed to fetch release details: \(error.localizedDescription)")
             upgradeAvailable = false
             availableUpgrade = nil
         }

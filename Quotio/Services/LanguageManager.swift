@@ -45,7 +45,7 @@ enum AppLanguage: String, CaseIterable, Identifiable, Codable {
             return bundle
         }
         #if DEBUG
-        print("⚠️ LanguageManager: Bundle not found for \(rawValue), falling back to main bundle")
+        Log.debug("LanguageManager: Bundle not found for \\(rawValue), falling back to main bundle")
         #endif
         return .main
     }

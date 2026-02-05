@@ -2,9 +2,9 @@
 
 [← Back to MODULE](MODULE.md) | [← Back to INDEX](../../INDEX.md)
 
-Symbol maps for 3 large files in this module.
+Symbol maps for 4 large files in this module.
 
-## Quotio/Services/AgentConfigurationService.swift (1385 lines)
+## Quotio/Services/AgentConfigurationService.swift (1410 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -15,30 +15,60 @@ Symbol maps for 3 large files in this module.
 | 111 | fn | readClaudeCodeConfig | (private) |
 | 147 | fn | readCodexConfig | (private) |
 | 190 | fn | readGeminiCLIConfig | (private) |
-| 229 | fn | readAmpConfig | (private) |
-| 252 | fn | readOpenCodeConfig | (private) |
-| 289 | fn | readFactoryDroidConfig | (private) |
-| 326 | fn | extractTOMLValue | (private) |
-| 337 | fn | extractExportValue | (private) |
-| 349 | fn | generateConfiguration | (internal) |
-| 388 | fn | generateDefaultConfiguration | (private) |
-| 404 | fn | generateClaudeCodeDefaultConfig | (private) |
-| 489 | fn | generateCodexDefaultConfig | (private) |
-| 554 | fn | generateGeminiCLIDefaultConfig | (private) |
-| 582 | fn | generateAmpDefaultConfig | (private) |
-| 628 | fn | generateOpenCodeDefaultConfig | (private) |
-| 677 | fn | generateFactoryDroidDefaultConfig | (private) |
-| 742 | fn | generateClaudeCodeConfig | (private) |
+| 228 | fn | readAmpConfig | (private) |
+| 251 | fn | readOpenCodeConfig | (private) |
+| 288 | fn | readFactoryDroidConfig | (private) |
+| 325 | fn | extractTOMLValue | (private) |
+| 336 | fn | extractExportValue | (private) |
+| 348 | fn | generateConfiguration | (internal) |
+| 387 | fn | generateDefaultConfiguration | (private) |
+| 403 | fn | generateClaudeCodeDefaultConfig | (private) |
+| 488 | fn | generateCodexDefaultConfig | (private) |
+| 553 | fn | generateGeminiCLIDefaultConfig | (private) |
+| 581 | fn | generateAmpDefaultConfig | (private) |
+| 627 | fn | generateOpenCodeDefaultConfig | (private) |
+| 676 | fn | generateFactoryDroidDefaultConfig | (private) |
+| 741 | fn | generateClaudeCodeConfig | (private) |
 | 863 | fn | generateCodexConfig | (private) |
 | 941 | fn | generateGeminiCLIConfig | (private) |
 | 984 | fn | generateAmpConfig | (private) |
 | 1067 | fn | generateOpenCodeConfig | (private) |
 | 1158 | fn | buildOpenCodeModelConfig | (private) |
-| 1194 | fn | generateFactoryDroidConfig | (private) |
-| 1264 | fn | fetchAvailableModels | (internal) |
-| 1319 | fn | testConnection | (internal) |
+| 1210 | fn | generateFactoryDroidConfig | (private) |
+| 1280 | fn | fetchAvailableModels | (internal) |
+| 1335 | fn | testConnection | (internal) |
 
-## Quotio/Services/ManagementAPIClient.swift (718 lines)
+## Quotio/Services/AtomFeedUpdateService.swift (533 lines)
+
+| Line | Kind | Name | Visibility |
+| ---- | ---- | ---- | ---------- |
+| 14 | struct | AtomFeedEntry | (internal) |
+| 24 | enum | AtomFeedResult | (internal) |
+| 35 | struct | CachedFeedState | (internal) |
+| 44 | class | AtomFeedUpdateService | (internal) |
+| 111 | fn | checkForCLIProxyUpdate | (internal) |
+| 160 | fn | checkForQuotioUpdate | (internal) |
+| 205 | fn | forceCheckForCLIProxyUpdate | (internal) |
+| 216 | fn | startPolling | (internal) |
+| 238 | fn | stopPolling | (internal) |
+| 248 | fn | performPollingCheck | (private) |
+| 280 | fn | manualCheckForCLIProxyUpdate | (internal) |
+| 298 | fn | resetNotificationState | (internal) |
+| 304 | fn | fetchAtomFeed | (private) |
+| 350 | fn | parseAtomFeed | (private) |
+| 355 | fn | saveCacheState | (private) |
+| 368 | fn | loadCacheState | (private) |
+| 379 | fn | isNewerVersion | (private) |
+| 380 | fn | parseVersion | (internal) |
+| 418 | class | AtomFeedParser | (private) |
+| 438 | method | init | (internal) |
+| 443 | fn | parse | (internal) |
+| 450 | fn | parser | (internal) |
+| 466 | fn | parser | (internal) |
+| 470 | fn | parser | (internal) |
+| 515 | enum | AtomFeedError | (internal) |
+
+## Quotio/Services/ManagementAPIClient.swift (727 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -57,48 +87,49 @@ Symbol maps for 3 large files in this module.
 | 215 | fn | apiCall | (internal) |
 | 221 | fn | deleteAuthFile | (internal) |
 | 225 | fn | deleteAllAuthFiles | (internal) |
-| 229 | fn | fetchUsageStats | (internal) |
-| 234 | fn | getOAuthURL | (internal) |
-| 255 | fn | pollOAuthStatus | (internal) |
-| 260 | fn | fetchLogs | (internal) |
-| 269 | fn | clearLogs | (internal) |
-| 273 | fn | setDebug | (internal) |
-| 278 | fn | setRoutingStrategy | (internal) |
-| 294 | fn | getRoutingStrategy | (internal) |
-| 307 | fn | setQuotaExceededSwitchProject | (internal) |
-| 312 | fn | setQuotaExceededSwitchPreviewModel | (internal) |
-| 317 | fn | setRequestRetry | (internal) |
-| 326 | fn | fetchConfig | (internal) |
-| 332 | fn | getDebug | (internal) |
-| 339 | fn | getProxyURL | (internal) |
-| 346 | fn | setProxyURL | (internal) |
-| 352 | fn | deleteProxyURL | (internal) |
-| 357 | fn | getLoggingToFile | (internal) |
-| 364 | fn | setLoggingToFile | (internal) |
-| 370 | fn | getRequestLog | (internal) |
-| 377 | fn | setRequestLog | (internal) |
-| 383 | fn | getRequestRetry | (internal) |
-| 390 | fn | getMaxRetryInterval | (internal) |
-| 397 | fn | setMaxRetryInterval | (internal) |
-| 403 | fn | getQuotaExceededSwitchProject | (internal) |
-| 410 | fn | getQuotaExceededSwitchPreviewModel | (internal) |
-| 415 | fn | uploadVertexServiceAccount | (internal) |
-| 421 | fn | uploadVertexServiceAccount | (internal) |
-| 425 | fn | fetchAPIKeys | (internal) |
-| 431 | fn | addAPIKey | (internal) |
-| 438 | fn | replaceAPIKeys | (internal) |
-| 443 | fn | updateAPIKey | (internal) |
-| 448 | fn | deleteAPIKey | (internal) |
-| 453 | fn | deleteAPIKeyByIndex | (internal) |
-| 462 | fn | fetchLatestVersion | (internal) |
-| 469 | fn | checkProxyResponding | (internal) |
-| 491 | class | SessionDelegate | (private) |
-| 494 | method | init | (internal) |
-| 500 | fn | urlSession | (internal) |
-| 505 | fn | urlSession | (internal) |
-| 515 | fn | urlSession | (internal) |
-| 694 | method | init | (internal) |
-| 708 | fn | encode | (internal) |
+| 229 | fn | setAuthFileDisabled | (internal) |
+| 238 | fn | fetchUsageStats | (internal) |
+| 243 | fn | getOAuthURL | (internal) |
+| 264 | fn | pollOAuthStatus | (internal) |
+| 269 | fn | fetchLogs | (internal) |
+| 278 | fn | clearLogs | (internal) |
+| 282 | fn | setDebug | (internal) |
+| 287 | fn | setRoutingStrategy | (internal) |
+| 303 | fn | getRoutingStrategy | (internal) |
+| 316 | fn | setQuotaExceededSwitchProject | (internal) |
+| 321 | fn | setQuotaExceededSwitchPreviewModel | (internal) |
+| 326 | fn | setRequestRetry | (internal) |
+| 335 | fn | fetchConfig | (internal) |
+| 341 | fn | getDebug | (internal) |
+| 348 | fn | getProxyURL | (internal) |
+| 355 | fn | setProxyURL | (internal) |
+| 361 | fn | deleteProxyURL | (internal) |
+| 366 | fn | getLoggingToFile | (internal) |
+| 373 | fn | setLoggingToFile | (internal) |
+| 379 | fn | getRequestLog | (internal) |
+| 386 | fn | setRequestLog | (internal) |
+| 392 | fn | getRequestRetry | (internal) |
+| 399 | fn | getMaxRetryInterval | (internal) |
+| 406 | fn | setMaxRetryInterval | (internal) |
+| 412 | fn | getQuotaExceededSwitchProject | (internal) |
+| 419 | fn | getQuotaExceededSwitchPreviewModel | (internal) |
+| 424 | fn | uploadVertexServiceAccount | (internal) |
+| 430 | fn | uploadVertexServiceAccount | (internal) |
+| 434 | fn | fetchAPIKeys | (internal) |
+| 440 | fn | addAPIKey | (internal) |
+| 447 | fn | replaceAPIKeys | (internal) |
+| 452 | fn | updateAPIKey | (internal) |
+| 457 | fn | deleteAPIKey | (internal) |
+| 462 | fn | deleteAPIKeyByIndex | (internal) |
+| 471 | fn | fetchLatestVersion | (internal) |
+| 478 | fn | checkProxyResponding | (internal) |
+| 500 | class | SessionDelegate | (private) |
+| 503 | method | init | (internal) |
+| 509 | fn | urlSession | (internal) |
+| 514 | fn | urlSession | (internal) |
+| 524 | fn | urlSession | (internal) |
+| 703 | method | init | (internal) |
+| 717 | fn | encode | (internal) |
 
 ## Quotio/Services/StatusBarMenuBuilder.swift (1415 lines)
 

@@ -363,7 +363,7 @@ final class OperatingModeManager {
         // Mark migration complete (keep old keys for safety)
         UserDefaults.standard.set(true, forKey: "migratedToOperatingMode")
         
-        print("[OperatingModeManager] Migrated from AppMode.\(legacyAppModeRaw ?? "nil") + ConnectionMode.\(legacyConnectionModeRaw ?? "nil") -> OperatingMode.\(newMode.rawValue)")
+        Log.debug("Migrated from AppMode.\(legacyAppModeRaw ?? "nil") + ConnectionMode.\(legacyConnectionModeRaw ?? "nil") -> OperatingMode.\(newMode.rawValue)")
         
         return newMode
     }

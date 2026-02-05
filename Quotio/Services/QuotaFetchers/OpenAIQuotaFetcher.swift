@@ -70,7 +70,10 @@ actor OpenAIQuotaFetcher {
     }
     
     func fetchQuota(accessToken: String, accountId: String?) async throws -> CodexQuotaData {
-        var request = URLRequest(url: URL(string: usageURL)!)
+        guard let url = URL(string: usageURL) else {
+            throw CodexQuotaError.invalidURL
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -78,7 +81,7 @@ actor OpenAIQuotaFetcher {
             request.addValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
         }
 #if DEBUG
-        print("[OpenAIQuotaFetcher] GET \(usageURL) accountId=\(debugMask(accountId))")
+        Log.quota("GET \\(usageURL) accountId=\\(debugMask(accountId))")
 #endif
         
         let (data, response) = try await session.data(for: request)
@@ -93,7 +96,7 @@ actor OpenAIQuotaFetcher {
         
         let quotaResponse = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
 #if DEBUG
-        print("[OpenAIQuotaFetcher] plan_type=\(quotaResponse.planType ?? "<nil>")")
+        Log.quota("plan_type=\(quotaResponse.planType ?? "<nil>")")
 #endif
         return CodexQuotaData(from: quotaResponse)
     }
@@ -116,7 +119,7 @@ actor OpenAIQuotaFetcher {
                     try? updatedData.write(to: url)
                 }
             } catch {
-                print("Token refresh failed: \(error)")
+                Log.quota("Token refresh failed: \\(error)")
             }
         }
         
@@ -124,7 +127,10 @@ actor OpenAIQuotaFetcher {
     }
     
     private func refreshAccessToken(refreshToken: String) async throws -> String {
-        var request = URLRequest(url: URL(string: tokenURL)!)
+        guard let url = URL(string: tokenURL) else {
+            throw CodexQuotaError.invalidURL
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
@@ -162,7 +168,7 @@ actor OpenAIQuotaFetcher {
                     .replacingOccurrences(of: ".json", with: "")
                 results[email] = quota.toProviderQuotaData()
             } catch {
-                print("Failed to fetch Codex quota for \(file): \(error)")
+                Log.quota("Failed to fetch Codex quota for \(file): \(error)")
             }
         }
         
@@ -337,6 +343,7 @@ private nonisolated struct TokenRefreshResponse: Codable, Sendable {
 
 nonisolated enum CodexQuotaError: LocalizedError {
     case invalidResponse
+    case invalidURL
     case httpError(Int)
     case noAccessToken
     case tokenRefreshFailed
@@ -345,6 +352,7 @@ nonisolated enum CodexQuotaError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse: return "Invalid response from ChatGPT"
+        case .invalidURL: return "Invalid URL"
         case .httpError(let code): return "HTTP error: \(code)"
         case .noAccessToken: return "No access token found in auth file"
         case .tokenRefreshFailed: return "Failed to refresh token"

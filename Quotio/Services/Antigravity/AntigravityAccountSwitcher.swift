@@ -213,7 +213,7 @@ final class AntigravityAccountSwitcher {
                     try await databaseService.restoreFromBackup()
                 } catch {
                     // Rollback also failed - this is bad
-                    print("[AntigravityAccountSwitcher] Rollback failed: \(error)")
+                    Log.error("Rollback failed: \(error)")
                 }
             }
             

@@ -58,7 +58,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         case .geminiCLI: return ["gemini"]
         case .ampCLI: return ["amp"]
         case .openCode: return ["opencode", "oc"]
-        case .factoryDroid: return ["droid", "factory-droid", "fd"]
+        case .factoryDroid: return ["droid", "factory-droid"]
         }
     }
 
@@ -418,7 +418,16 @@ nonisolated enum ShellType: String, CaseIterable, Sendable {
     var profilePath: String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         switch self {
-        case .zsh: return "\(home)/.zshrc"
+        case .zsh:
+            if let zdotdir = ProcessInfo.processInfo.environment["ZDOTDIR"], !zdotdir.isEmpty {
+                return "\(zdotdir)/.zshrc"
+            }
+            let xdgConfigHome = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] ?? "\(home)/.config"
+            let xdgZshDir = "\(xdgConfigHome)/zsh"
+            if FileManager.default.fileExists(atPath: xdgZshDir) {
+                return "\(xdgZshDir)/.zshrc"
+            }
+            return "\(home)/.zshrc"
         case .bash: return "\(home)/.bashrc"
         case .fish: return "\(home)/.config/fish/config.fish"
         }
@@ -441,41 +450,3 @@ nonisolated struct ConnectionTestResult: Sendable {
     let modelResponded: String?
 }
 
-// MARK: - Model Cache (for Stale-While-Revalidate)
-
-/// Cache wrapper for available models with TTL support
-/// - TTL: 24 hours (models list changes infrequently)
-/// - Stale threshold: 1 hour (triggers background refresh)
-nonisolated struct ModelCache: Codable, Sendable {
-    let models: [AvailableModel]
-    let timestamp: Date
-    let agentId: String
-    
-    /// Cache TTL: 24 hours
-    private static let cacheTTL: TimeInterval = 24 * 60 * 60
-    
-    /// Stale threshold: 1 hour (after this, background refresh triggers)
-    private static let staleThreshold: TimeInterval = 1 * 60 * 60
-    
-    /// Check if cache has completely expired (24h)
-    var isExpired: Bool {
-        Date().timeIntervalSince(timestamp) > Self.cacheTTL
-    }
-    
-    /// Check if cache is stale but usable (1h) - triggers background refresh
-    var isStale: Bool {
-        Date().timeIntervalSince(timestamp) > Self.staleThreshold
-    }
-    
-    /// Cache age in human-readable format (for debugging)
-    var ageDescription: String {
-        let age = Date().timeIntervalSince(timestamp)
-        if age < 60 {
-            return "\(Int(age))s"
-        } else if age < 3600 {
-            return "\(Int(age / 60))m"
-        } else {
-            return "\(Int(age / 3600))h"
-        }
-    }
-}

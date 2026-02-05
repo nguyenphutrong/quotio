@@ -1286,7 +1286,7 @@ private struct MenuViewMoreAccountsView: View {
                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
 
-                Text(isExpanded ? "Hide accounts" : "menubar.viewMoreAccounts".localized())
+                Text(isExpanded ? "menubar.hideAccounts".localized() : "menubar.viewMoreAccounts".localized())
                     .font(.system(size: 12, weight: .medium))
 
                 if remainingCount > 0 {

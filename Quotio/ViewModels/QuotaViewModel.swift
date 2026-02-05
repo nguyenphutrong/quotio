@@ -56,6 +56,9 @@ final class QuotaViewModel {
     var isLoadingQuotas = false
     var errorMessage: String?
     var oauthState: OAuthState?
+
+    /// Notification name for quota data updates (used for menu bar refresh)
+    static let quotaDataDidChangeNotification = Notification.Name("QuotaViewModel.quotaDataDidChange")
     
     /// Direct auth files for quota-only mode
     var directAuthFiles: [DirectAuthFile] = []
@@ -118,6 +121,45 @@ final class QuotaViewModel {
 
     /// Key for tracking when auth files last changed (for model cache invalidation)
     static let authFilesChangedKey = "quotio.authFiles.lastChanged"
+
+    // MARK: - Disabled Auth Files Persistence
+
+    private static let disabledAuthFilesKey = "persisted.disabledAuthFiles"
+
+    /// Load disabled auth file names from UserDefaults
+    private func loadDisabledAuthFiles() -> Set<String> {
+        let array = UserDefaults.standard.stringArray(forKey: Self.disabledAuthFilesKey) ?? []
+        return Set(array)
+    }
+
+    /// Save disabled auth file names to UserDefaults
+    private func saveDisabledAuthFiles(_ names: Set<String>) {
+        UserDefaults.standard.set(Array(names), forKey: Self.disabledAuthFilesKey)
+    }
+
+    /// Sync local disabled state to backend after proxy starts
+    private func syncDisabledStatesToBackend() async {
+        guard let client = apiClient else { return }
+
+        let localDisabled = loadDisabledAuthFiles()
+        guard !localDisabled.isEmpty else { return }
+
+        for name in localDisabled {
+            // Only sync if this auth file exists
+            guard authFiles.contains(where: { $0.name == name }) else { continue }
+
+            do {
+                try await client.setAuthFileDisabled(name: name, disabled: true)
+            } catch {
+                Log.error("syncDisabledStatesToBackend: Failed for \(name) - \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Post notification to trigger UI updates (works even when window is closed)
+    private func notifyQuotaDataChanged() {
+        NotificationCenter.default.post(name: Self.quotaDataDidChangeNotification, object: nil)
+    }
 
     init() {
         self.proxyManager = CLIProxyManager.shared
@@ -225,9 +267,7 @@ final class QuotaViewModel {
         let autoStartProxy = UserDefaults.standard.bool(forKey: "autoStartProxy")
         if autoStartProxy && proxyManager.isBinaryInstalled {
             await startProxy()
-            
-            // Check for proxy upgrade after starting
-            await checkForProxyUpgrade()
+            // Note: checkForProxyUpgrade() is now called inside startProxy()
         } else {
             // If not auto-starting proxy, start quota auto-refresh
             startQuotaAutoRefreshWithoutProxy()
@@ -324,10 +364,11 @@ final class QuotaViewModel {
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
-        
+
         isLoadingQuotas = false
+        notifyQuotaDataChanged()
     }
-    
+
     private func autoSelectMenuBarItems() {
         var availableItems: [MenuBarQuotaItem] = []
         var seen = Set<String>()
@@ -460,7 +501,7 @@ final class QuotaViewModel {
                 let quota = try await warpFetcher.fetchQuota(apiKey: entry.token)
                 results[entry.name] = quota
             } catch {
-                print("[Warp] Failed to fetch quota for \(entry.name): \(error)")
+                Log.quota("Failed to fetch Warp quota for \(entry.name): \(error)")
             }
         }
         
@@ -937,13 +978,23 @@ final class QuotaViewModel {
             setupAPIClient()
             startAutoRefresh()
             restartWarmupScheduler()
-            
+
             // Start RequestTracker
             requestTracker.start()
-            
+
             await refreshData()
+
+            // Sync local disabled states to backend after data is loaded
+            await syncDisabledStatesToBackend()
+            await refreshData()
+
             await runWarmupCycle()
-            
+
+            // Check for proxy upgrade (non-blocking, fire-and-forget)
+            Task {
+                await checkForProxyUpgrade()
+            }
+
             let autoStartTunnel = UserDefaults.standard.bool(forKey: "autoStartTunnel")
             if autoStartTunnel && tunnelManager.installation.isInstalled {
                 await tunnelManager.startTunnel(port: proxyManager.port)
@@ -1014,16 +1065,16 @@ final class QuotaViewModel {
                 
                 if errorMessage != nil {
                     consecutiveFailures += 1
-                    print("[QuotaVM] Refresh failed, consecutive failures: \(consecutiveFailures)")
+                    Log.quota("Refresh failed, consecutive failures: \(consecutiveFailures)")
                     
                     if consecutiveFailures >= maxFailuresBeforeRecovery {
-                        print("[QuotaVM] Attempting proxy recovery...")
+                        Log.quota("Attempting proxy recovery...")
                         await attemptProxyRecovery()
                         consecutiveFailures = 0
                     }
                 } else {
                     if consecutiveFailures > 0 {
-                        print("[QuotaVM] Refresh succeeded, resetting failure count")
+                        Log.quota("Refresh succeeded, resetting failure count")
                     }
                     consecutiveFailures = 0
                 }
@@ -1077,8 +1128,12 @@ final class QuotaViewModel {
             // Prune menu bar items for accounts that no longer exist
             pruneMenuBarItems()
             
-            let shouldRefreshQuotas = lastQuotaRefresh == nil || 
-                Date().timeIntervalSince(lastQuotaRefresh!) >= quotaRefreshInterval
+            let shouldRefreshQuotas: Bool
+            if let lastRefresh = lastQuotaRefresh {
+                shouldRefreshQuotas = Date().timeIntervalSince(lastRefresh) >= quotaRefreshInterval
+            } else {
+                shouldRefreshQuotas = true
+            }
             
             if shouldRefreshQuotas && !isLoadingQuotas {
                 Task {
@@ -1125,8 +1180,9 @@ final class QuotaViewModel {
         autoSelectMenuBarItems()
 
         isLoadingQuotas = false
+        notifyQuotaDataChanged()
     }
-    
+
     /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
     /// In Full Mode: uses direct fetchers (works without proxy)
     /// In Quota-Only Mode: uses direct fetchers + CLI fetchers
@@ -1161,8 +1217,9 @@ final class QuotaViewModel {
         autoSelectMenuBarItems()
 
         isLoadingQuotas = false
+        notifyQuotaDataChanged()
     }
-    
+
     private func refreshAntigravityQuotasInternal() async {
         // Fetch both quotas and subscriptions in one call (avoids duplicate API calls)
         let (quotas, subscriptions) = await antigravityFetcher.fetchAllAntigravityData()
@@ -1269,8 +1326,10 @@ final class QuotaViewModel {
 
         // Prune menu bar items after refresh to remove deleted accounts
         pruneMenuBarItems()
+
+        notifyQuotaDataChanged()
     }
-    
+
     /// Refresh all auto-detected providers (those that don't support manual auth)
     func refreshAutoDetectedProviders() async {
         let autoDetectedProviders = AIProvider.allCases.filter { !$0.supportsManualAuth }
@@ -1442,30 +1501,69 @@ final class QuotaViewModel {
     
     func deleteAuthFile(_ file: AuthFile) async {
         guard let client = apiClient else { return }
-        
+
         do {
             try await client.deleteAuthFile(name: file.name)
-            
+
+            let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
+
             // Remove quota data for this account
             if let provider = file.providerType {
-                let accountKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
                 providerQuotas[provider]?.removeValue(forKey: accountKey)
-                
+
                 // Also try with email if different
                 if let email = file.email, email != accountKey {
                     providerQuotas[provider]?.removeValue(forKey: email)
                 }
             }
-            
+
+            // Clear persisted disabled flags for this account
+            var disabledSet = loadDisabledAuthFiles()
+            disabledSet.remove(file.name)
+            disabledSet.remove(accountKey)
+            if let email = file.email, email != accountKey {
+                disabledSet.remove(email)
+            }
+            saveDisabledAuthFiles(disabledSet)
+
             // Prune menu bar items that no longer exist
             pruneMenuBarItems()
-            
+
             await refreshData()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
-    
+
+    func toggleAuthFileDisabled(_ file: AuthFile) async {
+        guard let client = apiClient else {
+            Log.error("toggleAuthFileDisabled: No API client available")
+            return
+        }
+
+        let newDisabled = !file.disabled
+
+        do {
+            Log.debug("toggleAuthFileDisabled: Setting \(file.name) disabled=\(newDisabled)")
+            try await client.setAuthFileDisabled(name: file.name, disabled: newDisabled)
+
+            // Update local persistence
+            var disabledSet = loadDisabledAuthFiles()
+            if newDisabled {
+                disabledSet.insert(file.name)
+            } else {
+                disabledSet.remove(file.name)
+            }
+            saveDisabledAuthFiles(disabledSet)
+
+            Log.debug("toggleAuthFileDisabled: Success, refreshing data")
+            await refreshData()
+        } catch {
+            Log.error("toggleAuthFileDisabled: Failed - \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+        }
+    }
+
     /// Remove menu bar items that no longer have valid quota data
     private func pruneMenuBarItems() {
         var validItems: [MenuBarQuotaItem] = []
@@ -1686,11 +1784,13 @@ final class QuotaViewModel {
         
         // Persist IDE quota data for Cursor and Trae
         savePersistedIDEQuotas()
-        
+
         // Update menu bar items
         autoSelectMenuBarItems()
+
+        notifyQuotaDataChanged()
     }
-    
+
     // MARK: - IDE Quota Persistence
     
     /// Save Cursor and Trae quota data to UserDefaults for persistence across app restarts
@@ -1712,7 +1812,7 @@ final class QuotaViewModel {
             let encoded = try JSONEncoder().encode(dataToSave)
             UserDefaults.standard.set(encoded, forKey: Self.ideQuotasKey)
         } catch {
-            print("Failed to save IDE quotas: \(error)")
+            Log.error("Failed to save IDE quotas: \(error)")
         }
     }
     
@@ -1730,7 +1830,7 @@ final class QuotaViewModel {
                 }
             }
         } catch {
-            print("Failed to load IDE quotas: \(error)")
+            Log.error("Failed to load IDE quotas: \(error)")
             // Clear corrupted data
             UserDefaults.standard.removeObject(forKey: Self.ideQuotasKey)
         }

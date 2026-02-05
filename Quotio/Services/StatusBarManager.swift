@@ -233,6 +233,8 @@ struct StatusBarQuotaItemView: View {
     
     private func formatPercentage(_ value: Double) -> String {
         if value < 0 { return "--%"}
-        return String(format: "%.0f%%", value.rounded())
+        // Defensive clamp to valid 0-100 range
+        let clamped = min(100, max(0, value))
+        return String(format: "%.0f%%", clamped.rounded())
     }
 }

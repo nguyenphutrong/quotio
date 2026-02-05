@@ -60,20 +60,24 @@ final class WarpService {
     }
     
     private func loadTokens() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return }
+        guard let data = KeychainHelper.getWarpTokens() else { return }
         do {
             tokens = try JSONDecoder().decode([WarpToken].self, from: data)
         } catch {
-            print("Failed to load Warp tokens: \(error)")
+            Log.keychain("Failed to load Warp tokens: \(error)")
         }
     }
     
     private func saveTokens() {
         do {
             let data = try JSONEncoder().encode(tokens)
-            UserDefaults.standard.set(data, forKey: storageKey)
+            if KeychainHelper.saveWarpTokens(data) {
+                UserDefaults.standard.removeObject(forKey: storageKey)
+            } else {
+                Log.keychain("Failed to persist Warp tokens, using in-memory value")
+            }
         } catch {
-            print("Failed to save Warp tokens: \(error)")
+            Log.keychain("Failed to save Warp tokens: \(error)")
         }
     }
 }

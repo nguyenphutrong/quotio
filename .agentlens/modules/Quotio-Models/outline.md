@@ -42,13 +42,13 @@ Symbol maps for 2 large files in this module.
 | 619 | fn | enforceMaxItems | (private) |
 | 626 | fn | clampedMenuBarMax | (private) |
 
-## Quotio/Models/Models.swift (607 lines)
+## Quotio/Models/Models.swift (611 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 307 | fn | hash | (internal) |
-| 494 | method | init | (internal) |
-| 511 | mod | extension Int | (internal) |
-| 557 | fn | validate | (internal) |
-| 597 | fn | sanitize | (internal) |
+| 498 | method | init | (internal) |
+| 515 | mod | extension Int | (internal) |
+| 561 | fn | validate | (internal) |
+| 601 | fn | sanitize | (internal) |
 

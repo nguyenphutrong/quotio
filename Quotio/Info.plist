@@ -17,7 +17,7 @@
     
     <!-- App Info -->
     <key>LSMinimumSystemVersion</key>
-    <string>15.0</string>
+    <string>14.0</string>
     
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2025 Quotio. All rights reserved.</string>

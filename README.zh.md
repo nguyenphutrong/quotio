@@ -72,7 +72,7 @@ Quotio 可以自动配置以下工具使用你的集中式代理：
 ## 🚀 安装
 
 ### 系统要求
-- macOS 15.0（Sequoia）或更高版本
+- macOS 14.0（Sonoma）或更高版本
 - OAuth 认证需要互联网连接
 
 ### Homebrew（推荐）

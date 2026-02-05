@@ -120,10 +120,14 @@ struct AccountRowData: Identifiable, Hashable {
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(isDisabled)
+        hasher.combine(status)
     }
-    
+
     static func == (lhs: AccountRowData, rhs: AccountRowData) -> Bool {
-        lhs.id == rhs.id
+        lhs.id == rhs.id &&
+        lhs.isDisabled == rhs.isDisabled &&
+        lhs.status == rhs.status
     }
 }
 
@@ -134,6 +138,7 @@ struct AccountRow: View {
     var onDelete: (() -> Void)?
     var onEdit: (() -> Void)?
     var onSwitch: (() -> Void)?
+    var onToggleDisabled: (() -> Void)?
     var isActiveInIDE: Bool = false
     
     @State private var settings = MenuBarSettingsManager.shared
@@ -248,6 +253,26 @@ struct AccountRow: View {
                 onTap: handleMenuBarToggle
             )
 
+            // Disable/Enable toggle button (only for proxy accounts)
+            if account.source == .proxy, let onToggleDisabled = onToggleDisabled {
+                Button {
+                    onToggleDisabled()
+                } label: {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(account.isDisabled ? Color.red.opacity(0.1) : Color.clear)
+                            .frame(width: 28, height: 28)
+
+                        Image(systemName: account.isDisabled ? "xmark.circle.fill" : "checkmark.circle")
+                            .font(.system(size: 14))
+                            .foregroundStyle(account.isDisabled ? .red : .secondary)
+                    }
+                }
+                .buttonStyle(.rowAction)
+                .help(account.isDisabled ? "providers.enable".localized() : "providers.disable".localized())
+                .accessibilityLabel(account.isDisabled ? "providers.enable".localized() : "providers.disable".localized())
+            }
+
             // Edit button (GLM only)
             if account.canEdit, let onEdit = onEdit {
                 Button {
@@ -295,7 +320,20 @@ struct AccountRow: View {
                     Label("menubar.showOnMenuBar".localized(), systemImage: "chart.bar.fill")
                 }
             }
-            
+
+            // Disable/Enable toggle (only for proxy accounts)
+            if account.source == .proxy, let onToggleDisabled = onToggleDisabled {
+                Button {
+                    onToggleDisabled()
+                } label: {
+                    if account.isDisabled {
+                        Label("providers.enable".localized(), systemImage: "checkmark.circle")
+                    } else {
+                        Label("providers.disable".localized(), systemImage: "minus.circle")
+                    }
+                }
+            }
+
             // Delete option (only for proxy accounts)
             if account.canDelete, onDelete != nil {
                 Divider()

@@ -56,6 +56,20 @@ extension View {
     }
 }
 
+// MARK: - Symbol Effect Transition Modifier (macOS 15+ compatibility)
+
+/// A ViewModifier that applies `.contentTransition(.symbolEffect(.replace))` on macOS 15+
+/// and gracefully degrades on earlier versions.
+struct SymbolEffectTransitionModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) {
+            content.contentTransition(.symbolEffect(.replace))
+        } else {
+            content
+        }
+    }
+}
+
 #Preview {
     VStack(spacing: 16) {
         ForEach(AIProvider.allCases) { provider in

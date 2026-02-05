@@ -55,7 +55,7 @@ actor ManagementAPIClient {
     private static func log(_ message: String) {
         guard enableDiagnosticLogging else { return }
         let timestamp = ISO8601DateFormatter().string(from: Date())
-        print("[API \(timestamp)] \(message)")
+        Log.api("[\\(timestamp)] \\(message)")
     }
     
     private static func incrementActiveRequests() -> Int {
@@ -118,7 +118,7 @@ actor ManagementAPIClient {
         Self.log("[\(clientId)] Remote client created, timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s, verifySSL=\(verifySSL)")
         
         if !verifySSL {
-            print("[SECURITY WARNING] SSL verification disabled for \(baseURL). Connection is vulnerable to MITM attacks.")
+            Log.warning("SSL verification disabled for \\(baseURL). Connection is vulnerable to MITM attacks.")
         }
     }
     
@@ -225,6 +225,15 @@ actor ManagementAPIClient {
     
     func deleteAllAuthFiles() async throws {
         _ = try await makeRequest("/auth-files?all=true", method: "DELETE")
+    }
+
+    func setAuthFileDisabled(name: String, disabled: Bool) async throws {
+        struct Request: Encodable {
+            let name: String
+            let disabled: Bool
+        }
+        let body = try JSONEncoder().encode(Request(name: name, disabled: disabled))
+        _ = try await makeRequest("/auth-files/status", method: "PATCH", body: body)
     }
     
     func fetchUsageStats() async throws -> UsageStats {
@@ -500,7 +509,7 @@ private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTas
     
     func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) {
         let errorMsg = error?.localizedDescription ?? "none"
-        print("[API] [\(clientId)] Session invalidated, error=\(errorMsg)")
+        Log.api("[\\(clientId)] Session invalidated, error=\\(errorMsg)")
     }
     
     func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
@@ -509,7 +518,7 @@ private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTas
         for metric in metrics.transactionMetrics {
             let reused = metric.isReusedConnection ? "reused" : "new"
             let duration = metric.responseEndDate?.timeIntervalSince(metric.requestStartDate ?? Date()) ?? 0
-            print("[API] [\(clientId)] Connection: \(reused), duration=\(String(format: "%.3f", duration))s")
+            Log.api("[\\(clientId)] Connection: \\(reused), duration=\\(String(format: \"%.3f\", duration))s")
         }
     }
     

@@ -183,7 +183,7 @@ actor WarpQuotaFetcher {
             if isUnlimited {
                 percentage = 100
             } else if limit > 0 {
-                percentage = Double(remaining) / Double(limit) * 100
+                percentage = min(100, max(0, Double(remaining) / Double(limit) * 100))
             } else {
                 percentage = 0
             }
@@ -219,7 +219,7 @@ actor WarpQuotaFetcher {
 
                 let bonusPercentage: Double
                 if granted > 0 {
-                    bonusPercentage = Double(remainingCredits) / Double(granted) * 100
+                    bonusPercentage = min(100, max(0, Double(remainingCredits) / Double(granted) * 100))
                 } else {
                     bonusPercentage = 0
                 }

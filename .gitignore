@@ -34,3 +34,5 @@ plans/
 .wallpaper-cache/
 
 .DS_Store
+
+.lattice/

@@ -7,6 +7,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-02-04
+
+### Added
+
+- **accounts**: Add disable/enable toggle for provider accounts (#261)
+  - Toggle button in account row with visual feedback (dimmed when disabled)
+  - Persist disabled state locally using UserDefaults
+  - Sync disabled state to backend on proxy startup
+- **proxy**: Auto-restart proxy when settings change (#263)
+  - Automatically restart proxy when routing strategy or other settings change
+- **proxy**: Add workaround to force primary API URL (#264)
+
+### Fixed
+
+- **quota**: Clamp quota percentages to 0-100 range in all fetchers (#274, #275)
+  - Prevents >100% or <0% values from displaying in the UI
+  - Affects: Antigravity, Cursor, Copilot, Warp, Trae, Kiro quota fetchers
+  - Add defensive clamp in StatusBarManager formatPercentage display
+- **opencode**: Add attachment and modalities fields for image support (#273)
+  - Vision-capable models (Claude, Gemini, GPT, Qwen VL) now include required fields
+  - Fixes image attachments not working in OpenCode (Issue #272)
+- **providers**: Use sheet(item:) for custom provider editing (#258)
+  - Fix closure capture issue where editingCustomProvider was nil
+- **build**: Remove duplicate restartProxyIfRunning() declaration
+
+## [0.7.10] - 2026-01-30
+
+### Added
+
+- **i18n**: Localize "Hide accounts" menu bar label (#250)
+  - Add translations for zh-Hans, vi, fr
+- **proxy**: Parse detailed error messages from proxy responses (#251)
+  - Extract and display actionable error messages from CLIProxyAPI
+- **logging**: Add unified Logger with privacy controls and DEBUG guards
+  - Nonisolated enum callable from any actor context
+  - Category-based logging: API, Quota, Proxy, Auth, Keychain, Warmup, Update
+  - Privacy helpers: `Log.mask()` and `Log.maskEmail()`
+
+### Fixed
+
+- **compatibility**: Wrap macOS 15+ symbolEffect API for macOS 14 compatibility
+  - Add `@available` check for `.contentTransition(.symbolEffect)` usage
+  - Fixes crash on macOS 14 due to missing API (Issue #45)
+- **kiro**: Use case-insensitive authMethod comparison for token refresh (#252)
+  - Fix token refresh failures when importing from Kiro IDE
+  - CLIProxyAPI uses "idc" (lowercase) vs Kiro IDE uses "IdC" (mixed case)
+- **proxy**: Use effectiveBinaryPath for auth commands and Finder reveal (#254)
+  - Fix "CLIProxyAPI does not exist" error when using versioned storage
+  - Auth commands and Finder reveal now use correct binary path
+- **models**: Remove model list caching to always fetch fresh data (#255)
+  - Fix stale model lists after CLIProxyAPI configuration changes
+- **security**: Replace print() statements with Logger to prevent data leakage
+  - All debug logging disabled in Release builds via `#if DEBUG`
+  - Replaced 19 print() calls across 9 files with category-specific Log methods
+- **security**: Migrate sensitive keys from UserDefaults to Keychain
+  - Local management key now stored in Keychain with auto-migration
+  - Warp tokens now stored in Keychain with auto-migration
+  - Legacy UserDefaults data automatically migrated on first access
+- **safety**: Fix force unwraps to prevent potential crashes
+  - AtomFeedUpdateService: Safe version comparison with if-let
+  - QuotaFetchers: Guard-based URL construction with proper error handling
+  - FileManager paths: Guard with fatalError for critical system directories
+  - Add `invalidURL` cases to CodexQuotaError and CodexCLIQuotaError
+
+## [0.7.9] - 2026-01-29
+
+### Fixed
+
+- **compatibility**: Lower MACOSX_DEPLOYMENT_TARGET from 14.6 to 14.0
+  - Fixes build compatibility for macOS 14.0-14.5 users
+
+## [0.7.8] - 2026-01-29
+
+### Added
+
+- **proxy**: Efficient Atom feed polling for CLIProxyAPI updates (#226)
+  - Poll every 5 minutes using conditional requests (ETag caching, 304 Not Modified)
+  - Show "Last checked" time in Settings/About screens
+  - Start polling on app launch, stop on terminate
+- **kiro**: Dynamic region support for Enterprise/IdC authentication (#241)
+  - Make OIDC endpoint region dynamic based on token data
+  - Support both Social (Google) and IdC (AWS Builder ID/Enterprise) auth methods
+  - Sync refreshed tokens to Kiro IDE auth file (~/.aws/sso/cache/kiro-auth-token.json)
+
+### Fixed
+
+- **compatibility**: Lower minimum macOS version to 14.0 Sonoma
+  - App now runs on macOS 14.0+ instead of requiring macOS 15.0
+- **menubar**: Refresh quota data in background without main window (#248)
+  - Add NotificationCenter-based notification for quota data changes
+  - Menu bar now updates correctly when app runs in background
+- **shell**: Support XDG Base Directory for zsh config path (#247)
+  - Add ZDOTDIR environment variable support for custom zsh config location
+  - Add XDG_CONFIG_HOME fallback to ~/.config/zsh/.zshrc
+- **settings**: Prevent infinite loading when checking updates without network (#244)
+  - Add defer block to ensure loading state is always reset on timeout
+- **agent**: Remove `fd` from Factory Droid binary detection (#245)
+  - Prevent false positive detection when fd-find (sharkdp/fd) is installed
+- **menubar**: Prevent auto-adding providers after user modification (#232)
+  - Set flag to prevent autoSelectNewAccounts when user manually modifies selection
+
 ## [0.7.7] - 2026-01-27
 
 ### Added

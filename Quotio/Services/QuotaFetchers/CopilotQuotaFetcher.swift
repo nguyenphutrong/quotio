@@ -24,11 +24,11 @@ nonisolated struct CopilotQuotaSnapshot: Codable, Sendable {
     
     nonisolated func calculatePercent(defaultTotal: Int) -> Double {
         if let percent = percentRemaining {
-            return percent
+            return min(100, max(0, percent))
         }
         let remaining = remaining ?? 0
         let total = entitlement ?? defaultTotal
-        return total > 0 ? (Double(remaining) / Double(total)) * 100 : 0
+        return total > 0 ? min(100, max(0, (Double(remaining) / Double(total)) * 100)) : 0
     }
 }
 
@@ -230,7 +230,7 @@ actor CopilotQuotaFetcher {
             let entitlement = try await fetchEntitlement(accessToken: authFile.accessToken)
             return convertToQuotaData(entitlement: entitlement)
         } catch {
-            print("CopilotQuotaFetcher error: \(error)")
+            Log.quota("Copilot quota fetch error: \(error)")
             return nil
         }
     }
@@ -331,7 +331,7 @@ actor CopilotQuotaFetcher {
            let total = entitlement.monthlyQuotas {
             // Chat quota
             if let chatRemaining = remaining.chat, let chatTotal = total.chat, chatTotal > 0 {
-                let percentage = (Double(chatRemaining) / Double(chatTotal)) * 100.0
+                let percentage = min(100, max(0, (Double(chatRemaining) / Double(chatTotal)) * 100.0))
                 models.append(ModelQuota(
                     name: "copilot-chat",
                     percentage: percentage,
@@ -341,7 +341,7 @@ actor CopilotQuotaFetcher {
 
             // Completions quota
             if let compRemaining = remaining.completions, let compTotal = total.completions, compTotal > 0 {
-                let percentage = (Double(compRemaining) / Double(compTotal)) * 100.0
+                let percentage = min(100, max(0, (Double(compRemaining) / Double(compTotal)) * 100.0))
                 models.append(ModelQuota(
                     name: "copilot-completions",
                     percentage: percentage,
@@ -399,7 +399,7 @@ actor CopilotQuotaFetcher {
 
             return models
         } catch {
-            print("CopilotQuotaFetcher fetchAvailableModels error: \(error)")
+            Log.quota("Copilot fetchAvailableModels error: \(error)")
             return []
         }
     }

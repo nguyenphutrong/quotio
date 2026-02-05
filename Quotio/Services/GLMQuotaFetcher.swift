@@ -71,7 +71,10 @@ actor GLMQuotaFetcher {
 
     /// Fetch quota for a single API key
     func fetchQuota(apiKey: String) async throws -> ProviderQuotaData {
-        var request = URLRequest(url: URL(string: quotaAPIURL)!)
+        guard let url = URL(string: quotaAPIURL) else {
+            throw QuotaFetchError.invalidURL
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
@@ -104,9 +107,12 @@ actor GLMQuotaFetcher {
             for limit in responseData.limits {
                 if limit.type == "TOKENS_LIMIT" {
                     // Token limit - show as main quota on dashboard
-                    let resetTime = limit.nextResetTime != nil
-                        ? ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: TimeInterval(limit.nextResetTime! / 1000)))
-                        : ""
+                    let resetTime: String
+                    if let nextReset = limit.nextResetTime {
+                        resetTime = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: TimeInterval(nextReset / 1000)))
+                    } else {
+                        resetTime = ""
+                    }
 
                     // currentValue is used, usage is total limit
                     // API returns percentage as "used", so convert to "remaining" for ModelQuota

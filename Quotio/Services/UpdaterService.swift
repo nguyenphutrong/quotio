@@ -162,7 +162,7 @@ extension UpdaterService: SPUUpdaterDelegate {
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         Task { @MainActor in
             self.isCheckingForUpdates = false
-            print("[UpdaterService] Update check aborted: \(error.localizedDescription)")
+            Log.update("Update check aborted: \\(error.localizedDescription)")
         }
     }
 }
