@@ -25,19 +25,20 @@ actor ManagementAPIClient {
         let requestTimeout: TimeInterval
         let resourceTimeout: TimeInterval
         let maxRetries: Int
-        
+
         /// Default timeouts for local connections (faster, more reliable)
+        /// Increased maxRetries to handle proxy restart scenarios (graceful shutdown can take 1-2s)
         static let local = TimeoutConfig(
             requestTimeout: 15,
             resourceTimeout: 45,
-            maxRetries: 1
+            maxRetries: 4  // Was: 1. Now: 4 retries with exponential backoff = ~6.5s total wait
         )
-        
+
         /// Timeouts for remote connections (slower, needs more patience)
         static let remote = TimeoutConfig(
             requestTimeout: 30,
             resourceTimeout: 90,
-            maxRetries: 2
+            maxRetries: 5  // Was: 2. Remote connections may need more retries
         )
         
         /// Custom timeout configuration
@@ -186,11 +187,14 @@ actor ManagementAPIClient {
         } catch let error as URLError {
             Self.log("[\(clientId)][\(requestId)] URL ERROR: \(error.code.rawValue) - \(error.localizedDescription)")
             
-            // Retry on timeout or connection errors (stale connection recovery)
+            // Retry on timeout or connection errors (handles proxy restart scenarios)
+            // Exponential backoff: 0.5s, 1s, 2s, 3s (total ~6.5s wait for proxy restart)
             if retryCount < timeoutConfig.maxRetries && (error.code == .timedOut || error.code == .networkConnectionLost || error.code == .cannotConnectToHost) {
-                Self.log("[\(clientId)][\(requestId)] RETRYING after 0.5s...")
-                // Small delay before retry
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                let backoffSeconds = min(pow(2.0, Double(retryCount)) * 0.5, 3.0)  // Cap at 3 seconds
+                Self.log("[\(clientId)][\(requestId)] RETRYING after \(String(format: \"%.1f\", backoffSeconds))s (attempt \(retryCount + 1)/\(timeoutConfig.maxRetries))...")
+                
+                // Exponential backoff delay
+                try? await Task.sleep(nanoseconds: UInt64(backoffSeconds * 1_000_000_000))
                 return try await makeRequest(endpoint, method: method, body: body, retryCount: retryCount + 1)
             }
             throw APIError.connectionError(error.localizedDescription)
