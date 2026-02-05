@@ -407,8 +407,10 @@ struct MenuBarQuotaDisplayItem: Identifiable {
     let accountShort: String
     let percentage: Double
     let provider: AIProvider
+    var isForbidden: Bool = false
     
     var statusColor: Color {
+        if isForbidden { return .orange }
         if percentage > 50 { return .green }
         if percentage > 20 { return .orange }
         return .red

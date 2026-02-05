@@ -223,10 +223,16 @@ struct StatusBarQuotaItemView: View {
                     .fixedSize()
             }
             
-            Text(formatPercentage(displayPercent))
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(colorMode == .colored ? item.statusColor : .primary)
-                .fixedSize()
+            if item.isForbidden {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+            } else if item.percentage >= 0 {
+                Text(formatPercentage(displayPercent))
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(colorMode == .colored ? item.statusColor : .primary)
+                    .fixedSize()
+            }
         }
         .fixedSize()
     }

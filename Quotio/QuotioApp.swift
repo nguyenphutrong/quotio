@@ -106,6 +106,7 @@ final class AppBootstrap {
             guard let provider = selectedItem.aiProvider else { continue }
 
             var displayPercent: Double = -1
+            var isForbidden = false
 
             if let accountQuotas = viewModel.providerQuotas[provider] {
                 // Robust key lookup: Try exact match first, then clean key (no .json)
@@ -115,9 +116,12 @@ final class AppBootstrap {
                     quotaData = accountQuotas[cleanKey]
                 }
 
-                if let quotaData = quotaData, !quotaData.models.isEmpty {
-                    let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
-                    displayPercent = menuBarSettings.totalUsagePercent(models: models)
+                if let quotaData = quotaData {
+                    isForbidden = quotaData.isForbidden
+                    if !quotaData.models.isEmpty {
+                        let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
+                        displayPercent = menuBarSettings.totalUsagePercent(models: models)
+                    }
                 }
             }
 
@@ -126,7 +130,8 @@ final class AppBootstrap {
                 providerSymbol: provider.menuBarSymbol,
                 accountShort: selectedItem.accountKey,
                 percentage: displayPercent,
-                provider: provider
+                provider: provider,
+                isForbidden: isForbidden
             ))
         }
 
