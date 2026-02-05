@@ -1,7 +1,7 @@
 # Quotio - Project Overview and Product Requirements Document (PRD)
 
-> **Last Updated**: December 27, 2024  
-> **Version**: 1.0.0  
+> **Last Updated**: December 27, 2024
+> **Version**: 1.0.0
 > **Platform**: macOS 15.0+ (Sequoia)
 
 ---
@@ -32,6 +32,7 @@ Quotio is a native macOS application that serves as the **command center for AI 
 ### Problem Statement
 
 Developers using AI coding assistants often need to:
+
 - Manage multiple accounts across different AI providers
 - Track quota usage to avoid service interruptions
 - Configure multiple CLI tools with consistent settings
@@ -67,6 +68,7 @@ Quotio solves these challenges by providing a unified management layer with auto
 ### Multi-Provider Support
 
 Connect and manage accounts from multiple AI providers through a unified interface:
+
 - OAuth-based authentication for most providers
 - Service account JSON import for Vertex AI
 - CLI-based authentication for GitHub Copilot and Kiro
@@ -75,6 +77,7 @@ Connect and manage accounts from multiple AI providers through a unified interfa
 ### Quota Tracking
 
 Visual quota monitoring with intelligent notifications:
+
 - Per-account quota breakdown
 - Model-level usage tracking
 - Automatic low-quota alerts
@@ -84,6 +87,7 @@ Visual quota monitoring with intelligent notifications:
 ### Agent Configuration
 
 One-click configuration for popular CLI coding tools:
+
 - Automatic agent detection
 - Configuration generation (JSON/TOML/Environment)
 - Shell profile integration (zsh/bash/fish)
@@ -93,6 +97,7 @@ One-click configuration for popular CLI coding tools:
 ### Menu Bar Integration
 
 Always-accessible status from the macOS menu bar:
+
 - Proxy status indicator
 - Quota percentage display per provider
 - Custom provider icons
@@ -102,6 +107,7 @@ Always-accessible status from the macOS menu bar:
 ### Notifications
 
 Intelligent alert system for critical events:
+
 - Low quota warnings (configurable threshold)
 - Account cooling period notifications
 - Proxy crash alerts
@@ -110,6 +116,7 @@ Intelligent alert system for critical events:
 ### Auto-Update
 
 Seamless update experience via Sparkle framework:
+
 - Background update checks
 - One-click update installation
 - Changelog display
@@ -117,6 +124,7 @@ Seamless update experience via Sparkle framework:
 ### Bilingual Support
 
 Full localization for:
+
 - English (en)
 - Vietnamese (vi)
 
@@ -167,7 +175,8 @@ Quotio can automatically detect and configure the following CLI coding tools:
 ### Model Slot Configuration
 
 Agents can be configured with custom model routing:
-- **Opus Slot**: High intelligence tasks (e.g., `gemini-claude-opus-4-5-thinking`)
+
+- **Opus Slot**: High intelligence tasks (e.g., `gemini-claude-opus-4-6-thinking`)
 - **Sonnet Slot**: Balanced tasks (e.g., `gemini-claude-sonnet-4-5`)
 - **Haiku Slot**: Fast/simple tasks (e.g., `gemini-3-flash-preview`)
 
@@ -182,6 +191,7 @@ Quotio supports two operating modes to accommodate different user needs:
 Complete functionality including proxy server management:
 
 **Features:**
+
 - Run local proxy server (CLIProxyAPI)
 - Manage multiple AI accounts
 - Configure CLI agents
@@ -190,6 +200,7 @@ Complete functionality including proxy server management:
 - Request/response logging
 
 **Visible Pages:**
+
 - Dashboard
 - Quota
 - Providers
@@ -204,6 +215,7 @@ Complete functionality including proxy server management:
 Lightweight mode for quota monitoring without proxy overhead:
 
 **Features:**
+
 - Track quota in menu bar
 - No proxy server required
 - Minimal UI and resource usage
@@ -211,6 +223,7 @@ Lightweight mode for quota monitoring without proxy overhead:
 - Similar to CodexBar / ccusage
 
 **Visible Pages:**
+
 - Dashboard
 - Quota
 - Accounts (renamed from Providers)
@@ -258,7 +271,7 @@ Lightweight mode for quota monitoring without proxy overhead:
 
 ## Technical Architecture Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                      Quotio (SwiftUI)                       │
 ├─────────────────────────────────────────────────────────────┤

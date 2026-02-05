@@ -11,7 +11,7 @@ actor WarmupService {
         "https://daily-cloudcode-pa.sandbox.googleapis.com",
         "https://cloudcode-pa.googleapis.com"
     ]
-    
+
     func warmup(managementClient: ManagementAPIClient, authIndex: String, model: String) async throws {
         let upstreamModel = mapAntigravityModelAlias(model)
         let payload = AntigravityWarmupRequest(
@@ -30,11 +30,11 @@ actor WarmupService {
                 generationConfig: AntigravityWarmupGenerationConfig(maxOutputTokens: 1)
             )
         )
-        
+
         guard let body = try? String(data: JSONEncoder().encode(payload), encoding: .utf8) else {
             throw WarmupError.encodingFailed
         }
-        
+
         var lastError: WarmupError?
         for baseURL in antigravityBaseURLs {
             let response = try await managementClient.apiCall(APICallRequest(
@@ -48,19 +48,19 @@ actor WarmupService {
                 ],
                 data: body
             ))
-            
+
             if 200...299 ~= response.statusCode {
                 return
             }
             lastError = WarmupError.httpError(response.statusCode, response.body)
         }
-        
+
         if let lastError {
             throw lastError
         }
         throw WarmupError.invalidResponse
     }
-    
+
     private func mapAntigravityModelAlias(_ model: String) -> String {
         switch model.lowercased() {
         case "gemini-3-pro-preview":
@@ -79,6 +79,8 @@ actor WarmupService {
             return "claude-sonnet-4-5-thinking"
         case "gemini-claude-opus-4-5-thinking":
             return "claude-opus-4-5-thinking"
+        case "gemini-claude-opus-4-6-thinking":
+            return "claude-opus-4-6-thinking"
         case "gemini-2.5-computer-use-preview-10-2025":
             return "rev19-uic3-1p"
         case "gemini-3-pro-image-preview":
@@ -87,7 +89,7 @@ actor WarmupService {
             return model
         }
     }
-    
+
     func fetchModels(managementClient: ManagementAPIClient, authFileName: String) async throws -> [WarmupModelInfo] {
         let models = try await managementClient.fetchAuthFileModels(name: authFileName)
         return models.map { model in
@@ -106,7 +108,7 @@ nonisolated struct AntigravityWarmupRequest: Codable, Sendable {
     let userAgent: String
     let model: String
     let request: AntigravityWarmupRequestBody
-    
+
     enum CodingKeys: String, CodingKey {
         case project, model, request
         case requestId = "requestId"
@@ -118,7 +120,7 @@ nonisolated struct AntigravityWarmupRequestBody: Codable, Sendable {
     let sessionId: String
     let contents: [AntigravityWarmupContent]
     let generationConfig: AntigravityWarmupGenerationConfig
-    
+
     enum CodingKeys: String, CodingKey {
         case contents, generationConfig
         case sessionId = "sessionId"
@@ -136,7 +138,7 @@ nonisolated struct AntigravityWarmupPart: Codable, Sendable {
 
 nonisolated struct AntigravityWarmupGenerationConfig: Codable, Sendable {
     let maxOutputTokens: Int
-    
+
     enum CodingKeys: String, CodingKey {
         case maxOutputTokens = "maxOutputTokens"
     }
@@ -146,7 +148,7 @@ nonisolated struct WarmupModelInfo: Codable, Sendable {
     let id: String
     let ownedBy: String?
     let provider: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case ownedBy = "owned_by"
