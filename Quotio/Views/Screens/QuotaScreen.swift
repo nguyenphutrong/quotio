@@ -7,8 +7,8 @@ import SwiftUI
 
 struct QuotaScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    private let modeManager = OperatingModeManager.shared
-    
+    @State private var modeManager = OperatingModeManager.shared
+
     @State private var selectedProvider: AIProvider?
     @State private var settings = MenuBarSettingsManager.shared
     

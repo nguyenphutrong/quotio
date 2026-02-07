@@ -60,25 +60,34 @@ final class CLIProxyManager {
         }
     }
     
+    /// IMPORTANT: Excludes own PID to prevent killing Quotio itself when ProxyBridge is running.
     nonisolated private static func killProcessOnPort(_ port: UInt16) {
         let lsofProcess = Process()
         lsofProcess.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         lsofProcess.arguments = ["-ti", "tcp:\(port)"]
-        
+
         let pipe = Pipe()
         lsofProcess.standardOutput = pipe
         lsofProcess.standardError = FileHandle.nullDevice
-        
+
+        // Get own PID to avoid killing ourselves (ProxyBridge runs in our process)
+        let ownPid = ProcessInfo.processInfo.processIdentifier
+
         do {
             try lsofProcess.run()
             lsofProcess.waitUntilExit()
-            
+
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             guard let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !output.isEmpty else { return }
-            
+
             for pidString in output.components(separatedBy: .newlines) {
                 if let pid = Int32(pidString.trimmingCharacters(in: .whitespaces)) {
+                    // Never kill our own process - ProxyBridge uses NWListener in-process
+                    if pid == ownPid {
+                        NSLog("[CLIProxyManager] Skipping kill of own PID \(pid) on port \(port) during shutdown")
+                        continue
+                    }
                     kill(pid, SIGKILL)
                 }
             }

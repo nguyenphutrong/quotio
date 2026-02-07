@@ -25,8 +25,8 @@ struct ProvidersScreen: View {
     @State private var editingWarpToken: WarpService.WarpToken?
     @State private var showAddProviderPopover = false
     @State private var switchingAccount: AccountRowData?
+    @State private var modeManager = OperatingModeManager.shared
 
-    private let modeManager = OperatingModeManager.shared
     private let customProviderService = CustomProviderService.shared
     private let warpService = WarpService.shared
     

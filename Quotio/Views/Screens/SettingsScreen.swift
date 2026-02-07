@@ -8,7 +8,7 @@ import AppKit
 
 struct SettingsScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    private let modeManager = OperatingModeManager.shared
+    @State private var modeManager = OperatingModeManager.shared
     private let launchManager = LaunchAtLoginManager.shared
     
     var body: some View {
@@ -100,6 +100,9 @@ struct SettingsScreen: View {
         }
         .formStyle(.grouped)
         .navigationTitle("nav.settings".localized())
+        .onAppear {
+            NSLog("[SettingsScreen] View appeared - mode: \(modeManager.currentMode.rawValue), proxy running: \(viewModel.proxyManager.proxyStatus.running)")
+        }
     }
 }
 
@@ -107,7 +110,7 @@ struct SettingsScreen: View {
 
 struct OperatingModeSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    private let modeManager = OperatingModeManager.shared
+    @State private var modeManager = OperatingModeManager.shared
     @State private var showModeChangeConfirmation = false
     @State private var pendingMode: OperatingMode?
     @State private var showRemoteConfigSheet = false
@@ -208,9 +211,8 @@ struct RemoteServerSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var showRemoteConfigSheet = false
     @State private var isReconnecting = false
-    
-    private var modeManager: OperatingModeManager { OperatingModeManager.shared }
-    
+    @State private var modeManager = OperatingModeManager.shared
+
     var body: some View {
         Section {
             // Remote configuration row
