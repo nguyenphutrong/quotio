@@ -33,8 +33,7 @@ final class OnboardingViewModel {
     var remoteEndpoint: String = ""
     var remoteManagementKey: String = ""
     var direction: SlideDirection = .forward
-    
-    private let modeManager = OperatingModeManager.shared
+    @ObservationIgnored private let modeManager = OperatingModeManager.shared
     
     var visibleSteps: [OnboardingStep] {
         if selectedMode == .remoteProxy {

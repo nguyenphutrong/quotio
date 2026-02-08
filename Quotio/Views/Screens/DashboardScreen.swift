@@ -9,8 +9,8 @@ import UniformTypeIdentifiers
 struct DashboardScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @AppStorage("hideGettingStarted") private var hideGettingStarted: Bool = false
-    private let modeManager = OperatingModeManager.shared
-    
+    @State private var modeManager = OperatingModeManager.shared
+
     @State private var selectedProvider: AIProvider?
     @State private var projectId: String = ""
     @State private var isImporterPresented = false
