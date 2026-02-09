@@ -60,6 +60,10 @@ actor ClaudeCodeQuotaFetcher {
     /// Anthropic OAuth usage API endpoint
     private let usageURL = "https://api.anthropic.com/api/oauth/usage"
 
+    /// Anthropic OAuth token refresh endpoint
+    private let tokenURL = "https://console.anthropic.com/v1/oauth/token"
+    private let clientId = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+
     /// URLSession for network requests
     private var session: URLSession
 
@@ -130,6 +134,83 @@ actor ClaudeCodeQuotaFetcher {
         )
     }
 
+    /// Check if the access token is expired based on the auth file's "expired" field
+    private func isTokenExpired(json: [String: Any]) -> Bool {
+        guard let expiredStr = json["expired"] as? String else { return false }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let expiryDate = formatter.date(from: expiredStr) {
+            return Date() > expiryDate.addingTimeInterval(-60) // 60s buffer
+        }
+        // Fallback without fractional seconds
+        let fallback = ISO8601DateFormatter()
+        if let expiryDate = fallback.date(from: expiredStr) {
+            return Date() > expiryDate.addingTimeInterval(-60)
+        }
+        return false
+    }
+
+    /// Refresh an expired access token using the refresh token
+    /// - Returns: Tuple of new access token, optional new refresh token, and optional expires_in
+    private func refreshAccessToken(refreshToken: String) async throws -> (accessToken: String, refreshToken: String?, expiresIn: Int?) {
+        guard let url = URL(string: tokenURL) else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+        let params = [
+            "grant_type": "refresh_token",
+            "refresh_token": refreshToken,
+            "client_id": clientId
+        ]
+        let body = params.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
+        request.httpBody = body.data(using: .utf8)
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              200...299 ~= httpResponse.statusCode else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            NSLog("[ClaudeQuota] Token refresh failed with HTTP \(statusCode)")
+            throw URLError(.userAuthenticationRequired)
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let newAccessToken = json["access_token"] as? String else {
+            throw URLError(.cannotParseResponse)
+        }
+
+        let newRefreshToken = json["refresh_token"] as? String
+        let expiresIn = json["expires_in"] as? Int
+
+        return (newAccessToken, newRefreshToken, expiresIn)
+    }
+
+    /// Update the auth file on disk with refreshed token data
+    private func updateAuthFile(at path: String, json: [String: Any], accessToken: String, refreshToken: String?, expiresIn: Int?) {
+        var updatedJSON = json
+        updatedJSON["access_token"] = accessToken
+        if let refreshToken = refreshToken {
+            updatedJSON["refresh_token"] = refreshToken
+        }
+
+        let now = Date()
+        let formatter = ISO8601DateFormatter()
+        updatedJSON["last_refresh"] = formatter.string(from: now)
+
+        if let expiresIn = expiresIn {
+            let expiryDate = now.addingTimeInterval(TimeInterval(expiresIn))
+            updatedJSON["expired"] = formatter.string(from: expiryDate)
+        }
+
+        if let data = try? JSONSerialization.data(withJSONObject: updatedJSON, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: URL(fileURLWithPath: path))
+        }
+    }
+
     /// Fetch usage data from Anthropic OAuth API
     /// - Returns: ClaudeAPIResult indicating success, auth error, or other error
     private func fetchUsageFromAPI(accessToken: String, email: String?) async -> ClaudeAPIResult {
@@ -170,8 +251,7 @@ actor ClaudeCodeQuotaFetcher {
                 if let errorObj = json["error"] as? [String: Any],
                    let errorType = errorObj["type"] as? String,
                    errorType == "authentication_error" {
-                    // Token expired or invalid - needs re-authentication
-                    // Note: Anthropic OAuth tokens expire after ~1 hour and don't support refresh
+                    // Token expired or invalid
                     NSLog("[ClaudeQuota] Authentication error for \(email ?? "unknown")")
                     return .authenticationError
                 }
@@ -253,7 +333,7 @@ actor ClaudeCodeQuotaFetcher {
             return nil
         }
 
-        guard let accessToken = json["access_token"] as? String,
+        guard var accessToken = json["access_token"] as? String,
               let email = json["email"] as? String else {
             return nil
         }
@@ -261,6 +341,19 @@ actor ClaudeCodeQuotaFetcher {
         // Check cache first (unless force refresh)
         if !forceRefresh, let cached = quotaCache[email], cached.isValid(ttl: cacheTTL) {
             return (email, cached.data)
+        }
+
+        // Refresh expired token before fetching usage
+        if isTokenExpired(json: json), let refreshToken = json["refresh_token"] as? String {
+            do {
+                let refreshed = try await refreshAccessToken(refreshToken: refreshToken)
+                accessToken = refreshed.accessToken
+                updateAuthFile(at: path, json: json, accessToken: refreshed.accessToken, refreshToken: refreshed.refreshToken, expiresIn: refreshed.expiresIn)
+                NSLog("[ClaudeQuota] Token refreshed for \(email)")
+            } catch {
+                NSLog("[ClaudeQuota] Token refresh failed for \(email): \(error.localizedDescription)")
+                // Fall through with expired token; API call will return authenticationError
+            }
         }
 
         // Fetch usage from API using the token
@@ -332,8 +425,7 @@ actor ClaudeCodeQuotaFetcher {
             return (email, quotaData)
 
         case .authenticationError:
-            // Token expired - return isForbidden: true to trigger re-authentication UI
-            // Note: Anthropic OAuth tokens expire after ~1 hour and don't support refresh
+            // Token expired and refresh failed - return isForbidden to trigger re-authentication UI
             let quotaData = ProviderQuotaData(
                 models: [],
                 lastUpdated: Date(),
