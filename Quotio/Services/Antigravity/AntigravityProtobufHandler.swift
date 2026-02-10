@@ -231,6 +231,105 @@ nonisolated enum AntigravityProtobufHandler {
         return newData.base64EncodedString()
     }
     
+    // MARK: - New Format (>= 1.16.5)
+    
+    /// Encode a string as a protobuf length-delimited field
+    static func encodeStringField(fieldNum: UInt32, value: String) -> Data {
+        encodeLenDelimField(fieldNum: fieldNum, data: Data(value.utf8))
+    }
+    
+    /// Encode raw bytes as a protobuf length-delimited field
+    static func encodeLenDelimField(fieldNum: UInt32, data: Data) -> Data {
+        let tag = encodeVarint(UInt64(fieldNum << 3 | 2))
+        var result = tag
+        result.append(encodeVarint(UInt64(data.count)))
+        result.append(data)
+        return result
+    }
+    
+    /// Create OAuthTokenInfo binary (without Field 6 wrapper) for new format
+    ///
+    /// Protobuf structure:
+    ///   field 1: access_token (string)
+    ///   field 2: token_type "Bearer" (string)
+    ///   field 3: refresh_token (string)
+    ///   field 4: expiry Timestamp { field 1: seconds (int64) }
+    static func createOAuthInfoBinary(accessToken: String, refreshToken: String, expiry: Int64) -> Data {
+        var oauthInfo = Data()
+        oauthInfo.append(encodeStringField(fieldNum: 1, value: accessToken))
+        oauthInfo.append(encodeStringField(fieldNum: 2, value: "Bearer"))
+        oauthInfo.append(encodeStringField(fieldNum: 3, value: refreshToken))
+        
+        // Field 4: Timestamp { field 1: seconds }
+        var timestampMsg = encodeVarint((1 << 3) | 0) // field 1, varint
+        timestampMsg.append(encodeVarint(UInt64(bitPattern: expiry)))
+        oauthInfo.append(encodeLenDelimField(fieldNum: 4, data: timestampMsg))
+        
+        return oauthInfo
+    }
+    
+    /// Create full new-format payload for antigravityUnifiedStateSync.oauthToken
+    ///
+    /// Structure:
+    ///   OuterMessage { field 1: InnerMessage {
+    ///     field 1: "oauthTokenInfoSentinelKey" (string),
+    ///     field 2: InnerMessage2 { field 1: base64(OAuthTokenInfo) (string) }
+    ///   }}
+    /// Returns base64-encoded string ready for database storage
+    static func createNewFormatPayload(accessToken: String, refreshToken: String, expiry: Int64) -> String {
+        let oauthInfo = createOAuthInfoBinary(accessToken: accessToken, refreshToken: refreshToken, expiry: expiry)
+        let oauthInfoB64 = oauthInfo.base64EncodedString()
+        
+        // InnerMessage2: field 1 = base64(OAuthTokenInfo)
+        let inner2 = encodeStringField(fieldNum: 1, value: oauthInfoB64)
+        
+        // InnerMessage: field 1 = sentinel key, field 2 = InnerMessage2
+        var inner = encodeStringField(fieldNum: 1, value: "oauthTokenInfoSentinelKey")
+        inner.append(encodeLenDelimField(fieldNum: 2, data: inner2))
+        
+        // OuterMessage: field 1 = InnerMessage
+        let outer = encodeLenDelimField(fieldNum: 1, data: inner)
+        
+        return outer.base64EncodedString()
+    }
+    
+    // MARK: - Old Format Email Field
+    
+    /// Create email field (Field 2) for old format protobuf injection
+    static func createEmailField(email: String) -> Data {
+        encodeStringField(fieldNum: 2, value: email)
+    }
+    
+    /// Inject token using old format: strip fields 1, 2, 6, re-inject email + OAuth
+    static func injectTokenOldFormat(
+        existingBase64: String,
+        accessToken: String,
+        refreshToken: String,
+        expiry: Int64,
+        email: String
+    ) throws -> String {
+        guard let existingData = Data(base64Encoded: existingBase64) else {
+            throw ProtobufError.invalidBase64
+        }
+        
+        // Strip UserID (1), Email (2), OAuthTokenInfo (6)
+        var cleanData = try removeField(existingData, fieldNum: 1)
+        cleanData = try removeField(cleanData, fieldNum: 2)
+        cleanData = try removeField(cleanData, fieldNum: 6)
+        
+        // Re-inject email (field 2) + new OAuth (field 6)
+        cleanData.append(createEmailField(email: email))
+        cleanData.append(createOAuthField(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiry: expiry
+        ))
+        
+        return cleanData.base64EncodedString()
+    }
+    
+    // MARK: - Token Extraction
+    
     /// Extract OAuth info from protobuf data for display/verification
     /// Uses pattern matching to find the OAuth field since the protobuf is deeply nested
     static func extractOAuthInfo(base64Data: String) throws -> (accessToken: String?, refreshToken: String?, expiry: Int64?) {

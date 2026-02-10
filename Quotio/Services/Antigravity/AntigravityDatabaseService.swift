@@ -26,7 +26,9 @@ actor AntigravityDatabaseService {
     private static let shmPath = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/Antigravity/User/globalStorage/state.vscdb-shm")
     
-    private static let stateKey = "jetskiStateSync.agentManagerInitState"
+    private static let oldFormatKey = "jetskiStateSync.agentManagerInitState"
+    private static let newFormatKey = "antigravityUnifiedStateSync.oauthToken"
+    private static let serviceMachineIdKey = "storage.serviceMachineId"
     
     // MARK: - Errors
     
@@ -180,7 +182,7 @@ actor AntigravityDatabaseService {
         }
 
         let result = try withDatabase(readOnly: true) { db in
-            try readValue(forKey: Self.stateKey, db: db)
+            try readValue(forKey: Self.oldFormatKey, db: db)
         }
         
         guard let value = result, !value.isEmpty else {
@@ -196,7 +198,7 @@ actor AntigravityDatabaseService {
             throw DatabaseError.databaseNotFound
         }
         try withDatabase(readOnly: false) { db in
-            try writeValue(value, forKey: Self.stateKey, db: db)
+            try writeValue(value, forKey: Self.oldFormatKey, db: db)
         }
     }
     
@@ -306,6 +308,8 @@ actor AntigravityDatabaseService {
         accessToken: String,
         refreshToken: String,
         expiry: Int64,
+        email: String,
+        versionFormat: AntigravityVersionDetector.VersionFormat = .unknown,
         maxRetries: Int = defaultMaxRetries
     ) async throws {
         var lastError: Error?
@@ -315,19 +319,19 @@ actor AntigravityDatabaseService {
                 try injectTokenOnce(
                     accessToken: accessToken,
                     refreshToken: refreshToken,
-                    expiry: expiry
+                    expiry: expiry,
+                    email: email,
+                    versionFormat: versionFormat
                 )
-                return  // Success, exit retry loop
+                return
             } catch {
                 lastError = error
                 
-                // Only retry on timeout (database locked) errors
                 guard case DatabaseError.timeout = error, attempt < maxRetries else {
                     if attempt >= maxRetries { break }
                     throw error
                 }
                 
-                // Exponential backoff: 1s, 2s, 4s...
                 let delayNs = Self.baseRetryDelayNs * UInt64(attempt)
                 try? await Task.sleep(nanoseconds: delayNs)
             }
@@ -336,11 +340,12 @@ actor AntigravityDatabaseService {
         throw lastError ?? DatabaseError.timeout
     }
     
-    /// Single attempt to inject token (no retry).
     private func injectTokenOnce(
         accessToken: String,
         refreshToken: String,
-        expiry: Int64
+        expiry: Int64,
+        email: String,
+        versionFormat: AntigravityVersionDetector.VersionFormat
     ) throws {
         try withDatabase(readOnly: false) { db in
             try executeSimpleStatement("BEGIN IMMEDIATE TRANSACTION;", db: db)
@@ -351,22 +356,105 @@ actor AntigravityDatabaseService {
                 }
             }
             
-            guard let currentState = try readValue(forKey: Self.stateKey, db: db),
-                  !currentState.isEmpty else {
-                throw DatabaseError.stateNotFound
+            switch versionFormat {
+            case .newFormat:
+                try injectNewFormat(
+                    accessToken: accessToken,
+                    refreshToken: refreshToken,
+                    expiry: expiry,
+                    db: db
+                )
+                
+            case .oldFormat:
+                try injectOldFormat(
+                    accessToken: accessToken,
+                    refreshToken: refreshToken,
+                    expiry: expiry,
+                    email: email,
+                    db: db
+                )
+                
+            case .unknown:
+                // Dual fallback: try both formats
+                let newFormatResult = Result {
+                    try injectNewFormat(
+                        accessToken: accessToken,
+                        refreshToken: refreshToken,
+                        expiry: expiry,
+                        db: db
+                    )
+                }
+                let oldFormatResult = Result {
+                    try injectOldFormat(
+                        accessToken: accessToken,
+                        refreshToken: refreshToken,
+                        expiry: expiry,
+                        email: email,
+                        db: db
+                    )
+                }
+                
+                if case .failure = newFormatResult, case .failure(let oldErr) = oldFormatResult {
+                    throw oldErr
+                }
             }
             
-            let newState = try AntigravityProtobufHandler.injectToken(
-                existingBase64: currentState,
-                accessToken: accessToken,
-                refreshToken: refreshToken,
-                expiry: expiry
-            )
-            
-            try writeValue(newState, forKey: Self.stateKey, db: db)
             try writeValue("true", forKey: "antigravityOnboarding", db: db)
             try executeSimpleStatement("COMMIT;", db: db)
             shouldRollback = false
+        }
+    }
+    
+    // MARK: - Format-Specific Injection
+    
+    /// New format (>= 1.16.5): write to antigravityUnifiedStateSync.oauthToken
+    private func injectNewFormat(
+        accessToken: String,
+        refreshToken: String,
+        expiry: Int64,
+        db: OpaquePointer
+    ) throws {
+        let payload = AntigravityProtobufHandler.createNewFormatPayload(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiry: expiry
+        )
+        try writeValue(payload, forKey: Self.newFormatKey, db: db)
+    }
+    
+    /// Old format (< 1.16.5): modify existing jetskiStateSync.agentManagerInitState
+    private func injectOldFormat(
+        accessToken: String,
+        refreshToken: String,
+        expiry: Int64,
+        email: String,
+        db: OpaquePointer
+    ) throws {
+        guard let currentState = try readValue(forKey: Self.oldFormatKey, db: db),
+              !currentState.isEmpty else {
+            // Old key doesn't exist — likely new-version Antigravity, skip silently
+            Log.debug("Old format key not found, skipping old format injection")
+            return
+        }
+        
+        let newState = try AntigravityProtobufHandler.injectTokenOldFormat(
+            existingBase64: currentState,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiry: expiry,
+            email: email
+        )
+        
+        try writeValue(newState, forKey: Self.oldFormatKey, db: db)
+    }
+    
+    // MARK: - ServiceMachineId Sync
+    
+    /// Sync storage.serviceMachineId into state.vscdb ItemTable
+    func syncServiceMachineId(_ machineId: String) async throws {
+        guard databaseExists() else { return }
+        try withDatabase(readOnly: false) { db in
+            try writeValue(machineId, forKey: Self.serviceMachineIdKey, db: db)
         }
     }
     
