@@ -136,12 +136,6 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         menu?.cancelTracking()
     }
 
-    private func populateMenu() {
-        guard let menu = menu else { return }
-
-        performMenuRebuild(using: menu)
-    }
-
     private func performMenuRebuild(using menu: NSMenu) {
         if isRebuildingMenu {
             hasPendingMenuRebuild = true
