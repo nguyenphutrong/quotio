@@ -955,10 +955,6 @@ final class CLIProxyManager {
             }
         }
         
-        // Small buffer to allow detached task to start killing before state update.
-        // This reduces the race condition window when start() is called immediately after.
-        Thread.sleep(forTimeInterval: 0.15)
-        
         process = nil
         proxyStatus.running = false
     }

@@ -17,6 +17,8 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var menu: NSMenu?
     private var menuContentVersion: Int = 0
+    private var isRebuildingMenu = false
+    private var hasPendingMenuRebuild = false
     
     // Native menu builder
     private var menuBuilder: StatusBarMenuBuilder?
@@ -98,14 +100,14 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         )
         
         button.addSubview(containerView)
-        button.frame = NSRect(origin: .zero, size: containerSize)
         statusItem?.length = containerSize.width
     }
     
     // MARK: - NSMenuDelegate
     
     func menuWillOpen(_ menu: NSMenu) {
-        populateMenu()
+        hasPendingMenuRebuild = false
+        performMenuRebuild(using: menu)
     }
     
     func menuDidClose(_ menu: NSMenu) {
@@ -115,8 +117,18 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     /// Force rebuild menu while it's open (e.g., when provider changes)
     func rebuildMenuInPlace() {
         guard let menu = menu else { return }
-        populateMenu()
-        menu.update()
+
+        if statusItem?.button?.isHighlighted != true {
+            hasPendingMenuRebuild = true
+            return
+        }
+
+        if isRebuildingMenu {
+            hasPendingMenuRebuild = true
+            return
+        }
+
+        performMenuRebuild(using: menu)
     }
 
     /// Close the menu programmatically
@@ -126,9 +138,29 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
 
     private func populateMenu() {
         guard let menu = menu else { return }
-        
+
+        performMenuRebuild(using: menu)
+    }
+
+    private func performMenuRebuild(using menu: NSMenu) {
+        if isRebuildingMenu {
+            hasPendingMenuRebuild = true
+            return
+        }
+
+        isRebuildingMenu = true
+        defer {
+            isRebuildingMenu = false
+            if hasPendingMenuRebuild, statusItem?.button?.isHighlighted == true {
+                hasPendingMenuRebuild = false
+                DispatchQueue.main.async { [weak self] in
+                    self?.rebuildMenuInPlace()
+                }
+            }
+        }
+
         menu.removeAllItems()
-        
+
         guard let builder = menuBuilder else { return }
         
         let nativeMenu = builder.buildMenu()
