@@ -98,28 +98,26 @@ final class AntigravityProcessManager {
     /// Executes blocking operations on a detached task to avoid blocking MainActor.
     /// Compatible with macOS 14+, 15+, 26+.
     private func killHelperProcesses() async {
-        // Helper process names that Electron/Antigravity spawns
         let helperPatterns = [
             "Antigravity Helper",
             "Antigravity Helper (GPU)",
             "Antigravity Helper (Plugin)",
             "Antigravity Helper (Renderer)"
         ]
-        
-        // Execute blocking operations on background thread
+
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             Task.detached(priority: .userInitiated) {
                 // Method 1: Use killall for each helper pattern (most reliable)
                 for pattern in helperPatterns {
                     let killall = Process()
                     killall.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-                    killall.arguments = ["-9", pattern]
+                    killall.arguments = ["-9", pattern, "-t", "2"]  // -t 2s timeout
                     killall.standardOutput = FileHandle.nullDevice
                     killall.standardError = FileHandle.nullDevice
                     try? killall.run()
                     killall.waitUntilExit()
                 }
-                
+
                 // Method 2: Use pkill as fallback (catches any remaining)
                 let pkill = Process()
                 pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
@@ -128,26 +126,30 @@ final class AntigravityProcessManager {
                 pkill.standardError = FileHandle.nullDevice
                 try? pkill.run()
                 pkill.waitUntilExit()
-                
+
                 continuation.resume()
             }
         }
-        
-        // Delay to ensure processes are fully terminated
-        try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+
+        try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
     }
     
     /// Wait for all instances to terminate
+    /// - Parameter timeout: Maximum time to wait
+    /// - Returns: true if terminated, false if timeout or cancelled
     private func waitForTermination(timeout: TimeInterval) async -> Bool {
         let startTime = Date()
-        
+
         while Date().timeIntervalSince(startTime) < timeout {
+            if Task.isCancelled {
+                return false
+            }
             if runningInstances().isEmpty {
                 return true
             }
             try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
         }
-        
+
         return runningInstances().isEmpty
     }
     

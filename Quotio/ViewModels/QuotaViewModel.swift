@@ -1273,11 +1273,9 @@ final class QuotaViewModel {
     /// Switch Antigravity account in the IDE
     func switchAntigravityAccount(email: String) async {
         await antigravitySwitcher.executeSwitchForEmail(email)
-        
+
         // Refresh to update active account
         if case .success = antigravitySwitcher.switchState {
-            // Refresh quotas but don't re-detect active account
-            // (already set in executeSwitchForEmail)
             await refreshAntigravityQuotasWithoutDetect()
         }
     }

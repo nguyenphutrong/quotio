@@ -121,9 +121,9 @@ final class AntigravityAccountSwitcher {
             switchState = .failed(message: "Failed to read auth file")
             return
         }
-        
+
         let wasIDERunning = processManager.isRunning()
-        
+
         do {
             // Step 0: Ensure token is fresh
             if authFile.isExpired, let refreshToken = authFile.refreshToken {
@@ -131,7 +131,7 @@ final class AntigravityAccountSwitcher {
                     let freshToken = try await quotaFetcher.refreshAccessToken(refreshToken: refreshToken)
                     authFile.accessToken = freshToken
                     authFile.expired = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
-                    
+
                     let encoder = JSONEncoder()
                     encoder.outputFormatting = .prettyPrinted
                     if let updatedData = try? encoder.encode(authFile) {
@@ -142,28 +142,46 @@ final class AntigravityAccountSwitcher {
                     return
                 }
             }
-            
+
+            // Check cancellation before proceeding
+            guard !Task.isCancelled else {
+                switchState = .idle
+                return
+            }
+
             // Step 1: Detect version format before closing IDE
             let versionFormat = AntigravityVersionDetector.detectFormat()
-            
+
             // Step 2: Close IDE if running
             if wasIDERunning {
                 switchState = .switching(progress: .closingIDE)
             }
             _ = await processManager.terminateAllProcesses()
-            
+
             await databaseService.cleanupWALFiles()
-            
-            let settleDelay: UInt64 = wasIDERunning ? 2_000_000_000 : 500_000_000
+
+            let settleDelay: UInt64 = wasIDERunning ? 500_000_000 : 200_000_000
             try? await Task.sleep(nanoseconds: settleDelay)
-            
+
+            // Check cancellation after IDE close
+            guard !Task.isCancelled else {
+                switchState = .idle
+                return
+            }
+
             // Step 3: Create backup
             switchState = .switching(progress: .creatingBackup)
             try await databaseService.createBackup()
-            
+
+            // Check cancellation
+            guard !Task.isCancelled else {
+                switchState = .idle
+                return
+            }
+
             // Step 4: Inject device profile into storage.json
             switchState = .switching(progress: .injectingToken)
-            
+
             let deviceProfile = await deviceManager.loadOrCreateProfile(forEmail: authFile.email)
             do {
                 try await deviceManager.writeProfileToStorage(deviceProfile)
@@ -171,7 +189,13 @@ final class AntigravityAccountSwitcher {
             } catch {
                 Log.warning("Device profile injection failed (non-fatal): \(error)")
             }
-            
+
+            // Check cancellation
+            guard !Task.isCancelled else {
+                switchState = .idle
+                return
+            }
+
             // Step 5: Inject token (version-aware)
             let expiry: Int64
             if let expired = authFile.expired,
@@ -180,7 +204,7 @@ final class AntigravityAccountSwitcher {
             } else {
                 expiry = Int64(Date().timeIntervalSince1970) + 3600
             }
-            
+
             try await databaseService.injectToken(
                 accessToken: authFile.accessToken,
                 refreshToken: authFile.refreshToken ?? "",
@@ -188,25 +212,31 @@ final class AntigravityAccountSwitcher {
                 email: authFile.email,
                 versionFormat: versionFormat
             )
-            
+
+            // Check cancellation
+            guard !Task.isCancelled else {
+                switchState = .idle
+                return
+            }
+
             // Step 6: Restart IDE if it was running
             if wasIDERunning && shouldRestartIDE {
                 switchState = .switching(progress: .restartingIDE)
                 try await processManager.launch()
             }
-            
+
             // Step 7: Clean up
             await databaseService.removeBackup()
-            
+
             currentActiveAccount = AntigravityActiveAccount(
                 email: authFile.email,
                 detectedAt: Date()
             )
-            
+
             let accountId = url.lastPathComponent
                 .replacingOccurrences(of: "antigravity-", with: "")
                 .replacingOccurrences(of: ".json", with: "")
-            
+
             switchState = .success(accountId: accountId)
             
         } catch {
