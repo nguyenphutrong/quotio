@@ -517,7 +517,7 @@ private struct AccountQuotaCardV2: View {
                 QuotaLoadingView()
             } else if hasQuotaData {
                 usageSection
-            } else if let message = account.authFile?.statusMessage, !message.isEmpty {
+            } else if let message = account.authFile?.humanReadableStatus {
                 Text(message)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

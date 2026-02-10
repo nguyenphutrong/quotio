@@ -304,6 +304,25 @@ nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
         default: return .gray
         }
     }
+
+    /// Extracts a human-readable message from the status_message field.
+    /// The field may contain raw JSON error blobs from providers (e.g., Antigravity/Google).
+    var humanReadableStatus: String? {
+        guard let msg = statusMessage, !msg.isEmpty else { return nil }
+
+        // If it looks like JSON, try to parse it
+        let trimmed = msg.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("{"),
+           let data = trimmed.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let error = json["error"] as? [String: Any],
+           let message = error["message"] as? String {
+            return message
+        }
+
+        // Already a plain string
+        return msg
+    }
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)

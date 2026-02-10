@@ -148,7 +148,7 @@ struct QuotaCard: View {
     
     private var sessionResetTime: String {
         if let coolingAccount = accounts.first(where: { $0.status == "cooling" }),
-           let message = coolingAccount.statusMessage,
+           let message = coolingAccount.humanReadableStatus,
            let minutes = parseMinutes(from: message) {
             return minutes >= 60 ? "\(minutes / 60)h" : "\(minutes)m"
         }
@@ -314,7 +314,7 @@ private struct QuotaAccountRow: View {
                                 .foregroundStyle(model.percentage > 50 ? .green : (model.percentage > 20 ? .orange : .red))
                         }
                     }
-                } else if let statusMessage = account.statusMessage, !statusMessage.isEmpty {
+                } else if let statusMessage = account.humanReadableStatus {
                     Text(statusMessage)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
