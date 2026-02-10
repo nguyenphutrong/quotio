@@ -28,6 +28,7 @@ final class CLIProxyManager {
     var allowNetworkAccess: Bool {
         get { UserDefaults.standard.bool(forKey: "allowNetworkAccess") }
         set {
+            guard newValue != UserDefaults.standard.bool(forKey: "allowNetworkAccess") else { return }
             UserDefaults.standard.set(newValue, forKey: "allowNetworkAccess")
             ensureConfigExists()
             if newValue {
@@ -163,6 +164,7 @@ final class CLIProxyManager {
     var port: UInt16 {
         get { proxyStatus.port }
         set {
+            guard newValue != proxyStatus.port else { return }
             proxyStatus.port = newValue
             UserDefaults.standard.set(Int(newValue), forKey: "proxyPort")
             updateConfigPort(newValue)

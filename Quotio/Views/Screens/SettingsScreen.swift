@@ -706,6 +706,7 @@ struct LocalProxyServerSection: View {
     @AppStorage("autoStartTunnel") private var autoStartTunnel = false
     @AppStorage("allowNetworkAccess") private var allowNetworkAccess = false
     @State private var portText: String = ""
+    @State private var isLoadingConfig = false  // Prevents onChange from firing during initial load
     
     var body: some View {
         Section {
@@ -716,6 +717,7 @@ struct LocalProxyServerSection: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 100)
                     .onChange(of: portText) { _, newValue in
+                        guard !isLoadingConfig else { return }
                         if let port = UInt16(newValue), port > 0 {
                             viewModel.proxyManager.port = port
                         }
@@ -746,6 +748,7 @@ struct LocalProxyServerSection: View {
                 
             NetworkAccessSection(allowNetworkAccess: $allowNetworkAccess)
                 .onChange(of: allowNetworkAccess) { _, newValue in
+                    guard !isLoadingConfig else { return }
                     viewModel.proxyManager.allowNetworkAccess = newValue
                 }
                 
@@ -757,7 +760,12 @@ struct LocalProxyServerSection: View {
                 .font(.caption)
         }
         .onAppear {
+            isLoadingConfig = true
             portText = String(viewModel.proxyManager.port)
+            // Delay clearing the flag to allow onChange to be suppressed
+            DispatchQueue.main.async {
+                isLoadingConfig = false
+            }
         }
     }
 }
