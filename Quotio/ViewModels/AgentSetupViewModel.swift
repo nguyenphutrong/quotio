@@ -92,8 +92,13 @@ final class AgentSetupViewModel {
 
         selectedAgent = agent
 
-        // Always use client endpoint - all traffic should go through Quotio's proxy
-        let endpoint = proxyManager.clientEndpoint
+        // Use tunnel URL if active, otherwise use local proxy endpoint
+        let endpoint: String
+        if let tunnelURL = TunnelManager.shared.tunnelState.publicURL {
+            endpoint = tunnelURL
+        } else {
+            endpoint = proxyManager.clientEndpoint
+        }
 
         // Create configuration with defaults first
         currentConfiguration = AgentConfiguration(
@@ -350,9 +355,17 @@ final class AgentSetupViewModel {
             // If no keys exist, fall back to managementKey
             let apiKey = quotaViewModel?.apiKeys.first ?? proxyManager.managementKey
 
+            // Use tunnel URL if active, otherwise use local proxy endpoint
+            let modelEndpoint: String
+            if let tunnelURL = TunnelManager.shared.tunnelState.publicURL {
+                modelEndpoint = tunnelURL
+            } else {
+                modelEndpoint = proxyManager.clientEndpoint
+            }
+
             config = AgentConfiguration(
                 agent: .claudeCode,
-                proxyURL: proxyManager.clientEndpoint + "/v1",
+                proxyURL: modelEndpoint + "/v1",
                 apiKey: apiKey
             )
         }

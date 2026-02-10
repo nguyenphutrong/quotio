@@ -60,6 +60,8 @@ final class TunnelManager {
         cancelStartTimeout()
         
         do {
+            CLIProxyManager.shared.updateConfigAllowRemote(true)
+
             try await service.start(port: port) { [weak self] url in
                 Task { @MainActor in
                     guard let self = self else { return }
@@ -83,12 +85,14 @@ final class TunnelManager {
             tunnelState.status = .error
             tunnelState.errorMessage = error.localizedMessage
             cancelStartTimeout()
+            CLIProxyManager.shared.updateConfigAllowRemote(false)
             NSLog("[TunnelManager] Failed to start tunnel: %@", error.localizedMessage)
         } catch {
             guard tunnelRequestId == currentRequestId else { return }
             tunnelState.status = .error
             tunnelState.errorMessage = error.localizedDescription
             cancelStartTimeout()
+            CLIProxyManager.shared.updateConfigAllowRemote(false)
             NSLog("[TunnelManager] Failed to start tunnel: %@", error.localizedDescription)
         }
     }
@@ -105,7 +109,8 @@ final class TunnelManager {
         stopMonitoring()
         
         await service.stop()
-        
+        CLIProxyManager.shared.updateConfigAllowRemote(false)
+
         tunnelState.reset()
         NSLog("[TunnelManager] Tunnel stopped")
     }
@@ -149,6 +154,7 @@ final class TunnelManager {
                 if !isRunning && (currentStatus == .active || currentStatus == .starting) {
                     self.tunnelState.status = .error
                     self.tunnelState.errorMessage = "tunnel.error.unexpectedExit".localized()
+                    CLIProxyManager.shared.updateConfigAllowRemote(false)
                     NSLog("[TunnelManager] Tunnel process exited unexpectedly")
                     await self.service.stop()
                     break
@@ -171,6 +177,7 @@ final class TunnelManager {
             guard self.tunnelState.status == .starting else { return }
             self.tunnelState.status = .error
             self.tunnelState.errorMessage = "tunnel.error.startTimeout".localized()
+            CLIProxyManager.shared.updateConfigAllowRemote(false)
             NSLog("[TunnelManager] Tunnel start timed out after %.0f seconds", self.startTimeoutSeconds)
             await self.service.stop()
         }

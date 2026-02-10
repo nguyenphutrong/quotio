@@ -1164,17 +1164,21 @@ final class QuotaViewModel {
         isLoadingQuotas = true
         lastQuotaRefresh = Date()
 
-        // Note: Cursor and Trae removed from auto-refresh (issue #29)
-        // User must use "Scan for IDEs" to detect these
-        async let antigravity: () = refreshAntigravityQuotasInternal()
-        async let openai: () = refreshOpenAIQuotasInternal()
-        async let copilot: () = refreshCopilotQuotasInternal()
-        async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        async let glm: () = refreshGlmQuotasInternal()
-        async let warp: () = refreshWarpQuotasInternal()
-        async let kiro: () = refreshKiroQuotasInternal()
+        // In remote mode, skip local filesystem fetchers — only show data from the remote proxy
+        // (auth files, usage stats, API keys are already fetched by refreshData())
+        if !modeManager.isRemoteProxyMode {
+            // Note: Cursor and Trae removed from auto-refresh (issue #29)
+            // User must use "Scan for IDEs" to detect these
+            async let antigravity: () = refreshAntigravityQuotasInternal()
+            async let openai: () = refreshOpenAIQuotasInternal()
+            async let copilot: () = refreshCopilotQuotasInternal()
+            async let claudeCode: () = refreshClaudeCodeQuotasInternal()
+            async let glm: () = refreshGlmQuotasInternal()
+            async let warp: () = refreshWarpQuotasInternal()
+            async let kiro: () = refreshKiroQuotasInternal()
 
-        _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
+        }
 
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -1186,9 +1190,11 @@ final class QuotaViewModel {
     /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
     /// In Full Mode: uses direct fetchers (works without proxy)
     /// In Quota-Only Mode: uses direct fetchers + CLI fetchers
+    /// In Remote Mode: skips local fetchers (data comes from remote proxy)
     /// Note: Cursor and Trae require explicit user scan (issue #29)
     func refreshQuotasUnified() async {
         guard !isLoadingQuotas else { return }
+        guard !modeManager.isRemoteProxyMode else { return }
 
         isLoadingQuotas = true
         lastQuotaRefreshTime = Date()

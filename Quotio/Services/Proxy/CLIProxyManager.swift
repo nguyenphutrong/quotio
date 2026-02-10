@@ -316,6 +316,10 @@ final class CLIProxyManager {
         try? lines.joined(separator: "\n").write(toFile: configPath, atomically: true, encoding: .utf8)
     }
     
+    func updateConfigAllowRemote(_ enabled: Bool) {
+        updateConfigValue(pattern: #"allow-remote:\s*(true|false)"#, replacement: "allow-remote: \(enabled)")
+    }
+
     func updateConfigLogging(enabled: Bool) {
         updateConfigValue(pattern: #"logging-to-file:\s*(true|false)"#, replacement: "logging-to-file: \(enabled)")
         restartProxyIfRunning()
