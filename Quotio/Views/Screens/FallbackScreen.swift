@@ -399,6 +399,9 @@ struct VirtualModelRow: View {
             .padding(.leading, 4)
             .padding(.vertical, 4)
         } label: {
+            // Context menu is scoped to this HStack (title row only) so that
+            // right-clicking a fallback entry row does not trigger the
+            // "Delete Virtual Model" action by mistake.
             HStack(spacing: 12) {
                 // Model name
                 VStack(alignment: .leading, spacing: 2) {
@@ -435,36 +438,36 @@ struct VirtualModelRow: View {
                 .buttonStyle(.plain)
                 .disabled(!isGlobalEnabled)
             }
-        }
-        .contextMenu {
-            Button {
-                onEdit()
-            } label: {
-                Label("action.rename".localized(), systemImage: "pencil")
-            }
+            .contextMenu {
+                Button {
+                    onEdit()
+                } label: {
+                    Label("action.rename".localized(), systemImage: "pencil")
+                }
 
-            Button {
-                onToggle()
-            } label: {
-                Label(model.isEnabled ? "fallback.disable".localized() : "fallback.enable".localized(),
-                      systemImage: model.isEnabled ? "xmark.circle" : "checkmark.circle")
-            }
+                Button {
+                    onToggle()
+                } label: {
+                    Label(model.isEnabled ? "fallback.disable".localized() : "fallback.enable".localized(),
+                          systemImage: model.isEnabled ? "xmark.circle" : "checkmark.circle")
+                }
 
-            Divider()
+                Divider()
 
-            Button(role: .destructive) {
-                showDeleteConfirmation = true
-            } label: {
-                Label("action.delete".localized(), systemImage: "trash")
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    Label("action.delete".localized(), systemImage: "trash")
+                }
             }
-        }
-        .confirmationDialog("fallback.deleteConfirm".localized(), isPresented: $showDeleteConfirmation) {
-            Button("action.delete".localized(), role: .destructive) {
-                onDelete()
+            .confirmationDialog("fallback.deleteConfirm".localized(), isPresented: $showDeleteConfirmation) {
+                Button("action.delete".localized(), role: .destructive) {
+                    onDelete()
+                }
+                Button("action.cancel".localized(), role: .cancel) {}
+            } message: {
+                Text("fallback.deleteMessage".localized())
             }
-            Button("action.cancel".localized(), role: .cancel) {}
-        } message: {
-            Text("fallback.deleteMessage".localized())
         }
     }
 }
