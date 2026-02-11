@@ -126,23 +126,30 @@ struct AddFallbackEntrySheet: View {
         filteredModels.first { $0.id == selectedModelId }
     }
 
-    /// Map model provider string to AIProvider enum
+    /// Maps a model to its hosting AIProvider for icon display.
+    ///
+    /// Aggregator providers (Copilot, Antigravity, Kiro) host models from other providers,
+    /// so their model IDs carry the underlying provider's prefix (e.g., Copilot's
+    /// `claude-3.5-sonnet`). The `provider` field from the proxy API (`owned_by`) is the
+    /// most reliable source and is checked first. Model ID prefix matching serves as a
+    /// fallback for models with unknown or missing provider metadata.
     private func providerFromModel(_ model: AvailableModel) -> AIProvider {
         let providerName = model.provider.lowercased()
         let modelId = model.id.lowercased()
 
-        // FIRST: Try to match by model ID prefix (most reliable for proxy models)
-        // e.g., "kiro-claude-xxx" -> kiro, "gemini-claude-xxx" -> gemini
+        // FIRST: Try exact match on provider field (most reliable — from proxy API owned_by)
+        // e.g., "github-copilot" -> .copilot, "antigravity" -> .antigravity
         for provider in AIProvider.allCases {
-            let providerKey = provider.rawValue.lowercased()
-            if modelId.hasPrefix(providerKey + "-") || modelId.hasPrefix(providerKey + "_") {
+            if provider.rawValue.lowercased() == providerName {
                 return provider
             }
         }
 
-        // SECOND: Try exact match on provider field
+        // SECOND: Try to match by model ID prefix (fallback for unknown provider strings)
+        // e.g., "kiro-claude-xxx" -> kiro, "gemini-claude-xxx" -> gemini
         for provider in AIProvider.allCases {
-            if provider.rawValue.lowercased() == providerName {
+            let providerKey = provider.rawValue.lowercased()
+            if modelId.hasPrefix(providerKey + "-") || modelId.hasPrefix(providerKey + "_") {
                 return provider
             }
         }
