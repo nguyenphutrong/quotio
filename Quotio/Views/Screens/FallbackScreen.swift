@@ -26,6 +26,13 @@ struct FallbackScreen: View {
         viewModel.agentSetupViewModel.availableModels
     }
 
+    /// Refresh callback for Add Entry sheet (only available when proxy is running).
+    /// Returns `true` on successful model fetch; models update reactively via `availableModels`.
+    private var addEntryRefreshAction: (() async -> Bool)? {
+        guard viewModel.proxyManager.proxyStatus.running else { return nil }
+        return { await viewModel.agentSetupViewModel.loadModels(forceRefresh: true) }
+    }
+
     var body: some View {
         List {
             // Section 1: Global Settings
@@ -81,7 +88,8 @@ struct FallbackScreen: View {
                 },
                 onDismiss: {
                     addingEntryToModelId = nil
-                }
+                },
+                onRefresh: addEntryRefreshAction
             )
         }
         .task {
