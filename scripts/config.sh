@@ -9,7 +9,7 @@
 # Project settings
 export PROJECT_NAME="Quotio"
 export SCHEME="Quotio"
-export BUNDLE_ID="proseek.io.vn.Quotio"
+export BUNDLE_ID="dev.quotio.desktop"
 
 # Paths
 export PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

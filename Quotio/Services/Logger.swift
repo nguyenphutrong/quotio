@@ -13,7 +13,7 @@ import os.log
 /// All logging is disabled in Release builds to prevent sensitive data leakage.
 /// Marked nonisolated to be callable from any actor context.
 nonisolated enum Log {
-    private static let subsystem = Bundle.main.bundleIdentifier ?? "proseek.io.vn.Quotio"
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "dev.quotio.desktop"
 
     // MARK: - Log Categories
     // os.Logger is thread-safe and can be called from any context

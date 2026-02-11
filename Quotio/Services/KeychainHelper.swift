@@ -11,18 +11,27 @@ import Security
 // MARK: - Keychain Helper
 
 enum KeychainHelper {
-    private static let remoteService = "proseek.io.vn.Quotio.remote-management"
-    private static let localService = "proseek.io.vn.Quotio.local-management"
-    private static let warpService = "proseek.io.vn.Quotio.warp"
+    private static let remoteService = "dev.quotio.desktop.remote-management"
+    private static let localService = "dev.quotio.desktop.local-management"
+    private static let warpService = "dev.quotio.desktop.warp"
     private static let localManagementAccount = "local-management-key"
     private static let warpTokensAccount = "warp-tokens"
     private static let localManagementDefaultsKey = "managementKey"
     private static let warpTokensDefaultsKey = "warpTokens"
 
-    // Legacy service names for keychain migration (pre-0.12.0)
-    private static let legacyRemoteService = "com.quotio.remote-management"
-    private static let legacyLocalService = "com.quotio.local-management"
-    private static let legacyWarpService = "com.quotio.warp"
+    // Legacy service names for keychain migration (newest first)
+    private static let legacyRemoteServices = [
+        "proseek.io.vn.Quotio.remote-management",
+        "com.quotio.remote-management",
+    ]
+    private static let legacyLocalServices = [
+        "proseek.io.vn.Quotio.local-management",
+        "com.quotio.local-management",
+    ]
+    private static let legacyWarpServices = [
+        "proseek.io.vn.Quotio.warp",
+        "com.quotio.warp",
+    ]
 
     static func saveManagementKey(_ key: String, for configId: String) {
         let account = "management-key-\(configId)"
@@ -37,13 +46,15 @@ enum KeychainHelper {
         if let key = readString(service: remoteService, account: account) {
             return key
         }
-        return migrateString(from: legacyRemoteService, to: remoteService, account: account)
+        return migrateString(from: legacyRemoteServices, to: remoteService, account: account)
     }
 
     static func deleteManagementKey(for configId: String) {
         let account = "management-key-\(configId)"
         deleteData(service: remoteService, account: account)
-        deleteData(service: legacyRemoteService, account: account)
+        for legacy in legacyRemoteServices {
+            deleteData(service: legacy, account: account)
+        }
     }
 
     static func hasManagementKey(for configId: String) -> Bool {
@@ -65,7 +76,7 @@ enum KeychainHelper {
         }
 
         // Migrate from legacy keychain service name
-        if let legacyKey = migrateString(from: legacyLocalService, to: localService, account: localManagementAccount) {
+        if let legacyKey = migrateString(from: legacyLocalServices, to: localService, account: localManagementAccount) {
             return legacyKey
         }
 
@@ -83,7 +94,9 @@ enum KeychainHelper {
 
     static func deleteLocalManagementKey() {
         deleteData(service: localService, account: localManagementAccount)
-        deleteData(service: legacyLocalService, account: localManagementAccount)
+        for legacy in legacyLocalServices {
+            deleteData(service: legacy, account: localManagementAccount)
+        }
         UserDefaults.standard.removeObject(forKey: localManagementDefaultsKey)
     }
 
@@ -100,7 +113,7 @@ enum KeychainHelper {
             return data
         }
 
-        if let legacyData = migrateData(from: legacyWarpService, to: warpService, account: warpTokensAccount) {
+        if let legacyData = migrateData(from: legacyWarpServices, to: warpService, account: warpTokensAccount) {
             return legacyData
         }
 
@@ -117,22 +130,25 @@ enum KeychainHelper {
 
     static func deleteWarpTokens() {
         deleteData(service: warpService, account: warpTokensAccount)
-        deleteData(service: legacyWarpService, account: warpTokensAccount)
+        for legacy in legacyWarpServices {
+            deleteData(service: legacy, account: warpTokensAccount)
+        }
         UserDefaults.standard.removeObject(forKey: warpTokensDefaultsKey)
     }
 
-    private static func migrateData(from oldService: String, to newService: String, account: String) -> Data? {
-        guard let data = readData(service: oldService, account: account) else {
-            return nil
+    private static func migrateData(from oldServices: [String], to newService: String, account: String) -> Data? {
+        for oldService in oldServices {
+            guard let data = readData(service: oldService, account: account) else { continue }
+            if saveData(data, service: newService, account: account) {
+                deleteData(service: oldService, account: account)
+            }
+            return data
         }
-        if saveData(data, service: newService, account: account) {
-            deleteData(service: oldService, account: account)
-        }
-        return data
+        return nil
     }
 
-    private static func migrateString(from oldService: String, to newService: String, account: String) -> String? {
-        guard let data = migrateData(from: oldService, to: newService, account: account) else {
+    private static func migrateString(from oldServices: [String], to newService: String, account: String) -> String? {
+        guard let data = migrateData(from: oldServices, to: newService, account: account) else {
             return nil
         }
         return String(data: data, encoding: .utf8)

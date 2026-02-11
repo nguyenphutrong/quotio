@@ -6,5 +6,5 @@
 // to ensure consistent production builds
 
 // Production settings (DO NOT override these locally)
-PRODUCT_BUNDLE_IDENTIFIER = proseek.io.vn.Quotio
+PRODUCT_BUNDLE_IDENTIFIER = dev.quotio.desktop
 PRODUCT_NAME = Quotio

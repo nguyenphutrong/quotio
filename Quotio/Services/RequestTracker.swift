@@ -38,7 +38,7 @@ final class RequestTracker {
     private var store: RequestHistoryStore = .empty
     
     /// Queue for file operations
-    private let fileQueue = DispatchQueue(label: "proseek.io.vn.Quotio.request-tracker-file")
+    private let fileQueue = DispatchQueue(label: "dev.quotio.desktop.request-tracker-file")
     
     /// Storage file URL
     private var storageURL: URL {

@@ -3,7 +3,7 @@
 // This file is tracked by git
 
 // Default Debug settings (will be overridden by Local.xcconfig if it exists)
-PRODUCT_BUNDLE_IDENTIFIER = proseek.io.vn.Quotio
+PRODUCT_BUNDLE_IDENTIFIER = dev.quotio.desktop
 PRODUCT_NAME = Quotio
 INFOPLIST_KEY_CFBundleDisplayName = Quotio
 ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon

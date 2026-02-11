@@ -100,7 +100,7 @@ final class ProxyBridge {
     // MARK: - Properties
     
     private var listener: NWListener?
-    private let stateQueue = DispatchQueue(label: "proseek.io.vn.Quotio.proxy-bridge-state")
+    private let stateQueue = DispatchQueue(label: "dev.quotio.desktop.proxy-bridge-state")
     
     /// The port this proxy listens on (user-facing port)
     private(set) var listenPort: UInt16 = 8080

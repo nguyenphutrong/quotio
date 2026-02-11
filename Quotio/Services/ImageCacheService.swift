@@ -14,7 +14,7 @@ final class ImageCacheService: @unchecked Sendable {
     static let shared = ImageCacheService()
 
     private let cache = NSCache<NSString, NSImage>()
-    private let queue = DispatchQueue(label: "proseek.io.vn.Quotio.imagecache", attributes: .concurrent)
+    private let queue = DispatchQueue(label: "dev.quotio.desktop.imagecache", attributes: .concurrent)
 
     /// Retained memory pressure source to prevent deallocation
     private var memoryPressureSource: DispatchSourceMemoryPressure?

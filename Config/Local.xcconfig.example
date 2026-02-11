@@ -12,7 +12,7 @@
 // ========================
 
 // Development Bundle Identifier (separate from production)
-PRODUCT_BUNDLE_IDENTIFIER = proseek.io.vn.Quotio.dev
+PRODUCT_BUNDLE_IDENTIFIER = dev.quotio.desktop.dev
 
 // Development App Name (to distinguish in Dock/Finder)
 PRODUCT_NAME = Quotio Dev
