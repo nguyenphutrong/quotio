@@ -613,6 +613,12 @@ struct UnifiedProxySettingsSection: View {
     }
     
     private func saveProxyURL() async {
+        if proxyURL.isEmpty {
+            UserDefaults.standard.set("", forKey: "proxyURL")
+        } else if proxyURLValidation == .valid {
+            UserDefaults.standard.set(ProxyURLValidator.sanitize(proxyURL), forKey: "proxyURL")
+        }
+
         guard let apiClient = viewModel.apiClient else { return }
         do {
             if proxyURL.isEmpty {

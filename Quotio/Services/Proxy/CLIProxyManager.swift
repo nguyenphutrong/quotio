@@ -529,6 +529,11 @@ final class CLIProxyManager {
     }
     
     private func syncProxyURLInConfig() {
+        // If no local preference exists, keep config.yaml as-is (it may be set via management UI).
+        guard UserDefaults.standard.object(forKey: "proxyURL") != nil else {
+            return
+        }
+
         let savedURL = UserDefaults.standard.string(forKey: "proxyURL") ?? ""
         
         guard !savedURL.isEmpty else {
