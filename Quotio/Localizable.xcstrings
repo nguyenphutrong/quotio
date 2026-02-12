@@ -18633,6 +18633,118 @@
         }
       }
     },
+    "troubleshooting.applyWorkaround" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Workaround (Backup & Force URL)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appliquer le correctif (sauvegarde et forcer l'URL)"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Áp dụng giải pháp (Sao lưu & Buộc URL)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用修复方案（备份并强制使用 URL）"
+          }
+        }
+      }
+    },
+    "troubleshooting.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forces the proxy to use the primary Google API URL to fix slowness. Original settings are backed up and can be restored."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Force le proxy à utiliser l'URL principale de l'API Google pour corriger la lenteur. Les paramètres d'origine sont sauvegardés et peuvent être restaurés."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buộc proxy sử dụng URL API Google chính để khắc phục tình trạng chậm. Cài đặt gốc được sao lưu và có thể khôi phục."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "强制代理使用 Google API 主 URL 以修复访问缓慢问题。原始设置已备份，可随时恢复。"
+          }
+        }
+      }
+    },
+    "troubleshooting.restoreOriginal" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Original Settings"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurer les paramètres d'origine"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khôi phục cài đặt gốc"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复原始设置"
+          }
+        }
+      }
+    },
+    "troubleshooting.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Troubleshooting"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dépannage"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khắc phục sự cố"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "故障排除"
+          }
+        }
+      }
+    },
     "tunnel.action.start" : {
       "extractionState" : "stale",
       "localizations" : {
