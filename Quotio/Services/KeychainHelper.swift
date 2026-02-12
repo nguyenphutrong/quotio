@@ -148,10 +148,14 @@ enum KeychainHelper {
     }
 
     private static func migrateString(from oldServices: [String], to newService: String, account: String) -> String? {
-        guard let data = migrateData(from: oldServices, to: newService, account: account) else {
-            return nil
+        // Non-destructive read: validate UTF-8 before committing the destructive migration
+        for oldService in oldServices {
+            guard let data = readData(service: oldService, account: account) else { continue }
+            guard let decoded = String(data: data, encoding: .utf8) else { continue }
+            _ = migrateData(from: [oldService], to: newService, account: account)
+            return decoded
         }
-        return String(data: data, encoding: .utf8)
+        return nil
     }
 
 
