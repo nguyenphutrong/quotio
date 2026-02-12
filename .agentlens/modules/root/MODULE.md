@@ -15,18 +15,18 @@
 | `Quotio/Services/CLIExecutor.swift` | 430 |  |
 | `Quotio/Services/ChecksumVerifier.swift` | 78 |  |
 | `Quotio/Services/CompatibilityChecker.swift` | 123 |  |
-| `Quotio/Services/CustomProviderService.swift` | 334 |  |
+| `Quotio/Services/CustomProviderService.swift` | 337 |  |
 | `Quotio/Services/DirectAuthFileService.swift` | 487 |  |
 | `Quotio/Services/FallbackSettingsManager.swift` | 338 |  |
 | `Quotio/Services/GLMQuotaFetcher.swift` | 186 |  |
 | `Quotio/Services/ImageCacheService.swift` | 131 |  |
-| `Quotio/Services/KeychainHelper.swift` | 167 |  |
+| `Quotio/Services/KeychainHelper.swift` | 204 |  |
 | `Quotio/Services/LanguageManager.swift` | 115 |  |
 | `Quotio/Services/LaunchAtLoginManager.swift` | 189 |  |
 | `Quotio/Services/Logger.swift` | 124 |  |
 | `Quotio/Services/ManagementAPIClient.swift` | 732 | 📊 |
 | `Quotio/Services/NotificationManager.swift` | 334 |  |
-| `Quotio/Services/Proxy/CLIProxyManager.swift` | 1968 | 📊 |
+| `Quotio/Services/Proxy/CLIProxyManager.swift` | 1979 | 📊 |
 | `Quotio/Services/Proxy/FallbackFormatConverter.swift` | 109 |  |
 | `Quotio/Services/Proxy/ProxyBridge.swift` | 1091 | 📊 |
 | `Quotio/Services/Proxy/ProxyStorageManager.swift` | 402 |  |
@@ -40,7 +40,7 @@
 | `Quotio/Services/UpdaterService.swift` | 168 |  |
 | `Quotio/Services/WarmupService.swift` | 185 |  |
 | `Quotio/Services/WarpService.swift` | 83 |  |
-| `Quotio/ViewModels/AgentSetupViewModel.swift` | 448 |  |
+| `Quotio/ViewModels/AgentSetupViewModel.swift` | 456 |  |
 | `Quotio/ViewModels/LogsViewModel.swift` | 82 |  |
 | `Quotio/ViewModels/QuotaViewModel.swift` | 1911 | 📊 |
 | `scripts/capture-screenshots.ts` | 763 | 📊 |

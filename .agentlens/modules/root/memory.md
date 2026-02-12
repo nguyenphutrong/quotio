@@ -39,11 +39,11 @@
 
 > Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
 
-### `NOTE` (Quotio/Services/Proxy/CLIProxyManager.swift:1423)
+### `NOTE` (Quotio/Services/Proxy/CLIProxyManager.swift:1434)
 
 > Notification is handled by AtomFeedUpdateService polling
 
-### `NOTE` (Quotio/ViewModels/AgentSetupViewModel.swift:444)
+### `NOTE` (Quotio/ViewModels/AgentSetupViewModel.swift:452)
 
 > Actual fallback resolution happens at request time in ProxyBridge
 

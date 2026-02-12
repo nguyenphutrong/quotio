@@ -2,7 +2,26 @@
 
 [← Back to MODULE](MODULE.md) | [← Back to INDEX](../../INDEX.md)
 
-Symbol maps for 2 large files in this module.
+Symbol maps for 3 large files in this module.
+
+## Quotio/Models/CustomProviderModels.swift (510 lines)
+
+| Line | Kind | Name | Visibility |
+| ---- | ---- | ---- | ---------- |
+| 14 | enum | CustomProviderType | (internal) |
+| 148 | struct | CustomAPIKeyEntry | (internal) |
+| 179 | struct | ModelMapping | (internal) |
+| 206 | struct | CustomHeader | (internal) |
+| 225 | struct | CustomProvider | (internal) |
+| 275 | fn | validate | (internal) |
+| 313 | mod | extension CustomProvider | (internal) |
+| 315 | fn | toYAMLBlock | (internal) |
+| 329 | fn | generateOpenAICompatibilityYAML | (private) |
+| 358 | fn | generateClaudeCompatibilityYAML | (private) |
+| 387 | fn | generateGeminiCompatibilityYAML | (private) |
+| 415 | fn | generateCodexCompatibilityYAML | (private) |
+| 432 | fn | generateGlmCompatibilityYAML | (private) |
+| 462 | fn | toYAMLSections | (internal) |
 
 ## Quotio/Models/MenuBarSettings.swift (632 lines)
 
