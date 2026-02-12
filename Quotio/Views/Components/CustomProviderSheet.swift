@@ -16,6 +16,7 @@ struct CustomProviderSheet: View {
     @State private var name: String = ""
     @State private var providerType: CustomProviderType = .openaiCompatibility
     @State private var baseURL: String = ""
+    @State private var prefix: String = ""
     @State private var apiKeys: [CustomAPIKeyEntry] = [CustomAPIKeyEntry(apiKey: "")]
     @State private var models: [ModelMapping] = []
     @State private var headers: [CustomHeader] = []
@@ -156,6 +157,21 @@ struct CustomProviderSheet: View {
                 }
                 
                 TextField(providerType.defaultBaseURL ?? "https://api.example.com", text: $baseURL)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("customProviders.prefix".localized())
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Text("(\("customProviders.optional".localized()))")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+
+                TextField("customProviders.prefixHint".localized(), text: $prefix)
                     .textFieldStyle(.roundedBorder)
             }
         }
@@ -432,6 +448,7 @@ struct CustomProviderSheet: View {
         name = provider.name
         providerType = provider.type
         baseURL = provider.baseURL
+        prefix = provider.prefix ?? ""
         apiKeys = provider.apiKeys
         models = provider.models
         headers = provider.headers
@@ -445,6 +462,7 @@ struct CustomProviderSheet: View {
             name: name.trimmingCharacters(in: .whitespaces),
             type: providerType,
             baseURL: baseURL.trimmingCharacters(in: .whitespaces),
+            prefix: prefix.trimmingCharacters(in: .whitespaces).isEmpty ? nil : prefix.trimmingCharacters(in: .whitespaces),
             apiKeys: apiKeys.filter { !$0.apiKey.trimmingCharacters(in: .whitespaces).isEmpty },
             models: models.filter { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty },
             headers: headers.filter { !$0.key.trimmingCharacters(in: .whitespaces).isEmpty },

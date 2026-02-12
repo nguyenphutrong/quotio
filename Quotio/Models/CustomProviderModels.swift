@@ -227,18 +227,20 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
     var name: String
     var type: CustomProviderType
     var baseURL: String
+    var prefix: String?
     var apiKeys: [CustomAPIKeyEntry]
     var models: [ModelMapping]
     var headers: [CustomHeader]  // Only used for Gemini-compatible
     var isEnabled: Bool
     var createdAt: Date
     var updatedAt: Date
-    
+
     init(
         id: UUID = UUID(),
         name: String,
         type: CustomProviderType,
         baseURL: String = "",
+        prefix: String? = nil,
         apiKeys: [CustomAPIKeyEntry] = [],
         models: [ModelMapping] = [],
         headers: [CustomHeader] = [],
@@ -250,6 +252,7 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         self.name = name
         self.type = type
         self.baseURL = baseURL.isEmpty ? (type.defaultBaseURL ?? "") : baseURL
+        self.prefix = prefix
         self.apiKeys = apiKeys
         self.models = models
         self.headers = headers
@@ -257,9 +260,9 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
-    
+
     enum CodingKeys: String, CodingKey {
-        case id, name, type
+        case id, name, type, prefix
         case baseURL = "base-url"
         case apiKeys = "api-keys"
         case models, headers
@@ -327,7 +330,11 @@ extension CustomProvider {
     private func generateOpenAICompatibilityYAML() -> String {
         var yaml = "  - name: \"\(escapedName)\"\n"
         yaml += "    base-url: \"\(baseURL)\"\n"
-        
+
+        if let prefix = prefix, !prefix.isEmpty {
+            yaml += "    prefix: \"\(prefix)\"\n"
+        }
+
         if !apiKeys.isEmpty {
             yaml += "    api-key-entries:\n"
             for key in apiKeys {
@@ -353,12 +360,16 @@ extension CustomProvider {
         var yaml = ""
         for key in apiKeys {
             yaml += "  - api-key: \"\(key.apiKey)\"\n"
-            
+
             // Only include base-url if not default
             if !baseURL.isEmpty && baseURL != type.defaultBaseURL {
                 yaml += "    base-url: \"\(baseURL)\"\n"
             }
-            
+
+            if let prefix = prefix, !prefix.isEmpty {
+                yaml += "    prefix: \"\(prefix)\"\n"
+            }
+
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
                 yaml += "    proxy-url: \"\(proxyURL)\"\n"
             }
@@ -378,12 +389,16 @@ extension CustomProvider {
         var yaml = ""
         for key in apiKeys {
             yaml += "  - api-key: \"\(key.apiKey)\"\n"
-            
+
             // Only include base-url if not default
             if !baseURL.isEmpty && baseURL != type.defaultBaseURL {
                 yaml += "    base-url: \"\(baseURL)\"\n"
             }
-            
+
+            if let prefix = prefix, !prefix.isEmpty {
+                yaml += "    prefix: \"\(prefix)\"\n"
+            }
+
             if !headers.isEmpty {
                 yaml += "    headers:\n"
                 for header in headers {
@@ -404,6 +419,10 @@ extension CustomProvider {
             yaml += "  - api-key: \"\(key.apiKey)\"\n"
             yaml += "    base-url: \"\(baseURL)\"\n"
 
+            if let prefix = prefix, !prefix.isEmpty {
+                yaml += "    prefix: \"\(prefix)\"\n"
+            }
+
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
                 yaml += "    proxy-url: \"\(proxyURL)\"\n"
             }
@@ -418,6 +437,10 @@ extension CustomProvider {
 
             if !baseURL.isEmpty && baseURL != type.defaultBaseURL {
                 yaml += "    base-url: \"\(baseURL)\"\n"
+            }
+
+            if let prefix = prefix, !prefix.isEmpty {
+                yaml += "    prefix: \"\(prefix)\"\n"
             }
 
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
