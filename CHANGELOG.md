@@ -7,9 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **custom-provider**: Add optional model prefix parameter for custom providers (#310) - thanks @darkedge 🎉
+  - New `prefix` field in CustomProvider for model name prefixing
+  - Propagated through all YAML generation methods (OpenAI/Claude/Gemini/Codex/GLM)
+  - UI input field in CustomProviderSheet with "Optional" label
+
+### Fixed
+
+- **fallback**: Fix provider icons, context menu scope, and add model refresh (#308) - thanks @ming 🎉
+  - Prioritize `owned_by` field over model ID prefix matching for aggregator providers (Copilot, Antigravity, Kiro)
+  - Scope context menu to virtual model title row only, preventing accidental deletion of entire virtual model groups
+  - Add refresh button in Add Fallback Entry sheet to reload model list without dismissing
+- **auth**: Preserve disabled field when token refresh rewrites auth files (#312) - thanks @apiggy 🎉
+  - Replace `JSONEncoder` with read-modify-write pattern to preserve all existing fields
+  - Prevents disabled accounts from re-enabling after token refresh cycle
+  - Update `expired`/`expires_in`/`timestamp` correctly on Antigravity and OpenAI token refresh
+- **proxy**: Persist upstream proxy URL across restarts (#307) - thanks @ming 🎉
+  - Sync proxy URL to CLIProxyAPI config on startup and settings change
+- **keychain**: Align service identifiers with bundle ID and add keychain migration (#306)
+  - Fix inconsistent prefixes (com.quotio, io.quotio) → match PRODUCT_BUNDLE_IDENTIFIER
+  - Transparent migration from old keychain service names so existing users retain credentials
+- **i18n**: Troubleshooting section missing localization (#311) - thanks @darkedge 🎉
+  - Replace 4 hardcoded English strings with localization keys
+  - Add translations for EN/FR/VI/ZH-Hans
+
 ## [0.11.0] - 2026-02-10
 
+### Fixed
+
+- **antigravity**: Add cancellation support to prevent IDE close freeze (#303)
+  - Add `Task.isCancelled` checks and cancellation checkpoints throughout account switch flow
+  - Add timeout to `killall` commands (2s) and reduce settle delays for faster operations
+  - Extract AntigravityDeviceManager and AntigravityVersionDetector services
+- **crash**: Prevent proxy-start UI reentrancy crash (#301)
+  - Guard against concurrent proxy start calls that caused UI reentrancy crash
+  - Remove dead `populateMenu()` method from StatusBarManager
+
 ## [0.10.1] - 2026-02-10
+
+### Fixed
+
+- **proxy**: Prevent spurious proxy restart when navigating to Settings (#299)
+  - Add same-value guards to CLIProxyManager port and allowNetworkAccess setters
+  - Add `isLoadingConfig` flag to suppress `onChange` during initial `onAppear` load
 
 ## [0.10.0] - 2026-02-10
 
@@ -309,6 +351,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **fallback**: Fix fallback route caching for better performance (#133)
 - **proxy**: CLIProxyAPIPlus v6.6.92+ compatibility (#133)
 - **quality**: Code quality improvements and cleanup (#135)
+
+## [0.6.1] - 2026-01-08
+
+### Fixed
+
+- **proxy**: Always route traffic through Quotio proxy endpoint (#131)
+  - Remove incorrect fallback-based endpoint logic that bypassed ProxyBridge when Fallback was disabled
+  - All external clients now connect through clientEndpoint for proper connection management and request logging
 
 ## [0.6.0] - 2026-01-06
 

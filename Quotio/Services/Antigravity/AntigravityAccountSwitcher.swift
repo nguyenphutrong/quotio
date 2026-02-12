@@ -132,10 +132,14 @@ final class AntigravityAccountSwitcher {
                     authFile.accessToken = freshToken
                     authFile.expired = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
 
-                    let encoder = JSONEncoder()
-                    encoder.outputFormatting = .prettyPrinted
-                    if let updatedData = try? encoder.encode(authFile) {
-                        try updatedData.write(to: url)
+                    // Use read-modify-write to preserve all existing fields (including `disabled`)
+                    if let originalData = try? Data(contentsOf: url),
+                       var json = try? JSONSerialization.jsonObject(with: originalData) as? [String: Any] {
+                        json["access_token"] = freshToken
+                        json["expired"] = authFile.expired
+                        if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+                            try? updatedData.write(to: url)
+                        }
                     }
                 } catch {
                     switchState = .failed(message: "Token refresh failed: \(error.localizedDescription)")

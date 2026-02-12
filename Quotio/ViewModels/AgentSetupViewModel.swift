@@ -343,13 +343,18 @@ final class AgentSetupViewModel {
         // Don't reset savedConfig/availableBackups - they persist while sheet is open
     }
 
-    func loadModels(forceRefresh: Bool = false) async {
+    /// Load available models for agent configuration.
+    ///
+    /// - Parameter forceRefresh: Reserved for future use.
+    /// - Returns: `true` when models were fetched from remote successfully; `false` on fetch error.
+    @discardableResult
+    func loadModels(forceRefresh: Bool = false) async -> Bool {
         // Create config if not exists (for FallbackScreen scenarios)
         let config: AgentConfiguration
         if let existingConfig = currentConfiguration {
             config = existingConfig
         } else {
-            guard let proxyManager = proxyManager else { return }
+            guard let proxyManager = proxyManager else { return false }
 
             // Use the first API key from the API Keys management interface
             // If no keys exist, fall back to managementKey
@@ -372,11 +377,13 @@ final class AgentSetupViewModel {
 
         isFetchingModels = true
         defer { isFetchingModels = false }
+        var loadedFromRemote = false
 
         do {
             let fetchedModels = try await configurationService.fetchAvailableModels(config: config)
             let processedModels = processModels(fetchedModels)
             self.availableModels = processedModels
+            loadedFromRemote = true
 
             // Log model list
             let modelList = processedModels.map { "\($0.id) (provider: \($0.provider))" }.joined(separator: ", ")
@@ -391,6 +398,7 @@ final class AgentSetupViewModel {
         }
 
         refreshVirtualModels()
+        return loadedFromRemote
     }
 
     private func processModels(_ fetchedModels: [AvailableModel]) -> [AvailableModel] {

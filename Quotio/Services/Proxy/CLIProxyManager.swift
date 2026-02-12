@@ -528,7 +528,18 @@ final class CLIProxyManager {
         }
     }
     
+    /// Synchronizes the proxy URL from UserDefaults into the config.yaml file.
+    ///
+    /// If no local preference has been set (i.e., the user has never saved a proxy URL from the UI),
+    /// this method returns early to preserve any value configured via the management web UI or
+    /// direct config.yaml editing. Once the user sets a value through the app, UserDefaults becomes
+    /// the source of truth and its value is written to config.yaml on each proxy start.
     private func syncProxyURLInConfig() {
+        // If no local preference exists, keep config.yaml as-is (it may be set via management UI).
+        guard UserDefaults.standard.object(forKey: "proxyURL") != nil else {
+            return
+        }
+
         let savedURL = UserDefaults.standard.string(forKey: "proxyURL") ?? ""
         
         guard !savedURL.isEmpty else {

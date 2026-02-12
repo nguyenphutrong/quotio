@@ -3914,6 +3914,90 @@
         }
       }
     },
+    "customProviders.optional" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optionnel"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tùy chọn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可选"
+          }
+        }
+      }
+    },
+    "customProviders.prefix" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model Prefix"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Préfixe du modèle"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tiền tố mô hình"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型前缀"
+          }
+        }
+      }
+    },
+    "customProviders.prefixHint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g., my-custom-prefix"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ex. my-custom-prefix"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vd. my-custom-prefix"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如 my-custom-prefix"
+          }
+        }
+      }
+    },
     "customProviders.saveChanges" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8609,6 +8693,35 @@
         }
       }
     },
+    "menubar.hideAccounts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide accounts"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masquer les comptes"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ẩn tài khoản"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏账户"
+          }
+        }
+      }
+    },
     "menubar.hideFromMenuBar" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8692,6 +8805,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上次更新"
+          }
+        }
+      }
+    },
+    "menubar.maxItems.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can show up to %d accounts in the menu bar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous pouvez afficher jusqu'à %d comptes dans la barre de menus."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bạn có thể hiển thị tối đa %d tài khoản trên Menu Bar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "菜单栏最多可显示 %d 个账户。"
+          }
+        }
+      }
+    },
+    "menubar.maxItems.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menu Bar Account Limit Reached"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limite de comptes dans la barre de menus atteinte"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã đạt giới hạn tài khoản trên Menu Bar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已达到菜单栏账户上限"
           }
         }
       }
@@ -8841,31 +9012,60 @@
         }
       }
     },
-    "menubar.hideAccounts" : {
+    "menubar.truncation.message" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hide accounts"
+            "value" : "You currently have %d items selected. Reducing the limit to %d will remove some of your selections."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masquer les comptes"
+            "value" : "Vous avez actuellement %d éléments sélectionnés. Réduire la limite à %d supprimera certaines de vos sélections."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ẩn tài khoản"
+            "value" : "Bạn hiện có %d mục đã chọn. Giảm giới hạn xuống %d sẽ xóa một số lựa chọn của bạn."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "隐藏账户"
+            "value" : "您当前已选择 %d 项。将限制减少到 %d 将删除部分选择。"
+          }
+        }
+      }
+    },
+    "menubar.truncation.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reduce Menu Bar Items?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réduire les éléments de la barre de menus ?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giảm số mục trên Menu Bar?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "减少菜单栏项目？"
           }
         }
       }
@@ -9011,122 +9211,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "项目过多"
-          }
-        }
-      }
-    },
-    "menubar.maxItems.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Menu Bar Account Limit Reached"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Limite de comptes dans la barre de menus atteinte"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Đã đạt giới hạn tài khoản trên Menu Bar"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已达到菜单栏账户上限"
-          }
-        }
-      }
-    },
-    "menubar.maxItems.message" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You can show up to %d accounts in the menu bar."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vous pouvez afficher jusqu'à %d comptes dans la barre de menus."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bạn có thể hiển thị tối đa %d tài khoản trên Menu Bar."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "菜单栏最多可显示 %d 个账户。"
-          }
-        }
-      }
-    },
-    "menubar.truncation.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reduce Menu Bar Items?"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Réduire les éléments de la barre de menus ?"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Giảm số mục trên Menu Bar?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "减少菜单栏项目？"
-          }
-        }
-      }
-    },
-    "menubar.truncation.message" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You currently have %d items selected. Reducing the limit to %d will remove some of your selections."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vous avez actuellement %d éléments sélectionnés. Réduire la limite à %d supprimera certaines de vos sélections."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bạn hiện có %d mục đã chọn. Giảm giới hạn xuống %d sẽ xóa một số lựa chọn của bạn."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "您当前已选择 %d 项。将限制减少到 %d 将删除部分选择。"
           }
         }
       }
@@ -11893,6 +11977,7 @@
       }
     },
     "providers.disable" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11945,34 +12030,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已禁用"
-          }
-        }
-      }
-    },
-    "providers.enable" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enable"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Activer"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bật"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "启用"
           }
         }
       }
@@ -12031,6 +12088,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无账户"
+          }
+        }
+      }
+    },
+    "providers.enable" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bật"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用"
           }
         }
       }
@@ -18629,6 +18715,118 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隧道"
+          }
+        }
+      }
+    },
+    "troubleshooting.applyWorkaround" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Workaround (Backup & Force URL)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appliquer le correctif (sauvegarde et forcer l'URL)"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Áp dụng giải pháp (Sao lưu & Buộc URL)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用修复方案（备份并强制使用 URL）"
+          }
+        }
+      }
+    },
+    "troubleshooting.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forces the proxy to use the primary Google API URL to fix slowness. Original settings are backed up and can be restored."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Force le proxy à utiliser l'URL principale de l'API Google pour corriger la lenteur. Les paramètres d'origine sont sauvegardés et peuvent être restaurés."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buộc proxy sử dụng URL API Google chính để khắc phục tình trạng chậm. Cài đặt gốc được sao lưu và có thể khôi phục."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "强制代理使用 Google API 主 URL 以修复访问缓慢问题。原始设置已备份，可随时恢复。"
+          }
+        }
+      }
+    },
+    "troubleshooting.restoreOriginal" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Original Settings"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurer les paramètres d'origine"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khôi phục cài đặt gốc"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复原始设置"
+          }
+        }
+      }
+    },
+    "troubleshooting.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Troubleshooting"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dépannage"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khắc phục sự cố"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "故障排除"
           }
         }
       }

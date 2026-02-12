@@ -53,17 +53,17 @@ struct SettingsScreen: View {
 
             // Troubleshooting
             Section {
-                Button("Apply Workaround (Backup & Force URL)") {
+                Button("troubleshooting.applyWorkaround".localized()) {
                     CLIProxyManager.shared.applyBaseURLWorkaround()
                 }
 
-                Button("Restore Original Settings") {
+                Button("troubleshooting.restoreOriginal".localized()) {
                     CLIProxyManager.shared.removeBaseURLWorkaround()
                 }
             } header: {
-                Label("Troubleshooting", systemImage: "hammer.fill")
+                Label("troubleshooting.title".localized(), systemImage: "hammer.fill")
             } footer: {
-                Text("Forces the proxy to use the primary Google API URL to fix slowness. Original settings are backed up and can be restored.")
+                Text("troubleshooting.description".localized())
             }
 
             // Appearance
@@ -612,7 +612,18 @@ struct UnifiedProxySettingsSection: View {
         }
     }
     
+    /// Persists the upstream proxy URL to both UserDefaults and the running proxy instance.
+    ///
+    /// The URL is first saved to UserDefaults so it survives app restarts (used by
+    /// `CLIProxyManager.syncProxyURLInConfig()` during proxy startup), then sent to the
+    /// proxy API to take effect immediately. Only valid or empty URLs are saved.
     private func saveProxyURL() async {
+        if proxyURL.isEmpty {
+            UserDefaults.standard.set("", forKey: "proxyURL")
+        } else if proxyURLValidation == .valid {
+            UserDefaults.standard.set(ProxyURLValidator.sanitize(proxyURL), forKey: "proxyURL")
+        }
+
         guard let apiClient = viewModel.apiClient else { return }
         do {
             if proxyURL.isEmpty {

@@ -505,6 +505,11 @@ actor AntigravityQuotaFetcher {
     }
 
     func refreshAccessToken(refreshToken: String) async throws -> String {
+        let (accessToken, _) = try await refreshAccessTokenWithExpiry(refreshToken: refreshToken)
+        return accessToken
+    }
+
+    private func refreshAccessTokenWithExpiry(refreshToken: String) async throws -> (String, Int) {
         guard let url = URL(string: tokenURL) else {
             throw QuotaFetchError.invalidURL
         }
@@ -530,7 +535,26 @@ actor AntigravityQuotaFetcher {
         }
 
         let tokenResponse = try JSONDecoder().decode(TokenRefreshResponse.self, from: data)
-        return tokenResponse.accessToken
+        return (tokenResponse.accessToken, tokenResponse.expiresIn)
+    }
+
+    /// Persist refreshed access token back to auth file using read-modify-write
+    /// to preserve all existing fields (including `disabled`, etc.)
+    private func persistRefreshedToken(at url: URL, originalData: Data, newAccessToken: String, expiresIn: Int) {
+        guard var json = try? JSONSerialization.jsonObject(with: originalData) as? [String: Any] else { return }
+        json["access_token"] = newAccessToken
+
+        let now = Date()
+        let expiryDate = now.addingTimeInterval(TimeInterval(expiresIn))
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        json["expired"] = formatter.string(from: expiryDate)
+        json["expires_in"] = expiresIn
+        json["timestamp"] = Int64(now.timeIntervalSince1970 * 1000)
+
+        if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]) {
+            try? updatedData.write(to: url)
+        }
     }
 
     func fetchQuota(accessToken: String) async throws -> ProviderQuotaData {
@@ -643,7 +667,7 @@ actor AntigravityQuotaFetcher {
     func fetchSubscriptionInfoForAuthFile(at path: String) async -> SubscriptionInfo? {
         let url = URL(fileURLWithPath: path)
         guard let data = try? Data(contentsOf: url),
-              var authFile = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data) else {
+              let authFile = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data) else {
             return nil
         }
 
@@ -651,12 +675,9 @@ actor AntigravityQuotaFetcher {
 
         if authFile.isExpired, let refreshToken = authFile.refreshToken {
             do {
-                accessToken = try await refreshAccessToken(refreshToken: refreshToken)
-                authFile.accessToken = accessToken
-
-                if let updatedData = try? JSONEncoder().encode(authFile) {
-                    try? updatedData.write(to: url)
-                }
+                let (token, expiresIn) = try await refreshAccessTokenWithExpiry(refreshToken: refreshToken)
+                accessToken = token
+                persistRefreshedToken(at: url, originalData: data, newAccessToken: accessToken, expiresIn: expiresIn)
             } catch {
                 return nil
             }
@@ -694,18 +715,15 @@ actor AntigravityQuotaFetcher {
     func fetchQuotaForAuthFile(at path: String) async throws -> ProviderQuotaData {
         let url = URL(fileURLWithPath: path)
         let data = try Data(contentsOf: url)
-        var authFile = try JSONDecoder().decode(AntigravityAuthFile.self, from: data)
+        let authFile = try JSONDecoder().decode(AntigravityAuthFile.self, from: data)
 
         var accessToken = authFile.accessToken
 
         if authFile.isExpired, let refreshToken = authFile.refreshToken {
             do {
-                accessToken = try await refreshAccessToken(refreshToken: refreshToken)
-                authFile.accessToken = accessToken
-
-                if let updatedData = try? JSONEncoder().encode(authFile) {
-                    try? updatedData.write(to: url)
-                }
+                let (token, expiresIn) = try await refreshAccessTokenWithExpiry(refreshToken: refreshToken)
+                accessToken = token
+                persistRefreshedToken(at: url, originalData: data, newAccessToken: accessToken, expiresIn: expiresIn)
             } catch {
                 Log.auth("Token refresh failed: \(error)")
             }
@@ -719,7 +737,7 @@ actor AntigravityQuotaFetcher {
     func fetchQuotaAndSubscriptionForAuthFile(at path: String) async -> (quota: ProviderQuotaData?, subscription: SubscriptionInfo?) {
         let url = URL(fileURLWithPath: path)
         guard let data = try? Data(contentsOf: url),
-              var authFile = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data) else {
+              let authFile = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data) else {
             return (nil, nil)
         }
 
@@ -727,12 +745,9 @@ actor AntigravityQuotaFetcher {
 
         if authFile.isExpired, let refreshToken = authFile.refreshToken {
             do {
-                accessToken = try await refreshAccessToken(refreshToken: refreshToken)
-                authFile.accessToken = accessToken
-
-                if let updatedData = try? JSONEncoder().encode(authFile) {
-                    try? updatedData.write(to: url)
-                }
+                let (token, expiresIn) = try await refreshAccessTokenWithExpiry(refreshToken: refreshToken)
+                accessToken = token
+                persistRefreshedToken(at: url, originalData: data, newAccessToken: accessToken, expiresIn: expiresIn)
             } catch {
                 return (nil, nil)
             }

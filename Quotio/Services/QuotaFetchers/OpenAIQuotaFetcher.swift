@@ -104,25 +104,21 @@ actor OpenAIQuotaFetcher {
     func fetchQuotaForAuthFile(at path: String) async throws -> CodexQuotaData {
         let url = URL(fileURLWithPath: path)
         let data = try Data(contentsOf: url)
-        var authFile = try JSONDecoder().decode(CodexAuthFile.self, from: data)
+        let authFile = try JSONDecoder().decode(CodexAuthFile.self, from: data)
         let rawJSON = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
         let accountId = extractAccountId(from: authFile, rawJSON: rawJSON)
-        
+
         var accessToken = authFile.accessToken
-        
+
         if authFile.isExpired, let refreshToken = authFile.refreshToken {
             do {
                 accessToken = try await refreshAccessToken(refreshToken: refreshToken)
-                authFile.accessToken = accessToken
-                
-                if let updatedData = try? JSONEncoder().encode(authFile) {
-                    try? updatedData.write(to: url)
-                }
+                persistRefreshedToken(at: url, originalData: data, newAccessToken: accessToken)
             } catch {
                 Log.quota("Token refresh failed: \\(error)")
             }
         }
-        
+
         return try await fetchQuota(accessToken: accessToken, accountId: accountId)
     }
     
@@ -147,7 +143,25 @@ actor OpenAIQuotaFetcher {
         let tokenResponse = try JSONDecoder().decode(TokenRefreshResponse.self, from: data)
         return tokenResponse.accessToken
     }
-    
+
+    /// Persist refreshed access token back to auth file using read-modify-write
+    /// to preserve all existing fields (including `disabled`, etc.)
+    private func persistRefreshedToken(at url: URL, originalData: Data, newAccessToken: String) {
+        guard var json = try? JSONSerialization.jsonObject(with: originalData) as? [String: Any] else { return }
+        json["access_token"] = newAccessToken
+
+        // Update expiry to prevent repeated refresh on every cycle
+        // OpenAI TokenRefreshResponse does not include expires_in, use 1 hour as default
+        let expiryDate = Date().addingTimeInterval(3600)
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        json["expired"] = formatter.string(from: expiryDate)
+
+        if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]) {
+            try? updatedData.write(to: url)
+        }
+    }
+
     func fetchAllCodexQuotas(authDir: String = "~/.cli-proxy-api") async -> [String: ProviderQuotaData] {
         let expandedPath = NSString(string: authDir).expandingTildeInPath
         let fileManager = FileManager.default
