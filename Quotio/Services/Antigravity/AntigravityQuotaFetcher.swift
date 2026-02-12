@@ -548,6 +548,7 @@ actor AntigravityQuotaFetcher {
         let expiryDate = now.addingTimeInterval(TimeInterval(expiresIn))
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
+        formatter.timeZone = .current
         json["expired"] = formatter.string(from: expiryDate)
         json["expires_in"] = expiresIn
         json["timestamp"] = Int64(now.timeIntervalSince1970 * 1000)

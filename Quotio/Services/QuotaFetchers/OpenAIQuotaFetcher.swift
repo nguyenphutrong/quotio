@@ -155,6 +155,7 @@ actor OpenAIQuotaFetcher {
         let expiryDate = Date().addingTimeInterval(3600)
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
+        formatter.timeZone = .current
         json["expired"] = formatter.string(from: expiryDate)
 
         if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]) {
