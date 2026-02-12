@@ -544,12 +544,13 @@ actor AntigravityQuotaFetcher {
         guard var json = try? JSONSerialization.jsonObject(with: originalData) as? [String: Any] else { return }
         json["access_token"] = newAccessToken
 
-        let expiryDate = Date().addingTimeInterval(TimeInterval(expiresIn))
+        let now = Date()
+        let expiryDate = now.addingTimeInterval(TimeInterval(expiresIn))
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         json["expired"] = formatter.string(from: expiryDate)
         json["expires_in"] = expiresIn
-        json["timestamp"] = Int64(Date().timeIntervalSince1970 * 1000)
+        json["timestamp"] = Int64(now.timeIntervalSince1970 * 1000)
 
         if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]) {
             try? updatedData.write(to: url)

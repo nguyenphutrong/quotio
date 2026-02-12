@@ -138,7 +138,7 @@ final class AntigravityAccountSwitcher {
                         json["access_token"] = freshToken
                         json["expired"] = authFile.expired
                         if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
-                            try updatedData.write(to: url)
+                            try? updatedData.write(to: url)
                         }
                     }
                 } catch {

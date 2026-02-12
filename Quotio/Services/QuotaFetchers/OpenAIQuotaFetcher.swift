@@ -149,6 +149,14 @@ actor OpenAIQuotaFetcher {
     private func persistRefreshedToken(at url: URL, originalData: Data, newAccessToken: String) {
         guard var json = try? JSONSerialization.jsonObject(with: originalData) as? [String: Any] else { return }
         json["access_token"] = newAccessToken
+
+        // Update expiry to prevent repeated refresh on every cycle
+        // OpenAI TokenRefreshResponse does not include expires_in, use 1 hour as default
+        let expiryDate = Date().addingTimeInterval(3600)
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        json["expired"] = formatter.string(from: expiryDate)
+
         if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]) {
             try? updatedData.write(to: url)
         }
