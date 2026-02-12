@@ -14,12 +14,12 @@
 | `Quotio/Services/CLIExecutor.swift` | 430 |  |
 | `Quotio/Services/ChecksumVerifier.swift` | 78 |  |
 | `Quotio/Services/CompatibilityChecker.swift` | 123 |  |
-| `Quotio/Services/CustomProviderService.swift` | 334 |  |
+| `Quotio/Services/CustomProviderService.swift` | 337 |  |
 | `Quotio/Services/DirectAuthFileService.swift` | 487 |  |
 | `Quotio/Services/FallbackSettingsManager.swift` | 338 |  |
 | `Quotio/Services/GLMQuotaFetcher.swift` | 186 |  |
 | `Quotio/Services/ImageCacheService.swift` | 131 |  |
-| `Quotio/Services/KeychainHelper.swift` | 167 |  |
+| `Quotio/Services/KeychainHelper.swift` | 225 |  |
 | `Quotio/Services/LanguageManager.swift` | 115 |  |
 | `Quotio/Services/LaunchAtLoginManager.swift` | 189 |  |
 | `Quotio/Services/Logger.swift` | 124 |  |
