@@ -364,6 +364,7 @@ final class QuotaViewModel {
         _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, warp, kiro)
         
         checkQuotaNotifications()
+        pruneMenuBarItems()
         autoSelectMenuBarItems()
 
         isLoadingQuotas = false
@@ -1185,6 +1186,7 @@ final class QuotaViewModel {
         }
 
         checkQuotaNotifications()
+        pruneMenuBarItems()
         autoSelectMenuBarItems()
 
         isLoadingQuotas = false
@@ -1224,6 +1226,7 @@ final class QuotaViewModel {
         }
 
         checkQuotaNotifications()
+        pruneMenuBarItems()
         autoSelectMenuBarItems()
 
         isLoadingQuotas = false
@@ -1794,6 +1797,7 @@ final class QuotaViewModel {
         savePersistedIDEQuotas()
 
         // Update menu bar items
+        pruneMenuBarItems()
         autoSelectMenuBarItems()
 
         notifyQuotaDataChanged()

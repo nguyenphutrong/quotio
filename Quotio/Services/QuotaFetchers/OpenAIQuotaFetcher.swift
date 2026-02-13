@@ -31,6 +31,30 @@ actor OpenAIQuotaFetcher {
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         self.session = URLSession(configuration: config)
     }
+
+    private func trimmedNonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func decodeJWTPayload(token: String) -> [String: Any]? {
+        let segments = token.split(separator: ".")
+        guard segments.count >= 2 else { return nil }
+
+        var base64 = String(segments[1])
+        let padLength = (4 - base64.count % 4) % 4
+        base64 += String(repeating: "=", count: padLength)
+        base64 = base64.replacingOccurrences(of: "-", with: "+")
+        base64 = base64.replacingOccurrences(of: "_", with: "/")
+
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        return json
+    }
     
     private func extractAccountId(from authFile: CodexAuthFile, rawJSON: [String: Any]) -> String? {
         if let accountId = authFile.accountId, !accountId.isEmpty {
@@ -46,20 +70,8 @@ actor OpenAIQuotaFetcher {
     }
     
     private func decodeAccountId(fromJWT token: String) -> String? {
-        let segments = token.split(separator: ".")
-        guard segments.count >= 2 else { return nil }
-        
-        var base64 = String(segments[1])
-        let padLength = (4 - base64.count % 4) % 4
-        base64 += String(repeating: "=", count: padLength)
-        base64 = base64.replacingOccurrences(of: "-", with: "+")
-        base64 = base64.replacingOccurrences(of: "_", with: "/")
-        
-        guard let data = Data(base64Encoded: base64),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        
+        guard let json = decodeJWTPayload(token: token) else { return nil }
+
         if let authInfo = json["https://api.openai.com/auth"] as? [String: Any],
            let accountId = authInfo["chatgpt_account_id"] as? String,
            !accountId.isEmpty {
@@ -67,6 +79,34 @@ actor OpenAIQuotaFetcher {
         }
         
         return nil
+    }
+
+    private func decodeEmail(fromJWT token: String) -> String? {
+        guard let json = decodeJWTPayload(token: token) else { return nil }
+        return trimmedNonEmpty(json["email"] as? String)
+    }
+
+    private func fallbackKey(fromFilename filename: String) -> String {
+        filename
+            .replacingOccurrences(of: "codex-", with: "")
+            .replacingOccurrences(of: ".json", with: "")
+    }
+
+    private func resolveAccountKey(authFile: CodexAuthFile, rawJSON: [String: Any], filename: String) -> String {
+        if let email = trimmedNonEmpty(authFile.email) {
+            return email
+        }
+
+        if let email = trimmedNonEmpty(rawJSON["email"] as? String) {
+            return email
+        }
+
+        if let idToken = authFile.idToken,
+           let email = decodeEmail(fromJWT: idToken) {
+            return email
+        }
+
+        return fallbackKey(fromFilename: filename)
     }
     
     func fetchQuota(accessToken: String, accountId: String?) async throws -> CodexQuotaData {
@@ -101,12 +141,17 @@ actor OpenAIQuotaFetcher {
         return CodexQuotaData(from: quotaResponse)
     }
     
-    func fetchQuotaForAuthFile(at path: String) async throws -> CodexQuotaData {
+    func fetchQuotaForAuthFile(at path: String) async throws -> (accountKey: String, quota: CodexQuotaData) {
         let url = URL(fileURLWithPath: path)
         let data = try Data(contentsOf: url)
         let authFile = try JSONDecoder().decode(CodexAuthFile.self, from: data)
         let rawJSON = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
         let accountId = extractAccountId(from: authFile, rawJSON: rawJSON)
+        let accountKey = resolveAccountKey(
+            authFile: authFile,
+            rawJSON: rawJSON,
+            filename: url.lastPathComponent
+        )
 
         var accessToken = authFile.accessToken
 
@@ -119,7 +164,8 @@ actor OpenAIQuotaFetcher {
             }
         }
 
-        return try await fetchQuota(accessToken: accessToken, accountId: accountId)
+        let quota = try await fetchQuota(accessToken: accessToken, accountId: accountId)
+        return (accountKey: accountKey, quota: quota)
     }
     
     private func refreshAccessToken(refreshToken: String) async throws -> String {
@@ -176,11 +222,8 @@ actor OpenAIQuotaFetcher {
             let filePath = (expandedPath as NSString).appendingPathComponent(file)
             
             do {
-                let quota = try await fetchQuotaForAuthFile(at: filePath)
-                let email = file
-                    .replacingOccurrences(of: "codex-", with: "")
-                    .replacingOccurrences(of: ".json", with: "")
-                results[email] = quota.toProviderQuotaData()
+                let result = try await fetchQuotaForAuthFile(at: filePath)
+                results[result.accountKey] = result.quota.toProviderQuotaData()
             } catch {
                 Log.quota("Failed to fetch Codex quota for \(file): \(error)")
             }
