@@ -1375,11 +1375,7 @@ final class QuotaViewModel {
                 return
             }
             
-            if let url = URL(string: urlString) {
-                NSWorkspace.shared.open(url)
-            }
-            
-            oauthState = OAuthState(provider: provider, status: .polling, state: state)
+            oauthState = OAuthState(provider: provider, status: .polling, state: state, authURL: urlString)
             await pollOAuthStatus(state: state, provider: provider)
             
         } catch {
@@ -1904,6 +1900,7 @@ struct OAuthState {
     var status: OAuthStatus
     var state: String?
     var error: String?
+    var authURL: String?
     
     enum OAuthStatus {
         case waiting, polling, success, error

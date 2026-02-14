@@ -790,7 +790,7 @@ struct OAuthSheet: View {
             }
             
             if let state = viewModel.oauthState, state.provider == provider {
-                OAuthStatusView(status: state.status, error: state.error, state: state.state, provider: provider)
+                OAuthStatusView(status: state.status, error: state.error, state: state.state, authURL: state.authURL, provider: provider)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
             
@@ -851,6 +851,7 @@ private struct OAuthStatusView: View {
     let status: OAuthState.OAuthStatus
     let error: String?
     let state: String?
+    let authURL: String?
     let provider: AIProvider
     
     /// Stable rotation angle for spinner animation (fixes UUID() infinite re-render)
@@ -934,9 +935,36 @@ private struct OAuthStatusView: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
-                        Text("oauth.completeBrowser".localized())
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        // Show auth URL with copy/open buttons
+                        if let urlString = authURL, let url = URL(string: urlString) {
+                            VStack(spacing: 12) {
+                                Text("oauth.copyLinkOrOpen".localized())
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                
+                                HStack(spacing: 12) {
+                                    Button {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(urlString, forType: .string)
+                                    } label: {
+                                        Label("oauth.copyLink".localized(), systemImage: "doc.on.doc")
+                                    }
+                                    .buttonStyle(.bordered)
+                                    
+                                    Button {
+                                        NSWorkspace.shared.open(url)
+                                    } label: {
+                                        Label("oauth.openLink".localized(), systemImage: "safari")
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(provider.color)
+                                }
+                            }
+                        } else {
+                            Text("oauth.completeBrowser".localized())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .padding(.vertical, 16)
