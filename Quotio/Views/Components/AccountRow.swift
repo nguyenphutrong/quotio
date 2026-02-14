@@ -139,6 +139,7 @@ struct AccountRow: View {
     var onEdit: (() -> Void)?
     var onSwitch: (() -> Void)?
     var onToggleDisabled: (() -> Void)?
+    var onDownload: (() -> Void)?
     var isActiveInIDE: Bool = false
     
     @State private var settings = MenuBarSettingsManager.shared
@@ -310,6 +311,15 @@ struct AccountRow: View {
                 Divider()
             }
             
+            // Download auth file (for proxy and direct accounts)
+            if (account.source == .proxy || account.source == .direct), let onDownload = onDownload {
+                Button {
+                    onDownload()
+                } label: {
+                    Label("action.download".localized(), systemImage: "arrow.down.circle")
+                }
+            }
+
             // Menu bar toggle
             Button {
                 handleMenuBarToggle()

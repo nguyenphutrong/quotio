@@ -299,6 +299,9 @@ struct ProvidersScreen: View {
                         onToggleDisabled: { account in
                             Task { await toggleAccountDisabled(account) }
                         },
+                        onDownloadAccount: { account in
+                            Task { await downloadAccountAuthFile(account) }
+                        },
                         isAccountActive: provider == .antigravity ? { account in
                             viewModel.isAntigravityAccountActive(email: account.displayName)
                         } : nil
@@ -429,6 +432,24 @@ struct ProvidersScreen: View {
         // Find the original AuthFile to toggle
         if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
             await viewModel.toggleAuthFileDisabled(authFile)
+        }
+    }
+    
+    private func downloadAccountAuthFile(_ account: AccountRowData) async {
+        do {
+            let data = try await viewModel.downloadAuthFile(name: account.displayName)
+            
+            // Show save panel
+            let savePanel = NSSavePanel()
+            savePanel.nameFieldStringValue = account.displayName + ".json"
+            savePanel.allowedContentTypes = [.json]
+            savePanel.canCreateDirectories = true
+            
+            if savePanel.runModal() == .OK, let url = savePanel.url {
+                try data.write(to: url)
+            }
+        } catch {
+            viewModel.errorMessage = error.localizedDescription
         }
     }
 

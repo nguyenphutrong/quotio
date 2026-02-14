@@ -451,6 +451,82 @@ actor DirectAuthFileService {
             // Silent failure
         }
     }
+    
+    // MARK: - File Upload/Download/Delete Operations
+    
+    /// Upload (write) an auth file to the auth directory
+    /// - Parameters:
+    ///   - name: Filename for the auth file (e.g., "claude-user@example.com.json")
+    ///   - content: JSON content as Data
+    /// - Returns: true if successful
+    func uploadAuthFile(name: String, content: Data) async throws {
+        let authDir = expandPath("~/.cli-proxy-api")
+        
+        // Ensure directory exists
+        try fileManager.createDirectory(atPath: authDir, withIntermediateDirectories: true)
+        
+        // Validate JSON
+        _ = try JSONSerialization.jsonObject(with: content)
+        
+        // Write file
+        let filePath = (authDir as NSString).appendingPathComponent(name)
+        try content.write(to: URL(fileURLWithPath: filePath), options: .atomic)
+    }
+    
+    /// Download (read) an auth file from the auth directory
+    /// - Parameter name: Filename to download
+    /// - Returns: File content as Data
+    func downloadAuthFile(name: String) async throws -> Data {
+        let authDir = expandPath("~/.cli-proxy-api")
+        let filePath = (authDir as NSString).appendingPathComponent(name)
+        
+        guard fileManager.fileExists(atPath: filePath) else {
+            throw AuthFileError.fileNotFound(name)
+        }
+        
+        return try Data(contentsOf: URL(fileURLWithPath: filePath))
+    }
+    
+    /// Delete an auth file from the auth directory
+    /// - Parameter name: Filename to delete
+    func deleteAuthFile(name: String) async throws {
+        let authDir = expandPath("~/.cli-proxy-api")
+        let filePath = (authDir as NSString).appendingPathComponent(name)
+        
+        guard fileManager.fileExists(atPath: filePath) else {
+            throw AuthFileError.fileNotFound(name)
+        }
+        
+        try fileManager.removeItem(atPath: filePath)
+    }
+    
+    /// Check if an auth file exists
+    /// - Parameter name: Filename to check
+    /// - Returns: true if file exists
+    func authFileExists(name: String) async -> Bool {
+        let authDir = expandPath("~/.cli-proxy-api")
+        let filePath = (authDir as NSString).appendingPathComponent(name)
+        return fileManager.fileExists(atPath: filePath)
+    }
+}
+
+// MARK: - Auth File Error
+
+enum AuthFileError: LocalizedError {
+    case fileNotFound(String)
+    case invalidJSON(String)
+    case writeFailed(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .fileNotFound(let name):
+            return "Auth file not found: \(name)"
+        case .invalidJSON(let reason):
+            return "Invalid JSON: \(reason)"
+        case .writeFailed(let reason):
+            return "Failed to write file: \(reason)"
+        }
+    }
 }
 
 // MARK: - Auth Token Data
