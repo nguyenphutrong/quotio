@@ -4462,6 +4462,136 @@
         }
       }
     },
+    "customProviders.fetchModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fetch Models"
+          }
+        }
+      }
+    },
+    "customProviders.allModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Models"
+          }
+        }
+      }
+    },
+    "customProviders.popularModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Popular Models"
+          }
+        }
+      }
+    },
+    "customProviders.searchModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search models..."
+          }
+        }
+      }
+    },
+    "customProviders.selectedModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld models selected"
+          }
+        }
+      }
+    },
+    "customProviders.clearSelection" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
+          }
+        }
+      }
+    },
+    "customProviders.selectAll" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select All"
+          }
+        }
+      }
+    },
+    "customProviders.deselectAll" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect All"
+          }
+        }
+      }
+    },
+    "customProviders.limitModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit models to selection"
+          }
+        }
+      }
+    },
+    "customProviders.limitModelsDesc" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only selected models will be available via proxy"
+          }
+        }
+      }
+    },
+    "customProviders.selectModelsHint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select models to make available via proxy"
+          }
+        }
+      }
+    },
+    "customProviders.testing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Testing connection..."
+          }
+        }
+      }
+    },
+    "customProviders.enterManually" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Or enter model names manually:"
+          }
+        }
+      }
+    },
     "dashboard.accounts" : {
       "extractionState" : "stale",
       "localizations" : {
