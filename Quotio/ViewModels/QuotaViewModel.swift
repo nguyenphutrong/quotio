@@ -45,6 +45,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
     @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
+    @ObservationIgnored private let kimiFetcher = KimiQuotaFetcher()
     
     @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
     
@@ -211,6 +212,7 @@ final class QuotaViewModel {
         await warpFetcher.updateProxyConfiguration()
         await traeFetcher.updateProxyConfiguration()
         await kiroFetcher.updateProxyConfiguration()
+        await kimiFetcher.updateProxyConfiguration()
     }
 
     private func setupRefreshCadenceCallback() {
@@ -360,8 +362,9 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
+        async let kimi: () = refreshKimiQuotasInternal()
 
-        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, warp, kiro)
+        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, warp, kiro, kimi)
         
         checkQuotaNotifications()
         autoSelectMenuBarItems()
@@ -572,6 +575,16 @@ final class QuotaViewModel {
             providerQuotas.removeValue(forKey: .kiro)
         } else {
             providerQuotas[.kiro] = remappedQuotas
+        }
+    }
+    
+    /// Refresh Kimi quota using API
+    private func refreshKimiQuotasInternal() async {
+        let quotas = await kimiFetcher.fetchAsProviderQuota()
+        if quotas.isEmpty {
+            providerQuotas.removeValue(forKey: .kimi)
+        } else {
+            providerQuotas[.kimi] = quotas
         }
     }
     
