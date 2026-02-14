@@ -14045,6 +14045,35 @@
         }
       }
     },
+    "settings.autoRestartTunnel" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-restart tunnel on disconnect"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redémarrer automatiquement le tunnel en cas de déconnexion"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tự khởi động lại tunnel khi ngắt kết nối"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "断开时自动重启隧道"
+          }
+        }
+      }
+    },
     "settings.autoSwitchAccount" : {
       "extractionState" : "stale",
       "localizations" : {

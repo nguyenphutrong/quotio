@@ -23,6 +23,9 @@ final class TunnelManager {
     private var tunnelRequestId: UInt64 = 0
     private var startTimeoutTask: Task<Void, Never>?
     private let startTimeoutSeconds: TimeInterval = 30
+    private var lastPort: UInt16 = 0
+    private var autoRestartTask: Task<Void, Never>?
+    private let autoRestartDelaySeconds: TimeInterval = 5
     
     // MARK: - Init
     
@@ -72,7 +75,9 @@ final class TunnelManager {
                     self.tunnelState.publicURL = url
                     self.tunnelState.status = .active
                     self.tunnelState.startTime = Date()
+                    self.lastPort = port
                     self.cancelStartTimeout()
+                    self.cancelAutoRestart()
                     NSLog("[TunnelManager] Tunnel active: %@", url)
                 }
             }
@@ -104,6 +109,7 @@ final class TunnelManager {
         
         tunnelRequestId &+= 1
         cancelStartTimeout()
+        cancelAutoRestart()
         
         tunnelState.status = .stopping
         stopMonitoring()
@@ -157,6 +163,7 @@ final class TunnelManager {
                     CLIProxyManager.shared.updateConfigAllowRemote(false)
                     NSLog("[TunnelManager] Tunnel process exited unexpectedly")
                     await self.service.stop()
+                    self.scheduleAutoRestart()
                     break
                 }
             }
@@ -186,5 +193,35 @@ final class TunnelManager {
     private func cancelStartTimeout() {
         startTimeoutTask?.cancel()
         startTimeoutTask = nil
+    }
+    
+    private func scheduleAutoRestart() {
+        cancelAutoRestart()
+        
+        let autoRestartEnabled = UserDefaults.standard.bool(forKey: "autoRestartTunnel")
+        guard autoRestartEnabled, lastPort > 0 else { return }
+        
+        let delay = autoRestartDelaySeconds
+        let port = lastPort
+        
+        NSLog("[TunnelManager] Scheduling auto-restart in %.0f seconds", delay)
+        
+        autoRestartTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self = self else { return }
+            
+            guard self.tunnelState.status == .error || self.tunnelState.status == .idle else {
+                NSLog("[TunnelManager] Skipping auto-restart: status is %@", self.tunnelState.status.rawValue)
+                return
+            }
+            
+            NSLog("[TunnelManager] Auto-restarting tunnel on port %d", port)
+            await self.startTunnel(port: port)
+        }
+    }
+    
+    private func cancelAutoRestart() {
+        autoRestartTask?.cancel()
+        autoRestartTask = nil
     }
 }
