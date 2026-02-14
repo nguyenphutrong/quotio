@@ -22,6 +22,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
     case trae = "trae"
     case glm = "glm"
     case warp = "warp"
+    case kimi = "kimi"
     
     var id: String { rawValue }
     
@@ -40,6 +41,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return "Trae"
         case .glm: return "GLM"
         case .warp: return "Warp"
+        case .kimi: return "Kimi"
         }
     }
     
@@ -58,6 +60,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return "cursorarrow.rays"
         case .glm: return "brain"
         case .warp: return "terminal.fill"
+        case .kimi: return "moon.fill"
         }
     }
     
@@ -77,6 +80,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return "trae"
         case .glm: return "glm"
         case .warp: return "warp"
+        case .kimi: return "kimi"
         }
     }
     
@@ -95,6 +99,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return Color(hex: "00B4D8") ?? .cyan
         case .glm: return Color(hex: "3B82F6") ?? .blue
         case .warp: return Color(hex: "01E5FF") ?? .cyan
+        case .kimi: return Color(hex: "1E40AF") ?? .blue
         }
     }
     
@@ -113,6 +118,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return ""  // Uses browser session
         case .glm: return ""
         case .warp: return ""
+        case .kimi: return "/kimi-auth-url"
         }
     }
     
@@ -132,6 +138,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return "TR"
         case .glm: return "G"
         case .warp: return "W"
+        case .kimi: return "KM"
         }
     }
     
@@ -152,6 +159,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return "trae-menubar"
         case .glm: return "glm-menubar"
         case .warp: return "warp-menubar"
+        case .kimi: return "kimi-menubar"
         }
     }
     
@@ -160,7 +168,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .claude, .codex, .cursor, .gemini, .antigravity, .copilot, .trae, .glm, .warp:
             return true
-        case .qwen, .iflow, .vertex, .kiro:
+        case .qwen, .iflow, .vertex, .kiro, .kimi:
             return false
         }
     }
