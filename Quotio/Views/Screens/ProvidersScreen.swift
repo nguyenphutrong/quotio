@@ -46,27 +46,29 @@ struct ProvidersScreen: View {
         var groups: [AIProvider: [AccountRowData]] = [:]
 
         if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
-            // From proxy auth files (proxy running)
             for file in viewModel.authFiles {
                 guard let provider = file.providerType else { continue }
                 let data = AccountRowData.from(authFile: file)
-                groups[provider, default: []].append(data)
+                if !groups[provider, default: []].contains(where: { $0.displayName == data.displayName }) {
+                    groups[provider, default: []].append(data)
+                }
             }
         } else {
-            // From direct auth files (proxy not running or quota-only mode)
             for file in viewModel.directAuthFiles {
                 let data = AccountRowData.from(directAuthFile: file)
-                groups[file.provider, default: []].append(data)
+                if !groups[file.provider, default: []].contains(where: { $0.displayName == data.displayName }) {
+                    groups[file.provider, default: []].append(data)
+                }
             }
         }
 
-        // Add auto-detected accounts (Cursor, Trae)
-        // Note: GLM uses API key auth via CustomProviderService, so skip it here
         for (provider, quotas) in viewModel.providerQuotas {
             if !provider.supportsManualAuth && provider != .glm {
                 for (accountKey, _) in quotas {
                     let data = AccountRowData.from(provider: provider, accountKey: accountKey)
-                    groups[provider, default: []].append(data)
+                    if !groups[provider, default: []].contains(where: { $0.displayName == data.displayName }) {
+                        groups[provider, default: []].append(data)
+                    }
                 }
             }
         }
@@ -729,6 +731,7 @@ struct OAuthSheet: View {
     
     @State private var hasStartedAuth = false
     @State private var selectedKiroMethod: AuthCommand = .kiroImport
+    @State private var kimiAuthCookie: String = ""
     
     private var isPolling: Bool {
         viewModel.oauthState?.status == .polling || viewModel.oauthState?.status == .waiting
@@ -789,6 +792,28 @@ struct OAuthSheet: View {
                 .frame(maxWidth: 320)
             }
             
+            if provider == .kimi {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("kimi.browserCookie".localized())
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text("*")
+                            .foregroundStyle(.red)
+                    }
+                    
+                    TextField("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", text: $kimiAuthCookie)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    
+                    Text("kimi.cookieHint".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: 320)
+            }
+            
             if let state = viewModel.oauthState, state.provider == provider {
                 OAuthStatusView(status: state.status, error: state.error, state: state.state, provider: provider)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -815,8 +840,14 @@ struct OAuthSheet: View {
                 } else if !isSuccess {
                     Button {
                         hasStartedAuth = true
-                        Task {
-                            await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId, authMethod: provider == .kiro ? selectedKiroMethod : nil)
+                        if provider == .kimi && !kimiAuthCookie.isEmpty {
+                            viewModel.createKimiAuthFile(cookie: kimiAuthCookie)
+                            viewModel.oauthState = OAuthState(provider: .kimi, status: .success)
+                            Task { await viewModel.refreshData() }
+                        } else {
+                            Task {
+                                await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId, authMethod: provider == .kiro ? selectedKiroMethod : nil)
+                            }
                         }
                     } label: {
                         if isPolling {
@@ -827,7 +858,7 @@ struct OAuthSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(provider.color)
-                    .disabled(isPolling)
+                    .disabled(isPolling || (provider == .kimi && kimiAuthCookie.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                 }
             }
         }

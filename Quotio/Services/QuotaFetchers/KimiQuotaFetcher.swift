@@ -247,8 +247,19 @@ actor KimiQuotaFetcher {
             
             do {
                 let data = try Data(contentsOf: URL(fileURLWithPath: filePath))
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let token = json["access_token"] as? String ?? json["token"] as? String {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    // Prefer kimi_auth_cookie (browser cookie) over access_token (OAuth)
+                    // The GetUsages API requires the browser session cookie, not OAuth token
+                    let token = json["kimi_auth_cookie"] as? String
+                        ?? json["kimi-auth"] as? String
+                        ?? json["access_token"] as? String
+                        ?? json["token"] as? String
+                    
+                    guard let token, !token.isEmpty else {
+                        Log.quota("No valid token found in \(file)")
+                        continue
+                    }
+                    
                     let quota = try await fetchQuota(authToken: token)
                     let email = file
                         .replacingOccurrences(of: "kimi-", with: "")

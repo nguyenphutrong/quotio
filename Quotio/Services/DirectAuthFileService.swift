@@ -47,6 +47,11 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
         if let login = login, !login.isEmpty {
             return login
         }
+        if provider == .kimi {
+            return filename
+                .replacingOccurrences(of: "kimi-", with: "")
+                .replacingOccurrences(of: ".json", with: "")
+        }
         return filename
     }
 
@@ -54,6 +59,11 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
     var menuBarAccountKey: String {
         if provider == .kiro {
             return filename.replacingOccurrences(of: ".json", with: "")
+        }
+        if provider == .kimi {
+            return filename
+                .replacingOccurrences(of: "kimi-", with: "")
+                .replacingOccurrences(of: ".json", with: "")
         }
         if let email = email, !email.isEmpty {
             return email
@@ -158,6 +168,14 @@ actor DirectAuthFileService {
             }
         }
         
+        // For Kimi: use timestamp from filename as display name
+        if provider == .kimi && (email == nil || email?.isEmpty == true) {
+            let timestamp = filename
+                .replacingOccurrences(of: "kimi-", with: "")
+                .replacingOccurrences(of: ".json", with: "")
+            email = "Kimi (\(timestamp))"
+        }
+        
         // Parse expired date
         var expiredDate: Date?
         if let expiredString = json["expired"] as? String {
@@ -192,6 +210,7 @@ actor DirectAuthFileService {
             "qwen": .qwen,
             "iflow": .iflow,
             "kiro": .kiro,
+            "kimi": .kimi,
             "vertex": .vertex,
             "cursor": .cursor,
             "trae": .trae
@@ -227,6 +246,7 @@ actor DirectAuthFileService {
             ("qwen-", .qwen),
             ("iflow-", .iflow),
             ("kiro-", .kiro),
+            ("kimi-", .kimi),
             ("vertex-", .vertex)
         ]
         

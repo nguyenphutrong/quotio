@@ -289,6 +289,9 @@ nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
         if key.hasPrefix("github-copilot-") {
             key = String(key.dropFirst("github-copilot-".count))
         }
+        if key.hasPrefix("kimi-") {
+            key = String(key.dropFirst("kimi-".count))
+        }
         if key.hasSuffix(".json") {
             key = String(key.dropLast(".json".count))
         }

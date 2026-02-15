@@ -1521,6 +1521,32 @@ final class QuotaViewModel {
         oauthState = nil
     }
     
+    /// Create new Kimi auth file with browser cookie
+    func createKimiAuthFile(cookie: String) {
+        let trimmedCookie = cookie.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCookie.isEmpty else { return }
+        
+        let authDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        let fileManager = FileManager.default
+        
+        let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+        let filename = "kimi-\(timestamp).json"
+        let filePath = (authDir as NSString).appendingPathComponent(filename)
+        
+        let json: [String: Any] = [
+            "type": "kimi",
+            "kimi_auth_cookie": trimmedCookie
+        ]
+        
+        do {
+            let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: URL(fileURLWithPath: filePath))
+            Log.quota("Created Kimi auth file: \(filename)")
+        } catch {
+            Log.quota("Failed to create Kimi auth file: \(error)")
+        }
+    }
+    
     func deleteAuthFile(_ file: AuthFile) async {
         guard let client = apiClient else { return }
 
