@@ -445,24 +445,29 @@ struct ProvidersScreen: View {
     }
     
     private func downloadAccountAuthFile(_ account: AccountRowData) {
+        NSLog("[ProvidersScreen] Download requested for account.id=\(account.id), source=\(account.source), displayName=\(account.displayName)")
+        
         // Find the actual filename from authFiles
         let filename: String
-        if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
-            filename = authFile.name
-        } else if let directFile = viewModel.directAuthFiles.first(where: { $0.id == account.id }) {
+        if account.source == .direct, let directFile = viewModel.directAuthFiles.first(where: { $0.id == account.id }) {
             filename = directFile.filename
+            NSLog("[ProvidersScreen] Found DirectAuthFile: filename=\(filename)")
+        } else if account.source == .proxy, let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
+            filename = authFile.name
+            NSLog("[ProvidersScreen] Found AuthFile: filename=\(filename), path=\(authFile.path ?? "nil")")
         } else {
             filename = account.displayName
+            NSLog("[ProvidersScreen] Using fallback filename=\(filename)")
         }
         
-        NSLog("[ProvidersScreen] Download auth file: account.id=\(account.id), filename=\(filename)")
+        NSLog("[ProvidersScreen] Final filename to fetch: \(filename)")
         
         Task {
             do {
                 let data = try await viewModel.downloadAuthFile(name: filename)
                 
                 NSLog("[ProvidersScreen] Downloaded \(data.count) bytes")
-                
+
                 await MainActor.run {
                     // Show save panel
                     let savePanel = NSSavePanel()
