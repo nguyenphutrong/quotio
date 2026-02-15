@@ -224,7 +224,25 @@ actor ManagementAPIClient {
     }
     
     func deleteAuthFile(name: String) async throws {
-        _ = try await makeRequest("/auth-files?name=\(name)", method: "DELETE")
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        _ = try await makeRequest("/auth-files?name=\(encoded)", method: "DELETE")
+    }
+    
+    func uploadAuthFile(name: String, content: Data) async throws {
+        struct UploadRequest: Encodable {
+            let name: String
+            let content: String
+        }
+        guard let contentString = String(data: content, encoding: .utf8) else {
+            throw APIError.decodingError("Invalid UTF-8 content")
+        }
+        let body = try JSONEncoder().encode(UploadRequest(name: name, content: contentString))
+        _ = try await makeRequest("/auth-files", method: "POST", body: body)
+    }
+    
+    func downloadAuthFile(name: String) async throws -> Data {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        return try await makeRequest("/auth-files/content?name=\(encoded)")
     }
     
     func deleteAllAuthFiles() async throws {

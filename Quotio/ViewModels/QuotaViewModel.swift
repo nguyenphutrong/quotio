@@ -1543,6 +1543,29 @@ final class QuotaViewModel {
             errorMessage = error.localizedDescription
         }
     }
+    
+    func uploadAuthFile(name: String, content: Data) async throws {
+        if let client = apiClient {
+            try await client.uploadAuthFile(name: name, content: content)
+            await refreshData()
+        } else {
+            try await directAuthService.uploadAuthFile(name: name, content: content)
+            await loadDirectAuthFiles()
+        }
+    }
+    
+    func downloadAuthFile(name: String) async throws -> Data {
+        if let client = apiClient {
+            return try await client.downloadAuthFile(name: name)
+        } else {
+            return try await directAuthService.downloadAuthFile(name: name)
+        }
+    }
+    
+    func deleteDirectAuthFile(name: String) async throws {
+        try await directAuthService.deleteAuthFile(name: name)
+        await loadDirectAuthFiles()
+    }
 
     func toggleAuthFileDisabled(_ file: AuthFile) async {
         guard let client = apiClient else {
