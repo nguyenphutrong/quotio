@@ -224,7 +224,8 @@ actor ManagementAPIClient {
     }
     
     func deleteAuthFile(name: String) async throws {
-        _ = try await makeRequest("/auth-files?name=\(name)", method: "DELETE")
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        _ = try await makeRequest("/auth-files?name=\(encoded)", method: "DELETE")
     }
     
     func uploadAuthFile(name: String, content: Data) async throws {

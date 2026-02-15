@@ -454,6 +454,13 @@ actor DirectAuthFileService {
     
     // MARK: - File Upload/Download/Delete Operations
     
+    /// Sanitize filename to prevent path traversal attacks
+    /// - Parameter name: Raw filename input
+    /// - Returns: Safe filename with directory components stripped
+    private func sanitizedFileName(_ name: String) -> String {
+        (name as NSString).lastPathComponent
+    }
+    
     /// Upload (write) an auth file to the auth directory
     /// - Parameters:
     ///   - name: Filename for the auth file (e.g., "claude-user@example.com.json")
@@ -461,15 +468,18 @@ actor DirectAuthFileService {
     /// - Returns: true if successful
     func uploadAuthFile(name: String, content: Data) async throws {
         let authDir = expandPath("~/.cli-proxy-api")
+        let safeName = sanitizedFileName(name)
         
         // Ensure directory exists
         try fileManager.createDirectory(atPath: authDir, withIntermediateDirectories: true)
         
         // Validate JSON
-        _ = try JSONSerialization.jsonObject(with: content)
+        guard JSONSerialization.isValidJSONObject(try JSONSerialization.jsonObject(with: content)) else {
+            throw AuthFileError.invalidJSON("Content is not valid JSON")
+        }
         
         // Write file
-        let filePath = (authDir as NSString).appendingPathComponent(name)
+        let filePath = (authDir as NSString).appendingPathComponent(safeName)
         try content.write(to: URL(fileURLWithPath: filePath), options: .atomic)
     }
     
@@ -478,10 +488,11 @@ actor DirectAuthFileService {
     /// - Returns: File content as Data
     func downloadAuthFile(name: String) async throws -> Data {
         let authDir = expandPath("~/.cli-proxy-api")
-        let filePath = (authDir as NSString).appendingPathComponent(name)
+        let safeName = sanitizedFileName(name)
+        let filePath = (authDir as NSString).appendingPathComponent(safeName)
         
         guard fileManager.fileExists(atPath: filePath) else {
-            throw AuthFileError.fileNotFound(name)
+            throw AuthFileError.fileNotFound(safeName)
         }
         
         return try Data(contentsOf: URL(fileURLWithPath: filePath))
@@ -491,10 +502,11 @@ actor DirectAuthFileService {
     /// - Parameter name: Filename to delete
     func deleteAuthFile(name: String) async throws {
         let authDir = expandPath("~/.cli-proxy-api")
-        let filePath = (authDir as NSString).appendingPathComponent(name)
+        let safeName = sanitizedFileName(name)
+        let filePath = (authDir as NSString).appendingPathComponent(safeName)
         
         guard fileManager.fileExists(atPath: filePath) else {
-            throw AuthFileError.fileNotFound(name)
+            throw AuthFileError.fileNotFound(safeName)
         }
         
         try fileManager.removeItem(atPath: filePath)
@@ -505,7 +517,8 @@ actor DirectAuthFileService {
     /// - Returns: true if file exists
     func authFileExists(name: String) async -> Bool {
         let authDir = expandPath("~/.cli-proxy-api")
-        let filePath = (authDir as NSString).appendingPathComponent(name)
+        let safeName = sanitizedFileName(name)
+        let filePath = (authDir as NSString).appendingPathComponent(safeName)
         return fileManager.fileExists(atPath: filePath)
     }
 }

@@ -1546,10 +1546,11 @@ final class QuotaViewModel {
     func uploadAuthFile(name: String, content: Data) async throws {
         if let client = apiClient {
             try await client.uploadAuthFile(name: name, content: content)
+            await refreshData()
         } else {
             try await directAuthService.uploadAuthFile(name: name, content: content)
+            await loadDirectAuthFiles()
         }
-        await refreshData()
     }
     
     func downloadAuthFile(name: String) async throws -> Data {
