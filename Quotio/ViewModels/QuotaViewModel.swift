@@ -1300,7 +1300,20 @@ final class QuotaViewModel {
     
     private func refreshOpenAIQuotasInternal() async {
         let quotas = await openAIFetcher.fetchAllCodexQuotas()
-        providerQuotas[.codex] = quotas
+        if quotas.isEmpty {
+            if providerQuotas[.codex]?.isEmpty ?? true {
+                providerQuotas.removeValue(forKey: .codex)
+            }
+        } else {
+            if var existing = providerQuotas[.codex] {
+                for (key, quota) in quotas {
+                    existing[key] = quota
+                }
+                providerQuotas[.codex] = existing
+            } else {
+                providerQuotas[.codex] = quotas
+            }
+        }
     }
     
     private func refreshCopilotQuotasInternal() async {

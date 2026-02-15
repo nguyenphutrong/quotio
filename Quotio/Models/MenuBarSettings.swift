@@ -440,7 +440,7 @@ final class MenuBarSettingsManager {
 
     static let minMenuBarItems = 1
     static let maxMenuBarItems = 10
-    static let defaultMenuBarMaxItems = 3
+    static let defaultMenuBarMaxItems = 5
 
     /// Whether to show menu bar icon at all
     var showMenuBarIcon: Bool {
@@ -605,12 +605,17 @@ final class MenuBarSettingsManager {
     }
     
     func autoSelectNewAccounts(availableItems: [MenuBarQuotaItem]) {
-        // Don't auto-add if user has manually modified the menu bar selection
-        guard !hasUserModifiedMenuBar else { return }
-
         enforceMaxItems()
         let existingIds = Set(selectedItems.map(\.id))
         let newItems = availableItems.filter { !existingIds.contains($0.id) }
+
+        guard !newItems.isEmpty else { return }
+
+        // Auto-expand menuBarMaxItems to fit new accounts (up to hard cap)
+        let needed = selectedItems.count + newItems.count
+        if needed > menuBarMaxItems && needed <= Self.maxMenuBarItems {
+            menuBarMaxItems = needed
+        }
 
         let remainingSlots = menuBarMaxItems - selectedItems.count
         if remainingSlots > 0 {
