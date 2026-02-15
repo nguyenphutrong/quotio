@@ -21,6 +21,12 @@ final class StatusBarMenuBuilder {
     private let viewModel: QuotaViewModel
     private let modeManager = OperatingModeManager.shared
     private let menuWidth: CGFloat = 320
+    private let agentDetectionService = AgentDetectionService()
+    
+    // Cached agent statuses for filtering
+    private var cachedAgentStatuses: [CLIAgent: Bool] = [:]
+    private var lastAgentCacheTime: Date?
+    private let agentCacheValidity: TimeInterval = 300 // 5 minutes
     
     // Selected provider from UserDefaults (kept for compatibility)
     @AppStorage("menuBarSelectedProvider") private var selectedProviderRaw: String = ""
@@ -105,7 +111,64 @@ final class StatusBarMenuBuilder {
             }
         }
         
-        return providers.sorted { $0.displayName < $1.displayName }
+        // Filter out CLI-based providers if CLI is not installed
+        return providers.filter { provider in
+            guard let agent = provider.cliAgent else { return true }
+            return isCLIInstalled(agent)
+        }.sorted { $0.displayName < $1.displayName }
+    }
+    
+    private func isCLIInstalled(_ agent: CLIAgent) -> Bool {
+        // Check cache first
+        if let lastCache = lastAgentCacheTime,
+           Date().timeIntervalSince(lastCache) < agentCacheValidity,
+           let cached = cachedAgentStatuses[agent] {
+            return cached
+        }
+        
+        // Check if we have cached data from QuotaViewModel
+        if let statuses = viewModel.agentSetupViewModel.agentStatuses as [AgentStatus]?,
+           !statuses.isEmpty,
+           let status = statuses.first(where: { $0.agent == agent }) {
+            cachedAgentStatuses[agent] = status.installed
+            lastAgentCacheTime = Date()
+            return status.installed
+        }
+        
+        // Fallback: synchronous binary check
+        let isInstalled = checkBinaryExists(names: agent.binaryNames)
+        cachedAgentStatuses[agent] = isInstalled
+        lastAgentCacheTime = Date()
+        return isInstalled
+    }
+    
+    private func checkBinaryExists(names: [String]) -> Bool {
+        let fileManager = FileManager.default
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        
+        let commonPaths = [
+            "/usr/local/bin",
+            "/opt/homebrew/bin",
+            "/usr/bin",
+            "\(home)/.local/bin",
+            "\(home)/.cargo/bin",
+            "\(home)/.bun/bin",
+            "\(home)/.deno/bin",
+            "\(home)/.npm-global/bin",
+            "\(home)/.volta/bin",
+            "\(home)/.asdf/shims",
+            "\(home)/.local/share/mise/shims"
+        ]
+        
+        for name in names {
+            for basePath in commonPaths {
+                let fullPath = "\(basePath)/\(name)"
+                if fileManager.isExecutableFile(atPath: fullPath) {
+                    return true
+                }
+            }
+        }
+        return false
     }
     
     private func resolveSelectedProvider(from providers: [AIProvider]) -> AIProvider {

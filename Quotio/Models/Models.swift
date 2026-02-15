@@ -185,6 +185,16 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         }
     }
     
+    /// Map provider to CLI agent (if applicable)
+    var cliAgent: CLIAgent? {
+        switch self {
+        case .claude: return .claudeCode
+        case .codex: return .codexCLI
+        case .gemini: return .geminiCLI
+        default: return nil
+        }
+    }
+    
     /// Whether this provider can be added manually (via OAuth, CLI login, or file import)
     /// Cursor, Trae, Windsurf are excluded because they only read from local app databases
     /// GLM is excluded because it should only be added via Custom Providers
