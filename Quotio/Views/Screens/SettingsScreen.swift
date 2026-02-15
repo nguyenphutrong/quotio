@@ -715,6 +715,7 @@ struct LocalProxyServerSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     @AppStorage("autoStartTunnel") private var autoStartTunnel = false
+    @AppStorage("autoRestartTunnel") private var autoRestartTunnel = false
     @AppStorage("allowNetworkAccess") private var allowNetworkAccess = false
     @State private var portText: String = ""
     @State private var isLoadingConfig = false  // Prevents onChange from firing during initial load
@@ -755,6 +756,9 @@ struct LocalProxyServerSection: View {
             Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
             
             Toggle("settings.autoStartTunnel".localized(), isOn: $autoStartTunnel)
+                .disabled(!viewModel.tunnelManager.installation.isInstalled)
+            
+            Toggle("settings.autoRestartTunnel".localized(), isOn: $autoRestartTunnel)
                 .disabled(!viewModel.tunnelManager.installation.isInstalled)
                 
             NetworkAccessSection(allowNetworkAccess: $allowNetworkAccess)
