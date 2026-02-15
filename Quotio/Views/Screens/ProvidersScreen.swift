@@ -444,7 +444,7 @@ struct ProvidersScreen: View {
         }
     }
     
-    private func downloadAccountAuthFile(_ account: AccountRowData) async {
+    private func downloadAccountAuthFile(_ account: AccountRowData) {
         // Find the actual filename from authFiles
         let filename: String
         if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
@@ -457,26 +457,32 @@ struct ProvidersScreen: View {
         
         NSLog("[ProvidersScreen] Download auth file: account.id=\(account.id), filename=\(filename)")
         
-        do {
-            let data = try await viewModel.downloadAuthFile(name: filename)
-            
-            NSLog("[ProvidersScreen] Downloaded \(data.count) bytes")
-            
-            // Show save panel
-            let savePanel = NSSavePanel()
-            savePanel.nameFieldStringValue = filename.hasSuffix(".json") ? filename : filename + ".json"
-            savePanel.allowedContentTypes = [.json]
-            savePanel.canCreateDirectories = true
-            
-            if savePanel.runModal() == .OK, let url = savePanel.url {
-                try data.write(to: url)
-                NSLog("[ProvidersScreen] Saved to \(url.path)")
+        Task {
+            do {
+                let data = try await viewModel.downloadAuthFile(name: filename)
+                
+                NSLog("[ProvidersScreen] Downloaded \(data.count) bytes")
+                
+                await MainActor.run {
+                    // Show save panel
+                    let savePanel = NSSavePanel()
+                    savePanel.nameFieldStringValue = filename.hasSuffix(".json") ? filename : filename + ".json"
+                    savePanel.allowedContentTypes = [.json]
+                    savePanel.canCreateDirectories = true
+                    
+                    if savePanel.runModal() == .OK, let url = savePanel.url {
+                        try? data.write(to: url)
+                        NSLog("[ProvidersScreen] Saved to \(url.path)")
+                    }
+                }
+            } catch {
+                NSLog("[ProvidersScreen] Download failed: \(error.localizedDescription)")
+                await MainActor.run {
+                    viewModel.errorMessage = error.localizedDescription
+                }
             }
-        } catch {
-            NSLog("[ProvidersScreen] Download failed: \(error.localizedDescription)")
-            viewModel.errorMessage = error.localizedDescription
         }
-}
+    }
  
     private func handleEditGlmAccount(_ account: AccountRowData) {
         // Find the GLM provider by ID and open edit sheet using CustomProviderSheet
