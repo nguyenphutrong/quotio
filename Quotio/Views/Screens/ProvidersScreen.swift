@@ -446,19 +446,25 @@ struct ProvidersScreen: View {
             filename = account.displayName
         }
         
+        NSLog("[ProvidersScreen] Download auth file: account.id=\(account.id), filename=\(filename)")
+        
         do {
             let data = try await viewModel.downloadAuthFile(name: filename)
             
+            NSLog("[ProvidersScreen] Downloaded \(data.count) bytes")
+            
             // Show save panel
             let savePanel = NSSavePanel()
-            savePanel.nameFieldStringValue = filename + ".json"
+            savePanel.nameFieldStringValue = filename.hasSuffix(".json") ? filename : filename + ".json"
             savePanel.allowedContentTypes = [.json]
             savePanel.canCreateDirectories = true
             
             if savePanel.runModal() == .OK, let url = savePanel.url {
                 try data.write(to: url)
+                NSLog("[ProvidersScreen] Saved to \(url.path)")
             }
         } catch {
+            NSLog("[ProvidersScreen] Download failed: \(error.localizedDescription)")
             viewModel.errorMessage = error.localizedDescription
         }
     }

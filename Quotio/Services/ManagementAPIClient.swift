@@ -229,20 +229,19 @@ actor ManagementAPIClient {
     }
     
     func uploadAuthFile(name: String, content: Data) async throws {
-        struct UploadRequest: Encodable {
-            let name: String
-            let content: String
-        }
-        guard let contentString = String(data: content, encoding: .utf8) else {
-            throw APIError.decodingError("Invalid UTF-8 content")
-        }
-        let body = try JSONEncoder().encode(UploadRequest(name: name, content: contentString))
-        _ = try await makeRequest("/auth-files", method: "POST", body: body)
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        Self.log("[\(clientId)] uploadAuthFile: name=\(name), encoded=\(encoded), size=\(content.count)")
+        let endpoint = "/auth-files?name=\(encoded)"
+        _ = try await makeRequest(endpoint, method: "POST", body: content)
+        Self.log("[\(clientId)] uploadAuthFile: success")
     }
     
     func downloadAuthFile(name: String) async throws -> Data {
         let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
-        return try await makeRequest("/auth-files/content?name=\(encoded)")
+        Self.log("[\(clientId)] downloadAuthFile: name=\(name), encoded=\(encoded)")
+        let data = try await makeRequest("/auth-files/download?name=\(encoded)")
+        Self.log("[\(clientId)] downloadAuthFile: received \(data.count) bytes")
+        return data
     }
     
     func deleteAllAuthFiles() async throws {
