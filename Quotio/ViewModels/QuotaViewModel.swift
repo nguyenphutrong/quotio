@@ -1226,14 +1226,15 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
+        async let kimi: () = refreshKimiQuotasInternal()
 
         // In Quota-Only Mode, also include CLI fetchers
         if modeManager.isMonitorMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
             async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, codexCLI, geminiCLI)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, kimi, codexCLI, geminiCLI)
         } else {
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, kimi)
         }
 
         checkQuotaNotifications()

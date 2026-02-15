@@ -2,283 +2,263 @@
 //  KimiQuotaFetcher.swift
 //  Quotio
 //
-//  Kimi (Moonshot AI) Quota Fetcher
-//  Uses Kimi API to fetch coding usage quota
+//  Kimi (Moonshot AI) Quota Fetcher - CLI Mode
+//  Uses Kimi CLI's /usage command to fetch coding usage quota
 //
 
 import Foundation
 
-// MARK: - Kimi Response Models
-
-nonisolated struct KimiUsageResponse: Decodable {
-    let usages: [KimiUsage]
-    
-    struct KimiUsage: Decodable {
-        let scope: String
-        let detail: KimiUsageDetail
-        let limits: [KimiRateLimit]?
-    }
-    
-    struct KimiUsageDetail: Decodable {
-        let limit: String
-        let used: String?
-        let remaining: String?
-        let resetTime: String
-    }
-    
-    struct KimiRateLimit: Decodable {
-        let window: KimiRateWindow
-        let detail: KimiUsageDetail
-        
-        struct KimiRateWindow: Decodable {
-            let duration: Int
-            let timeUnit: String
-        }
-    }
-}
-
 // MARK: - Kimi Quota Fetcher
 
 actor KimiQuotaFetcher {
-    private let usageURL = "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages"
-    
-    private var session: URLSession
-    
-    /// Known tier mappings based on weekly limit
-    private static let tierByLimit: [Int: String] = [
-        1024: "Andante",
-        2048: "Moderato",
-        7168: "Allegretto",
+    /// Default paths to search for kimi binary
+    private let defaultPaths = [
+        "/usr/local/bin/kimi",
+        "/opt/homebrew/bin/kimi",
+        "/usr/bin/kimi",
     ]
     
-    init() {
-        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
-        self.session = URLSession(configuration: config)
-    }
+    /// Timeout for CLI execution
+    private let timeout: TimeInterval = 15.0
     
-    /// Update the URLSession with current proxy settings
+    init() {}
+    
     func updateProxyConfiguration() {
-        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
-        self.session = URLSession(configuration: config)
     }
     
-    /// Fetch quota from Kimi API using auth token
-    func fetchQuota(authToken: String) async throws -> ProviderQuotaData {
-        guard let url = URL(string: usageURL) else {
-            throw KimiQuotaError.invalidURL
+    func fetchAsProviderQuota() async -> [String: ProviderQuotaData] {
+        Log.quota("KimiQuotaFetcher: Starting fetch")
+        guard let kimiPath = findKimiBinary() else {
+            Log.quota("Kimi CLI not found in PATH or default locations")
+            return [:]
         }
+        Log.quota("KimiQuotaFetcher: Found kimi at \(kimiPath)")
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["scope": ["FEATURE_CODING"]])
-        
-        // Apply headers
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("kimi-auth=\(authToken)", forHTTPHeaderField: "Cookie")
-        request.setValue("https://www.kimi.com", forHTTPHeaderField: "Origin")
-        request.setValue("https://www.kimi.com/code/console", forHTTPHeaderField: "Referer")
-        request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
-        request.setValue(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
-            forHTTPHeaderField: "User-Agent"
-        )
-        request.setValue("1", forHTTPHeaderField: "connect-protocol-version")
-        request.setValue("en-US", forHTTPHeaderField: "x-language")
-        request.setValue("web", forHTTPHeaderField: "x-msh-platform")
-        request.setValue(TimeZone.current.identifier, forHTTPHeaderField: "r-timezone")
-        
-        let (data, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw KimiQuotaError.invalidResponse
-        }
-        
-        switch httpResponse.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw KimiQuotaError.authenticationRequired
-        default:
-            throw KimiQuotaError.httpError(httpResponse.statusCode)
-        }
-        
-        return try parseResponse(data)
-    }
-    
-    /// Parse Kimi API response into ProviderQuotaData
-    private func parseResponse(_ data: Data) throws -> ProviderQuotaData {
-        let decoded: KimiUsageResponse
         do {
-            decoded = try JSONDecoder().decode(KimiUsageResponse.self, from: data)
+            let quotaData = try await fetchQuotaFromCLI(kimiPath: kimiPath)
+            Log.quota("KimiQuotaFetcher: Success - \(quotaData.models.count) models")
+            return ["kimi-cli": quotaData]
         } catch {
-            throw KimiQuotaError.parseFailed(error.localizedDescription)
+            Log.quota("Failed to fetch Kimi quota via CLI: \(error)")
+            return [:]
+        }
+    }
+    
+    private func findKimiBinary() -> String? {
+        let homeLocalBin = NSString(string: "~/.local/bin/kimi").expandingTildeInPath
+        if FileManager.default.isExecutableFile(atPath: homeLocalBin) {
+            return homeLocalBin
         }
         
-        guard let coding = decoded.usages.first(where: { $0.scope == "FEATURE_CODING" }) else {
-            throw KimiQuotaError.parseFailed("Missing FEATURE_CODING scope in response")
+        let whichProcess = Process()
+        whichProcess.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        whichProcess.arguments = ["kimi"]
+        
+        let pipe = Pipe()
+        whichProcess.standardOutput = pipe
+        whichProcess.standardError = FileHandle.nullDevice
+        
+        do {
+            try whichProcess.run()
+            whichProcess.waitUntilExit()
+            
+            if whichProcess.terminationStatus == 0 {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !path.isEmpty {
+                    return path
+                }
+            }
+        } catch {
+            Log.quota("Failed to run 'which kimi': \(error)")
         }
+        
+        for path in defaultPaths {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+        
+        return nil
+    }
+    
+    private func fetchQuotaFromCLI(kimiPath: String) async throws -> ProviderQuotaData {
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let output = try self.runKimiUsageCommand(kimiPath: kimiPath)
+                    let quotaData = try Self.parseUsageOutput(output)
+                    continuation.resume(returning: quotaData)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+    
+    private nonisolated func runKimiUsageCommand(kimiPath: String) throws -> String {
+        let expectScript = """
+        set timeout \(Int(timeout))
+        log_user 1
+        spawn \(kimiPath)
+        expect {
+            "💫" { }
+            "indo@" { }
+            timeout { exit 1 }
+        }
+        sleep 1
+        send "/usage\\r"
+        expect {
+            "% left" { }
+            timeout { exit 1 }
+        }
+        sleep 2
+        send "/exit\\r"
+        expect eof
+        """
+        
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/script")
+        process.arguments = ["-q", "/dev/null", "/usr/bin/expect", "-c", expectScript]
+        
+        var env = ProcessInfo.processInfo.environment
+        env["TERM"] = "xterm-256color"
+        env["LC_ALL"] = "en_US.UTF-8"
+        process.environment = env
+        
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: outputData, encoding: .utf8) ?? ""
+        
+        if process.terminationStatus != 0 {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+            Log.quota("Kimi CLI expect script failed with status \(process.terminationStatus): \(errorOutput)")
+            throw KimiQuotaError.cliExecutionFailed("Exit code: \(process.terminationStatus)")
+        }
+        
+        return output
+    }
+    
+    // MARK: - Parsing
+    
+    /// Parses CLI /usage output. Expected: "Weekly limit ... N% left (resets in Xd Yh)"
+    static func parseUsageOutput(_ text: String) throws -> ProviderQuotaData {
+        let cleanText = Self.stripAnsiCodes(text)
         
         var models: [ModelQuota] = []
         
-        // Parse weekly quota from detail
-        let weekly = parseUsageNumbers(detail: coding.detail)
-        let weeklyPercentRemaining: Double
-        if weekly.limit > 0 {
-            weeklyPercentRemaining = (Double(weekly.remaining) / Double(weekly.limit)) * 100.0
-        } else {
-            weeklyPercentRemaining = 100.0
-        }
-        
-        let weeklyResetDate = parseISO8601(coding.detail.resetTime)
-        let weeklyResetStr = weeklyResetDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
-        
-        models.append(ModelQuota(
-            name: "kimi-weekly",
-            percentage: weeklyPercentRemaining,
-            resetTime: weeklyResetStr,
-            used: weekly.used,
-            limit: weekly.limit,
-            remaining: weekly.remaining
-        ))
-        
-        // Parse 5-hour rate limit from limits array
-        // Look for window with duration=300, timeUnit=TIME_UNIT_MINUTE (300 min = 5 hours)
-        let fiveHourRate = coding.limits?.first(where: {
-            $0.window.duration == 300 && $0.window.timeUnit == "TIME_UNIT_MINUTE"
-        }) ?? coding.limits?.first
-        
-        if let rateLimit = fiveHourRate {
-            let rate = parseUsageNumbers(detail: rateLimit.detail)
-            let ratePercentRemaining: Double
-            if rate.limit > 0 {
-                ratePercentRemaining = (Double(rate.remaining) / Double(rate.limit)) * 100.0
+        for line in cleanText.components(separatedBy: .newlines) {
+            let lower = line.lowercased()
+            
+            guard lower.contains("% left") else { continue }
+            
+            let quotaName: String
+            if lower.contains("weekly") {
+                quotaName = "kimi-weekly"
+            } else if lower.contains("5h") || lower.contains("hour") {
+                quotaName = "kimi-5h"
             } else {
-                ratePercentRemaining = 100.0
+                continue
             }
             
-            let rateResetDate = parseISO8601(rateLimit.detail.resetTime)
-            let rateResetStr = rateResetDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
+            guard let percentMatch = line.range(of: #"(\d+)%\s+left"#, options: .regularExpression),
+                  let percent = Double(String(line[percentMatch]).components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) else {
+                continue
+            }
+            
+            var resetTimeString = ""
+            if let resetMatch = line.range(of: #"\(resets\s+in\s+([^)]+)\)"#, options: .regularExpression) {
+                let raw = String(line[resetMatch])
+                    .replacingOccurrences(of: "(resets in ", with: "")
+                    .replacingOccurrences(of: ")", with: "")
+                    .trimmingCharacters(in: .whitespaces)
+                if let resetsAt = parseResetDuration(raw) {
+                    let formatter = ISO8601DateFormatter()
+                    formatter.formatOptions = [.withInternetDateTime]
+                    resetTimeString = formatter.string(from: resetsAt)
+                }
+            }
             
             models.append(ModelQuota(
-                name: "kimi-5h",
-                percentage: ratePercentRemaining,
-                resetTime: rateResetStr,
-                used: rate.used,
-                limit: rate.limit,
-                remaining: rate.remaining
+                name: quotaName,
+                percentage: percent,
+                resetTime: resetTimeString,
+                used: nil,
+                limit: nil,
+                remaining: nil
             ))
         }
         
-        // Detect account tier from weekly limit
-        let planType = Self.tierByLimit[weekly.limit]
+        guard !models.isEmpty else {
+            throw KimiQuotaError.parseFailed("No quota data found in CLI output")
+        }
         
         return ProviderQuotaData(
             models: models,
             lastUpdated: Date(),
             isForbidden: false,
-            planType: planType
+            planType: nil
         )
     }
     
-    private func parseUsageNumbers(detail: KimiUsageResponse.KimiUsageDetail) -> (used: Int, limit: Int, remaining: Int) {
-        let limit = Int(detail.limit) ?? 0
-        let rawUsed = Int(detail.used ?? "")
-        let rawRemaining = Int(detail.remaining ?? "")
-        
-        let used: Int
-        let remaining: Int
-        
-        if let rawUsed, let rawRemaining {
-            used = rawUsed
-            remaining = rawRemaining
-        } else if let rawUsed {
-            used = rawUsed
-            remaining = max(0, limit - rawUsed)
-        } else if let rawRemaining {
-            used = max(0, limit - rawRemaining)
-            remaining = rawRemaining
-        } else {
-            used = 0
-            remaining = max(0, limit)
+    /// Strips ANSI escape sequences (regex: ESC[ ... m or OSC ... BEL)
+    private static func stripAnsiCodes(_ text: String) -> String {
+        let pattern = #"\x1B\[[0-9;]*[A-Za-z]|\x1B\][^\x07]*\x07"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return text
         }
-        
-        return (used: used, limit: limit, remaining: remaining)
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "")
     }
     
-    private func parseISO8601(_ raw: String?) -> Date? {
-        guard let raw, !raw.isEmpty else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let value = formatter.date(from: raw) {
-            return value
-        }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: raw)
-    }
-    
-    /// Fetch quota using token from environment or auth file
-    func fetchAsProviderQuota() async -> [String: ProviderQuotaData] {
-        // Try environment variable first
-        if let envToken = ProcessInfo.processInfo.environment["KIMI_AUTH_TOKEN"],
-           !envToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            do {
-                let quota = try await fetchQuota(authToken: envToken)
-                return ["Kimi": quota]
-            } catch {
-                Log.quota("Failed to fetch Kimi quota with env token: \(error)")
+    private static func parseResetDuration(_ text: String) -> Date? {
+        var totalSeconds: TimeInterval = 0
+        
+        if let dayMatch = text.range(of: #"(\d+)\s*d"#, options: .regularExpression) {
+            let dayStr = String(text[dayMatch])
+            if let days = Int(dayStr.filter { $0.isNumber }) {
+                totalSeconds += Double(days) * 24 * 3600
             }
         }
         
-        // Try to read from auth files (if any exist in ~/.cli-proxy-api/)
-        let authDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
-        let fileManager = FileManager.default
-        
-        guard let files = try? fileManager.contentsOfDirectory(atPath: authDir) else {
-            return [:]
-        }
-        
-        var results: [String: ProviderQuotaData] = [:]
-        
-        for file in files where file.hasPrefix("kimi-") && file.hasSuffix(".json") {
-            let filePath = (authDir as NSString).appendingPathComponent(file)
-            
-            do {
-                let data = try Data(contentsOf: URL(fileURLWithPath: filePath))
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let token = json["access_token"] as? String ?? json["token"] as? String {
-                    let quota = try await fetchQuota(authToken: token)
-                    let email = file
-                        .replacingOccurrences(of: "kimi-", with: "")
-                        .replacingOccurrences(of: ".json", with: "")
-                    results[email] = quota
-                }
-            } catch {
-                Log.quota("Failed to fetch Kimi quota for \(file): \(error)")
+        if let hourMatch = text.range(of: #"(\d+)\s*h"#, options: .regularExpression) {
+            let hourStr = String(text[hourMatch])
+            if let hours = Int(hourStr.filter { $0.isNumber }) {
+                totalSeconds += Double(hours) * 3600
             }
         }
         
-        return results
+        if let minMatch = text.range(of: #"(\d+)\s*m"#, options: .regularExpression) {
+            let minStr = String(text[minMatch])
+            if let minutes = Int(minStr.filter { $0.isNumber }) {
+                totalSeconds += Double(minutes) * 60
+            }
+        }
+        
+        guard totalSeconds > 0 else { return nil }
+        return Date().addingTimeInterval(totalSeconds)
     }
 }
 
 // MARK: - Errors
 
-nonisolated enum KimiQuotaError: LocalizedError {
-    case invalidURL
-    case invalidResponse
-    case httpError(Int)
-    case authenticationRequired
+enum KimiQuotaError: LocalizedError {
+    case cliNotFound
+    case cliExecutionFailed(String)
     case parseFailed(String)
     
     var errorDescription: String? {
         switch self {
-        case .invalidURL: return "Invalid URL"
-        case .invalidResponse: return "Invalid response from Kimi"
-        case .httpError(let code): return "HTTP error: \(code)"
-        case .authenticationRequired: return "Kimi authentication required"
+        case .cliNotFound: return "Kimi CLI not found"
+        case .cliExecutionFailed(let msg): return "CLI execution failed: \(msg)"
         case .parseFailed(let msg): return "Failed to parse: \(msg)"
         }
     }
