@@ -704,6 +704,7 @@ struct CustomProviderSheet: View {
         apiKeys = provider.apiKeys
         models = provider.models
         headers = provider.headers
+        limitToSelectedModels = provider.limitToSelectedModels
         isEnabled = provider.isEnabled
         
         // Set selected models from existing provider
@@ -802,8 +803,15 @@ struct CustomProviderSheet: View {
             return ModelMapping(name: model.id, alias: model.id)
         }
         
-        // Merge with manually added models
-        let allModels = models.filter { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty } + selectedModelMappings
+        // Merge with manually added models (deduplicate by name)
+        var seenNames = Set<String>()
+        var allModels: [ModelMapping] = []
+        for model in models.filter({ !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }) + selectedModelMappings {
+            if !seenNames.contains(model.name) {
+                seenNames.insert(model.name)
+                allModels.append(model)
+            }
+        }
         
         // Build provider
         let newProvider = CustomProvider(
@@ -813,8 +821,9 @@ struct CustomProviderSheet: View {
             baseURL: baseURL.trimmingCharacters(in: .whitespaces),
             prefix: prefix.trimmingCharacters(in: .whitespaces).isEmpty ? nil : prefix.trimmingCharacters(in: .whitespaces),
             apiKeys: apiKeys.filter { !$0.apiKey.trimmingCharacters(in: .whitespaces).isEmpty },
-            models: allModels,
+            models: limitToSelectedModels ? allModels : [],
             headers: headers.filter { !$0.key.trimmingCharacters(in: .whitespaces).isEmpty },
+            limitToSelectedModels: limitToSelectedModels,
             isEnabled: isEnabled,
             createdAt: provider?.createdAt ?? Date(),
             updatedAt: Date()

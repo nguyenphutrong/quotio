@@ -42,6 +42,7 @@ final class CustomProviderService {
             apiKeys: provider.apiKeys,
             models: provider.models,
             headers: provider.headers,
+            limitToSelectedModels: provider.limitToSelectedModels,
             isEnabled: provider.isEnabled,
             createdAt: Date(),
             updatedAt: Date()
@@ -67,6 +68,7 @@ final class CustomProviderService {
             apiKeys: provider.apiKeys,
             models: provider.models,
             headers: provider.headers,
+            limitToSelectedModels: provider.limitToSelectedModels,
             isEnabled: provider.isEnabled,
             createdAt: providers[index].createdAt,
             updatedAt: Date()
@@ -95,6 +97,7 @@ final class CustomProviderService {
             apiKeys: provider.apiKeys,
             models: provider.models,
             headers: provider.headers,
+            limitToSelectedModels: provider.limitToSelectedModels,
             isEnabled: !provider.isEnabled,
             createdAt: provider.createdAt,
             updatedAt: Date()
