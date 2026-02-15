@@ -260,6 +260,15 @@ struct ProvidersScreen: View {
             .disabled(viewModel.isLoadingQuotas)
             .help("action.refresh".localized())
         }
+        
+        ToolbarItem(placement: .automatic) {
+            Button {
+                uploadAuthFile()
+            } label: {
+                Image(systemName: "arrow.up.circle")
+            }
+            .help("action.upload".localized())
+        }
     }
     
     // MARK: - Accounts Section
@@ -467,12 +476,33 @@ struct ProvidersScreen: View {
             NSLog("[ProvidersScreen] Download failed: \(error.localizedDescription)")
             viewModel.errorMessage = error.localizedDescription
         }
-    }
-
+}
+ 
     private func handleEditGlmAccount(_ account: AccountRowData) {
         // Find the GLM provider by ID and open edit sheet using CustomProviderSheet
         if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
             customProviderSheetMode = .edit(glmProvider)
+        }
+    }
+    
+    private func uploadAuthFile() {
+        let openPanel = NSOpenPanel()
+        openPanel.allowsMultipleSelection = false
+        openPanel.allowedContentTypes = [.json]
+        openPanel.canChooseDirectories = false
+        
+        if openPanel.runModal() == .OK, let url = openPanel.url {
+            Task {
+                do {
+                    let data = try Data(contentsOf: url)
+                    let filename = url.lastPathComponent
+                    try await viewModel.uploadAuthFile(name: filename, content: data)
+                    NSLog("[ProvidersScreen] Uploaded \(filename)")
+                } catch {
+                    NSLog("[ProvidersScreen] Upload failed: \(error.localizedDescription)")
+                    viewModel.errorMessage = error.localizedDescription
+                }
+            }
         }
     }
     
