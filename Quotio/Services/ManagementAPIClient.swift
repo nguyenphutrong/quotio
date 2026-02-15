@@ -224,7 +224,24 @@ actor ManagementAPIClient {
     }
     
     func deleteAuthFile(name: String) async throws {
-        _ = try await makeRequest("/auth-files?name=\(name)", method: "DELETE")
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        _ = try await makeRequest("/auth-files?name=\(encoded)", method: "DELETE")
+    }
+    
+    func uploadAuthFile(name: String, content: Data) async throws {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        Self.log("[\(clientId)] uploadAuthFile: name=\(name), encoded=\(encoded), size=\(content.count)")
+        let endpoint = "/auth-files?name=\(encoded)"
+        _ = try await makeRequest(endpoint, method: "POST", body: content)
+        Self.log("[\(clientId)] uploadAuthFile: success")
+    }
+    
+    func downloadAuthFile(name: String) async throws -> Data {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        Self.log("[\(clientId)] downloadAuthFile: name=\(name), encoded=\(encoded)")
+        let data = try await makeRequest("/auth-files/download?name=\(encoded)")
+        Self.log("[\(clientId)] downloadAuthFile: received \(data.count) bytes")
+        return data
     }
     
     func deleteAllAuthFiles() async throws {
