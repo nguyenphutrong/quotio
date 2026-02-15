@@ -26,6 +26,8 @@ final class TunnelManager {
     private var lastPort: UInt16 = 0
     private var autoRestartTask: Task<Void, Never>?
     private let autoRestartDelaySeconds: TimeInterval = 5
+    private var autoRestartAttempts: Int = 0
+    private let maxAutoRestartAttempts: Int = 3
     
     // MARK: - Init
     
@@ -78,6 +80,7 @@ final class TunnelManager {
                     self.lastPort = port
                     self.cancelStartTimeout()
                     self.cancelAutoRestart()
+                    self.resetAutoRestartAttempts()
                     NSLog("[TunnelManager] Tunnel active: %@", url)
                 }
             }
@@ -150,7 +153,11 @@ final class TunnelManager {
         
         monitorTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                do {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                } catch {
+                    break
+                }
                 
                 guard let self = self else { break }
                 
@@ -179,7 +186,12 @@ final class TunnelManager {
         cancelStartTimeout()
         startTimeoutTask = Task { [weak self] in
             guard let self = self else { return }
-            try? await Task.sleep(nanoseconds: UInt64(self.startTimeoutSeconds * 1_000_000_000))
+            do {
+                try await Task.sleep(nanoseconds: UInt64(self.startTimeoutSeconds * 1_000_000_000))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             guard self.tunnelRequestId == requestId else { return }
             guard self.tunnelState.status == .starting else { return }
             self.tunnelState.status = .error
@@ -201,13 +213,23 @@ final class TunnelManager {
         let autoRestartEnabled = UserDefaults.standard.bool(forKey: "autoRestartTunnel")
         guard autoRestartEnabled, lastPort > 0 else { return }
         
+        guard autoRestartAttempts < maxAutoRestartAttempts else {
+            NSLog("[TunnelManager] Max auto-restart attempts reached (%d), stopping", autoRestartAttempts)
+            return
+        }
+        
         let delay = autoRestartDelaySeconds
         let port = lastPort
         
-        NSLog("[TunnelManager] Scheduling auto-restart in %.0f seconds", delay)
+        NSLog("[TunnelManager] Scheduling auto-restart in %.0f seconds (attempt %d/%d)", delay, autoRestartAttempts + 1, maxAutoRestartAttempts)
         
         autoRestartTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            do {
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             guard let self = self else { return }
             
             guard self.tunnelState.status == .error || self.tunnelState.status == .idle else {
@@ -215,7 +237,8 @@ final class TunnelManager {
                 return
             }
             
-            NSLog("[TunnelManager] Auto-restarting tunnel on port %d", port)
+            self.autoRestartAttempts += 1
+            NSLog("[TunnelManager] Auto-restarting tunnel on port %d (attempt %d)", port, self.autoRestartAttempts)
             await self.startTunnel(port: port)
         }
     }
@@ -223,5 +246,9 @@ final class TunnelManager {
     private func cancelAutoRestart() {
         autoRestartTask?.cancel()
         autoRestartTask = nil
+    }
+    
+    private func resetAutoRestartAttempts() {
+        autoRestartAttempts = 0
     }
 }
