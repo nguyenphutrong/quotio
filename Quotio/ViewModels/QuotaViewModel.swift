@@ -1193,8 +1193,9 @@ final class QuotaViewModel {
             async let glm: () = refreshGlmQuotasInternal()
             async let warp: () = refreshWarpQuotasInternal()
             async let kiro: () = refreshKiroQuotasInternal()
+            async let kimi: () = refreshKimiQuotasInternal()
 
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, kimi)
         }
 
         checkQuotaNotifications()
@@ -1342,6 +1343,8 @@ final class QuotaViewModel {
             await refreshWarpQuotasInternal()
         case .kiro:
             await refreshKiroQuotasInternal()
+        case .kimi:
+            await refreshKimiQuotasInternal()
         default:
             break
         }
