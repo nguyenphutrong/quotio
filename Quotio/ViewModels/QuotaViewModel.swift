@@ -45,6 +45,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
     @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
+    @ObservationIgnored private let kimiFetcher = KimiQuotaFetcher()
     
     @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
     
@@ -211,6 +212,7 @@ final class QuotaViewModel {
         await warpFetcher.updateProxyConfiguration()
         await traeFetcher.updateProxyConfiguration()
         await kiroFetcher.updateProxyConfiguration()
+        await kimiFetcher.updateProxyConfiguration()
     }
 
     private func setupRefreshCadenceCallback() {
@@ -360,8 +362,9 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
+        async let kimi: () = refreshKimiQuotasInternal()
 
-        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, warp, kiro)
+        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, warp, kiro, kimi)
         
         checkQuotaNotifications()
         pruneMenuBarItems()
@@ -573,6 +576,16 @@ final class QuotaViewModel {
             providerQuotas.removeValue(forKey: .kiro)
         } else {
             providerQuotas[.kiro] = remappedQuotas
+        }
+    }
+    
+    /// Refresh Kimi quota using API
+    private func refreshKimiQuotasInternal() async {
+        let quotas = await kimiFetcher.fetchAsProviderQuota()
+        if quotas.isEmpty {
+            providerQuotas.removeValue(forKey: .kimi)
+        } else {
+            providerQuotas[.kimi] = quotas
         }
     }
     
@@ -1181,8 +1194,9 @@ final class QuotaViewModel {
             async let glm: () = refreshGlmQuotasInternal()
             async let warp: () = refreshWarpQuotasInternal()
             async let kiro: () = refreshKiroQuotasInternal()
+            async let kimi: () = refreshKimiQuotasInternal()
 
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, kimi)
         }
 
         checkQuotaNotifications()
@@ -1215,14 +1229,15 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
+        async let kimi: () = refreshKimiQuotasInternal()
 
         // In Quota-Only Mode, also include CLI fetchers
         if modeManager.isMonitorMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
             async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, codexCLI, geminiCLI)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, kimi, codexCLI, geminiCLI)
         } else {
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, kimi)
         }
 
         checkQuotaNotifications()
@@ -1331,6 +1346,8 @@ final class QuotaViewModel {
             await refreshWarpQuotasInternal()
         case .kiro:
             await refreshKiroQuotasInternal()
+        case .kimi:
+            await refreshKimiQuotasInternal()
         default:
             break
         }
@@ -1509,6 +1526,32 @@ final class QuotaViewModel {
     
     func cancelOAuth() {
         oauthState = nil
+    }
+    
+    /// Create new Kimi auth file with browser cookie
+    func createKimiAuthFile(cookie: String) {
+        let trimmedCookie = cookie.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCookie.isEmpty else { return }
+        
+        let authDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        let fileManager = FileManager.default
+        
+        let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+        let filename = "kimi-\(timestamp).json"
+        let filePath = (authDir as NSString).appendingPathComponent(filename)
+        
+        let json: [String: Any] = [
+            "type": "kimi",
+            "kimi_auth_cookie": trimmedCookie
+        ]
+        
+        do {
+            let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: URL(fileURLWithPath: filePath))
+            Log.quota("Created Kimi auth file: \(filename)")
+        } catch {
+            Log.quota("Failed to create Kimi auth file: \(error)")
+        }
     }
     
     func deleteAuthFile(_ file: AuthFile) async {

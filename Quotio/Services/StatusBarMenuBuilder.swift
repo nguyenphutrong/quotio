@@ -1389,6 +1389,7 @@ private extension AIProvider {
         case .kiro: return "Kiro"
         case .glm: return "GLM"
         case .warp: return "Warp"
+        case .kimi: return "Kimi"
         }
     }
 }
