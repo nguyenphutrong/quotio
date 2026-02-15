@@ -790,7 +790,7 @@ struct OAuthSheet: View {
             }
             
             if let state = viewModel.oauthState, state.provider == provider {
-                OAuthStatusView(status: state.status, error: state.error, state: state.state, provider: provider)
+                OAuthStatusView(status: state.status, error: state.error, state: state.state, authURL: state.authURL, provider: provider)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
             
@@ -851,10 +851,14 @@ private struct OAuthStatusView: View {
     let status: OAuthState.OAuthStatus
     let error: String?
     let state: String?
+    let authURL: String?
     let provider: AIProvider
     
     /// Stable rotation angle for spinner animation (fixes UUID() infinite re-render)
     @State private var rotationAngle: Double = 0
+    
+    /// Visual feedback for copy action
+    @State private var copied = false
     
     var body: some View {
         Group {
@@ -934,9 +938,40 @@ private struct OAuthStatusView: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
-                        Text("oauth.completeBrowser".localized())
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        // Show auth URL with copy/open buttons
+                        if let urlString = authURL, let url = URL(string: urlString) {
+                            VStack(spacing: 12) {
+                                Text("oauth.copyLinkOrOpen".localized())
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                
+                                HStack(spacing: 12) {
+                                    Button {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(urlString, forType: .string)
+                                        copied = true
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                            copied = false
+                                        }
+                                    } label: {
+                                        Label(copied ? "oauth.copied".localized() : "oauth.copyLink".localized(), systemImage: copied ? "checkmark" : "doc.on.doc")
+                                    }
+                                    .buttonStyle(.bordered)
+                                    
+                                    Button {
+                                        NSWorkspace.shared.open(url)
+                                    } label: {
+                                        Label("oauth.openLink".localized(), systemImage: "safari")
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(provider.color)
+                                }
+                            }
+                        } else {
+                            Text("oauth.completeBrowser".localized())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .padding(.vertical, 16)
