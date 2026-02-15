@@ -312,9 +312,9 @@ struct AccountRow: View {
             }
             
             // Download auth file (for proxy and direct accounts)
-            if (account.source == .proxy || account.source == .direct), let onDownload = onDownload {
+            if account.source == .proxy || account.source == .direct {
                 Button {
-                    onDownload()
+                    onDownload?()
                 } label: {
                     Label("action.download".localized(), systemImage: "arrow.down.circle")
                 }
