@@ -857,6 +857,9 @@ private struct OAuthStatusView: View {
     /// Stable rotation angle for spinner animation (fixes UUID() infinite re-render)
     @State private var rotationAngle: Double = 0
     
+    /// Visual feedback for copy action
+    @State private var copied = false
+    
     var body: some View {
         Group {
             switch status {
@@ -946,8 +949,12 @@ private struct OAuthStatusView: View {
                                     Button {
                                         NSPasteboard.general.clearContents()
                                         NSPasteboard.general.setString(urlString, forType: .string)
+                                        copied = true
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                            copied = false
+                                        }
                                     } label: {
-                                        Label("oauth.copyLink".localized(), systemImage: "doc.on.doc")
+                                        Label(copied ? "oauth.copied".localized() : "oauth.copyLink".localized(), systemImage: copied ? "checkmark" : "doc.on.doc")
                                     }
                                     .buttonStyle(.bordered)
                                     

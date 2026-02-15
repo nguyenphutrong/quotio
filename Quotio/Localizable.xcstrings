@@ -10561,19 +10561,19 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Copiez le lien ou ouvrez-le dans le navigateur"
+            "value" : "Copiez le lien ou ouvrez-le dans le navigateur pour vous authentifier"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sao chép liên kết hoặc mở trong trình duyệt"
+            "value" : "Sao chép liên kết hoặc mở trong trình duyệt để xác thực"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "复制链接或在浏览器中打开"
+            "value" : "复制链接或在浏览器中打开以进行认证"
           }
         }
       }
@@ -10603,6 +10603,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "复制链接"
+          }
+        }
+      }
+    },
+    "oauth.copied" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied!"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copié!"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã sao chép!"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已复制!"
           }
         }
       }
