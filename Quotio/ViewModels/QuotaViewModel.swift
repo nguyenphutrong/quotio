@@ -1146,7 +1146,28 @@ final class QuotaViewModel {
             }
         } catch {
             if !Task.isCancelled {
-                errorMessage = error.localizedDescription
+                if APIError.isAuthError(error) {
+                    handleAuthError()
+                } else {
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+    
+    private func handleAuthError() {
+        Log.error("[QuotaViewModel] Session expired - redirecting to re-authentication")
+        
+        if modeManager.isRemoteProxyMode {
+            modeManager.clearRemoteConfig()
+            modeManager.setConnectionStatus(.error("Session expired. Please reconnect."))
+        }
+        
+        errorMessage = "Session expired. Please re-authenticate."
+        
+        Task {
+            await MainActor.run {
+                self.modeManager.resetOnboarding()
             }
         }
     }

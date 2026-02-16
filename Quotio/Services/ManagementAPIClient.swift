@@ -179,6 +179,9 @@ actor ManagementAPIClient {
             
             guard 200...299 ~= httpResponse.statusCode else {
                 Self.log("[\(clientId)][\(requestId)] HTTP ERROR \(httpResponse.statusCode)")
+                if httpResponse.statusCode == 401 {
+                    throw APIError.unauthorized
+                }
                 throw APIError.httpError(httpResponse.statusCode)
             }
             
@@ -614,6 +617,7 @@ nonisolated enum APIError: LocalizedError {
     case httpError(Int)
     case decodingError(String)
     case connectionError(String)
+    case unauthorized
     
     var errorDescription: String? {
         switch self {
@@ -622,7 +626,21 @@ nonisolated enum APIError: LocalizedError {
         case .httpError(let code): return "HTTP error: \(code)"
         case .decodingError(let msg): return "Decoding error: \(msg)"
         case .connectionError(let msg): return "Connection error: \(msg)"
+        case .unauthorized: return "Session expired. Please re-authenticate."
         }
+    }
+    
+    static func isAuthError(_ error: Error) -> Bool {
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .unauthorized, .httpError(401):
+                return true
+            default:
+                return false
+            }
+        }
+        let msg = error.localizedDescription.lowercased()
+        return msg.contains("401") || msg.contains("unauthorized")
     }
 }
 

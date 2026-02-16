@@ -444,48 +444,33 @@ struct ProvidersScreen: View {
         }
     }
     
-    private func downloadAccountAuthFile(_ account: AccountRowData) {
-        NSLog("[ProvidersScreen] Download requested for account.id=\(account.id), source=\(account.source), displayName=\(account.displayName)")
-        
-        // Find the actual filename from authFiles
+    private func downloadAccountAuthFile(_ account: AccountRowData) async {
         let filename: String
         if account.source == .direct, let directFile = viewModel.directAuthFiles.first(where: { $0.id == account.id }) {
             filename = directFile.filename
-            NSLog("[ProvidersScreen] Found DirectAuthFile: filename=\(filename)")
         } else if account.source == .proxy, let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
             filename = authFile.name
-            NSLog("[ProvidersScreen] Found AuthFile: filename=\(filename), path=\(authFile.path ?? "nil")")
         } else {
             filename = account.displayName
-            NSLog("[ProvidersScreen] Using fallback filename=\(filename)")
         }
         
-        NSLog("[ProvidersScreen] Final filename to fetch: \(filename)")
-        
-        Task {
-            do {
-                let data = try await viewModel.downloadAuthFile(name: filename)
-                
-                NSLog("[ProvidersScreen] Downloaded \(data.count) bytes")
-
-                await MainActor.run {
-                    // Show save panel
-                    let savePanel = NSSavePanel()
-                    savePanel.nameFieldStringValue = filename.hasSuffix(".json") ? filename : filename + ".json"
-                    savePanel.allowedContentTypes = [.json]
-                    savePanel.canCreateDirectories = true
-                    
-                    if savePanel.runModal() == .OK, let url = savePanel.url {
-                        try? data.write(to: url)
-                        NSLog("[ProvidersScreen] Saved to \(url.path)")
-                    }
-                }
-            } catch {
-                NSLog("[ProvidersScreen] Download failed: \(error.localizedDescription)")
-                await MainActor.run {
-                    viewModel.errorMessage = error.localizedDescription
+        do {
+            let data = try await viewModel.downloadAuthFile(name: filename)
+            
+            let savePanel = NSSavePanel()
+            savePanel.nameFieldStringValue = filename.hasSuffix(".json") ? filename : filename + ".json"
+            savePanel.allowedContentTypes = [.json]
+            savePanel.canCreateDirectories = true
+            
+            if savePanel.runModal() == .OK, let url = savePanel.url {
+                do {
+                    try data.write(to: url)
+                } catch {
+                    viewModel.errorMessage = "Failed to save file: \(error.localizedDescription)"
                 }
             }
+        } catch {
+            viewModel.errorMessage = error.localizedDescription
         }
     }
  
@@ -508,9 +493,7 @@ struct ProvidersScreen: View {
                     let data = try Data(contentsOf: url)
                     let filename = url.lastPathComponent
                     try await viewModel.uploadAuthFile(name: filename, content: data)
-                    NSLog("[ProvidersScreen] Uploaded \(filename)")
                 } catch {
-                    NSLog("[ProvidersScreen] Upload failed: \(error.localizedDescription)")
                     viewModel.errorMessage = error.localizedDescription
                 }
             }
