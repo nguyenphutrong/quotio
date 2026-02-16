@@ -231,6 +231,7 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
     var apiKeys: [CustomAPIKeyEntry]
     var models: [ModelMapping]
     var headers: [CustomHeader]  // Only used for Gemini-compatible
+    var limitToSelectedModels: Bool
     var isEnabled: Bool
     var createdAt: Date
     var updatedAt: Date
@@ -244,6 +245,7 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         apiKeys: [CustomAPIKeyEntry] = [],
         models: [ModelMapping] = [],
         headers: [CustomHeader] = [],
+        limitToSelectedModels: Bool = true,
         isEnabled: Bool = true,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -256,6 +258,7 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         self.apiKeys = apiKeys
         self.models = models
         self.headers = headers
+        self.limitToSelectedModels = limitToSelectedModels
         self.isEnabled = isEnabled
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -266,6 +269,7 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         case baseURL = "base-url"
         case apiKeys = "api-keys"
         case models, headers
+        case limitToSelectedModels = "limit-to-selected-models"
         case isEnabled = "is-enabled"
         case createdAt = "created-at"
         case updatedAt = "updated-at"
