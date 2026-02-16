@@ -275,6 +275,38 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         case updatedAt = "updated-at"
     }
     
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        type = try container.decode(CustomProviderType.self, forKey: .type)
+        baseURL = try container.decode(String.self, forKey: .baseURL)
+        prefix = try container.decodeIfPresent(String.self, forKey: .prefix)
+        apiKeys = try container.decodeIfPresent([CustomAPIKeyEntry].self, forKey: .apiKeys) ?? []
+        models = try container.decodeIfPresent([ModelMapping].self, forKey: .models) ?? []
+        headers = try container.decodeIfPresent([CustomHeader].self, forKey: .headers) ?? []
+        limitToSelectedModels = try container.decodeIfPresent(Bool.self, forKey: .limitToSelectedModels) ?? true
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(type, forKey: .type)
+        try container.encode(baseURL, forKey: .baseURL)
+        try container.encodeIfPresent(prefix, forKey: .prefix)
+        try container.encode(apiKeys, forKey: .apiKeys)
+        try container.encode(models, forKey: .models)
+        try container.encode(headers, forKey: .headers)
+        try container.encode(limitToSelectedModels, forKey: .limitToSelectedModels)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+    }
+    
     /// Validate the provider configuration
     func validate() -> [String] {
         var errors: [String] = []
