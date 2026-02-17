@@ -1379,6 +1379,17 @@
         }
       }
     },
+    "agents.codex.mergeAndSaveFiles" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge and save the files below in ~/.codex/ directory:"
+          }
+        }
+      }
+    },
     "agents.connectionInfo" : {
       "extractionState" : "stale",
       "localizations" : {

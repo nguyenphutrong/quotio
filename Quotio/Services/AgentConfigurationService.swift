@@ -346,10 +346,35 @@ actor AgentConfigurationService {
         return value.isEmpty ? nil : value
     }
 
+    /// Escape a value for use in a TOML basic string.
+    /// Handles quotes, backslashes, and ASCII control characters.
     private func escapeTOMLString(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
+        var escaped = ""
+
+        for scalar in value.unicodeScalars {
+            switch scalar.value {
+            case 0x22:
+                escaped += "\\\""
+            case 0x5C:
+                escaped += "\\\\"
+            case 0x08:
+                escaped += "\\b"
+            case 0x09:
+                escaped += "\\t"
+            case 0x0A:
+                escaped += "\\n"
+            case 0x0C:
+                escaped += "\\f"
+            case 0x0D:
+                escaped += "\\r"
+            case 0x00...0x1F:
+                escaped += String(format: "\\u%04X", scalar.value)
+            default:
+                escaped.unicodeScalars.append(scalar)
+            }
+        }
+
+        return escaped
     }
 
     private func buildManagedCodexTOML(model: String, proxyURL: String) -> String {
@@ -394,7 +419,9 @@ actor AgentConfigurationService {
         return key == "model_provider" || key == "model" || key == "model_reasoning_effort"
     }
 
-    private func splitManagedCodexConfig(_ managedConfig: String) -> (topLevel: [String], section: [String]) {
+    private typealias ManagedCodexConfigParts = (topLevel: [String], section: [String])
+
+    private func splitManagedCodexConfig(_ managedConfig: String) -> ManagedCodexConfigParts {
         let lines = managedConfig.components(separatedBy: .newlines)
         guard let sectionStart = lines.firstIndex(where: { parseTOMLSectionName(from: $0) != nil }) else {
             return (lines, [])
@@ -402,9 +429,7 @@ actor AgentConfigurationService {
         return (Array(lines[..<sectionStart]), Array(lines[sectionStart...]))
     }
 
-    private func mergeCodexConfig(existingContent: String, managedConfig: String) -> String {
-        let managedBanner = "# CLIProxyAPI Configuration for Codex CLI"
-        let managedParts = splitManagedCodexConfig(managedConfig)
+    private func filterExistingCodexLines(existingContent: String, managedBanner: String) -> [String] {
         let lines = existingContent.components(separatedBy: .newlines)
         var filteredLines: [String] = []
         var skippingCliproxySection = false
@@ -437,12 +462,14 @@ actor AgentConfigurationService {
             filteredLines.append(line)
         }
 
-        // Trim trailing blank lines before composing final output.
         while filteredLines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
             filteredLines.removeLast()
         }
 
-        // Keep top-level keys before any section; insert managed top-level keys there.
+        return filteredLines
+    }
+
+    private func composeMergedCodexConfig(filteredLines: [String], managedParts: ManagedCodexConfigParts) -> String {
         var firstSectionIndex = filteredLines.count
         if let sectionIndex = filteredLines.firstIndex(where: { parseTOMLSectionName(from: $0) != nil }) {
             firstSectionIndex = sectionIndex
@@ -511,6 +538,13 @@ actor AgentConfigurationService {
         return merged
             .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
+    }
+
+    private func mergeCodexConfig(existingContent: String, managedConfig: String) -> String {
+        let managedBanner = "# CLIProxyAPI Configuration for Codex CLI"
+        let managedParts = splitManagedCodexConfig(managedConfig)
+        let filteredLines = filterExistingCodexLines(existingContent: existingContent, managedBanner: managedBanner)
+        return composeMergedCodexConfig(filteredLines: filteredLines, managedParts: managedParts)
     }
     
     func generateConfiguration(
@@ -1040,9 +1074,14 @@ actor AgentConfigurationService {
         )
 
         let configTOML: String
-        if fileManager.fileExists(atPath: configPath),
-           let existingConfig = try? String(contentsOfFile: configPath, encoding: .utf8) {
-            configTOML = mergeCodexConfig(existingContent: existingConfig, managedConfig: managedConfigTOML)
+        if fileManager.fileExists(atPath: configPath) {
+            do {
+                let existingConfig = try String(contentsOfFile: configPath, encoding: .utf8)
+                configTOML = mergeCodexConfig(existingContent: existingConfig, managedConfig: managedConfigTOML)
+            } catch {
+                Log.warning("Failed to read existing Codex config at \(configPath): \(error.localizedDescription). Falling back to managed-only config.")
+                configTOML = managedConfigTOML + "\n"
+            }
         } else {
             configTOML = managedConfigTOML + "\n"
         }
@@ -1101,7 +1140,7 @@ actor AgentConfigurationService {
                 configPath: configPath,
                 authPath: authPath,
                 rawConfigs: rawConfigs,
-                instructions: "Merge and save the files below in ~/.codex/ directory:",
+                instructions: "agents.codex.mergeAndSaveFiles".localizedStatic(),
                 modelsConfigured: 1
             )
         }
