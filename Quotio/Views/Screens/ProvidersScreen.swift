@@ -731,7 +731,6 @@ struct OAuthSheet: View {
     
     @State private var hasStartedAuth = false
     @State private var selectedKiroMethod: AuthCommand = .kiroImport
-    @State private var kimiAuthCookie: String = ""
     
     private var isPolling: Bool {
         viewModel.oauthState?.status == .polling || viewModel.oauthState?.status == .waiting
@@ -792,28 +791,6 @@ struct OAuthSheet: View {
                 .frame(maxWidth: 320)
             }
             
-            if provider == .kimi {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("kimi.browserCookie".localized())
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        Text("*")
-                            .foregroundStyle(.red)
-                    }
-                    
-                    TextField("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", text: $kimiAuthCookie)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-                    
-                    Text("kimi.cookieHint".localized())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: 320)
-            }
-            
             if let state = viewModel.oauthState, state.provider == provider {
                 OAuthStatusView(status: state.status, error: state.error, state: state.state, authURL: state.authURL, provider: provider)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -840,14 +817,8 @@ struct OAuthSheet: View {
                 } else if !isSuccess {
                     Button {
                         hasStartedAuth = true
-                        if provider == .kimi && !kimiAuthCookie.isEmpty {
-                            viewModel.createKimiAuthFile(cookie: kimiAuthCookie)
-                            viewModel.oauthState = OAuthState(provider: .kimi, status: .success)
-                            Task { await viewModel.refreshData() }
-                        } else {
-                            Task {
-                                await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId, authMethod: provider == .kiro ? selectedKiroMethod : nil)
-                            }
+                        Task {
+                            await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId, authMethod: provider == .kiro ? selectedKiroMethod : nil)
                         }
                     } label: {
                         if isPolling {
@@ -858,7 +829,7 @@ struct OAuthSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(provider.color)
-                    .disabled(isPolling || (provider == .kimi && kimiAuthCookie.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                    .disabled(isPolling)
                 }
             }
         }

@@ -2,28 +2,31 @@
 //  KimiQuotaFetcher.swift
 //  Quotio
 //
-//  Kimi (Moonshot AI) Quota Fetcher
-//  Uses Kimi API to fetch coding usage quota
-//
 
 import Foundation
 
 // MARK: - Kimi Response Models
 
 nonisolated struct KimiUsageResponse: Decodable {
-    let usages: [KimiUsage]
+    let user: KimiUser?
+    let usage: KimiUsageDetail
+    let limits: [KimiRateLimit]?
     
-    struct KimiUsage: Decodable {
-        let scope: String
-        let detail: KimiUsageDetail
-        let limits: [KimiRateLimit]?
+    struct KimiUser: Decodable {
+        let userId: String?
+        let region: String?
+        let membership: KimiMembership?
+    }
+    
+    struct KimiMembership: Decodable {
+        let level: String?
     }
     
     struct KimiUsageDetail: Decodable {
         let limit: String
         let used: String?
         let remaining: String?
-        let resetTime: String
+        let resetTime: String?
     }
     
     struct KimiRateLimit: Decodable {
@@ -37,18 +40,33 @@ nonisolated struct KimiUsageResponse: Decodable {
     }
 }
 
+nonisolated struct KimiTokenRefreshResponse: Decodable {
+    let accessToken: String
+    let refreshToken: String
+    let expiresIn: Int?
+    let scope: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case expiresIn = "expires_in"
+        case scope
+    }
+}
+
 // MARK: - Kimi Quota Fetcher
 
 actor KimiQuotaFetcher {
-    private let usageURL = "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages"
+    private let usageURL = "https://api.kimi.com/coding/v1/usages"
+    private let refreshURL = "https://auth.kimi.com/api/oauth/token"
+    private let clientId = "17e5f671-d194-4dfb-9706-5516cb48c098"
     
     private var session: URLSession
     
-    /// Known tier mappings based on weekly limit
-    private static let tierByLimit: [Int: String] = [
-        1024: "Andante",
-        2048: "Moderato",
-        7168: "Allegretto",
+    private static let tierByLevel: [String: String] = [
+        "LEVEL_BEGINNER": "Beginner",
+        "LEVEL_INTERMEDIATE": "Intermediate",
+        "LEVEL_ADVANCED": "Advanced",
     ]
     
     init() {
@@ -56,39 +74,77 @@ actor KimiQuotaFetcher {
         self.session = URLSession(configuration: config)
     }
     
-    /// Update the URLSession with current proxy settings
     func updateProxyConfiguration() {
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
         self.session = URLSession(configuration: config)
     }
     
-    /// Fetch quota from Kimi API using auth token
-    func fetchQuota(authToken: String) async throws -> ProviderQuotaData {
-        guard let url = URL(string: usageURL) else {
+    // MARK: - Token Refresh
+    
+    private func refreshAccessToken(refreshToken: String) async throws -> (accessToken: String, newRefreshToken: String) {
+        guard let url = URL(string: refreshURL) else {
             throw KimiQuotaError.invalidURL
         }
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 30
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["scope": ["FEATURE_CODING"]])
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
         
-        // Apply headers
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("kimi-auth=\(authToken)", forHTTPHeaderField: "Cookie")
-        request.setValue("https://www.kimi.com", forHTTPHeaderField: "Origin")
-        request.setValue("https://www.kimi.com/code/console", forHTTPHeaderField: "Referer")
-        request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
-        request.setValue(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
-            forHTTPHeaderField: "User-Agent"
-        )
-        request.setValue("1", forHTTPHeaderField: "connect-protocol-version")
-        request.setValue("en-US", forHTTPHeaderField: "x-language")
-        request.setValue("web", forHTTPHeaderField: "x-msh-platform")
-        request.setValue(TimeZone.current.identifier, forHTTPHeaderField: "r-timezone")
+        let body = "client_id=\(clientId)&grant_type=refresh_token&refresh_token=\(refreshToken)"
+        request.httpBody = body.data(using: .utf8)
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw KimiQuotaError.invalidResponse
+        }
+        
+        switch httpResponse.statusCode {
+        case 200:
+            break
+        case 401, 403:
+            throw KimiQuotaError.authenticationRequired
+        default:
+            throw KimiQuotaError.httpError(httpResponse.statusCode)
+        }
+        
+        let tokenResponse = try JSONDecoder().decode(KimiTokenRefreshResponse.self, from: data)
+        return (tokenResponse.accessToken, tokenResponse.refreshToken)
+    }
+    
+    private func updateAuthFile(at path: String, newRefreshToken: String, accessToken: String) {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+        
+        json["refresh_token"] = newRefreshToken
+        json["access_token"] = accessToken
+        json["last_refresh"] = ISO8601DateFormatter().string(from: Date())
+        
+        json.removeValue(forKey: "kimi_auth_cookie")
+        json.removeValue(forKey: "kimi-auth")
+        
+        if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+            try? updatedData.write(to: URL(fileURLWithPath: path))
+            Log.quota("Updated Kimi auth file with refreshed tokens")
+        }
+    }
+    
+    // MARK: - Quota Fetching
+    
+    private func fetchQuotaWithAccessToken(_ accessToken: String) async throws -> ProviderQuotaData {
+        guard let url = URL(string: usageURL) else {
+            throw KimiQuotaError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
         
         let (data, response) = try await session.data(for: request)
         
@@ -108,7 +164,24 @@ actor KimiQuotaFetcher {
         return try parseResponse(data)
     }
     
-    /// Parse Kimi API response into ProviderQuotaData
+    /// Fetch quota using refresh token (refreshes access token first)
+    /// - Parameters:
+    ///   - refreshToken: The refresh token
+    ///   - filePath: Optional path to auth file for persisting new refresh token
+    /// - Returns: Quota data
+    func fetchQuotaWithRefresh(refreshToken: String, filePath: String? = nil) async throws -> ProviderQuotaData {
+        // Step 1: Refresh access token
+        let (accessToken, newRefreshToken) = try await refreshAccessToken(refreshToken: refreshToken)
+        
+        // Step 2: Persist new refresh token if file path provided
+        if let path = filePath {
+            updateAuthFile(at: path, newRefreshToken: newRefreshToken, accessToken: accessToken)
+        }
+        
+        // Step 3: Fetch quota with access token
+        return try await fetchQuotaWithAccessToken(accessToken)
+    }
+    
     private func parseResponse(_ data: Data) throws -> ProviderQuotaData {
         let decoded: KimiUsageResponse
         do {
@@ -117,22 +190,14 @@ actor KimiQuotaFetcher {
             throw KimiQuotaError.parseFailed(error.localizedDescription)
         }
         
-        guard let coding = decoded.usages.first(where: { $0.scope == "FEATURE_CODING" }) else {
-            throw KimiQuotaError.parseFailed("Missing FEATURE_CODING scope in response")
-        }
-        
         var models: [ModelQuota] = []
         
-        // Parse weekly quota from detail
-        let weekly = parseUsageNumbers(detail: coding.detail)
-        let weeklyPercentRemaining: Double
-        if weekly.limit > 0 {
-            weeklyPercentRemaining = (Double(weekly.remaining) / Double(weekly.limit)) * 100.0
-        } else {
-            weeklyPercentRemaining = 100.0
-        }
+        let weekly = parseUsageNumbers(detail: decoded.usage)
+        let weeklyPercentRemaining: Double = weekly.limit > 0
+            ? (Double(weekly.remaining) / Double(weekly.limit)) * 100.0
+            : 100.0
         
-        let weeklyResetDate = parseISO8601(coding.detail.resetTime)
+        let weeklyResetDate = parseISO8601(decoded.usage.resetTime)
         let weeklyResetStr = weeklyResetDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
         
         models.append(ModelQuota(
@@ -144,20 +209,15 @@ actor KimiQuotaFetcher {
             remaining: weekly.remaining
         ))
         
-        // Parse 5-hour rate limit from limits array
-        // Look for window with duration=300, timeUnit=TIME_UNIT_MINUTE (300 min = 5 hours)
-        let fiveHourRate = coding.limits?.first(where: {
+        let fiveHourRate = decoded.limits?.first(where: {
             $0.window.duration == 300 && $0.window.timeUnit == "TIME_UNIT_MINUTE"
-        }) ?? coding.limits?.first
+        }) ?? decoded.limits?.first
         
         if let rateLimit = fiveHourRate {
             let rate = parseUsageNumbers(detail: rateLimit.detail)
-            let ratePercentRemaining: Double
-            if rate.limit > 0 {
-                ratePercentRemaining = (Double(rate.remaining) / Double(rate.limit)) * 100.0
-            } else {
-                ratePercentRemaining = 100.0
-            }
+            let ratePercentRemaining: Double = rate.limit > 0
+                ? (Double(rate.remaining) / Double(rate.limit)) * 100.0
+                : 100.0
             
             let rateResetDate = parseISO8601(rateLimit.detail.resetTime)
             let rateResetStr = rateResetDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
@@ -172,8 +232,7 @@ actor KimiQuotaFetcher {
             ))
         }
         
-        // Detect account tier from weekly limit
-        let planType = Self.tierByLimit[weekly.limit]
+        let planType = decoded.user?.membership?.level.flatMap { Self.tierByLevel[$0] }
         
         return ProviderQuotaData(
             models: models,
@@ -219,20 +278,7 @@ actor KimiQuotaFetcher {
         return formatter.date(from: raw)
     }
     
-    /// Fetch quota using token from environment or auth file
     func fetchAsProviderQuota() async -> [String: ProviderQuotaData] {
-        // Try environment variable first
-        if let envToken = ProcessInfo.processInfo.environment["KIMI_AUTH_TOKEN"],
-           !envToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            do {
-                let quota = try await fetchQuota(authToken: envToken)
-                return ["Kimi": quota]
-            } catch {
-                Log.quota("Failed to fetch Kimi quota with env token: \(error)")
-            }
-        }
-        
-        // Try to read from auth files (if any exist in ~/.cli-proxy-api/)
         let authDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
         let fileManager = FileManager.default
         
@@ -247,25 +293,33 @@ actor KimiQuotaFetcher {
             
             do {
                 let data = try Data(contentsOf: URL(fileURLWithPath: filePath))
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    // Prefer kimi_auth_cookie (browser cookie) over access_token (OAuth)
-                    // The GetUsages API requires the browser session cookie, not OAuth token
-                    let token = json["kimi_auth_cookie"] as? String
-                        ?? json["kimi-auth"] as? String
-                        ?? json["access_token"] as? String
-                        ?? json["token"] as? String
-                    
-                    guard let token, !token.isEmpty else {
-                        Log.quota("No valid token found in \(file)")
-                        continue
-                    }
-                    
-                    let quota = try await fetchQuota(authToken: token)
-                    let email = file
-                        .replacingOccurrences(of: "kimi-", with: "")
-                        .replacingOccurrences(of: ".json", with: "")
-                    results[email] = quota
+                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    continue
                 }
+                
+                let email = file
+                    .replacingOccurrences(of: "kimi-", with: "")
+                    .replacingOccurrences(of: ".json", with: "")
+                
+                if let accessToken = json["access_token"] as? String, !accessToken.isEmpty {
+                    do {
+                        let quota = try await fetchQuotaWithAccessToken(accessToken)
+                        results[email] = quota
+                        continue
+                    } catch KimiQuotaError.authenticationRequired {
+                        Log.quota("Kimi access_token expired for \(file), attempting refresh")
+                    } catch {
+                        Log.quota("Kimi access_token failed for \(file): \(error)")
+                    }
+                }
+                
+                guard let refreshToken = json["refresh_token"] as? String, !refreshToken.isEmpty else {
+                    Log.quota("No valid tokens in \(file)")
+                    continue
+                }
+                
+                let quota = try await fetchQuotaWithRefresh(refreshToken: refreshToken, filePath: filePath)
+                results[email] = quota
             } catch {
                 Log.quota("Failed to fetch Kimi quota for \(file): \(error)")
             }
