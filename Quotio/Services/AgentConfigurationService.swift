@@ -345,6 +345,173 @@ actor AgentConfigurationService {
         }
         return value.isEmpty ? nil : value
     }
+
+    private func escapeTOMLString(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    private func buildManagedCodexTOML(model: String, proxyURL: String) -> String {
+        let escapedModel = escapeTOMLString(model)
+        let escapedProxyURL = escapeTOMLString(proxyURL)
+
+        return """
+        # CLIProxyAPI Configuration for Codex CLI
+        model_provider = "cliproxyapi"
+        model = "\(escapedModel)"
+        model_reasoning_effort = "high"
+
+        [model_providers.cliproxyapi]
+        name = "cliproxyapi"
+        base_url = "\(escapedProxyURL)"
+        wire_api = "responses"
+        """
+    }
+
+    private func parseTOMLSectionName(from line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("[") else { return nil }
+
+        if trimmed.hasPrefix("[[") {
+            guard let closeRange = trimmed.range(of: "]]") else { return nil }
+            let start = trimmed.index(trimmed.startIndex, offsetBy: 2)
+            let section = String(trimmed[start..<closeRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            return section.isEmpty ? nil : section
+        }
+
+        guard let closeIndex = trimmed.firstIndex(of: "]") else { return nil }
+        let start = trimmed.index(after: trimmed.startIndex)
+        guard start <= closeIndex else { return nil }
+        let section = String(trimmed[start..<closeIndex]).trimmingCharacters(in: .whitespaces)
+        return section.isEmpty ? nil : section
+    }
+
+    private func isCodexManagedTopLevelKey(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard let equalIndex = trimmed.firstIndex(of: "=") else { return false }
+        let key = String(trimmed[..<equalIndex]).trimmingCharacters(in: .whitespaces)
+        return key == "model_provider" || key == "model" || key == "model_reasoning_effort"
+    }
+
+    private func splitManagedCodexConfig(_ managedConfig: String) -> (topLevel: [String], section: [String]) {
+        let lines = managedConfig.components(separatedBy: .newlines)
+        guard let sectionStart = lines.firstIndex(where: { parseTOMLSectionName(from: $0) != nil }) else {
+            return (lines, [])
+        }
+        return (Array(lines[..<sectionStart]), Array(lines[sectionStart...]))
+    }
+
+    private func mergeCodexConfig(existingContent: String, managedConfig: String) -> String {
+        let managedBanner = "# CLIProxyAPI Configuration for Codex CLI"
+        let managedParts = splitManagedCodexConfig(managedConfig)
+        let lines = existingContent.components(separatedBy: .newlines)
+        var filteredLines: [String] = []
+        var skippingCliproxySection = false
+        var hasSeenAnySection = false
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if let sectionName = parseTOMLSectionName(from: trimmed) {
+                if sectionName == "model_providers.cliproxyapi" {
+                    skippingCliproxySection = true
+                    continue
+                }
+                skippingCliproxySection = false
+                hasSeenAnySection = true
+            }
+
+            if skippingCliproxySection {
+                continue
+            }
+
+            if !hasSeenAnySection && trimmed == managedBanner {
+                continue
+            }
+
+            if !hasSeenAnySection && isCodexManagedTopLevelKey(trimmed) {
+                continue
+            }
+
+            filteredLines.append(line)
+        }
+
+        // Trim trailing blank lines before composing final output.
+        while filteredLines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
+            filteredLines.removeLast()
+        }
+
+        // Keep top-level keys before any section; insert managed top-level keys there.
+        var firstSectionIndex = filteredLines.count
+        if let sectionIndex = filteredLines.firstIndex(where: { parseTOMLSectionName(from: $0) != nil }) {
+            firstSectionIndex = sectionIndex
+        }
+
+        var topLevelLines = Array(filteredLines[..<firstSectionIndex])
+        let remainingSections = Array(filteredLines[firstSectionIndex...])
+
+        while topLevelLines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
+            topLevelLines.removeLast()
+        }
+
+        var leadingHeaderIndex = 0
+        while leadingHeaderIndex < topLevelLines.count {
+            let trimmed = topLevelLines[leadingHeaderIndex].trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") {
+                leadingHeaderIndex += 1
+            } else {
+                break
+            }
+        }
+
+        var leadingHeader = Array(topLevelLines[..<leadingHeaderIndex])
+        var userTopLevel = Array(topLevelLines[leadingHeaderIndex...])
+
+        while leadingHeader.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
+            leadingHeader.removeLast()
+        }
+
+        while userTopLevel.first?.trimmingCharacters(in: .whitespaces).isEmpty == true {
+            userTopLevel.removeFirst()
+        }
+        while userTopLevel.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
+            userTopLevel.removeLast()
+        }
+
+        var merged: [String] = []
+        if !leadingHeader.isEmpty {
+            merged.append(contentsOf: leadingHeader)
+        }
+
+        if !merged.isEmpty && merged.last?.isEmpty == false {
+            merged.append("")
+        }
+        merged.append(contentsOf: managedParts.topLevel)
+
+        if !userTopLevel.isEmpty {
+            if merged.last?.isEmpty == false {
+                merged.append("")
+            }
+            merged.append(contentsOf: userTopLevel)
+        }
+
+        if merged.last?.isEmpty == false {
+            merged.append("")
+        }
+        merged.append(contentsOf: managedParts.section)
+
+        if !remainingSections.isEmpty {
+            if merged.last?.isEmpty == false {
+                merged.append("")
+            }
+            merged.append(contentsOf: remainingSections)
+        }
+
+        return merged
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
+    }
     
     func generateConfiguration(
         agent: CLIAgent,
@@ -866,18 +1033,19 @@ actor AgentConfigurationService {
         let codexDir = "\(home)/.codex"
         let configPath = "\(codexDir)/config.toml"
         let authPath = "\(codexDir)/auth.json"
-        
-        let configTOML = """
-        # CLIProxyAPI Configuration for Codex CLI
-        model_provider = "cliproxyapi"
-        model = "\(config.modelSlots[.sonnet] ?? "gpt-5-codex")"
-        model_reasoning_effort = "high"
 
-        [model_providers.cliproxyapi]
-        name = "cliproxyapi"
-        base_url = "\(config.proxyURL)"
-        wire_api = "responses"
-        """
+        let managedConfigTOML = buildManagedCodexTOML(
+            model: config.modelSlots[.sonnet] ?? "gpt-5-codex",
+            proxyURL: config.proxyURL
+        )
+
+        let configTOML: String
+        if fileManager.fileExists(atPath: configPath),
+           let existingConfig = try? String(contentsOfFile: configPath, encoding: .utf8) {
+            configTOML = mergeCodexConfig(existingContent: existingConfig, managedConfig: managedConfigTOML)
+        } else {
+            configTOML = managedConfigTOML + "\n"
+        }
         
         let authJSON = """
         {
@@ -933,7 +1101,7 @@ actor AgentConfigurationService {
                 configPath: configPath,
                 authPath: authPath,
                 rawConfigs: rawConfigs,
-                instructions: "Create the files below in ~/.codex/ directory:",
+                instructions: "Merge and save the files below in ~/.codex/ directory:",
                 modelsConfigured: 1
             )
         }
