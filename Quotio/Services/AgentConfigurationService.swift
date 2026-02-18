@@ -448,7 +448,8 @@ actor AgentConfigurationService {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             if let sectionName = parseTOMLSectionName(from: trimmed) {
-                if sectionName == "model_providers.cliproxyapi" {
+                let cliproxySection = "model_providers.cliproxyapi"
+                if sectionName == cliproxySection || sectionName.hasPrefix(cliproxySection + ".") {
                     skippingCliproxySection = true
                     continue
                 }
