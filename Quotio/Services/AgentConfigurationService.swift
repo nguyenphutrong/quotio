@@ -709,30 +709,9 @@ actor AgentConfigurationService {
                 let backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
                 try content.write(toFile: backupPath, atomically: true, encoding: .utf8)
                 
-                // Remove cliproxyapi provider section
-                let lines = content.components(separatedBy: .newlines)
-                var newLines: [String] = []
-                var skipSection = false
-                
-                for line in lines {
-                    if line.contains("[model_providers.cliproxyapi]") {
-                        skipSection = true
-                        continue
-                    }
-                    if skipSection && line.hasPrefix("[") && !line.contains("cliproxyapi") {
-                        skipSection = false
-                    }
-                    if !skipSection {
-                        // Also update model_provider if set to cliproxyapi
-                        if line.contains("model_provider") && line.contains("cliproxyapi") {
-                            newLines.append("model_provider = \"openai\"")
-                        } else {
-                            newLines.append(line)
-                        }
-                    }
-                }
-                
-                let newContent = newLines.joined(separator: "\n")
+                // Reuse the same TOML-aware filtering used by merge path.
+                let filteredLines = filterExistingCodexLines(existingContent: content, managedBanner: nil)
+                let newContent = filteredLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
                 try newContent.write(toFile: configPath, atomically: true, encoding: .utf8)
                 
                 return .success(
