@@ -709,8 +709,11 @@ actor AgentConfigurationService {
                 let backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
                 try content.write(toFile: backupPath, atomically: true, encoding: .utf8)
                 
-                // Reuse the same TOML-aware filtering used by merge path.
-                let filteredLines = filterExistingCodexLines(existingContent: content, managedBanner: nil)
+                // Reuse the same TOML-aware filtering used by merge path,
+                // including managed banner removal.
+                let stubManagedConfig = buildManagedCodexTOML(model: "", proxyURL: "")
+                let managedBanner = extractManagedCodexBanner(from: stubManagedConfig)
+                let filteredLines = filterExistingCodexLines(existingContent: content, managedBanner: managedBanner)
                 let newContent = filteredLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
                 try newContent.write(toFile: configPath, atomically: true, encoding: .utf8)
                 
