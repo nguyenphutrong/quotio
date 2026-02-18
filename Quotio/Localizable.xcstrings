@@ -1387,6 +1387,24 @@
             "state" : "translated",
             "value" : "Merge and save the files below in ~/.codex/ directory:"
           }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionnez et enregistrez les fichiers ci-dessous dans le répertoire ~/.codex/ :"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gộp và lưu các tệp bên dưới vào thư mục ~/.codex/:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合并并将以下文件保存到 ~/.codex/ 目录："
+          }
         }
       }
     },

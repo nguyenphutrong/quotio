@@ -367,7 +367,7 @@ actor AgentConfigurationService {
                 escaped += "\\f"
             case 0x0D:
                 escaped += "\\r"
-            case 0x00...0x1F:
+            case 0x00...0x1F, 0x7F:
                 escaped += String(format: "\\u%04X", scalar.value)
             default:
                 escaped.unicodeScalars.append(scalar)
@@ -429,7 +429,16 @@ actor AgentConfigurationService {
         return (Array(lines[..<sectionStart]), Array(lines[sectionStart...]))
     }
 
-    private func filterExistingCodexLines(existingContent: String, managedBanner: String) -> [String] {
+    private func extractManagedCodexBanner(from managedConfig: String) -> String? {
+        for line in managedConfig.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+            return trimmed.hasPrefix("#") ? trimmed : nil
+        }
+        return nil
+    }
+
+    private func filterExistingCodexLines(existingContent: String, managedBanner: String?) -> [String] {
         let lines = existingContent.components(separatedBy: .newlines)
         var filteredLines: [String] = []
         var skippingCliproxySection = false
@@ -451,7 +460,7 @@ actor AgentConfigurationService {
                 continue
             }
 
-            if !hasSeenAnySection && trimmed == managedBanner {
+            if let managedBanner, !hasSeenAnySection && trimmed == managedBanner {
                 continue
             }
 
@@ -541,7 +550,7 @@ actor AgentConfigurationService {
     }
 
     private func mergeCodexConfig(existingContent: String, managedConfig: String) -> String {
-        let managedBanner = "# CLIProxyAPI Configuration for Codex CLI"
+        let managedBanner = extractManagedCodexBanner(from: managedConfig)
         let managedParts = splitManagedCodexConfig(managedConfig)
         let filteredLines = filterExistingCodexLines(existingContent: existingContent, managedBanner: managedBanner)
         return composeMergedCodexConfig(filteredLines: filteredLines, managedParts: managedParts)
