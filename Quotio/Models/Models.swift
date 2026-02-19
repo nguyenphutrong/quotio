@@ -118,7 +118,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return ""  // Uses browser session
         case .glm: return ""
         case .warp: return ""
-        case .kimi: return "/kimi-auth-url"
+        case .kimi: return ""  // Uses browser cookie auth, not OAuth
         }
     }
     

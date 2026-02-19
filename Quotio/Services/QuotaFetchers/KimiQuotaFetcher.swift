@@ -7,40 +7,40 @@ import Foundation
 
 // MARK: - Kimi Response Models
 
-nonisolated struct KimiUsageResponse: Decodable {
+nonisolated struct KimiUsageResponse: Decodable, Sendable {
     let user: KimiUser?
     let usage: KimiUsageDetail
     let limits: [KimiRateLimit]?
     
-    struct KimiUser: Decodable {
+    struct KimiUser: Decodable, Sendable {
         let userId: String?
         let region: String?
         let membership: KimiMembership?
     }
     
-    struct KimiMembership: Decodable {
+    struct KimiMembership: Decodable, Sendable {
         let level: String?
     }
     
-    struct KimiUsageDetail: Decodable {
+    struct KimiUsageDetail: Decodable, Sendable {
         let limit: String
         let used: String?
         let remaining: String?
         let resetTime: String?
     }
     
-    struct KimiRateLimit: Decodable {
+    struct KimiRateLimit: Decodable, Sendable {
         let window: KimiRateWindow
         let detail: KimiUsageDetail
         
-        struct KimiRateWindow: Decodable {
+        struct KimiRateWindow: Decodable, Sendable {
             let duration: Int
             let timeUnit: String
         }
     }
 }
 
-nonisolated struct KimiTokenRefreshResponse: Decodable {
+nonisolated struct KimiTokenRefreshResponse: Decodable, Sendable {
     let accessToken: String
     let refreshToken: String
     let expiresIn: Int?
@@ -286,52 +286,62 @@ actor KimiQuotaFetcher {
             return [:]
         }
         
-        var results: [String: ProviderQuotaData] = [:]
+        let kimiFiles = files.filter { $0.hasPrefix("kimi-") && $0.hasSuffix(".json") }
         
-        for file in files where file.hasPrefix("kimi-") && file.hasSuffix(".json") {
-            let filePath = (authDir as NSString).appendingPathComponent(file)
-            
-            do {
-                let data = try Data(contentsOf: URL(fileURLWithPath: filePath))
-                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                    continue
-                }
-                
-                let email = file
-                    .replacingOccurrences(of: "kimi-", with: "")
-                    .replacingOccurrences(of: ".json", with: "")
-                
-                if let accessToken = json["access_token"] as? String, !accessToken.isEmpty {
+        return await withTaskGroup(of: (String, ProviderQuotaData?).self) { group in
+            for file in kimiFiles {
+                group.addTask { [self] in
+                    let filePath = (authDir as NSString).appendingPathComponent(file)
+                    
                     do {
-                        let quota = try await fetchQuotaWithAccessToken(accessToken)
-                        results[email] = quota
-                        continue
-                    } catch KimiQuotaError.authenticationRequired {
-                        Log.quota("Kimi access_token expired for \(file), attempting refresh")
+                        let data = try Data(contentsOf: URL(fileURLWithPath: filePath))
+                        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                            return ("", nil)
+                        }
+                        
+                        let email = file
+                            .replacingOccurrences(of: "kimi-", with: "")
+                            .replacingOccurrences(of: ".json", with: "")
+                        
+                        if let accessToken = json["access_token"] as? String, !accessToken.isEmpty {
+                            do {
+                                let quota = try await self.fetchQuotaWithAccessToken(accessToken)
+                                return (email, quota)
+                            } catch KimiQuotaError.authenticationRequired {
+                                Log.quota("Kimi access_token expired for \(file), attempting refresh")
+                            } catch {
+                                Log.quota("Kimi access_token failed for \(file): \(error)")
+                            }
+                        }
+                        
+                        guard let refreshToken = json["refresh_token"] as? String, !refreshToken.isEmpty else {
+                            Log.quota("No valid tokens in \(file)")
+                            return ("", nil)
+                        }
+                        
+                        let quota = try await self.fetchQuotaWithRefresh(refreshToken: refreshToken, filePath: filePath)
+                        return (email, quota)
                     } catch {
-                        Log.quota("Kimi access_token failed for \(file): \(error)")
+                        Log.quota("Failed to fetch Kimi quota for \(file): \(error)")
+                        return ("", nil)
                     }
                 }
-                
-                guard let refreshToken = json["refresh_token"] as? String, !refreshToken.isEmpty else {
-                    Log.quota("No valid tokens in \(file)")
-                    continue
-                }
-                
-                let quota = try await fetchQuotaWithRefresh(refreshToken: refreshToken, filePath: filePath)
-                results[email] = quota
-            } catch {
-                Log.quota("Failed to fetch Kimi quota for \(file): \(error)")
             }
+            
+            var results: [String: ProviderQuotaData] = [:]
+            for await (key, quota) in group {
+                if let quota = quota, !key.isEmpty {
+                    results[key] = quota
+                }
+            }
+            return results
         }
-        
-        return results
     }
 }
 
 // MARK: - Errors
 
-nonisolated enum KimiQuotaError: LocalizedError {
+enum KimiQuotaError: LocalizedError, Sendable {
     case invalidURL
     case invalidResponse
     case httpError(Int)
