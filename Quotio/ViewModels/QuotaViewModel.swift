@@ -57,6 +57,14 @@ final class QuotaViewModel {
     var errorMessage: String?
     var oauthState: OAuthState?
 
+    /// OAuth launch mode for controlling browser behavior
+    enum OAuthLaunchMode {
+        /// User manually opens the link (shows "Open Link" button)
+        case manual
+        /// Automatically open browser when URL is available
+        case autoOpen
+    }
+
     /// Notification name for quota data updates (used for menu bar refresh)
     static let quotaDataDidChangeNotification = Notification.Name("QuotaViewModel.quotaDataDidChange")
     
@@ -1350,7 +1358,7 @@ final class QuotaViewModel {
         }
     }
     
-    func startOAuth(for provider: AIProvider, projectId: String? = nil, authMethod: AuthCommand? = nil) async {
+    func startOAuth(for provider: AIProvider, projectId: String? = nil, authMethod: AuthCommand? = nil, launchMode: OAuthLaunchMode = .manual) async {
         // GitHub Copilot uses Device Code Flow via CLI binary, not Management API
         if provider == .copilot {
             await startCopilotAuth()
@@ -1378,8 +1386,14 @@ final class QuotaViewModel {
                 return
             }
             
-            // Store URL for copy/open buttons (don't auto-open browser)
+            // Store URL for copy/open buttons
             oauthState = OAuthState(provider: provider, status: .polling, state: state, authURL: urlString)
+            
+            // Auto-open browser if launchMode is .autoOpen
+            if launchMode == .autoOpen, let url = URL(string: urlString) {
+                NSWorkspace.shared.open(url)
+            }
+            
             await pollOAuthStatus(state: state, provider: provider)
             
         } catch {

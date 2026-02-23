@@ -446,6 +446,14 @@ private struct AccountQuotaCardV2: View {
         return oauthState.provider == provider &&
                (oauthState.status == .waiting || oauthState.status == .polling)
     }
+    
+    /// Get auth URL if available during reauthentication
+    private var reauthURL: URL? {
+        guard let oauthState = viewModel.oauthState,
+              oauthState.provider == provider,
+              let urlString = oauthState.authURL else { return nil }
+        return URL(string: urlString)
+    }
     @State private var showWarmupSheet = false
     
     private var hasQuotaData: Bool {
@@ -659,27 +667,47 @@ private struct AccountQuotaCardV2: View {
                 
                 if let data = account.quotaData, data.isForbidden {
                     if provider == .claude {
-                        Button {
-                            Task {
-                                await viewModel.startOAuth(for: .claude)
+                        // When reauthenticating with authURL available, show "Open Link" button
+                        if isReauthenticating, let url = reauthURL {
+                            Button {
+                                NSWorkspace.shared.open(url)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                    Image(systemName: "safari")
+                                        .font(.caption)
+                                }
+                                .foregroundStyle(.orange)
+                                .frame(width: 56, height: 28)
+                                .background(Color.orange.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             }
-                        } label: {
-                            if isReauthenticating {
-                                ProgressView()
-                                    .controlSize(.mini)
-                                    .frame(width: 28, height: 28)
-                            } else {
-                                Image(systemName: "arrow.clockwise.circle.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(.orange)
-                                    .frame(width: 28, height: 28)
-                                    .background(Color.orange.opacity(0.1))
-                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .buttonStyle(.plain)
+                            .help("oauth.openLink".localized())
+                        } else {
+                            Button {
+                                Task {
+                                    await viewModel.startOAuth(for: .claude, launchMode: .autoOpen)
+                                }
+                            } label: {
+                                if isReauthenticating {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                        .frame(width: 28, height: 28)
+                                } else {
+                                    Image(systemName: "arrow.clockwise.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                        .frame(width: 28, height: 28)
+                                        .background(Color.orange.opacity(0.1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                }
                             }
+                            .buttonStyle(.plain)
+                            .disabled(isReauthenticating)
+                            .help("quota.reauthenticate".localized())
                         }
-                        .buttonStyle(.plain)
-                        .disabled(isReauthenticating)
-                        .help("quota.reauthenticate".localized())
                     } else {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.caption)
