@@ -1147,7 +1147,28 @@ final class QuotaViewModel {
             }
         } catch {
             if !Task.isCancelled {
-                errorMessage = error.localizedDescription
+                if APIError.isAuthError(error) {
+                    handleAuthError()
+                } else {
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+    
+    private func handleAuthError() {
+        Log.error("[QuotaViewModel] Session expired - redirecting to re-authentication")
+        
+        if modeManager.isRemoteProxyMode {
+            modeManager.clearRemoteConfig()
+            modeManager.setConnectionStatus(.error("Session expired. Please reconnect."))
+        }
+        
+        errorMessage = "Session expired. Please re-authenticate."
+        
+        Task {
+            await MainActor.run {
+                self.modeManager.resetOnboarding()
             }
         }
     }
@@ -1541,6 +1562,29 @@ final class QuotaViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+    
+    func uploadAuthFile(name: String, content: Data) async throws {
+        if let client = apiClient {
+            try await client.uploadAuthFile(name: name, content: content)
+            await refreshData()
+        } else {
+            try await directAuthService.uploadAuthFile(name: name, content: content)
+            await loadDirectAuthFiles()
+        }
+    }
+    
+    func downloadAuthFile(name: String) async throws -> Data {
+        if let client = apiClient {
+            return try await client.downloadAuthFile(name: name)
+        } else {
+            return try await directAuthService.downloadAuthFile(name: name)
+        }
+    }
+    
+    func deleteDirectAuthFile(name: String) async throws {
+        try await directAuthService.deleteAuthFile(name: name)
+        await loadDirectAuthFiles()
     }
 
     func toggleAuthFileDisabled(_ file: AuthFile) async {
