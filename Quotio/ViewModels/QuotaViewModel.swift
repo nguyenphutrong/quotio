@@ -1379,6 +1379,12 @@ final class QuotaViewModel {
             await startKiroAuth(method: authMethod ?? .kiroGoogleLogin)
             return
         }
+        
+        // Kimi uses CLI-based OAuth (Device Flow)
+        if provider == .kimi {
+            await startKimiAuth()
+            return
+        }
 
         guard let client = apiClient else {
             oauthState = OAuthState(provider: provider, status: .error, error: "Proxy not running. Please start the proxy first.")
@@ -1455,6 +1461,24 @@ final class QuotaViewModel {
         }
     }
     
+    private func startKimiAuth() async {
+        oauthState = OAuthState(provider: .kimi, status: .waiting)
+        
+        let result = await proxyManager.runAuthCommand(.kimiLogin)
+        
+        if result.success {
+            if let deviceCode = result.deviceCode {
+                oauthState = OAuthState(provider: .kimi, status: .polling, state: deviceCode, error: result.message)
+            } else {
+                oauthState = OAuthState(provider: .kimi, status: .polling, error: result.message)
+            }
+            
+            await pollKimiAuthCompletion()
+        } else {
+            oauthState = OAuthState(provider: .kimi, status: .error, error: result.message)
+        }
+    }
+    
     /// Poll for Copilot auth completion by monitoring auth files
     private func pollCopilotAuthCompletion() async {
         let startFileCount = authFiles.filter { $0.provider == "github-copilot" || $0.provider == "copilot" }.count
@@ -1490,6 +1514,24 @@ final class QuotaViewModel {
         }
         
         oauthState = OAuthState(provider: .kiro, status: .error, error: "Authentication timeout")
+    }
+    
+    private func pollKimiAuthCompletion() async {
+        let startFileCount = authFiles.filter { $0.provider == "kimi" }.count
+        
+        for _ in 0..<90 {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            
+            await refreshData()
+            
+            let currentFileCount = authFiles.filter { $0.provider == "kimi" }.count
+            if currentFileCount > startFileCount {
+                oauthState = OAuthState(provider: .kimi, status: .success)
+                return
+            }
+        }
+        
+        oauthState = OAuthState(provider: .kimi, status: .error, error: "Authentication timeout")
     }
     
     private func pollOAuthStatus(state: String, provider: AIProvider) async {

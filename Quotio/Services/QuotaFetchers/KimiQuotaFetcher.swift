@@ -62,6 +62,7 @@ actor KimiQuotaFetcher {
     private let clientId = "17e5f671-d194-4dfb-9706-5516cb48c098"
     
     private var session: URLSession
+    private let deviceId: String
     
     private static let tierByLevel: [String: String] = [
         "LEVEL_BEGINNER": "Beginner",
@@ -72,11 +73,86 @@ actor KimiQuotaFetcher {
     init() {
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
         self.session = URLSession(configuration: config)
+        self.deviceId = Self.getOrCreateDeviceId()
     }
     
     func updateProxyConfiguration() {
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
         self.session = URLSession(configuration: config)
+    }
+    
+    // MARK: - Device Headers (Required by Kimi OAuth API)
+    
+    /// Generate required device headers for Kimi OAuth API
+    /// Based on kimi-cli KLIP-14 specification
+    private func commonHeaders() -> [String: String] {
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let deviceName = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
+        let deviceModel = Self.deviceModel()
+        let osVersion = ProcessInfo.processInfo.operatingSystemVersionString
+        
+        return [
+            "X-Msh-Platform": "quotio",
+            "X-Msh-Version": appVersion,
+            "X-Msh-Device-Name": Self.asciiSafe(deviceName),
+            "X-Msh-Device-Model": Self.asciiSafe(deviceModel),
+            "X-Msh-Os-Version": Self.asciiSafe(osVersion),
+            "X-Msh-Device-Id": deviceId
+        ]
+    }
+    
+    /// Get device model string (e.g., "macOS 15.1.1 arm64")
+    private static func deviceModel() -> String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let machine = withUnsafePointer(to: &systemInfo.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 1) {
+                String(validatingUTF8: $0) ?? "unknown"
+            }
+        }
+        
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let versionString = "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+        
+        return "macOS \(versionString) \(machine)"
+    }
+    
+    /// Ensure header value is ASCII-safe
+    private static func asciiSafe(_ value: String) -> String {
+        let ascii = value.unicodeScalars.filter { $0.isASCII }
+        let result = String(String.UnicodeScalarView(ascii)).trimmingCharacters(in: .whitespaces)
+        return result.isEmpty ? "unknown" : result
+    }
+    
+    /// Stable device ID persisted to ~/.cli-proxy-api/kimi-device-id (required by Kimi OAuth)
+    private static func getOrCreateDeviceId() -> String {
+        let authDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        let deviceIdPath = (authDir as NSString).appendingPathComponent("kimi-device-id")
+        
+        if let existingId = try? String(contentsOfFile: deviceIdPath, encoding: .utf8) {
+            let trimmed = existingId.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        
+        let newId = UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "")
+        
+        do {
+            try FileManager.default.createDirectory(atPath: authDir, withIntermediateDirectories: true)
+            try newId.write(toFile: deviceIdPath, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: deviceIdPath)
+        } catch {
+            Log.quota("Failed to persist Kimi device ID: \(error)")
+        }
+        
+        return newId
+    }
+    
+    private func applyCommonHeaders(to request: inout URLRequest) {
+        for (key, value) in commonHeaders() {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
     }
     
     // MARK: - Token Refresh
@@ -91,6 +167,7 @@ actor KimiQuotaFetcher {
         request.timeoutInterval = 30
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        applyCommonHeaders(to: &request)
         
         let body = "client_id=\(clientId)&grant_type=refresh_token&refresh_token=\(refreshToken)"
         request.httpBody = body.data(using: .utf8)
@@ -145,6 +222,7 @@ actor KimiQuotaFetcher {
         request.timeoutInterval = 30
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        applyCommonHeaders(to: &request)
         
         let (data, response) = try await session.data(for: request)
         
