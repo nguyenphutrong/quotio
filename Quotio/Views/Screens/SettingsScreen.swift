@@ -718,6 +718,11 @@ struct LocalProxyServerSection: View {
     @AppStorage("autoRestartTunnel") private var autoRestartTunnel = false
     @AppStorage("allowNetworkAccess") private var allowNetworkAccess = false
     @State private var portText: String = ""
+    @State private var tunnelToken: String = ""
+    @State private var customTunnelPublicURL: String = ""
+    @State private var customTunnelPublicURLInvalid = false
+    @State private var tunnelTokenRequiresCustomURL = false
+    @State private var revealTunnelToken = false
     @State private var isLoadingConfig = false  // Prevents onChange from firing during initial load
     
     var body: some View {
@@ -760,6 +765,68 @@ struct LocalProxyServerSection: View {
             
             Toggle("settings.autoRestartTunnel".localized(), isOn: $autoRestartTunnel)
                 .disabled(!viewModel.tunnelManager.installation.isInstalled)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("settings.tunnelToken".localized())
+                    .font(.subheadline)
+
+                HStack(spacing: 8) {
+                    if revealTunnelToken {
+                        TextField("settings.tunnelToken.placeholder".localized(), text: $tunnelToken)
+                            .textFieldStyle(.roundedBorder)
+                    } else {
+                        SecureField("settings.tunnelToken.placeholder".localized(), text: $tunnelToken)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    Button {
+                        revealTunnelToken.toggle()
+                    } label: {
+                        Image(systemName: revealTunnelToken ? "eye.slash" : "eye")
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("action.save".localized()) {
+                        saveTunnelToken()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                Text("settings.tunnelToken.help".localized())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if tunnelTokenRequiresCustomURL {
+                    Text("settings.tunnelPublicURL.requiredForToken".localized())
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("settings.tunnelPublicURL".localized())
+                    .font(.subheadline)
+
+                HStack(spacing: 8) {
+                    TextField("settings.tunnelPublicURL.placeholder".localized(), text: $customTunnelPublicURL)
+                        .textFieldStyle(.roundedBorder)
+
+                    Button("action.save".localized()) {
+                        saveCustomTunnelPublicURL()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                Text("settings.tunnelPublicURL.help".localized())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if customTunnelPublicURLInvalid {
+                    Text("settings.tunnelPublicURL.invalid".localized())
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
                 
             NetworkAccessSection(allowNetworkAccess: $allowNetworkAccess)
                 .onChange(of: allowNetworkAccess) { _, newValue in
@@ -777,11 +844,58 @@ struct LocalProxyServerSection: View {
         .onAppear {
             isLoadingConfig = true
             portText = String(viewModel.proxyManager.port)
+            tunnelToken = KeychainHelper.getCloudflareTunnelToken() ?? ""
+            customTunnelPublicURL = viewModel.tunnelManager.customPublicURL ?? ""
+            customTunnelPublicURLInvalid = false
+            tunnelTokenRequiresCustomURL = !tunnelToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && TunnelManager.normalizedCustomPublicURL(customTunnelPublicURL) == nil
             // Delay clearing the flag to allow onChange to be suppressed
             DispatchQueue.main.async {
                 isLoadingConfig = false
             }
         }
+    }
+
+    private func saveTunnelToken() {
+        let trimmed = tunnelToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        tunnelToken = trimmed
+
+        if trimmed.isEmpty {
+            KeychainHelper.deleteCloudflareTunnelToken()
+            tunnelTokenRequiresCustomURL = false
+        } else {
+            _ = KeychainHelper.saveCloudflareTunnelToken(trimmed)
+            tunnelTokenRequiresCustomURL = TunnelManager.normalizedCustomPublicURL(customTunnelPublicURL) == nil
+        }
+
+        // Apply token changes immediately when tunnel is already active.
+        if viewModel.tunnelManager.tunnelState.isActive || viewModel.tunnelManager.tunnelState.status == .starting {
+            Task { @MainActor in
+                await viewModel.tunnelManager.stopTunnel()
+                await viewModel.tunnelManager.startTunnel(port: viewModel.proxyManager.port)
+            }
+        }
+    }
+
+    private func saveCustomTunnelPublicURL() {
+        let trimmed = customTunnelPublicURL.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmed.isEmpty {
+            customTunnelPublicURLInvalid = false
+            customTunnelPublicURL = ""
+            viewModel.tunnelManager.customPublicURL = nil
+            return
+        }
+
+        guard let normalized = TunnelManager.normalizedCustomPublicURL(trimmed) else {
+            customTunnelPublicURLInvalid = true
+            return
+        }
+
+        customTunnelPublicURLInvalid = false
+        customTunnelPublicURL = normalized
+        viewModel.tunnelManager.customPublicURL = normalized
+        tunnelTokenRequiresCustomURL = false
     }
 }
 

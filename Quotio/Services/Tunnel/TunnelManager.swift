@@ -10,11 +10,32 @@ import AppKit
 @Observable
 final class TunnelManager {
     static let shared = TunnelManager()
+    private static let customPublicURLDefaultsKey = "customTunnelPublicURL"
     
     // MARK: - State
     
     private(set) var tunnelState = CloudflareTunnelState()
     private(set) var installation: CloudflaredInstallation = .notInstalled
+
+    var customPublicURL: String? {
+        get {
+            Self.normalizedCustomPublicURL(UserDefaults.standard.string(forKey: Self.customPublicURLDefaultsKey))
+        }
+        set {
+            if let normalized = Self.normalizedCustomPublicURL(newValue) {
+                UserDefaults.standard.set(normalized, forKey: Self.customPublicURLDefaultsKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.customPublicURLDefaultsKey)
+            }
+        }
+    }
+
+    var effectivePublicURL: String? {
+        if hasCustomTunnelToken, let customPublicURL {
+            return customPublicURL
+        }
+        return tunnelState.publicURL
+    }
     
     // MARK: - Private Properties
     
@@ -28,6 +49,11 @@ final class TunnelManager {
     private let autoRestartDelaySeconds: TimeInterval = 5
     private var autoRestartAttempts: Int = 0
     private let maxAutoRestartAttempts: Int = 3
+    private var hasCustomTunnelToken: Bool {
+        !(KeychainHelper.getCloudflareTunnelToken()?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? true)
+    }
     
     // MARK: - Init
     
@@ -36,6 +62,33 @@ final class TunnelManager {
             await refreshInstallation()
             Self.cleanupOrphans()
         }
+    }
+
+    nonisolated static func normalizedCustomPublicURL(_ rawURL: String?) -> String? {
+        guard let rawURL else { return nil }
+        let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let candidate = trimmed.contains("://") ? trimmed : "https://" + trimmed
+        guard var components = URLComponents(string: candidate),
+              let scheme = components.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              let host = components.host,
+              !host.isEmpty else {
+            return nil
+        }
+
+        components.scheme = scheme
+        components.fragment = nil
+        if components.path == "/" {
+            components.path = ""
+        }
+
+        guard var normalized = components.string else { return nil }
+        if normalized.hasSuffix("/") && components.path.isEmpty {
+            normalized.removeLast()
+        }
+        return normalized
     }
     
     // MARK: - Public API
@@ -58,6 +111,13 @@ final class TunnelManager {
         
         tunnelRequestId &+= 1
         let currentRequestId = tunnelRequestId
+        let usingCustomToken = hasCustomTunnelToken
+
+        if usingCustomToken && customPublicURL == nil {
+            tunnelState.status = .error
+            tunnelState.errorMessage = "tunnel.error.customURLRequired".localized()
+            return
+        }
         
         tunnelState.status = .starting
         tunnelState.errorMessage = nil
@@ -85,7 +145,7 @@ final class TunnelManager {
                 }
             }
 
-            scheduleStartTimeout(requestId: currentRequestId)
+            scheduleStartTimeout(requestId: currentRequestId, port: port, allowMissingURL: usingCustomToken)
             startMonitoring()
             
         } catch let error as TunnelError {
@@ -133,7 +193,7 @@ final class TunnelManager {
     }
     
     func copyURLToClipboard() {
-        guard let url = tunnelState.publicURL else { return }
+        guard let url = effectivePublicURL else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url, forType: .string)
     }
@@ -182,7 +242,7 @@ final class TunnelManager {
         monitorTask = nil
     }
 
-    private func scheduleStartTimeout(requestId: UInt64) {
+    private func scheduleStartTimeout(requestId: UInt64, port: UInt16, allowMissingURL: Bool) {
         cancelStartTimeout()
         startTimeoutTask = Task { [weak self] in
             guard let self = self else { return }
@@ -194,6 +254,27 @@ final class TunnelManager {
             guard !Task.isCancelled else { return }
             guard self.tunnelRequestId == requestId else { return }
             guard self.tunnelState.status == .starting else { return }
+
+            if allowMissingURL {
+                let isRunning = await self.service.isRunning
+                guard isRunning else {
+                    self.tunnelState.status = .error
+                    self.tunnelState.errorMessage = "tunnel.error.startTimeout".localized()
+                    CLIProxyManager.shared.updateConfigAllowRemote(false)
+                    NSLog("[TunnelManager] Tunnel start timed out after %.0f seconds", self.startTimeoutSeconds)
+                    await self.service.stop()
+                    return
+                }
+
+                self.tunnelState.status = .active
+                self.tunnelState.startTime = Date()
+                self.lastPort = port
+                self.cancelAutoRestart()
+                self.resetAutoRestartAttempts()
+                NSLog("[TunnelManager] Tunnel active without detected public URL (token mode)")
+                return
+            }
+
             self.tunnelState.status = .error
             self.tunnelState.errorMessage = "tunnel.error.startTimeout".localized()
             CLIProxyManager.shared.updateConfigAllowRemote(false)

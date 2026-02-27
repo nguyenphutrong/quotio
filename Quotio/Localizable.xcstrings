@@ -17989,6 +17989,267 @@
         }
       }
     },
+    "settings.tunnelToken" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloudflare Tunnel Token"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeton Cloudflare Tunnel"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token Cloudflare Tunnel"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloudflare Tunnel 令牌"
+          }
+        }
+      }
+    },
+    "settings.tunnelToken.help" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use a Cloudflare tunnel token for a stable public URL. Leave empty to use Quick Tunnel."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez un jeton Cloudflare Tunnel pour une URL publique stable. Laissez vide pour utiliser Quick Tunnel."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dùng token Cloudflare Tunnel để có URL công khai ổn định. Để trống để dùng Quick Tunnel."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Cloudflare Tunnel 令牌获得稳定的公开 URL。留空则使用 Quick Tunnel。"
+          }
+        }
+      }
+    },
+    "settings.tunnelToken.placeholder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter Cloudflare tunnel token"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrez le jeton Cloudflare Tunnel"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập token Cloudflare Tunnel"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入 Cloudflare Tunnel 令牌"
+          }
+        }
+      }
+    },
+    "settings.tunnelPublicURL" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom Tunnel Public URL"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL publique personnalisée du tunnel"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL công khai tùy chỉnh của tunnel"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义 Tunnel 公网 URL"
+          }
+        }
+      }
+    },
+    "settings.tunnelPublicURL.help" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used for copy/setup when token mode is enabled. Example: https://proxy.example.com"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisée pour la copie/configuration lorsque le mode token est activé. Exemple : https://proxy.example.com"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dùng để sao chép/cấu hình khi bật chế độ token. Ví dụ: https://proxy.example.com"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在启用 token 模式时用于复制/配置。例如：https://proxy.example.com"
+          }
+        }
+      }
+    },
+    "settings.tunnelPublicURL.invalid" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a valid URL, e.g. https://proxy.example.com"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrez une URL valide, par ex. https://proxy.example.com"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập URL hợp lệ, ví dụ https://proxy.example.com"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入有效 URL，例如 https://proxy.example.com"
+          }
+        }
+      }
+    },
+    "settings.tunnelPublicURL.placeholder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://proxy.example.com"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://proxy.example.com"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://proxy.example.com"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://proxy.example.com"
+          }
+        }
+      }
+    },
+    "settings.tunnelPublicURL.requiredForToken" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A custom public URL is required when using a tunnel token."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une URL publique personnalisée est requise lors de l'utilisation d'un jeton de tunnel."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cần có URL công khai tùy chỉnh khi dùng tunnel token."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 tunnel token 时必须设置自定义公网 URL。"
+          }
+        }
+      }
+    },
+    "tunnel.error.customURLRequired" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set a custom public URL before starting token mode."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Définissez une URL publique personnalisée avant de démarrer le mode token."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hãy đặt URL công khai tùy chỉnh trước khi khởi động chế độ token."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动 token 模式前请先设置自定义公网 URL。"
+          }
+        }
+      }
+    },
     "settings.updateChannel.beta" : {
       "extractionState" : "stale",
       "localizations" : {
