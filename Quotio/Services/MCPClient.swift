@@ -10,98 +10,113 @@ actor MCPClient {
     
     private var servers: [MCPServer] = []
     private let fileManager = FileManager.default
+    private let configFileName = "mcp_servers.json"
+    private let legacyConfigFileName = "quotio.yaml"
     
     private init() {}
     
     // MARK: - Configuration
     
-    private var configPath: URL {
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return appSupport.appendingPathComponent("Quotio/quotio.yaml")
+    private enum MCPStorageError: Error {
+        case applicationSupportUnavailable
+        case invalidLegacyEncoding
     }
 
-    /// MCP sync currently writes JSON config payloads; skip agents that do not use JSON-backed MCP settings.
-    private func mcpSyncPath(for agent: CLIAgent) -> String? {
-        switch agent {
-        case .claudeCode, .ampCLI, .openCode, .factoryDroid:
-            return agent.configPaths.first
-        case .codexCLI, .geminiCLI:
-            return nil
+    private func appSupportDirectory() throws -> URL {
+        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw MCPStorageError.applicationSupportUnavailable
         }
+        return appSupport.appendingPathComponent("Quotio", isDirectory: true)
     }
-    
-    func loadConfig() async {
-        guard fileManager.fileExists(atPath: configPath.path),
-              let data = try? Data(contentsOf: configPath),
-              let yaml = String(data: data, encoding: .utf8) else {
-            servers = []
-            return
+
+    private func configPath() throws -> URL {
+        try appSupportDirectory().appendingPathComponent(configFileName)
+    }
+
+    private func legacyConfigPath() throws -> URL {
+        try appSupportDirectory().appendingPathComponent(legacyConfigFileName)
+    }
+
+    private func loadJSONConfig(from url: URL) throws -> [MCPServer] {
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder().decode(MCPConfig.self, from: data).servers
+    }
+
+    private func loadLegacyYAMLConfig(from url: URL) throws -> [MCPServer] {
+        let data = try Data(contentsOf: url)
+        guard let yaml = String(data: data, encoding: .utf8) else {
+            throw MCPStorageError.invalidLegacyEncoding
         }
-        
-        // Simple YAML parser for MCP config
+
         var loadedServers: [MCPServer] = []
         var inServersSection = false
         var currentName = ""
         var currentURL = ""
-        
+        var currentType: MCPServer.MCPServerType?
+
         for line in yaml.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            
+
             if trimmed == "servers:" {
                 inServersSection = true
-            } else if inServersSection {
-                if trimmed.hasPrefix("- name:") {
-                    if !currentName.isEmpty && !currentURL.isEmpty {
-                        loadedServers.append(MCPServer(name: currentName, url: currentURL))
-                    }
-                    currentName = trimmed.replacingOccurrences(of: "- name:", with: "").trimmingCharacters(in: .whitespaces)
-                    currentURL = ""
-                } else if trimmed.hasPrefix("url:") {
-                    currentURL = trimmed.replacingOccurrences(of: "url:", with: "").trimmingCharacters(in: .whitespaces)
-                }
-            }
-        }
-        
-        if !currentName.isEmpty && !currentURL.isEmpty {
-            loadedServers.append(MCPServer(name: currentName, url: currentURL))
-        }
-        
-        servers = loadedServers
-    }
-    
-    func saveConfig() async throws {
-        // Build MCP JSON config (standard format)
-        let mcpConfig: [String: Any] = [
-            "mcpServers": servers.reduce(into: [String: [String: Any]]()) { result, server in
-                result[server.name] = [
-                    "command": server.type == .stdio ? server.url.replacingOccurrences(of: "stdio://", with: "") : "node",
-                    "args": server.type == .http ? [server.url] : [] as [String],
-                    "env": [:] as [String: String]
-                ]
-            }
-        ]
-        
-        let jsonData = try JSONSerialization.data(withJSONObject: mcpConfig, options: [.prettyPrinted])
-        
-        // Save to Quotio's config
-        try jsonData.write(to: configPath)
-        
-        // Sync to all agent MCP configs
-        for agent in CLIAgent.allCases {
-            guard let mcpPath = mcpSyncPath(for: agent) else {
                 continue
             }
 
-            let agentMCPPath = NSString(string: mcpPath).expandingTildeInPath
-            let agentMCPURL = URL(fileURLWithPath: agentMCPPath)
-            
-            // Create parent directory if needed
-            try? FileManager.default.createDirectory(at: agentMCPURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            
-            // Write MCP config
-            try? jsonData.write(to: agentMCPURL)
-            print("[MCP] Synced config to \(agent.displayName)")
+            guard inServersSection else { continue }
+
+            if trimmed.hasPrefix("- name:") {
+                if !currentName.isEmpty && !currentURL.isEmpty {
+                    loadedServers.append(MCPServer(name: currentName, url: currentURL, type: currentType))
+                }
+                currentName = trimmed.replacingOccurrences(of: "- name:", with: "").trimmingCharacters(in: .whitespaces)
+                currentURL = ""
+                currentType = nil
+            } else if trimmed.hasPrefix("url:") {
+                currentURL = trimmed.replacingOccurrences(of: "url:", with: "").trimmingCharacters(in: .whitespaces)
+            } else if trimmed.hasPrefix("type:") {
+                let typeValue = trimmed.replacingOccurrences(of: "type:", with: "").trimmingCharacters(in: .whitespaces).lowercased()
+                currentType = typeValue == "stdio" ? .stdio : .http
+            }
         }
+
+        if !currentName.isEmpty && !currentURL.isEmpty {
+            loadedServers.append(MCPServer(name: currentName, url: currentURL, type: currentType))
+        }
+
+        return loadedServers
+    }
+    
+    func loadConfig() async {
+        do {
+            let configURL = try configPath()
+            if fileManager.fileExists(atPath: configURL.path) {
+                servers = try loadJSONConfig(from: configURL)
+                return
+            }
+
+            let legacyURL = try legacyConfigPath()
+            if fileManager.fileExists(atPath: legacyURL.path) {
+                servers = try loadLegacyYAMLConfig(from: legacyURL)
+                try await saveConfig()
+                return
+            }
+
+            servers = []
+        } catch {
+            print("[MCP] Failed to load config: \(error)")
+            servers = []
+        }
+    }
+    
+    func saveConfig() async throws {
+        let directory = try appSupportDirectory()
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let jsonData = try encoder.encode(MCPConfig(servers: servers))
+
+        try jsonData.write(to: directory.appendingPathComponent(configFileName), options: .atomic)
     }
     
     // MARK: - Fetch Context

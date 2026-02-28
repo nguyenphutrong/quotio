@@ -13,6 +13,8 @@ struct SkillsScreen: View {
     @State private var showAddServer = false
     @State private var showBrowseRegistry = false
     @State private var selectedSkill: Skill?
+    @State private var pendingSkillDeletion: Skill?
+    @State private var pendingServerDeletion: MCPServer?
     
     var body: some View {
         ScrollView {
@@ -33,13 +35,13 @@ struct SkillsScreen: View {
             }
             .padding()
         }
-        .navigationTitle("Skills")
+        .navigationTitle("skills.navigation.title".localized())
         .toolbar {
             ToolbarItem {
                 Button {
                     showAddSkill = true
                 } label: {
-                    Label("Add Skill", systemImage: "plus")
+                    Label("skills.action.addSkill".localized(), systemImage: "plus")
                 }
             }
         }
@@ -62,26 +64,88 @@ struct SkillsScreen: View {
         .task {
             await loadData()
         }
+        .confirmationDialog(
+            "skills.deleteSkill.confirm.title".localized(),
+            isPresented: isSkillDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            if let skill = pendingSkillDeletion {
+                Button("action.delete".localized(), role: .destructive) {
+                    Task { await deleteSkill(skill) }
+                    pendingSkillDeletion = nil
+                }
+            }
+
+            Button("action.cancel".localized(), role: .cancel) {
+                pendingSkillDeletion = nil
+            }
+        } message: {
+            if let skill = pendingSkillDeletion {
+                Text(String(format: "skills.deleteSkill.confirm.message".localized(), skill.name))
+            }
+        }
+        .confirmationDialog(
+            "skills.deleteServer.confirm.title".localized(),
+            isPresented: isServerDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            if let server = pendingServerDeletion {
+                Button("action.delete".localized(), role: .destructive) {
+                    Task { await deleteServer(server) }
+                    pendingServerDeletion = nil
+                }
+            }
+
+            Button("action.cancel".localized(), role: .cancel) {
+                pendingServerDeletion = nil
+            }
+        } message: {
+            if let server = pendingServerDeletion {
+                Text(String(format: "skills.deleteServer.confirm.message".localized(), server.name))
+            }
+        }
     }
     
+    private var isSkillDeleteConfirmationPresented: Binding<Bool> {
+        Binding(
+            get: { pendingSkillDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingSkillDeletion = nil
+                }
+            }
+        )
+    }
+
+    private var isServerDeleteConfirmationPresented: Binding<Bool> {
+        Binding(
+            get: { pendingServerDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingServerDeletion = nil
+                }
+            }
+        )
+    }
+
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "wand.and.stars")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
             
-            Text("No Skills Yet")
+            Text("skills.empty.title".localized())
                 .font(.title2)
                 .fontWeight(.semibold)
             
-            Text("Create Skills to add reusable instructions\nthat work across all AI agents")
+            Text("skills.empty.message".localized())
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             
             Button {
                 showAddSkill = true
             } label: {
-                Label("Create First Skill", systemImage: "plus.circle.fill")
+                Label("skills.empty.createFirst".localized(), systemImage: "plus.circle.fill")
             }
             .buttonStyle(.borderedProminent)
         }
@@ -91,7 +155,7 @@ struct SkillsScreen: View {
     
     private var skillsList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Skills")
+            Text("skills.section.skills".localized())
                 .font(.headline)
             
             ForEach(skills) { skill in
@@ -100,7 +164,7 @@ struct SkillsScreen: View {
                 } onToggle: {
                     Task { await toggleSkill(skill) }
                 } onDelete: {
-                    Task { await deleteSkill(skill) }
+                    pendingSkillDeletion = skill
                 }
             }
         }
@@ -109,7 +173,7 @@ struct SkillsScreen: View {
     private var mcpServersSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("MCP Servers")
+                Text("skills.section.mcpServers".localized())
                     .font(.headline)
                 
                 Spacer()
@@ -117,26 +181,26 @@ struct SkillsScreen: View {
                 Button {
                     showBrowseRegistry = true
                 } label: {
-                    Label("Browse Registry", systemImage: "globe")
+                    Label("skills.action.browseRegistry".localized(), systemImage: "globe")
                         .font(.caption)
                 }
                 
                 Button {
                     showAddServer = true
                 } label: {
-                    Label("Add Server", systemImage: "plus.circle")
+                    Label("skills.action.addServer".localized(), systemImage: "plus.circle")
                         .font(.caption)
                 }
             }
             
             if mcpServers.isEmpty {
-                Text("No MCP servers configured")
+                Text("skills.empty.mcpServers".localized())
                     .foregroundStyle(.secondary)
                     .font(.caption)
             } else {
                 ForEach(mcpServers) { server in
                     MCPServerRow(server: server) {
-                        Task { await deleteServer(server) }
+                        pendingServerDeletion = server
                     }
                 }
             }
@@ -145,6 +209,8 @@ struct SkillsScreen: View {
     
     private func loadData() async {
         isLoading = true
+        await SkillsManager.shared.loadSkills()
+        await MCPClient.shared.loadConfig()
         skills = await SkillsManager.shared.getSkills()
         mcpServers = await MCPClient.shared.getServers()
         isLoading = false
@@ -200,7 +266,7 @@ struct SkillCard: View {
                 
                 // Usage badge
                 if skill.usageCount > 0 {
-                    Text("\(skill.usageCount) uses")
+                    Text(String(format: "skills.card.uses".localized(), skill.usageCount))
                         .font(.caption2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -209,9 +275,9 @@ struct SkillCard: View {
                 }
                 
                 Menu {
-                    Button("Edit", action: onEdit)
-                    Button("Toggle", action: onToggle)
-                    Button("Delete", role: .destructive, action: onDelete)
+                    Button("action.edit".localized(), action: onEdit)
+                    Button("skills.action.toggle".localized(), action: onToggle)
+                    Button("action.delete".localized(), role: .destructive, action: onDelete)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -226,7 +292,7 @@ struct SkillCard: View {
                 HStack(spacing: 4) {
                     Image(systemName: "clock")
                         .font(.caption2)
-                    Text("Last used by \(lastAgent)")
+                    Text(String(format: "skills.card.lastUsedBy".localized(), lastAgent))
                         .font(.caption2)
                     Text("•")
                         .font(.caption2)
@@ -238,7 +304,7 @@ struct SkillCard: View {
             
             if !skill.triggers.keywords.isEmpty {
                 HStack {
-                    Text("Keywords:")
+                    Text("skills.card.keywords".localized())
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Text(skill.triggers.keywords.joined(separator: ", "))
@@ -248,7 +314,7 @@ struct SkillCard: View {
             
             if !skill.triggers.agents.isEmpty {
                 HStack {
-                    Text("Agents:")
+                    Text("skills.card.agents".localized())
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Text(skill.triggers.agents.joined(separator: ", "))
@@ -258,7 +324,7 @@ struct SkillCard: View {
             
             if !skill.tools.isEmpty {
                 HStack {
-                    Text("Tools:")
+                    Text("skills.card.tools".localized())
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Text(skill.tools.joined(separator: ", "))
@@ -320,37 +386,37 @@ struct SkillEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Basic Info") {
-                    TextField("Name", text: $name)
-                    TextField("Description", text: $description)
+                Section("skills.editor.section.basicInfo".localized()) {
+                    TextField("skills.editor.name".localized(), text: $name)
+                    TextField("skills.editor.description".localized(), text: $description)
                 }
                 
-                Section("Triggers") {
-                    TextField("Keywords (comma-separated)", text: $keywords)
-                        .help("e.g., review, audit, check")
-                    TextField("File patterns (comma-separated)", text: $files)
-                        .help("e.g., *.swift, *.ts, *.py")
-                    TextField("Agents (comma-separated)", text: $agents)
-                        .help("e.g., claude, antigravity, opencode")
+                Section("skills.editor.section.triggers".localized()) {
+                    TextField("skills.editor.keywords".localized(), text: $keywords)
+                        .help("skills.editor.keywords.help".localized())
+                    TextField("skills.editor.files".localized(), text: $files)
+                        .help("skills.editor.files.help".localized())
+                    TextField("skills.editor.agents".localized(), text: $agents)
+                        .help("skills.editor.agents.help".localized())
                 }
                 
-                Section("Instructions") {
+                Section("skills.editor.section.instructions".localized()) {
                     TextEditor(text: $instructions)
                         .frame(minHeight: 150)
                 }
                 
-                Section("MCP Tools") {
-                    TextField("Tool names (comma-separated)", text: $tools)
-                        .help("e.g., filesystem, git, terminal")
+                Section("skills.editor.section.mcpTools".localized()) {
+                    TextField("skills.editor.tools".localized(), text: $tools)
+                        .help("skills.editor.tools.help".localized())
                 }
             }
-            .navigationTitle(skill == nil ? "New Skill" : "Edit Skill")
+            .navigationTitle(skill == nil ? "skills.editor.newTitle".localized() : "skills.editor.editTitle".localized())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("action.cancel".localized()) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("action.save".localized()) {
                         Task {
                             await save()
                             dismiss()
@@ -409,35 +475,42 @@ struct MCPServerSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $name)
+                TextField("skills.editor.name".localized(), text: $name)
                 
-                Picker("Type", selection: $serverType) {
-                    Text("HTTP").tag(MCPServer.MCPServerType.http)
-                    Text("Stdio").tag(MCPServer.MCPServerType.stdio)
+                Picker("skills.serverSheet.type".localized(), selection: $serverType) {
+                    Text("skills.serverSheet.http".localized()).tag(MCPServer.MCPServerType.http)
+                    Text("skills.serverSheet.stdio".localized()).tag(MCPServer.MCPServerType.stdio)
                 }
                 
-                TextField("URL", text: $url)
+                TextField("skills.serverSheet.url".localized(), text: $url)
             }
-            .navigationTitle("Add MCP Server")
+            .navigationTitle("skills.serverSheet.title".localized())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("action.cancel".localized()) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
+                    Button("action.create".localized()) {
                         Task {
                             await save()
                             dismiss()
                         }
                     }
-                    .disabled(name.isEmpty || url.isEmpty)
+                    .disabled(
+                        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                        url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
                 }
             }
         }
     }
     
     private func save() async {
-        let server = MCPServer(name: name, url: url)
+        let server = MCPServer(
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            url: url.trimmingCharacters(in: .whitespacesAndNewlines),
+            type: serverType
+        )
         try? await MCPClient.shared.addServer(server)
         await onSave()
     }
@@ -463,27 +536,27 @@ struct MCPRegistryBrowser: View {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 48))
                             .foregroundStyle(.red)
-                        Text("Error")
+                        Text("skills.registry.errorTitle".localized())
                             .font(.headline)
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                        Button("Retry") {
+                        Button("action.retry".localized()) {
                             Task { await search(searchText) }
                         }
                     }
                     .padding()
                 } else if isLoading {
-                    ProgressView("Searching registry...")
+                    ProgressView("skills.registry.searching".localized())
                 } else if servers.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 48))
                             .foregroundStyle(.secondary)
-                        Text("Search the MCP Registry")
+                        Text("skills.registry.emptyTitle".localized())
                             .font(.headline)
-                        Text("Find MCP servers for filesystem, git, web search, and more")
+                        Text("skills.registry.emptyMessage".localized())
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -492,7 +565,7 @@ struct MCPRegistryBrowser: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 8) {
-                            Text("Found \(servers.count) servers")
+                            Text(String(format: "skills.registry.foundServers".localized(), servers.count))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .padding(.top)
@@ -528,8 +601,8 @@ struct MCPRegistryBrowser: View {
                     }
                 }
             }
-            .navigationTitle("MCP Registry")
-            .searchable(text: $searchText, prompt: "Search servers (e.g., filesystem, git)")
+            .navigationTitle("skills.registry.title".localized())
+            .searchable(text: $searchText, prompt: "skills.registry.searchPrompt".localized())
             .onChange(of: searchText) { _, newValue in
                 Task {
                     await search(newValue)
@@ -537,7 +610,7 @@ struct MCPRegistryBrowser: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button("action.close".localized()) { dismiss() }
                 }
             }
             .onAppear {

@@ -14,31 +14,84 @@ actor SkillsManager {
     private init() {}
     
     // MARK: - Skills Directory
-    
-    private var skillsDirectory: URL {
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return appSupport.appendingPathComponent("Quotio/skills")
+
+    private enum SkillsStorageError: Error {
+        case applicationSupportUnavailable
+    }
+
+    private func skillsDirectory() throws -> URL {
+        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw SkillsStorageError.applicationSupportUnavailable
+        }
+        return appSupport.appendingPathComponent("Quotio/skills", isDirectory: true)
+    }
+
+    private func ensureSkillsDirectory() throws -> URL {
+        let directory = try skillsDirectory()
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    private func sanitizedComponent(_ value: String) -> String {
+        let lowered = value.lowercased()
+        let mapped = lowered.map { char -> Character in
+            if char.isLetter || char.isNumber {
+                return char
+            }
+            return "-"
+        }
+        let raw = String(mapped)
+        let collapsed = raw.replacingOccurrences(of: "-{2,}", with: "-", options: .regularExpression)
+        let trimmed = collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return trimmed.isEmpty ? "skill" : trimmed
+    }
+
+    private func skillFilename(for skill: Skill) -> String {
+        "\(sanitizedComponent(skill.name))-\(skill.id.uuidString.lowercased()).yaml"
+    }
+
+    private func agentSkillDirectoryName(for skill: Skill) -> String {
+        "\(sanitizedComponent(skill.name))-\(skill.id.uuidString.lowercased())"
+    }
+
+    private func listSkillFiles(in directory: URL) -> [URL] {
+        guard let files = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
+            return []
+        }
+
+        return files.filter { $0.pathExtension == "yaml" || $0.pathExtension == "yml" }
+    }
+
+    private func removePersistedSkillFiles(matching skill: Skill, in directory: URL) {
+        for file in listSkillFiles(in: directory) {
+            guard let persistedSkill = try? loadSkill(from: file) else { continue }
+            if persistedSkill.id == skill.id || persistedSkill.name.caseInsensitiveCompare(skill.name) == .orderedSame {
+                try? fileManager.removeItem(at: file)
+            }
+        }
     }
     
     // MARK: - Load Skills
     
     func loadSkills() async {
-        // Ensure directory exists
-        try? fileManager.createDirectory(at: skillsDirectory, withIntermediateDirectories: true)
-        
-        var loadedSkills: [Skill] = []
-        
-        guard let files = try? fileManager.contentsOfDirectory(at: skillsDirectory, includingPropertiesForKeys: nil) else {
-            print("[Skills] Failed to read skills directory")
+        let directory: URL
+        do {
+            directory = try ensureSkillsDirectory()
+        } catch {
+            print("[Skills] Failed to resolve skills directory: \(error)")
             skills = []
             return
         }
         
+        var loadedSkills: [Skill] = []
+        
+        let files = listSkillFiles(in: directory)
+        
         print("[Skills] Found \(files.count) files in skills directory")
         
-        for file in files where file.pathExtension == "yaml" || file.pathExtension == "yml" {
+        for file in files {
             print("[Skills] Loading: \(file.lastPathComponent)")
-            if let skill = try? await loadSkill(from: file) {
+            if let skill = try? loadSkill(from: file) {
                 loadedSkills.append(skill)
                 print("[Skills] ✓ Loaded: \(skill.name)")
             } else {
@@ -50,10 +103,10 @@ actor SkillsManager {
         print("[Skills] Total loaded: \(skills.count) skills")
     }
     
-    private func loadSkill(from url: URL) async throws -> Skill {
+    private func loadSkill(from url: URL) throws -> Skill {
         let data = try Data(contentsOf: url)
         let decoder = YAMLDecoder()
-        return try decoder.decode(Skill.self, from: data)
+        return try decoder.decodeSkill(from: data)
     }
     
     // MARK: - Match Skills
@@ -167,26 +220,29 @@ actor SkillsManager {
     }
     
     func saveSkill(_ skill: Skill) async throws {
-        let filename = skill.name.lowercased().replacingOccurrences(of: " ", with: "-") + ".yaml"
-        let url = skillsDirectory.appendingPathComponent(filename)
+        let directory = try ensureSkillsDirectory()
+        let filename = skillFilename(for: skill)
+        let url = directory.appendingPathComponent(filename)
         
         let encoder = YAMLEncoder()
-        let data = try encoder.encode(skill)
+        let data = try encoder.encodeSkill(skill)
+
+        removePersistedSkillFiles(matching: skill, in: directory)
         try data.write(to: url)
         
         // Sync to all agent directories
-        await syncSkillToAgents(skill, filename: filename, data: data)
+        await syncSkillToAgents(skill)
         
         await loadSkills()
     }
     
-    private func syncSkillToAgents(_ skill: Skill, filename: String, data: Data) async {
+    private func syncSkillToAgents(_ skill: Skill) async {
         for agent in CLIAgent.allCases {
             let agentSkillsDir = NSString(string: agent.skillsDirectory).expandingTildeInPath
             let agentSkillsURL = URL(fileURLWithPath: agentSkillsDir)
             
             // Create skill directory (e.g., ~/.claude/skills/code-review/)
-            let skillName = skill.name.lowercased().replacingOccurrences(of: " ", with: "-")
+            let skillName = agentSkillDirectoryName(for: skill)
             let skillDir = agentSkillsURL.appendingPathComponent(skillName)
             try? fileManager.createDirectory(at: skillDir, withIntermediateDirectories: true)
             
@@ -224,12 +280,11 @@ actor SkillsManager {
     }
     
     func deleteSkill(_ skill: Skill) async throws {
-        let filename = skill.name.lowercased().replacingOccurrences(of: " ", with: "-") + ".yaml"
-        let url = skillsDirectory.appendingPathComponent(filename)
-        try fileManager.removeItem(at: url)
+        let directory = try ensureSkillsDirectory()
+        removePersistedSkillFiles(matching: skill, in: directory)
         
         // Delete from all agent directories (all use SKILL.md format)
-        let skillName = skill.name.lowercased().replacingOccurrences(of: " ", with: "-")
+        let skillName = agentSkillDirectoryName(for: skill)
         for agent in CLIAgent.allCases {
             let agentSkillsDir = NSString(string: agent.skillsDirectory).expandingTildeInPath
             let skillDir = URL(fileURLWithPath: agentSkillsDir).appendingPathComponent(skillName)
@@ -244,12 +299,13 @@ actor SkillsManager {
 // MARK: - YAML Coding (Minimal Implementation)
 
 private struct YAMLDecoder {
-    nonisolated func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+    nonisolated func decodeSkill(from data: Data) throws -> Skill {
         // Simple YAML parser for Skill format
         guard let yaml = String(data: data, encoding: .utf8) else {
             throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Invalid UTF-8"))
         }
         
+        var id = UUID()
         var name = ""
         var description = ""
         var keywords: [String] = []
@@ -268,7 +324,12 @@ private struct YAMLDecoder {
         for line in yaml.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             
-            if trimmed.hasPrefix("name:") {
+            if trimmed.hasPrefix("id:") {
+                let idString = trimmed.replacingOccurrences(of: "id:", with: "").trimmingCharacters(in: .whitespaces)
+                if let parsedID = UUID(uuidString: idString) {
+                    id = parsedID
+                }
+            } else if trimmed.hasPrefix("name:") {
                 name = trimmed.replacingOccurrences(of: "name:", with: "").trimmingCharacters(in: .whitespaces)
             } else if trimmed.hasPrefix("description:") {
                 description = trimmed.replacingOccurrences(of: "description:", with: "").trimmingCharacters(in: .whitespaces)
@@ -312,6 +373,7 @@ private struct YAMLDecoder {
         instructions = instructionsLines.joined(separator: "\n")
         
         let skill = Skill(
+            id: id,
             name: name,
             description: description,
             triggers: SkillTriggers(keywords: keywords, files: files, agents: agents),
@@ -323,22 +385,21 @@ private struct YAMLDecoder {
             lastAgent: lastAgent
         )
         
-        return skill as! T
+        return skill
     }
     
     private nonisolated func parseArray(_ str: String) -> [String] {
         let cleaned = str.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
-        return cleaned.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        return cleaned.components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " \"'")) }
+            .filter { !$0.isEmpty }
     }
 }
 
 private struct YAMLEncoder {
-    nonisolated func encode<T: Encodable>(_ value: T) throws -> Data {
-        guard let skill = value as? Skill else {
-            throw EncodingError.invalidValue(value, .init(codingPath: [], debugDescription: "Not a Skill"))
-        }
-        
+    nonisolated func encodeSkill(_ skill: Skill) throws -> Data {
         let yaml = """
+        id: \(skill.id.uuidString.lowercased())
         name: \(skill.name)
         description: \(skill.description)
         enabled: \(skill.enabled)
@@ -354,7 +415,14 @@ private struct YAMLEncoder {
         tools:
         \(skill.tools.map { "  - " + $0 }.joined(separator: "\n"))
         """
-        
-        return yaml.data(using: .utf8)!
+
+        guard let data = yaml.data(using: .utf8) else {
+            throw EncodingError.invalidValue(
+                skill,
+                .init(codingPath: [], debugDescription: "Failed to encode YAML as UTF-8")
+            )
+        }
+
+        return data
     }
 }

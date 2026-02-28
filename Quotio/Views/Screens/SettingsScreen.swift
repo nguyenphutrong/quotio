@@ -722,6 +722,7 @@ struct LocalProxyServerSection: View {
     @State private var customTunnelPublicURL: String = ""
     @State private var customTunnelPublicURLInvalid = false
     @State private var tunnelTokenRequiresCustomURL = false
+    @State private var showTunnelTokenSaveError = false
     @State private var revealTunnelToken = false
     @State private var isLoadingConfig = false  // Prevents onChange from firing during initial load
     
@@ -854,6 +855,11 @@ struct LocalProxyServerSection: View {
                 isLoadingConfig = false
             }
         }
+        .alert("settings.tunnelToken.saveError.title".localized(), isPresented: $showTunnelTokenSaveError) {
+            Button("action.ok".localized(), role: .cancel) {}
+        } message: {
+            Text("settings.tunnelToken.saveError.message".localized())
+        }
     }
 
     private func saveTunnelToken() {
@@ -863,8 +869,13 @@ struct LocalProxyServerSection: View {
         if trimmed.isEmpty {
             KeychainHelper.deleteCloudflareTunnelToken()
             tunnelTokenRequiresCustomURL = false
+            showTunnelTokenSaveError = false
         } else {
-            _ = KeychainHelper.saveCloudflareTunnelToken(trimmed)
+            guard KeychainHelper.saveCloudflareTunnelToken(trimmed) else {
+                showTunnelTokenSaveError = true
+                return
+            }
+            showTunnelTokenSaveError = false
             tunnelTokenRequiresCustomURL = TunnelManager.normalizedCustomPublicURL(customTunnelPublicURL) == nil
         }
 

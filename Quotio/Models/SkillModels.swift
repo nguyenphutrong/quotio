@@ -80,22 +80,69 @@ struct SkillTriggers: Codable, Sendable {
     }
     
     nonisolated func matches(text: String, filePath: String?, agent: String? = nil) -> Bool {
-        let keywordMatch = keywords.isEmpty || keywords.contains { text.localizedCaseInsensitiveContains($0) }
-        let fileMatch = files.isEmpty || (filePath.map { path in files.contains { pattern in matchesGlob(path: path, pattern: pattern) } } ?? false)
-        let agentMatch = agents.isEmpty || (agent.map { agentName in agents.contains { agentName.localizedCaseInsensitiveContains($0) } } ?? true)
+        let normalizedKeywords = keywords
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let normalizedFiles = files
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let normalizedAgents = agents
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+
+        let keywordMatch = normalizedKeywords.isEmpty || normalizedKeywords.contains { text.localizedCaseInsensitiveContains($0) }
+        let fileMatch = normalizedFiles.isEmpty || (filePath.map { path in
+            normalizedFiles.contains { pattern in matchesGlob(path: path, pattern: pattern) }
+        } ?? false)
+
+        let agentMatch: Bool
+        if normalizedAgents.isEmpty {
+            agentMatch = true
+        } else if let agentName = agent?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !agentName.isEmpty {
+            agentMatch = normalizedAgents.contains { pattern in
+                agentName.contains(pattern) || pattern.contains(agentName)
+            }
+        } else {
+            agentMatch = false
+        }
+
         return keywordMatch && fileMatch && agentMatch
     }
     
     private nonisolated func matchesGlob(path: String, pattern: String) -> Bool {
-        let regex = pattern.replacingOccurrences(of: "*", with: ".*").replacingOccurrences(of: "?", with: ".")
-        return path.range(of: regex, options: .regularExpression) != nil
+        let escaped = NSRegularExpression.escapedPattern(for: pattern)
+        let wildcardRegex = escaped
+            .replacingOccurrences(of: "\\*", with: ".*")
+            .replacingOccurrences(of: "\\?", with: ".")
+        let regex = "^\(wildcardRegex)$"
+        return path.range(of: regex, options: [.regularExpression, .caseInsensitive]) != nil
     }
 }
 
 // MARK: - MCP Configuration
 
-struct MCPConfig: Codable, Sendable {
+struct MCPConfig: Sendable {
     let servers: [MCPServer]
+
+    nonisolated init(servers: [MCPServer]) {
+        self.servers = servers
+    }
+}
+
+extension MCPConfig: Codable {
+    enum CodingKeys: String, CodingKey {
+        case servers
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.servers = try container.decode([MCPServer].self, forKey: .servers)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(servers, forKey: .servers)
+    }
 }
 
 struct MCPServer: Codable, Identifiable, Sendable {
@@ -104,16 +151,53 @@ struct MCPServer: Codable, Identifiable, Sendable {
     let url: String
     let type: MCPServerType
     
-    nonisolated init(id: UUID = UUID(), name: String, url: String) {
+    nonisolated init(id: UUID = UUID(), name: String, url: String, type: MCPServerType? = nil) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+
         self.id = id
-        self.name = name
-        self.url = url
-        self.type = url.hasPrefix("stdio://") ? .stdio : .http
+        self.name = trimmedName
+
+        if let type {
+            self.type = type
+            switch type {
+            case .stdio:
+                self.url = trimmedURL.hasPrefix("stdio://") ? trimmedURL : "stdio://\(trimmedURL)"
+            case .http:
+                self.url = trimmedURL
+            }
+        } else {
+            self.url = trimmedURL
+            self.type = trimmedURL.hasPrefix("stdio://") ? .stdio : .http
+        }
     }
     
     enum MCPServerType: String, Codable, Sendable {
         case stdio
         case http
+    }
+}
+
+extension MCPServer {
+    enum CodingKeys: String, CodingKey {
+        case id, name, url, type
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        let name = try container.decode(String.self, forKey: .name)
+        let url = try container.decode(String.self, forKey: .url)
+        let type = try container.decodeIfPresent(MCPServerType.self, forKey: .type)
+        self.init(id: id, name: name, url: url, type: type)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(url, forKey: .url)
+        try container.encode(type, forKey: .type)
     }
 }
 
