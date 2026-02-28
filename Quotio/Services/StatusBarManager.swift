@@ -69,7 +69,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         button.image = nil
         button.imagePosition = .imageLeft
         
-        if !showQuota || !isRunning || items.isEmpty {
+        if !isRunning || items.isEmpty {
             button.image = NSImage(
                 systemSymbolName: isRunning ? "gauge.with.dots.needle.67percent" : "gauge.with.dots.needle.0percent",
                 accessibilityDescription: "Quotio"
@@ -78,39 +78,27 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             statusItem?.length = NSStatusItem.variableLength
             return
         }
-        
-        let settings = MenuBarSettingsManager.shared
+
         let primaryItem = items[0]
-        let primaryText = statusText(for: primaryItem, displayMode: settings.quotaDisplayMode)
-        let trailingText = items.dropFirst().map { item in
-            "\(item.provider.menuBarSymbol)\(statusText(for: item, displayMode: settings.quotaDisplayMode))"
-        }.joined(separator: " ")
-        let fullText = trailingText.isEmpty ? primaryText : "\(primaryText) \(trailingText)"
-        
-        let titleColor: NSColor = (colorMode == .colored && primaryItem.isForbidden) ? .systemOrange : .labelColor
-        button.attributedTitle = NSAttributedString(
-            string: fullText,
-            attributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
-                .foregroundColor: titleColor
-            ]
-        )
-        
+
         if let assetName = primaryItem.provider.menuBarIconAsset,
            let image = NSImage(named: assetName) {
-            image.size = NSSize(width: 13, height: 13)
+            image.size = NSSize(width: 16, height: 16)
             button.image = image
+            button.attributedTitle = NSAttributedString(string: "")
         } else {
+            // Fallback: symbol letter only
             button.image = nil
+            let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+            let symbol = primaryItem.provider.menuBarSymbol
             button.attributedTitle = NSAttributedString(
-                string: "\(primaryItem.provider.menuBarSymbol)\(fullText)",
-                attributes: [
-                    .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
-                    .foregroundColor: titleColor
-                ]
+                string: symbol,
+                attributes: [.font: font, .foregroundColor: NSColor.labelColor]
             )
+            let textWidth = (symbol as NSString).size(withAttributes: [.font: font]).width
+            statusItem?.length = ceil(textWidth + 6)
+            return
         }
-        
         statusItem?.length = NSStatusItem.variableLength
     }
     
@@ -188,15 +176,5 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             statusItem = nil
         }
         menu = nil
-    }
-}
-
-private extension StatusBarManager {
-    func statusText(for item: MenuBarQuotaDisplayItem, displayMode: QuotaDisplayMode) -> String {
-        if item.isForbidden { return "!" }
-        if item.percentage < 0 { return "--%" }
-        let displayPercent = displayMode.displayValue(from: item.percentage)
-        let clamped = min(100, max(0, displayPercent))
-        return String(format: "%.0f%%", clamped.rounded())
     }
 }
