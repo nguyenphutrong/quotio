@@ -82,25 +82,38 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
         
-        // Keep compact width in menu bar; AppKit button already has native outer inset.
-        let horizontalPadding: CGFloat = 1
+        // Keep content width tight; AppKit status button already has native insets.
+        let horizontalPadding: CGFloat = 0
         let contentSize = hostingView.intrinsicContentSize
         let containerSize = NSSize(
             width: contentSize.width + horizontalPadding * 2,
             height: max(22, contentSize.height)
         )
-        
-        let containerView = StatusBarContainerView(frame: NSRect(origin: .zero, size: containerSize))
+
+        // Slightly bleed content into the button's built-in insets to reduce visible side gaps.
+        let edgeBleed: CGFloat = 2
+        let containerView = StatusBarContainerView(
+            frame: NSRect(
+                x: -edgeBleed,
+                y: 0,
+                width: containerSize.width + edgeBleed * 2,
+                height: containerSize.height
+            )
+        )
         containerView.addSubview(hostingView)
         hostingView.frame = NSRect(
-            x: horizontalPadding,
+            x: horizontalPadding + edgeBleed,
             y: (containerSize.height - contentSize.height) / 2,
             width: contentSize.width,
             height: contentSize.height
         )
         
         button.addSubview(containerView)
-        statusItem?.length = containerSize.width
+
+        // AppKit adds its own left/right inset for status bar buttons.
+        // Compensate to avoid an overly wide clickable capsule around compact content.
+        let appKitInsetCompensation: CGFloat = 10
+        statusItem?.length = max(18, containerSize.width - appKitInsetCompensation)
     }
     
     // MARK: - NSMenuDelegate
@@ -213,12 +226,12 @@ struct StatusBarQuotaView: View {
     let colorMode: MenuBarColorMode
     
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             ForEach(items) { item in
                 StatusBarQuotaItemView(item: item, colorMode: colorMode)
             }
         }
-        .padding(.horizontal, 1)
+        .padding(.horizontal, 0)
         .frame(height: 22)
         .fixedSize()
     }
