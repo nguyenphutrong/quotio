@@ -75,7 +75,10 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             isRunning: isRunning,
             showQuota: showQuota
         )
-        iconImage?.isTemplate = (colorMode != .colored)
+        // Menu bar icon assets are template-oriented; keep template rendering
+        // to ensure correct contrast in light/dark menu bar appearances.
+        iconImage?.isTemplate = true
+        button.contentTintColor = nil
         button.image = iconImage
     }
 
