@@ -88,7 +88,19 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             width: contentSize.width + horizontalPadding * 2,
             height: max(22, contentSize.height)
         )
-        let targetWidth: CGFloat = isProviderIconOnly ? NSStatusItem.squareLength : containerSize.width
+        let targetWidth: CGFloat
+        if isProviderIconOnly {
+            // Native-like icon item width: content + modest side insets (not square).
+            let iconOnlySideInset: CGFloat = 4
+            targetWidth = max(
+                NSStatusBar.system.thickness + 2,
+                contentSize.width + iconOnlySideInset * 2
+            )
+            statusItem?.length = targetWidth
+        } else {
+            targetWidth = containerSize.width
+            statusItem?.length = targetWidth
+        }
 
         let containerView = StatusBarContainerView(
             frame: NSRect(origin: .zero, size: NSSize(width: targetWidth, height: containerSize.height))
@@ -102,7 +114,6 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         )
 
         button.addSubview(containerView)
-        statusItem?.length = targetWidth
     }
 
     // MARK: - NSMenuDelegate
@@ -231,7 +242,7 @@ struct StatusBarProviderIconView: View {
     let colorMode: MenuBarColorMode
 
     var body: some View {
-        let iconSize: CGFloat = 16
+        let iconSize: CGFloat = 17
         let symbolFontSize: CGFloat = 12
 
         Group {
