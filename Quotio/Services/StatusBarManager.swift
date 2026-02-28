@@ -84,7 +84,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
 
         if let assetName = primaryItem.provider.menuBarIconAsset,
            let image = NSImage(named: assetName) {
-            let iconSize: CGFloat = 17
+            let iconSize: CGFloat = 16
             image.size = NSSize(width: iconSize, height: iconSize)
             button.imageScaling = .scaleProportionallyUpOrDown
             button.image = image
