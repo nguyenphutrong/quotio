@@ -82,8 +82,8 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
         
-        // Add horizontal padding to align with native status bar spacing
-        let horizontalPadding: CGFloat = 4
+        // Keep compact width in menu bar; AppKit button already has native outer inset.
+        let horizontalPadding: CGFloat = 1
         let contentSize = hostingView.intrinsicContentSize
         let containerSize = NSSize(
             width: contentSize.width + horizontalPadding * 2,
@@ -218,7 +218,7 @@ struct StatusBarQuotaView: View {
                 StatusBarQuotaItemView(item: item, colorMode: colorMode)
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 1)
         .frame(height: 22)
         .fixedSize()
     }
@@ -235,16 +235,19 @@ struct StatusBarQuotaItemView: View {
     var body: some View {
         let displayMode = settings.quotaDisplayMode
         let displayPercent = displayMode.displayValue(from: item.percentage)
+        let iconSize: CGFloat = 13
+        let symbolFontSize: CGFloat = 12
+        let percentFontSize: CGFloat = 12
         
         HStack(spacing: 2) {
             if let assetName = item.provider.menuBarIconAsset {
                 Image(assetName)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 14, height: 14)
+                    .frame(width: iconSize, height: iconSize)
             } else {
                 Text(item.provider.menuBarSymbol)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.system(size: symbolFontSize, weight: .semibold, design: .rounded))
                     .foregroundStyle(colorMode == .colored ? item.provider.color : .primary)
                     .fixedSize()
             }
@@ -255,7 +258,7 @@ struct StatusBarQuotaItemView: View {
                     .foregroundStyle(.orange)
             } else if item.percentage >= 0 {
                 Text(formatPercentage(displayPercent))
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .font(.system(size: percentFontSize, weight: .semibold, design: .monospaced))
                     .foregroundStyle(colorMode == .colored ? item.statusColor : .primary)
                     .fixedSize()
             }

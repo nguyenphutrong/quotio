@@ -1,0 +1,59 @@
+name: Package Unsigned
+
+on:
+  workflow_dispatch:
+
+env:
+  PROJECT_NAME: Quotio
+
+jobs:
+  package:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.1"
+
+      - name: Read app version
+        id: version
+        run: |
+          VERSION=$(grep -m1 "MARKETING_VERSION" Quotio.xcodeproj/project.pbxproj | sed 's/.*= \(.*\);/\1/')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Version: ${VERSION}"
+
+      - name: Build app
+        run: |
+          chmod +x ./scripts/build.sh
+          ./scripts/build.sh
+
+      - name: Install create-dmg (optional)
+        run: brew install create-dmg
+
+      - name: Package app (ZIP + DMG)
+        run: |
+          chmod +x ./scripts/package.sh
+          ./scripts/package.sh
+
+      - name: Show generated files
+        run: ls -lah build/release
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quotio-unsigned-${{ steps.version.outputs.version }}
+          path: |
+            build/release/*.dmg
+            build/release/*.zip
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          echo "## Unsigned Package Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: ${{ steps.version.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact: quotio-unsigned-${{ steps.version.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
