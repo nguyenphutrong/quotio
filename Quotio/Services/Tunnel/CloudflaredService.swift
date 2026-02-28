@@ -80,7 +80,11 @@ actor CloudflaredService {
         return nil
     }
     
-    func start(port: UInt16, onURLDetected: @escaping @Sendable (String) -> Void) async throws {
+    func start(
+        port: UInt16,
+        onURLDetected: @escaping @Sendable (String) -> Void,
+        onLogLine: (@Sendable (String, Bool) -> Void)? = nil
+    ) async throws {
         guard process == nil else {
             throw TunnelError.alreadyRunning
         }
@@ -153,15 +157,61 @@ actor CloudflaredService {
                 return nil
             }
         }
+
+        final class LineBuffer: @unchecked Sendable {
+            private let lock = NSLock()
+            private var pending = ""
+
+            func append(_ text: String) -> [String] {
+                lock.lock()
+                defer { lock.unlock() }
+
+                pending += text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+                let parts = pending.components(separatedBy: "\n")
+                pending = parts.last ?? ""
+                guard parts.count > 1 else { return [] }
+                return parts[0..<(parts.count - 1)].filter { !$0.isEmpty }
+            }
+
+            func flush() -> [String] {
+                lock.lock()
+                defer { lock.unlock() }
+
+                let last = pending.trimmingCharacters(in: .whitespacesAndNewlines)
+                pending = ""
+                return last.isEmpty ? [] : [last]
+            }
+        }
         
         let buffer = OutputBuffer()
+        let stdoutLines = LineBuffer()
+        let stderrLines = LineBuffer()
         
+        let emitLogLines: @Sendable (String, Bool) -> Void = { text, isErrorStream in
+            guard let onLogLine else { return }
+            let lineBuffer = isErrorStream ? stderrLines : stdoutLines
+            let lines = lineBuffer.append(text)
+            for line in lines {
+                onLogLine(line, isErrorStream)
+            }
+        }
+
+        let emitRemainingLines: @Sendable (Bool) -> Void = { isErrorStream in
+            guard let onLogLine else { return }
+            let lineBuffer = isErrorStream ? stderrLines : stdoutLines
+            let lines = lineBuffer.flush()
+            for line in lines {
+                onLogLine(line, isErrorStream)
+            }
+        }
+
         errorPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             
             // EOF detected - empty data means stream closed
             if data.isEmpty {
                 handle.readabilityHandler = nil
+                emitRemainingLines(true)
                 // Check remaining buffer for URL on EOF
                 if let url = buffer.checkRemaining() {
                     onURLDetected(url)
@@ -170,6 +220,7 @@ actor CloudflaredService {
             }
             
             guard let text = String(data: data, encoding: .utf8) else { return }
+            emitLogLines(text, true)
             
             if let url = buffer.append(text) {
                 onURLDetected(url)
@@ -182,6 +233,7 @@ actor CloudflaredService {
             // EOF detected - empty data means stream closed
             if data.isEmpty {
                 handle.readabilityHandler = nil
+                emitRemainingLines(false)
                 // Check remaining buffer for URL on EOF
                 if let url = buffer.checkRemaining() {
                     onURLDetected(url)
@@ -190,6 +242,7 @@ actor CloudflaredService {
             }
             
             guard let text = String(data: data, encoding: .utf8) else { return }
+            emitLogLines(text, false)
             
             if let url = buffer.append(text) {
                 onURLDetected(url)
