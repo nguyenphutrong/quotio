@@ -86,29 +86,30 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         }
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
 
+        let horizontalPadding: CGFloat = 0
         let contentSize = hostingView.intrinsicContentSize
-        let containerHeight = max(22, contentSize.height)
-        // Match native macOS status bar item sizing:
-        // System icons (Wi-Fi, battery, etc.) typically use thickness (~22pt) as their width.
-        let nativeIconWidth = NSStatusBar.system.thickness
+        let containerSize = NSSize(
+            width: contentSize.width + horizontalPadding * 2,
+            height: max(22, contentSize.height)
+        )
         let targetWidth: CGFloat
         if isProviderIconOnly {
-            // Provider icon (17pt) centered with minimal side insets, matching native icon items.
-            targetWidth = nativeIconWidth
+            // Standard side spacing (~2pt each side), matching native system icons.
+            let iconOnlySideInset: CGFloat = 2
+            targetWidth = contentSize.width + iconOnlySideInset * 2
             statusItem?.length = targetWidth
         } else {
-            // Default gauge icon: use content width but at least native icon width.
-            targetWidth = max(nativeIconWidth, contentSize.width)
+            targetWidth = containerSize.width
             statusItem?.length = targetWidth
         }
 
         let containerView = StatusBarContainerView(
-            frame: NSRect(origin: .zero, size: NSSize(width: targetWidth, height: containerHeight))
+            frame: NSRect(origin: .zero, size: NSSize(width: targetWidth, height: containerSize.height))
         )
         containerView.addSubview(hostingView)
         hostingView.frame = NSRect(
             x: floor((targetWidth - contentSize.width) / 2),
-            y: (containerHeight - contentSize.height) / 2,
+            y: (containerSize.height - contentSize.height) / 2,
             width: contentSize.width,
             height: contentSize.height
         )
@@ -226,7 +227,7 @@ struct StatusBarProviderOnlyView: View {
     let colorMode: MenuBarColorMode
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             if let first = items.first {
                 StatusBarProviderIconView(item: first, colorMode: colorMode)
             }
