@@ -3,7 +3,7 @@
 //  Quotio
 //
 //  Custom NSStatusBar manager with native NSMenu for Liquid Glass appearance.
-//  Uses NSMenu with SwiftUI hosting views for native macOS styling.
+//  Uses NSStatusBarButton native image/title rendering for compact menu bar layout.
 //
 
 import AppKit
@@ -63,57 +63,55 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         statusItem?.menu = menu
         
         guard let button = statusItem?.button else { return }
-        
         button.subviews.forEach { $0.removeFromSuperview() }
         button.title = ""
+        button.attributedTitle = NSAttributedString(string: "")
         button.image = nil
+        button.imagePosition = .imageLeft
         
-        let contentView: AnyView
         if !showQuota || !isRunning || items.isEmpty {
-            contentView = AnyView(
-                StatusBarDefaultView(isRunning: isRunning)
+            button.image = NSImage(
+                systemSymbolName: isRunning ? "gauge.with.dots.needle.67percent" : "gauge.with.dots.needle.0percent",
+                accessibilityDescription: "Quotio"
             )
+            button.image?.size = NSSize(width: 14, height: 14)
+            statusItem?.length = NSStatusItem.variableLength
+            return
+        }
+        
+        let settings = MenuBarSettingsManager.shared
+        let primaryItem = items[0]
+        let primaryText = statusText(for: primaryItem, displayMode: settings.quotaDisplayMode)
+        let trailingText = items.dropFirst().map { item in
+            "\(item.provider.menuBarSymbol)\(statusText(for: item, displayMode: settings.quotaDisplayMode))"
+        }.joined(separator: " ")
+        let fullText = trailingText.isEmpty ? primaryText : "\(primaryText) \(trailingText)"
+        
+        let titleColor: NSColor = (colorMode == .colored && primaryItem.isForbidden) ? .systemOrange : .labelColor
+        button.attributedTitle = NSAttributedString(
+            string: fullText,
+            attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
+                .foregroundColor: titleColor
+            ]
+        )
+        
+        if let assetName = primaryItem.provider.menuBarIconAsset,
+           let image = NSImage(named: assetName) {
+            image.size = NSSize(width: 13, height: 13)
+            button.image = image
         } else {
-            contentView = AnyView(
-                StatusBarQuotaView(items: items, colorMode: colorMode)
+            button.image = nil
+            button.attributedTitle = NSAttributedString(
+                string: "\(primaryItem.provider.menuBarSymbol)\(fullText)",
+                attributes: [
+                    .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
+                    .foregroundColor: titleColor
+                ]
             )
         }
         
-        let hostingView = NSHostingView(rootView: contentView)
-        hostingView.setFrameSize(hostingView.intrinsicContentSize)
-        
-        // Keep content width tight; AppKit status button already has native insets.
-        let horizontalPadding: CGFloat = 0
-        let contentSize = hostingView.intrinsicContentSize
-        let containerSize = NSSize(
-            width: contentSize.width + horizontalPadding * 2,
-            height: max(22, contentSize.height)
-        )
-
-        // Slightly bleed content into the button's built-in insets to reduce visible side gaps.
-        let edgeBleed: CGFloat = 2
-        let containerView = StatusBarContainerView(
-            frame: NSRect(
-                x: -edgeBleed,
-                y: 0,
-                width: containerSize.width + edgeBleed * 2,
-                height: containerSize.height
-            )
-        )
-        containerView.addSubview(hostingView)
-        hostingView.frame = NSRect(
-            x: horizontalPadding + edgeBleed,
-            y: (containerSize.height - contentSize.height) / 2,
-            width: contentSize.width,
-            height: contentSize.height
-        )
-        
-        button.addSubview(containerView)
-
-        // AppKit adds its own left/right inset for status bar buttons.
-        // Compensate to avoid an overly wide clickable capsule around compact content.
-        let appKitInsetCompensation: CGFloat = 10
-        statusItem?.length = max(18, containerSize.width - appKitInsetCompensation)
+        statusItem?.length = NSStatusItem.variableLength
     }
     
     // MARK: - NSMenuDelegate
@@ -193,96 +191,12 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     }
 }
 
-// MARK: - Status Bar Container View
-
-final class StatusBarContainerView: NSView {
-    override var allowsVibrancy: Bool { true }
-    
-    override func mouseDown(with event: NSEvent) {
-        superview?.mouseDown(with: event)
-    }
-    
-    override func mouseUp(with event: NSEvent) {
-        superview?.mouseUp(with: event)
-    }
-}
-
-// MARK: - Status Bar Default View
-
-struct StatusBarDefaultView: View {
-    let isRunning: Bool
-    
-    var body: some View {
-        Image(systemName: isRunning ? "gauge.with.dots.needle.67percent" : "gauge.with.dots.needle.0percent")
-            .font(.system(size: 14))
-            .frame(height: 22)
-    }
-}
-
-// MARK: - Status Bar Quota View
-
-struct StatusBarQuotaView: View {
-    let items: [MenuBarQuotaDisplayItem]
-    let colorMode: MenuBarColorMode
-    
-    var body: some View {
-        HStack(spacing: 6) {
-            ForEach(items) { item in
-                StatusBarQuotaItemView(item: item, colorMode: colorMode)
-            }
-        }
-        .padding(.horizontal, 0)
-        .frame(height: 22)
-        .fixedSize()
-    }
-}
-
-// MARK: - Status Bar Quota Item View
-
-struct StatusBarQuotaItemView: View {
-    let item: MenuBarQuotaDisplayItem
-    let colorMode: MenuBarColorMode
-    
-    @State private var settings = MenuBarSettingsManager.shared
-    
-    var body: some View {
-        let displayMode = settings.quotaDisplayMode
+private extension StatusBarManager {
+    func statusText(for item: MenuBarQuotaDisplayItem, displayMode: QuotaDisplayMode) -> String {
+        if item.isForbidden { return "!" }
+        if item.percentage < 0 { return "--%" }
         let displayPercent = displayMode.displayValue(from: item.percentage)
-        let iconSize: CGFloat = 13
-        let symbolFontSize: CGFloat = 12
-        let percentFontSize: CGFloat = 12
-        
-        HStack(spacing: 2) {
-            if let assetName = item.provider.menuBarIconAsset {
-                Image(assetName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: iconSize, height: iconSize)
-            } else {
-                Text(item.provider.menuBarSymbol)
-                    .font(.system(size: symbolFontSize, weight: .semibold, design: .rounded))
-                    .foregroundStyle(colorMode == .colored ? item.provider.color : .primary)
-                    .fixedSize()
-            }
-            
-            if item.isForbidden {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.orange)
-            } else if item.percentage >= 0 {
-                Text(formatPercentage(displayPercent))
-                    .font(.system(size: percentFontSize, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(colorMode == .colored ? item.statusColor : .primary)
-                    .fixedSize()
-            }
-        }
-        .fixedSize()
-    }
-    
-    private func formatPercentage(_ value: Double) -> String {
-        if value < 0 { return "--%"}
-        // Defensive clamp to valid 0-100 range
-        let clamped = min(100, max(0, value))
+        let clamped = min(100, max(0, displayPercent))
         return String(format: "%.0f%%", clamped.rounded())
     }
 }
