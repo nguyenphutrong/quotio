@@ -64,57 +64,48 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
 
         guard let button = statusItem?.button else { return }
 
+        // Clean up any legacy subviews from previous rendering approach
         button.subviews.forEach { $0.removeFromSuperview() }
         button.title = ""
-        button.image = nil
 
+        // Render SwiftUI content to NSImage and assign to button.image.
+        // This is the only way to get native system-level compact sizing
+        // (identical to Wi-Fi, Bluetooth, Control Center icons).
         let contentView: AnyView
-        let isProviderIconOnly: Bool
+        let useTemplate: Bool
         if !showQuota || !isRunning || items.isEmpty {
-            isProviderIconOnly = false
             contentView = AnyView(StatusBarDefaultView(isRunning: isRunning))
+            useTemplate = true
         } else {
-            // Keep current product behavior: show provider icon only in menu bar.
-            isProviderIconOnly = true
+            let isColored = colorMode == .colored
             contentView = AnyView(StatusBarProviderOnlyView(items: items, colorMode: colorMode))
+            // Template mode enables native highlight + dark mode;
+            // disable it only when user explicitly wants colored icons.
+            useTemplate = !isColored
         }
 
-        let hostingView = NSHostingView(rootView: contentView)
-        // Remove default NSHostingView layout margins for tighter sizing
+        let image = renderSwiftUIToImage(contentView)
+        image.isTemplate = useTemplate
+        button.image = image
+    }
+
+    // MARK: - SwiftUI → NSImage Rendering
+
+    /// Renders a SwiftUI view into an NSImage at the correct scale for the status bar.
+    private func renderSwiftUIToImage(_ view: some View) -> NSImage {
+        let hostingView = NSHostingView(rootView: view)
         if #available(macOS 13.0, *) {
             hostingView.sizingOptions = .intrinsicContentSize
         }
-        hostingView.setFrameSize(hostingView.intrinsicContentSize)
+        let size = hostingView.intrinsicContentSize
+        hostingView.frame = NSRect(origin: .zero, size: size)
 
-        let horizontalPadding: CGFloat = 0
-        let contentSize = hostingView.intrinsicContentSize
-        let containerSize = NSSize(
-            width: contentSize.width + horizontalPadding * 2,
-            height: max(22, contentSize.height)
-        )
-        let targetWidth: CGFloat
-        if isProviderIconOnly {
-            // Standard side spacing (~2pt each side), matching native system icons.
-            let iconOnlySideInset: CGFloat = 2
-            targetWidth = contentSize.width + iconOnlySideInset * 2
-            statusItem?.length = targetWidth
-        } else {
-            targetWidth = containerSize.width
-            statusItem?.length = targetWidth
-        }
+        let bitmapRep = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds)!
+        hostingView.cacheDisplay(in: hostingView.bounds, to: bitmapRep)
 
-        let containerView = StatusBarContainerView(
-            frame: NSRect(origin: .zero, size: NSSize(width: targetWidth, height: containerSize.height))
-        )
-        containerView.addSubview(hostingView)
-        hostingView.frame = NSRect(
-            x: floor((targetWidth - contentSize.width) / 2),
-            y: (containerSize.height - contentSize.height) / 2,
-            width: contentSize.width,
-            height: contentSize.height
-        )
-
-        button.addSubview(containerView)
+        let image = NSImage(size: size)
+        image.addRepresentation(bitmapRep)
+        return image
     }
 
     // MARK: - NSMenuDelegate
@@ -191,20 +182,6 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             statusItem = nil
         }
         menu = nil
-    }
-}
-
-// MARK: - Status Bar Container View
-
-final class StatusBarContainerView: NSView {
-    override var allowsVibrancy: Bool { true }
-
-    override func mouseDown(with event: NSEvent) {
-        superview?.mouseDown(with: event)
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        superview?.mouseUp(with: event)
     }
 }
 
