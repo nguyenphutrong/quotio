@@ -80,35 +80,35 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         }
 
         let hostingView = NSHostingView(rootView: contentView)
+        // Remove default NSHostingView layout margins for tighter sizing
+        if #available(macOS 13.0, *) {
+            hostingView.sizingOptions = .intrinsicContentSize
+        }
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
 
-        let horizontalPadding: CGFloat = 0
         let contentSize = hostingView.intrinsicContentSize
-        let containerSize = NSSize(
-            width: contentSize.width + horizontalPadding * 2,
-            height: max(22, contentSize.height)
-        )
+        let containerHeight = max(22, contentSize.height)
+        // Match native macOS status bar item sizing:
+        // System icons (Wi-Fi, battery, etc.) typically use thickness (~22pt) as their width.
+        let nativeIconWidth = NSStatusBar.system.thickness
         let targetWidth: CGFloat
         if isProviderIconOnly {
-            // Native-like icon item width: content + modest side insets (not square).
-            let iconOnlySideInset: CGFloat = 4
-            targetWidth = max(
-                NSStatusBar.system.thickness + 2,
-                contentSize.width + iconOnlySideInset * 2
-            )
+            // Provider icon (17pt) centered with minimal side insets, matching native icon items.
+            targetWidth = nativeIconWidth
             statusItem?.length = targetWidth
         } else {
-            targetWidth = containerSize.width
+            // Default gauge icon: use content width but at least native icon width.
+            targetWidth = max(nativeIconWidth, contentSize.width)
             statusItem?.length = targetWidth
         }
 
         let containerView = StatusBarContainerView(
-            frame: NSRect(origin: .zero, size: NSSize(width: targetWidth, height: containerSize.height))
+            frame: NSRect(origin: .zero, size: NSSize(width: targetWidth, height: containerHeight))
         )
         containerView.addSubview(hostingView)
         hostingView.frame = NSRect(
             x: floor((targetWidth - contentSize.width) / 2),
-            y: (containerSize.height - contentSize.height) / 2,
+            y: (containerHeight - contentSize.height) / 2,
             width: contentSize.width,
             height: contentSize.height
         )
