@@ -7,12 +7,12 @@
 //
 
 import AppKit
-import SwiftUI
 
 @MainActor
 @Observable
 final class StatusBarManager: NSObject, NSMenuDelegate {
     static let shared = StatusBarManager()
+    private static let statusBarIconSize = NSSize(width: 18, height: 18)
 
     private var statusItem: NSStatusItem?
     private var menu: NSMenu?
@@ -64,48 +64,46 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
 
         guard let button = statusItem?.button else { return }
 
-        // Clean up any legacy subviews from previous rendering approach
-        button.subviews.forEach { $0.removeFromSuperview() }
+        // Show icon only and let AppKit manage sizing/layout natively.
         button.title = ""
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyUpOrDown
+        button.attributedTitle = NSAttributedString(string: "")
 
-        // Render SwiftUI content to NSImage and assign to button.image.
-        // This is the only way to get native system-level compact sizing
-        // (identical to Wi-Fi, Bluetooth, Control Center icons).
-        let contentView: AnyView
-        let useTemplate: Bool
-        if !showQuota || !isRunning || items.isEmpty {
-            contentView = AnyView(StatusBarDefaultView(isRunning: isRunning))
-            useTemplate = true
-        } else {
-            let isColored = colorMode == .colored
-            contentView = AnyView(StatusBarProviderOnlyView(items: items, colorMode: colorMode))
-            // Template mode enables native highlight + dark mode;
-            // disable it only when user explicitly wants colored icons.
-            useTemplate = !isColored
-        }
-
-        let image = renderSwiftUIToImage(contentView)
-        image.isTemplate = useTemplate
-        button.image = image
+        let iconImage = makeStatusBarIcon(
+            items: items,
+            isRunning: isRunning,
+            showQuota: showQuota
+        )
+        iconImage?.isTemplate = (colorMode != .colored)
+        button.image = iconImage
     }
 
-    // MARK: - SwiftUI → NSImage Rendering
-
-    /// Renders a SwiftUI view into an NSImage at the correct scale for the status bar.
-    private func renderSwiftUIToImage(_ view: some View) -> NSImage {
-        let hostingView = NSHostingView(rootView: view)
-        if #available(macOS 13.0, *) {
-            hostingView.sizingOptions = .intrinsicContentSize
+    private func makeStatusBarIcon(
+        items: [MenuBarQuotaDisplayItem],
+        isRunning: Bool,
+        showQuota: Bool
+    ) -> NSImage? {
+        func prepared(_ image: NSImage?) -> NSImage? {
+            guard let image else { return nil }
+            image.size = Self.statusBarIconSize
+            return image
         }
-        let size = hostingView.intrinsicContentSize
-        hostingView.frame = NSRect(origin: .zero, size: size)
 
-        let bitmapRep = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds)!
-        hostingView.cacheDisplay(in: hostingView.bounds, to: bitmapRep)
+        if showQuota, isRunning, let provider = items.first?.provider {
+            if let assetName = provider.menuBarIconAsset {
+                return prepared(NSImage(named: NSImage.Name(assetName)))
+            }
+            return prepared(NSImage(
+                systemSymbolName: provider.iconName,
+                accessibilityDescription: provider.displayName
+            ))
+        }
 
-        let image = NSImage(size: size)
-        image.addRepresentation(bitmapRep)
-        return image
+        let fallbackSymbol = isRunning
+            ? "gauge.with.dots.needle.67percent"
+            : "gauge.with.dots.needle.0percent"
+        return prepared(NSImage(systemSymbolName: fallbackSymbol, accessibilityDescription: "Quotio"))
     }
 
     // MARK: - NSMenuDelegate
@@ -182,60 +180,5 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             statusItem = nil
         }
         menu = nil
-    }
-}
-
-// MARK: - Status Bar Default View
-
-struct StatusBarDefaultView: View {
-    let isRunning: Bool
-
-    var body: some View {
-        Image(systemName: isRunning ? "gauge.with.dots.needle.67percent" : "gauge.with.dots.needle.0percent")
-            .font(.system(size: 14))
-            .frame(height: 22)
-    }
-}
-
-// MARK: - Status Bar Provider-Only View
-
-struct StatusBarProviderOnlyView: View {
-    let items: [MenuBarQuotaDisplayItem]
-    let colorMode: MenuBarColorMode
-
-    var body: some View {
-        HStack(spacing: 4) {
-            if let first = items.first {
-                StatusBarProviderIconView(item: first, colorMode: colorMode)
-            }
-        }
-        .padding(.horizontal, 0)
-        .frame(height: 22)
-        .fixedSize()
-    }
-}
-
-struct StatusBarProviderIconView: View {
-    let item: MenuBarQuotaDisplayItem
-    let colorMode: MenuBarColorMode
-
-    var body: some View {
-        let iconSize: CGFloat = 17
-        let symbolFontSize: CGFloat = 12
-
-        Group {
-            if let assetName = item.provider.menuBarIconAsset {
-                Image(assetName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: iconSize, height: iconSize)
-            } else {
-                Text(item.provider.menuBarSymbol)
-                    .font(.system(size: symbolFontSize, weight: .semibold, design: .rounded))
-                    .foregroundStyle(colorMode == .colored ? item.provider.color : .primary)
-                    .fixedSize()
-            }
-        }
-        .fixedSize()
     }
 }
