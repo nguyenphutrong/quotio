@@ -74,7 +74,8 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
                 systemSymbolName: isRunning ? "gauge.with.dots.needle.67percent" : "gauge.with.dots.needle.0percent",
                 accessibilityDescription: "Quotio"
             )
-            button.image?.size = NSSize(width: 14, height: 14)
+            button.image?.size = NSSize(width: 18, height: 18)
+            button.imageScaling = .scaleProportionallyUpOrDown
             statusItem?.length = NSStatusItem.variableLength
             return
         }
@@ -83,7 +84,8 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
 
         if let assetName = primaryItem.provider.menuBarIconAsset,
            let image = NSImage(named: assetName) {
-            image.size = NSSize(width: 16, height: 16)
+            image.size = NSSize(width: 18, height: 18)
+            button.imageScaling = .scaleProportionallyUpOrDown
             button.image = image
             button.attributedTitle = NSAttributedString(string: "")
         } else {
