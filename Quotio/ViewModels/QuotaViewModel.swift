@@ -1419,7 +1419,7 @@ final class QuotaViewModel {
 
                 let refreshedCount = await kiroFetcher.refreshAllTokensIfNeeded()
                 if refreshedCount > 0 {
-                    print("[Kiro] Refreshed \(refreshedCount) token(s) after import")
+                    Log.quota("[Kiro] Refreshed \(refreshedCount) token(s) after import")
                 }
 
                 await refreshData()
@@ -1473,7 +1473,7 @@ final class QuotaViewModel {
             if currentFileCount > startFileCount {
                 let refreshedCount = await kiroFetcher.refreshAllTokensIfNeeded()
                 if refreshedCount > 0 {
-                    print("[Kiro] Refreshed \(refreshedCount) token(s) after login")
+                    Log.quota("[Kiro] Refreshed \(refreshedCount) token(s) after login")
                 }
                 await refreshData()
                 oauthState = OAuthState(provider: .kiro, status: .success)
