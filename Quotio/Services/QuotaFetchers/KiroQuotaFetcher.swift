@@ -7,6 +7,8 @@
 
 
 import Foundation
+import CommonCrypto
+import IOKit
 
 // MARK: - Kiro Response Models
 
@@ -62,26 +64,85 @@ nonisolated struct KiroTokenResponse: Codable {
 actor KiroQuotaFetcher {
     // Default region for usage endpoint (most users are on us-east-1)
     private let defaultRegion = "us-east-1"
-    
+
     // Token refresh endpoint templates - region is dynamically substituted
     // For Google OAuth (Social auth)
     private func socialTokenEndpoint(region: String) -> String {
         "https://prod.\(region).auth.desktop.kiro.dev/refreshToken"
     }
-    
+
     // For AWS Builder ID / Enterprise (IdC auth)
     private func idcTokenEndpoint(region: String) -> String {
         "https://oidc.\(region).amazonaws.com/token"
     }
-    
-    // Usage endpoint - uses region from token data if available
+
+    // Usage endpoint - dynamically resolved region
     private func usageEndpoint(region: String) -> String {
-        "https://codewhisperer.\(region).amazonaws.com/getUsageLimits"
+        "https://q.\(region).amazonaws.com/getUsageLimits"
+    }
+
+    /// Extract region from profileArn (format: arn:aws:codewhisperer:{region}:...)
+    private func extractRegionFromProfileArn(_ profileArn: String?) -> String? {
+        guard let arn = profileArn, !arn.isEmpty else { return nil }
+        let parts = arn.split(separator: ":")
+        guard parts.count >= 6,
+              parts[0] == "arn",
+              parts[2] == "codewhisperer",
+              parts[3].contains("-") else { return nil }
+        return String(parts[3])
+    }
+
+    // Kiro IDE version for User-Agent — keep in sync with Kiro releases
+    private let kiroVersion = "0.10.32"
+    /// Generate account-based machine ID using clientId/refreshToken, falling back to hardware UUID
+    private var machineIdCache: [String: String] = [:]
+    private func machineId(for tokenData: AuthTokenData) -> String {
+        if let overrideMid = UserDefaults.standard.string(forKey: "KiroMachineId"), overrideMid.count == 64 {
+            return overrideMid
+        }
+        let seed = tokenData.clientId ?? tokenData.refreshToken ?? hardwareUUID
+        if let cached = machineIdCache[seed] { return cached }
+        let data = Data(seed.utf8)
+        var hash = [UInt8](repeating: 0, count: 32)
+        data.withUnsafeBytes { _ = CC_SHA256($0.baseAddress, CC_LONG(data.count), &hash) }
+        let id = hash.map { String(format: "%02x", $0) }.joined()
+        machineIdCache[seed] = id
+        return id
+    }
+
+    /// Hardware UUID stable across app launches
+    private lazy var hardwareUUID: String = {
+        let platformExpert = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+        defer { IOObjectRelease(platformExpert) }
+        if let uuid = IORegistryEntryCreateCFProperty(platformExpert, kIOPlatformUUIDKey as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? String {
+            return uuid
+        }
+        return UUID().uuidString
+    }()
+
+    private lazy var darwinVersion: String = {
+        var sysinfo = utsname()
+        uname(&sysinfo)
+        return withUnsafePointer(to: &sysinfo.release) {
+            $0.withMemoryRebound(to: CChar.self, capacity: Int(_SYS_NAMELEN)) {
+                String(cString: $0)
+            }
+        }
+    }()
+
+    private func kiroUserAgent(for tokenData: AuthTokenData) -> String {
+        let mid = machineId(for: tokenData)
+        return "aws-sdk-js/1.0.0 ua/2.1 os/darwin#\(darwinVersion) lang/js md/nodejs#22.21.1 api/codewhispererruntime#1.0.0 m/N,E KiroIDE-\(kiroVersion)-\(mid)"
+    }
+
+    private func kiroAmzUserAgent(for tokenData: AuthTokenData) -> String {
+        let mid = machineId(for: tokenData)
+        return "aws-sdk-js/1.0.0 KiroIDE-\(kiroVersion)-\(mid)"
     }
 
     private var session: URLSession
     private let fileManager = FileManager.default
-    
+
     /// Path to Kiro IDE auth token file
     private let kiroIDEAuthPath = NSString(string: "~/.aws/sso/cache/kiro-auth-token.json").expandingTildeInPath
 
@@ -213,14 +274,14 @@ actor KiroQuotaFetcher {
             }
         }
 
-        let region = tokenData.extras?["region"] ?? defaultRegion
-        
-        let result = await fetchUsageAPI(token: currentToken, tokenExpiresAt: tokenExpiresAt, region: region)
+        let region = extractRegionFromProfileArn(tokenData.extras?["profileArn"]) ?? tokenData.extras?["region"] ?? defaultRegion
+        let profileArn = tokenData.extras?["profileArn"]
+        let result = await fetchUsageAPI(token: currentToken, tokenExpiresAt: tokenExpiresAt, profileArn: profileArn, region: region, tokenData: tokenData)
 
         // Reactive refresh: If 401/403 and haven't tried refresh yet, refresh and retry
         if (result.statusCode == 401 || result.statusCode == 403) && !hasAttemptedRefresh {
             if let (refreshed, newExpiry) = await refreshTokenWithExpiry(tokenData: tokenData, filePath: filePath) {
-                let retryResult = await fetchUsageAPI(token: refreshed, tokenExpiresAt: newExpiry, region: region)
+                let retryResult = await fetchUsageAPI(token: refreshed, tokenExpiresAt: newExpiry, profileArn: profileArn, region: region, tokenData: tokenData)
                 return retryResult.quotaData ?? ProviderQuotaData(models: [], lastUpdated: Date(), isForbidden: true, planType: "Unauthorized", tokenExpiresAt: newExpiry)
             }
         }
@@ -246,9 +307,24 @@ actor KiroQuotaFetcher {
         let quotaData: ProviderQuotaData?
     }
 
-    private func fetchUsageAPI(token: String, tokenExpiresAt: Date?, region: String) async -> UsageAPIResult {
-        let endpoint = usageEndpoint(region: region)
-        guard let url = URL(string: "\(endpoint)?isEmailRequired=true&origin=AI_EDITOR") else {
+    private func fetchUsageAPI(token: String, tokenExpiresAt: Date?, profileArn: String?, region: String, tokenData: AuthTokenData) async -> UsageAPIResult {
+        guard var components = URLComponents(string: usageEndpoint(region: region)) else {
+            return UsageAPIResult(statusCode: 0, quotaData: ProviderQuotaData(
+                models: [ModelQuota(name: "Error", percentage: 0, resetTime: "Invalid URL")],
+                lastUpdated: Date(), isForbidden: false, planType: "Error", tokenExpiresAt: tokenExpiresAt
+            ))
+        }
+
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "origin", value: "AI_EDITOR"),
+            URLQueryItem(name: "resourceType", value: "AGENTIC_REQUEST")
+        ]
+        if let profileArn = profileArn, !profileArn.isEmpty {
+            queryItems.append(URLQueryItem(name: "profileArn", value: profileArn))
+        }
+        components.queryItems = queryItems
+
+        guard let url = components.url else {
             return UsageAPIResult(statusCode: 0, quotaData: ProviderQuotaData(
                 models: [ModelQuota(name: "Error", percentage: 0, resetTime: "Invalid URL")],
                 lastUpdated: Date(), isForbidden: false, planType: "Error", tokenExpiresAt: tokenExpiresAt
@@ -257,9 +333,17 @@ actor KiroQuotaFetcher {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.addValue("aws-sdk-js/3.0.0 KiroIDE-0.1.0 os/macos lang/js md/nodejs/18.0.0", forHTTPHeaderField: "User-Agent")
-        request.addValue("aws-sdk-js/3.0.0", forHTTPHeaderField: "x-amz-user-agent")
+
+        // Headers matching Kiro IDE requests
+        let headers: [String: String] = [
+            "Authorization": "Bearer \(token)",
+            "Host": "q.\(region).amazonaws.com",
+            "User-Agent": kiroUserAgent(for: tokenData),
+            "x-amz-user-agent": kiroAmzUserAgent(for: tokenData),
+            "amz-sdk-invocation-id": UUID().uuidString.lowercased(),
+            "amz-sdk-request": "attempt=1; max=1"
+        ]
+        headers.forEach { request.addValue($0.value, forHTTPHeaderField: $0.key) }
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -395,7 +479,7 @@ actor KiroQuotaFetcher {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("oidc.\(region).amazonaws.com", forHTTPHeaderField: "Host")
         request.addValue("keep-alive", forHTTPHeaderField: "Connection")
-        request.addValue("aws-sdk-js/3.738.0 ua/2.1 os/other lang/js md/browser#unknown_unknown api/sso-oidc#3.738.0 m/E KiroIDE", forHTTPHeaderField: "x-amz-user-agent")
+        request.addValue("aws-sdk-js/3.980.0 ua/2.1 os/other lang/js md/browser#unknown_unknown api/sso-oidc#3.980.0 m/E KiroIDE", forHTTPHeaderField: "x-amz-user-agent")
         request.addValue("*/*", forHTTPHeaderField: "Accept")
         request.addValue("*", forHTTPHeaderField: "Accept-Language")
         request.addValue("cors", forHTTPHeaderField: "sec-fetch-mode")

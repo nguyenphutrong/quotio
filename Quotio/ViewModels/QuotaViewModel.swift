@@ -45,7 +45,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
     @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
-    
+
     @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
     
     var currentPage: NavigationPage = .dashboard
@@ -250,7 +250,7 @@ final class QuotaViewModel {
     }
     
     // MARK: - Mode-Aware Initialization
-    
+
     func initialize() async {
         if modeManager.isRemoteProxyMode {
             await initializeRemoteMode()
@@ -260,7 +260,7 @@ final class QuotaViewModel {
             await initializeFullMode()
         }
     }
-    
+
     private func initializeFullMode() async {
         // Always refresh quotas directly first (works without proxy)
         await refreshQuotasUnified()
@@ -546,19 +546,17 @@ final class QuotaViewModel {
             }
         }
         
-        // 2. Remap for Direct AuthFiles (Monitor Mode)
-        if modeManager.isMonitorMode {
-            for file in directAuthFiles where file.provider == .kiro {
-                let filenameKey = cleanName(file.filename)
-                
-                // Skip if already processed by Proxy loop
-                if consumedRawKeys.contains(filenameKey) { continue }
-                
-                if let data = rawQuotas[filenameKey] {
-                    let targetKey = file.email ?? file.filename
-                    remappedQuotas[targetKey] = data
-                    consumedRawKeys.insert(filenameKey)
-                }
+        // 2. Remap for Direct AuthFiles (fallback when proxy authFiles not yet loaded)
+        for file in directAuthFiles where file.provider == .kiro {
+            let filenameKey = cleanName(file.filename)
+
+            // Skip if already processed by Proxy loop
+            if consumedRawKeys.contains(filenameKey) { continue }
+
+            if let data = rawQuotas[filenameKey] {
+                let targetKey = file.menuBarAccountKey
+                remappedQuotas[targetKey] = data
+                consumedRawKeys.insert(filenameKey)
             }
         }
         
@@ -1415,11 +1413,17 @@ final class QuotaViewModel {
             // Check if it's an import - simply wait and refresh, don't poll for new files (files might already exist)
             if method == .kiroImport {
                 oauthState = OAuthState(provider: .kiro, status: .polling, error: "Importing quotas...")
-                
+
                 // Allow some time for file operations
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
+
+                let refreshedCount = await kiroFetcher.refreshAllTokensIfNeeded()
+                if refreshedCount > 0 {
+                    Log.quota("[Kiro] Refreshed \(refreshedCount) token(s) after import")
+                }
+
                 await refreshData()
-                
+
                 // For import, we assume success if the command succeeded
                 oauthState = OAuthState(provider: .kiro, status: .success)
                 return
@@ -1459,19 +1463,24 @@ final class QuotaViewModel {
     
     private func pollKiroAuthCompletion() async {
         let startFileCount = authFiles.filter { $0.provider == "kiro" }.count
-        
+
         for _ in 0..<90 {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
-            
+
             await refreshData()
-            
+
             let currentFileCount = authFiles.filter { $0.provider == "kiro" }.count
             if currentFileCount > startFileCount {
+                let refreshedCount = await kiroFetcher.refreshAllTokensIfNeeded()
+                if refreshedCount > 0 {
+                    Log.quota("[Kiro] Refreshed \(refreshedCount) token(s) after login")
+                }
+                await refreshData()
                 oauthState = OAuthState(provider: .kiro, status: .success)
                 return
             }
         }
-        
+
         oauthState = OAuthState(provider: .kiro, status: .error, error: "Authentication timeout")
     }
     
