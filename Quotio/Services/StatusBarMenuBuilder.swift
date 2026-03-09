@@ -111,9 +111,12 @@ final class StatusBarMenuBuilder {
             }
         }
         
-        // Filter out CLI-based providers if CLI is not installed
+        // Filter out CLI-based providers only if CLI is not installed AND no quota data exists
         return providers.filter { provider in
             guard let agent = provider.cliAgent else { return true }
+            if let quotas = viewModel.providerQuotas[provider], !quotas.isEmpty {
+                return true
+            }
             return isCLIInstalled(agent)
         }.sorted { $0.displayName < $1.displayName }
     }
