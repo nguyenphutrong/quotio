@@ -7,6 +7,7 @@
 //
 
 import AppKit
+import SwiftUI
 
 @MainActor
 @Observable
@@ -14,11 +15,18 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     static let shared = StatusBarManager()
     private static let statusBarIconSize = NSSize(width: 18, height: 18)
 
+    private struct StatusBarIconCacheKey: Hashable {
+        let provider: AIProvider?
+        let isRunning: Bool
+        let showQuota: Bool
+    }
+
     private var statusItem: NSStatusItem?
     private var menu: NSMenu?
     private var menuContentVersion: Int = 0
     private var isRebuildingMenu = false
     private var hasPendingMenuRebuild = false
+    private var iconCache: [StatusBarIconCacheKey: NSImage] = [:]
 
     // Native menu builder
     private var menuBuilder: StatusBarMenuBuilder?
@@ -75,10 +83,14 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             isRunning: isRunning,
             showQuota: showQuota
         )
-        // Menu bar icon assets are template-oriented; keep template rendering
-        // to ensure correct contrast in light/dark menu bar appearances.
-        iconImage?.isTemplate = true
-        button.contentTintColor = nil
+        // Keep template rendering for the asset pipeline, and use tint to
+        // distinguish colored vs monochrome modes without losing contrast.
+        button.contentTintColor = resolvedTintColor(
+            items: items,
+            colorMode: colorMode,
+            isRunning: isRunning,
+            showQuota: showQuota
+        )
         button.image = iconImage
     }
 
@@ -87,26 +99,63 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         isRunning: Bool,
         showQuota: Bool
     ) -> NSImage? {
-        func prepared(_ image: NSImage?) -> NSImage? {
-            guard let image else { return nil }
-            image.size = Self.statusBarIconSize
-            return image
+        let cacheKey = StatusBarIconCacheKey(
+            provider: (showQuota && isRunning) ? items.first?.provider : nil,
+            isRunning: isRunning,
+            showQuota: showQuota
+        )
+        if let cachedImage = iconCache[cacheKey] {
+            return cachedImage
         }
 
+        func prepared(_ image: NSImage?) -> NSImage? {
+            guard let image else { return nil }
+            let preparedImage = (image.copy() as? NSImage) ?? image
+            preparedImage.size = Self.statusBarIconSize
+            preparedImage.isTemplate = true
+            return preparedImage
+        }
+
+        let iconImage: NSImage?
         if showQuota, isRunning, let provider = items.first?.provider {
             if let assetName = provider.menuBarIconAsset {
-                return prepared(NSImage(named: NSImage.Name(assetName)))
+                iconImage = prepared(NSImage(named: NSImage.Name(assetName)))
+            } else {
+                iconImage = prepared(NSImage(
+                    systemSymbolName: provider.iconName,
+                    accessibilityDescription: provider.displayName
+                ))
             }
-            return prepared(NSImage(
-                systemSymbolName: provider.iconName,
-                accessibilityDescription: provider.displayName
+        } else {
+            let fallbackSymbol = isRunning
+                ? "gauge.with.dots.needle.67percent"
+                : "gauge.with.dots.needle.0percent"
+            iconImage = prepared(NSImage(
+                systemSymbolName: fallbackSymbol,
+                accessibilityDescription: "Quotio"
             ))
         }
 
-        let fallbackSymbol = isRunning
-            ? "gauge.with.dots.needle.67percent"
-            : "gauge.with.dots.needle.0percent"
-        return prepared(NSImage(systemSymbolName: fallbackSymbol, accessibilityDescription: "Quotio"))
+        if let iconImage {
+            iconCache[cacheKey] = iconImage
+        }
+        return iconImage
+    }
+
+    private func resolvedTintColor(
+        items: [MenuBarQuotaDisplayItem],
+        colorMode: MenuBarColorMode,
+        isRunning: Bool,
+        showQuota: Bool
+    ) -> NSColor? {
+        guard colorMode == .colored,
+              showQuota,
+              isRunning,
+              let provider = items.first?.provider else {
+            return nil
+        }
+
+        return NSColor(provider.color)
     }
 
     // MARK: - NSMenuDelegate
