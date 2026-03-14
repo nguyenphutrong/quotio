@@ -45,6 +45,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
     @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
+    @ObservationIgnored private let kimiFetcher = KimiQuotaFetcher()
     
     @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
     
@@ -211,6 +212,7 @@ final class QuotaViewModel {
         await warpFetcher.updateProxyConfiguration()
         await traeFetcher.updateProxyConfiguration()
         await kiroFetcher.updateProxyConfiguration()
+        await kimiFetcher.updateProxyConfiguration()
     }
 
     private func setupRefreshCadenceCallback() {
@@ -360,8 +362,9 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
+        async let kimi: () = refreshKimiQuotasInternal()
 
-        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, warp, kiro)
+        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, warp, kiro, kimi)
         
         checkQuotaNotifications()
         pruneMenuBarItems()
@@ -573,6 +576,16 @@ final class QuotaViewModel {
             providerQuotas.removeValue(forKey: .kiro)
         } else {
             providerQuotas[.kiro] = remappedQuotas
+        }
+    }
+    
+    /// Refresh Kimi quota using API
+    private func refreshKimiQuotasInternal() async {
+        let quotas = await kimiFetcher.fetchAsProviderQuota()
+        if quotas.isEmpty {
+            providerQuotas.removeValue(forKey: .kimi)
+        } else {
+            providerQuotas[.kimi] = quotas
         }
     }
     
@@ -1181,8 +1194,9 @@ final class QuotaViewModel {
             async let glm: () = refreshGlmQuotasInternal()
             async let warp: () = refreshWarpQuotasInternal()
             async let kiro: () = refreshKiroQuotasInternal()
+            async let kimi: () = refreshKimiQuotasInternal()
 
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, kimi)
         }
 
         checkQuotaNotifications()
@@ -1215,14 +1229,15 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
+        async let kimi: () = refreshKimiQuotasInternal()
 
         // In Quota-Only Mode, also include CLI fetchers
         if modeManager.isMonitorMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
             async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, codexCLI, geminiCLI)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, kimi, codexCLI, geminiCLI)
         } else {
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, kimi)
         }
 
         checkQuotaNotifications()
@@ -1331,6 +1346,8 @@ final class QuotaViewModel {
             await refreshWarpQuotasInternal()
         case .kiro:
             await refreshKiroQuotasInternal()
+        case .kimi:
+            await refreshKimiQuotasInternal()
         default:
             break
         }
@@ -1360,6 +1377,12 @@ final class QuotaViewModel {
         // Kiro uses CLI-based auth with multiple options
         if provider == .kiro {
             await startKiroAuth(method: authMethod ?? .kiroGoogleLogin)
+            return
+        }
+        
+        // Kimi uses CLI-based OAuth (Device Flow)
+        if provider == .kimi {
+            await startKimiAuth()
             return
         }
 
@@ -1438,6 +1461,24 @@ final class QuotaViewModel {
         }
     }
     
+    private func startKimiAuth() async {
+        oauthState = OAuthState(provider: .kimi, status: .waiting)
+        
+        let result = await proxyManager.runAuthCommand(.kimiLogin)
+        
+        if result.success {
+            if let deviceCode = result.deviceCode {
+                oauthState = OAuthState(provider: .kimi, status: .polling, state: deviceCode, error: result.message)
+            } else {
+                oauthState = OAuthState(provider: .kimi, status: .polling, error: result.message)
+            }
+            
+            await pollKimiAuthCompletion()
+        } else {
+            oauthState = OAuthState(provider: .kimi, status: .error, error: result.message)
+        }
+    }
+    
     /// Poll for Copilot auth completion by monitoring auth files
     private func pollCopilotAuthCompletion() async {
         let startFileCount = authFiles.filter { $0.provider == "github-copilot" || $0.provider == "copilot" }.count
@@ -1473,6 +1514,24 @@ final class QuotaViewModel {
         }
         
         oauthState = OAuthState(provider: .kiro, status: .error, error: "Authentication timeout")
+    }
+    
+    private func pollKimiAuthCompletion() async {
+        let startFileCount = authFiles.filter { $0.provider == "kimi" }.count
+        
+        for _ in 0..<90 {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            
+            await refreshData()
+            
+            let currentFileCount = authFiles.filter { $0.provider == "kimi" }.count
+            if currentFileCount > startFileCount {
+                oauthState = OAuthState(provider: .kimi, status: .success)
+                return
+            }
+        }
+        
+        oauthState = OAuthState(provider: .kimi, status: .error, error: "Authentication timeout")
     }
     
     private func pollOAuthStatus(state: String, provider: AIProvider) async {

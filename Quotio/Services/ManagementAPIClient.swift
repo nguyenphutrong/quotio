@@ -253,7 +253,7 @@ actor ManagementAPIClient {
             queryParams.append("project_id=\(projectId)")
         }
         
-        let webUIProviders: [AIProvider] = [.antigravity, .claude, .codex, .gemini, .iflow, .kiro]
+        let webUIProviders: [AIProvider] = [.antigravity, .claude, .codex, .gemini, .iflow, .kiro, .kimi]
         if webUIProviders.contains(provider) {
             queryParams.append("is_webui=true")
         }

@@ -1177,6 +1177,7 @@ enum ProxyError: LocalizedError {
 
 enum AuthCommand: Equatable {
     case copilotLogin
+    case kimiLogin
     case kiroGoogleLogin
     case kiroAWSLogin
     case kiroAWSAuthCode
@@ -1186,6 +1187,8 @@ enum AuthCommand: Equatable {
         switch self {
         case .copilotLogin:
             return ["-github-copilot-login"]
+        case .kimiLogin:
+            return ["-kimi-login"]
         case .kiroGoogleLogin:
             return ["-kiro-google-login"]
         case .kiroAWSLogin:
@@ -1201,6 +1204,8 @@ enum AuthCommand: Equatable {
         switch self {
         case .copilotLogin:
             return "GitHub Device Code"
+        case .kimiLogin:
+            return "Kimi OAuth"
         case .kiroGoogleLogin:
             return "Google OAuth"
         case .kiroAWSLogin:
