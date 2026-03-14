@@ -157,7 +157,7 @@ actor KimiQuotaFetcher {
     
     // MARK: - Token Refresh
     
-    private func refreshAccessToken(refreshToken: String) async throws -> (accessToken: String, newRefreshToken: String) {
+    private func refreshAccessToken(refreshToken: String) async throws -> (accessToken: String, newRefreshToken: String, expiresIn: Int?) {
         guard let url = URL(string: refreshURL) else {
             throw KimiQuotaError.invalidURL
         }
@@ -188,10 +188,10 @@ actor KimiQuotaFetcher {
         }
         
         let tokenResponse = try JSONDecoder().decode(KimiTokenRefreshResponse.self, from: data)
-        return (tokenResponse.accessToken, tokenResponse.refreshToken)
+        return (tokenResponse.accessToken, tokenResponse.refreshToken, tokenResponse.expiresIn)
     }
     
-    private func updateAuthFile(at path: String, newRefreshToken: String, accessToken: String) {
+    private func updateAuthFile(at path: String, newRefreshToken: String, accessToken: String, expiresIn: Int?) {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
               var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return
@@ -200,6 +200,11 @@ actor KimiQuotaFetcher {
         json["refresh_token"] = newRefreshToken
         json["access_token"] = accessToken
         json["last_refresh"] = ISO8601DateFormatter().string(from: Date())
+        
+        if let expiresIn = expiresIn, expiresIn > 0 {
+            let expiry = Date().addingTimeInterval(TimeInterval(expiresIn))
+            json["expired"] = ISO8601DateFormatter().string(from: expiry)
+        }
         
         json.removeValue(forKey: "kimi_auth_cookie")
         json.removeValue(forKey: "kimi-auth")
@@ -248,12 +253,10 @@ actor KimiQuotaFetcher {
     ///   - filePath: Optional path to auth file for persisting new refresh token
     /// - Returns: Quota data
     func fetchQuotaWithRefresh(refreshToken: String, filePath: String? = nil) async throws -> ProviderQuotaData {
-        // Step 1: Refresh access token
-        let (accessToken, newRefreshToken) = try await refreshAccessToken(refreshToken: refreshToken)
+        let (accessToken, newRefreshToken, expiresIn) = try await refreshAccessToken(refreshToken: refreshToken)
         
-        // Step 2: Persist new refresh token if file path provided
         if let path = filePath {
-            updateAuthFile(at: path, newRefreshToken: newRefreshToken, accessToken: accessToken)
+            updateAuthFile(at: path, newRefreshToken: newRefreshToken, accessToken: accessToken, expiresIn: expiresIn)
         }
         
         // Step 3: Fetch quota with access token
