@@ -1284,7 +1284,8 @@ actor AgentConfigurationService {
             "npm": "@ai-sdk/anthropic",
             "options": [
                 "apiKey": config.apiKey,
-                "baseURL": "\(baseURL)/v1"
+                "baseURL": "\(baseURL)/v1",
+                "litellmProxy": true
             ]
         ]
 
