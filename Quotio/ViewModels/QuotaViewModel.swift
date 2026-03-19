@@ -1924,14 +1924,21 @@ final class QuotaViewModel {
             if let accountQuotas = providerQuotas[provider],
                let quotaData = accountQuotas[selectedItem.accountKey],
                !quotaData.models.isEmpty {
-                // Filter out -1 (unknown) percentages when calculating lowest
-                let validPercentages = quotaData.models.map(\.percentage).filter { $0 >= 0 }
-                let lowestPercent = validPercentages.min() ?? (quotaData.models.first?.percentage ?? -1)
+                let displayPercent: Double
+                // Check for per-provider preferred model
+                if let preferredModelName = settings.preferredModel(for: provider),
+                   let model = quotaData.models.first(where: { $0.name == preferredModelName }) {
+                    displayPercent = model.percentage
+                } else {
+                    // Filter out -1 (unknown) percentages when calculating lowest
+                    let validPercentages = quotaData.models.map(\.percentage).filter { $0 >= 0 }
+                    displayPercent = validPercentages.min() ?? (quotaData.models.first?.percentage ?? -1)
+                }
                 items.append(MenuBarQuotaDisplayItem(
                     id: selectedItem.id,
                     providerSymbol: provider.menuBarSymbol,
                     accountShort: shortAccount,
-                    percentage: lowestPercent,
+                    percentage: displayPercent,
                     provider: provider
                 ))
             } else {
