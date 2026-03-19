@@ -116,8 +116,14 @@ final class AppBootstrap {
                ) {
                 isForbidden = quotaData.isForbidden
                 if !quotaData.models.isEmpty {
-                    let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
-                    displayPercent = menuBarSettings.totalUsagePercent(models: models)
+                    // Check for per-provider preferred model
+                    if let preferredModelName = menuBarSettings.preferredModel(for: provider),
+                       let model = quotaData.models.first(where: { $0.name == preferredModelName }) {
+                        displayPercent = model.percentage
+                    } else {
+                        let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
+                        displayPercent = menuBarSettings.totalUsagePercent(models: models)
+                    }
                 }
             }
 
@@ -232,6 +238,10 @@ struct QuotioApp: App {
                     statusBarManager.rebuildMenuInPlace()
                 }
                 .onChange(of: menuBarSettings.modelAggregationMode) {
+                    bootstrap.updateStatusBar()
+                    statusBarManager.rebuildMenuInPlace()
+                }
+                .onChange(of: menuBarSettings.preferredQuotaModels) {
                     bootstrap.updateStatusBar()
                     statusBarManager.rebuildMenuInPlace()
                 }

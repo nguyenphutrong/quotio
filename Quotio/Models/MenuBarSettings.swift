@@ -437,6 +437,7 @@ final class MenuBarSettingsManager {
     private let totalUsageModeKey = "totalUsageMode"
     private let modelAggregationModeKey = "modelAggregationMode"
     private let hasUserModifiedMenuBarKey = "hasUserModifiedMenuBar"
+    private let preferredQuotaModelsKey = "menuBarPreferredQuotaModels"
 
     static let minMenuBarItems = 1
     static let maxMenuBarItems = 10
@@ -501,6 +502,12 @@ final class MenuBarSettingsManager {
         didSet { defaults.set(hasUserModifiedMenuBar, forKey: hasUserModifiedMenuBarKey) }
     }
 
+    /// Per-provider preferred quota model for menu bar display
+    /// Key: AIProvider.rawValue, Value: ModelQuota.name (nil/empty = aggregate)
+    var preferredQuotaModels: [String: String] {
+        didSet { savePreferredQuotaModels() }
+    }
+
     /// Check if adding another item would exceed the warning threshold
     /// Warning shows when approaching the limit (at maxItems - 1)
     var shouldWarnOnAdd: Bool {
@@ -547,6 +554,7 @@ final class MenuBarSettingsManager {
         self.totalUsageMode = TotalUsageMode(rawValue: defaults.string(forKey: totalUsageModeKey) ?? "") ?? .sessionOnly
         self.modelAggregationMode = ModelAggregationMode(rawValue: defaults.string(forKey: modelAggregationModeKey) ?? "") ?? .lowest
         self.hasUserModifiedMenuBar = defaults.bool(forKey: hasUserModifiedMenuBarKey)
+        self.preferredQuotaModels = Self.loadPreferredQuotaModels(from: defaults, key: preferredQuotaModelsKey)
 
         enforceMaxItems()
     }
@@ -563,6 +571,38 @@ final class MenuBarSettingsManager {
             return []
         }
         return items
+    }
+
+    private func savePreferredQuotaModels() {
+        if let data = try? JSONEncoder().encode(preferredQuotaModels) {
+            defaults.set(data, forKey: preferredQuotaModelsKey)
+        }
+    }
+
+    private static func loadPreferredQuotaModels(from defaults: UserDefaults, key: String) -> [String: String] {
+        guard let data = defaults.data(forKey: key),
+              let models = try? JSONDecoder().decode([String: String].self, from: data) else {
+            return [:]
+        }
+        return models
+    }
+
+    /// Get the preferred quota model name for a provider (nil = aggregate)
+    func preferredModel(for provider: AIProvider) -> String? {
+        guard let modelName = preferredQuotaModels[provider.rawValue],
+              !modelName.isEmpty else {
+            return nil
+        }
+        return modelName
+    }
+
+    /// Set the preferred quota model for a provider (nil = aggregate)
+    func setPreferredModel(for provider: AIProvider, modelName: String?) {
+        if let modelName = modelName, !modelName.isEmpty {
+            preferredQuotaModels[provider.rawValue] = modelName
+        } else {
+            preferredQuotaModels.removeValue(forKey: provider.rawValue)
+        }
     }
     
     func addItem(_ item: MenuBarQuotaItem) {

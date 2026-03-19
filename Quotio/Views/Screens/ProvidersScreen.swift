@@ -46,27 +46,29 @@ struct ProvidersScreen: View {
         var groups: [AIProvider: [AccountRowData]] = [:]
 
         if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
-            // From proxy auth files (proxy running)
             for file in viewModel.authFiles {
                 guard let provider = file.providerType else { continue }
                 let data = AccountRowData.from(authFile: file)
-                groups[provider, default: []].append(data)
+                if !groups[provider, default: []].contains(where: { $0.displayName == data.displayName }) {
+                    groups[provider, default: []].append(data)
+                }
             }
         } else {
-            // From direct auth files (proxy not running or quota-only mode)
             for file in viewModel.directAuthFiles {
                 let data = AccountRowData.from(directAuthFile: file)
-                groups[file.provider, default: []].append(data)
+                if !groups[file.provider, default: []].contains(where: { $0.displayName == data.displayName }) {
+                    groups[file.provider, default: []].append(data)
+                }
             }
         }
 
-        // Add auto-detected accounts (Cursor, Trae)
-        // Note: GLM uses API key auth via CustomProviderService, so skip it here
         for (provider, quotas) in viewModel.providerQuotas {
             if !provider.supportsManualAuth && provider != .glm {
                 for (accountKey, _) in quotas {
                     let data = AccountRowData.from(provider: provider, accountKey: accountKey)
-                    groups[provider, default: []].append(data)
+                    if !groups[provider, default: []].contains(where: { $0.displayName == data.displayName }) {
+                        groups[provider, default: []].append(data)
+                    }
                 }
             }
         }

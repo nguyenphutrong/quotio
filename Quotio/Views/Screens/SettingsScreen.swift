@@ -2986,6 +2986,7 @@ struct LaunchAtLoginToggle: View {
 // MARK: - Usage Display Settings Section
 
 struct UsageDisplaySettingsSection: View {
+    @Environment(QuotaViewModel.self) private var viewModel
     @State private var settings = MenuBarSettingsManager.shared
     
     private var totalUsageModeBinding: Binding<TotalUsageMode> {
@@ -3000,6 +3001,27 @@ struct UsageDisplaySettingsSection: View {
             get: { settings.modelAggregationMode },
             set: { settings.modelAggregationMode = $0 }
         )
+    }
+
+    /// Providers that have 2+ models available for selection
+    private var providersWithMultipleModels: [(provider: AIProvider, models: [ModelQuota])] {
+        var results: [(provider: AIProvider, models: [ModelQuota])] = []
+        for (provider, accountQuotas) in viewModel.providerQuotas {
+            // Collect all unique models across all accounts for this provider
+            var seenNames = Set<String>()
+            var uniqueModels: [ModelQuota] = []
+            for (_, quotaData) in accountQuotas {
+                for model in quotaData.models {
+                    if seenNames.insert(model.name).inserted {
+                        uniqueModels.append(model)
+                    }
+                }
+            }
+            if uniqueModels.count >= 2 {
+                results.append((provider, uniqueModels))
+            }
+        }
+        return results.sorted { $0.provider.displayName < $1.provider.displayName }
     }
     
     var body: some View {
@@ -3041,6 +3063,51 @@ struct UsageDisplaySettingsSection: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, 4)
+
+            // Per-provider preferred model picker
+            if !providersWithMultipleModels.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("settings.menubar.preferredModel.title".localized())
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    Text("settings.menubar.preferredModel.description".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(providersWithMultipleModels, id: \.provider) { item in
+                        HStack {
+                            Image(item.provider.logoAssetName)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 16, height: 16)
+                            Text(item.provider.displayName)
+                                .font(.subheadline)
+
+                            Spacer()
+
+                            Picker("", selection: Binding(
+                                get: { settings.preferredModel(for: item.provider) ?? "" },
+                                set: { newValue in
+                                    settings.setPreferredModel(for: item.provider, modelName: newValue.isEmpty ? nil : newValue)
+                                }
+                            )) {
+                                Text("settings.menubar.preferredModel.aggregate".localized())
+                                    .tag("")
+                                Divider()
+                                ForEach(item.models) { model in
+                                    Text(model.displayName)
+                                        .tag(model.name)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .fixedSize()
+                            .labelsHidden()
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
         } header: {
             Label("settings.usageDisplay.title".localized(), systemImage: "chart.bar.doc.horizontal")
         } footer: {
