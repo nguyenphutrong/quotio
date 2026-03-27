@@ -46,6 +46,10 @@ final class FallbackSettingsManager {
     /// The current fallback configuration
     var configuration: FallbackConfiguration {
         didSet {
+            syncRouteCachingFlag()
+            if oldValue.isRouteCachingEnabled && !configuration.isRouteCachingEnabled {
+                clearAllRouteStates()
+            }
             persist()
             onConfigurationChanged?(configuration)
         }
@@ -66,6 +70,7 @@ final class FallbackSettingsManager {
     // Using entry ID instead of index to handle reordering correctly
     // Marked nonisolated(unsafe) because we handle thread safety manually with NSLock
     @ObservationIgnored nonisolated(unsafe) private var cachedEntryIds: [String: CachedEntryInfo] = [:]
+    @ObservationIgnored nonisolated(unsafe) private var routeCachingEnabled = true
     @ObservationIgnored nonisolated private let cacheLock = NSLock()
 
     /// Cache expiration time in seconds (60 minutes)
@@ -79,6 +84,7 @@ final class FallbackSettingsManager {
         } else {
             self.configuration = FallbackConfiguration()
         }
+        syncRouteCachingFlag()
     }
 
     // MARK: - Global Settings
@@ -88,6 +94,20 @@ final class FallbackSettingsManager {
         get { configuration.isEnabled }
         set {
             configuration.isEnabled = newValue
+        }
+    }
+
+    /// Whether successful fallback routes should be cached and reused
+    var isRouteCachingEnabled: Bool {
+        get { configuration.isRouteCachingEnabled }
+        set {
+            configuration.isRouteCachingEnabled = newValue
+            cacheLock.lock()
+            routeCachingEnabled = newValue
+            cacheLock.unlock()
+            if !newValue {
+                clearAllRouteStates()
+            }
         }
     }
 
@@ -217,6 +237,12 @@ final class FallbackSettingsManager {
         defaults.set(data, forKey: configurationKey)
     }
 
+    private func syncRouteCachingFlag() {
+        cacheLock.lock()
+        routeCachingEnabled = configuration.isRouteCachingEnabled
+        cacheLock.unlock()
+    }
+
     /// Export configuration as JSON string
     func exportConfiguration() -> String? {
         let encoder = JSONEncoder()
@@ -264,6 +290,10 @@ extension FallbackSettingsManager {
         cacheLock.lock()
         defer { cacheLock.unlock() }
 
+        guard routeCachingEnabled else {
+            return nil
+        }
+
         guard let cached = cachedEntryIds[virtualModelName] else {
             return nil
         }
@@ -282,8 +312,13 @@ extension FallbackSettingsManager {
     /// Update cached entry ID (thread-safe, called from ProxyBridge)
     nonisolated func setCachedEntryId(for virtualModelName: String, entryId: UUID) {
         cacheLock.lock()
+        defer { cacheLock.unlock() }
+
+        guard routeCachingEnabled else {
+            return
+        }
+
         cachedEntryIds[virtualModelName] = CachedEntryInfo(entryId: entryId, cachedAt: Date())
-        cacheLock.unlock()
     }
 
     /// Clear cached entry ID (thread-safe)

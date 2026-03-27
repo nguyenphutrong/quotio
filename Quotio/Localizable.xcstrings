@@ -5656,6 +5656,17 @@
         }
       }
     },
+    "fallback.activeRoutesFooterDisabled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Route caching is disabled. Virtual models restart from the first fallback entry on each request."
+          }
+        }
+      }
+    },
     "fallback.addEntry" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6232,6 +6243,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启用回退"
+          }
+        }
+      }
+    },
+    "fallback.enableRouteCache" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reuse successful fallback route"
+          }
+        }
+      }
+    },
+    "fallback.enableRouteCacheDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep using the last successful fallback entry for a virtual model until routes are cleared or the chain changes."
           }
         }
       }
