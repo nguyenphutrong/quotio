@@ -102,12 +102,6 @@ final class FallbackSettingsManager {
         get { configuration.isRouteCachingEnabled }
         set {
             configuration.isRouteCachingEnabled = newValue
-            cacheLock.lock()
-            routeCachingEnabled = newValue
-            cacheLock.unlock()
-            if !newValue {
-                clearAllRouteStates()
-            }
         }
     }
 
