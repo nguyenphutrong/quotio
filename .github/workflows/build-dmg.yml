@@ -1,0 +1,77 @@
+name: Build DMG
+
+on:
+  workflow_dispatch:
+
+env:
+  PROJECT_NAME: Quotio
+  SCHEME: Quotio
+
+jobs:
+  build-dmg:
+    runs-on: macos-15
+    permissions:
+      contents: read
+
+    steps:
+      # ===========================================
+      # 1. Checkout
+      # ===========================================
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ===========================================
+      # 2. Setup Xcode
+      # ===========================================
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.1'
+
+      # ===========================================
+      # 3. Build
+      # ===========================================
+      - name: Build
+        run: |
+          chmod +x ./scripts/build.sh
+          ./scripts/build.sh
+
+      # ===========================================
+      # 4. Install create-dmg & Package
+      # ===========================================
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Package
+        run: |
+          chmod +x ./scripts/package.sh
+          ./scripts/package.sh
+
+      # ===========================================
+      # 5. Upload artifacts
+      # ===========================================
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-DMG
+          path: build/release/*.dmg
+          if-no-files-found: warn
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-ZIP
+          path: build/release/*.zip
+          if-no-files-found: warn
+
+      # ===========================================
+      # 6. Summary
+      # ===========================================
+      - name: Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          ls -la build/release/ >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No artifacts found" >> $GITHUB_STEP_SUMMARY
