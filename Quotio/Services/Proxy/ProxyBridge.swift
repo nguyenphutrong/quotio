@@ -501,7 +501,8 @@ final class ProxyBridge {
         // Get cached entry ID and find its current index (handles reordering correctly)
         var startIndex = 0
         var wasLoadedFromCache = false
-        if let cachedEntryId = settings.getCachedEntryId(for: model) {
+        if settings.isRouteCachingEnabled,
+           let cachedEntryId = settings.getCachedEntryId(for: model) {
             if let cachedIndex = entries.firstIndex(where: { $0.id == cachedEntryId }) {
                 startIndex = cachedIndex
                 wasLoadedFromCache = true
@@ -1014,12 +1015,13 @@ final class ProxyBridge {
             // 1. Response is successful (HTTP 2xx)
             // 2. Fallback was actually triggered (currentIndex > 0)
             // 3. Entry was NOT loaded from cache (wasLoadedFromCache == false)
+            let settings = FallbackSettingsManager.shared
             if let statusCode = capturedStatusCode, (200..<300).contains(statusCode),
+               settings.isRouteCachingEnabled,
                fallbackContext.currentIndex > 0,
                !fallbackContext.wasLoadedFromCache,
                let virtualModelName = fallbackContext.virtualModelName,
                let currentEntry = fallbackContext.currentEntry {
-                let settings = FallbackSettingsManager.shared
                 settings.setCachedEntryId(for: virtualModelName, entryId: currentEntry.id)
                 settings.updateRouteState(
                     virtualModelName: virtualModelName,

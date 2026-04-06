@@ -145,11 +145,37 @@ struct VirtualModel: Codable, Identifiable, Hashable, Sendable {
 /// Global fallback configuration
 struct FallbackConfiguration: Codable, Sendable {
     var isEnabled: Bool
+    var isRouteCachingEnabled: Bool
     var virtualModels: [VirtualModel]
 
-    init(isEnabled: Bool = false, virtualModels: [VirtualModel] = []) {
+    init(
+        isEnabled: Bool = false,
+        isRouteCachingEnabled: Bool = true,
+        virtualModels: [VirtualModel] = []
+    ) {
         self.isEnabled = isEnabled
+        self.isRouteCachingEnabled = isRouteCachingEnabled
         self.virtualModels = virtualModels
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case isEnabled
+        case isRouteCachingEnabled
+        case virtualModels
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
+        isRouteCachingEnabled = try container.decodeIfPresent(Bool.self, forKey: .isRouteCachingEnabled) ?? true
+        virtualModels = try container.decodeIfPresent([VirtualModel].self, forKey: .virtualModels) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(isRouteCachingEnabled, forKey: .isRouteCachingEnabled)
+        try container.encode(virtualModels, forKey: .virtualModels)
     }
 
     /// Find a virtual model by name
