@@ -53,6 +53,9 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
     /// Stable key for menu bar selection and quota lookup
     var menuBarAccountKey: String {
         if provider == .kiro {
+            if let email = email, !email.isEmpty {
+                return email
+            }
             return filename.replacingOccurrences(of: ".json", with: "")
         }
         if let email = email, !email.isEmpty {
@@ -356,6 +359,9 @@ actor DirectAuthFileService {
                 }
                 if let region = json["region"] as? String {
                     extras["region"] = region
+                }
+                if let profileArn = json["profile_arn"] as? String ?? json["profileArn"] as? String {
+                    extras["profileArn"] = profileArn
                 }
 
                 return AuthTokenData(
