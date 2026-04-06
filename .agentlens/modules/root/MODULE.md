@@ -15,7 +15,7 @@
 | `Quotio/Services/CLIExecutor.swift` | 430 |  |
 | `Quotio/Services/ChecksumVerifier.swift` | 78 |  |
 | `Quotio/Services/CompatibilityChecker.swift` | 123 |  |
-| `Quotio/Services/CustomProviderService.swift` | 337 |  |
+| `Quotio/Services/CustomProviderService.swift` | 340 |  |
 | `Quotio/Services/DirectAuthFileService.swift` | 493 |  |
 | `Quotio/Services/FallbackSettingsManager.swift` | 367 |  |
 | `Quotio/Services/GLMQuotaFetcher.swift` | 186 |  |
