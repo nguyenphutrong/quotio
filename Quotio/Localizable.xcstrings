@@ -1234,6 +1234,35 @@
         }
       }
     },
+    "agents.codex.mergeAndSaveFiles" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge and save the files below in ~/.codex/ directory:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionnez et enregistrez les fichiers ci-dessous dans le répertoire ~/.codex/ :"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gộp và lưu các tệp bên dưới vào thư mục ~/.codex/:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合并并将以下文件保存到 ~/.codex/ 目录："
+          }
+        }
+      }
+    },
     "agents.configFailed" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1375,35 +1404,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已配置"
-          }
-        }
-      }
-    },
-    "agents.codex.mergeAndSaveFiles" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Merge and save the files below in ~/.codex/ directory:"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fusionnez et enregistrez les fichiers ci-dessous dans le répertoire ~/.codex/ :"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gộp và lưu các tệp bên dưới vào thư mục ~/.codex/:"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "合并并将以下文件保存到 ~/.codex/ 目录："
           }
         }
       }
@@ -2178,6 +2178,259 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 IDE 中使用"
+          }
+        }
+      }
+    },
+    "antigravity.import.action.import" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Account"
+          }
+        }
+      }
+    },
+    "antigravity.import.email.label" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google Account Email"
+          }
+        }
+      }
+    },
+    "antigravity.import.email.placeholder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "example@gmail.com"
+          }
+        }
+      }
+    },
+    "antigravity.import.error.accountExists" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account %@ already exists. Delete it first or use Overwrite."
+          }
+        }
+      }
+    },
+    "antigravity.import.error.emptyEmail" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Email address is required."
+          }
+        }
+      }
+    },
+    "antigravity.import.error.emptyToken" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh token is required."
+          }
+        }
+      }
+    },
+    "antigravity.import.error.fileWrite" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save account: %@"
+          }
+        }
+      }
+    },
+    "antigravity.import.error.invalidToken" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid or revoked refresh token. Please check and try again."
+          }
+        }
+      }
+    },
+    "antigravity.import.error.network" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network error: %@"
+          }
+        }
+      }
+    },
+    "antigravity.import.failed" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Failed"
+          }
+        }
+      }
+    },
+    "antigravity.import.importing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Validating and importing…"
+          }
+        }
+      }
+    },
+    "antigravity.import.method.message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose how to add your Antigravity account"
+          }
+        }
+      }
+    },
+    "antigravity.import.method.oauth" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in with Google (OAuth)"
+          }
+        }
+      }
+    },
+    "antigravity.import.method.refreshToken" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import via Refresh Token"
+          }
+        }
+      }
+    },
+    "antigravity.import.overwrite.confirm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overwrite"
+          }
+        }
+      }
+    },
+    "antigravity.import.overwrite.message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An account for %@ already exists. Do you want to overwrite it with the new token?"
+          }
+        }
+      }
+    },
+    "antigravity.import.overwrite.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account Already Exists"
+          }
+        }
+      }
+    },
+    "antigravity.import.refreshToken.hint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can find the refresh token in your Antigravity auth file or via a token extraction tool."
+          }
+        }
+      }
+    },
+    "antigravity.import.refreshToken.label" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh Token"
+          }
+        }
+      }
+    },
+    "antigravity.import.refreshToken.placeholder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste refresh token here"
+          }
+        }
+      }
+    },
+    "antigravity.import.refreshToken.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter your Google account email and refresh token"
+          }
+        }
+      }
+    },
+    "antigravity.import.refreshToken.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import via Refresh Token"
+          }
+        }
+      }
+    },
+    "antigravity.import.success" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account Added Successfully"
           }
         }
       }
@@ -3856,6 +4109,93 @@
         }
       }
     },
+    "customProviders.optional" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optionnel"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tùy chọn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可选"
+          }
+        }
+      }
+    },
+    "customProviders.prefix" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model Prefix"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Préfixe du modèle"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tiền tố mô hình"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型前缀"
+          }
+        }
+      }
+    },
+    "customProviders.prefixHint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g., my-custom-prefix"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ex. my-custom-prefix"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vd. my-custom-prefix"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如 my-custom-prefix"
+          }
+        }
+      }
+    },
     "customProviders.providerName" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3939,90 +4279,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "代理 URL（可选）"
-          }
-        }
-      }
-    },
-    "customProviders.optional" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Optional"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Optionnel"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tùy chọn"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可选"
-          }
-        }
-      }
-    },
-    "customProviders.prefix" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Model Prefix"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Préfixe du modèle"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tiền tố mô hình"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模型前缀"
-          }
-        }
-      }
-    },
-    "customProviders.prefixHint" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "e.g., my-custom-prefix"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ex. my-custom-prefix"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "vd. my-custom-prefix"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例如 my-custom-prefix"
           }
         }
       }
@@ -7973,6 +8229,10 @@
         }
       }
     },
+    "Last checked" : {
+      "comment" : "A label displayed next to the last checked time of the proxy update check",
+      "isCommentAutoGenerated" : true
+    },
     "launchAtLogin.error.notInApplicationsFolder" : {
       "comment" : "Error message when the app is not in the Applications folder.",
       "isCommentAutoGenerated" : true,
@@ -10534,6 +10794,93 @@
         }
       }
     },
+    "oauth.copied" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied!"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copié!"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã sao chép!"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已复制!"
+          }
+        }
+      }
+    },
+    "oauth.copyLink" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Link"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copier le lien"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sao chép liên kết"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制链接"
+          }
+        }
+      }
+    },
+    "oauth.copyLinkOrOpen" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy the link or open in browser to authenticate"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiez le lien ou ouvrez-le dans le navigateur pour vous authentifier"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sao chép liên kết hoặc mở trong trình duyệt để xác thực"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制链接或在浏览器中打开以进行认证"
+          }
+        }
+      }
+    },
     "oauth.enterCodeInBrowser" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10646,6 +10993,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在打开浏览器..."
+          }
+        }
+      }
+    },
+    "oauth.openLink" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Link"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir le lien"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mở liên kết"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开链接"
           }
         }
       }
@@ -10791,122 +11167,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等待认证"
-          }
-        }
-      }
-    },
-    "oauth.copyLinkOrOpen" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy the link or open in browser to authenticate"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copiez le lien ou ouvrez-le dans le navigateur pour vous authentifier"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sao chép liên kết hoặc mở trong trình duyệt để xác thực"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "复制链接或在浏览器中打开以进行认证"
-          }
-        }
-      }
-    },
-    "oauth.copyLink" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy Link"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copier le lien"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sao chép liên kết"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "复制链接"
-          }
-        }
-      }
-    },
-    "oauth.copied" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copied!"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copié!"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Đã sao chép!"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已复制!"
-          }
-        }
-      }
-    },
-    "oauth.openLink" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Link"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ouvrir le lien"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mở liên kết"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开链接"
           }
         }
       }
@@ -14349,6 +14609,35 @@
         }
       }
     },
+    "settings.autoRestartTunnel" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-restart tunnel on disconnect"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redémarrer automatiquement le tunnel en cas de déconnexion"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tự khởi động lại tunnel khi ngắt kết nối"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "断开时自动重启隧道"
+          }
+        }
+      }
+    },
     "settings.autoStartProxy" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14403,35 +14692,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "随代理自动启动隧道"
-          }
-        }
-      }
-    },
-    "settings.autoRestartTunnel" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto-restart tunnel on disconnect"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Redémarrer automatiquement le tunnel en cas de déconnexion"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tự khởi động lại tunnel khi ngắt kết nối"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "断开时自动重启隧道"
           }
         }
       }
@@ -19079,38 +19339,8 @@
       "comment" : "A label for a segmented control used in the Logs screen to switch between different types of logs.",
       "isCommentAutoGenerated" : true
     },
-    "Tunnel" : {
-      "comment" : "A label displayed next to the tunnel status indicator.",
-      "extractionState" : "stale",
-      "isCommentAutoGenerated" : true,
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tunnel"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tunnel"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Đường hầm"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隧道"
-          }
-        }
-      }
-    },
     "troubleshooting.applyWorkaround" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19139,6 +19369,7 @@
       }
     },
     "troubleshooting.description" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19167,6 +19398,7 @@
       }
     },
     "troubleshooting.restoreOriginal" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19195,6 +19427,7 @@
       }
     },
     "troubleshooting.title" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19218,6 +19451,37 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "故障排除"
+          }
+        }
+      }
+    },
+    "Tunnel" : {
+      "comment" : "A label displayed next to the tunnel status indicator.",
+      "extractionState" : "stale",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tunnel"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tunnel"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đường hầm"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隧道"
           }
         }
       }

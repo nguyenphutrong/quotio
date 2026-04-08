@@ -1303,7 +1303,30 @@ final class QuotaViewModel {
     func dismissAntigravitySwitchResult() {
         antigravitySwitcher.dismissResult()
     }
-    
+
+    // MARK: - Antigravity Refresh Token Import
+
+    @ObservationIgnored private let antigravityImporter = AntigravityRefreshTokenImportService()
+
+    /// Import an Antigravity account from a refresh token.
+    ///
+    /// Creates an auth file in `~/.cli-proxy-api` and then reloads the account list.
+    /// - Parameters:
+    ///   - email: Google account email.
+    ///   - refreshToken: Valid Google OAuth refresh token.
+    ///   - overwrite: When `true`, overwrites an existing file for the same email.
+    func importAntigravityRefreshToken(email: String, refreshToken: String, overwrite: Bool = false) async throws {
+        _ = try await antigravityImporter.importAccount(email: email, refreshToken: refreshToken, overwrite: overwrite)
+
+        // Reload accounts after successful import
+        if modeManager.isLocalProxyMode && proxyManager.proxyStatus.running {
+            await refreshData()
+        } else {
+            await loadDirectAuthFiles()
+            await refreshAntigravityQuotasInternal()
+        }
+    }
+
     private func refreshOpenAIQuotasInternal() async {
         let quotas = await openAIFetcher.fetchAllCodexQuotas()
         providerQuotas[.codex] = quotas

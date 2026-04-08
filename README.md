@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/language-Swift-orange.svg?style=flat" alt="Language Swift" />
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" alt="License MIT" />
   <a href="https://discord.gg/dFzeZ7qS"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2.svg?style=flat&logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="README.ru.md"><img src="https://img.shields.io/badge/lang-Русский-red.svg?style=flat" alt="Russian" /></a>
   <a href="README.vi.md"><img src="https://img.shields.io/badge/lang-Tiếng%20Việt-red.svg?style=flat" alt="Vietnamese" /></a>
   <a href="README.zh.md"><img src="https://img.shields.io/badge/lang-zh--CN-green.svg?style=flat" alt="Chinese" /></a>
   <a href="README.fr.md"><img src="https://img.shields.io/badge/lang-Français-blue.svg?style=flat" alt="French" /></a>

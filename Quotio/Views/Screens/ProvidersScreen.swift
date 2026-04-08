@@ -26,6 +26,8 @@ struct ProvidersScreen: View {
     @State private var showAddProviderPopover = false
     @State private var switchingAccount: AccountRowData?
     @State private var modeManager = OperatingModeManager.shared
+    @State private var showAntigravityMethodPicker = false
+    @State private var showAntigravityRefreshTokenSheet = false
 
     private let customProviderService = CustomProviderService.shared
     private let warpService = WarpService.shared
@@ -225,6 +227,26 @@ struct ProvidersScreen: View {
             )
             .environment(viewModel)
         }
+        .sheet(isPresented: $showAntigravityRefreshTokenSheet) {
+            AntigravityRefreshTokenSheet {
+                showAntigravityRefreshTokenSheet = false
+            }
+            .environment(viewModel)
+        }
+        .confirmationDialog(
+            "antigravity.import.method.message".localized(),
+            isPresented: $showAntigravityMethodPicker,
+            titleVisibility: .visible
+        ) {
+            Button("antigravity.import.method.oauth".localized()) {
+                viewModel.oauthState = nil
+                selectedProvider = .antigravity
+            }
+            Button("antigravity.import.method.refreshToken".localized()) {
+                showAntigravityRefreshTokenSheet = true
+            }
+            Button("action.cancel".localized(), role: .cancel) {}
+        }
     }
     
     // MARK: - Toolbar
@@ -375,21 +397,37 @@ struct ProvidersScreen: View {
     // MARK: - Helper Functions
 
     private func handleAddProvider(_ provider: AIProvider) {
-        // In Local Proxy Mode, require proxy to be running for OAuth
+        if provider == .vertex {
+            isImporterPresented = true
+            return
+        }
+
+        if provider == .warp {
+            editingWarpToken = nil
+            showWarpConnectionSheet = true
+            return
+        }
+
+        // Antigravity supports both OAuth (requires proxy) and refresh token import
+        if provider == .antigravity {
+            // In Local Proxy Mode with proxy running: offer both methods
+            // Otherwise (monitor/quota-only mode or proxy stopped): go straight to refresh token
+            if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
+                showAntigravityMethodPicker = true
+            } else {
+                showAntigravityRefreshTokenSheet = true
+            }
+            return
+        }
+
+        // All other providers require proxy in Local Proxy Mode
         if modeManager.isLocalProxyMode && !viewModel.proxyManager.proxyStatus.running {
             showProxyRequiredAlert = true
             return
         }
 
-        if provider == .vertex {
-            isImporterPresented = true
-        } else if provider == .warp {
-            editingWarpToken = nil
-            showWarpConnectionSheet = true
-        } else {
-            viewModel.oauthState = nil
-            selectedProvider = provider
-        }
+        viewModel.oauthState = nil
+        selectedProvider = provider
     }
     
     private func deleteAccount(_ account: AccountRowData) async {
