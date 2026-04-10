@@ -366,10 +366,10 @@ private struct ProviderQuotaView: View {
         // filename-based to distinguish same-email Plus/Team accounts.
         let directAuthEmailsByKey: [String: String] = provider == .codex
             ? Dictionary(
-                uniqueKeysWithValues: viewModel.directAuthFiles
+                grouping: viewModel.directAuthFiles
                     .lazy
-                    .filter { $0.provider == .codex }
-                    .map {
+                    .filter { $0.provider == .codex },
+                by: {
                         var key = $0.filename
                         if key.hasPrefix("codex-") {
                             key = String(key.dropFirst("codex-".count))
@@ -377,9 +377,15 @@ private struct ProviderQuotaView: View {
                         if key.hasSuffix(".json") {
                             key = String(key.dropLast(".json".count))
                         }
-                        return (key, $0.email ?? $0.displayName)
+                        return key
                     }
-            )
+            ).reduce(into: [:]) { result, entry in
+                let (key, files) = entry
+                // Ambiguous normalized keys should keep the quota key as-is
+                // instead of guessing which email to display.
+                guard !key.isEmpty, files.count == 1 else { return }
+                result[key] = files[0].email ?? files[0].displayName
+            }
             : [:]
         for (key, data) in quotaData {
             if !existingKeys.contains(key) {
