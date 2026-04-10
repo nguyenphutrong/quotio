@@ -93,6 +93,10 @@ actor OpenAIQuotaFetcher {
     }
 
     private func resolveAccountKey(authFile: CodexAuthFile, rawJSON: [String: Any], filename: String) -> String {
+        // Email is not stable for Codex: one email can back both Plus and Team.
+        // Reuse the filename key so fetcher and UI identify the same account.
+        return fallbackKey(fromFilename: filename)
+        /*
         if let email = trimmedNonEmpty(authFile.email) {
             return email
         }
@@ -107,6 +111,7 @@ actor OpenAIQuotaFetcher {
         }
 
         return fallbackKey(fromFilename: filename)
+        */
     }
     
     func fetchQuota(accessToken: String, accountId: String?) async throws -> CodexQuotaData {

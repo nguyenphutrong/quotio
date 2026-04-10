@@ -281,6 +281,13 @@ nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
     }
     
     var quotaLookupKey: String {
+        if providerType == .codex {
+            // Codex proxy filenames encode the concrete subscription variant,
+            // so filename-based keys keep same-email Plus/Team accounts distinct.
+            return name
+                .replacingOccurrences(of: "codex-", with: "")
+                .replacingOccurrences(of: ".json", with: "")
+        }
         if let email = email, !email.isEmpty {
             return email
         }

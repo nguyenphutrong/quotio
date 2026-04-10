@@ -335,6 +335,7 @@ private struct QuotaStatusDot: View {
 // MARK: - Provider Quota View
 
 private struct ProviderQuotaView: View {
+    @Environment(QuotaViewModel.self) private var viewModel
     let provider: AIProvider
     let authFiles: [AuthFile]
     let quotaData: [String: ProviderQuotaData]
@@ -361,11 +362,28 @@ private struct ProviderQuotaView: View {
         
         // From quota data (if not already added)
         let existingKeys = Set(accounts.map { $0.key })
+        // Only Codex needs direct-auth email backfill because its quota key is
+        // filename-based to distinguish same-email Plus/Team accounts.
+        let directAuthEmailsByKey: [String: String] = provider == .codex
+            ? Dictionary(
+                uniqueKeysWithValues: viewModel.directAuthFiles
+                    .lazy
+                    .filter { $0.provider == .codex }
+                    .map {
+                        (
+                            $0.filename
+                                .replacingOccurrences(of: "codex-", with: "")
+                                .replacingOccurrences(of: ".json", with: ""),
+                            $0.email ?? $0.displayName
+                        )
+                    }
+            )
+            : [:]
         for (key, data) in quotaData {
             if !existingKeys.contains(key) {
                 accounts.append(AccountInfo(
                     key: key,
-                    email: key,
+                    email: directAuthEmailsByKey[key] ?? key,
                     status: "active",
                     statusColor: .green,
                     authFile: nil,
