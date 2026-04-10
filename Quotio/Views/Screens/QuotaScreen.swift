@@ -370,12 +370,14 @@ private struct ProviderQuotaView: View {
                     .lazy
                     .filter { $0.provider == .codex }
                     .map {
-                        (
-                            $0.filename
-                                .replacingOccurrences(of: "codex-", with: "")
-                                .replacingOccurrences(of: ".json", with: ""),
-                            $0.email ?? $0.displayName
-                        )
+                        var key = $0.filename
+                        if key.hasPrefix("codex-") {
+                            key = String(key.dropFirst("codex-".count))
+                        }
+                        if key.hasSuffix(".json") {
+                            key = String(key.dropLast(".json".count))
+                        }
+                        return (key, $0.email ?? $0.displayName)
                     }
             )
             : [:]

@@ -87,9 +87,14 @@ actor OpenAIQuotaFetcher {
     }
 
     private func fallbackKey(fromFilename filename: String) -> String {
-        filename
-            .replacingOccurrences(of: "codex-", with: "")
-            .replacingOccurrences(of: ".json", with: "")
+        var key = filename
+        if key.hasPrefix("codex-") {
+            key = String(key.dropFirst("codex-".count))
+        }
+        if key.hasSuffix(".json") {
+            key = String(key.dropLast(".json".count))
+        }
+        return key
     }
 
     private func resolveAccountKey(authFile: CodexAuthFile, rawJSON: [String: Any], filename: String) -> String {
