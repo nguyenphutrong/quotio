@@ -8,7 +8,7 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `Quotio/Models/AgentModels.swift` | 453 |  |
+| `Quotio/Models/AgentModels.swift` | 455 |  |
 | `Quotio/Models/AntigravityActiveAccount.swift` | 44 |  |
 | `Quotio/Models/AppMode.swift` | 149 |  |
 | `Quotio/Models/ConnectionMode.swift` | 289 |  |
