@@ -43,7 +43,7 @@
 
 > Notification is handled by AtomFeedUpdateService polling
 
-### `NOTE` (Quotio/ViewModels/AgentSetupViewModel.swift:452)
+### `NOTE` (Quotio/ViewModels/AgentSetupViewModel.swift:589)
 
 > Actual fallback resolution happens at request time in ProxyBridge
 

@@ -2,7 +2,7 @@
 
 [← Back to MODULE](MODULE.md) | [← Back to INDEX](../../INDEX.md)
 
-Symbol maps for 9 large files in this module.
+Symbol maps for 10 large files in this module.
 
 ## Quotio/QuotioApp.swift (818 lines)
 
@@ -40,48 +40,53 @@ Symbol maps for 9 large files in this module.
 | 759 | struct | ProxyStatusRow | (internal) |
 | 790 | struct | QuotaRefreshStatusRow | (internal) |
 
-## Quotio/Services/AgentConfigurationService.swift (1610 lines)
+## Quotio/Services/AgentConfigurationService.swift (1940 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 8 | class | AgentConfigurationService | (internal) |
-| 46 | fn | readConfiguration | (internal) |
-| 64 | fn | listBackups | (internal) |
-| 93 | fn | restoreFromBackup | (internal) |
-| 111 | fn | readClaudeCodeConfig | (private) |
-| 147 | fn | readCodexConfig | (private) |
-| 190 | fn | readGeminiCLIConfig | (private) |
-| 228 | fn | readAmpConfig | (private) |
-| 251 | fn | readOpenCodeConfig | (private) |
-| 288 | fn | readFactoryDroidConfig | (private) |
-| 325 | fn | extractTOMLValue | (private) |
-| 336 | fn | extractExportValue | (private) |
-| 351 | fn | escapeTOMLString | (private) |
-| 379 | fn | buildManagedCodexTOML | (private) |
-| 396 | fn | parseTOMLSectionName | (private) |
-| 414 | fn | isCodexManagedTopLevelKey | (private) |
-| 423 | fn | splitManagedCodexConfig | (private) |
-| 431 | fn | extractManagedCodexBanner | (private) |
-| 440 | fn | filterExistingCodexLines | (private) |
-| 481 | fn | composeMergedCodexConfig | (private) |
-| 552 | fn | mergeCodexConfig | (private) |
-| 559 | fn | generateConfiguration | (internal) |
-| 598 | fn | generateDefaultConfiguration | (private) |
-| 614 | fn | generateClaudeCodeDefaultConfig | (private) |
-| 699 | fn | generateCodexDefaultConfig | (private) |
-| 746 | fn | generateGeminiCLIDefaultConfig | (private) |
-| 774 | fn | generateAmpDefaultConfig | (private) |
-| 820 | fn | generateOpenCodeDefaultConfig | (private) |
-| 869 | fn | generateFactoryDroidDefaultConfig | (private) |
-| 934 | fn | generateClaudeCodeConfig | (private) |
-| 1056 | fn | generateCodexConfig | (private) |
-| 1140 | fn | generateGeminiCLIConfig | (private) |
-| 1183 | fn | generateAmpConfig | (private) |
-| 1266 | fn | generateOpenCodeConfig | (private) |
-| 1358 | fn | buildOpenCodeModelConfig | (private) |
-| 1410 | fn | generateFactoryDroidConfig | (private) |
-| 1480 | fn | fetchAvailableModels | (internal) |
-| 1535 | fn | testConnection | (internal) |
+| 50 | fn | readConfiguration | (internal) |
+| 70 | fn | listBackups | (internal) |
+| 99 | fn | restoreFromBackup | (internal) |
+| 117 | fn | readClaudeCodeConfig | (private) |
+| 179 | fn | readCodexConfig | (private) |
+| 235 | fn | readCopilotCLIConfig | (private) |
+| 304 | fn | readGeminiCLIConfig | (private) |
+| 346 | fn | readAmpConfig | (private) |
+| 373 | fn | readOpenCodeConfig | (private) |
+| 418 | fn | readFactoryDroidConfig | (private) |
+| 463 | fn | extractTOMLValue | (private) |
+| 474 | fn | extractExportValue | (private) |
+| 489 | fn | escapeTOMLString | (private) |
+| 517 | fn | buildManagedCodexTOML | (private) |
+| 537 | fn | parseTOMLSectionName | (private) |
+| 555 | fn | isCodexManagedTopLevelKey | (private) |
+| 564 | fn | splitManagedCodexConfig | (private) |
+| 572 | fn | extractManagedCodexBanner | (private) |
+| 581 | fn | filterExistingCodexLines | (private) |
+| 622 | fn | composeMergedCodexConfig | (private) |
+| 693 | fn | mergeCodexConfig | (private) |
+| 700 | fn | generateConfiguration | (internal) |
+| 742 | fn | generateDefaultConfiguration | (private) |
+| 760 | fn | generateClaudeCodeDefaultConfig | (private) |
+| 850 | fn | generateCodexDefaultConfig | (private) |
+| 897 | fn | generateGeminiCLIDefaultConfig | (private) |
+| 925 | fn | generateCopilotCLIDefaultConfig | (private) |
+| 956 | fn | generateAmpDefaultConfig | (private) |
+| 1002 | fn | generateOpenCodeDefaultConfig | (private) |
+| 1051 | fn | generateFactoryDroidDefaultConfig | (private) |
+| 1116 | fn | generateClaudeCodeConfig | (private) |
+| 1202 | fn | mergeClaudeConfig | (private) |
+| 1219 | fn | generateClaudeResult | (private) |
+| 1294 | fn | generateCodexConfig | (private) |
+| 1379 | fn | generateGeminiCLIConfig | (private) |
+| 1422 | fn | generateCopilotCLIConfig | (private) |
+| 1513 | fn | generateAmpConfig | (private) |
+| 1596 | fn | generateOpenCodeConfig | (private) |
+| 1688 | fn | buildOpenCodeModelConfig | (private) |
+| 1740 | fn | generateFactoryDroidConfig | (private) |
+| 1810 | fn | fetchAvailableModels | (internal) |
+| 1865 | fn | testConnection | (internal) |
 
 ## Quotio/Services/AtomFeedUpdateService.swift (533 lines)
 
@@ -309,6 +314,41 @@ Symbol maps for 9 large files in this module.
 | 1376 | mod | extension AIProvider | (private) |
 | 1398 | struct | MenuActionsView | (private) |
 | 1436 | struct | MenuBarActionButton | (private) |
+
+## Quotio/ViewModels/AgentSetupViewModel.swift (593 lines)
+
+| Line | Kind | Name | Visibility |
+| ---- | ---- | ---- | ---------- |
+| 11 | class | AgentSetupViewModel | (internal) |
+| 57 | method | init | (internal) |
+| 59 | fn | setup | (internal) |
+| 64 | fn | refreshAgentStatuses | (internal) |
+| 72 | fn | status | (internal) |
+| 76 | fn | startConfiguration | (internal) |
+| 139 | fn | loadExistingConfiguration | (private) |
+| 170 | fn | switchToProxySetup | (internal) |
+| 176 | fn | switchToDefaultSetup | (internal) |
+| 182 | fn | restoreFromBackup | (internal) |
+| 203 | fn | updateCopilotAccount | (internal) |
+| 208 | fn | updateModelSlot | (internal) |
+| 217 | fn | updateModelSlotReasoningEffort | (internal) |
+| 225 | fn | applyConfiguration | (internal) |
+| 274 | fn | addToShellProfile | (internal) |
+| 303 | fn | copyToClipboard | (internal) |
+| 310 | fn | copyRawConfigToClipboard | (internal) |
+| 319 | fn | copyAllRawConfigsToClipboard | (internal) |
+| 335 | fn | testConnection | (internal) |
+| 348 | fn | generatePreviewConfig | (internal) |
+| 365 | fn | dismissConfiguration | (internal) |
+| 379 | fn | resetSheetState | (internal) |
+| 397 | fn | loadModels | (internal) |
+| 450 | fn | processModels | (private) |
+| 476 | fn | fetchSelectedCopilotModels | (private) |
+| 523 | fn | configurationUsesCopilot | (private) |
+| 530 | fn | enforceSelectedCopilotAccountIfNeeded | (private) |
+| 551 | fn | refreshVirtualModels | (private) |
+| 570 | fn | checkProviderQuota | (internal) |
+| 590 | fn | isVirtualModel | (internal) |
 
 ## Quotio/ViewModels/QuotaViewModel.swift (1936 lines)
 

@@ -2,7 +2,19 @@
 
 [← Back to MODULE](MODULE.md) | [← Back to INDEX](../../INDEX.md)
 
-Symbol maps for 3 large files in this module.
+Symbol maps for 4 large files in this module.
+
+## Quotio/Models/AgentModels.swift (604 lines)
+
+| Line | Kind | Name | Visibility |
+| ---- | ---- | ---- | ---------- |
+| 392 | fn | isSupported | (internal) |
+| 399 | fn | extractFromModelName | (internal) |
+| 415 | fn | encoded | (internal) |
+| 433 | method | init | (internal) |
+| 452 | method | init | (internal) |
+| 520 | fn | success | (internal) |
+| 546 | fn | failure | (internal) |
 
 ## Quotio/Models/CustomProviderModels.swift (546 lines)
 
