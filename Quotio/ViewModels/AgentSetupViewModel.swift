@@ -15,6 +15,7 @@ final class AgentSetupViewModel {
     private let configurationService = AgentConfigurationService()
     private let shellManager = ShellProfileManager()
     private let fallbackSettings = FallbackSettingsManager.shared
+    private let copilotFetcher = CopilotQuotaFetcher()
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Quotio", category: "AgentSetup")
 
     var agentStatuses: [AgentStatus] = []
@@ -108,6 +109,16 @@ final class AgentSetupViewModel {
             setupMode: selectedSetupMode
         )
 
+        if agent == .copilotCLI {
+            currentConfiguration?.modelSlots[.sonnet] = AvailableModel.copilotDefaultModel
+            currentConfiguration?.modelSlotProviders[.sonnet] = "github-copilot"
+        }
+
+        if currentConfiguration?.copilotAuthFileName == nil, let defaultCopilotAccount = availableCopilotAccounts.first {
+            currentConfiguration?.copilotAuthFileName = defaultCopilotAccount.name
+            currentConfiguration?.copilotAuthIndex = defaultCopilotAccount.authIndex
+        }
+
         // Cancel any previous configuration load task to prevent race conditions
         configurationLoadTask?.cancel()
         
@@ -142,6 +153,14 @@ final class AgentSetupViewModel {
         for (slot, model) in saved.modelSlots {
             currentConfiguration?.modelSlots[slot] = model
         }
+        for (slot, provider) in saved.modelSlotProviders {
+            currentConfiguration?.modelSlotProviders[slot] = provider
+        }
+        for (slot, effort) in saved.modelSlotReasoningEfforts {
+            currentConfiguration?.modelSlotReasoningEfforts[slot] = effort
+        }
+        currentConfiguration?.copilotAuthFileName = saved.copilotAuthFileName
+        currentConfiguration?.copilotAuthIndex = saved.copilotAuthIndex
         
         // Update setup mode in current configuration
         currentConfiguration?.setupMode = selectedSetupMode
@@ -176,8 +195,32 @@ final class AgentSetupViewModel {
 
 
 
-    func updateModelSlot(_ slot: ModelSlot, model: String) {
-        currentConfiguration?.modelSlots[slot] = model
+    var availableCopilotAccounts: [AuthFile] {
+        (quotaViewModel?.authFiles ?? [])
+            .filter { $0.providerType == .copilot && $0.isReady }
+            .sorted { $0.menuBarAccountKey.localizedCaseInsensitiveCompare($1.menuBarAccountKey) == .orderedAscending }
+    }
+
+    func updateCopilotAccount(authFileName: String) {
+        currentConfiguration?.copilotAuthFileName = authFileName
+        currentConfiguration?.copilotAuthIndex = availableCopilotAccounts.first(where: { $0.name == authFileName })?.authIndex
+    }
+
+    func updateModelSlot(_ slot: ModelSlot, model: AvailableModel) {
+        currentConfiguration?.modelSlots[slot] = model.name
+        currentConfiguration?.modelSlotProviders[slot] = model.provider
+        // Clear effort if the new model doesn't support it
+        if !ReasoningEffort.isSupported(for: model.name) {
+            currentConfiguration?.modelSlotReasoningEfforts.removeValue(forKey: slot)
+        }
+    }
+
+    func updateModelSlotReasoningEffort(_ slot: ModelSlot, effort: ReasoningEffort?) {
+        if let effort {
+            currentConfiguration?.modelSlotReasoningEfforts[slot] = effort
+        } else {
+            currentConfiguration?.modelSlotReasoningEfforts.removeValue(forKey: slot)
+        }
     }
 
     func applyConfiguration() async {
@@ -188,6 +231,8 @@ final class AgentSetupViewModel {
         defer { isConfiguring = false }
 
         do {
+            try await enforceSelectedCopilotAccountIfNeeded(config: config)
+
             let result = try await configurationService.generateConfiguration(
                 agent: agent,
                 config: config,
@@ -198,7 +243,9 @@ final class AgentSetupViewModel {
             )
 
             if configurationMode == .automatic && result.success {
-                let shouldUpdateShell = agent.configType == .both
+                let shouldUpdateShell = agent == .copilotCLI
+                    ? result.shellConfig != nil
+                    : agent.configType == .both
                     ? (configStorageOption == .shellOnly || configStorageOption == .both)
                     : agent.configType != .file
 
@@ -381,7 +428,7 @@ final class AgentSetupViewModel {
 
         do {
             let fetchedModels = try await configurationService.fetchAvailableModels(config: config)
-            let processedModels = processModels(fetchedModels)
+            let processedModels = await processModels(fetchedModels)
             self.availableModels = processedModels
             loadedFromRemote = true
 
@@ -392,8 +439,8 @@ final class AgentSetupViewModel {
             // On error, use default models if list is empty
             logger.error("[AgentSetupViewModel] Failed to load models: \(error.localizedDescription)")
             if availableModels.isEmpty {
-                self.availableModels = AvailableModel.allModels
-                logger.debug("[AgentSetupViewModel] Using \(AvailableModel.allModels.count) default models")
+                self.availableModels = await processModels([])
+                logger.debug("[AgentSetupViewModel] Using \(self.availableModels.count) default models")
             }
         }
 
@@ -401,13 +448,103 @@ final class AgentSetupViewModel {
         return loadedFromRemote
     }
 
-    private func processModels(_ fetchedModels: [AvailableModel]) -> [AvailableModel] {
-        // If API returned models, use them; otherwise fallback to default models
-        if !fetchedModels.isEmpty {
-            return fetchedModels.sorted { $0.displayName < $1.displayName }
+    private func processModels(_ fetchedModels: [AvailableModel]) async -> [AvailableModel] {
+        // Merge the live catalog with the built-in catalog so manually curated models
+        // remain selectable even if the current proxy response is incomplete.
+        let builtinModels = availableCopilotAccounts.isEmpty ? AvailableModel.allModels : AvailableModel.allModelsExcludingCopilot
+        var mergedModels = (fetchedModels + builtinModels).reduce(into: [String: AvailableModel]()) { result, model in
+            result[model.selectionKey] = result[model.selectionKey] ?? model
         }
 
-        return AvailableModel.allModels.sorted { $0.displayName < $1.displayName }
+        if !availableCopilotAccounts.isEmpty {
+            for key in mergedModels.keys where mergedModels[key]?.provider.lowercased() == "github-copilot" {
+                mergedModels.removeValue(forKey: key)
+            }
+
+            let exactCopilotModels = await fetchSelectedCopilotModels()
+            for model in exactCopilotModels {
+                mergedModels[model.selectionKey] = model
+            }
+        }
+
+        if !mergedModels.isEmpty {
+            return mergedModels.values.sorted { $0.displayName < $1.displayName }
+        }
+
+        return builtinModels.sorted { $0.displayName < $1.displayName }
+    }
+
+    private func fetchSelectedCopilotModels() async -> [AvailableModel] {
+        guard let selectedAccount = selectedCopilotAccount else { return [] }
+
+        if currentConfiguration?.copilotAuthFileName != selectedAccount.name {
+            currentConfiguration?.copilotAuthFileName = selectedAccount.name
+            currentConfiguration?.copilotAuthIndex = selectedAccount.authIndex
+        }
+
+        if let authPath = selectedAccount.path {
+            let models = await copilotFetcher.fetchAvailableModels(authFilePath: authPath)
+            return models.filter(\.isAvailable).map {
+                AvailableModel(
+                    id: $0.id,
+                    name: $0.id,
+                    provider: "github-copilot",
+                    isDefault: false
+                )
+            }
+        }
+
+        if let client = quotaViewModel?.apiClient {
+            do {
+                let models = try await client.fetchAuthFileModels(name: selectedAccount.name)
+                return models.map {
+                    AvailableModel(
+                        id: $0.id,
+                        name: $0.id,
+                        provider: "github-copilot",
+                        isDefault: false
+                    )
+                }
+            } catch {
+                logger.error("[AgentSetupViewModel] Failed to fetch auth-file models for \(selectedAccount.name): \(error.localizedDescription)")
+            }
+        }
+
+        return []
+    }
+
+    private var selectedCopilotAccount: AuthFile? {
+        if let selectedName = currentConfiguration?.copilotAuthFileName,
+           let match = availableCopilotAccounts.first(where: { $0.name == selectedName }) {
+            return match
+        }
+        return availableCopilotAccounts.first
+    }
+
+    private func configurationUsesCopilot(_ config: AgentConfiguration) -> Bool {
+        if config.agent == .copilotCLI {
+            return true
+        }
+        return config.modelSlotProviders.values.contains(where: { $0.lowercased() == "github-copilot" })
+    }
+
+    private func enforceSelectedCopilotAccountIfNeeded(config: AgentConfiguration) async throws {
+        guard configurationUsesCopilot(config),
+              let selectedName = config.copilotAuthFileName,
+              !selectedName.isEmpty else { return }
+        guard let client = quotaViewModel?.apiClient else { return }
+
+        let copilotAccounts = availableCopilotAccounts
+        guard !copilotAccounts.isEmpty else { return }
+
+        for account in copilotAccounts {
+            let shouldDisable = account.name != selectedName
+            if account.disabled != shouldDisable {
+                try await client.setAuthFileDisabled(name: account.name, disabled: shouldDisable)
+            }
+        }
+
+        await quotaViewModel?.refreshData()
     }
 
     /// Refresh virtual models - removes old ones and adds current ones

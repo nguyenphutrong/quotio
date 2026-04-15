@@ -15,6 +15,10 @@ actor AgentConfigurationService {
         let baseURL: String?
         let apiKey: String?
         let modelSlots: [ModelSlot: String]
+        let modelSlotProviders: [ModelSlot: String]
+        let modelSlotReasoningEfforts: [ModelSlot: ReasoningEffort]
+        let copilotAuthFileName: String?
+        let copilotAuthIndex: String?
         let isProxyConfigured: Bool
         let backupFiles: [BackupFile]
     }
@@ -47,6 +51,8 @@ actor AgentConfigurationService {
         switch agent {
         case .claudeCode:
             return readClaudeCodeConfig()
+        case .copilotCLI:
+            return readCopilotCLIConfig()
         case .codexCLI:
             return readCodexConfig()
         case .geminiCLI:
@@ -126,11 +132,33 @@ actor AgentConfigurationService {
         let opusModel = env["ANTHROPIC_DEFAULT_OPUS_MODEL"]
         let sonnetModel = env["ANTHROPIC_DEFAULT_SONNET_MODEL"]
         let haikuModel = env["ANTHROPIC_DEFAULT_HAIKU_MODEL"]
+        let opusProvider = env["QUOTIO_MODEL_PROVIDER_OPUS"]
+        let sonnetProvider = env["QUOTIO_MODEL_PROVIDER_SONNET"]
+        let haikuProvider = env["QUOTIO_MODEL_PROVIDER_HAIKU"]
+        let copilotAuthFileName = env["QUOTIO_COPILOT_AUTH_FILE"]
+        let copilotAuthIndex = env["QUOTIO_COPILOT_AUTH_INDEX"]
         
         var modelSlots: [ModelSlot: String] = [:]
-        if let opus = opusModel { modelSlots[.opus] = opus }
-        if let sonnet = sonnetModel { modelSlots[.sonnet] = sonnet }
-        if let haiku = haikuModel { modelSlots[.haiku] = haiku }
+        var modelSlotReasoningEfforts: [ModelSlot: ReasoningEffort] = [:]
+        if let opus = opusModel {
+            let (effort, clean) = ReasoningEffort.extractFromModelName(opus)
+            modelSlots[.opus] = clean
+            if let effort { modelSlotReasoningEfforts[.opus] = effort }
+        }
+        if let sonnet = sonnetModel {
+            let (effort, clean) = ReasoningEffort.extractFromModelName(sonnet)
+            modelSlots[.sonnet] = clean
+            if let effort { modelSlotReasoningEfforts[.sonnet] = effort }
+        }
+        if let haiku = haikuModel {
+            let (effort, clean) = ReasoningEffort.extractFromModelName(haiku)
+            modelSlots[.haiku] = clean
+            if let effort { modelSlotReasoningEfforts[.haiku] = effort }
+        }
+        var modelSlotProviders: [ModelSlot: String] = [:]
+        if let opusProvider { modelSlotProviders[.opus] = opusProvider }
+        if let sonnetProvider { modelSlotProviders[.sonnet] = sonnetProvider }
+        if let haikuProvider { modelSlotProviders[.haiku] = haikuProvider }
         
         // Check if proxy is configured (localhost or 127.0.0.1 in base URL)
         let isProxy = baseURL?.contains("127.0.0.1") == true || 
@@ -140,6 +168,10 @@ actor AgentConfigurationService {
             baseURL: baseURL,
             apiKey: apiKey,
             modelSlots: modelSlots,
+            modelSlotProviders: modelSlotProviders,
+            modelSlotReasoningEfforts: modelSlotReasoningEfforts,
+            copilotAuthFileName: copilotAuthFileName,
+            copilotAuthIndex: copilotAuthIndex,
             isProxyConfigured: isProxy,
             backupFiles: listBackups(agent: .claudeCode)
         )
@@ -157,6 +189,7 @@ actor AgentConfigurationService {
         // Simple TOML parsing for the values we need
         var baseURL: String?
         var model: String?
+        var reasoningEffort: ReasoningEffort?
         var isProxy = false
         
         for line in content.components(separatedBy: .newlines) {
@@ -167,6 +200,10 @@ actor AgentConfigurationService {
                     baseURL = value
                     isProxy = value.contains("127.0.0.1") || value.contains("localhost")
                 }
+            } else if trimmed.hasPrefix("model_reasoning_effort") {
+                if let raw = extractTOMLValue(from: trimmed) {
+                    reasoningEffort = ReasoningEffort(rawValue: raw)
+                }
             } else if trimmed.hasPrefix("model =") {
                 model = extractTOMLValue(from: trimmed)
             } else if trimmed.contains("model_provider") && trimmed.contains("cliproxyapi") {
@@ -175,16 +212,93 @@ actor AgentConfigurationService {
         }
         
         var modelSlots: [ModelSlot: String] = [:]
+        var modelSlotReasoningEfforts: [ModelSlot: ReasoningEffort] = [:]
         if let m = model {
             modelSlots[.sonnet] = m  // Codex uses single model
+        }
+        if let effort = reasoningEffort {
+            modelSlotReasoningEfforts[.sonnet] = effort
         }
         
         return SavedAgentConfig(
             baseURL: baseURL,
             apiKey: nil,  // API key is in auth.json
             modelSlots: modelSlots,
+            modelSlotProviders: [:],
+            modelSlotReasoningEfforts: modelSlotReasoningEfforts,
+            copilotAuthFileName: nil,
+            copilotAuthIndex: nil,
             isProxyConfigured: isProxy,
             backupFiles: listBackups(agent: .codexCLI)
+        )
+    }
+
+    private func readCopilotCLIConfig() -> SavedAgentConfig? {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let configPath = "\(home)/.copilot/config.json"
+
+        var modelSlots: [ModelSlot: String] = [:]
+        var modelSlotProviders: [ModelSlot: String] = [:]
+        var modelSlotReasoningEfforts: [ModelSlot: ReasoningEffort] = [:]
+        var copilotAuthFileName: String?
+        var copilotAuthIndex: String?
+        if fileManager.fileExists(atPath: configPath),
+           let data = fileManager.contents(atPath: configPath),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let model = json["model"] as? String {
+                let (effort, clean) = ReasoningEffort.extractFromModelName(model)
+                modelSlots[.sonnet] = clean
+                if let effort { modelSlotReasoningEfforts[.sonnet] = effort }
+            }
+            if let quotio = json["quotio"] as? [String: Any] {
+                if let provider = quotio["selected_provider"] as? String {
+                    modelSlotProviders[.sonnet] = provider
+                }
+                copilotAuthFileName = quotio["copilot_auth_file"] as? String
+                copilotAuthIndex = quotio["copilot_auth_index"] as? String
+            }
+        }
+
+        let shellPaths = ShellType.allCases.map(\.profilePath)
+        var baseURL: String?
+        var apiKey: String?
+        var isProxy = false
+
+        for shellPath in shellPaths {
+            guard let content = try? String(contentsOfFile: shellPath, encoding: .utf8) else { continue }
+
+            if content.contains("# CLIProxyAPI Configuration for \(CLIAgent.copilotCLI.displayName)") {
+                isProxy = true
+            }
+
+            for line in content.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+                if trimmed.contains("COPILOT_PROVIDER_BASE_URL") {
+                    if let value = extractExportValue(from: trimmed) {
+                        baseURL = value
+                        isProxy = true
+                    }
+                } else if trimmed.contains("COPILOT_PROVIDER_API_KEY") {
+                    apiKey = extractExportValue(from: trimmed)
+                }
+            }
+        }
+
+        guard baseURL != nil || apiKey != nil || !modelSlots.isEmpty else {
+            return nil
+        }
+
+        return SavedAgentConfig(
+            baseURL: baseURL,
+            apiKey: apiKey,
+            modelSlots: modelSlots,
+            modelSlotProviders: modelSlotProviders,
+            modelSlotReasoningEfforts: modelSlotReasoningEfforts,
+            copilotAuthFileName: copilotAuthFileName,
+            copilotAuthIndex: copilotAuthIndex,
+            isProxyConfigured: isProxy,
+            backupFiles: listBackups(agent: .copilotCLI)
         )
     }
     
@@ -217,6 +331,10 @@ actor AgentConfigurationService {
                     baseURL: baseURL,
                     apiKey: apiKey,
                     modelSlots: [:],
+                    modelSlotProviders: [:],
+                    modelSlotReasoningEfforts: [:],
+                    copilotAuthFileName: nil,
+                    copilotAuthIndex: nil,
                     isProxyConfigured: isProxy,
                     backupFiles: []
                 )
@@ -244,6 +362,10 @@ actor AgentConfigurationService {
             baseURL: baseURL,
             apiKey: nil,  // API key is in secrets.json
             modelSlots: [:],
+            modelSlotProviders: [:],
+            modelSlotReasoningEfforts: [:],
+            copilotAuthFileName: nil,
+            copilotAuthIndex: nil,
             isProxyConfigured: isProxy,
             backupFiles: listBackups(agent: .ampCLI)
         )
@@ -267,6 +389,10 @@ actor AgentConfigurationService {
                 baseURL: nil,
                 apiKey: nil,
                 modelSlots: [:],
+                modelSlotProviders: [:],
+                modelSlotReasoningEfforts: [:],
+                copilotAuthFileName: nil,
+                copilotAuthIndex: nil,
                 isProxyConfigured: false,
                 backupFiles: listBackups(agent: .openCode)
             )
@@ -281,6 +407,10 @@ actor AgentConfigurationService {
             baseURL: baseURL,
             apiKey: apiKey,
             modelSlots: [:],
+            modelSlotProviders: [:],
+            modelSlotReasoningEfforts: [:],
+            copilotAuthFileName: nil,
+            copilotAuthIndex: nil,
             isProxyConfigured: isProxy,
             backupFiles: listBackups(agent: .openCode)
         )
@@ -302,6 +432,10 @@ actor AgentConfigurationService {
                 baseURL: nil,
                 apiKey: nil,
                 modelSlots: [:],
+                modelSlotProviders: [:],
+                modelSlotReasoningEfforts: [:],
+                copilotAuthFileName: nil,
+                copilotAuthIndex: nil,
                 isProxyConfigured: false,
                 backupFiles: listBackups(agent: .factoryDroid)
             )
@@ -316,6 +450,10 @@ actor AgentConfigurationService {
             baseURL: baseURL,
             apiKey: apiKey,
             modelSlots: [:],
+            modelSlotProviders: [:],
+            modelSlotReasoningEfforts: [:],
+            copilotAuthFileName: nil,
+            copilotAuthIndex: nil,
             isProxyConfigured: isProxy,
             backupFiles: listBackups(agent: .factoryDroid)
         )
@@ -377,21 +515,24 @@ actor AgentConfigurationService {
         return escaped
     }
 
-    private func buildManagedCodexTOML(model: String, proxyURL: String) -> String {
+    private func buildManagedCodexTOML(model: String, proxyURL: String, reasoningEffort: ReasoningEffort? = nil) -> String {
         let escapedModel = escapeTOMLString(model)
         let escapedProxyURL = escapeTOMLString(proxyURL)
 
-        return """
-        # CLIProxyAPI Configuration for Codex CLI
-        model_provider = "cliproxyapi"
-        model = "\(escapedModel)"
-        model_reasoning_effort = "high"
-
-        [model_providers.cliproxyapi]
-        name = "cliproxyapi"
-        base_url = "\(escapedProxyURL)"
-        wire_api = "responses"
-        """
+        var lines = [
+            "# CLIProxyAPI Configuration for Codex CLI",
+            "model_provider = \"cliproxyapi\"",
+            "model = \"\(escapedModel)\""
+        ]
+        if let effort = reasoningEffort {
+            lines.append("model_reasoning_effort = \"\(effort.rawValue)\"")
+        }
+        lines.append("")
+        lines.append("[model_providers.cliproxyapi]")
+        lines.append("name = \"cliproxyapi\"")
+        lines.append("base_url = \"\(escapedProxyURL)\"")
+        lines.append("wire_api = \"responses\"")
+        return lines.joined(separator: "\n")
     }
 
     private func parseTOMLSectionName(from line: String) -> String? {
@@ -575,6 +716,9 @@ actor AgentConfigurationService {
         case .claudeCode:
             return generateClaudeCodeConfig(config: config, mode: mode, storageOption: storageOption)
 
+        case .copilotCLI:
+            return generateCopilotCLIConfig(config: config, mode: mode)
+
         case .codexCLI:
             return try await generateCodexConfig(config: config, mode: mode)
 
@@ -599,6 +743,8 @@ actor AgentConfigurationService {
         switch agent {
         case .claudeCode:
             return generateClaudeCodeDefaultConfig(mode: mode)
+        case .copilotCLI:
+            return generateCopilotCLIDefaultConfig(mode: mode)
         case .codexCLI:
             return generateCodexDefaultConfig(mode: mode)
         case .geminiCLI:
@@ -623,7 +769,12 @@ actor AgentConfigurationService {
             "ANTHROPIC_AUTH_TOKEN",
             "ANTHROPIC_DEFAULT_OPUS_MODEL",
             "ANTHROPIC_DEFAULT_SONNET_MODEL",
-            "ANTHROPIC_DEFAULT_HAIKU_MODEL"
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+            "QUOTIO_MODEL_PROVIDER_OPUS",
+            "QUOTIO_MODEL_PROVIDER_SONNET",
+            "QUOTIO_MODEL_PROVIDER_HAIKU",
+            "QUOTIO_COPILOT_AUTH_FILE",
+            "QUOTIO_COPILOT_AUTH_INDEX"
         ]
         
         if mode == .automatic && fileManager.fileExists(atPath: configPath) {
@@ -769,6 +920,37 @@ actor AgentConfigurationService {
             )],
             instructions: instructions,
             modelsConfigured: 0
+        )
+    }
+
+    private func generateCopilotCLIDefaultConfig(mode: ConfigurationMode) -> AgentConfigResult {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let configPath = "\(home)/.copilot/config.json"
+        let instructions = """
+        Remove these environment variables from your shell profile:
+        - COPILOT_PROVIDER_BASE_URL
+        - COPILOT_PROVIDER_TYPE
+        - COPILOT_PROVIDER_API_KEY
+
+        GitHub Copilot CLI will resume using its default GitHub-hosted provider.
+        """
+
+        return .success(
+            type: .both,
+            mode: mode,
+            configPath: nil,
+            authPath: nil,
+            shellConfig: nil,
+            rawConfigs: [RawConfigOutput(
+                format: .shellExport,
+                content: instructions,
+                filename: nil,
+                targetPath: ShellType.zsh.profilePath,
+                instructions: instructions
+            )],
+            instructions: instructions,
+            modelsConfigured: 0,
+            backupPath: fileManager.fileExists(atPath: configPath) ? "\(configPath) (unchanged)" : nil
         )
     }
     
@@ -936,9 +1118,21 @@ actor AgentConfigurationService {
         let configDir = "\(home)/.claude"
         let configPath = "\(configDir)/settings.json"
 
-        let opusModel = config.modelSlots[.opus] ?? "gemini-claude-opus-4-5-thinking"
-        let sonnetModel = config.modelSlots[.sonnet] ?? "gemini-claude-sonnet-4-5"
-        let haikuModel = config.modelSlots[.haiku] ?? "gemini-3-flash-preview"
+        let opusBase   = config.modelSlots[.opus]   ?? "gemini-claude-opus-4-5-thinking"
+        let sonnetBase = config.modelSlots[.sonnet] ?? "gemini-claude-sonnet-4-5"
+        let haikuBase  = config.modelSlots[.haiku]  ?? "gemini-3-flash-preview"
+        let opusModel: String = {
+            if let e = config.modelSlotReasoningEfforts[.opus], ReasoningEffort.isSupported(for: opusBase) { return e.encoded(into: opusBase) }
+            return opusBase
+        }()
+        let sonnetModel: String = {
+            if let e = config.modelSlotReasoningEfforts[.sonnet], ReasoningEffort.isSupported(for: sonnetBase) { return e.encoded(into: sonnetBase) }
+            return sonnetBase
+        }()
+        let haikuModel: String = {
+            if let e = config.modelSlotReasoningEfforts[.haiku], ReasoningEffort.isSupported(for: haikuBase) { return e.encoded(into: haikuBase) }
+            return haikuBase
+        }()
         let baseURL = config.proxyURL.replacingOccurrences(of: "/v1", with: "")
 
         // Quotio-managed env keys (will be updated/added)
@@ -947,7 +1141,10 @@ actor AgentConfigurationService {
             "ANTHROPIC_AUTH_TOKEN": config.apiKey,
             "ANTHROPIC_DEFAULT_OPUS_MODEL": opusModel,
             "ANTHROPIC_DEFAULT_SONNET_MODEL": sonnetModel,
-            "ANTHROPIC_DEFAULT_HAIKU_MODEL": haikuModel
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL": haikuModel,
+            "QUOTIO_MODEL_PROVIDER_OPUS": config.modelSlotProviders[.opus] ?? AvailableModel.defaultModels[.opus]?.provider ?? "openai",
+            "QUOTIO_MODEL_PROVIDER_SONNET": config.modelSlotProviders[.sonnet] ?? AvailableModel.defaultModels[.sonnet]?.provider ?? "openai",
+            "QUOTIO_MODEL_PROVIDER_HAIKU": config.modelSlotProviders[.haiku] ?? AvailableModel.defaultModels[.haiku]?.provider ?? "openai"
         ]
 
         let shellExports = """
@@ -957,101 +1154,142 @@ actor AgentConfigurationService {
         export ANTHROPIC_DEFAULT_OPUS_MODEL="\(opusModel)"
         export ANTHROPIC_DEFAULT_SONNET_MODEL="\(sonnetModel)"
         export ANTHROPIC_DEFAULT_HAIKU_MODEL="\(haikuModel)"
+        export QUOTIO_MODEL_PROVIDER_OPUS="\(config.modelSlotProviders[.opus] ?? AvailableModel.defaultModels[.opus]?.provider ?? "openai")"
+        export QUOTIO_MODEL_PROVIDER_SONNET="\(config.modelSlotProviders[.sonnet] ?? AvailableModel.defaultModels[.sonnet]?.provider ?? "openai")"
+        export QUOTIO_MODEL_PROVIDER_HAIKU="\(config.modelSlotProviders[.haiku] ?? AvailableModel.defaultModels[.haiku]?.provider ?? "openai")"
         """
 
+        if let copilotAuthFileName = config.copilotAuthFileName, !copilotAuthFileName.isEmpty {
+            do {
+                var quotioEnvConfig = quotioEnvConfig
+                quotioEnvConfig["QUOTIO_COPILOT_AUTH_FILE"] = copilotAuthFileName
+                if let copilotAuthIndex = config.copilotAuthIndex, !copilotAuthIndex.isEmpty {
+                    quotioEnvConfig["QUOTIO_COPILOT_AUTH_INDEX"] = copilotAuthIndex
+                }
+
+                let jsonData = try JSONSerialization.data(withJSONObject: mergeClaudeConfig(existingPath: configPath, quotioEnvConfig: quotioEnvConfig, opusModel: opusModel), options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+                let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
+
+                let shellExports = """
+                # CLIProxyAPI Configuration for Claude Code
+                export ANTHROPIC_BASE_URL="\(baseURL)"
+                export ANTHROPIC_AUTH_TOKEN="\(config.apiKey)"
+                export ANTHROPIC_DEFAULT_OPUS_MODEL="\(opusModel)"
+                export ANTHROPIC_DEFAULT_SONNET_MODEL="\(sonnetModel)"
+                export ANTHROPIC_DEFAULT_HAIKU_MODEL="\(haikuModel)"
+                export QUOTIO_MODEL_PROVIDER_OPUS="\(config.modelSlotProviders[.opus] ?? AvailableModel.defaultModels[.opus]?.provider ?? "openai")"
+                export QUOTIO_MODEL_PROVIDER_SONNET="\(config.modelSlotProviders[.sonnet] ?? AvailableModel.defaultModels[.sonnet]?.provider ?? "openai")"
+                export QUOTIO_MODEL_PROVIDER_HAIKU="\(config.modelSlotProviders[.haiku] ?? AvailableModel.defaultModels[.haiku]?.provider ?? "openai")"
+                export QUOTIO_COPILOT_AUTH_FILE="\(copilotAuthFileName)"
+                \(config.copilotAuthIndex.map { "export QUOTIO_COPILOT_AUTH_INDEX=\"\($0)\"" } ?? "")
+                """
+
+                return generateClaudeResult(configPath: configPath, configDir: configDir, mode: mode, storageOption: storageOption, jsonData: jsonData, jsonString: jsonString, shellExports: shellExports)
+            } catch {
+                return .failure(error: "Failed to generate config: \(error.localizedDescription)")
+            }
+        }
+
         do {
-            // Read existing settings.json to preserve user configuration
-            // This preserves: permissions, hooks, mcpServers, statusLine, plugins, etc.
-            var existingConfig: [String: Any] = [:]
-            if fileManager.fileExists(atPath: configPath),
-               let existingData = fileManager.contents(atPath: configPath),
-               let parsed = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
-                existingConfig = parsed
-            }
-
-            // Merge env object: preserve user's existing env keys, update only Quotio-managed keys
-            // User keys like MCP_API_KEY, DISABLE_INTERLEAVED_THINKING are preserved
-            // Quotio keys (ANTHROPIC_*) are updated with new values
-            var mergedEnv = existingConfig["env"] as? [String: String] ?? [:]
-            for (key, value) in quotioEnvConfig {
-                mergedEnv[key] = value
-            }
-            existingConfig["env"] = mergedEnv
-
-            // Update model field (other top-level keys are automatically preserved)
-            existingConfig["model"] = opusModel
-
-            // Generate JSON from merged config
-            let jsonData = try JSONSerialization.data(withJSONObject: existingConfig, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            let mergedConfig = mergeClaudeConfig(existingPath: configPath, quotioEnvConfig: quotioEnvConfig, opusModel: opusModel)
+            let jsonData = try JSONSerialization.data(withJSONObject: mergedConfig, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
             let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
-            
-            let shellProfilePath = ShellType.zsh.profilePath
-            let rawConfigs = [
-                RawConfigOutput(
-                    format: .json,
-                    content: jsonString,
-                    filename: "settings.json",
-                    targetPath: configPath,
-                    instructions: "Option 1: Save as ~/.claude/settings.json"
-                ),
-                RawConfigOutput(
-                    format: .shellExport,
-                    content: shellExports,
-                    filename: nil,
-                    targetPath: shellProfilePath,
-                    instructions: "Option 2: Add to your shell profile"
-                )
-            ]
-            
-            if mode == .automatic {
-                var backupPath: String? = nil
-                let shouldWriteJson = storageOption == .jsonOnly || storageOption == .both
-                
-                if shouldWriteJson {
-                    try fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
-                    
-                    if fileManager.fileExists(atPath: configPath) {
-                        backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
-                        try? fileManager.copyItem(atPath: configPath, toPath: backupPath!)
-                    }
-                    
-                    try jsonData.write(to: URL(fileURLWithPath: configPath))
-                }
-                
-                let instructions: String
-                switch storageOption {
-                case .jsonOnly:
-                    instructions = "Configuration saved to ~/.claude/settings.json"
-                case .shellOnly:
-                    instructions = "Shell exports ready. Add to your shell profile to complete setup."
-                case .both:
-                    instructions = "Configuration saved to ~/.claude/settings.json and shell profile updated."
-                }
-                
-                return .success(
-                    type: .both,
-                    mode: mode,
-                    configPath: shouldWriteJson ? configPath : nil,
-                    shellConfig: (storageOption == .shellOnly || storageOption == .both) ? shellExports : nil,
-                    rawConfigs: rawConfigs,
-                    instructions: instructions,
-                    modelsConfigured: 3,
-                    backupPath: backupPath
-                )
-            } else {
-                return .success(
-                    type: .both,
-                    mode: mode,
-                    configPath: configPath,
-                    shellConfig: shellExports,
-                    rawConfigs: rawConfigs,
-                    instructions: "Choose one option: save settings.json OR add shell exports to your profile:",
-                    modelsConfigured: 3
-                )
-            }
+            return generateClaudeResult(configPath: configPath, configDir: configDir, mode: mode, storageOption: storageOption, jsonData: jsonData, jsonString: jsonString, shellExports: shellExports)
         } catch {
             return .failure(error: "Failed to generate config: \(error.localizedDescription)")
         }
+    }
+
+    private func mergeClaudeConfig(existingPath: String, quotioEnvConfig: [String: String], opusModel: String) -> [String: Any] {
+        var existingConfig: [String: Any] = [:]
+        if fileManager.fileExists(atPath: existingPath),
+           let existingData = fileManager.contents(atPath: existingPath),
+           let parsed = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
+            existingConfig = parsed
+        }
+
+        var mergedEnv = existingConfig["env"] as? [String: String] ?? [:]
+        for (key, value) in quotioEnvConfig {
+            mergedEnv[key] = value
+        }
+        existingConfig["env"] = mergedEnv
+        existingConfig["model"] = opusModel
+        return existingConfig
+    }
+
+    private func generateClaudeResult(
+        configPath: String,
+        configDir: String,
+        mode: ConfigurationMode,
+        storageOption: ConfigStorageOption,
+        jsonData: Data,
+        jsonString: String,
+        shellExports: String
+    ) -> AgentConfigResult {
+        let shellProfilePath = ShellType.zsh.profilePath
+        let rawConfigs = [
+            RawConfigOutput(
+                format: .json,
+                content: jsonString,
+                filename: "settings.json",
+                targetPath: configPath,
+                instructions: "Option 1: Save as ~/.claude/settings.json"
+            ),
+            RawConfigOutput(
+                format: .shellExport,
+                content: shellExports,
+                filename: nil,
+                targetPath: shellProfilePath,
+                instructions: "Option 2: Add to your shell profile"
+            )
+        ]
+
+        if mode == .automatic {
+            var backupPath: String? = nil
+            let shouldWriteJson = storageOption == .jsonOnly || storageOption == .both
+
+            if shouldWriteJson {
+                try? fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
+
+                if fileManager.fileExists(atPath: configPath) {
+                    backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
+                    try? fileManager.copyItem(atPath: configPath, toPath: backupPath!)
+                }
+
+                try? jsonData.write(to: URL(fileURLWithPath: configPath))
+            }
+
+            let instructions: String
+            switch storageOption {
+            case .jsonOnly:
+                instructions = "Configuration saved to ~/.claude/settings.json"
+            case .shellOnly:
+                instructions = "Shell exports ready. Add to your shell profile to complete setup."
+            case .both:
+                instructions = "Configuration saved to ~/.claude/settings.json and shell profile updated."
+            }
+
+            return .success(
+                type: .both,
+                mode: mode,
+                configPath: shouldWriteJson ? configPath : nil,
+                shellConfig: (storageOption == .shellOnly || storageOption == .both) ? shellExports : nil,
+                rawConfigs: rawConfigs,
+                instructions: instructions,
+                modelsConfigured: 3,
+                backupPath: backupPath
+            )
+        }
+
+        return .success(
+            type: .both,
+            mode: mode,
+            configPath: configPath,
+            shellConfig: shellExports,
+            rawConfigs: rawConfigs,
+            instructions: "Choose one option: save settings.json OR add shell exports to your profile:",
+            modelsConfigured: 3
+        )
     }
     
     private func generateCodexConfig(config: AgentConfiguration, mode: ConfigurationMode) async throws -> AgentConfigResult {
@@ -1062,7 +1300,8 @@ actor AgentConfigurationService {
 
         let managedConfigTOML = buildManagedCodexTOML(
             model: config.modelSlots[.sonnet] ?? "gpt-5-codex",
-            proxyURL: config.proxyURL
+            proxyURL: config.proxyURL,
+            reasoningEffort: config.modelSlotReasoningEfforts[.sonnet]
         )
 
         let configTOML: String
@@ -1179,6 +1418,97 @@ actor AgentConfigurationService {
                 : "Copy the configuration below and add it to your shell profile:",
             modelsConfigured: 0
         )
+    }
+
+    private func generateCopilotCLIConfig(config: AgentConfiguration, mode: ConfigurationMode) -> AgentConfigResult {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let configDir = "\(home)/.copilot"
+        let configPath = "\(configDir)/config.json"
+        let selectedModelBase = config.modelSlots[.sonnet] ?? AvailableModel.copilotDefaultModel
+        let selectedModel: String = {
+            if let e = config.modelSlotReasoningEfforts[.sonnet], ReasoningEffort.isSupported(for: selectedModelBase) {
+                return e.encoded(into: selectedModelBase)
+            }
+            return selectedModelBase
+        }()
+
+        let shellExports = """
+        # CLIProxyAPI Configuration for GitHub Copilot CLI
+        export COPILOT_PROVIDER_BASE_URL="\(config.proxyURL)"
+        export COPILOT_PROVIDER_TYPE="openai"
+        export COPILOT_PROVIDER_API_KEY="\(config.apiKey)"
+        """
+
+        do {
+            var existingConfig: [String: Any] = [:]
+            if fileManager.fileExists(atPath: configPath),
+               let existingData = fileManager.contents(atPath: configPath),
+               let parsed = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
+                existingConfig = parsed
+            }
+
+            existingConfig["model"] = selectedModel
+            existingConfig["quotio"] = [
+                "selected_provider": config.modelSlotProviders[.sonnet] ?? "github-copilot",
+                "copilot_auth_file": config.copilotAuthFileName as Any,
+                "copilot_auth_index": config.copilotAuthIndex as Any
+            ].compactMapValues { $0 }
+
+            let jsonData = try JSONSerialization.data(withJSONObject: existingConfig, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
+
+            let rawConfigs = [
+                RawConfigOutput(
+                    format: .json,
+                    content: jsonString,
+                    filename: "config.json",
+                    targetPath: configPath,
+                    instructions: "Save this as ~/.copilot/config.json"
+                ),
+                RawConfigOutput(
+                    format: .shellExport,
+                    content: shellExports,
+                    filename: nil,
+                    targetPath: ShellType.zsh.profilePath,
+                    instructions: "Add these exports to your shell profile"
+                )
+            ]
+
+            if mode == .automatic {
+                try fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
+
+                var backupPath: String? = nil
+                if fileManager.fileExists(atPath: configPath) {
+                    backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
+                    try? fileManager.copyItem(atPath: configPath, toPath: backupPath!)
+                }
+
+                try jsonData.write(to: URL(fileURLWithPath: configPath))
+
+                return .success(
+                    type: .both,
+                    mode: mode,
+                    configPath: configPath,
+                    shellConfig: shellExports,
+                    rawConfigs: rawConfigs,
+                    instructions: "Configuration saved to ~/.copilot/config.json and shell profile updated.",
+                    modelsConfigured: 1,
+                    backupPath: backupPath
+                )
+            }
+
+            return .success(
+                type: .both,
+                mode: mode,
+                configPath: configPath,
+                shellConfig: shellExports,
+                rawConfigs: rawConfigs,
+                instructions: "Save config.json and add the shell exports below to use CLIProxyAPI with GitHub Copilot CLI.",
+                modelsConfigured: 1
+            )
+        } catch {
+            return .failure(error: "Failed to generate config: \(error.localizedDescription)")
+        }
     }
     
     private func generateAmpConfig(config: AgentConfiguration, mode: ConfigurationMode) async throws -> AgentConfigResult {

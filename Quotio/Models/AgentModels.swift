@@ -10,6 +10,7 @@ import SwiftUI
 
 nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable {
     case claudeCode = "claude-code"
+    case copilotCLI = "copilot"
     case codexCLI = "codex"
     case geminiCLI = "gemini-cli"
     case ampCLI = "amp"
@@ -21,6 +22,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
     var displayName: String {
         switch self {
         case .claudeCode: return "Claude Code"
+        case .copilotCLI: return "GitHub Copilot CLI"
         case .codexCLI: return "Codex CLI"
         case .geminiCLI: return "Gemini CLI"
         case .ampCLI: return "Amp CLI"
@@ -32,6 +34,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
     var description: String {
         switch self {
         case .claudeCode: return "Anthropic's official CLI for Claude models"
+        case .copilotCLI: return "GitHub's official Copilot CLI coding agent"
         case .codexCLI: return "OpenAI's Codex CLI for GPT-5 models"
         case .geminiCLI: return "Google's Gemini CLI for Gemini models"
         case .ampCLI: return "Sourcegraph's Amp coding assistant"
@@ -43,6 +46,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
     var configType: AgentConfigType {
         switch self {
         case .claudeCode: return .both
+        case .copilotCLI: return .both
         case .codexCLI: return .file
         case .geminiCLI: return .environment
         case .ampCLI: return .both
@@ -54,6 +58,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
     var binaryNames: [String] {
         switch self {
         case .claudeCode: return ["claude"]
+        case .copilotCLI: return ["copilot"]
         case .codexCLI: return ["codex"]
         case .geminiCLI: return ["gemini"]
         case .ampCLI: return ["amp"]
@@ -65,6 +70,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
     var configPaths: [String] {
         switch self {
         case .claudeCode: return ["~/.claude/settings.json"]
+        case .copilotCLI: return ["~/.copilot/config.json"]
         case .codexCLI: return ["~/.codex/config.toml", "~/.codex/auth.json"]
         case .geminiCLI: return []
         case .ampCLI: return ["~/.config/amp/settings.json", "~/.local/share/amp/secrets.json"]
@@ -76,6 +82,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
     var docsURL: URL? {
         switch self {
         case .claudeCode: return URL(string: "https://docs.anthropic.com/en/docs/claude-code")
+        case .copilotCLI: return URL(string: "https://docs.github.com/en/copilot/how-tos/copilot-cli")
         case .codexCLI: return URL(string: "https://github.com/openai/codex")
         case .geminiCLI: return URL(string: "https://github.com/google-gemini/gemini-cli")
         case .ampCLI: return URL(string: "https://ampcode.com/manual")
@@ -87,6 +94,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
     var systemIcon: String {
         switch self {
         case .claudeCode: return "brain.head.profile"
+        case .copilotCLI: return "chevron.left.forwardslash.chevron.right"
         case .codexCLI: return "chevron.left.forwardslash.chevron.right"
         case .geminiCLI: return "sparkles"
         case .ampCLI: return "bolt.fill"
@@ -98,6 +106,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
     var color: Color {
         switch self {
         case .claudeCode: return Color(hex: "D97706") ?? .orange
+        case .copilotCLI: return Color(hex: "238636") ?? .green
         case .codexCLI: return Color(hex: "10A37F") ?? .green
         case .geminiCLI: return Color(hex: "4285F4") ?? .blue
         case .ampCLI: return Color(hex: "FF5543") ?? .red
@@ -228,13 +237,60 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
             .joined(separator: " ")
     }
 
+    var selectionKey: String {
+        provider + "::" + name
+    }
+
+    var providerDisplayName: String {
+        switch provider.lowercased() {
+        case "anthropic":
+            return "Anthropic"
+        case "google":
+            return "Google"
+        case "openai":
+            return "OpenAI"
+        case "github-copilot", "copilot":
+            return "GitHub Copilot"
+        case "fallback":
+            return "Fallback"
+        default:
+            return provider.split(separator: "-")
+                .map { $0.capitalized }
+                .joined(separator: " ")
+        }
+    }
+
     static let defaultModels: [ModelSlot: AvailableModel] = [
         .opus: AvailableModel(id: "opus", name: "gemini-claude-opus-4-6-thinking", provider: "openai", isDefault: true),
         .sonnet: AvailableModel(id: "sonnet", name: "gemini-claude-sonnet-4-5", provider: "openai", isDefault: true),
         .haiku: AvailableModel(id: "haiku", name: "gemini-3-flash-preview", provider: "openai", isDefault: true)
     ]
 
-    static let allModels: [AvailableModel] = [
+    static let copilotDefaultModel = "gpt-5.3-codex"
+
+    static let copilotModels: [AvailableModel] = [
+        AvailableModel(id: "claude-sonnet-4.6", name: "claude-sonnet-4.6", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "claude-sonnet-4.5", name: "claude-sonnet-4.5", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "claude-haiku-4.5", name: "claude-haiku-4.5", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "claude-opus-4.6", name: "claude-opus-4.6", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "claude-opus-4.6-fast", name: "claude-opus-4.6-fast", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "claude-opus-4.5", name: "claude-opus-4.5", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "claude-sonnet-4", name: "claude-sonnet-4", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "gemini-3-pro-preview", name: "gemini-3-pro-preview", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "gpt-5.3-codex", name: "gpt-5.3-codex", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "gpt-5.2-codex", name: "gpt-5.2-codex", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "gpt-5.2", name: "gpt-5.2", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "gpt-5.1-codex-max", name: "gpt-5.1-codex-max", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "gpt-5.1-codex", name: "gpt-5.1-codex", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "gpt-5.1", name: "gpt-5.1", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "gpt-5.1-codex-mini", name: "gpt-5.1-codex-mini", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "gpt-5-mini", name: "gpt-5-mini", provider: "github-copilot", isDefault: false),
+        AvailableModel(id: "gpt-4.1", name: "gpt-4.1", provider: "github-copilot", isDefault: false)
+    ]
+
+    static let copilotSupportedModelIDs = Set(copilotModels.map(\.name))
+
+    static let allModelsExcludingCopilot: [AvailableModel] = [
         // Claude models
         AvailableModel(id: "gemini-claude-opus-4-6-thinking", name: "gemini-claude-opus-4-6-thinking", provider: "anthropic", isDefault: false),
         AvailableModel(id: "gemini-claude-opus-4-5-thinking", name: "gemini-claude-opus-4-5-thinking", provider: "anthropic", isDefault: false),
@@ -248,6 +304,8 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
         AvailableModel(id: "gemini-2.5-flash-lite", name: "gemini-2.5-flash-lite", provider: "google", isDefault: false),
         AvailableModel(id: "gemini-2.5-computer-use-preview-10-2025", name: "gemini-2.5-computer-use-preview-10-2025", provider: "google", isDefault: false),
         // GPT models
+        AvailableModel(id: "gpt-5.4", name: "gpt-5.4", provider: "openai", isDefault: false),
+        AvailableModel(id: "gpt-5.4-mini", name: "gpt-5.4-mini", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.3-codex", name: "gpt-5.3-codex", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.2", name: "gpt-5.2", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.2-codex", name: "gpt-5.2-codex", provider: "openai", isDefault: false),
@@ -260,6 +318,8 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
         AvailableModel(id: "gpt-5-codex-mini", name: "gpt-5-codex-mini", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-oss-120b-medium", name: "gpt-oss-120b-medium", provider: "openai", isDefault: false),
     ]
+
+    static let allModels: [AvailableModel] = allModelsExcludingCopilot + copilotModels
 }
 
 // MARK: - Agent Status
@@ -295,15 +355,80 @@ nonisolated struct AgentStatus: Identifiable, Sendable {
     }
 }
 
+// MARK: - Reasoning Effort
+
+nonisolated enum ReasoningEffort: String, CaseIterable, Codable, Identifiable, Sendable {
+    case none = "none"
+    case low = "low"
+    case medium = "medium"
+    case high = "high"
+    case xhigh = "xhigh"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .none:   return "None"
+        case .low:    return "Low"
+        case .medium: return "Medium"
+        case .high:   return "High"
+        case .xhigh:  return "Extra High"
+        }
+    }
+
+    var caption: String {
+        switch self {
+        case .none:   return "No reasoning, fastest response"
+        case .low:    return "Light reasoning"
+        case .medium: return "Balanced performance"
+        case .high:   return "Deep reasoning for complex tasks"
+        case .xhigh:  return "Maximum reasoning depth"
+        }
+    }
+
+    /// Returns true when a model name should show the reasoning effort control.
+    /// GPT family: names starting with gpt, o1, o3, or o4.
+    static func isSupported(for modelName: String) -> Bool {
+        let lower = modelName.lowercased()
+        return lower.hasPrefix("gpt") || lower.hasPrefix("o1")
+            || lower.hasPrefix("o3") || lower.hasPrefix("o4")
+    }
+
+    /// Parse effort encoded in a model name suffix, e.g. "gpt-5.4(high)" → (.high, "gpt-5.4")
+    static func extractFromModelName(_ modelName: String) -> (effort: ReasoningEffort?, cleanName: String) {
+        guard modelName.hasSuffix(")"),
+              let openParen = modelName.lastIndex(of: "(") else {
+            return (nil, modelName)
+        }
+        let suffixStart = modelName.index(after: openParen)
+        let suffixEnd   = modelName.index(before: modelName.endIndex)
+        guard suffixStart <= suffixEnd else { return (nil, modelName) }
+        let suffix = String(modelName[suffixStart..<suffixEnd])
+        if let effort = ReasoningEffort(rawValue: suffix) {
+            return (effort, String(modelName[..<openParen]))
+        }
+        return (nil, modelName)
+    }
+
+    /// Encode effort into a model name: "gpt-5.4" + .high → "gpt-5.4(high)"
+    func encoded(into modelName: String) -> String {
+        "\(modelName)(\(rawValue))"
+    }
+}
+
 // MARK: - Agent Configuration
 
 nonisolated struct AgentConfiguration: Codable, Sendable {
     let agent: CLIAgent
     var modelSlots: [ModelSlot: String]
+    var modelSlotProviders: [ModelSlot: String]
+    var modelSlotReasoningEfforts: [ModelSlot: ReasoningEffort]
     var proxyURL: String
     var apiKey: String
     var useOAuth: Bool
     var setupMode: ConfigurationSetup
+    var copilotAuthFileName: String?
+    var copilotAuthIndex: String?
 
     init(agent: CLIAgent, proxyURL: String, apiKey: String, setupMode: ConfigurationSetup = .proxy) {
         self.agent = agent
@@ -314,10 +439,25 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
         self.modelSlots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
             AvailableModel.defaultModels[slot].map { (slot, $0.name) }
         })
+        self.modelSlotProviders = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
+            AvailableModel.defaultModels[slot].map { (slot, $0.provider) }
+        })
+        self.modelSlotReasoningEfforts = [:]
+        self.copilotAuthFileName = nil
+        self.copilotAuthIndex = nil
     }
 
     /// Initialize with saved model slots (for restoring existing configuration)
-    init(agent: CLIAgent, proxyURL: String, apiKey: String, setupMode: ConfigurationSetup = .proxy, savedModelSlots: [ModelSlot: String]) {
+    init(
+        agent: CLIAgent,
+        proxyURL: String,
+        apiKey: String,
+        setupMode: ConfigurationSetup = .proxy,
+        savedModelSlots: [ModelSlot: String],
+        savedModelSlotProviders: [ModelSlot: String] = [:],
+        copilotAuthFileName: String? = nil,
+        copilotAuthIndex: String? = nil
+    ) {
         self.agent = agent
         self.proxyURL = proxyURL
         self.apiKey = apiKey
@@ -328,10 +468,20 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
         var slots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
             AvailableModel.defaultModels[slot].map { (slot, $0.name) }
         })
+        var providers = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
+            AvailableModel.defaultModels[slot].map { (slot, $0.provider) }
+        })
         for (slot, model) in savedModelSlots {
             slots[slot] = model
         }
+        for (slot, provider) in savedModelSlotProviders {
+            providers[slot] = provider
+        }
         self.modelSlots = slots
+        self.modelSlotProviders = providers
+        self.modelSlotReasoningEfforts = [:]
+        self.copilotAuthFileName = copilotAuthFileName
+        self.copilotAuthIndex = copilotAuthIndex
     }
 }
 

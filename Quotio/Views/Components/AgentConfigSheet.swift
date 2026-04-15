@@ -124,9 +124,17 @@ struct AgentConfigSheet: View {
             // Only show proxy-specific options when in proxy mode
             if viewModel.selectedSetupMode == .proxy {
                 connectionInfoSection
+
+                if (agent == .claudeCode || agent == .copilotCLI) && !viewModel.availableCopilotAccounts.isEmpty {
+                    copilotAccountSection
+                }
                 
                 if agent == .claudeCode {
                     modelSlotsSection
+                } else if agent == .copilotCLI {
+                    copilotModelSection
+                } else if agent == .codexCLI {
+                    codexModelSection
                 }
                 
                 if agent == .geminiCLI {
@@ -361,9 +369,14 @@ struct AgentConfigSheet: View {
                     ModelSlotRow(
                         slot: slot,
                         selectedModel: viewModel.currentConfiguration?.modelSlots[slot] ?? "",
+                        selectedProvider: viewModel.currentConfiguration?.modelSlotProviders[slot] ?? AvailableModel.defaultModels[slot]?.provider ?? "openai",
+                        selectedEffort: viewModel.currentConfiguration?.modelSlotReasoningEfforts[slot],
                         availableModels: viewModel.availableModels,
                         onModelChange: { model in
                             viewModel.updateModelSlot(slot, model: model)
+                        },
+                        onEffortChange: { effort in
+                            viewModel.updateModelSlotReasoningEffort(slot, effort: effort)
                         }
                     )
                 }
@@ -373,7 +386,147 @@ struct AgentConfigSheet: View {
         .background(Color(.controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
+
+    private var copilotModelSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Model")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Spacer()
+
+                Button {
+                    Task { await viewModel.loadModels(forceRefresh: true) }
+                } label: {
+                    if viewModel.isFetchingModels {
+                        SmallProgressView()
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.borderless)
+                .help("Refresh models from proxy".localized())
+                .disabled(viewModel.isFetchingModels)
+            }
+
+        SingleModelRow(
+            label: "Copilot Model",
+            selectedModel: viewModel.currentConfiguration?.modelSlots[.sonnet] ?? "",
+            selectedProvider: viewModel.currentConfiguration?.modelSlotProviders[.sonnet] ?? "github-copilot",
+            selectedEffort: viewModel.currentConfiguration?.modelSlotReasoningEfforts[.sonnet],
+            availableModels: compatibleCopilotModels,
+            fallbackModel: AvailableModel.copilotDefaultModel,
+            fallbackProvider: "github-copilot",
+            onModelChange: { model in
+                viewModel.updateModelSlot(.sonnet, model: model)
+            },
+            onEffortChange: { effort in
+                viewModel.updateModelSlotReasoningEffort(.sonnet, effort: effort)
+            }
+        )
+
+            Text("GitHub Copilot CLI only exposes a subset of model identifiers. This list is limited to Copilot-compatible model names.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var compatibleCopilotModels: [AvailableModel] {
+        let compatible = viewModel.availableModels
+            .filter { $0.provider.lowercased() == "github-copilot" && AvailableModel.copilotSupportedModelIDs.contains($0.name) }
+            .sorted { $0.displayName < $1.displayName }
+        return compatible
+    }
+
+    private var copilotAccountSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("GitHub Copilot Account")
+                .font(.subheadline)
+                .fontWeight(.medium)
+
+            Picker(
+                "",
+                selection: Binding(
+                    get: { viewModel.currentConfiguration?.copilotAuthFileName ?? viewModel.availableCopilotAccounts.first?.name ?? "" },
+                    set: { newValue in
+                        viewModel.updateCopilotAccount(authFileName: newValue)
+                        Task { await viewModel.loadModels(forceRefresh: true) }
+                    }
+                )
+            ) {
+                ForEach(viewModel.availableCopilotAccounts, id: \.name) { account in
+                    Text(account.menuBarAccountKey)
+                        .tag(account.name)
+                }
+            }
+            .pickerStyle(.menu)
+
+            Text("Used for GitHub Copilot-backed models. Applying the config makes the selected Copilot auth file the active one for proxy routing.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
     
+    private var codexModelSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Model & Reasoning")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Spacer()
+
+                Button {
+                    Task { await viewModel.loadModels(forceRefresh: true) }
+                } label: {
+                    if viewModel.isFetchingModels {
+                        SmallProgressView()
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.borderless)
+                .disabled(viewModel.isFetchingModels)
+            }
+
+            let codexModels = viewModel.availableModels.filter {
+                $0.provider.lowercased() == "openai"
+            }
+
+            SingleModelRow(
+                label: "Model",
+                selectedModel: viewModel.currentConfiguration?.modelSlots[.sonnet] ?? "",
+                selectedProvider: viewModel.currentConfiguration?.modelSlotProviders[.sonnet] ?? "openai",
+                selectedEffort: viewModel.currentConfiguration?.modelSlotReasoningEfforts[.sonnet],
+                availableModels: codexModels,
+                fallbackModel: "gpt-5.4",
+                fallbackProvider: "openai",
+                onModelChange: { model in
+                    viewModel.updateModelSlot(.sonnet, model: model)
+                },
+                onEffortChange: { effort in
+                    viewModel.updateModelSlotReasoningEffort(.sonnet, effort: effort)
+                }
+            )
+
+            Text("Reasoning effort is written as model_reasoning_effort in ~/.codex/config.toml")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
     private var oauthToggleSection: some View {
         Toggle(isOn: Binding(
             get: { viewModel.currentConfiguration?.useOAuth ?? true },
@@ -825,53 +978,169 @@ private struct InfoRow: View {
 private struct ModelSlotRow: View {
     let slot: ModelSlot
     let selectedModel: String
+    let selectedProvider: String
+    let selectedEffort: ReasoningEffort?
     let availableModels: [AvailableModel]
-    let onModelChange: (String) -> Void
-    
+    let onModelChange: (AvailableModel) -> Void
+    let onEffortChange: (ReasoningEffort?) -> Void
+
     private var effectiveSelection: String {
-        // Check if selected model exists in available list
-        if !selectedModel.isEmpty && availableModels.contains(where: { $0.name == selectedModel }) {
-            return selectedModel
+        if !selectedModel.isEmpty,
+           let selected = availableModels.first(where: { $0.name == selectedModel && $0.provider == selectedProvider }) {
+            return selected.selectionKey
         }
-        // Check if default model is available
         if let defaultModel = AvailableModel.defaultModels[slot],
-           availableModels.contains(where: { $0.name == defaultModel.name }) {
-            return defaultModel.name
+           availableModels.contains(where: { $0.name == defaultModel.name && $0.provider == defaultModel.provider }) {
+            return defaultModel.selectionKey
         }
-        // Final fallback to first available model
-        return availableModels.first?.name ?? ""
+        return availableModels.first?.selectionKey ?? ""
     }
-    
+
+    private var showsEffortPicker: Bool {
+        ReasoningEffort.isSupported(for: selectedModel)
+    }
+
     var body: some View {
-        HStack {
-            Text(slot.displayName)
-                .font(.caption)
-                .fontWeight(.medium)
-            
-            Spacer(minLength: 12)
-            
-            Picker("", selection: Binding(
-                get: { effectiveSelection },
-                set: { onModelChange($0) }
-            )) {
-                let providers = Set(availableModels.map { $0.provider }).sorted()
-                
-                ForEach(providers, id: \.self) { provider in
-                    Section(header: Text(provider.capitalized)) {
-                        ForEach(availableModels.filter { $0.provider == provider }) { model in
-                            Text(model.displayName)
-                                .tag(model.name)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(slot.displayName)
+                    .font(.caption)
+                    .fontWeight(.medium)
+
+                Spacer(minLength: 12)
+
+                Picker("", selection: Binding(
+                    get: { effectiveSelection },
+                    set: { selection in
+                        guard let model = availableModels.first(where: { $0.selectionKey == selection }) else { return }
+                        onModelChange(model)
+                    }
+                )) {
+                    let providers = Array(Dictionary(grouping: availableModels, by: \.provider).keys).sorted()
+                    ForEach(providers, id: \.self) { provider in
+                        Section(header: Text(availableModels.first(where: { $0.provider == provider })?.providerDisplayName ?? provider.capitalized)) {
+                            ForEach(availableModels.filter { $0.provider == provider }) { model in
+                                Text(model.displayName).tag(model.selectionKey)
+                            }
                         }
                     }
                 }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 280)
             }
-            .pickerStyle(.menu)
-            .frame(maxWidth: 280)
+
+            if showsEffortPicker {
+                HStack {
+                    Text("Thinking Effort")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("", selection: Binding(
+                        get: { selectedEffort },
+                        set: { onEffortChange($0) }
+                    )) {
+                        Text("Default").tag(ReasoningEffort?.none)
+                        ForEach(ReasoningEffort.allCases) { effort in
+                            Text(effort.displayName).tag(Optional(effort))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 200)
+                }
+                .padding(.leading, 4)
+            }
         }
         .onAppear {
-            // Trigger fallback update if model is empty or not in available list
-            if selectedModel.isEmpty || !availableModels.contains(where: { $0.name == selectedModel }) {
-                onModelChange(effectiveSelection)
+            if selectedModel.isEmpty || !availableModels.contains(where: { $0.name == selectedModel && $0.provider == selectedProvider }) {
+                if let model = availableModels.first(where: { $0.selectionKey == effectiveSelection }) {
+                    onModelChange(model)
+                }
+            }
+        }
+    }
+}
+
+private struct SingleModelRow: View {
+    let label: String
+    let selectedModel: String
+    let selectedProvider: String
+    let selectedEffort: ReasoningEffort?
+    let availableModels: [AvailableModel]
+    let fallbackModel: String
+    let fallbackProvider: String
+    let onModelChange: (AvailableModel) -> Void
+    let onEffortChange: (ReasoningEffort?) -> Void
+
+    private var effectiveSelection: String {
+        if !selectedModel.isEmpty,
+           let model = availableModels.first(where: { $0.name == selectedModel && $0.provider == selectedProvider }) {
+            return model.selectionKey
+        }
+        if let fallback = availableModels.first(where: { $0.name == fallbackModel && $0.provider == fallbackProvider }) {
+            return fallback.selectionKey
+        }
+        return availableModels.first?.selectionKey ?? ""
+    }
+
+    private var showsEffortPicker: Bool {
+        ReasoningEffort.isSupported(for: selectedModel)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label)
+                    .font(.caption)
+                    .fontWeight(.medium)
+
+                Spacer(minLength: 12)
+
+                Picker("", selection: Binding(
+                    get: { effectiveSelection },
+                    set: { selection in
+                        guard let model = availableModels.first(where: { $0.selectionKey == selection }) else { return }
+                        onModelChange(model)
+                    }
+                )) {
+                    let providers = Array(Dictionary(grouping: availableModels, by: \.provider).keys).sorted()
+                    ForEach(providers, id: \.self) { provider in
+                        Section(header: Text(availableModels.first(where: { $0.provider == provider })?.providerDisplayName ?? provider.capitalized)) {
+                            ForEach(availableModels.filter { $0.provider == provider }) { model in
+                                Text(model.displayName).tag(model.selectionKey)
+                            }
+                        }
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 280)
+            }
+
+            if showsEffortPicker {
+                HStack {
+                    Text("Thinking Effort")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("", selection: Binding(
+                        get: { selectedEffort },
+                        set: { onEffortChange($0) }
+                    )) {
+                        Text("Default").tag(ReasoningEffort?.none)
+                        ForEach(ReasoningEffort.allCases) { effort in
+                            Text(effort.displayName).tag(Optional(effort))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 200)
+                }
+                .padding(.leading, 4)
+            }
+        }
+        .onAppear {
+            if selectedModel.isEmpty || !availableModels.contains(where: { $0.name == selectedModel && $0.provider == selectedProvider }) {
+                if let model = availableModels.first(where: { $0.selectionKey == effectiveSelection }) {
+                    onModelChange(model)
+                }
             }
         }
     }
