@@ -10,7 +10,7 @@ import AppKit
 import Foundation
 
 /// Thread-safe image cache with automatic memory pressure eviction
-final class ImageCacheService: @unchecked Sendable {
+final class ImageCacheService: NSObject, @unchecked Sendable {
     static let shared = ImageCacheService()
 
     private let cache = NSCache<NSString, NSImage>()
@@ -19,7 +19,8 @@ final class ImageCacheService: @unchecked Sendable {
     /// Retained memory pressure source to prevent deallocation
     private var memoryPressureSource: DispatchSourceMemoryPressure?
 
-    private init() {
+    private override init() {
+        super.init()
         cache.countLimit = 50
         cache.totalCostLimit = 10 * 1024 * 1024
         setupMemoryPressureHandler()
@@ -28,6 +29,7 @@ final class ImageCacheService: @unchecked Sendable {
     deinit {
         memoryPressureSource?.cancel()
         memoryPressureSource = nil
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Public API
@@ -113,19 +115,27 @@ final class ImageCacheService: @unchecked Sendable {
         source.resume()
 
         NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.cache.countLimit = 20
-        }
+            self,
+            selector: #selector(handleAppDidResignActive),
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
 
         NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.cache.countLimit = 50
-        }
+            self,
+            selector: #selector(handleAppDidBecomeActive),
+            name: NSApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
+
+    @objc
+    private func handleAppDidResignActive() {
+        cache.countLimit = 20
+    }
+
+    @objc
+    private func handleAppDidBecomeActive() {
+        cache.countLimit = 50
     }
 }

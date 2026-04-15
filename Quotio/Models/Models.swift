@@ -189,6 +189,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
     var cliAgent: CLIAgent? {
         switch self {
         case .claude: return .claudeCode
+        case .copilot: return .copilotCLI
         case .codex: return .codexCLI
         case .gemini: return .geminiCLI
         default: return nil

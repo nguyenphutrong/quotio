@@ -210,12 +210,30 @@ actor AgentDetectionService {
     }
     
     private func checkConfiguration(agent: CLIAgent) async -> Bool {
+        if agent == .copilotCLI {
+            return checkCopilotCLIConfiguration()
+        }
+
         switch agent.configType {
         case .file, .both:
             return checkConfigFiles(agent: agent)
         case .environment:
             return UserDefaults.standard.bool(forKey: "agent.\(agent.rawValue).configured")
         }
+    }
+
+    private func checkCopilotCLIConfiguration() -> Bool {
+        let shellPaths = ShellType.allCases.map(\.profilePath)
+        let marker = "# CLIProxyAPI Configuration for \(CLIAgent.copilotCLI.displayName)"
+
+        for shellPath in shellPaths {
+            guard let content = try? String(contentsOfFile: shellPath, encoding: .utf8) else { continue }
+            if content.contains(marker) || content.contains("COPILOT_PROVIDER_BASE_URL") {
+                return true
+            }
+        }
+
+        return false
     }
     
     private func checkConfigFiles(agent: CLIAgent) -> Bool {

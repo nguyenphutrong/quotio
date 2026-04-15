@@ -112,7 +112,7 @@ actor KiroQuotaFetcher {
 
     /// Hardware UUID stable across app launches
     private lazy var hardwareUUID: String = {
-        let platformExpert = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+        let platformExpert = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
         defer { IOObjectRelease(platformExpert) }
         if let uuid = IORegistryEntryCreateCFProperty(platformExpert, kIOPlatformUUIDKey as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? String {
             return uuid
