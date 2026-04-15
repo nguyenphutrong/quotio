@@ -10,7 +10,7 @@
 | ---- | ----- | ----- |
 | `Quotio/QuotioApp.swift` | 818 | 📊 |
 | `Quotio/Services/AgentConfigurationService.swift` | 1940 | 📊 |
-| `Quotio/Services/AgentDetectionService.swift` | 252 |  |
+| `Quotio/Services/AgentDetectionService.swift` | 270 |  |
 | `Quotio/Services/AtomFeedUpdateService.swift` | 533 | 📊 |
 | `Quotio/Services/CLIExecutor.swift` | 430 |  |
 | `Quotio/Services/ChecksumVerifier.swift` | 78 |  |
@@ -19,7 +19,7 @@
 | `Quotio/Services/DirectAuthFileService.swift` | 493 |  |
 | `Quotio/Services/FallbackSettingsManager.swift` | 367 |  |
 | `Quotio/Services/GLMQuotaFetcher.swift` | 186 |  |
-| `Quotio/Services/ImageCacheService.swift` | 131 |  |
+| `Quotio/Services/ImageCacheService.swift` | 141 |  |
 | `Quotio/Services/KeychainHelper.swift` | 225 |  |
 | `Quotio/Services/LanguageManager.swift` | 115 |  |
 | `Quotio/Services/LaunchAtLoginManager.swift` | 189 |  |
