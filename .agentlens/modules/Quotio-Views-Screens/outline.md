@@ -20,15 +20,15 @@ Symbol maps for 6 large files in this module.
 | 938 | fn | layout | (private) |
 | 966 | struct | QuotaProviderRow | (internal) |
 
-## Quotio/Views/Screens/FallbackScreen.swift (539 lines)
+## Quotio/Views/Screens/FallbackScreen.swift (558 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 8 | struct | FallbackScreen | (internal) |
 | 113 | fn | loadModelsIfNeeded | (private) |
-| 322 | struct | VirtualModelsEmptyState | (internal) |
-| 364 | struct | VirtualModelRow | (internal) |
-| 485 | struct | FallbackEntryRow | (internal) |
+| 341 | struct | VirtualModelsEmptyState | (internal) |
+| 383 | struct | VirtualModelRow | (internal) |
+| 504 | struct | FallbackEntryRow | (internal) |
 
 ## Quotio/Views/Screens/LogsScreen.swift (541 lines)
 
@@ -73,7 +73,7 @@ Symbol maps for 6 large files in this module.
 | 850 | struct | OAuthStatusView | (private) |
 | 1022 | enum | CustomProviderSheetMode | (internal) |
 
-## Quotio/Views/Screens/QuotaScreen.swift (1599 lines)
+## Quotio/Views/Screens/QuotaScreen.swift (1627 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -88,24 +88,24 @@ Symbol maps for 6 large files in this module.
 | 337 | struct | ProviderQuotaView | (private) |
 | 419 | struct | AccountInfo | (private) |
 | 431 | struct | AccountQuotaCardV2 | (private) |
-| 815 | fn | standardContentByStyle | (private) |
-| 843 | struct | PlanBadgeV2Compact | (private) |
-| 897 | struct | PlanBadgeV2 | (private) |
-| 952 | struct | SubscriptionBadgeV2 | (private) |
-| 993 | struct | AntigravityDisplayGroup | (private) |
-| 1003 | struct | AntigravityGroupRow | (private) |
-| 1080 | struct | AntigravityLowestBarLayout | (private) |
-| 1099 | fn | displayPercent | (private) |
-| 1161 | struct | AntigravityRingLayout | (private) |
-| 1173 | fn | displayPercent | (private) |
-| 1202 | struct | StandardLowestBarLayout | (private) |
-| 1221 | fn | displayPercent | (private) |
-| 1294 | struct | StandardRingLayout | (private) |
-| 1306 | fn | displayPercent | (private) |
-| 1341 | struct | AntigravityModelsDetailSheet | (private) |
-| 1410 | struct | ModelDetailCard | (private) |
-| 1477 | struct | UsageRowV2 | (private) |
-| 1565 | struct | QuotaLoadingView | (private) |
+| 843 | fn | standardContentByStyle | (private) |
+| 871 | struct | PlanBadgeV2Compact | (private) |
+| 925 | struct | PlanBadgeV2 | (private) |
+| 980 | struct | SubscriptionBadgeV2 | (private) |
+| 1021 | struct | AntigravityDisplayGroup | (private) |
+| 1031 | struct | AntigravityGroupRow | (private) |
+| 1108 | struct | AntigravityLowestBarLayout | (private) |
+| 1127 | fn | displayPercent | (private) |
+| 1189 | struct | AntigravityRingLayout | (private) |
+| 1201 | fn | displayPercent | (private) |
+| 1230 | struct | StandardLowestBarLayout | (private) |
+| 1249 | fn | displayPercent | (private) |
+| 1322 | struct | StandardRingLayout | (private) |
+| 1334 | fn | displayPercent | (private) |
+| 1369 | struct | AntigravityModelsDetailSheet | (private) |
+| 1438 | struct | ModelDetailCard | (private) |
+| 1505 | struct | UsageRowV2 | (private) |
+| 1593 | struct | QuotaLoadingView | (private) |
 
 ## Quotio/Views/Screens/SettingsScreen.swift (3051 lines)
 

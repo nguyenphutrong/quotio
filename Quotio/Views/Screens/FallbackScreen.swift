@@ -168,6 +168,21 @@ struct FallbackScreen: View {
             .toggleStyle(.switch)
             .disabled(!isBridgeModeEnabled)
 
+            Toggle(isOn: Binding(
+                get: { fallbackSettings.isRouteCachingEnabled },
+                set: { fallbackSettings.isRouteCachingEnabled = $0 }
+            )) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("fallback.enableRouteCache".localized())
+                        .fontWeight(.medium)
+                    Text("fallback.enableRouteCacheDescription".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(.switch)
+            .disabled(!fallbackSettings.isEnabled)
+
             // Bridge Mode warning - show when Bridge Mode is disabled
             if !isBridgeModeEnabled {
                 HStack(spacing: 8) {
@@ -251,7 +266,11 @@ struct FallbackScreen: View {
                     .clipShape(Capsule())
             }
         } footer: {
-            Text("fallback.activeRoutesFooter".localized())
+            Text(
+                fallbackSettings.isRouteCachingEnabled
+                    ? "fallback.activeRoutesFooter".localized()
+                    : "fallback.activeRoutesFooterDisabled".localized()
+            )
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }

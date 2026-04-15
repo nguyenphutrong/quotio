@@ -4,7 +4,7 @@
 
 ## Overview
 
-- **Lines:** 1091
+- **Lines:** 1093
 - **Language:** Swift
 - **Symbols:** 9
 - **Public symbols:** 0

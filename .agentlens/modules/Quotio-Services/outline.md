@@ -4,7 +4,7 @@
 
 Symbol maps for 4 large files in this module.
 
-## Quotio/Services/AgentConfigurationService.swift (1410 lines)
+## Quotio/Services/AgentConfigurationService.swift (1609 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -20,23 +20,32 @@ Symbol maps for 4 large files in this module.
 | 288 | fn | readFactoryDroidConfig | (private) |
 | 325 | fn | extractTOMLValue | (private) |
 | 336 | fn | extractExportValue | (private) |
-| 348 | fn | generateConfiguration | (internal) |
-| 387 | fn | generateDefaultConfiguration | (private) |
-| 403 | fn | generateClaudeCodeDefaultConfig | (private) |
-| 488 | fn | generateCodexDefaultConfig | (private) |
-| 553 | fn | generateGeminiCLIDefaultConfig | (private) |
-| 581 | fn | generateAmpDefaultConfig | (private) |
-| 627 | fn | generateOpenCodeDefaultConfig | (private) |
-| 676 | fn | generateFactoryDroidDefaultConfig | (private) |
-| 741 | fn | generateClaudeCodeConfig | (private) |
-| 863 | fn | generateCodexConfig | (private) |
-| 941 | fn | generateGeminiCLIConfig | (private) |
-| 984 | fn | generateAmpConfig | (private) |
-| 1067 | fn | generateOpenCodeConfig | (private) |
-| 1158 | fn | buildOpenCodeModelConfig | (private) |
-| 1210 | fn | generateFactoryDroidConfig | (private) |
-| 1280 | fn | fetchAvailableModels | (internal) |
-| 1335 | fn | testConnection | (internal) |
+| 351 | fn | escapeTOMLString | (private) |
+| 379 | fn | buildManagedCodexTOML | (private) |
+| 396 | fn | parseTOMLSectionName | (private) |
+| 414 | fn | isCodexManagedTopLevelKey | (private) |
+| 423 | fn | splitManagedCodexConfig | (private) |
+| 431 | fn | extractManagedCodexBanner | (private) |
+| 440 | fn | filterExistingCodexLines | (private) |
+| 481 | fn | composeMergedCodexConfig | (private) |
+| 552 | fn | mergeCodexConfig | (private) |
+| 559 | fn | generateConfiguration | (internal) |
+| 598 | fn | generateDefaultConfiguration | (private) |
+| 614 | fn | generateClaudeCodeDefaultConfig | (private) |
+| 699 | fn | generateCodexDefaultConfig | (private) |
+| 746 | fn | generateGeminiCLIDefaultConfig | (private) |
+| 774 | fn | generateAmpDefaultConfig | (private) |
+| 820 | fn | generateOpenCodeDefaultConfig | (private) |
+| 869 | fn | generateFactoryDroidDefaultConfig | (private) |
+| 934 | fn | generateClaudeCodeConfig | (private) |
+| 1056 | fn | generateCodexConfig | (private) |
+| 1140 | fn | generateGeminiCLIConfig | (private) |
+| 1183 | fn | generateAmpConfig | (private) |
+| 1266 | fn | generateOpenCodeConfig | (private) |
+| 1357 | fn | buildOpenCodeModelConfig | (private) |
+| 1409 | fn | generateFactoryDroidConfig | (private) |
+| 1479 | fn | fetchAvailableModels | (internal) |
+| 1534 | fn | testConnection | (internal) |
 
 ## Quotio/Services/AtomFeedUpdateService.swift (533 lines)
 
@@ -131,52 +140,54 @@ Symbol maps for 4 large files in this module.
 | 708 | method | init | (internal) |
 | 722 | fn | encode | (internal) |
 
-## Quotio/Services/StatusBarMenuBuilder.swift (1407 lines)
+## Quotio/Services/StatusBarMenuBuilder.swift (1470 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 18 | class | StatusBarMenuBuilder | (internal) |
-| 27 | method | init | (internal) |
-| 33 | fn | buildMenu | (internal) |
-| 110 | fn | resolveSelectedProvider | (private) |
-| 119 | fn | accountsForProvider | (private) |
-| 126 | fn | buildHeaderItem | (private) |
-| 133 | fn | buildNetworkInfoItem | (private) |
-| 160 | fn | buildAccountCardItem | (private) |
-| 191 | fn | buildAntigravitySubmenu | (private) |
-| 207 | fn | showSwitchConfirmation | (private) |
-| 236 | fn | buildEmptyStateItem | (private) |
-| 243 | fn | buildActionItems | (private) |
-| 267 | class | MenuActionHandler | (internal) |
-| 276 | fn | refresh | (internal) |
-| 282 | fn | openApp | (internal) |
-| 286 | fn | quit | (internal) |
-| 290 | fn | openMainWindow | (internal) |
-| 315 | struct | MenuHeaderView | (private) |
-| 340 | struct | MenuProviderSectionHeader | (private) |
-| 358 | struct | MenuProviderPickerView | (private) |
-| 393 | struct | ProviderFilterButton | (private) |
-| 425 | struct | ProviderIconMono | (private) |
-| 449 | struct | MenuNetworkInfoView | (private) |
-| 557 | fn | triggerCopyState | (private) |
-| 568 | fn | setCopied | (private) |
-| 579 | fn | copyButton | (private) |
-| 596 | struct | MenuAccountCardView | (private) |
-| 635 | fn | planConfig | (private) |
-| 867 | fn | formatLocalTime | (private) |
-| 886 | struct | ModelBadgeData | (private) |
-| 925 | struct | AntigravityDisplayGroup | (private) |
-| 932 | fn | menuDisplayPercent | (private) |
-| 936 | fn | menuStatusColor | (private) |
-| 954 | struct | LowestBarLayout | (private) |
-| 1034 | struct | RingGridLayout | (private) |
-| 1078 | struct | CardGridLayout | (private) |
-| 1127 | struct | ModernProgressBar | (private) |
-| 1162 | struct | PercentageBadge | (private) |
-| 1198 | struct | MenuModelDetailView | (private) |
-| 1250 | struct | MenuEmptyStateView | (private) |
-| 1265 | struct | MenuViewMoreAccountsView | (private) |
-| 1313 | mod | extension AIProvider | (private) |
-| 1335 | struct | MenuActionsView | (private) |
-| 1373 | struct | MenuBarActionButton | (private) |
+| 33 | method | init | (internal) |
+| 39 | fn | buildMenu | (internal) |
+| 120 | fn | isCLIInstalled | (private) |
+| 144 | fn | checkBinaryExists | (private) |
+| 173 | fn | resolveSelectedProvider | (private) |
+| 182 | fn | accountsForProvider | (private) |
+| 189 | fn | buildHeaderItem | (private) |
+| 196 | fn | buildNetworkInfoItem | (private) |
+| 223 | fn | buildAccountCardItem | (private) |
+| 254 | fn | buildAntigravitySubmenu | (private) |
+| 270 | fn | showSwitchConfirmation | (private) |
+| 299 | fn | buildEmptyStateItem | (private) |
+| 306 | fn | buildActionItems | (private) |
+| 330 | class | MenuActionHandler | (internal) |
+| 339 | fn | refresh | (internal) |
+| 345 | fn | openApp | (internal) |
+| 349 | fn | quit | (internal) |
+| 353 | fn | openMainWindow | (internal) |
+| 378 | struct | MenuHeaderView | (private) |
+| 403 | struct | MenuProviderSectionHeader | (private) |
+| 421 | struct | MenuProviderPickerView | (private) |
+| 456 | struct | ProviderFilterButton | (private) |
+| 488 | struct | ProviderIconMono | (private) |
+| 512 | struct | MenuNetworkInfoView | (private) |
+| 620 | fn | triggerCopyState | (private) |
+| 631 | fn | setCopied | (private) |
+| 642 | fn | copyButton | (private) |
+| 659 | struct | MenuAccountCardView | (private) |
+| 698 | fn | planConfig | (private) |
+| 930 | fn | formatLocalTime | (private) |
+| 949 | struct | ModelBadgeData | (private) |
+| 988 | struct | AntigravityDisplayGroup | (private) |
+| 995 | fn | menuDisplayPercent | (private) |
+| 999 | fn | menuStatusColor | (private) |
+| 1017 | struct | LowestBarLayout | (private) |
+| 1097 | struct | RingGridLayout | (private) |
+| 1141 | struct | CardGridLayout | (private) |
+| 1190 | struct | ModernProgressBar | (private) |
+| 1225 | struct | PercentageBadge | (private) |
+| 1261 | struct | MenuModelDetailView | (private) |
+| 1313 | struct | MenuEmptyStateView | (private) |
+| 1328 | struct | MenuViewMoreAccountsView | (private) |
+| 1376 | mod | extension AIProvider | (private) |
+| 1398 | struct | MenuActionsView | (private) |
+| 1436 | struct | MenuBarActionButton | (private) |
 

@@ -4491,6 +4491,136 @@
         }
       }
     },
+    "customProviders.fetchModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fetch Models"
+          }
+        }
+      }
+    },
+    "customProviders.allModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Models"
+          }
+        }
+      }
+    },
+    "customProviders.popularModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Popular Models"
+          }
+        }
+      }
+    },
+    "customProviders.searchModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search models..."
+          }
+        }
+      }
+    },
+    "customProviders.selectedModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld models selected"
+          }
+        }
+      }
+    },
+    "customProviders.clearSelection" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
+          }
+        }
+      }
+    },
+    "customProviders.selectAll" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select All"
+          }
+        }
+      }
+    },
+    "customProviders.deselectAll" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect All"
+          }
+        }
+      }
+    },
+    "customProviders.limitModels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit models to selection"
+          }
+        }
+      }
+    },
+    "customProviders.limitModelsDesc" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only selected models will be available via proxy"
+          }
+        }
+      }
+    },
+    "customProviders.selectModelsHint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select models to make available via proxy"
+          }
+        }
+      }
+    },
+    "customProviders.testing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Testing connection..."
+          }
+        }
+      }
+    },
+    "customProviders.enterManually" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Or enter model names manually:"
+          }
+        }
+      }
+    },
     "dashboard.accounts" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5656,6 +5786,35 @@
         }
       }
     },
+    "fallback.activeRoutesFooterDisabled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Route caching is disabled. Virtual models restart from the first fallback entry on each request."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le cache des routes est désactivé. Les modèles virtuels redémarrent à partir de la première entrée de repli à chaque requête."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bộ nhớ đệm tuyến đã bị tắt. Các mô hình ảo sẽ bắt đầu lại từ mục dự phòng đầu tiên cho mỗi yêu cầu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路由缓存已禁用。每次请求时，虚拟模型都会从第一个回退条目重新开始。"
+          }
+        }
+      }
+    },
     "fallback.addEntry" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6232,6 +6391,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启用回退"
+          }
+        }
+      }
+    },
+    "fallback.enableRouteCache" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reuse successful fallback route"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réutiliser la route de repli réussie"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tái sử dụng tuyến dự phòng thành công"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复用成功的回退路由"
+          }
+        }
+      }
+    },
+    "fallback.enableRouteCacheDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep using the last successful fallback entry for a virtual model until routes are cleared or the chain changes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuer d'utiliser la dernière entrée de repli réussie pour un modèle virtuel jusqu'à ce que les routes soient effacées ou que la chaîne change."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tiếp tục dùng mục dự phòng thành công gần nhất cho một mô hình ảo cho đến khi các tuyến bị xóa hoặc chuỗi thay đổi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在清除路由或回退链发生变化之前，持续使用该虚拟模型最近一次成功的回退条目。"
           }
         }
       }

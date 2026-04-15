@@ -4,7 +4,7 @@
 
 ## Overview
 
-- **Lines:** 1609
+- **Lines:** 1610
 - **Language:** Swift
 - **Symbols:** 38
 - **Public symbols:** 0
@@ -47,8 +47,8 @@
 | 1140 | fn | generateGeminiCLIConfig | (private) | `private func generateGeminiCLIConfig(config: Ag...` |
 | 1183 | fn | generateAmpConfig | (private) | `private func generateAmpConfig(config: AgentCon...` |
 | 1266 | fn | generateOpenCodeConfig | (private) | `private func generateOpenCodeConfig(config: Age...` |
-| 1357 | fn | buildOpenCodeModelConfig | (private) | `private func buildOpenCodeModelConfig(for model...` |
-| 1409 | fn | generateFactoryDroidConfig | (private) | `private func generateFactoryDroidConfig(config:...` |
-| 1479 | fn | fetchAvailableModels | (internal) | `func fetchAvailableModels(config: AgentConfigur...` |
-| 1534 | fn | testConnection | (internal) | `func testConnection(agent: CLIAgent, config: Ag...` |
+| 1358 | fn | buildOpenCodeModelConfig | (private) | `private func buildOpenCodeModelConfig(for model...` |
+| 1410 | fn | generateFactoryDroidConfig | (private) | `private func generateFactoryDroidConfig(config:...` |
+| 1480 | fn | fetchAvailableModels | (internal) | `func fetchAvailableModels(config: AgentConfigur...` |
+| 1535 | fn | testConnection | (internal) | `func testConnection(agent: CLIAgent, config: Ag...` |
 

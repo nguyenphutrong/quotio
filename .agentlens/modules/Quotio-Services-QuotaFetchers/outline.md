@@ -4,26 +4,30 @@
 
 Symbol maps for 1 large files in this module.
 
-## Quotio/Services/QuotaFetchers/KiroQuotaFetcher.swift (593 lines)
+## Quotio/Services/QuotaFetchers/KiroQuotaFetcher.swift (677 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
-| 62 | class | KiroQuotaFetcher | (internal) |
-| 68 | fn | socialTokenEndpoint | (private) |
-| 73 | fn | idcTokenEndpoint | (private) |
-| 78 | fn | usageEndpoint | (private) |
-| 87 | method | init | (internal) |
-| 94 | fn | updateProxyConfiguration | (internal) |
-| 100 | fn | fetchAllQuotas | (internal) |
-| 133 | fn | refreshAllTokensIfNeeded | (internal) |
-| 160 | fn | shouldRefreshToken | (private) |
-| 194 | fn | fetchQuota | (private) |
-| 232 | fn | parseExpiryDate | (private) |
-| 248 | fn | fetchUsageAPI | (private) |
-| 313 | fn | refreshTokenWithExpiry | (private) |
-| 329 | fn | refreshSocialTokenWithExpiry | (private) |
-| 378 | fn | refreshIdCTokenWithExpiry | (private) |
-| 450 | fn | syncToKiroIDEAuthFile | (private) |
-| 482 | fn | persistRefreshedToken | (private) |
-| 515 | fn | convertToQuotaData | (private) |
+| 64 | class | KiroQuotaFetcher | (internal) |
+| 70 | fn | socialTokenEndpoint | (private) |
+| 75 | fn | idcTokenEndpoint | (private) |
+| 80 | fn | usageEndpoint | (private) |
+| 85 | fn | extractRegionFromProfileArn | (private) |
+| 99 | fn | machineId | (private) |
+| 132 | fn | kiroUserAgent | (private) |
+| 137 | fn | kiroAmzUserAgent | (private) |
+| 148 | method | init | (internal) |
+| 155 | fn | updateProxyConfiguration | (internal) |
+| 161 | fn | fetchAllQuotas | (internal) |
+| 194 | fn | refreshAllTokensIfNeeded | (internal) |
+| 221 | fn | shouldRefreshToken | (private) |
+| 255 | fn | fetchQuota | (private) |
+| 293 | fn | parseExpiryDate | (private) |
+| 309 | fn | fetchUsageAPI | (private) |
+| 397 | fn | refreshTokenWithExpiry | (private) |
+| 413 | fn | refreshSocialTokenWithExpiry | (private) |
+| 462 | fn | refreshIdCTokenWithExpiry | (private) |
+| 534 | fn | syncToKiroIDEAuthFile | (private) |
+| 566 | fn | persistRefreshedToken | (private) |
+| 599 | fn | convertToQuotaData | (private) |
 

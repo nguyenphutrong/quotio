@@ -4,7 +4,7 @@
 
 Symbol maps for 3 large files in this module.
 
-## Quotio/Models/CustomProviderModels.swift (510 lines)
+## Quotio/Models/CustomProviderModels.swift (546 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -13,15 +13,17 @@ Symbol maps for 3 large files in this module.
 | 179 | struct | ModelMapping | (internal) |
 | 206 | struct | CustomHeader | (internal) |
 | 225 | struct | CustomProvider | (internal) |
-| 275 | fn | validate | (internal) |
-| 313 | mod | extension CustomProvider | (internal) |
-| 315 | fn | toYAMLBlock | (internal) |
-| 329 | fn | generateOpenAICompatibilityYAML | (private) |
-| 358 | fn | generateClaudeCompatibilityYAML | (private) |
-| 387 | fn | generateGeminiCompatibilityYAML | (private) |
-| 415 | fn | generateCodexCompatibilityYAML | (private) |
-| 432 | fn | generateGlmCompatibilityYAML | (private) |
-| 462 | fn | toYAMLSections | (internal) |
+| 277 | method | init | (internal) |
+| 293 | fn | encode | (internal) |
+| 311 | fn | validate | (internal) |
+| 349 | mod | extension CustomProvider | (internal) |
+| 351 | fn | toYAMLBlock | (internal) |
+| 365 | fn | generateOpenAICompatibilityYAML | (private) |
+| 394 | fn | generateClaudeCompatibilityYAML | (private) |
+| 423 | fn | generateGeminiCompatibilityYAML | (private) |
+| 451 | fn | generateCodexCompatibilityYAML | (private) |
+| 468 | fn | generateGlmCompatibilityYAML | (private) |
+| 498 | fn | toYAMLSections | (internal) |
 
 ## Quotio/Models/MenuBarSettings.swift (632 lines)
 
