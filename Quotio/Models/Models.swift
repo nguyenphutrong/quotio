@@ -241,6 +241,19 @@ nonisolated struct ProxyStatus: Codable {
 
 // MARK: - Auth File (from Management API)
 
+extension String {
+    nonisolated var codexFilenameKey: String {
+        var key = self
+        if key.hasPrefix("codex-") {
+            key = String(key.dropFirst("codex-".count))
+        }
+        if key.hasSuffix(".json") {
+            key = String(key.dropLast(".json".count))
+        }
+        return key
+    }
+}
+
 nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
@@ -284,14 +297,7 @@ nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
         if providerType == .codex {
             // Codex proxy filenames encode the concrete subscription variant,
             // so filename-based keys keep same-email Plus/Team accounts distinct.
-            var key = name
-            if key.hasPrefix("codex-") {
-                key = String(key.dropFirst("codex-".count))
-            }
-            if key.hasSuffix(".json") {
-                key = String(key.dropLast(".json".count))
-            }
-            return key
+            return name.codexFilenameKey
         }
         if let email = email, !email.isEmpty {
             return email

@@ -369,16 +369,7 @@ private struct ProviderQuotaView: View {
                 grouping: viewModel.directAuthFiles
                     .lazy
                     .filter { $0.provider == .codex },
-                by: {
-                        var key = $0.filename
-                        if key.hasPrefix("codex-") {
-                            key = String(key.dropFirst("codex-".count))
-                        }
-                        if key.hasSuffix(".json") {
-                            key = String(key.dropLast(".json".count))
-                        }
-                        return key
-                    }
+                by: { $0.filename.codexFilenameKey }
             ).reduce(into: [:]) { result, entry in
                 let (key, files) = entry
                 // Ambiguous normalized keys should keep the quota key as-is
