@@ -5,7 +5,7 @@
 ## Summary
 
 | High 🔴 | Medium 🟡 | Low 🟢 |
-| 1 | 0 | 15 |
+| 1 | 0 | 16 |
 
 ## 🔴 High Priority
 
@@ -19,11 +19,15 @@
 
 > Only checks file existence (metadata), does NOT read file content
 
-### `NOTE` (Quotio/Services/AgentDetectionService.swift:92)
+### `NOTE` (Quotio/Services/AgentDetectionService.swift:73)
+
+> --version is intentionally not fetched here. It is unused in the UI and
+
+### `NOTE` (Quotio/Services/AgentDetectionService.swift:94)
 
 > May not work in GUI apps due to limited PATH inheritance
 
-### `NOTE` (Quotio/Services/AgentDetectionService.swift:98)
+### `NOTE` (Quotio/Services/AgentDetectionService.swift:100)
 
 > Only checks file existence (metadata), does NOT read file content
 

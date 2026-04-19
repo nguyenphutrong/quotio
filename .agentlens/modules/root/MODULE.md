@@ -10,7 +10,7 @@
 | ---- | ----- | ----- |
 | `Quotio/QuotioApp.swift` | 818 | 📊 |
 | `Quotio/Services/AgentConfigurationService.swift` | 1940 | 📊 |
-| `Quotio/Services/AgentDetectionService.swift` | 270 |  |
+| `Quotio/Services/AgentDetectionService.swift` | 293 |  |
 | `Quotio/Services/AtomFeedUpdateService.swift` | 533 | 📊 |
 | `Quotio/Services/CLIExecutor.swift` | 430 |  |
 | `Quotio/Services/ChecksumVerifier.swift` | 78 |  |
