@@ -28,8 +28,8 @@ Follow this protocol to understand the codebase efficiently:
 
 ## Freshness Check
 
-**Generated:** 2026-04-19T19:09:18Z
-**Git HEAD:** `c467696`
+**Generated:** 2026-04-19T20:13:14Z
+**Git HEAD:** `d7f9130`
 
 ### How to verify freshness
 
@@ -41,7 +41,7 @@ Follow this protocol to understand the codebase efficiently:
 
 | Module | Files | Type | Description |
 | ------ | ----- | ---- | ----------- |
-| `` | 33 | root | Module |
+| `` | 34 | root | Module |
 | `Quotio/Models` | 15 | implicit | Data models |
 | `Quotio/Services/Antigravity` | 7 | implicit | Module |
 | `Quotio/Services/Proxy` | 5 | implicit | Module |
@@ -78,7 +78,7 @@ If documentation seems outdated or inconsistent with the code:
 
 | Metric | Value |
 | ------ | ----- |
-| Total files | 110 |
+| Total files | 111 |
 | Modules | 8 |
 | Warnings | 3 |
 

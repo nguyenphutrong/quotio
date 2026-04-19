@@ -2,7 +2,7 @@
 
 [← Back to INDEX](../../INDEX.md)
 
-**Type:** root | **Files:** 33
+**Type:** root | **Files:** 34
 
 ## Files
 
@@ -41,25 +41,11 @@
 | `Quotio/ViewModels/QuotaViewModel.swift` | 1968 | 📊 |
 | `scripts/capture-screenshots.ts` | 763 | 📊 |
 | `scripts/test_effort_translator.swift` | 240 |  |
+| `scripts/test_remote_management_smoke.py` | 141 |  |
 
 ## Documentation
 
 - [outline.md](outline.md) - Symbol maps for large files
 - [memory.md](memory.md) - Warnings and TODOs
+- [imports.md](imports.md) - Dependencies
 
----
-
-```mermaid
-graph TD
-    root[root] --> bun[bun]
-    root[root] --> fs[fs]
-    root[root] --> path[path]
-```
-
-## External Dependencies
-
-Dependencies from other modules:
-
-- `bun`
-- `fs`
-- `path`

@@ -4,7 +4,7 @@
 
 Symbol maps for 2 large files in this module.
 
-## Quotio/Services/Proxy/CLIProxyManager.swift (2029 lines)
+## Quotio/Services/Proxy/CLIProxyManager.swift (2105 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -33,45 +33,49 @@ Symbol maps for 2 large files in this module.
 | 747 | fn | extractAndInstall | (private) |
 | 809 | fn | findBinaryInDirectory | (private) |
 | 842 | fn | start | (internal) |
-| 974 | fn | stop | (internal) |
-| 1026 | fn | startHealthMonitor | (private) |
-| 1040 | fn | stopHealthMonitor | (private) |
-| 1045 | fn | performHealthCheck | (private) |
-| 1108 | fn | cleanupOrphanProcesses | (private) |
-| 1171 | fn | terminateAuthProcess | (internal) |
-| 1177 | fn | toggle | (internal) |
-| 1185 | fn | copyEndpointToClipboard | (internal) |
-| 1190 | fn | revealInFinder | (internal) |
-| 1197 | enum | ProxyError | (internal) |
-| 1228 | enum | AuthCommand | (internal) |
-| 1266 | struct | AuthCommandResult | (internal) |
-| 1272 | mod | extension CLIProxyManager | (internal) |
-| 1273 | fn | runAuthCommand | (internal) |
-| 1305 | fn | appendOutput | (internal) |
-| 1309 | fn | tryResume | (internal) |
-| 1320 | fn | safeResume | (internal) |
-| 1420 | mod | extension CLIProxyManager | (internal) |
-| 1450 | fn | checkForUpgrade | (internal) |
-| 1501 | fn | saveInstalledVersion | (private) |
-| 1509 | fn | fetchAvailableReleases | (internal) |
-| 1531 | fn | versionInfo | (internal) |
-| 1537 | fn | fetchGitHubRelease | (private) |
-| 1559 | fn | findCompatibleAsset | (private) |
-| 1592 | fn | performManagedUpgrade | (internal) |
-| 1650 | fn | downloadAndInstallVersion | (private) |
-| 1697 | fn | startDryRun | (private) |
-| 1768 | fn | promote | (private) |
-| 1803 | fn | rollback | (internal) |
-| 1836 | fn | stopTestProxy | (private) |
-| 1865 | fn | stopTestProxySync | (private) |
-| 1891 | fn | findUnusedPort | (private) |
-| 1901 | fn | isPortInUse | (private) |
-| 1920 | fn | createTestConfig | (private) |
-| 1948 | fn | cleanupTestConfig | (private) |
-| 1956 | fn | isNewerVersion | (private) |
-| 1959 | fn | parseVersion | (internal) |
-| 1991 | fn | findPreviousVersion | (private) |
-| 2004 | fn | migrateToVersionedStorage | (internal) |
+| 974 | fn | waitForBackendReadiness | (private) |
+| 991 | fn | waitForBridgeReadiness | (private) |
+| 1008 | fn | bridgeAcceptsConnections | (private) |
+| 1035 | fn | terminateProcessIfNeeded | (private) |
+| 1050 | fn | stop | (internal) |
+| 1102 | fn | startHealthMonitor | (private) |
+| 1116 | fn | stopHealthMonitor | (private) |
+| 1121 | fn | performHealthCheck | (private) |
+| 1184 | fn | cleanupOrphanProcesses | (private) |
+| 1247 | fn | terminateAuthProcess | (internal) |
+| 1253 | fn | toggle | (internal) |
+| 1261 | fn | copyEndpointToClipboard | (internal) |
+| 1266 | fn | revealInFinder | (internal) |
+| 1273 | enum | ProxyError | (internal) |
+| 1304 | enum | AuthCommand | (internal) |
+| 1342 | struct | AuthCommandResult | (internal) |
+| 1348 | mod | extension CLIProxyManager | (internal) |
+| 1349 | fn | runAuthCommand | (internal) |
+| 1381 | fn | appendOutput | (internal) |
+| 1385 | fn | tryResume | (internal) |
+| 1396 | fn | safeResume | (internal) |
+| 1496 | mod | extension CLIProxyManager | (internal) |
+| 1526 | fn | checkForUpgrade | (internal) |
+| 1577 | fn | saveInstalledVersion | (private) |
+| 1585 | fn | fetchAvailableReleases | (internal) |
+| 1607 | fn | versionInfo | (internal) |
+| 1613 | fn | fetchGitHubRelease | (private) |
+| 1635 | fn | findCompatibleAsset | (private) |
+| 1668 | fn | performManagedUpgrade | (internal) |
+| 1726 | fn | downloadAndInstallVersion | (private) |
+| 1773 | fn | startDryRun | (private) |
+| 1844 | fn | promote | (private) |
+| 1879 | fn | rollback | (internal) |
+| 1912 | fn | stopTestProxy | (private) |
+| 1941 | fn | stopTestProxySync | (private) |
+| 1967 | fn | findUnusedPort | (private) |
+| 1977 | fn | isPortInUse | (private) |
+| 1996 | fn | createTestConfig | (private) |
+| 2024 | fn | cleanupTestConfig | (private) |
+| 2032 | fn | isNewerVersion | (private) |
+| 2035 | fn | parseVersion | (internal) |
+| 2067 | fn | findPreviousVersion | (private) |
+| 2080 | fn | migrateToVersionedStorage | (internal) |
 
 ## Quotio/Services/Proxy/ProxyBridge.swift (1127 lines)
 
