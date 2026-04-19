@@ -113,7 +113,9 @@ final class RequestTracker {
             responseSize: metadata.responseSize,
             errorMessage: metadata.responseSnippet,
             fallbackAttempts: attempts,
-            fallbackStartedFromCache: metadata.fallbackStartedFromCache
+            fallbackStartedFromCache: metadata.fallbackStartedFromCache,
+            effort: metadata.effort,
+            originalEffort: metadata.originalEffort
         )
 
         addEntry(entry)

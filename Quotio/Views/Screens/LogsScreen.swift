@@ -303,6 +303,17 @@ struct RequestRow: View {
     let isTraceExpanded: Bool
     let onToggleTrace: () -> Void
 
+    /// Inline effort suffix appended to the model line, e.g. " · low" on passthrough
+    /// or " · max→xhigh" when Quotio clamped a max request. Empty string when the
+    /// request carried no effort field (non-Anthropic paths, non-Claude-Code clients).
+    private var effortSuffix: String {
+        guard let effort = request.effort else { return "" }
+        if let original = request.originalEffort, original != effort {
+            return " · \(original)→\(effort)"
+        }
+        return " · \(effort)"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 12) {
@@ -332,7 +343,7 @@ struct RequestRow: View {
                                 .fontWeight(.medium)
                                 .foregroundStyle(.blue)
                         }
-                        Text(request.resolvedModel ?? "")
+                        Text((request.resolvedModel ?? "") + effortSuffix)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -344,7 +355,12 @@ struct RequestRow: View {
                                 .fontWeight(.medium)
                         }
                         if let model = request.model {
-                            Text(model)
+                            Text(model + effortSuffix)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        } else if !effortSuffix.isEmpty {
+                            Text(String(effortSuffix.dropFirst(3)))  // strip leading " · "
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)

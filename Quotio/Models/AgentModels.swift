@@ -306,7 +306,6 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
         // GPT models
         AvailableModel(id: "gpt-5.4", name: "gpt-5.4", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.4-mini", name: "gpt-5.4-mini", provider: "openai", isDefault: false),
-        AvailableModel(id: "gpt-5.4-codex", name: "gpt-5.4-codex", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.3-codex", name: "gpt-5.3-codex", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.2", name: "gpt-5.2", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.2-codex", name: "gpt-5.2-codex", provider: "openai", isDefault: false),

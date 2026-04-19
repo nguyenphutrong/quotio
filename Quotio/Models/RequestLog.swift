@@ -112,6 +112,15 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
     /// Whether routing started from a cached fallback entry
     let fallbackStartedFromCache: Bool
 
+    /// Reasoning effort value sent upstream (e.g. "low", "medium", "high", "xhigh").
+    /// Present only for Anthropic /v1/messages requests that include output_config.effort.
+    let effort: String?
+
+    /// Original effort value from the client before Quotio clamped it (if different).
+    /// Populated only when the clamp actually fired, i.e. Claude Code sent "max" and
+    /// Quotio rewrote it to "xhigh" for OpenAI compatibility.
+    let originalEffort: String?
+
     /// Whether the request was successful (2xx status)
     var isSuccess: Bool {
         guard let code = statusCode else { return false }
@@ -121,6 +130,15 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
     /// Whether this request used fallback routing
     var hasFallbackRoute: Bool {
         resolvedModel != nil && resolvedModel != model
+    }
+
+    /// True for Claude Code / Bun-style liveness probes (HEAD / or similar).
+    /// These are tiny no-body pings that CLIProxyAPI 404s on because there is no
+    /// handler mapped for them — that's expected, they only verify the TCP+HTTP
+    /// path is alive. We still log them for operational visibility, but exclude
+    /// them from the headline success-rate so real API calls aren't drowned out.
+    var isLivenessProbe: Bool {
+        method.uppercased() == "HEAD"
     }
 
     /// Default initializer
@@ -141,7 +159,9 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
         responseSize: Int = 0,
         errorMessage: String? = nil,
         fallbackAttempts: [FallbackAttempt]? = nil,
-        fallbackStartedFromCache: Bool = false
+        fallbackStartedFromCache: Bool = false,
+        effort: String? = nil,
+        originalEffort: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -160,6 +180,8 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
         self.errorMessage = errorMessage
         self.fallbackAttempts = fallbackAttempts
         self.fallbackStartedFromCache = fallbackStartedFromCache
+        self.effort = effort
+        self.originalEffort = originalEffort
     }
 }
 
@@ -275,22 +297,26 @@ nonisolated struct RequestHistoryStore: Codable, Sendable {
         }
     }
     
-    /// Calculate aggregate statistics
+    /// Calculate aggregate statistics.
+    /// Liveness probes (HEAD requests) are excluded from the headline counts
+    /// because they're health checks, not real API traffic, and including them
+    /// makes a 100%-successful run look like 60% success.
     func calculateStats() -> RequestStats {
-        guard !entries.isEmpty else { return .empty }
-        
+        let realEntries = entries.filter { !$0.isLivenessProbe }
+        guard !realEntries.isEmpty else { return .empty }
+
         var totalInput = 0
         var totalOutput = 0
         var totalDuration = 0
         var successCount = 0
         var providerData: [String: (count: Int, input: Int, output: Int, duration: Int)] = [:]
         var modelData: [String: (provider: String?, count: Int, input: Int, output: Int, duration: Int)] = [:]
-        
-        for entry in entries {
+
+        for entry in realEntries {
             totalInput += entry.inputTokens ?? 0
             totalOutput += entry.outputTokens ?? 0
             totalDuration += entry.durationMs
-            
+
             if entry.isSuccess {
                 successCount += 1
             }
@@ -338,12 +364,12 @@ nonisolated struct RequestHistoryStore: Codable, Sendable {
         }
         
         return RequestStats(
-            totalRequests: entries.count,
+            totalRequests: realEntries.count,
             successfulRequests: successCount,
-            failedRequests: entries.count - successCount,
+            failedRequests: realEntries.count - successCount,
             totalInputTokens: totalInput,
             totalOutputTokens: totalOutput,
-            averageDurationMs: entries.count > 0 ? totalDuration / entries.count : 0,
+            averageDurationMs: realEntries.count > 0 ? totalDuration / realEntries.count : 0,
             byProvider: byProvider.reduce(into: [:]) { result, pair in
                 result[pair.key] = ProviderStats(
                     provider: pair.key,
