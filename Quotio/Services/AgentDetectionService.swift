@@ -70,15 +70,17 @@ actor AgentDetectionService {
     
     func detectAgent(_ agent: CLIAgent) async -> AgentStatus {
         let (installed, binaryPath) = await findBinary(names: agent.binaryNames)
-        let version = installed ? await getVersion(binaryPath: binaryPath!) : nil
+        // NOTE: --version is intentionally not fetched here. It is unused in the UI and
+        // spawning the CLI (especially Node-based ones) costs hundreds of ms per agent.
+        // Callers that need the version can invoke getVersion(binaryPath:) lazily.
         let configured = installed ? await checkConfiguration(agent: agent) : false
-        
+
         return AgentStatus(
             agent: agent,
             installed: installed,
             configured: configured,
             binaryPath: binaryPath,
-            version: version,
+            version: nil,
             lastConfigured: configured ? getLastConfiguredDate(agent: agent) : nil
         )
     }
@@ -153,59 +155,80 @@ actor AgentDetectionService {
     }
     
     private func whichCommand(_ name: String) async -> String? {
-        await withCheckedContinuation { continuation in
+        // Use terminationHandler instead of waitUntilExit so we do NOT block the
+        // actor's executor. Blocking here would serialize every detectAgent() call
+        // in the TaskGroup and defeat the concurrency entirely.
+        await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
             let process = Process()
             let pipe = Pipe()
-            
+
             process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
             process.arguments = [name]
             process.standardOutput = pipe
             process.standardError = FileHandle.nullDevice
-            
+
+            process.terminationHandler = { proc in
+                defer { try? pipe.fileHandleForReading.close() }
+                guard proc.terminationStatus == 0 else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let path = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if let path, !path.isEmpty {
+                    continuation.resume(returning: path)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
+
             do {
                 try process.run()
-                process.waitUntilExit()
-                
-                if process.terminationStatus == 0 {
-                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                    if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !path.isEmpty {
-                        continuation.resume(returning: path)
-                        return
-                    }
-                }
             } catch {
+                // run() failed -> terminationHandler will not fire. Detach it to
+                // make the single-resume contract explicit, then resume with nil.
+                process.terminationHandler = nil
+                try? pipe.fileHandleForReading.close()
+                continuation.resume(returning: nil)
             }
-            continuation.resume(returning: nil)
         }
     }
     
-    private func getVersion(binaryPath: String) async -> String? {
-        await withCheckedContinuation { continuation in
+    /// Fetch `<binary> --version` output. Not called during the initial scan
+    /// because (a) the output is not surfaced in the UI and (b) Node-based CLIs
+    /// take hundreds of ms to start. Exposed for callers that want it lazily.
+    func getVersion(binaryPath: String) async -> String? {
+        await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
             let process = Process()
             let pipe = Pipe()
-            
+
             process.executableURL = URL(fileURLWithPath: binaryPath)
             process.arguments = ["--version"]
             process.standardOutput = pipe
             process.standardError = pipe
-            
-            do {
-                try process.run()
-                process.waitUntilExit()
-                
+
+            process.terminationHandler = { _ in
+                defer { try? pipe.fileHandleForReading.close() }
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let output = String(data: data, encoding: .utf8) {
-                    let version = output
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .components(separatedBy: .newlines)
-                        .first ?? output
-                    continuation.resume(returning: version)
+                guard let output = String(data: data, encoding: .utf8) else {
+                    continuation.resume(returning: nil)
                     return
                 }
-            } catch {
+                let version = output
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .components(separatedBy: .newlines)
+                    .first ?? output
+                continuation.resume(returning: version.isEmpty ? nil : version)
             }
-            continuation.resume(returning: nil)
+
+            do {
+                try process.run()
+            } catch {
+                process.terminationHandler = nil
+                try? pipe.fileHandleForReading.close()
+                continuation.resume(returning: nil)
+            }
         }
     }
     
