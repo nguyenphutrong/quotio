@@ -936,27 +936,27 @@ final class CLIProxyManager {
         do {
             try process.run()
             self.process = process
-            
-            try await Task.sleep(nanoseconds: 1_500_000_000)
-            
-            guard process.isRunning else {
+
+            let backendReady = await waitForBackendReadiness(process: process, port: cliProxyPort)
+            guard backendReady else {
+                await terminateProcessIfNeeded(process)
                 throw ProxyError.startupFailed
             }
-            
+
             // If bridge mode is enabled, start ProxyBridge
             if bridgeEnabled {
                 proxyBridge.configure(listenPort: userPort, targetPort: cliProxyPort)
                 proxyBridge.start()
-                
-                // Wait a bit for ProxyBridge to start
-                try await Task.sleep(nanoseconds: 500_000_000)
-                
-                guard proxyBridge.isRunning else {
-                    // ProxyBridge failed to start, stop CLIProxyAPI
-                    process.terminate()
+
+                let bridgeReady = await waitForBridgeReadiness(process: process, userPort: userPort)
+                guard bridgeReady else {
+                    // Bridge failed to come up, stop CLIProxyAPI to avoid leaving
+                    // a half-started orphan on the internal port.
+                    proxyBridge.stop()
+                    await terminateProcessIfNeeded(process)
                     throw ProxyError.startupFailed
                 }
-                
+
                 NSLog("[CLIProxyManager] Two-layer proxy started: clients → \(userPort) → \(cliProxyPort)")
             } else {
                 NSLog("[CLIProxyManager] Direct proxy started on port \(userPort)")
@@ -969,6 +969,82 @@ final class CLIProxyManager {
         } catch {
             lastError = error.localizedDescription
             throw error
+        }
+    }
+
+    private func waitForBackendReadiness(process: Process, port: UInt16, timeout: TimeInterval = 6.0) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            guard process.isRunning else { return false }
+
+            if await compatibilityChecker.isHealthy(port: port) {
+                return true
+            }
+
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+
+        guard process.isRunning else { return false }
+        return await compatibilityChecker.isHealthy(port: port)
+    }
+
+    private func waitForBridgeReadiness(process: Process, userPort: UInt16, timeout: TimeInterval = 6.0) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            guard process.isRunning else { return false }
+
+            if proxyBridge.isRunning, await bridgeAcceptsConnections(on: userPort) {
+                return true
+            }
+
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+
+        guard process.isRunning, proxyBridge.isRunning else { return false }
+        return await bridgeAcceptsConnections(on: userPort)
+    }
+
+    private func bridgeAcceptsConnections(on port: UInt16) async -> Bool {
+        guard let url = URL(string: "http://127.0.0.1:\(port)/") else {
+            return false
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+        request.timeoutInterval = 1.0
+        request.addValue("close", forHTTPHeaderField: "Connection")
+
+        do {
+            let config = URLSessionConfiguration.ephemeral
+            config.timeoutIntervalForRequest = 1.0
+            config.timeoutIntervalForResource = 1.0
+            let session = URLSession(configuration: config)
+            let (_, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return false
+            }
+
+            return 200...499 ~= httpResponse.statusCode
+        } catch {
+            return false
+        }
+    }
+
+    private func terminateProcessIfNeeded(_ process: Process) async {
+        guard process.isRunning else { return }
+
+        process.terminate()
+
+        let deadline = Date().addingTimeInterval(2.0)
+        while process.isRunning && Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+
+        if process.isRunning {
+            kill(process.processIdentifier, SIGKILL)
         }
     }
     
