@@ -7,6 +7,12 @@ import Foundation
 
 actor AgentConfigurationService {
     private let fileManager = FileManager.default
+
+    struct ProxyCredentialMigrationReport: Sendable {
+        let migratedAgents: [CLIAgent]
+
+        var hasChanges: Bool { !migratedAgents.isEmpty }
+    }
     
     // MARK: - Saved Configuration Models
     
@@ -64,6 +70,41 @@ actor AgentConfigurationService {
         case .factoryDroid:
             return readFactoryDroidConfig()
         }
+    }
+
+    /// Repair existing local proxy-backed agent configs that still contain a
+    /// stale management key or another invalid client token.
+    func migrateProxyCredentialsIfNeeded(validAPIKeys: [String], acceptedBaseURLs: [String]) -> ProxyCredentialMigrationReport {
+        let allowedKeys = Set(validAPIKeys.filter { !$0.isEmpty })
+        let normalizedBaseURLs = Set(acceptedBaseURLs.map(normalizeBaseURL))
+
+        guard !allowedKeys.isEmpty, !normalizedBaseURLs.isEmpty else {
+            return ProxyCredentialMigrationReport(migratedAgents: [])
+        }
+
+        var migratedAgents: [CLIAgent] = []
+
+        if migrateClaudeCodeProxyCredentialIfNeeded(validAPIKeys: allowedKeys, acceptedBaseURLs: normalizedBaseURLs) {
+            migratedAgents.append(.claudeCode)
+        }
+
+        if migrateCodexProxyCredentialIfNeeded(validAPIKeys: allowedKeys, acceptedBaseURLs: normalizedBaseURLs) {
+            migratedAgents.append(.codexCLI)
+        }
+
+        if migrateAmpProxyCredentialIfNeeded(validAPIKeys: allowedKeys, acceptedBaseURLs: normalizedBaseURLs) {
+            migratedAgents.append(.ampCLI)
+        }
+
+        if migrateOpenCodeProxyCredentialIfNeeded(validAPIKeys: allowedKeys, acceptedBaseURLs: normalizedBaseURLs) {
+            migratedAgents.append(.openCode)
+        }
+
+        if migrateFactoryDroidProxyCredentialIfNeeded(validAPIKeys: allowedKeys, acceptedBaseURLs: normalizedBaseURLs) {
+            migratedAgents.append(.factoryDroid)
+        }
+
+        return ProxyCredentialMigrationReport(migratedAgents: migratedAgents)
     }
     
     /// List available backup files for an agent
@@ -458,6 +499,130 @@ actor AgentConfigurationService {
             backupFiles: listBackups(agent: .factoryDroid)
         )
     }
+
+    private func migrateClaudeCodeProxyCredentialIfNeeded(validAPIKeys: Set<String>, acceptedBaseURLs: Set<String>) -> Bool {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let configPath = "\(home)/.claude/settings.json"
+
+        guard fileManager.fileExists(atPath: configPath),
+              let data = fileManager.contents(atPath: configPath),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var env = json["env"] as? [String: Any],
+              let baseURL = env["ANTHROPIC_BASE_URL"] as? String,
+              acceptedBaseURLs.contains(normalizeBaseURL(baseURL)),
+              let currentToken = env["ANTHROPIC_AUTH_TOKEN"] as? String,
+              !validAPIKeys.contains(currentToken),
+              let replacementToken = validAPIKeys.sorted().first else {
+            return false
+        }
+
+        env["ANTHROPIC_AUTH_TOKEN"] = replacementToken
+        json["env"] = env
+        return writeJSONWithBackupIfChanged(json, to: configPath)
+    }
+
+    private func migrateCodexProxyCredentialIfNeeded(validAPIKeys: Set<String>, acceptedBaseURLs: Set<String>) -> Bool {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let configPath = "\(home)/.codex/config.toml"
+        let authPath = "\(home)/.codex/auth.json"
+
+        guard fileManager.fileExists(atPath: configPath),
+              let configContent = try? String(contentsOfFile: configPath, encoding: .utf8),
+              let baseURL = extractCodexBaseURL(from: configContent),
+              acceptedBaseURLs.contains(normalizeBaseURL(baseURL)),
+              fileManager.fileExists(atPath: authPath),
+              let data = fileManager.contents(atPath: authPath),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let currentToken = json["OPENAI_API_KEY"] as? String,
+              !validAPIKeys.contains(currentToken),
+              let replacementToken = validAPIKeys.sorted().first else {
+            return false
+        }
+
+        json["OPENAI_API_KEY"] = replacementToken
+        return writeJSONWithBackupIfChanged(json, to: authPath)
+    }
+
+    private func migrateAmpProxyCredentialIfNeeded(validAPIKeys: Set<String>, acceptedBaseURLs: Set<String>) -> Bool {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let settingsPath = "\(home)/.config/amp/settings.json"
+        let secretsPath = "\(home)/.local/share/amp/secrets.json"
+
+        guard fileManager.fileExists(atPath: settingsPath),
+              let settingsData = fileManager.contents(atPath: settingsPath),
+              let settingsJSON = try? JSONSerialization.jsonObject(with: settingsData) as? [String: Any],
+              let baseURL = settingsJSON["amp.url"] as? String,
+              acceptedBaseURLs.contains(normalizeBaseURL(baseURL)),
+              fileManager.fileExists(atPath: secretsPath),
+              let secretsData = fileManager.contents(atPath: secretsPath),
+              var secretsJSON = try? JSONSerialization.jsonObject(with: secretsData) as? [String: Any],
+              let secretsKey = secretsJSON.keys.first(where: { $0 == "apiKey@\(baseURL)" }),
+              let currentToken = secretsJSON[secretsKey] as? String,
+              !validAPIKeys.contains(currentToken),
+              let replacementToken = validAPIKeys.sorted().first else {
+            return false
+        }
+
+        secretsJSON[secretsKey] = replacementToken
+        return writeJSONWithBackupIfChanged(secretsJSON, to: secretsPath)
+    }
+
+    private func migrateOpenCodeProxyCredentialIfNeeded(validAPIKeys: Set<String>, acceptedBaseURLs: Set<String>) -> Bool {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let configPath = "\(home)/.config/opencode/opencode.json"
+
+        guard fileManager.fileExists(atPath: configPath),
+              let data = fileManager.contents(atPath: configPath),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var providers = json["provider"] as? [String: Any],
+              var quotioProvider = providers["quotio"] as? [String: Any],
+              var options = quotioProvider["options"] as? [String: Any],
+              let baseURL = options["baseURL"] as? String,
+              acceptedBaseURLs.contains(normalizeBaseURL(baseURL)),
+              let currentToken = options["apiKey"] as? String,
+              !validAPIKeys.contains(currentToken),
+              let replacementToken = validAPIKeys.sorted().first else {
+            return false
+        }
+
+        options["apiKey"] = replacementToken
+        quotioProvider["options"] = options
+        providers["quotio"] = quotioProvider
+        json["provider"] = providers
+        return writeJSONWithBackupIfChanged(json, to: configPath)
+    }
+
+    private func migrateFactoryDroidProxyCredentialIfNeeded(validAPIKeys: Set<String>, acceptedBaseURLs: Set<String>) -> Bool {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let configPath = "\(home)/.factory/config.json"
+
+        guard fileManager.fileExists(atPath: configPath),
+              let data = fileManager.contents(atPath: configPath),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var customModels = json["custom_models"] as? [[String: Any]],
+              !customModels.isEmpty,
+              let replacementToken = validAPIKeys.sorted().first else {
+            return false
+        }
+
+        var changed = false
+        for index in customModels.indices {
+            guard let baseURL = customModels[index]["base_url"] as? String,
+                  acceptedBaseURLs.contains(normalizeBaseURL(baseURL)),
+                  let currentToken = customModels[index]["api_key"] as? String,
+                  !validAPIKeys.contains(currentToken) else {
+                continue
+            }
+
+            customModels[index]["api_key"] = replacementToken
+            changed = true
+        }
+
+        guard changed else { return false }
+
+        json["custom_models"] = customModels
+        return writeJSONWithBackupIfChanged(json, to: configPath)
+    }
     
     // MARK: - Helper Functions
     
@@ -482,6 +647,45 @@ actor AgentConfigurationService {
             value = String(value.dropFirst().dropLast())
         }
         return value.isEmpty ? nil : value
+    }
+
+    private func extractCodexBaseURL(from configContent: String) -> String? {
+        for line in configContent.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("base_url"), let value = extractTOMLValue(from: trimmed) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func normalizeBaseURL(_ rawValue: String) -> String {
+        rawValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    @discardableResult
+    private func writeJSONWithBackupIfChanged(_ json: [String: Any], to path: String) -> Bool {
+        guard let newData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) else {
+            return false
+        }
+
+        if let existingData = fileManager.contents(atPath: path), existingData == newData {
+            return false
+        }
+
+        if fileManager.fileExists(atPath: path) {
+            let backupPath = "\(path).backup.\(Int(Date().timeIntervalSince1970))"
+            try? fileManager.copyItem(atPath: path, toPath: backupPath)
+        }
+
+        do {
+            try newData.write(to: URL(fileURLWithPath: path))
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Escape a value for use in a TOML basic string.

@@ -74,7 +74,7 @@ final class AgentSetupViewModel {
         agentStatuses.first { $0.agent == agent }
     }
 
-    func startConfiguration(for agent: CLIAgent, apiKey: String) {
+    func startConfiguration(for agent: CLIAgent) {
         configResult = nil
         testResult = nil
         selectedRawConfigIndex = 0
@@ -88,6 +88,11 @@ final class AgentSetupViewModel {
 
         guard let proxyManager = proxyManager else {
             errorMessage = "Proxy manager not available"
+            return
+        }
+
+        guard let apiKey = preferredProxyAPIKey() else {
+            errorMessage = "No proxy API key available. Add one in API Keys before configuring agents."
             return
         }
 
@@ -402,10 +407,10 @@ final class AgentSetupViewModel {
             config = existingConfig
         } else {
             guard let proxyManager = proxyManager else { return false }
-
-            // Use the first API key from the API Keys management interface
-            // If no keys exist, fall back to managementKey
-            let apiKey = quotaViewModel?.apiKeys.first ?? proxyManager.managementKey
+            guard let apiKey = preferredProxyAPIKey() else {
+                errorMessage = "No proxy API key available. Add one in API Keys before configuring agents."
+                return false
+            }
 
             // Use tunnel URL if active, otherwise use local proxy endpoint
             let modelEndpoint: String
@@ -446,6 +451,14 @@ final class AgentSetupViewModel {
 
         refreshVirtualModels()
         return loadedFromRemote
+    }
+
+    private func preferredProxyAPIKey() -> String? {
+        if let liveAPIKey = quotaViewModel?.apiKeys.first, !liveAPIKey.isEmpty {
+            return liveAPIKey
+        }
+
+        return proxyManager?.firstConfiguredAPIKey
     }
 
     private func processModels(_ fetchedModels: [AvailableModel]) async -> [AvailableModel] {

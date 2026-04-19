@@ -117,11 +117,10 @@ struct AgentSetupScreen: View {
             
             LazyVStack(spacing: 12) {
                 ForEach(installedAgents) { status in
-                    AgentCard(
+                        AgentCard(
                         status: status,
                         onConfigure: {
-                            let apiKey = quotaViewModel.apiKeys.first ?? quotaViewModel.proxyManager.managementKey
-                            viewModel.startConfiguration(for: status.agent, apiKey: apiKey)
+                            viewModel.startConfiguration(for: status.agent)
                             sheetPresentationID = UUID()
                             selectedAgentForConfig = status.agent
                         }
