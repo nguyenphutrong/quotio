@@ -8,7 +8,7 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `Quotio/Models/AgentModels.swift` | 604 | 📊 |
+| `Quotio/Models/AgentModels.swift` | 603 | 📊 |
 | `Quotio/Models/AntigravityActiveAccount.swift` | 44 |  |
 | `Quotio/Models/AppMode.swift` | 149 |  |
 | `Quotio/Models/ConnectionMode.swift` | 289 |  |
@@ -20,7 +20,7 @@
 | `Quotio/Models/Models.swift` | 641 | 📊 |
 | `Quotio/Models/OperatingMode.swift` | 370 |  |
 | `Quotio/Models/ProxyVersionModels.swift` | 201 |  |
-| `Quotio/Models/RequestLog.swift` | 433 |  |
+| `Quotio/Models/RequestLog.swift` | 459 |  |
 | `Quotio/Models/TunnelModels.swift` | 78 |  |
 | `Quotio/Models/WarmupSettings.swift` | 337 |  |
 

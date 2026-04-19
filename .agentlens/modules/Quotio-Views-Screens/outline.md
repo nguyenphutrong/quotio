@@ -30,16 +30,16 @@ Symbol maps for 6 large files in this module.
 | 383 | struct | VirtualModelRow | (internal) |
 | 504 | struct | FallbackEntryRow | (internal) |
 
-## Quotio/Views/Screens/LogsScreen.swift (541 lines)
+## Quotio/Views/Screens/LogsScreen.swift (557 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 8 | struct | LogsScreen | (internal) |
 | 301 | struct | RequestRow | (internal) |
-| 475 | fn | attemptOutcomeLabel | (private) |
-| 486 | fn | attemptOutcomeColor | (private) |
-| 501 | struct | StatItem | (internal) |
-| 518 | struct | LogRow | (internal) |
+| 491 | fn | attemptOutcomeLabel | (private) |
+| 502 | fn | attemptOutcomeColor | (private) |
+| 517 | struct | StatItem | (internal) |
+| 534 | struct | LogRow | (internal) |
 
 ## Quotio/Views/Screens/ProvidersScreen.swift (1043 lines)
 

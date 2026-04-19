@@ -2,7 +2,7 @@
 
 [← Back to INDEX](../../INDEX.md)
 
-**Type:** root | **Files:** 36
+**Type:** root | **Files:** 33
 
 ## Files
 
@@ -26,12 +26,8 @@
 | `Quotio/Services/Logger.swift` | 124 |  |
 | `Quotio/Services/ManagementAPIClient.swift` | 732 | 📊 |
 | `Quotio/Services/NotificationManager.swift` | 334 |  |
-| `Quotio/Services/Proxy/CLIProxyManager.swift` | 1979 | 📊 |
-| `Quotio/Services/Proxy/FallbackFormatConverter.swift` | 109 |  |
-| `Quotio/Services/Proxy/ProxyBridge.swift` | 1093 | 📊 |
-| `Quotio/Services/Proxy/ProxyStorageManager.swift` | 402 |  |
 | `Quotio/Services/ProxyConfigurationService.swift` | 96 |  |
-| `Quotio/Services/RequestTracker.swift` | 192 |  |
+| `Quotio/Services/RequestTracker.swift` | 194 |  |
 | `Quotio/Services/ShellProfileManager.swift` | 121 |  |
 | `Quotio/Services/StatusBarManager.swift` | 272 |  |
 | `Quotio/Services/StatusBarMenuBuilder.swift` | 1470 | 📊 |
@@ -44,6 +40,7 @@
 | `Quotio/ViewModels/LogsViewModel.swift` | 82 |  |
 | `Quotio/ViewModels/QuotaViewModel.swift` | 1936 | 📊 |
 | `scripts/capture-screenshots.ts` | 763 | 📊 |
+| `scripts/test_effort_translator.swift` | 240 |  |
 
 ## Documentation
 

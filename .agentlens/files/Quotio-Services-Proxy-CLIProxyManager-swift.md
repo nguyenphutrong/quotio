@@ -1,6 +1,6 @@
 # Quotio/Services/Proxy/CLIProxyManager.swift
 
-[← Back to Module](../modules/root/MODULE.md) | [← Back to INDEX](../INDEX.md)
+[← Back to Module](../modules/Quotio-Services-Proxy/MODULE.md) | [← Back to INDEX](../INDEX.md)
 
 ## Overview
 
