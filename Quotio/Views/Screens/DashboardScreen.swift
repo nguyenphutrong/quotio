@@ -609,8 +609,7 @@ struct DashboardScreen: View {
         let installedAgents = viewModel.agentSetupViewModel.agentStatuses.filter { $0.installed }
         guard let firstAgent = installedAgents.first else { return }
         
-        let apiKey = viewModel.apiKeys.first ?? viewModel.proxyManager.managementKey
-        viewModel.agentSetupViewModel.startConfiguration(for: firstAgent.agent, apiKey: apiKey)
+        viewModel.agentSetupViewModel.startConfiguration(for: firstAgent.agent)
         sheetPresentationID = UUID()
         selectedAgentForConfig = firstAgent.agent
     }

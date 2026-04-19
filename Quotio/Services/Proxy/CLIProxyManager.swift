@@ -190,6 +190,56 @@ final class CLIProxyManager {
     var clientEndpoint: String {
         "http://127.0.0.1:\(proxyStatus.port)"
     }
+
+    /// Client API keys accepted by the proxy for `/v1/*` traffic.
+    /// Falls back to parsing the local config so agent setup can work even before
+    /// the management API has loaded the key list into view model state.
+    var configuredAPIKeys: [String] {
+        guard FileManager.default.fileExists(atPath: configPath),
+              let content = try? String(contentsOfFile: configPath, encoding: .utf8) else {
+            return []
+        }
+
+        var keys: [String] = []
+        var inAPIKeysSection = false
+
+        for line in content.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if trimmed == "api-keys:" {
+                inAPIKeysSection = true
+                continue
+            }
+
+            guard inAPIKeysSection else { continue }
+
+            if trimmed.isEmpty {
+                break
+            }
+
+            if trimmed.hasPrefix("-") {
+                var value = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+                if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
+                    value.removeFirst()
+                    value.removeLast()
+                }
+                if !value.isEmpty {
+                    keys.append(value)
+                }
+                continue
+            }
+
+            if !line.hasPrefix(" ") && !line.hasPrefix("\t") {
+                break
+            }
+        }
+
+        return keys
+    }
+
+    var firstConfiguredAPIKey: String? {
+        configuredAPIKeys.first
+    }
     
     init() {
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {

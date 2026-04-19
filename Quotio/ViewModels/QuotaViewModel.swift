@@ -26,6 +26,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let refreshSettings = RefreshSettingsManager.shared
     @ObservationIgnored private let warmupSettings = WarmupSettingsManager.shared
     @ObservationIgnored private let warmupService = WarmupService()
+    @ObservationIgnored private let agentConfigurationService = AgentConfigurationService()
     private var warmupNextRun: [WarmupAccountKey: Date] = [:]
     private var warmupStatuses: [WarmupAccountKey: WarmupStatus] = [:]
     @ObservationIgnored private var warmupModelCache: [WarmupAccountKey: (models: [WarmupModelInfo], fetchedAt: Date)] = [:]
@@ -1130,6 +1131,17 @@ final class QuotaViewModel {
 
             self.usageStats = try await client.fetchUsageStats()
             self.apiKeys = try await client.fetchAPIKeys()
+
+            if !modeManager.isRemoteProxyMode, proxyManager.proxyStatus.running {
+                let migration = await agentConfigurationService.migrateProxyCredentialsIfNeeded(
+                    validAPIKeys: self.apiKeys,
+                    acceptedBaseURLs: localProxyMigrationBaseURLs()
+                )
+                if migration.hasChanges {
+                    let migratedAgents = migration.migratedAgents.map(\.rawValue).joined(separator: ", ")
+                    NSLog("[QuotaViewModel] Migrated stale proxy credentials for: \(migratedAgents)")
+                }
+            }
             
             // Clear any previous error on success
             errorMessage = nil
@@ -1197,6 +1209,26 @@ final class QuotaViewModel {
 
         isLoadingQuotas = false
         notifyQuotaDataChanged()
+    }
+
+    private func localProxyMigrationBaseURLs() -> [String] {
+        let local127 = proxyManager.clientEndpoint
+        let localHost = local127.replacingOccurrences(of: "127.0.0.1", with: "localhost")
+
+        var urls = [
+            local127,
+            local127 + "/v1",
+            localHost,
+            localHost + "/v1"
+        ]
+
+        if let tunnelURL = tunnelManager.tunnelState.publicURL?.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
+           !tunnelURL.isEmpty {
+            urls.append(tunnelURL)
+            urls.append(tunnelURL + "/v1")
+        }
+
+        return urls
     }
 
     /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
