@@ -9,8 +9,8 @@
 | File | Lines | Large |
 | ---- | ----- | ----- |
 | `Quotio/Views/Screens/APIKeysScreen.swift` | 260 |  |
-| `Quotio/Views/Screens/AgentSetupScreen.swift` | 200 |  |
-| `Quotio/Views/Screens/DashboardScreen.swift` | 1014 | 📊 |
+| `Quotio/Views/Screens/AgentSetupScreen.swift` | 199 |  |
+| `Quotio/Views/Screens/DashboardScreen.swift` | 1013 | 📊 |
 | `Quotio/Views/Screens/FallbackScreen.swift` | 558 | 📊 |
 | `Quotio/Views/Screens/LogsScreen.swift` | 557 | 📊 |
 | `Quotio/Views/Screens/ProvidersScreen.swift` | 1043 | 📊 |

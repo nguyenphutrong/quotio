@@ -9,15 +9,15 @@
 
 ## 🟢 Low Priority
 
-### `NOTE` (Quotio/Services/Proxy/CLIProxyManager.swift:224)
+### `NOTE` (Quotio/Services/Proxy/CLIProxyManager.swift:274)
 
 > Bridge mode default is registered in AppDelegate.applicationDidFinishLaunching()
 
-### `NOTE` (Quotio/Services/Proxy/CLIProxyManager.swift:340)
+### `NOTE` (Quotio/Services/Proxy/CLIProxyManager.swift:390)
 
 > Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
 
-### `NOTE` (Quotio/Services/Proxy/CLIProxyManager.swift:1434)
+### `NOTE` (Quotio/Services/Proxy/CLIProxyManager.swift:1484)
 
 > Notification is handled by AtomFeedUpdateService polling
 

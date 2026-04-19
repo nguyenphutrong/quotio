@@ -4,7 +4,7 @@
 
 ## Overview
 
-- **Lines:** 1014
+- **Lines:** 1013
 - **Language:** Swift
 - **Symbols:** 11
 - **Public symbols:** 0
@@ -17,11 +17,11 @@
 | 572 | fn | handleStepAction | (private) | `private func handleStepAction(_ step: GettingSt...` |
 | 583 | fn | showProviderPicker | (private) | `private func showProviderPicker()` |
 | 607 | fn | showAgentPicker | (private) | `private func showAgentPicker()` |
-| 808 | struct | GettingStartedStep | (internal) | `struct GettingStartedStep` |
-| 817 | struct | GettingStartedStepRow | (internal) | `struct GettingStartedStepRow` |
-| 872 | struct | KPICard | (internal) | `struct KPICard` |
-| 900 | struct | ProviderChip | (internal) | `struct ProviderChip` |
-| 924 | struct | FlowLayout | (internal) | `struct FlowLayout` |
-| 938 | fn | layout | (private) | `private func layout(proposal: ProposedViewSize,...` |
-| 966 | struct | QuotaProviderRow | (internal) | `struct QuotaProviderRow` |
+| 807 | struct | GettingStartedStep | (internal) | `struct GettingStartedStep` |
+| 816 | struct | GettingStartedStepRow | (internal) | `struct GettingStartedStepRow` |
+| 871 | struct | KPICard | (internal) | `struct KPICard` |
+| 899 | struct | ProviderChip | (internal) | `struct ProviderChip` |
+| 923 | struct | FlowLayout | (internal) | `struct FlowLayout` |
+| 937 | fn | layout | (private) | `private func layout(proposal: ProposedViewSize,...` |
+| 965 | struct | QuotaProviderRow | (internal) | `struct QuotaProviderRow` |
 
