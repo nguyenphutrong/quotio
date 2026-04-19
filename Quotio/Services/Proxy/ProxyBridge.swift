@@ -150,6 +150,8 @@ final class ProxyBridge {
         let fallbackAttempts: [FallbackAttempt]
         let fallbackStartedFromCache: Bool
         let responseSnippet: String?
+        let effort: String?          // output_config.effort value forwarded upstream
+        let originalEffort: String?  // pre-clamp client value, only set if clamp fired
     }
     
     // MARK: - Initialization
@@ -429,7 +431,25 @@ final class ProxyBridge {
             body = String(requestString[bodyRange.upperBound...])
         }
 
-        let metadata = extractMetadata(method: method, path: path, body: body)
+        // Clamp Anthropic-only effort levels (output_config.effort = "max") down to
+        // the OpenAI-compatible ceiling ("xhigh") so Claude Code's /effort max command
+        // still works when routed to GPT-5 / Codex models via CLIProxyAPI. All other
+        // effort values (low/medium/high/xhigh) pass through untouched.
+        let effortResult = EffortTranslator.clampEffort(in: body)
+        if effortResult.didRewrite {
+            Log.proxy("effort clamp: \(effortResult.originalEffort ?? "?") → \(effortResult.rewrittenEffort ?? "?") (\(path))")
+            body = effortResult.newBody
+        }
+        // Only populate originalEffort when the clamp actually changed the body, so the
+        // UI doesn't show a redundant "low → low" trail on every passthrough.
+        let clampedFromEffort: String? = effortResult.didRewrite ? effortResult.originalEffort : nil
+
+        let metadata = extractMetadata(
+            method: method,
+            path: path,
+            body: body,
+            originalEffort: clampedFromEffort
+        )
 
         // Check for virtual model and create fallback context
         Task { @MainActor [weak self] in
@@ -610,7 +630,12 @@ final class ProxyBridge {
     
     // MARK: - Metadata Extraction
     
-    private nonisolated func extractMetadata(method: String, path: String, body: String) -> (provider: String?, model: String?, method: String, path: String) {
+    private nonisolated func extractMetadata(
+        method: String,
+        path: String,
+        body: String,
+        originalEffort: String? = nil
+    ) -> (provider: String?, model: String?, effort: String?, originalEffort: String?, method: String, path: String) {
         // Detect provider from path
         var provider: String?
         if path.contains("/anthropic/") || path.contains("/claude") {
@@ -624,29 +649,36 @@ final class ProxyBridge {
         } else if path.contains("codewhisperer") || path.contains("kiro") {
             provider = "kiro"
         }
-        
-        // Extract model from JSON body
+
+        // Extract model + effort from JSON body. Effort lives in output_config.effort
+        // on Anthropic /v1/messages requests; absent everywhere else.
         var model: String?
+        var effort: String?
         if let bodyData = body.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
-           let modelValue = json["model"] as? String {
-            model = modelValue
-            
-            // Infer provider from model name if not already detected
-            if provider == nil {
-                if FallbackFormatConverter.isClaudeModel(modelValue) {
-                    provider = "claude"
-                } else if modelValue.hasPrefix("gemini") || modelValue.hasPrefix("models/gemini") {
-                    provider = "gemini"
-                } else if modelValue.hasPrefix("gpt") || modelValue.hasPrefix("o1") || modelValue.hasPrefix("o3") {
-                    provider = "openai"
-                } else if modelValue.contains("kiro") || modelValue.contains("codewhisperer") {
-                    provider = "kiro"
+           let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] {
+            if let modelValue = json["model"] as? String {
+                model = modelValue
+
+                // Infer provider from model name if not already detected
+                if provider == nil {
+                    if FallbackFormatConverter.isClaudeModel(modelValue) {
+                        provider = "claude"
+                    } else if modelValue.hasPrefix("gemini") || modelValue.hasPrefix("models/gemini") {
+                        provider = "gemini"
+                    } else if modelValue.hasPrefix("gpt") || modelValue.hasPrefix("o1") || modelValue.hasPrefix("o3") {
+                        provider = "openai"
+                    } else if modelValue.contains("kiro") || modelValue.contains("codewhisperer") {
+                        provider = "kiro"
+                    }
                 }
             }
+            if let outputConfig = json["output_config"] as? [String: Any],
+               let effortValue = outputConfig["effort"] as? String {
+                effort = effortValue
+            }
         }
-        
-        return (provider, model, method, path)
+
+        return (provider, model, effort, originalEffort, method, path)
     }
     
     // MARK: - Request Forwarding
@@ -661,7 +693,7 @@ final class ProxyBridge {
         connectionId: Int,
         startTime: Date,
         requestSize: Int,
-        metadata: (provider: String?, model: String?, method: String, path: String),
+        metadata: (provider: String?, model: String?, effort: String?, originalEffort: String?, method: String, path: String),
         targetPort: UInt16,
         targetHost: String,
         fallbackContext: FallbackContext
@@ -780,7 +812,7 @@ final class ProxyBridge {
         connectionId: Int,
         startTime: Date,
         requestSize: Int,
-        metadata: (provider: String?, model: String?, method: String, path: String),
+        metadata: (provider: String?, model: String?, effort: String?, originalEffort: String?, method: String, path: String),
         responseData: Data,
         fallbackContext: FallbackContext,
         headers: [(String, String)],
@@ -964,7 +996,7 @@ final class ProxyBridge {
         requestSize: Int,
         responseSize: Int,
         responseData: Data,
-        metadata: (provider: String?, model: String?, method: String, path: String),
+        metadata: (provider: String?, model: String?, effort: String?, originalEffort: String?, method: String, path: String),
         fallbackContext: FallbackContext
     ) {
         let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
@@ -1045,7 +1077,9 @@ final class ProxyBridge {
                 responseSize: responseSize,
                 fallbackAttempts: attempts,
                 fallbackStartedFromCache: fallbackContext.wasLoadedFromCache,
-                responseSnippet: responseSnippet
+                responseSnippet: responseSnippet,
+                effort: capturedMetadata.effort,
+                originalEffort: capturedMetadata.originalEffort
             )
             self?.onRequestCompleted?(requestMetadata)
         }
