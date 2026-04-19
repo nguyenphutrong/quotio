@@ -370,13 +370,9 @@ struct AgentConfigSheet: View {
                         slot: slot,
                         selectedModel: viewModel.currentConfiguration?.modelSlots[slot] ?? "",
                         selectedProvider: viewModel.currentConfiguration?.modelSlotProviders[slot] ?? AvailableModel.defaultModels[slot]?.provider ?? "openai",
-                        selectedEffort: viewModel.currentConfiguration?.modelSlotReasoningEfforts[slot],
                         availableModels: viewModel.availableModels,
                         onModelChange: { model in
                             viewModel.updateModelSlot(slot, model: model)
-                        },
-                        onEffortChange: { effort in
-                            viewModel.updateModelSlotReasoningEffort(slot, effort: effort)
                         }
                     )
                 }
@@ -415,15 +411,11 @@ struct AgentConfigSheet: View {
             label: "Copilot Model",
             selectedModel: viewModel.currentConfiguration?.modelSlots[.sonnet] ?? "",
             selectedProvider: viewModel.currentConfiguration?.modelSlotProviders[.sonnet] ?? "github-copilot",
-            selectedEffort: viewModel.currentConfiguration?.modelSlotReasoningEfforts[.sonnet],
             availableModels: compatibleCopilotModels,
             fallbackModel: AvailableModel.copilotDefaultModel,
             fallbackProvider: "github-copilot",
             onModelChange: { model in
                 viewModel.updateModelSlot(.sonnet, model: model)
-            },
-            onEffortChange: { effort in
-                viewModel.updateModelSlotReasoningEffort(.sonnet, effort: effort)
             }
         )
 
@@ -478,7 +470,7 @@ struct AgentConfigSheet: View {
     private var codexModelSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Model & Reasoning")
+                Text("Model")
                     .font(.subheadline)
                     .fontWeight(.medium)
 
@@ -506,21 +498,13 @@ struct AgentConfigSheet: View {
                 label: "Model",
                 selectedModel: viewModel.currentConfiguration?.modelSlots[.sonnet] ?? "",
                 selectedProvider: viewModel.currentConfiguration?.modelSlotProviders[.sonnet] ?? "openai",
-                selectedEffort: viewModel.currentConfiguration?.modelSlotReasoningEfforts[.sonnet],
                 availableModels: codexModels,
                 fallbackModel: "gpt-5.4",
                 fallbackProvider: "openai",
                 onModelChange: { model in
                     viewModel.updateModelSlot(.sonnet, model: model)
-                },
-                onEffortChange: { effort in
-                    viewModel.updateModelSlotReasoningEffort(.sonnet, effort: effort)
                 }
             )
-
-            Text("Reasoning effort is written as model_reasoning_effort in ~/.codex/config.toml")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
         .padding(14)
         .background(Color(.controlBackgroundColor))
@@ -979,10 +963,8 @@ private struct ModelSlotRow: View {
     let slot: ModelSlot
     let selectedModel: String
     let selectedProvider: String
-    let selectedEffort: ReasoningEffort?
     let availableModels: [AvailableModel]
     let onModelChange: (AvailableModel) -> Void
-    let onEffortChange: (ReasoningEffort?) -> Void
 
     private var effectiveSelection: String {
         if !selectedModel.isEmpty,
@@ -996,59 +978,32 @@ private struct ModelSlotRow: View {
         return availableModels.first?.selectionKey ?? ""
     }
 
-    private var showsEffortPicker: Bool {
-        ReasoningEffort.isSupported(for: selectedModel)
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(slot.displayName)
-                    .font(.caption)
-                    .fontWeight(.medium)
+        HStack {
+            Text(slot.displayName)
+                .font(.caption)
+                .fontWeight(.medium)
 
-                Spacer(minLength: 12)
+            Spacer(minLength: 12)
 
-                Picker("", selection: Binding(
-                    get: { effectiveSelection },
-                    set: { selection in
-                        guard let model = availableModels.first(where: { $0.selectionKey == selection }) else { return }
-                        onModelChange(model)
-                    }
-                )) {
-                    let providers = Array(Dictionary(grouping: availableModels, by: \.provider).keys).sorted()
-                    ForEach(providers, id: \.self) { provider in
-                        Section(header: Text(availableModels.first(where: { $0.provider == provider })?.providerDisplayName ?? provider.capitalized)) {
-                            ForEach(availableModels.filter { $0.provider == provider }) { model in
-                                Text(model.displayName).tag(model.selectionKey)
-                            }
+            Picker("", selection: Binding(
+                get: { effectiveSelection },
+                set: { selection in
+                    guard let model = availableModels.first(where: { $0.selectionKey == selection }) else { return }
+                    onModelChange(model)
+                }
+            )) {
+                let providers = Array(Dictionary(grouping: availableModels, by: \.provider).keys).sorted()
+                ForEach(providers, id: \.self) { provider in
+                    Section(header: Text(availableModels.first(where: { $0.provider == provider })?.providerDisplayName ?? provider.capitalized)) {
+                        ForEach(availableModels.filter { $0.provider == provider }) { model in
+                            Text(model.displayName).tag(model.selectionKey)
                         }
                     }
                 }
-                .pickerStyle(.menu)
-                .frame(maxWidth: 280)
             }
-
-            if showsEffortPicker {
-                HStack {
-                    Text("Thinking Effort")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Picker("", selection: Binding(
-                        get: { selectedEffort },
-                        set: { onEffortChange($0) }
-                    )) {
-                        Text("Default").tag(ReasoningEffort?.none)
-                        ForEach(ReasoningEffort.allCases) { effort in
-                            Text(effort.displayName).tag(Optional(effort))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: 200)
-                }
-                .padding(.leading, 4)
-            }
+            .pickerStyle(.menu)
+            .frame(maxWidth: 280)
         }
         .onAppear {
             if selectedModel.isEmpty || !availableModels.contains(where: { $0.name == selectedModel && $0.provider == selectedProvider }) {
@@ -1064,12 +1019,10 @@ private struct SingleModelRow: View {
     let label: String
     let selectedModel: String
     let selectedProvider: String
-    let selectedEffort: ReasoningEffort?
     let availableModels: [AvailableModel]
     let fallbackModel: String
     let fallbackProvider: String
     let onModelChange: (AvailableModel) -> Void
-    let onEffortChange: (ReasoningEffort?) -> Void
 
     private var effectiveSelection: String {
         if !selectedModel.isEmpty,
@@ -1082,59 +1035,32 @@ private struct SingleModelRow: View {
         return availableModels.first?.selectionKey ?? ""
     }
 
-    private var showsEffortPicker: Bool {
-        ReasoningEffort.isSupported(for: selectedModel)
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(label)
-                    .font(.caption)
-                    .fontWeight(.medium)
+        HStack {
+            Text(label)
+                .font(.caption)
+                .fontWeight(.medium)
 
-                Spacer(minLength: 12)
+            Spacer(minLength: 12)
 
-                Picker("", selection: Binding(
-                    get: { effectiveSelection },
-                    set: { selection in
-                        guard let model = availableModels.first(where: { $0.selectionKey == selection }) else { return }
-                        onModelChange(model)
-                    }
-                )) {
-                    let providers = Array(Dictionary(grouping: availableModels, by: \.provider).keys).sorted()
-                    ForEach(providers, id: \.self) { provider in
-                        Section(header: Text(availableModels.first(where: { $0.provider == provider })?.providerDisplayName ?? provider.capitalized)) {
-                            ForEach(availableModels.filter { $0.provider == provider }) { model in
-                                Text(model.displayName).tag(model.selectionKey)
-                            }
+            Picker("", selection: Binding(
+                get: { effectiveSelection },
+                set: { selection in
+                    guard let model = availableModels.first(where: { $0.selectionKey == selection }) else { return }
+                    onModelChange(model)
+                }
+            )) {
+                let providers = Array(Dictionary(grouping: availableModels, by: \.provider).keys).sorted()
+                ForEach(providers, id: \.self) { provider in
+                    Section(header: Text(availableModels.first(where: { $0.provider == provider })?.providerDisplayName ?? provider.capitalized)) {
+                        ForEach(availableModels.filter { $0.provider == provider }) { model in
+                            Text(model.displayName).tag(model.selectionKey)
                         }
                     }
                 }
-                .pickerStyle(.menu)
-                .frame(maxWidth: 280)
             }
-
-            if showsEffortPicker {
-                HStack {
-                    Text("Thinking Effort")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Picker("", selection: Binding(
-                        get: { selectedEffort },
-                        set: { onEffortChange($0) }
-                    )) {
-                        Text("Default").tag(ReasoningEffort?.none)
-                        ForEach(ReasoningEffort.allCases) { effort in
-                            Text(effort.displayName).tag(Optional(effort))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: 200)
-                }
-                .padding(.leading, 4)
-            }
+            .pickerStyle(.menu)
+            .frame(maxWidth: 280)
         }
         .onAppear {
             if selectedModel.isEmpty || !availableModels.contains(where: { $0.name == selectedModel && $0.provider == selectedProvider }) {
