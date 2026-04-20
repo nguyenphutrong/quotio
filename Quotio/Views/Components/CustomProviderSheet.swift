@@ -914,6 +914,12 @@ struct CustomProviderSheet: View {
         case 401, 403:
             throw CustomProviderTestError.unauthorized
         case 404:
+            if provider.type == .glmCompatibility {
+                // Some GLM-compatible endpoints, including Z.AI coding-plan base URLs,
+                // do not expose an OpenAI-style models discovery endpoint. Treat a 404
+                // here as "validation unsupported" rather than blocking the save.
+                return true
+            }
             throw CustomProviderTestError.endpointNotFound
         default:
             if let errorMessage = String(data: data, encoding: .utf8) {

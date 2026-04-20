@@ -462,10 +462,12 @@ final class AgentSetupViewModel {
     }
 
     private func processModels(_ fetchedModels: [AvailableModel]) async -> [AvailableModel] {
+        let customProviderModels = loadCustomProviderModels()
+
         // Merge the live catalog with the built-in catalog so manually curated models
         // remain selectable even if the current proxy response is incomplete.
         let builtinModels = availableCopilotAccounts.isEmpty ? AvailableModel.allModels : AvailableModel.allModelsExcludingCopilot
-        var mergedModels = (fetchedModels + builtinModels).reduce(into: [String: AvailableModel]()) { result, model in
+        var mergedModels = (fetchedModels + builtinModels + customProviderModels).reduce(into: [String: AvailableModel]()) { result, model in
             result[model.selectionKey] = result[model.selectionKey] ?? model
         }
 
@@ -485,6 +487,30 @@ final class AgentSetupViewModel {
         }
 
         return builtinModels.sorted { $0.displayName < $1.displayName }
+    }
+
+    private func loadCustomProviderModels() -> [AvailableModel] {
+        let enabledProviders = CustomProviderService.shared.enabledProviders
+        let glmProviders = enabledProviders.filter { $0.type == .glmCompatibility }
+
+        guard !glmProviders.isEmpty else { return [] }
+
+        var models = glmProviders.flatMap { provider in
+            provider.models.map {
+                AvailableModel(
+                    id: $0.name,
+                    name: $0.name,
+                    provider: "glm",
+                    isDefault: false
+                )
+            }
+        }
+
+        if models.isEmpty {
+            models = AvailableModel.glmModels
+        }
+
+        return models
     }
 
     private func fetchSelectedCopilotModels() async -> [AvailableModel] {
