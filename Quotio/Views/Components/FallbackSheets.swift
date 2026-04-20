@@ -146,11 +146,14 @@ struct AddFallbackEntrySheet: View {
     /// most reliable source and is checked first. Model ID prefix matching serves as a
     /// fallback for models with unknown or missing provider metadata.
     private func providerFromModel(_ model: AvailableModel) -> AIProvider {
-        let providerName = model.provider.lowercased()
+        let providerName = model.normalizedProvider
         let modelId = model.id.lowercased()
 
         // FIRST: Try exact match on provider field (most reliable — from proxy API owned_by)
         // e.g., "github-copilot" -> .copilot, "antigravity" -> .antigravity
+        if providerName == "anthropic" {
+            return .claude
+        }
         for provider in AIProvider.allCases {
             if provider.rawValue.lowercased() == providerName {
                 return provider
@@ -169,6 +172,8 @@ struct AddFallbackEntrySheet: View {
         // THIRD: Try to infer from model ID content (for models without prefix)
         if modelId.contains("kiro") {
             return .kiro
+        } else if modelId.hasPrefix("gemini-claude-") || modelId.contains("claude") {
+            return .claude
         } else if modelId.contains("gemini") {
             return .gemini
         } else if modelId.contains("copilot") {
@@ -176,8 +181,6 @@ struct AddFallbackEntrySheet: View {
         } else if modelId.contains("codex") {
             return .codex
         }
-
-        // Default to claude for generic claude models
         return .claude
     }
 

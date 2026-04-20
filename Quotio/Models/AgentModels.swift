@@ -35,7 +35,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         switch self {
         case .claudeCode: return "Anthropic's official CLI for Claude models"
         case .copilotCLI: return "GitHub's official Copilot CLI coding agent"
-        case .codexCLI: return "OpenAI's Codex CLI for GPT-5 models"
+        case .codexCLI: return "OpenAI's Codex CLI for GPT-5 and other Responses-compatible models"
         case .geminiCLI: return "Google's Gemini CLI for Gemini models"
         case .ampCLI: return "Sourcegraph's Amp coding assistant"
         case .openCode: return "The open source AI coding agent"
@@ -231,8 +231,57 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
     let provider: String
     let isDefault: Bool
 
+    var normalizedProvider: String {
+        Self.normalizeProvider(provider, modelName: name)
+    }
+
     var displayName: String {
-        if provider.lowercased() == "glm" {
+        switch name {
+        case "gemini-claude-sonnet-4-5":
+            return "Claude Sonnet 4.5"
+        case "gemini-claude-sonnet-4-5-thinking":
+            return "Claude Sonnet 4.5 Thinking"
+        case "gemini-claude-opus-4-5-thinking":
+            return "Claude Opus 4.5 Thinking"
+        case "gemini-claude-opus-4-6-thinking":
+            return "Claude Opus 4.6 Thinking"
+        case "claude-haiku-4-5":
+            return "Claude Haiku 4.5"
+        case "claude-sonnet-4":
+            return "Claude Sonnet 4"
+        case "claude-sonnet-4-5":
+            return "Claude Sonnet 4.5"
+        case "claude-sonnet-4-5-thinking":
+            return "Claude Sonnet 4.5 Thinking"
+        case "claude-sonnet-4.5":
+            return "Claude Sonnet 4.5"
+        case "claude-sonnet-4.6":
+            return "Claude Sonnet 4.6"
+        case "claude-opus-4":
+            return "Claude Opus 4"
+        case "claude-opus-4-5":
+            return "Claude Opus 4.5"
+        case "claude-opus-4-5-thinking":
+            return "Claude Opus 4.5 Thinking"
+        case "claude-opus-4-6":
+            return "Claude Opus 4.6"
+        case "claude-opus-4-6-thinking":
+            return "Claude Opus 4.6 Thinking"
+        case "claude-opus-4.5":
+            return "Claude Opus 4.5"
+        case "claude-opus-4.6":
+            return "Claude Opus 4.6"
+        case "claude-opus-4.6-fast":
+            return "Claude Opus 4.6 Fast"
+        case "claude-4-sonnet":
+            return "Claude 4 Sonnet"
+        case "claude-4-opus":
+            return "Claude 4 Opus"
+        default:
+            break
+        }
+
+        if normalizedProvider == "glm" {
             return name.uppercased()
         }
 
@@ -242,11 +291,11 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
     }
 
     var selectionKey: String {
-        provider + "::" + name
+        normalizedProvider + "::" + name
     }
 
     var providerDisplayName: String {
-        switch provider.lowercased() {
+        switch normalizedProvider {
         case "anthropic":
             return "Anthropic"
         case "google":
@@ -264,6 +313,43 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
                 .map { $0.capitalized }
                 .joined(separator: " ")
         }
+    }
+
+    static func normalizeProvider(_ provider: String, modelName: String? = nil) -> String {
+        let lowerModelName = modelName?.lowercased() ?? ""
+        if lowerModelName.hasPrefix("gemini-claude-") || lowerModelName.hasPrefix("claude-") {
+            return "anthropic"
+        }
+
+        switch provider.lowercased() {
+        case "claude":
+            return "anthropic"
+        case "copilot":
+            return "github-copilot"
+        default:
+            return provider.lowercased()
+        }
+    }
+
+    static func inferredProvider(for modelName: String) -> String? {
+        if let exactMatch = allModels.first(where: { $0.name == modelName }) {
+            return exactMatch.normalizedProvider
+        }
+
+        let lowerModelName = modelName.lowercased()
+        if lowerModelName.contains("claude") || lowerModelName.contains("sonnet") || lowerModelName.contains("opus") || lowerModelName.contains("haiku") {
+            return "anthropic"
+        }
+        if lowerModelName.hasPrefix("gpt") || lowerModelName.hasPrefix("o1") || lowerModelName.hasPrefix("o3") || lowerModelName.hasPrefix("o4") {
+            return "openai"
+        }
+        if lowerModelName.hasPrefix("glm") {
+            return "glm"
+        }
+        if lowerModelName.hasPrefix("gemini") {
+            return "google"
+        }
+        return nil
     }
 
     static let defaultModels: [ModelSlot: AvailableModel] = [
@@ -302,6 +388,18 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
         AvailableModel(id: "glm-5-turbo", name: "glm-5-turbo", provider: "glm", isDefault: false),
         AvailableModel(id: "glm-4.7", name: "glm-4.7", provider: "glm", isDefault: false),
         AvailableModel(id: "glm-4.5-air", name: "glm-4.5-air", provider: "glm", isDefault: false)
+    ]
+
+    static let codexAnthropicModels: [AvailableModel] = [
+        AvailableModel(id: "claude-haiku-4-5", name: "claude-haiku-4-5", provider: "anthropic", isDefault: false),
+        AvailableModel(id: "claude-sonnet-4", name: "claude-sonnet-4", provider: "anthropic", isDefault: false),
+        AvailableModel(id: "claude-sonnet-4-5", name: "claude-sonnet-4-5", provider: "anthropic", isDefault: false),
+        AvailableModel(id: "claude-sonnet-4-5-thinking", name: "claude-sonnet-4-5-thinking", provider: "anthropic", isDefault: false),
+        AvailableModel(id: "claude-opus-4", name: "claude-opus-4", provider: "anthropic", isDefault: false),
+        AvailableModel(id: "claude-opus-4-5", name: "claude-opus-4-5", provider: "anthropic", isDefault: false),
+        AvailableModel(id: "claude-opus-4-5-thinking", name: "claude-opus-4-5-thinking", provider: "anthropic", isDefault: false),
+        AvailableModel(id: "claude-opus-4-6", name: "claude-opus-4-6", provider: "anthropic", isDefault: false),
+        AvailableModel(id: "claude-opus-4-6-thinking", name: "claude-opus-4-6-thinking", provider: "anthropic", isDefault: false)
     ]
 
     static let allModelsExcludingCopilot: [AvailableModel] = [

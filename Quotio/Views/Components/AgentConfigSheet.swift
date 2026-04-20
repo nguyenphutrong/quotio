@@ -490,10 +490,24 @@ struct AgentConfigSheet: View {
                 .disabled(viewModel.isFetchingModels)
             }
 
-            let codexModels = viewModel.availableModels.filter {
-                let provider = $0.provider.lowercased()
-                return provider == "openai" || provider == "glm"
-            }
+            let codexModels = Array(
+                (viewModel.availableModels + AvailableModel.codexAnthropicModels)
+                    .filter {
+                        let provider = $0.normalizedProvider
+                        guard provider == "openai" || provider == "anthropic" || provider == "glm" else {
+                            return false
+                        }
+                        if provider == "anthropic" && $0.name.hasPrefix("gemini-claude-") {
+                            return false
+                        }
+                        return true
+                    }
+                    .reduce(into: [String: AvailableModel]()) { result, model in
+                        result[model.selectionKey] = result[model.selectionKey] ?? model
+                    }
+                    .values
+            )
+            .sorted { $0.displayName < $1.displayName }
 
             SingleModelRow(
                 label: "Model",
@@ -506,6 +520,10 @@ struct AgentConfigSheet: View {
                     viewModel.updateModelSlot(.sonnet, model: model)
                 }
             )
+
+            Text("Codex can target any Responses-compatible model your proxy exposes, including Anthropic Claude models.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(14)
         .background(Color(.controlBackgroundColor))

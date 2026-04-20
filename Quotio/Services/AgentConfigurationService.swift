@@ -253,9 +253,13 @@ actor AgentConfigurationService {
         }
         
         var modelSlots: [ModelSlot: String] = [:]
+        var modelSlotProviders: [ModelSlot: String] = [:]
         var modelSlotReasoningEfforts: [ModelSlot: ReasoningEffort] = [:]
         if let m = model {
             modelSlots[.sonnet] = m  // Codex uses single model
+            if let provider = AvailableModel.inferredProvider(for: m) {
+                modelSlotProviders[.sonnet] = provider
+            }
         }
         if let effort = reasoningEffort {
             modelSlotReasoningEfforts[.sonnet] = effort
@@ -265,7 +269,7 @@ actor AgentConfigurationService {
             baseURL: baseURL,
             apiKey: nil,  // API key is in auth.json
             modelSlots: modelSlots,
-            modelSlotProviders: [:],
+            modelSlotProviders: modelSlotProviders,
             modelSlotReasoningEfforts: modelSlotReasoningEfforts,
             copilotAuthFileName: nil,
             copilotAuthIndex: nil,
@@ -2045,7 +2049,7 @@ actor AgentConfigurationService {
         let availableCopilotModelIds = await copilotFetcher.fetchUserAvailableModelIds()
 
         return decoded.data.compactMap { item in
-            let provider = item.owned_by ?? "openai"
+            let provider = AvailableModel.normalizeProvider(item.owned_by ?? "openai")
 
             // Filter GitHub Copilot models - only include those actually available to the user
             if provider == "github-copilot" {
