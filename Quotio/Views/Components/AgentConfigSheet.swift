@@ -499,7 +499,8 @@ struct AgentConfigSheet: View {
             }
 
             let codexModels = viewModel.availableModels.filter {
-                $0.provider.lowercased() == "openai"
+                let provider = $0.provider.lowercased()
+                return provider == "openai" || provider == "glm"
             }
 
             SingleModelRow(

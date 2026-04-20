@@ -232,7 +232,11 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
     let isDefault: Bool
 
     var displayName: String {
-        name.split(separator: "-")
+        if provider.lowercased() == "glm" {
+            return name.uppercased()
+        }
+
+        return name.split(separator: "-")
             .map { $0.capitalized }
             .joined(separator: " ")
     }
@@ -249,6 +253,8 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
             return "Google"
         case "openai":
             return "OpenAI"
+        case "glm":
+            return "GLM"
         case "github-copilot", "copilot":
             return "GitHub Copilot"
         case "fallback":
@@ -290,6 +296,14 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
 
     static let copilotSupportedModelIDs = Set(copilotModels.map(\.name))
 
+    // Default GLM coding-plan models surfaced when an enabled GLM provider exists.
+    static let glmModels: [AvailableModel] = [
+        AvailableModel(id: "glm-5.1", name: "glm-5.1", provider: "glm", isDefault: false),
+        AvailableModel(id: "glm-5-turbo", name: "glm-5-turbo", provider: "glm", isDefault: false),
+        AvailableModel(id: "glm-4.7", name: "glm-4.7", provider: "glm", isDefault: false),
+        AvailableModel(id: "glm-4.5-air", name: "glm-4.5-air", provider: "glm", isDefault: false)
+    ]
+
     static let allModelsExcludingCopilot: [AvailableModel] = [
         // Claude models
         AvailableModel(id: "gemini-claude-opus-4-6-thinking", name: "gemini-claude-opus-4-6-thinking", provider: "anthropic", isDefault: false),
@@ -316,7 +330,7 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
         AvailableModel(id: "gpt-5", name: "gpt-5", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5-codex", name: "gpt-5-codex", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5-codex-mini", name: "gpt-5-codex-mini", provider: "openai", isDefault: false),
-        AvailableModel(id: "gpt-oss-120b-medium", name: "gpt-oss-120b-medium", provider: "openai", isDefault: false),
+        AvailableModel(id: "gpt-oss-120b-medium", name: "gpt-oss-120b-medium", provider: "openai", isDefault: false)
     ]
 
     static let allModels: [AvailableModel] = allModelsExcludingCopilot + copilotModels
