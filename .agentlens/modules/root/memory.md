@@ -35,7 +35,7 @@
 
 > Only checks file existence (metadata), does NOT read file content
 
-### `NOTE` (Quotio/ViewModels/AgentSetupViewModel.swift:602)
+### `NOTE` (Quotio/ViewModels/AgentSetupViewModel.swift:628)
 
 > Actual fallback resolution happens at request time in ProxyBridge
 

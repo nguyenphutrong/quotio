@@ -36,7 +36,7 @@
 | `Quotio/Services/UpdaterService.swift` | 168 |  |
 | `Quotio/Services/WarmupService.swift` | 185 |  |
 | `Quotio/Services/WarpService.swift` | 83 |  |
-| `Quotio/ViewModels/AgentSetupViewModel.swift` | 606 | 📊 |
+| `Quotio/ViewModels/AgentSetupViewModel.swift` | 632 | 📊 |
 | `Quotio/ViewModels/LogsViewModel.swift` | 82 |  |
 | `Quotio/ViewModels/QuotaViewModel.swift` | 1968 | 📊 |
 | `scripts/capture-screenshots.ts` | 763 | 📊 |

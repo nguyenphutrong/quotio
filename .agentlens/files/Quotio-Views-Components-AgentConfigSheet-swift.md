@@ -4,7 +4,7 @@
 
 ## Overview
 
-- **Lines:** 1184
+- **Lines:** 1185
 - **Language:** Swift
 - **Symbols:** 15
 - **Public symbols:** 0
@@ -15,17 +15,17 @@
 | ---- | ---- | ---- | ---------- | --------- |
 | 8 | struct | AgentConfigSheet | (internal) | `struct AgentConfigSheet` |
 | 71 | fn | generatePreview | (private) | `private func generatePreview()` |
-| 586 | fn | copyPreviewToClipboard | (private) | `private func copyPreviewToClipboard(index: Int?...` |
-| 678 | fn | automaticModeResult | (private) | `private func automaticModeResult(_ result: Agen...` |
-| 707 | fn | manualModeResult | (private) | `private func manualModeResult(_ result: AgentCo...` |
-| 813 | struct | ModeButton | (private) | `struct ModeButton` |
-| 843 | struct | SetupModeButton | (private) | `struct SetupModeButton` |
-| 873 | struct | BackupButton | (private) | `struct BackupButton` |
-| 901 | struct | StorageOptionButton | (private) | `struct StorageOptionButton` |
-| 939 | struct | InfoRow | (private) | `struct InfoRow` |
-| 962 | struct | ModelSlotRow | (private) | `struct ModelSlotRow` |
-| 1018 | struct | SingleModelRow | (private) | `struct SingleModelRow` |
-| 1075 | struct | TestResultView | (private) | `struct TestResultView` |
-| 1102 | struct | FilePathRow | (private) | `struct FilePathRow` |
-| 1128 | struct | RawConfigView | (private) | `struct RawConfigView` |
+| 587 | fn | copyPreviewToClipboard | (private) | `private func copyPreviewToClipboard(index: Int?...` |
+| 679 | fn | automaticModeResult | (private) | `private func automaticModeResult(_ result: Agen...` |
+| 708 | fn | manualModeResult | (private) | `private func manualModeResult(_ result: AgentCo...` |
+| 814 | struct | ModeButton | (private) | `struct ModeButton` |
+| 844 | struct | SetupModeButton | (private) | `struct SetupModeButton` |
+| 874 | struct | BackupButton | (private) | `struct BackupButton` |
+| 902 | struct | StorageOptionButton | (private) | `struct StorageOptionButton` |
+| 940 | struct | InfoRow | (private) | `struct InfoRow` |
+| 963 | struct | ModelSlotRow | (private) | `struct ModelSlotRow` |
+| 1019 | struct | SingleModelRow | (private) | `struct SingleModelRow` |
+| 1076 | struct | TestResultView | (private) | `struct TestResultView` |
+| 1103 | struct | FilePathRow | (private) | `struct FilePathRow` |
+| 1129 | struct | RawConfigView | (private) | `struct RawConfigView` |
 

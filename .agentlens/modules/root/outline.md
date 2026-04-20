@@ -241,7 +241,7 @@ Symbol maps for 8 large files in this module.
 | 1398 | struct | MenuActionsView | (private) |
 | 1436 | struct | MenuBarActionButton | (private) |
 
-## Quotio/ViewModels/AgentSetupViewModel.swift (606 lines)
+## Quotio/ViewModels/AgentSetupViewModel.swift (632 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -270,12 +270,13 @@ Symbol maps for 8 large files in this module.
 | 402 | fn | loadModels | (internal) |
 | 455 | fn | preferredProxyAPIKey | (private) |
 | 463 | fn | processModels | (private) |
-| 489 | fn | fetchSelectedCopilotModels | (private) |
-| 536 | fn | configurationUsesCopilot | (private) |
-| 543 | fn | enforceSelectedCopilotAccountIfNeeded | (private) |
-| 564 | fn | refreshVirtualModels | (private) |
-| 583 | fn | checkProviderQuota | (internal) |
-| 603 | fn | isVirtualModel | (internal) |
+| 491 | fn | loadCustomProviderModels | (private) |
+| 515 | fn | fetchSelectedCopilotModels | (private) |
+| 562 | fn | configurationUsesCopilot | (private) |
+| 569 | fn | enforceSelectedCopilotAccountIfNeeded | (private) |
+| 590 | fn | refreshVirtualModels | (private) |
+| 609 | fn | checkProviderQuota | (internal) |
+| 629 | fn | isVirtualModel | (internal) |
 
 ## Quotio/ViewModels/QuotaViewModel.swift (1968 lines)
 
