@@ -4,7 +4,7 @@
 
 ## Overview
 
-- **Lines:** 1043
+- **Lines:** 1058
 - **Language:** Swift
 - **Symbols:** 27
 - **Public symbols:** 0
@@ -38,8 +38,8 @@
 | 702 | fn | nativeTooltip | (internal) | `func nativeTooltip(_ text: String) -> some View` |
 | 709 | struct | MenuBarHintView | (internal) | `struct MenuBarHintView` |
 | 724 | struct | OAuthSheet | (internal) | `struct OAuthSheet` |
-| 850 | struct | OAuthStatusView | (private) | `struct OAuthStatusView` |
-| 1022 | enum | CustomProviderSheetMode | (internal) | `enum CustomProviderSheetMode` |
+| 865 | struct | OAuthStatusView | (private) | `struct OAuthStatusView` |
+| 1037 | enum | CustomProviderSheetMode | (internal) | `enum CustomProviderSheetMode` |
 
 ## Memory Markers
 

@@ -172,7 +172,6 @@ final class CLIProxyManager {
         }
     }
     
-    private static let githubRepo = "router-for-me/CLIProxyAPIPlus"
     private static let binaryName = "CLIProxyAPI"
     
     /// Base URL for the proxy API (always points to CLIProxyAPI directly)
@@ -225,7 +224,9 @@ final class CLIProxyManager {
         // using UserDefaults.register(defaults:) which is the preferred approach
 
         try? FileManager.default.createDirectory(atPath: authDir, withIntermediateDirectories: true)
-        
+
+        migrateLegacyVersionedStorageIfNeeded()
+        initializeSelectedBinarySourceIfNeeded()
         ensureConfigExists()
     }
 
@@ -562,41 +563,34 @@ final class CLIProxyManager {
     }
     
     var isBinaryInstalled: Bool {
-        // Check versioned storage first, then legacy path
-        if let _ = storageManager.currentBinaryPath {
-            return true
-        }
-        return FileManager.default.fileExists(atPath: binaryPath)
+        isSourceInstalled(selectedBinarySource)
     }
     
     func downloadAndInstallBinary() async throws {
-        isDownloading = true
-        downloadProgress = 0
         lastError = nil
-        
-        defer { isDownloading = false }
-        
+
         do {
-            let releaseInfo = try await fetchLatestRelease()
-            guard let asset = findCompatibleAsset(in: releaseInfo) else {
-                throw ProxyError.noCompatibleBinary
+            let versionInfo: ProxyVersionInfo
+            switch selectedBinarySource {
+            case .plusLocal:
+                guard let localInfo = plusLocalVersionInfo() else {
+                    throw ProxyError.noCompatibleBinary
+                }
+                versionInfo = localInfo
+            case .upstream:
+                let releaseInfo = try await fetchLatestRelease(source: .upstream)
+                let latestTag = releaseInfo.tagName.hasPrefix("v")
+                    ? String(releaseInfo.tagName.dropFirst())
+                    : releaseInfo.tagName
+                let release = try await fetchGitHubRelease(tag: "v\(latestTag)", source: .upstream)
+                guard let asset = findCompatibleAsset(from: release),
+                      let upstreamInfo = ProxyVersionInfo(from: release, asset: asset, source: .upstream) else {
+                    throw ProxyError.noCompatibleBinary
+                }
+                versionInfo = upstreamInfo
             }
-            
-            downloadProgress = 0.1
-            
-            let binaryData = try await downloadAsset(url: asset.downloadURL)
-            downloadProgress = 0.7
-            
-            try await extractAndInstall(data: binaryData, assetName: asset.name)
-            downloadProgress = 0.9
-            
-            // Save installed version
-            let version = releaseInfo.tagName.hasPrefix("v")
-                ? String(releaseInfo.tagName.dropFirst())
-                : releaseInfo.tagName
-            saveInstalledVersion(version)
-            downloadProgress = 1.0
-            
+
+            try await performManagedUpgrade(to: versionInfo)
         } catch {
             lastError = error.localizedDescription
             throw error
@@ -630,8 +624,12 @@ final class CLIProxyManager {
         let downloadURL: String
     }
     
-    private func fetchLatestRelease() async throws -> ReleaseInfo {
-        let urlString = "https://api.github.com/repos/router-for-me/CLIProxyAPIPlus/releases/latest"
+    private func fetchLatestRelease(source: ProxyBinarySource) async throws -> ReleaseInfo {
+        guard let githubRepo = source.githubRepo else {
+            throw ProxyError.networkError("Selected source does not provide online releases")
+        }
+
+        let urlString = "https://api.github.com/repos/\(githubRepo)/releases/latest"
         guard let url = URL(string: urlString) else {
             throw ProxyError.networkError("Invalid URL")
         }
@@ -1156,7 +1154,9 @@ enum ProxyError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .binaryNotFound:
-            return "CLIProxyAPI binary not found. Click 'Install' to download."
+            let rawSource = UserDefaults.standard.string(forKey: ProxyBinarySource.userDefaultsKey)
+            let source = ProxyBinarySource(rawValue: rawSource ?? "") ?? .upstream
+            return source.installHint
         case .startupFailed:
             return "Failed to start proxy server."
         case .operationInProgress:
@@ -1368,28 +1368,94 @@ extension CLIProxyManager {
 // MARK: - Managed Proxy Upgrade
 
 extension CLIProxyManager {
+    var selectedBinarySource: ProxyBinarySource {
+        get {
+            let rawValue = UserDefaults.standard.string(forKey: ProxyBinarySource.userDefaultsKey)
+            return ProxyBinarySource(rawValue: rawValue ?? "") ?? defaultBinarySource()
+        }
+        set {
+            let previousSource = selectedBinarySource
+            guard previousSource != newValue else { return }
+
+            UserDefaults.standard.set(newValue.rawValue, forKey: ProxyBinarySource.userDefaultsKey)
+            UserDefaults.standard.set(true, forKey: ProxyBinarySource.explicitSelectionDefaultsKey)
+            upgradeAvailable = false
+            availableUpgrade = nil
+            lastError = nil
+
+            if proxyStatus.running {
+                restartProxyIfRunning()
+            }
+        }
+    }
+
+    var availableBinarySources: [ProxyBinarySource] {
+        ProxyBinarySource.allCases
+    }
+
+    var shouldPromptForBinarySourceSelection: Bool {
+        !UserDefaults.standard.bool(forKey: ProxyBinarySource.explicitSelectionDefaultsKey)
+    }
+
+    var selectedBinarySourceWarning: String? {
+        selectedBinarySource.legacyAuthWarning
+    }
+
+    func isLegacyAuthWarningNeeded(for provider: AIProvider) -> Bool {
+        guard selectedBinarySource == .upstream else { return false }
+        return provider == .copilot || provider == .kiro
+    }
+
+    func sourceInstallHint(for source: ProxyBinarySource? = nil) -> String {
+        (source ?? selectedBinarySource).installHint
+    }
+
+    func confirmBinarySourceSelection(_ source: ProxyBinarySource) {
+        let previousSource = selectedBinarySource
+        UserDefaults.standard.set(true, forKey: ProxyBinarySource.explicitSelectionDefaultsKey)
+        if previousSource != source {
+            selectedBinarySource = source
+        } else {
+            UserDefaults.standard.set(source.rawValue, forKey: ProxyBinarySource.userDefaultsKey)
+        }
+    }
+
+    func isSourceInstalled(_ source: ProxyBinarySource) -> Bool {
+        if storageManager.hasInstalledVersion(for: source) {
+            return true
+        }
+
+        if source == .plusLocal {
+            return FileManager.default.fileExists(atPath: binaryPath)
+        }
+
+        return false
+    }
     
     /// The effective binary path - uses versioned storage if available, otherwise legacy path.
     var effectiveBinaryPath: String {
-        if let path = storageManager.currentBinaryPath {
+        if let path = storageManager.currentBinaryPath(for: selectedBinarySource) {
             return path
         }
-        return binaryPath
+        if selectedBinarySource == .plusLocal {
+            return binaryPath
+        }
+        return storageManager.expectedBinaryPath(for: selectedBinarySource)
     }
     
     /// Check if versioned storage is being used.
     var isUsingVersionedStorage: Bool {
-        storageManager.hasInstalledVersion
+        storageManager.hasInstalledVersion(for: selectedBinarySource)
     }
     
     /// Get the currently installed version.
     var currentVersion: String? {
-        storageManager.getCurrentVersion()
+        storageManager.getCurrentVersion(for: selectedBinarySource)
     }
     
     /// List all installed versions.
     var installedVersions: [InstalledProxyVersion] {
-        storageManager.listInstalledVersions()
+        storageManager.listInstalledVersions(for: selectedBinarySource)
     }
     
     // MARK: - Upgrade Flow
@@ -1400,10 +1466,16 @@ extension CLIProxyManager {
     func checkForUpgrade() async {
         // Record when this check was performed
         lastProxyUpdateCheckDate = Date()
+
+        guard selectedBinarySource == .upstream else {
+            upgradeAvailable = false
+            availableUpgrade = nil
+            return
+        }
         
         // Use AtomFeedUpdateService for efficient version checking
         let currentVer = currentVersion ?? installedProxyVersion
-        let (latestVersion, isNewer) = await AtomFeedUpdateService.shared.checkForCLIProxyUpdate(currentVersion: currentVer)
+        let (latestVersion, isNewer) = await AtomFeedUpdateService.shared.checkForCLIProxyUpdate(source: selectedBinarySource, currentVersion: currentVer)
 
         guard isNewer, let latestTag = latestVersion else {
             upgradeAvailable = false
@@ -1413,7 +1485,7 @@ extension CLIProxyManager {
 
         // New version available - fetch release details from GitHub API for download URL
         do {
-            let release = try await fetchGitHubRelease(tag: latestTag)
+            let release = try await fetchGitHubRelease(tag: latestTag, source: selectedBinarySource)
 
             guard let asset = findCompatibleAsset(from: release) else {
                 upgradeAvailable = false
@@ -1421,7 +1493,7 @@ extension CLIProxyManager {
                 return
             }
 
-            let versionInfo = ProxyVersionInfo(from: release, asset: asset)
+            let versionInfo = ProxyVersionInfo(from: release, asset: asset, source: selectedBinarySource)
             guard let info = versionInfo else {
                 upgradeAvailable = false
                 availableUpgrade = nil
@@ -1444,20 +1516,33 @@ extension CLIProxyManager {
     /// Stored version from UserDefaults (for legacy single-binary installs).
     /// Public accessor for the settings screen.
     var installedProxyVersion: String? {
-        UserDefaults.standard.string(forKey: "installedProxyVersion")
+        UserDefaults.standard.string(forKey: selectedBinarySource.installedVersionDefaultsKey)
     }
     
     /// Save installed version to UserDefaults.
-    private func saveInstalledVersion(_ version: String) {
-        UserDefaults.standard.set(version, forKey: "installedProxyVersion")
+    private func saveInstalledVersion(_ version: String, source: ProxyBinarySource) {
+        UserDefaults.standard.set(version, forKey: source.installedVersionDefaultsKey)
     }
     
     // MARK: - Fetch All Releases (for Advanced Mode)
     
+    func fetchAvailableVersions(limit: Int = 10) async throws -> [ProxyVersionInfo] {
+        switch selectedBinarySource {
+        case .plusLocal:
+            return [plusLocalVersionInfo()].compactMap { $0 }
+        case .upstream:
+            return try await fetchAvailableUpstreamVersions(limit: limit)
+        }
+    }
+
     /// Fetch all available releases from GitHub.
     /// Used by Advanced Mode to allow users to select a specific version.
-    func fetchAvailableReleases(limit: Int = 10) async throws -> [GitHubRelease] {
-        let urlString = "https://api.github.com/repos/\(Self.githubRepo)/releases?per_page=\(limit)"
+    private func fetchAvailableUpstreamVersions(limit: Int) async throws -> [ProxyVersionInfo] {
+        guard let githubRepo = selectedBinarySource.githubRepo else {
+            return []
+        }
+
+        let urlString = "https://api.github.com/repos/\(githubRepo)/releases?per_page=\(limit)"
         guard let url = URL(string: urlString) else {
             throw ProxyError.networkError("Invalid URL")
         }
@@ -1474,18 +1559,23 @@ extension CLIProxyManager {
             throw ProxyError.networkError("Failed to fetch releases")
         }
 
-        return try JSONDecoder().decode([GitHubRelease].self, from: data)
+        let releases = try JSONDecoder().decode([GitHubRelease].self, from: data)
+        return releases.compactMap { versionInfo(from: $0) }
     }
     
     /// Convert a GitHubRelease to ProxyVersionInfo for a compatible asset.
     func versionInfo(from release: GitHubRelease) -> ProxyVersionInfo? {
         guard let asset = findCompatibleAsset(from: release) else { return nil }
-        return ProxyVersionInfo(from: release, asset: asset)
+        return ProxyVersionInfo(from: release, asset: asset, source: selectedBinarySource)
     }
     
     /// Fetch GitHub release info for a specific tag.
-    private func fetchGitHubRelease(tag: String) async throws -> GitHubRelease {
-        let urlString = "https://api.github.com/repos/\(Self.githubRepo)/releases/tags/\(tag)"
+    private func fetchGitHubRelease(tag: String, source: ProxyBinarySource) async throws -> GitHubRelease {
+        guard let githubRepo = source.githubRepo else {
+            throw ProxyError.networkError("Selected source does not provide online releases")
+        }
+
+        let urlString = "https://api.github.com/repos/\(githubRepo)/releases/tags/\(tag)"
         guard let url = URL(string: urlString) else {
             throw ProxyError.networkError("Invalid URL")
         }
@@ -1543,6 +1633,10 @@ extension CLIProxyManager {
         guard managerState == .active || managerState == .idle else {
             throw ProxyUpgradeError.dryRunFailed("Cannot upgrade while in \(managerState) state")
         }
+
+        guard version.source == selectedBinarySource else {
+            throw ProxyUpgradeError.dryRunFailed("Selected source changed while preparing install")
+        }
         
         upgradeError = nil
         
@@ -1551,17 +1645,17 @@ extension CLIProxyManager {
         
         // Step 2: Perform dry-run
         do {
-            try await startDryRun(version: installed.version)
+            try await startDryRun(version: installed.version, source: version.source)
         } catch {
             // Dry-run failed, cleanup
-            try? storageManager.deleteVersion(installed.version)
+            try? storageManager.deleteVersion(installed.version, source: version.source)
             throw error
         }
         
         // Step 3: Validate compatibility
         guard let testPort = testPort else {
             await stopTestProxy()
-            try? storageManager.deleteVersion(installed.version)
+            try? storageManager.deleteVersion(installed.version, source: version.source)
             throw ProxyUpgradeError.dryRunFailed("Test port not available")
         }
         
@@ -1570,24 +1664,24 @@ extension CLIProxyManager {
         if !compatResult.isCompatible {
             // Compatibility failed, rollback
             await stopTestProxy()
-            try? storageManager.deleteVersion(installed.version)
+            try? storageManager.deleteVersion(installed.version, source: version.source)
             upgradeError = compatResult.description
             NotificationManager.shared.notifyUpgradeFailed(version: installed.version, reason: compatResult.description)
             throw ProxyUpgradeError.compatibilityCheckFailed(compatResult)
         }
         
         // Step 4: Promote the new version
-        try await promote(version: installed.version)
+        try await promote(version: installed.version, source: version.source)
         
         // Cleanup old versions
-        storageManager.cleanupOldVersions(keepLast: AppConstants.maxInstalledVersions)
+        storageManager.cleanupOldVersions(source: version.source, keepLast: AppConstants.maxInstalledVersions)
         
         // Reset upgrade state - no longer available since we just installed it
         upgradeAvailable = false
         availableUpgrade = nil
         
         // Save the installed version
-        saveInstalledVersion(installed.version)
+        saveInstalledVersion(installed.version, source: version.source)
         
         // Suppress any future upgrade notifications for this version
         // This prevents the bug where a notification is shown immediately after upgrading
@@ -1604,22 +1698,33 @@ extension CLIProxyManager {
         defer { isDownloading = false }
         
         // Determine download URL
-        let downloadURL: String
-        if let url = versionInfo.downloadURL {
-            downloadURL = url
-        } else {
-            // Fall back to GitHub release
-            let release = try await fetchLatestRelease()
-            guard let asset = findCompatibleAsset(in: release) else {
-                throw ProxyUpgradeError.downloadFailed("No compatible binary found")
+        let binaryData: Data
+        let assetName: String
+        if let localFilePath = versionInfo.localFilePath {
+            let fileURL = URL(fileURLWithPath: localFilePath)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                throw ProxyUpgradeError.downloadFailed("Local binary not found at \(localFilePath)")
             }
-            downloadURL = asset.downloadURL
+            binaryData = try Data(contentsOf: fileURL)
+            assetName = fileURL.lastPathComponent
+        } else {
+            let downloadURL: String
+            if let url = versionInfo.downloadURL {
+                downloadURL = url
+            } else {
+                // Fall back to GitHub release
+                let release = try await fetchLatestRelease(source: versionInfo.source)
+                guard let asset = findCompatibleAsset(in: release) else {
+                    throw ProxyUpgradeError.downloadFailed("No compatible binary found")
+                }
+                downloadURL = asset.downloadURL
+            }
+            
+            downloadProgress = 0.1
+            binaryData = try await downloadAsset(url: downloadURL)
+            assetName = URL(string: downloadURL)?.lastPathComponent ?? "CLIProxyAPI"
         }
         
-        downloadProgress = 0.1
-        
-        // Download the binary
-        let binaryData = try await downloadAsset(url: downloadURL)
         downloadProgress = 0.6
         
         // Verify checksum - fail if no valid checksum is provided
@@ -1629,11 +1734,9 @@ extension CLIProxyManager {
         try ChecksumVerifier.verifyOrThrow(data: binaryData, expected: versionInfo.sha256)
         downloadProgress = 0.7
         
-        // Determine asset name for extraction
-        let assetName = URL(string: downloadURL)?.lastPathComponent ?? "CLIProxyAPI"
-        
         // Install to versioned storage
         let installed = try await storageManager.installVersion(
+            source: versionInfo.source,
             version: versionInfo.version,
             binaryData: binaryData,
             assetName: assetName
@@ -1644,8 +1747,8 @@ extension CLIProxyManager {
     }
     
     /// Start a dry-run of a specific version on a test port.
-    private func startDryRun(version: String) async throws {
-        guard let binaryPath = storageManager.getBinaryPath(for: version) else {
+    private func startDryRun(version: String, source: ProxyBinarySource) async throws {
+        guard let binaryPath = storageManager.getBinaryPath(for: version, source: source) else {
             throw ProxyUpgradeError.dryRunFailed("Version \(version) not installed")
         }
         
@@ -1715,7 +1818,7 @@ extension CLIProxyManager {
     }
     
     /// Promote a tested version to active.
-    private func promote(version: String) async throws {
+    private func promote(version: String, source: ProxyBinarySource) async throws {
         guard managerState == .testing else {
             throw ProxyUpgradeError.dryRunFailed("Not in testing state")
         }
@@ -1736,7 +1839,7 @@ extension CLIProxyManager {
         }
         
         // Update the current symlink
-        try storageManager.setCurrentVersion(version)
+        try storageManager.setCurrentVersion(version, source: source)
         activeVersion = version
         
         // Restart proxy if it was running
@@ -1765,11 +1868,11 @@ extension CLIProxyManager {
         
         // Delete the problematic current version if different from previous
         if let current = currentVersion, current != previousVersion {
-            try? storageManager.deleteVersion(current)
+            try? storageManager.deleteVersion(current, source: selectedBinarySource)
         }
         
         // Set previous as current
-        try storageManager.setCurrentVersion(previousVersion)
+        try storageManager.setCurrentVersion(previousVersion, source: selectedBinarySource)
         activeVersion = previousVersion
         
         // Restart if was running
@@ -1939,6 +2042,27 @@ extension CLIProxyManager {
         return false // Equal versions
     }
     
+    private func plusLocalVersionInfo() -> ProxyVersionInfo? {
+        guard let bundledBinaryPath = resolveBundledPlusBinaryPath() else {
+            return nil
+        }
+
+        return ProxyVersionInfo(
+            source: .plusLocal,
+            version: ProxyBinarySource.plusLocalVersion,
+            sha256: ProxyBinarySource.plusLocalSHA256,
+            localFilePath: bundledBinaryPath,
+            releaseNotes: "Fixed local CLIProxyAPIPlus binary for legacy compatibility."
+        )
+    }
+
+    private func installLocalPlusBinary() async throws -> InstalledProxyVersion {
+        guard let versionInfo = plusLocalVersionInfo() else {
+            throw ProxyUpgradeError.downloadFailed("Local CLIProxyAPIPlus binary is unavailable")
+        }
+        return try await downloadAndInstallVersion(versionInfo)
+    }
+
     private func findPreviousVersion() -> String? {
         let versions = installedVersions
         let current = currentVersion
@@ -1964,16 +2088,93 @@ extension CLIProxyManager {
         
         // Install to versioned storage (skip checksum for legacy migration)
         _ = try await storageManager.installVersion(
+            source: .plusLocal,
             version: version,
             binaryData: binaryData,
             assetName: "CLIProxyAPI"
         )
         
         // Set as current
-        try storageManager.setCurrentVersion(version)
+        try storageManager.setCurrentVersion(version, source: .plusLocal)
         activeVersion = version
         
         // Optionally remove legacy binary
         try? FileManager.default.removeItem(atPath: binaryPath)
+    }
+
+    private func initializeSelectedBinarySourceIfNeeded() {
+        if UserDefaults.standard.string(forKey: ProxyBinarySource.userDefaultsKey) != nil {
+            return
+        }
+
+        let defaultSource = defaultBinarySource()
+        UserDefaults.standard.set(defaultSource.rawValue, forKey: ProxyBinarySource.userDefaultsKey)
+        UserDefaults.standard.set(defaultSource == .plusLocal, forKey: ProxyBinarySource.explicitSelectionDefaultsKey)
+    }
+
+    private func defaultBinarySource() -> ProxyBinarySource {
+        if storageManager.hasAnyInstalledVersion || FileManager.default.fileExists(atPath: binaryPath) {
+            return .plusLocal
+        }
+        return .upstream
+    }
+
+    private func migrateLegacyVersionedStorageIfNeeded() {
+        let legacyRoot = URL(fileURLWithPath: binaryPath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("proxy")
+        let legacyCurrent = legacyRoot.appendingPathComponent("current")
+        let plusRoot = URL(fileURLWithPath: binaryPath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("proxy")
+            .appendingPathComponent(ProxyBinarySource.plusLocal.storageDirectoryName)
+
+        guard FileManager.default.fileExists(atPath: legacyCurrent.path) else { return }
+        guard !FileManager.default.fileExists(atPath: plusRoot.path) else { return }
+
+        do {
+            try FileManager.default.createDirectory(at: plusRoot, withIntermediateDirectories: true)
+
+            if let contents = try? FileManager.default.contentsOfDirectory(at: legacyRoot, includingPropertiesForKeys: nil) {
+                for item in contents where item.lastPathComponent != ProxyBinarySource.plusLocal.storageDirectoryName &&
+                    item.lastPathComponent != ProxyBinarySource.upstream.storageDirectoryName {
+                    let destination = plusRoot.appendingPathComponent(item.lastPathComponent)
+                    try FileManager.default.moveItem(at: item, to: destination)
+                }
+            }
+        } catch {
+            Log.proxy("Failed to migrate legacy proxy storage: \(error)")
+        }
+    }
+
+    private func resolveBundledPlusBinaryPath() -> String? {
+        let binaryName = ProxyBinarySource.plusLocalBinaryName
+        let resourceSubdirectory = ProxyBinarySource.plusLocalResourceSubdirectory
+
+        let bundleCandidates: [URL?] = [
+            Bundle.main.url(forResource: binaryName, withExtension: nil, subdirectory: resourceSubdirectory),
+            Bundle.main.resourceURL?
+                .appendingPathComponent(resourceSubdirectory, isDirectory: true)
+                .appendingPathComponent(binaryName, isDirectory: false),
+        ]
+
+        for candidate in bundleCandidates.compactMap({ $0 })
+        where FileManager.default.isExecutableFile(atPath: candidate.path) {
+            return candidate.path
+        }
+
+        let repoCandidate = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Resources", isDirectory: true)
+            .appendingPathComponent(resourceSubdirectory, isDirectory: true)
+            .appendingPathComponent(binaryName, isDirectory: false)
+
+        if FileManager.default.isExecutableFile(atPath: repoCandidate.path) {
+            return repoCandidate.path
+        }
+
+        Log.proxy("Bundled CLIProxyAPIPlus binary not found in app resources or repo resources")
+        return nil
     }
 }

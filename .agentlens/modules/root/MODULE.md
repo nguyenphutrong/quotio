@@ -8,10 +8,10 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `Quotio/QuotioApp.swift` | 818 | 📊 |
+| `Quotio/QuotioApp.swift` | 831 | 📊 |
 | `Quotio/Services/AgentConfigurationService.swift` | 1610 | 📊 |
 | `Quotio/Services/AgentDetectionService.swift` | 252 |  |
-| `Quotio/Services/AtomFeedUpdateService.swift` | 533 | 📊 |
+| `Quotio/Services/AtomFeedUpdateService.swift` | 557 | 📊 |
 | `Quotio/Services/CLIExecutor.swift` | 430 |  |
 | `Quotio/Services/ChecksumVerifier.swift` | 78 |  |
 | `Quotio/Services/CompatibilityChecker.swift` | 123 |  |
@@ -26,10 +26,10 @@
 | `Quotio/Services/Logger.swift` | 124 |  |
 | `Quotio/Services/ManagementAPIClient.swift` | 732 | 📊 |
 | `Quotio/Services/NotificationManager.swift` | 334 |  |
-| `Quotio/Services/Proxy/CLIProxyManager.swift` | 1979 | 📊 |
+| `Quotio/Services/Proxy/CLIProxyManager.swift` | 2180 | 📊 |
 | `Quotio/Services/Proxy/FallbackFormatConverter.swift` | 109 |  |
 | `Quotio/Services/Proxy/ProxyBridge.swift` | 1093 | 📊 |
-| `Quotio/Services/Proxy/ProxyStorageManager.swift` | 402 |  |
+| `Quotio/Services/Proxy/ProxyStorageManager.swift` | 424 |  |
 | `Quotio/Services/ProxyConfigurationService.swift` | 96 |  |
 | `Quotio/Services/RequestTracker.swift` | 192 |  |
 | `Quotio/Services/ShellProfileManager.swift` | 121 |  |

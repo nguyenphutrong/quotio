@@ -1089,7 +1089,7 @@ struct ProxyUpdateSettingsSection: View {
             }
             
             // Upgrade status
-            if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+            if proxyManager.selectedBinarySource == .upstream, proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Label {
@@ -1119,36 +1119,42 @@ struct ProxyUpdateSettingsSection: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(isUpgrading || !proxyManager.proxyStatus.running)
+                    .disabled(isUpgrading)
                 }
             } else {
                 HStack {
                     Label {
-                        Text("settings.proxyUpdate.upToDate".localized())
+                        Text(proxyManager.selectedBinarySource == .plusLocal ? "Fixed local version" : "settings.proxyUpdate.upToDate".localized())
                     } icon: {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                     }
                     
                     Spacer()
-                    
-                    Button {
-                        checkForUpdate()
-                    } label: {
-                        ZStack {
-                            Text("settings.proxyUpdate.checkNow".localized())
-                                .opacity(isCheckingForUpdate ? 0 : 1)
-                            
-                            if isCheckingForUpdate {
-                                SmallProgressView()
+
+                    if proxyManager.selectedBinarySource == .upstream {
+                        Button {
+                            checkForUpdate()
+                        } label: {
+                            ZStack {
+                                Text("settings.proxyUpdate.checkNow".localized())
+                                    .opacity(isCheckingForUpdate ? 0 : 1)
+
+                                if isCheckingForUpdate {
+                                    SmallProgressView()
+                                }
                             }
                         }
+                        .disabled(isCheckingForUpdate)
+                    } else {
+                        Text("v\(ProxyBinarySource.plusLocalVersion)")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
                     }
-                    .disabled(isCheckingForUpdate)
                 }
 
                 // Last checked time
-                if let lastCheck = atomFeedService.lastCLIProxyCheck {
+                if proxyManager.selectedBinarySource == .upstream, let lastCheck = atomFeedService.lastCLIProxyCheck {
                     HStack {
                         Text("Last checked")
                             .font(.caption)
@@ -1180,17 +1186,6 @@ struct ProxyUpdateSettingsSection: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                     Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
-            // Proxy must be running hint (only shown when upgrade available but proxy not running)
-            if proxyManager.upgradeAvailable && !proxyManager.proxyStatus.running {
-                HStack {
-                    Image(systemName: "info.circle")
-                        .foregroundStyle(.blue)
-                    Text("settings.proxyUpdate.proxyMustRun".localized())
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1257,7 +1252,7 @@ struct ProxyVersionManagerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(QuotaViewModel.self) private var viewModel
     
-    @State private var availableReleases: [GitHubRelease] = []
+    @State private var availableVersions: [ProxyVersionInfo] = []
     @State private var installedVersions: [InstalledProxyVersion] = []
     @State private var isLoading = false
     @State private var loadError: String?
@@ -1266,11 +1261,23 @@ struct ProxyVersionManagerSheet: View {
     
     // State for deletion warning
     @State private var showDeleteWarning = false
-    @State private var pendingInstallRelease: GitHubRelease?
+    @State private var pendingInstallVersion: ProxyVersionInfo?
     @State private var versionsToDelete: [String] = []
     
     private var proxyManager: CLIProxyManager {
         viewModel.proxyManager
+    }
+
+    private var installedVersionItems: [NamespacedInstalledVersionItem] {
+        installedVersions.map { version in
+            NamespacedInstalledVersionItem(id: "installed-\(version.id)", version: version)
+        }
+    }
+
+    private var availableVersionItems: [NamespacedAvailableVersionItem] {
+        availableVersions.map { versionInfo in
+            NamespacedAvailableVersionItem(id: "available-\(versionInfo.id)", versionInfo: versionInfo)
+        }
     }
     
     var body: some View {
@@ -1282,6 +1289,9 @@ struct ProxyVersionManagerSheet: View {
                         .font(.title2)
                         .fontWeight(.bold)
                     Text("settings.proxyUpdate.advanced.description".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(proxyManager.selectedBinarySource.selectionDescription)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1330,14 +1340,14 @@ struct ProxyVersionManagerSheet: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         // Installed Versions Section
-                        if !installedVersions.isEmpty {
+                if !installedVersions.isEmpty {
                             sectionHeader("settings.proxyUpdate.advanced.installedVersions".localized())
                             
-                            ForEach(installedVersions) { installed in
+                            ForEach(installedVersionItems) { item in
                                 InstalledVersionRow(
-                                    version: installed,
-                                    onActivate: { activateVersion(installed.version) },
-                                    onDelete: { deleteVersion(installed.version) }
+                                    version: item.version,
+                                    onActivate: { activateVersion(item.version.version) },
+                                    onDelete: { deleteVersion(item.version.version) }
                                 )
                                 Divider().padding(.leading, 16)
                             }
@@ -1346,7 +1356,7 @@ struct ProxyVersionManagerSheet: View {
                         // Available Versions Section
                         sectionHeader("settings.proxyUpdate.advanced.availableVersions".localized())
                         
-                        if availableReleases.isEmpty {
+                        if availableVersions.isEmpty {
                             HStack {
                                 Text("settings.proxyUpdate.advanced.noReleases".localized())
                                     .font(.subheadline)
@@ -1355,12 +1365,12 @@ struct ProxyVersionManagerSheet: View {
                             .frame(maxWidth: .infinity)
                             .padding()
                         } else {
-                            ForEach(availableReleases, id: \.tagName) { release in
+                            ForEach(availableVersionItems) { item in
                                 AvailableVersionRow(
-                                    release: release,
-                                    isInstalled: isVersionInstalled(release.versionString),
-                                    isInstalling: installingVersion == release.versionString,
-                                    onInstall: { installVersion(release) }
+                                    versionInfo: item.versionInfo,
+                                    isInstalled: isVersionInstalled(item.versionInfo.version),
+                                    isInstalling: installingVersion == item.versionInfo.version,
+                                    onInstall: { installVersion(item.versionInfo) }
                                 )
                                 Divider().padding(.leading, 16)
                             }
@@ -1396,16 +1406,19 @@ struct ProxyVersionManagerSheet: View {
         .task {
             await loadReleases()
         }
+        .onChange(of: proxyManager.selectedBinarySource) { _, _ in
+            Task { await loadReleases() }
+        }
         .alert("settings.proxyUpdate.deleteWarning.title".localized(), isPresented: $showDeleteWarning) {
             Button("action.cancel".localized(), role: .cancel) {
-                pendingInstallRelease = nil
+                pendingInstallVersion = nil
                 versionsToDelete = []
             }
             Button("settings.proxyUpdate.deleteWarning.confirm".localized(), role: .destructive) {
-                if let release = pendingInstallRelease {
-                    performInstall(release)
+                if let versionInfo = pendingInstallVersion {
+                    performInstall(versionInfo)
                 }
-                pendingInstallRelease = nil
+                pendingInstallVersion = nil
                 versionsToDelete = []
             }
         } message: {
@@ -1441,7 +1454,7 @@ struct ProxyVersionManagerSheet: View {
         loadError = nil
         
         do {
-            availableReleases = try await proxyManager.fetchAvailableReleases(limit: 15)
+            availableVersions = try await proxyManager.fetchAvailableVersions(limit: 15)
             refreshInstalledVersions()
             isLoading = false
         } catch {
@@ -1450,31 +1463,21 @@ struct ProxyVersionManagerSheet: View {
         }
     }
     
-    private func installVersion(_ release: GitHubRelease) {
-        guard proxyManager.versionInfo(from: release) != nil else {
-            installError = "No compatible binary found for this release"
-            return
-        }
-        
+    private func installVersion(_ versionInfo: ProxyVersionInfo) {
         // Check if installing will delete old versions
-        let toDelete = proxyManager.storageManager.versionsToBeDeleted(keepLast: AppConstants.maxInstalledVersions)
+        let toDelete = proxyManager.storageManager.versionsToBeDeleted(source: proxyManager.selectedBinarySource, keepLast: AppConstants.maxInstalledVersions)
         if !toDelete.isEmpty {
             versionsToDelete = toDelete
-            pendingInstallRelease = release
+            pendingInstallVersion = versionInfo
             showDeleteWarning = true
             return
         }
         
-        performInstall(release)
+        performInstall(versionInfo)
     }
     
-    private func performInstall(_ release: GitHubRelease) {
-        guard let versionInfo = proxyManager.versionInfo(from: release) else {
-            installError = "No compatible binary found for this release"
-            return
-        }
-        
-        installingVersion = release.versionString
+    private func performInstall(_ versionInfo: ProxyVersionInfo) {
+        installingVersion = versionInfo.version
         installError = nil
         
         Task { @MainActor in
@@ -1496,7 +1499,7 @@ struct ProxyVersionManagerSheet: View {
                 if wasRunning {
                     proxyManager.stop()
                 }
-                try proxyManager.storageManager.setCurrentVersion(version)
+                try proxyManager.storageManager.setCurrentVersion(version, source: proxyManager.selectedBinarySource)
                 if wasRunning {
                     try await proxyManager.start()
                 }
@@ -1509,12 +1512,22 @@ struct ProxyVersionManagerSheet: View {
     
     private func deleteVersion(_ version: String) {
         do {
-            try proxyManager.storageManager.deleteVersion(version)
+            try proxyManager.storageManager.deleteVersion(version, source: proxyManager.selectedBinarySource)
             refreshInstalledVersions()
         } catch {
             installError = error.localizedDescription
         }
     }
+}
+
+private struct NamespacedInstalledVersionItem: Identifiable {
+    let id: String
+    let version: InstalledProxyVersion
+}
+
+private struct NamespacedAvailableVersionItem: Identifiable {
+    let id: String
+    let versionInfo: ProxyVersionInfo
 }
 
 // MARK: - Installed Version Row
@@ -1578,41 +1591,30 @@ private struct InstalledVersionRow: View {
 // MARK: - Available Version Row
 
 private struct AvailableVersionRow: View {
-    let release: GitHubRelease
+    let versionInfo: ProxyVersionInfo
     let isInstalled: Bool
     let isInstalling: Bool
     let onInstall: () -> Void
-    
-    // Cached DateFormatters to avoid repeated allocations (performance fix)
-    private static let isoFormatterWithFractional: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-    
-    private static let isoFormatterStandard: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-    
-    private static let displayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
-    }()
     
     var body: some View {
         HStack(spacing: 12) {
             // Version info
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text("v\(release.versionString)")
+                    Text("v\(versionInfo.version)")
                         .font(.system(.body, design: .monospaced))
                         .fontWeight(.medium)
                     
-                    if release.prerelease {
+                    if versionInfo.source == .plusLocal {
+                        Text("Local")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.15))
+                            .clipShape(Capsule())
+                    } else if versionInfo.version.contains("-rc") {
                         Text("settings.proxyUpdate.advanced.prerelease".localized())
                             .font(.caption2)
                             .fontWeight(.medium)
@@ -1635,11 +1637,9 @@ private struct AvailableVersionRow: View {
                     }
                 }
                 
-                if let publishedAt = release.publishedAt {
-                    Text(formatDate(publishedAt))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text(versionInfo.source.shortDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             
             Spacer()
@@ -1662,20 +1662,6 @@ private struct AvailableVersionRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-    }
-    
-    private func formatDate(_ isoString: String) -> String {
-        // Try with fractional seconds first
-        if let date = Self.isoFormatterWithFractional.date(from: isoString) {
-            return Self.displayFormatter.string(from: date)
-        }
-        
-        // Try without fractional seconds
-        if let date = Self.isoFormatterStandard.date(from: isoString) {
-            return Self.displayFormatter.string(from: date)
-        }
-        
-        return isoString
     }
 }
 
@@ -2152,248 +2138,6 @@ struct AboutScreen: View {
     }
 }
 
-// MARK: - About Update Section
-
-struct AboutUpdateSection: View {
-    @AppStorage("autoCheckUpdates") private var autoCheckUpdates = true
-    
-    #if canImport(Sparkle)
-    private let updaterService = UpdaterService.shared
-    #endif
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("settings.updates".localized(), systemImage: "arrow.down.circle")
-                .font(.headline)
-            
-            #if canImport(Sparkle)
-            HStack {
-                Toggle("settings.autoCheckUpdates".localized(), isOn: $autoCheckUpdates)
-                    .onChange(of: autoCheckUpdates) { _, newValue in
-                        updaterService.automaticallyChecksForUpdates = newValue
-                    }
-            }
-            
-            HStack {
-                Text("settings.lastChecked".localized())
-                Spacer()
-                if let date = updaterService.lastUpdateCheckDate {
-                    Text(date, style: .relative)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("settings.never".localized())
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .font(.subheadline)
-            
-            Button("settings.checkNow".localized()) {
-                updaterService.checkForUpdates()
-            }
-            .buttonStyle(.bordered)
-            .disabled(!updaterService.canCheckForUpdates)
-            #else
-            Text("settings.version".localized() + ": " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"))
-            #endif
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .onAppear {
-            #if canImport(Sparkle)
-            updaterService.initializeIfNeeded()
-            #endif
-        }
-    }
-}
-
-// MARK: - About Proxy Update Section
-
-struct AboutProxyUpdateSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
-    @State private var isCheckingForUpdate = false
-    @State private var isUpgrading = false
-    @State private var upgradeError: String?
-    @State private var showAdvancedSheet = false
-
-    private var proxyManager: CLIProxyManager {
-        viewModel.proxyManager
-    }
-
-    private var atomFeedService: AtomFeedUpdateService {
-        AtomFeedUpdateService.shared
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("settings.proxyUpdate".localized(), systemImage: "shippingbox.and.arrow.backward")
-                .font(.headline)
-            
-            // Current version
-            HStack {
-                Text("settings.proxyUpdate.currentVersion".localized())
-                Spacer()
-                if let version = proxyManager.currentVersion ?? proxyManager.installedProxyVersion {
-                    Text("v\(version)")
-                        .font(.system(.body, design: .monospaced))
-                } else {
-                    Text("settings.proxyUpdate.unknown".localized())
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .font(.subheadline)
-            
-            // Upgrade status
-            if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label {
-                            Text("settings.proxyUpdate.available".localized())
-                        } icon: {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .foregroundStyle(.green)
-                        }
-                        
-                        Text("v\(upgrade.version)")
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button {
-                        performUpgrade(to: upgrade)
-                    } label: {
-                        ZStack {
-                            Text("action.update".localized())
-                                .opacity(isUpgrading ? 0 : 1)
-                            
-                            if isUpgrading {
-                                SmallProgressView()
-                            }
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isUpgrading || !proxyManager.proxyStatus.running)
-                }
-            } else {
-                HStack {
-                    Label {
-                        Text("settings.proxyUpdate.upToDate".localized())
-                    } icon: {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    }
-                    
-                    Spacer()
-                    
-                    Button {
-                        checkForUpdate()
-                    } label: {
-                        ZStack {
-                            Text("settings.proxyUpdate.checkNow".localized())
-                                .opacity(isCheckingForUpdate ? 0 : 1)
-                            
-                            if isCheckingForUpdate {
-                                SmallProgressView()
-                            }
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isCheckingForUpdate)
-                }
-
-                // Last checked time
-                if let lastCheck = atomFeedService.lastCLIProxyCheck {
-                    HStack {
-                        Text("Last checked")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(lastCheck, style: .relative)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            
-            // Error message
-            if let error = upgradeError {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
-            // Proxy must be running hint
-            if !proxyManager.proxyStatus.running {
-                HStack {
-                    Image(systemName: "info.circle")
-                        .foregroundStyle(.blue)
-                    Text("settings.proxyUpdate.proxyMustRun".localized())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
-            // Advanced button
-            Button {
-                showAdvancedSheet = true
-            } label: {
-                HStack {
-                    Label("settings.proxyUpdate.advanced".localized(), systemImage: "gearshape.2")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .buttonStyle(.plain)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .sheet(isPresented: $showAdvancedSheet) {
-            ProxyVersionManagerSheet()
-                .environment(viewModel)
-        }
-    }
-    
-    private func checkForUpdate() {
-        isCheckingForUpdate = true
-        upgradeError = nil
-
-        Task { @MainActor in
-            defer {
-                // Always reset loading state
-                isCheckingForUpdate = false
-            }
-
-            await proxyManager.checkForUpgrade()
-        }
-    }
-    
-    private func performUpgrade(to version: ProxyVersionInfo) {
-        isUpgrading = true
-        upgradeError = nil
-        
-        Task { @MainActor in
-            do {
-                try await proxyManager.performManagedUpgrade(to: version)
-                isUpgrading = false
-            } catch {
-                upgradeError = error.localizedDescription
-                isUpgrading = false
-            }
-        }
-    }
-}
-
 // MARK: - Version Badge
 
 struct VersionBadge: View {
@@ -2458,14 +2202,11 @@ struct AboutUpdateCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "arrow.down.circle")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
-                Text("settings.updates".localized())
-                    .font(.headline)
-                Spacer()
-            }
+            cardHeader(
+                title: "settings.updates".localized(),
+                systemImage: "arrow.down.circle",
+                color: .blue
+            )
             
             #if canImport(Sparkle)
             HStack {
@@ -2494,6 +2235,8 @@ struct AboutUpdateCard: View {
                     .controlSize(.small)
             }
             
+            Divider()
+
             HStack {
                 Text("settings.lastChecked".localized())
                 Spacer()
@@ -2504,15 +2247,19 @@ struct AboutUpdateCard: View {
                     Text("settings.never".localized())
                         .foregroundStyle(.secondary)
                 }
-                
-                Button("settings.checkNow".localized()) {
-                    updaterService.checkForUpdates()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            HStack {
+                Spacer()
+
+                Button("settings.checkNow".localized()) {
+                    updaterService.checkForUpdates()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
             #else
             Text("settings.version".localized() + ": " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"))
                 .font(.caption)
@@ -2554,107 +2301,106 @@ struct AboutProxyUpdateCard: View {
     private var atomFeedService: AtomFeedUpdateService {
         AtomFeedUpdateService.shared
     }
+
+    private var currentVersionText: String {
+        if let version = proxyManager.currentVersion ?? proxyManager.installedProxyVersion {
+            return "v\(version)"
+        }
+        return "Not installed"
+    }
+
+    private var statusText: String {
+        if proxyManager.selectedBinarySource == .plusLocal {
+            return proxyManager.currentVersion == nil && proxyManager.installedProxyVersion == nil
+                ? "Local install required"
+                : "Fixed local version"
+        }
+
+        if proxyManager.currentVersion == nil && proxyManager.installedProxyVersion == nil {
+            return "Install required"
+        }
+
+        if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+            return "Update available: v\(upgrade.version)"
+        }
+
+        return "Up to date"
+    }
+
+    private var statusColor: Color {
+        if upgradeError != nil {
+            return .orange
+        }
+        if proxyManager.selectedBinarySource == .upstream && proxyManager.upgradeAvailable {
+            return .green
+        }
+        return .secondary
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "shippingbox.and.arrow.backward")
-                    .font(.title3)
-                    .foregroundStyle(.purple)
-                Text("settings.proxyUpdate".localized())
-                    .font(.headline)
-                Spacer()
+            cardHeader(
+                title: "settings.proxyUpdate".localized(),
+                systemImage: "shippingbox.and.arrow.backward",
+                color: .purple
+            )
+
+            VStack(spacing: 10) {
+                ForEach(proxyManager.availableBinarySources) { source in
+                    ProxyBinarySourceOptionBlock(
+                        source: source,
+                        isSelected: proxyManager.selectedBinarySource == source
+                    ) {
+                        proxyManager.confirmBinarySourceSelection(source)
+                    }
+                }
             }
-            
-            // Current version row
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(proxyManager.selectedBinarySource.detailDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let warning = proxyManager.selectedBinarySourceWarning {
+                    Text(warning)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            Divider()
+
             HStack {
                 Text("settings.proxyUpdate.currentVersion".localized())
-                if let version = proxyManager.currentVersion ?? proxyManager.installedProxyVersion {
-                    Text("v\(version)")
-                        .font(.system(.subheadline).monospaced())
-                        .fontWeight(.medium)
-                } else {
-                    Text("settings.proxyUpdate.unknown".localized())
-                        .foregroundStyle(.secondary)
-                }
                 Spacer()
+                Text(currentVersionText)
+                    .font(.system(.subheadline, design: .monospaced))
+                    .fontWeight(.medium)
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
-            
-            // Upgrade status with action buttons
-            if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
-                HStack {
-                    Label {
-                        Text("v\(upgrade.version) " + "settings.proxyUpdate.available".localized())
-                    } icon: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .foregroundStyle(.green)
-                    }
-                    .font(.caption)
-                    
-                    Spacer()
-                    
-                    Button {
-                        performUpgrade(to: upgrade)
-                    } label: {
-                        ZStack {
-                            Text("action.update".localized())
-                                .opacity(isUpgrading ? 0 : 1)
-                            
-                            if isUpgrading {
-                                SmallProgressView()
-                            }
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(isUpgrading || !proxyManager.proxyStatus.running)
-                }
-            } else {
-                HStack {
-                    Label {
-                        Text("settings.proxyUpdate.upToDate".localized())
-                    } icon: {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    }
-                    .font(.caption)
-                    
-                    Spacer()
-                    
-                    Button {
-                        checkForUpdate()
-                    } label: {
-                        ZStack {
-                            Text("settings.proxyUpdate.checkNow".localized())
-                                .opacity(isCheckingForUpdate ? 0 : 1)
-                            
-                            if isCheckingForUpdate {
-                                SmallProgressView()
-                            }
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(isCheckingForUpdate)
-                }
 
-                // Last checked time
-                if let lastCheck = atomFeedService.lastCLIProxyCheck {
-                    HStack {
-                        Text("Last checked")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(lastCheck, style: .relative)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 8, height: 8)
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(statusColor == .secondary ? .secondary : .primary)
+            }
+
+            if proxyManager.selectedBinarySource == .upstream, let lastCheck = atomFeedService.lastCLIProxyCheck {
+                HStack {
+                    Text("Last checked")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(lastCheck, style: .relative)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             
-            // Error message
             if let error = upgradeError {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -2664,19 +2410,58 @@ struct AboutProxyUpdateCard: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            
-            // Proxy must be running hint (only for Update action, not Check)
-            if proxyManager.upgradeAvailable && !proxyManager.proxyStatus.running {
-                HStack {
-                    Image(systemName: "info.circle")
-                        .foregroundStyle(.blue)
-                    Text("settings.proxyUpdate.proxyMustRun".localized())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
+
             HStack {
+                if proxyManager.selectedBinarySource == .upstream {
+                    Button {
+                        checkForUpdate()
+                    } label: {
+                        ZStack {
+                            Text("settings.proxyUpdate.checkNow".localized())
+                                .opacity(isCheckingForUpdate ? 0 : 1)
+
+                            if isCheckingForUpdate {
+                                SmallProgressView()
+                            }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isCheckingForUpdate)
+
+                    if let upgrade = proxyManager.availableUpgrade {
+                        Button {
+                            performUpgrade(to: upgrade)
+                        } label: {
+                            ZStack {
+                                Text("action.update".localized())
+                                    .opacity(isUpgrading ? 0 : 1)
+
+                                if isUpgrading {
+                                    SmallProgressView()
+                                }
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(isUpgrading)
+                    }
+                } else if currentVersionText == "Not installed" {
+                    Button {
+                        Task {
+                            do {
+                                try await proxyManager.downloadAndInstallBinary()
+                            } catch {
+                                upgradeError = error.localizedDescription
+                            }
+                        }
+                    } label: {
+                        Text(proxyManager.selectedBinarySource.installActionTitle)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+
                 Spacer()
                 
                 Button {
@@ -2741,6 +2526,124 @@ struct AboutProxyUpdateCard: View {
                 isUpgrading = false
             }
         }
+    }
+}
+
+private struct ProxyBinarySourceOptionBlock: View {
+    let source: ProxyBinarySource
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(source.selectionDescription)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+
+                    Text(source.detailDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.45) : Color.secondary.opacity(0.15), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct ProxyBinarySourceSelectionSheet: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedSource: ProxyBinarySource = .upstream
+
+    private var proxyManager: CLIProxyManager {
+        viewModel.proxyManager
+    }
+
+    var onDismiss: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Choose Your Proxy")
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                Text("Select which proxy family Quotio should use by default. You can change this later in About > Proxy Updates.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 10) {
+                ForEach(proxyManager.availableBinarySources) { source in
+                    ProxyBinarySourceOptionBlock(
+                        source: source,
+                        isSelected: selectedSource == source
+                    ) {
+                        selectedSource = source
+                    }
+                }
+            }
+
+            if selectedSource == .upstream, let warning = selectedSource.legacyAuthWarning {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(warning)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(12)
+                .background(Color.orange.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            HStack {
+                Spacer()
+
+                Button("Continue") {
+                    proxyManager.confirmBinarySourceSelection(selectedSource)
+                    onDismiss?()
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(24)
+        .frame(width: 520)
+        .interactiveDismissDisabled()
+        .onAppear {
+            selectedSource = proxyManager.selectedBinarySource
+        }
+    }
+}
+
+private func cardHeader(title: String, systemImage: String, color: Color) -> some View {
+    HStack {
+        Image(systemName: systemImage)
+            .font(.title3)
+            .foregroundStyle(color)
+        Text(title)
+            .font(.headline)
+        Spacer()
     }
 }
 
