@@ -755,7 +755,7 @@ struct DashboardScreen: View {
                         TunnelStatusBadge(status: tunnelManager.tunnelState.status, compact: true)
                     }
                     
-                    if tunnelManager.tunnelState.isActive, let url = tunnelManager.tunnelState.publicURL {
+                    if tunnelManager.tunnelState.isActive, let url = tunnelManager.effectivePublicURL {
                         Text(url)
                             .font(.caption)
                             .foregroundStyle(.secondary)

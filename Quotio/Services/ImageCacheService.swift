@@ -117,7 +117,9 @@ final class ImageCacheService: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.cache.countLimit = 20
+            MainActor.assumeIsolated {
+                self?.cache.countLimit = 20
+            }
         }
 
         NotificationCenter.default.addObserver(
@@ -125,7 +127,9 @@ final class ImageCacheService: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.cache.countLimit = 50
+            MainActor.assumeIsolated {
+                self?.cache.countLimit = 50
+            }
         }
     }
 }

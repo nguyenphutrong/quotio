@@ -13,8 +13,10 @@ import Security
 enum KeychainHelper {
     private static let remoteService = "dev.quotio.desktop.remote-management"
     private static let localService = "dev.quotio.desktop.local-management"
+    private static let cloudflareTunnelService = "dev.quotio.desktop.cloudflare-tunnel"
     private static let warpService = "dev.quotio.desktop.warp"
     private static let localManagementAccount = "local-management-key"
+    private static let cloudflareTunnelTokenAccount = "cloudflare-tunnel-token"
     private static let warpTokensAccount = "warp-tokens"
     private static let localManagementDefaultsKey = "managementKey"
     private static let warpTokensDefaultsKey = "warpTokens"
@@ -106,6 +108,23 @@ enum KeychainHelper {
             Log.keychain("Failed to save Warp tokens")
         }
         return saved
+    }
+
+    static func saveCloudflareTunnelToken(_ token: String) -> Bool {
+        guard let data = token.data(using: .utf8) else { return false }
+        let saved = saveData(data, service: cloudflareTunnelService, account: cloudflareTunnelTokenAccount)
+        if !saved {
+            Log.keychain("Failed to save Cloudflare tunnel token")
+        }
+        return saved
+    }
+
+    static func getCloudflareTunnelToken() -> String? {
+        readString(service: cloudflareTunnelService, account: cloudflareTunnelTokenAccount)
+    }
+
+    static func deleteCloudflareTunnelToken() {
+        deleteData(service: cloudflareTunnelService, account: cloudflareTunnelTokenAccount)
     }
 
     static func getWarpTokens() -> Data? {
