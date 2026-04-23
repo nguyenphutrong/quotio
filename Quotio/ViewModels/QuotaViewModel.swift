@@ -1646,8 +1646,8 @@ final class QuotaViewModel {
             guard url.startAccessingSecurityScopedResource() else {
                 throw NSError(domain: "Quotio", code: 403, userInfo: [NSLocalizedDescriptionKey: "Permission denied"])
             }
+            defer { url.stopAccessingSecurityScopedResource() }
             let data = try Data(contentsOf: url)
-            url.stopAccessingSecurityScopedResource()
             
             try await client.uploadVertexServiceAccount(data: data)
             await refreshData()
