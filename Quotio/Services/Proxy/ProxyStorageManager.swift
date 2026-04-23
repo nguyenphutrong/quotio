@@ -23,7 +23,6 @@ final class ProxyStorageManager {
     
     private let fileManager = FileManager.default
     private let proxyDir: URL
-    private let currentSymlink: URL
     private static let binaryName = "CLIProxyAPI"
     
     private init() {
@@ -31,28 +30,35 @@ final class ProxyStorageManager {
             fatalError("Application Support directory not found")
         }
         self.proxyDir = appSupport.appendingPathComponent("Quotio/proxy")
-        self.currentSymlink = proxyDir.appendingPathComponent("current")
-        
         try? fileManager.createDirectory(at: proxyDir, withIntermediateDirectories: true)
     }
     
     // MARK: - Public Properties
     
     /// Path to the currently active proxy binary.
-    var currentBinaryPath: String? {
-        let binaryPath = currentSymlink.appendingPathComponent(Self.binaryName).path
+    func currentBinaryPath(for source: ProxyBinarySource) -> String? {
+        let binaryPath = currentSymlink(for: source).appendingPathComponent(Self.binaryName).path
         return fileManager.fileExists(atPath: binaryPath) ? binaryPath : nil
+    }
+
+    func expectedBinaryPath(for source: ProxyBinarySource) -> String {
+        currentSymlink(for: source).appendingPathComponent(Self.binaryName).path
     }
     
     /// Check if any proxy version is installed.
-    var hasInstalledVersion: Bool {
-        currentBinaryPath != nil
+    func hasInstalledVersion(for source: ProxyBinarySource) -> Bool {
+        currentBinaryPath(for: source) != nil
+    }
+
+    var hasAnyInstalledVersion: Bool {
+        ProxyBinarySource.allCases.contains { hasInstalledVersion(for: $0) }
     }
     
     // MARK: - Version Management
     
     /// Get the currently active version.
-    func getCurrentVersion() -> String? {
+    func getCurrentVersion(for source: ProxyBinarySource) -> String? {
+        let currentSymlink = currentSymlink(for: source)
         guard fileManager.fileExists(atPath: currentSymlink.path) else { return nil }
         
         do {
@@ -70,15 +76,17 @@ final class ProxyStorageManager {
     }
     
     /// List all installed proxy versions.
-    func listInstalledVersions() -> [InstalledProxyVersion] {
+    func listInstalledVersions(for source: ProxyBinarySource) -> [InstalledProxyVersion] {
+        let sourceDirectory = directory(for: source)
+
         guard let contents = try? fileManager.contentsOfDirectory(
-            at: proxyDir,
+            at: sourceDirectory,
             includingPropertiesForKeys: [.creationDateKey, .isDirectoryKey]
         ) else {
             return []
         }
         
-        let currentVersion = getCurrentVersion()
+        let currentVersion = getCurrentVersion(for: source)
         
         return contents.compactMap { url -> InstalledProxyVersion? in
             let name = url.lastPathComponent
@@ -102,6 +110,7 @@ final class ProxyStorageManager {
             let creationDate = (try? fileManager.attributesOfItem(atPath: url.path)[.creationDate] as? Date) ?? Date()
             
             return InstalledProxyVersion(
+                source: source,
                 version: version,
                 path: binaryPath,
                 installedAt: creationDate,
@@ -112,8 +121,8 @@ final class ProxyStorageManager {
     }
     
     /// Get the binary path for a specific version.
-    func getBinaryPath(for version: String) -> String? {
-        let versionDir = proxyDir.appendingPathComponent("v\(version)")
+    func getBinaryPath(for version: String, source: ProxyBinarySource) -> String? {
+        let versionDir = directory(for: source).appendingPathComponent("v\(version)")
         let binaryPath = versionDir.appendingPathComponent(Self.binaryName).path
         
         return fileManager.fileExists(atPath: binaryPath) ? binaryPath : nil
@@ -127,8 +136,11 @@ final class ProxyStorageManager {
     ///   - binaryData: The raw binary data (or compressed archive)
     ///   - assetName: Original asset filename to determine extraction method
     /// - Returns: The installed version info
-    func installVersion(version: String, binaryData: Data, assetName: String) async throws -> InstalledProxyVersion {
-        let versionDir = proxyDir.appendingPathComponent("v\(version)")
+    func installVersion(source: ProxyBinarySource, version: String, binaryData: Data, assetName: String) async throws -> InstalledProxyVersion {
+        let sourceDirectory = directory(for: source)
+        try fileManager.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+
+        let versionDir = sourceDirectory.appendingPathComponent("v\(version)")
         let binaryPath = versionDir.appendingPathComponent(Self.binaryName)
         
         // Check if already installed
@@ -150,6 +162,7 @@ final class ProxyStorageManager {
             try await signBinary(at: binaryPath.path)
             
             return InstalledProxyVersion(
+                source: source,
                 version: version,
                 path: binaryPath.path,
                 installedAt: Date(),
@@ -164,8 +177,9 @@ final class ProxyStorageManager {
     
     /// Set the current version by updating the symlink.
     /// - Parameter version: The version to make active
-    func setCurrentVersion(_ version: String) throws {
-        let versionDir = proxyDir.appendingPathComponent("v\(version)")
+    func setCurrentVersion(_ version: String, source: ProxyBinarySource) throws {
+        let currentSymlink = currentSymlink(for: source)
+        let versionDir = directory(for: source).appendingPathComponent("v\(version)")
         
         // Verify version exists
         guard fileManager.fileExists(atPath: versionDir.path) else {
@@ -187,15 +201,15 @@ final class ProxyStorageManager {
     /// Delete an installed version.
     /// - Parameter version: The version to delete
     /// - Throws: If trying to delete the current version
-    func deleteVersion(_ version: String) throws {
-        let currentVersion = getCurrentVersion()
+    func deleteVersion(_ version: String, source: ProxyBinarySource) throws {
+        let currentVersion = getCurrentVersion(for: source)
         
         // Prevent deleting current version
         if version == currentVersion {
             throw ProxyUpgradeError.cannotDeleteCurrentVersion
         }
         
-        let versionDir = proxyDir.appendingPathComponent("v\(version)")
+        let versionDir = directory(for: source).appendingPathComponent("v\(version)")
         
         if fileManager.fileExists(atPath: versionDir.path) {
             try fileManager.removeItem(at: versionDir)
@@ -205,9 +219,9 @@ final class ProxyStorageManager {
     /// Cleanup old versions, keeping the specified number of recent versions.
     /// Never deletes the current active version.
     /// - Parameter keepLast: Number of versions to keep (including current)
-    func cleanupOldVersions(keepLast: Int = AppConstants.maxInstalledVersions) {
-        let versions = listInstalledVersions()
-        let currentVersion = getCurrentVersion()
+    func cleanupOldVersions(source: ProxyBinarySource, keepLast: Int = AppConstants.maxInstalledVersions) {
+        let versions = listInstalledVersions(for: source)
+        let currentVersion = getCurrentVersion(for: source)
         
         // Always keep at least the current version
         let versionsToKeep = max(keepLast, 1)
@@ -226,16 +240,16 @@ final class ProxyStorageManager {
             // Double-check: never delete current
             guard version.version != currentVersion else { continue }
             
-            try? deleteVersion(version.version)
+            try? deleteVersion(version.version, source: source)
         }
     }
     
     /// Get versions that would be deleted if a new version is installed.
     /// - Parameter keepLast: Number of versions to keep (including current)
     /// - Returns: List of version strings that will be deleted
-    func versionsToBeDeleted(keepLast: Int = AppConstants.maxInstalledVersions) -> [String] {
-        let versions = listInstalledVersions()
-        let currentVersion = getCurrentVersion()
+    func versionsToBeDeleted(source: ProxyBinarySource, keepLast: Int = AppConstants.maxInstalledVersions) -> [String] {
+        let versions = listInstalledVersions(for: source)
+        let currentVersion = getCurrentVersion(for: source)
         
         // After installing a new version, we'll have versions.count + 1 versions
         let futureCount = versions.count + 1
@@ -258,6 +272,14 @@ final class ProxyStorageManager {
     }
     
     // MARK: - Private Helpers
+
+    private func directory(for source: ProxyBinarySource) -> URL {
+        proxyDir.appendingPathComponent(source.storageDirectoryName)
+    }
+
+    private func currentSymlink(for source: ProxyBinarySource) -> URL {
+        directory(for: source).appendingPathComponent("current")
+    }
     
     private func extractAndInstall(data: Data, assetName: String, destination: URL) async throws {
         let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)

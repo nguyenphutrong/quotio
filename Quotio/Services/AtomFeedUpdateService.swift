@@ -49,7 +49,6 @@ final class AtomFeedUpdateService {
 
     // MARK: - Feed URLs
 
-    private static let cliProxyFeedURL = "https://github.com/router-for-me/CLIProxyAPIPlus/releases.atom"
     private static let quotioFeedURL = "https://github.com/nguyenphutrong/quotio/releases.atom"
 
     // MARK: - Cache Keys
@@ -108,10 +107,14 @@ final class AtomFeedUpdateService {
 
     /// Check for CLIProxyAPI updates using Atom feed with ETag caching.
     /// Returns the latest version if an update is available, nil if up-to-date or error.
-    func checkForCLIProxyUpdate(currentVersion: String?) async -> (latestVersion: String?, isNewRelease: Bool) {
+    func checkForCLIProxyUpdate(source: ProxyBinarySource, currentVersion: String?) async -> (latestVersion: String?, isNewRelease: Bool) {
+        guard let feedURL = source.releasesFeedURL else {
+            return (nil, false)
+        }
+
         let result = await fetchAtomFeed(
-            url: Self.cliProxyFeedURL,
-            cacheKey: Self.cliProxyCacheKey
+            url: feedURL,
+            cacheKey: cacheKey(for: source)
         )
 
         switch result {
@@ -122,7 +125,7 @@ final class AtomFeedUpdateService {
 
             // Save cache state
             saveCacheState(
-                cacheKey: Self.cliProxyCacheKey,
+                cacheKey: cacheKey(for: source),
                 etag: etag,
                 latestVersion: latest.version
             )
@@ -138,7 +141,7 @@ final class AtomFeedUpdateService {
 
         case .notModified:
             // Feed hasn't changed, check cached version
-            if let cached = loadCacheState(cacheKey: Self.cliProxyCacheKey) {
+            if let cached = loadCacheState(cacheKey: cacheKey(for: source)) {
                 let isNewer: Bool
                 if let current = currentVersion {
                     isNewer = isNewerVersion(cached.latestVersion, than: current)
@@ -202,10 +205,14 @@ final class AtomFeedUpdateService {
     }
 
     /// Force refresh without using cached ETag (for manual "Check for Updates" button)
-    func forceCheckForCLIProxyUpdate(currentVersion: String?) async -> (latestVersion: String?, isNewRelease: Bool) {
+    func forceCheckForCLIProxyUpdate(source: ProxyBinarySource, currentVersion: String?) async -> (latestVersion: String?, isNewRelease: Bool) {
+        guard source.releasesFeedURL != nil else {
+            return (nil, false)
+        }
+
         // Clear cached ETag to force full fetch
-        UserDefaults.standard.removeObject(forKey: Self.cliProxyCacheKey)
-        return await checkForCLIProxyUpdate(currentVersion: currentVersion)
+        UserDefaults.standard.removeObject(forKey: cacheKey(for: source))
+        return await checkForCLIProxyUpdate(source: source, currentVersion: currentVersion)
     }
 
     // MARK: - Background Polling
@@ -213,7 +220,7 @@ final class AtomFeedUpdateService {
     /// Start background polling for CLIProxyAPI updates.
     /// Polls every 5 minutes using ETag caching for efficiency.
     /// - Parameter getCurrentVersion: Closure that returns the current installed version
-    func startPolling(getCurrentVersion: @escaping () -> String?) {
+    func startPolling(getCurrentSource: @escaping () -> ProxyBinarySource, getCurrentVersion: @escaping () -> String?) {
         guard !isPollingEnabled else { return }
         isPollingEnabled = true
 
@@ -226,7 +233,7 @@ final class AtomFeedUpdateService {
             while !Task.isCancelled {
                 guard let self = self else { break }
 
-                await self.performPollingCheck(getCurrentVersion: getCurrentVersion)
+                await self.performPollingCheck(getCurrentSource: getCurrentSource, getCurrentVersion: getCurrentVersion)
 
                 // Wait for next polling interval
                 try? await Task.sleep(nanoseconds: Self.pollingIntervalSeconds * 1_000_000_000)
@@ -245,19 +252,25 @@ final class AtomFeedUpdateService {
     }
 
     /// Perform a single polling check and update observable state.
-    private func performPollingCheck(getCurrentVersion: () -> String?) async {
+    private func performPollingCheck(getCurrentSource: () -> ProxyBinarySource, getCurrentVersion: () -> String?) async {
         isChecking = true
         defer { isChecking = false }
 
+        let source = getCurrentSource()
         let currentVersion = getCurrentVersion()
-        let (latestVersion, isNewer) = await checkForCLIProxyUpdate(currentVersion: currentVersion)
+        let (latestVersion, isNewer) = await checkForCLIProxyUpdate(source: source, currentVersion: currentVersion)
 
         lastCLIProxyCheck = Date()
         latestCLIProxyVersion = latestVersion
 
+        if source.releasesFeedURL == nil {
+            cliProxyUpdateAvailable = false
+            return
+        }
+
         if isNewer && latestVersion != nil {
             // Only notify if this is a NEW update (not previously notified)
-            let notifiedKey = "notifiedCLIProxyVersion"
+            let notifiedKey = source.notificationVersionKey
             let previouslyNotified = UserDefaults.standard.string(forKey: notifiedKey)
 
             if previouslyNotified != latestVersion {
@@ -281,11 +294,18 @@ final class AtomFeedUpdateService {
         isChecking = true
         defer { isChecking = false }
 
-        let (latestVersion, isNewer) = await forceCheckForCLIProxyUpdate(currentVersion: currentVersion)
+        let source = CLIProxyManager.shared.selectedBinarySource
+        let (latestVersion, isNewer) = await forceCheckForCLIProxyUpdate(source: source, currentVersion: currentVersion)
 
         lastCLIProxyCheck = Date()
         latestCLIProxyVersion = latestVersion
         cliProxyUpdateAvailable = isNewer && latestVersion != nil
+
+        if source.releasesFeedURL == nil {
+            cliProxyUpdateAvailable = false
+            latestCLIProxyVersion = nil
+            return
+        }
 
         if cliProxyUpdateAvailable, let version = latestVersion {
             NSLog("[AtomFeedUpdateService] Manual check: CLIProxyAPI \(version) available")
@@ -364,6 +384,10 @@ final class AtomFeedUpdateService {
         if let encoded = try? JSONEncoder().encode(state) {
             UserDefaults.standard.set(encoded, forKey: cacheKey)
         }
+    }
+
+    private func cacheKey(for source: ProxyBinarySource) -> String {
+        "\(Self.cliProxyCacheKey)_\(source.rawValue)"
     }
 
     private func loadCacheState(cacheKey: String) -> CachedFeedState? {
