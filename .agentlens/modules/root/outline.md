@@ -4,7 +4,7 @@
 
 Symbol maps for 9 large files in this module.
 
-## Quotio/QuotioApp.swift (818 lines)
+## Quotio/QuotioApp.swift (831 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -18,27 +18,27 @@ Symbol maps for 9 large files in this module.
 | 155 | fn | normalizedCodexKey | (private) |
 | 163 | fn | extractEmail | (private) |
 | 172 | struct | QuotioApp | (internal) |
-| 273 | class | AppDelegate | (internal) |
-| 283 | fn | applicationDidFinishLaunching | (internal) |
-| 359 | fn | applicationShouldTerminateAfterLastWindowClosed | (internal) |
-| 363 | fn | applicationShouldHandleReopen | (internal) |
-| 372 | fn | ensureRegularPolicyForMainWindowForeground | (private) |
-| 386 | fn | promoteToRegularPolicyIfNeeded | (private) |
-| 397 | fn | promoteToRegularPolicyWithRetry | (private) |
-| 413 | fn | restoreAccessoryPolicyIfNeeded | (private) |
-| 425 | fn | bringMainWindowToFront | (private) |
-| 458 | fn | mainWindow | (private) |
-| 469 | fn | isDashboardWindowCandidate | (private) |
-| 474 | fn | applicationWillTerminate | (internal) |
-| 498 | fn | applicationDidBecomeActive | (internal) |
-| 517 | fn | handleWindowDidBecomeMain | (private) |
-| 524 | fn | handleApplicationDidResignActive | (private) |
-| 540 | fn | handleWindowDidBecomeKey | (private) |
-| 554 | fn | handleWindowWillClose | (private) |
-| 583 | struct | ContentView | (internal) |
-| 716 | struct | RemoteStatusRow | (internal) |
-| 759 | struct | ProxyStatusRow | (internal) |
-| 790 | struct | QuotaRefreshStatusRow | (internal) |
+| 285 | class | AppDelegate | (internal) |
+| 295 | fn | applicationDidFinishLaunching | (internal) |
+| 372 | fn | applicationShouldTerminateAfterLastWindowClosed | (internal) |
+| 376 | fn | applicationShouldHandleReopen | (internal) |
+| 385 | fn | ensureRegularPolicyForMainWindowForeground | (private) |
+| 399 | fn | promoteToRegularPolicyIfNeeded | (private) |
+| 410 | fn | promoteToRegularPolicyWithRetry | (private) |
+| 426 | fn | restoreAccessoryPolicyIfNeeded | (private) |
+| 438 | fn | bringMainWindowToFront | (private) |
+| 471 | fn | mainWindow | (private) |
+| 482 | fn | isDashboardWindowCandidate | (private) |
+| 487 | fn | applicationWillTerminate | (internal) |
+| 511 | fn | applicationDidBecomeActive | (internal) |
+| 530 | fn | handleWindowDidBecomeMain | (private) |
+| 537 | fn | handleApplicationDidResignActive | (private) |
+| 553 | fn | handleWindowDidBecomeKey | (private) |
+| 567 | fn | handleWindowWillClose | (private) |
+| 596 | struct | ContentView | (internal) |
+| 729 | struct | RemoteStatusRow | (internal) |
+| 772 | struct | ProxyStatusRow | (internal) |
+| 803 | struct | QuotaRefreshStatusRow | (internal) |
 
 ## Quotio/Services/AgentConfigurationService.swift (1610 lines)
 
@@ -83,7 +83,7 @@ Symbol maps for 9 large files in this module.
 | 1480 | fn | fetchAvailableModels | (internal) |
 | 1535 | fn | testConnection | (internal) |
 
-## Quotio/Services/AtomFeedUpdateService.swift (533 lines)
+## Quotio/Services/AtomFeedUpdateService.swift (557 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -91,27 +91,28 @@ Symbol maps for 9 large files in this module.
 | 24 | enum | AtomFeedResult | (internal) |
 | 35 | struct | CachedFeedState | (internal) |
 | 44 | class | AtomFeedUpdateService | (internal) |
-| 111 | fn | checkForCLIProxyUpdate | (internal) |
-| 160 | fn | checkForQuotioUpdate | (internal) |
-| 205 | fn | forceCheckForCLIProxyUpdate | (internal) |
-| 216 | fn | startPolling | (internal) |
-| 238 | fn | stopPolling | (internal) |
-| 248 | fn | performPollingCheck | (private) |
-| 280 | fn | manualCheckForCLIProxyUpdate | (internal) |
-| 298 | fn | resetNotificationState | (internal) |
-| 304 | fn | fetchAtomFeed | (private) |
-| 350 | fn | parseAtomFeed | (private) |
-| 355 | fn | saveCacheState | (private) |
-| 368 | fn | loadCacheState | (private) |
-| 379 | fn | isNewerVersion | (private) |
-| 380 | fn | parseVersion | (internal) |
-| 418 | class | AtomFeedParser | (private) |
-| 438 | method | init | (internal) |
-| 443 | fn | parse | (internal) |
-| 450 | fn | parser | (internal) |
-| 466 | fn | parser | (internal) |
-| 470 | fn | parser | (internal) |
-| 515 | enum | AtomFeedError | (internal) |
+| 110 | fn | checkForCLIProxyUpdate | (internal) |
+| 163 | fn | checkForQuotioUpdate | (internal) |
+| 208 | fn | forceCheckForCLIProxyUpdate | (internal) |
+| 223 | fn | startPolling | (internal) |
+| 245 | fn | stopPolling | (internal) |
+| 255 | fn | performPollingCheck | (private) |
+| 293 | fn | manualCheckForCLIProxyUpdate | (internal) |
+| 318 | fn | resetNotificationState | (internal) |
+| 324 | fn | fetchAtomFeed | (private) |
+| 370 | fn | parseAtomFeed | (private) |
+| 375 | fn | saveCacheState | (private) |
+| 388 | fn | cacheKey | (private) |
+| 392 | fn | loadCacheState | (private) |
+| 403 | fn | isNewerVersion | (private) |
+| 404 | fn | parseVersion | (internal) |
+| 442 | class | AtomFeedParser | (private) |
+| 462 | method | init | (internal) |
+| 467 | fn | parse | (internal) |
+| 474 | fn | parser | (internal) |
+| 490 | fn | parser | (internal) |
+| 494 | fn | parser | (internal) |
+| 539 | enum | AtomFeedError | (internal) |
 
 ## Quotio/Services/ManagementAPIClient.swift (732 lines)
 
@@ -176,45 +177,45 @@ Symbol maps for 9 large files in this module.
 | 708 | method | init | (internal) |
 | 722 | fn | encode | (internal) |
 
-## Quotio/Services/Proxy/CLIProxyManager.swift (1979 lines)
+## Quotio/Services/Proxy/CLIProxyManager.swift (2180 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 9 | class | CLIProxyManager | (internal) |
-| 193 | method | init | (internal) |
-| 234 | fn | restartProxyIfRunning | (private) |
-| 252 | fn | updateConfigValue | (private) |
-| 272 | fn | updateConfigPort | (private) |
-| 276 | fn | updateConfigHost | (private) |
-| 280 | fn | ensureApiKeyExistsInConfig | (private) |
-| 329 | fn | updateConfigAllowRemote | (internal) |
-| 333 | fn | updateConfigLogging | (internal) |
-| 341 | fn | updateConfigRoutingStrategy | (internal) |
-| 346 | fn | updateConfigProxyURL | (internal) |
-| 374 | fn | applyBaseURLWorkaround | (internal) |
-| 403 | fn | removeBaseURLWorkaround | (internal) |
-| 445 | fn | ensureConfigExists | (private) |
-| 479 | fn | syncSecretKeyInConfig | (private) |
-| 495 | fn | regenerateManagementKey | (internal) |
-| 537 | fn | syncProxyURLInConfig | (private) |
-| 554 | fn | syncCustomProvidersToConfig | (private) |
-| 571 | fn | downloadAndInstallBinary | (internal) |
-| 632 | fn | fetchLatestRelease | (private) |
-| 653 | fn | findCompatibleAsset | (private) |
-| 678 | fn | downloadAsset | (private) |
-| 697 | fn | extractAndInstall | (private) |
-| 759 | fn | findBinaryInDirectory | (private) |
-| 792 | fn | start | (internal) |
-| 924 | fn | stop | (internal) |
-| 976 | fn | startHealthMonitor | (private) |
-| 990 | fn | stopHealthMonitor | (private) |
-| 995 | fn | performHealthCheck | (private) |
-| 1058 | fn | cleanupOrphanProcesses | (private) |
-| 1121 | fn | terminateAuthProcess | (internal) |
-| 1127 | fn | toggle | (internal) |
-| 1135 | fn | copyEndpointToClipboard | (internal) |
-| 1140 | fn | revealInFinder | (internal) |
-| 1147 | enum | ProxyError | (internal) |
+| 192 | method | init | (internal) |
+| 235 | fn | restartProxyIfRunning | (private) |
+| 253 | fn | updateConfigValue | (private) |
+| 273 | fn | updateConfigPort | (private) |
+| 277 | fn | updateConfigHost | (private) |
+| 281 | fn | ensureApiKeyExistsInConfig | (private) |
+| 330 | fn | updateConfigAllowRemote | (internal) |
+| 334 | fn | updateConfigLogging | (internal) |
+| 342 | fn | updateConfigRoutingStrategy | (internal) |
+| 347 | fn | updateConfigProxyURL | (internal) |
+| 375 | fn | applyBaseURLWorkaround | (internal) |
+| 404 | fn | removeBaseURLWorkaround | (internal) |
+| 446 | fn | ensureConfigExists | (private) |
+| 480 | fn | syncSecretKeyInConfig | (private) |
+| 496 | fn | regenerateManagementKey | (internal) |
+| 538 | fn | syncProxyURLInConfig | (private) |
+| 555 | fn | syncCustomProvidersToConfig | (private) |
+| 568 | fn | downloadAndInstallBinary | (internal) |
+| 626 | fn | fetchLatestRelease | (private) |
+| 651 | fn | findCompatibleAsset | (private) |
+| 676 | fn | downloadAsset | (private) |
+| 695 | fn | extractAndInstall | (private) |
+| 757 | fn | findBinaryInDirectory | (private) |
+| 790 | fn | start | (internal) |
+| 922 | fn | stop | (internal) |
+| 974 | fn | startHealthMonitor | (private) |
+| 988 | fn | stopHealthMonitor | (private) |
+| 993 | fn | performHealthCheck | (private) |
+| 1056 | fn | cleanupOrphanProcesses | (private) |
+| 1119 | fn | terminateAuthProcess | (internal) |
+| 1125 | fn | toggle | (internal) |
+| 1133 | fn | copyEndpointToClipboard | (internal) |
+| 1138 | fn | revealInFinder | (internal) |
+| 1145 | enum | ProxyError | (internal) |
 | 1178 | enum | AuthCommand | (internal) |
 | 1216 | struct | AuthCommandResult | (internal) |
 | 1222 | mod | extension CLIProxyManager | (internal) |
@@ -223,27 +224,38 @@ Symbol maps for 9 large files in this module.
 | 1259 | fn | tryResume | (internal) |
 | 1270 | fn | safeResume | (internal) |
 | 1370 | mod | extension CLIProxyManager | (internal) |
-| 1400 | fn | checkForUpgrade | (internal) |
-| 1451 | fn | saveInstalledVersion | (private) |
-| 1459 | fn | fetchAvailableReleases | (internal) |
-| 1481 | fn | versionInfo | (internal) |
-| 1487 | fn | fetchGitHubRelease | (private) |
-| 1509 | fn | findCompatibleAsset | (private) |
-| 1542 | fn | performManagedUpgrade | (internal) |
-| 1600 | fn | downloadAndInstallVersion | (private) |
-| 1647 | fn | startDryRun | (private) |
-| 1718 | fn | promote | (private) |
-| 1753 | fn | rollback | (internal) |
-| 1786 | fn | stopTestProxy | (private) |
-| 1815 | fn | stopTestProxySync | (private) |
-| 1841 | fn | findUnusedPort | (private) |
-| 1851 | fn | isPortInUse | (private) |
-| 1870 | fn | createTestConfig | (private) |
-| 1898 | fn | cleanupTestConfig | (private) |
-| 1906 | fn | isNewerVersion | (private) |
-| 1909 | fn | parseVersion | (internal) |
-| 1941 | fn | findPreviousVersion | (private) |
-| 1954 | fn | migrateToVersionedStorage | (internal) |
+| 1403 | fn | isLegacyAuthWarningNeeded | (internal) |
+| 1408 | fn | sourceInstallHint | (internal) |
+| 1412 | fn | confirmBinarySourceSelection | (internal) |
+| 1422 | fn | isSourceInstalled | (internal) |
+| 1466 | fn | checkForUpgrade | (internal) |
+| 1523 | fn | saveInstalledVersion | (private) |
+| 1528 | fn | fetchAvailableVersions | (internal) |
+| 1540 | fn | fetchAvailableUpstreamVersions | (private) |
+| 1567 | fn | versionInfo | (internal) |
+| 1573 | fn | fetchGitHubRelease | (private) |
+| 1599 | fn | findCompatibleAsset | (private) |
+| 1632 | fn | performManagedUpgrade | (internal) |
+| 1694 | fn | downloadAndInstallVersion | (private) |
+| 1750 | fn | startDryRun | (private) |
+| 1821 | fn | promote | (private) |
+| 1856 | fn | rollback | (internal) |
+| 1889 | fn | stopTestProxy | (private) |
+| 1918 | fn | stopTestProxySync | (private) |
+| 1944 | fn | findUnusedPort | (private) |
+| 1954 | fn | isPortInUse | (private) |
+| 1973 | fn | createTestConfig | (private) |
+| 2001 | fn | cleanupTestConfig | (private) |
+| 2009 | fn | isNewerVersion | (private) |
+| 2012 | fn | parseVersion | (internal) |
+| 2044 | fn | plusLocalVersionInfo | (private) |
+| 2058 | fn | installLocalPlusBinary | (private) |
+| 2065 | fn | findPreviousVersion | (private) |
+| 2078 | fn | migrateToVersionedStorage | (internal) |
+| 2104 | fn | initializeSelectedBinarySourceIfNeeded | (private) |
+| 2114 | fn | defaultBinarySource | (private) |
+| 2121 | fn | migrateLegacyVersionedStorageIfNeeded | (private) |
+| 2149 | fn | resolveBundledPlusBinaryPath | (private) |
 
 ## Quotio/Services/Proxy/ProxyBridge.swift (1093 lines)
 

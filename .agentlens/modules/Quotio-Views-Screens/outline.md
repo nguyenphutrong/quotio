@@ -41,7 +41,7 @@ Symbol maps for 6 large files in this module.
 | 501 | struct | StatItem | (internal) |
 | 518 | struct | LogRow | (internal) |
 
-## Quotio/Views/Screens/ProvidersScreen.swift (1043 lines)
+## Quotio/Views/Screens/ProvidersScreen.swift (1058 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -70,8 +70,8 @@ Symbol maps for 6 large files in this module.
 | 702 | fn | nativeTooltip | (internal) |
 | 709 | struct | MenuBarHintView | (internal) |
 | 724 | struct | OAuthSheet | (internal) |
-| 850 | struct | OAuthStatusView | (private) |
-| 1022 | enum | CustomProviderSheetMode | (internal) |
+| 865 | struct | OAuthStatusView | (private) |
+| 1037 | enum | CustomProviderSheetMode | (internal) |
 
 ## Quotio/Views/Screens/QuotaScreen.swift (1627 lines)
 
@@ -107,7 +107,7 @@ Symbol maps for 6 large files in this module.
 | 1505 | struct | UsageRowV2 | (private) |
 | 1593 | struct | QuotaLoadingView | (private) |
 
-## Quotio/Views/Screens/SettingsScreen.swift (3051 lines)
+## Quotio/Views/Screens/SettingsScreen.swift (2954 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -138,37 +138,37 @@ Symbol maps for 6 large files in this module.
 | 982 | struct | RefreshCadenceSettingsSection | (internal) |
 | 1021 | struct | UpdateSettingsSection | (internal) |
 | 1063 | struct | ProxyUpdateSettingsSection | (internal) |
-| 1223 | fn | checkForUpdate | (private) |
-| 1237 | fn | performUpgrade | (private) |
-| 1256 | struct | ProxyVersionManagerSheet | (internal) |
-| 1415 | fn | sectionHeader | (private) |
-| 1430 | fn | isVersionInstalled | (private) |
-| 1434 | fn | refreshInstalledVersions | (private) |
-| 1438 | fn | loadReleases | (private) |
-| 1452 | fn | installVersion | (private) |
-| 1470 | fn | performInstall | (private) |
-| 1491 | fn | activateVersion | (private) |
-| 1509 | fn | deleteVersion | (private) |
-| 1522 | struct | InstalledVersionRow | (private) |
-| 1580 | struct | AvailableVersionRow | (private) |
-| 1666 | fn | formatDate | (private) |
-| 1684 | struct | MenuBarSettingsSection | (internal) |
-| 1825 | struct | AppearanceSettingsSection | (internal) |
-| 1854 | struct | PrivacySettingsSection | (internal) |
-| 1876 | struct | GeneralSettingsTab | (internal) |
-| 1915 | struct | AboutTab | (internal) |
-| 1942 | struct | AboutScreen | (internal) |
-| 2157 | struct | AboutUpdateSection | (internal) |
-| 2213 | struct | AboutProxyUpdateSection | (internal) |
-| 2366 | fn | checkForUpdate | (private) |
-| 2380 | fn | performUpgrade | (private) |
-| 2399 | struct | VersionBadge | (internal) |
-| 2451 | struct | AboutUpdateCard | (internal) |
-| 2542 | struct | AboutProxyUpdateCard | (internal) |
-| 2716 | fn | checkForUpdate | (private) |
-| 2730 | fn | performUpgrade | (private) |
-| 2749 | struct | LinkCard | (internal) |
-| 2836 | struct | ManagementKeyRow | (internal) |
-| 2930 | struct | LaunchAtLoginToggle | (internal) |
-| 2988 | struct | UsageDisplaySettingsSection | (internal) |
+| 1218 | fn | checkForUpdate | (private) |
+| 1232 | fn | performUpgrade | (private) |
+| 1251 | struct | ProxyVersionManagerSheet | (internal) |
+| 1428 | fn | sectionHeader | (private) |
+| 1443 | fn | isVersionInstalled | (private) |
+| 1447 | fn | refreshInstalledVersions | (private) |
+| 1451 | fn | loadReleases | (private) |
+| 1465 | fn | installVersion | (private) |
+| 1478 | fn | performInstall | (private) |
+| 1494 | fn | activateVersion | (private) |
+| 1512 | fn | deleteVersion | (private) |
+| 1523 | struct | NamespacedInstalledVersionItem | (private) |
+| 1528 | struct | NamespacedAvailableVersionItem | (private) |
+| 1535 | struct | InstalledVersionRow | (private) |
+| 1593 | struct | AvailableVersionRow | (private) |
+| 1670 | struct | MenuBarSettingsSection | (internal) |
+| 1811 | struct | AppearanceSettingsSection | (internal) |
+| 1840 | struct | PrivacySettingsSection | (internal) |
+| 1862 | struct | GeneralSettingsTab | (internal) |
+| 1901 | struct | AboutTab | (internal) |
+| 1928 | struct | AboutScreen | (internal) |
+| 2143 | struct | VersionBadge | (internal) |
+| 2195 | struct | AboutUpdateCard | (internal) |
+| 2289 | struct | AboutProxyUpdateCard | (internal) |
+| 2501 | fn | checkForUpdate | (private) |
+| 2515 | fn | performUpgrade | (private) |
+| 2532 | struct | ProxyBinarySourceOptionBlock | (private) |
+| 2571 | struct | ProxyBinarySourceSelectionSheet | (internal) |
+| 2638 | fn | cardHeader | (private) |
+| 2652 | struct | LinkCard | (internal) |
+| 2739 | struct | ManagementKeyRow | (internal) |
+| 2833 | struct | LaunchAtLoginToggle | (internal) |
+| 2891 | struct | UsageDisplaySettingsSection | (internal) |
 

@@ -23,7 +23,7 @@
 
 > localhost is now allowed for users running their own CLIProxyAPI
 
-### `NOTE` (Quotio/Models/ProxyVersionModels.swift:81)
+### `NOTE` (Quotio/Models/ProxyVersionModels.swift:214)
 
 > Returns nil if no valid SHA256 checksum is available.
 
