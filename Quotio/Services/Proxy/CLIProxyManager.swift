@@ -2154,9 +2154,13 @@ extension CLIProxyManager {
 
         func firstExistingRegularFile(in candidates: [URL?]) -> String? {
             for candidate in candidates.compactMap({ $0 }) {
-                var isDirectory: ObjCBool = false
-                if fileManager.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
-                   !isDirectory.boolValue {
+                guard fileManager.fileExists(atPath: candidate.path) else {
+                    continue
+                }
+
+                let values = try? candidate.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+                if values?.isRegularFile == true,
+                   values?.isSymbolicLink != true {
                     return candidate.path
                 }
             }

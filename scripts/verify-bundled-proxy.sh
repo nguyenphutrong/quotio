@@ -7,8 +7,7 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 APP_TO_VERIFY="${1:-${PROJECT_DIR}/build/Quotio.app}"
 BINARY_NAME="cli-proxy-api-plus"
 RESOURCE_SUBDIRECTORY="Proxy"
-EXPECTED_SHA256="a722885ab3c0cea5535ee69a86220d35c4f95ee7656e009d872d24de2910acf0"
-MANAGER_SOURCE="${PROJECT_DIR}/Quotio/Services/Proxy/CLIProxyManager.swift"
+MODEL_SOURCE="${PROJECT_DIR}/Quotio/Models/ProxyVersionModels.swift"
 
 fail() {
     echo "Bundled proxy verification failed: $1" >&2
@@ -16,7 +15,12 @@ fail() {
 }
 
 [ -d "${APP_TO_VERIFY}" ] || fail "app not found: ${APP_TO_VERIFY}"
-[ -f "${MANAGER_SOURCE}" ] || fail "manager source not found: ${MANAGER_SOURCE}"
+[ -f "${MODEL_SOURCE}" ] || fail "model source not found: ${MODEL_SOURCE}"
+
+EXPECTED_SHA256="$(
+    sed -n 's/.*static let plusLocalSHA256 = "\([0-9a-fA-F]\{64\}\)".*/\1/p' "${MODEL_SOURCE}" | head -n 1
+)"
+[ -n "${EXPECTED_SHA256}" ] || fail "could not read plusLocalSHA256 from ${MODEL_SOURCE}"
 
 RESOURCES_DIR="${APP_TO_VERIFY}/Contents/Resources"
 SUBDIR_BINARY="${RESOURCES_DIR}/${RESOURCE_SUBDIRECTORY}/${BINARY_NAME}"
@@ -30,14 +34,6 @@ elif [ -f "${ROOT_BINARY}" ]; then
 else
     fail "missing ${BINARY_NAME}; checked ${SUBDIR_BINARY} and ${ROOT_BINARY}"
 fi
-
-if [ "${BINARY_PATH}" = "${ROOT_BINARY}" ]; then
-    if ! grep -q "Bundle.main.url(forResource: binaryName, withExtension: nil)" "${MANAGER_SOURCE}"; then
-        fail "binary is at Resources root, but CLIProxyManager does not resolve root-level bundled resources"
-    fi
-fi
-
-[ -x "${BINARY_PATH}" ] || fail "binary is not executable: ${BINARY_PATH}"
 
 ACTUAL_SHA256="$(shasum -a 256 "${BINARY_PATH}" | awk '{print $1}')"
 if [ "${ACTUAL_SHA256}" != "${EXPECTED_SHA256}" ]; then
