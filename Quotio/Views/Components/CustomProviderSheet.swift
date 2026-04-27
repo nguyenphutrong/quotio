@@ -717,17 +717,15 @@ struct CustomProviderSheet: View {
             return
         }
         
-        let effectiveBaseURL = baseURL.isEmpty 
+        let inputBaseURL = baseURL.isEmpty
             ? (providerType.defaultBaseURL ?? "")
             : baseURL
-        
-        guard let url = URL(string: effectiveBaseURL) else {
+
+        guard let modelsURL = providerType.modelsEndpointURL(from: inputBaseURL) else {
             modelFetchError = "Invalid base URL"
             return
         }
-        
-        let modelsURL = url.appendingPathComponent("v1/models")
-        
+
         var request = URLRequest(url: modelsURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 15
@@ -818,7 +816,7 @@ struct CustomProviderSheet: View {
             id: provider?.id ?? UUID(),
             name: name.trimmingCharacters(in: .whitespaces),
             type: providerType,
-            baseURL: baseURL.trimmingCharacters(in: .whitespaces),
+            baseURL: providerType.normalizedStoredBaseURL(from: baseURL),
             prefix: prefix.trimmingCharacters(in: .whitespaces).isEmpty ? nil : prefix.trimmingCharacters(in: .whitespaces),
             apiKeys: apiKeys.filter { !$0.apiKey.trimmingCharacters(in: .whitespaces).isEmpty },
             models: limitToSelectedModels ? allModels : [],
@@ -864,17 +862,11 @@ struct CustomProviderSheet: View {
         guard let firstKey = provider.apiKeys.first else {
             throw CustomProviderTestError.noAPIKey
         }
-        
-        let effectiveBaseURL = provider.baseURL.isEmpty 
-            ? (provider.type.defaultBaseURL ?? "")
-            : provider.baseURL
-        
-        guard let url = URL(string: effectiveBaseURL) else {
+
+        guard let modelsURL = provider.modelsEndpointURL else {
             throw CustomProviderTestError.invalidURL
         }
-        
-        let modelsURL = url.appendingPathComponent("v1/models")
-        
+
         var request = URLRequest(url: modelsURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 15

@@ -140,6 +140,50 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
             return false
         }
     }
+
+    /// Whether the provider expects a versioned OpenAI-style API prefix.
+    var usesVersionedAPIBaseURL: Bool {
+        switch self {
+        case .openaiCompatibility, .codexCompatibility:
+            return true
+        case .claudeCompatibility, .geminiCompatibility, .glmCompatibility:
+            return false
+        }
+    }
+
+    func normalizedStoredBaseURL(from rawValue: String) -> String {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return defaultBaseURL ?? "" }
+
+        guard var components = URLComponents(string: trimmed) else {
+            return trimmed.replacingOccurrences(of: #"/+$"#, with: "", options: .regularExpression)
+        }
+
+        var normalizedPath = components.path.replacingOccurrences(of: #"/+$"#, with: "", options: .regularExpression)
+        if usesVersionedAPIBaseURL, normalizedPath.lowercased().hasSuffix("/v1") {
+            normalizedPath.removeLast(3)
+        }
+
+        components.path = normalizedPath
+        components.percentEncodedQuery = nil
+        components.fragment = nil
+
+        return components.string?.replacingOccurrences(of: #"/+$"#, with: "", options: .regularExpression)
+            ?? trimmed.replacingOccurrences(of: #"/+$"#, with: "", options: .regularExpression)
+    }
+
+    func apiBaseURL(from storedBaseURL: String) -> String {
+        let normalized = normalizedStoredBaseURL(from: storedBaseURL)
+        guard usesVersionedAPIBaseURL else { return normalized }
+        guard !normalized.isEmpty else { return normalized }
+        return normalized + "/v1"
+    }
+
+    func modelsEndpointURL(from storedBaseURL: String) -> URL? {
+        let effectiveBaseURL = apiBaseURL(from: storedBaseURL)
+        guard let url = URL(string: effectiveBaseURL) else { return nil }
+        return url.appendingPathComponent("models")
+    }
 }
 
 // MARK: - API Key Entry
@@ -253,7 +297,8 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         self.id = id
         self.name = name
         self.type = type
-        self.baseURL = baseURL.isEmpty ? (type.defaultBaseURL ?? "") : baseURL
+        let inputBaseURL = baseURL.isEmpty ? (type.defaultBaseURL ?? "") : baseURL
+        self.baseURL = type.normalizedStoredBaseURL(from: inputBaseURL)
         self.prefix = prefix
         self.apiKeys = apiKeys
         self.models = models
@@ -280,7 +325,8 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         type = try container.decode(CustomProviderType.self, forKey: .type)
-        baseURL = try container.decode(String.self, forKey: .baseURL)
+        let decodedBaseURL = try container.decode(String.self, forKey: .baseURL)
+        baseURL = type.normalizedStoredBaseURL(from: decodedBaseURL)
         prefix = try container.decodeIfPresent(String.self, forKey: .prefix)
         apiKeys = try container.decodeIfPresent([CustomAPIKeyEntry].self, forKey: .apiKeys) ?? []
         models = try container.decodeIfPresent([ModelMapping].self, forKey: .models) ?? []
@@ -296,7 +342,7 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(type, forKey: .type)
-        try container.encode(baseURL, forKey: .baseURL)
+        try container.encode(type.normalizedStoredBaseURL(from: baseURL), forKey: .baseURL)
         try container.encodeIfPresent(prefix, forKey: .prefix)
         try container.encode(apiKeys, forKey: .apiKeys)
         try container.encode(models, forKey: .models)
@@ -347,6 +393,18 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
 // MARK: - YAML Generation Extensions
 
 extension CustomProvider {
+    var normalizedStoredBaseURL: String {
+        type.normalizedStoredBaseURL(from: baseURL)
+    }
+
+    var effectiveAPIBaseURL: String {
+        type.apiBaseURL(from: baseURL)
+    }
+
+    var modelsEndpointURL: URL? {
+        type.modelsEndpointURL(from: baseURL)
+    }
+
     /// Generate YAML config block for this provider
     func toYAMLBlock() -> String {
         switch type {
@@ -365,7 +423,7 @@ extension CustomProvider {
 
     private func generateOpenAICompatibilityYAML() -> String {
         var yaml = "  - name: \"\(escapedName)\"\n"
-        yaml += "    base-url: \"\(baseURL)\"\n"
+        yaml += "    base-url: \"\(effectiveAPIBaseURL)\"\n"
 
         if let prefix = prefix, !prefix.isEmpty {
             yaml += "    prefix: \"\(prefix)\"\n"
@@ -453,7 +511,7 @@ extension CustomProvider {
         var yaml = ""
         for key in apiKeys {
             yaml += "  - api-key: \"\(key.apiKey)\"\n"
-            yaml += "    base-url: \"\(baseURL)\"\n"
+            yaml += "    base-url: \"\(effectiveAPIBaseURL)\"\n"
 
             if let prefix = prefix, !prefix.isEmpty {
                 yaml += "    prefix: \"\(prefix)\"\n"
