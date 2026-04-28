@@ -133,12 +133,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
 
     /// Whether this provider type supports custom headers
     var supportsCustomHeaders: Bool {
-        switch self {
-        case .geminiCompatibility:
-            return true
-        case .openaiCompatibility, .claudeCompatibility, .codexCompatibility, .glmCompatibility:
-            return false
-        }
+        true
     }
 
     /// Whether the provider expects a versioned OpenAI-style API prefix.
@@ -246,7 +241,7 @@ struct ModelMapping: Codable, Identifiable, Hashable, Sendable {
 
 // MARK: - Custom Header
 
-/// A custom HTTP header for Gemini-compatible providers
+/// A custom HTTP header for a user-defined provider
 struct CustomHeader: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
     var key: String
@@ -274,7 +269,7 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
     var prefix: String?
     var apiKeys: [CustomAPIKeyEntry]
     var models: [ModelMapping]
-    var headers: [CustomHeader]  // Only used for Gemini-compatible
+    var headers: [CustomHeader]  // Optional custom headers for upstream requests
     var limitToSelectedModels: Bool
     var isEnabled: Bool
     var createdAt: Date
@@ -429,6 +424,8 @@ extension CustomProvider {
             yaml += "    prefix: \"\(prefix)\"\n"
         }
 
+        appendHeadersYAML(to: &yaml)
+
         if !apiKeys.isEmpty {
             yaml += "    api-key-entries:\n"
             for key in apiKeys {
@@ -464,6 +461,8 @@ extension CustomProvider {
                 yaml += "    prefix: \"\(prefix)\"\n"
             }
 
+            appendHeadersYAML(to: &yaml)
+
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
                 yaml += "    proxy-url: \"\(proxyURL)\"\n"
             }
@@ -493,12 +492,7 @@ extension CustomProvider {
                 yaml += "    prefix: \"\(prefix)\"\n"
             }
 
-            if !headers.isEmpty {
-                yaml += "    headers:\n"
-                for header in headers {
-                    yaml += "      \(header.key): \"\(header.value)\"\n"
-                }
-            }
+            appendHeadersYAML(to: &yaml)
             
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
                 yaml += "    proxy-url: \"\(proxyURL)\"\n"
@@ -516,6 +510,8 @@ extension CustomProvider {
             if let prefix = prefix, !prefix.isEmpty {
                 yaml += "    prefix: \"\(prefix)\"\n"
             }
+
+            appendHeadersYAML(to: &yaml)
 
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
                 yaml += "    proxy-url: \"\(proxyURL)\"\n"
@@ -537,15 +533,38 @@ extension CustomProvider {
                 yaml += "    prefix: \"\(prefix)\"\n"
             }
 
+            appendHeadersYAML(to: &yaml)
+
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
                 yaml += "    proxy-url: \"\(proxyURL)\"\n"
             }
         }
         return yaml
     }
+
+    private func appendHeadersYAML(to yaml: inout String, indent: String = "    ") {
+        let validHeaders = headers.compactMap { header -> (key: String, value: String)? in
+            let normalizedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalizedKey.isEmpty else { return nil }
+            return (normalizedKey, header.value)
+        }
+
+        guard !validHeaders.isEmpty else { return }
+
+        yaml += "\(indent)headers:\n"
+        for header in validHeaders {
+            yaml += "\(indent)  \"\(escapeYAMLString(header.key))\": \"\(escapeYAMLString(header.value))\"\n"
+        }
+    }
     
     private var escapedName: String {
-        name.replacingOccurrences(of: "\"", with: "\\\"")
+        escapeYAMLString(name)
+    }
+
+    private func escapeYAMLString(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }
 
