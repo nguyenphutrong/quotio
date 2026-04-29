@@ -179,6 +179,9 @@ actor ManagementAPIClient {
             
             guard 200...299 ~= httpResponse.statusCode else {
                 Self.log("[\(clientId)][\(requestId)] HTTP ERROR \(httpResponse.statusCode)")
+                if httpResponse.statusCode == 401 {
+                    throw APIError.unauthorized
+                }
                 throw APIError.httpError(httpResponse.statusCode)
             }
             
@@ -224,7 +227,24 @@ actor ManagementAPIClient {
     }
     
     func deleteAuthFile(name: String) async throws {
-        _ = try await makeRequest("/auth-files?name=\(name)", method: "DELETE")
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        _ = try await makeRequest("/auth-files?name=\(encoded)", method: "DELETE")
+    }
+    
+    func uploadAuthFile(name: String, content: Data) async throws {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        Self.log("[\(clientId)] uploadAuthFile: name=\(name), encoded=\(encoded), size=\(content.count)")
+        let endpoint = "/auth-files?name=\(encoded)"
+        _ = try await makeRequest(endpoint, method: "POST", body: content)
+        Self.log("[\(clientId)] uploadAuthFile: success")
+    }
+    
+    func downloadAuthFile(name: String) async throws -> Data {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        Self.log("[\(clientId)] downloadAuthFile: name=\(name), encoded=\(encoded)")
+        let data = try await makeRequest("/auth-files/download?name=\(encoded)")
+        Self.log("[\(clientId)] downloadAuthFile: received \(data.count) bytes")
+        return data
     }
     
     func deleteAllAuthFiles() async throws {
@@ -597,6 +617,7 @@ nonisolated enum APIError: LocalizedError {
     case httpError(Int)
     case decodingError(String)
     case connectionError(String)
+    case unauthorized
     
     var errorDescription: String? {
         switch self {
@@ -605,7 +626,21 @@ nonisolated enum APIError: LocalizedError {
         case .httpError(let code): return "HTTP error: \(code)"
         case .decodingError(let msg): return "Decoding error: \(msg)"
         case .connectionError(let msg): return "Connection error: \(msg)"
+        case .unauthorized: return "Session expired. Please re-authenticate."
         }
+    }
+    
+    static func isAuthError(_ error: Error) -> Bool {
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .unauthorized, .httpError(401):
+                return true
+            default:
+                return false
+            }
+        }
+        let msg = error.localizedDescription.lowercased()
+        return msg.contains("401") || msg.contains("unauthorized")
     }
 }
 
