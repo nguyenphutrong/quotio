@@ -699,7 +699,7 @@ struct CustomProviderSheet: View {
         
         name = provider.name
         providerType = provider.type
-        baseURL = provider.baseURL
+        baseURL = normalizedBaseURL(provider.baseURL, for: provider.type)
         prefix = provider.prefix ?? ""
         apiKeys = provider.apiKeys
         models = provider.models
@@ -710,6 +710,52 @@ struct CustomProviderSheet: View {
         // Set selected models from existing provider
         selectedModelIds = Set(provider.models.map { $0.name })
     }
+
+    private func normalizedBaseURL(_ rawValue: String, for type: CustomProviderType) -> String {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard type == .codexCompatibility, !trimmed.isEmpty,
+              var components = URLComponents(string: trimmed) else {
+            return trimmed
+        }
+
+        if baseURLIncludesVersion(components.path) {
+            return components.string ?? trimmed
+        }
+
+        if components.path.isEmpty || components.path == "/" {
+            components.path = "/v1"
+        } else if components.path.hasSuffix("/") {
+            components.path += "v1"
+        } else {
+            components.path += "/v1"
+        }
+
+        return components.string ?? trimmed
+    }
+
+    private func makeModelsURL(baseURL rawBaseURL: String, providerType: CustomProviderType) -> URL? {
+        let normalizedBaseURL = normalizedBaseURL(rawBaseURL, for: providerType)
+        guard let url = URL(string: normalizedBaseURL) else { return nil }
+
+        let endpoint = baseURLIncludesVersion(url.path) ? "models" : "v1/models"
+        return url.appendingPathComponent(endpoint)
+    }
+
+    private func baseURLIncludesVersion(_ path: String) -> Bool {
+        guard let lastSegment = path.split(separator: "/").last else { return false }
+        return isVersionPathSegment(lastSegment)
+    }
+
+    private func isVersionPathSegment(_ segment: Substring) -> Bool {
+        guard segment.first == "v" else { return false }
+
+        let remainder = segment.dropFirst()
+        guard let firstCharacter = remainder.first, firstCharacter.isNumber else {
+            return false
+        }
+
+        return remainder.allSatisfy { $0.isNumber || $0.isLetter }
+    }
     
     private func fetchModelsFromAPI() {
         guard let firstKey = apiKeys.first, !firstKey.apiKey.trimmingCharacters(in: .whitespaces).isEmpty else {
@@ -719,15 +765,13 @@ struct CustomProviderSheet: View {
         
         let effectiveBaseURL = baseURL.isEmpty 
             ? (providerType.defaultBaseURL ?? "")
-            : baseURL
+            : normalizedBaseURL(baseURL, for: providerType)
         
-        guard let url = URL(string: effectiveBaseURL) else {
+        guard let modelsURL = makeModelsURL(baseURL: effectiveBaseURL, providerType: providerType) else {
             modelFetchError = "Invalid base URL"
             return
         }
-        
-        let modelsURL = url.appendingPathComponent("v1/models")
-        
+
         var request = URLRequest(url: modelsURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 15
@@ -818,7 +862,7 @@ struct CustomProviderSheet: View {
             id: provider?.id ?? UUID(),
             name: name.trimmingCharacters(in: .whitespaces),
             type: providerType,
-            baseURL: baseURL.trimmingCharacters(in: .whitespaces),
+            baseURL: normalizedBaseURL(baseURL, for: providerType),
             prefix: prefix.trimmingCharacters(in: .whitespaces).isEmpty ? nil : prefix.trimmingCharacters(in: .whitespaces),
             apiKeys: apiKeys.filter { !$0.apiKey.trimmingCharacters(in: .whitespaces).isEmpty },
             models: limitToSelectedModels ? allModels : [],
@@ -869,12 +913,10 @@ struct CustomProviderSheet: View {
             ? (provider.type.defaultBaseURL ?? "")
             : provider.baseURL
         
-        guard let url = URL(string: effectiveBaseURL) else {
+        guard let modelsURL = makeModelsURL(baseURL: effectiveBaseURL, providerType: provider.type) else {
             throw CustomProviderTestError.invalidURL
         }
-        
-        let modelsURL = url.appendingPathComponent("v1/models")
-        
+
         var request = URLRequest(url: modelsURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 15
