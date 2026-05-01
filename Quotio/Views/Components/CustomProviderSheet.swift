@@ -713,7 +713,7 @@ struct CustomProviderSheet: View {
 
     private func normalizedBaseURL(_ rawValue: String, for type: CustomProviderType) -> String {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard type == .codexCompatibility, !trimmed.isEmpty,
+        guard (type == .openaiCompatibility || type == .codexCompatibility), !trimmed.isEmpty,
               var components = URLComponents(string: trimmed) else {
             return trimmed
         }
