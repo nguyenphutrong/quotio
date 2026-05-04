@@ -650,27 +650,25 @@ final class CLIProxyManager {
     }
     
     private func findCompatibleAsset(in release: ReleaseInfo) -> CompatibleAsset? {
+        // Upstream renamed assets from `darwin_arm64` -> `darwin_aarch64` starting v6.9.48.
+        // Accept both spellings so we don't get stuck on an old release.
         #if arch(arm64)
-        let arch = "arm64"
+        let targetPatterns = ["darwin_arm64", "darwin_aarch64"]
         #else
-        let arch = "amd64"
+        let targetPatterns = ["darwin_amd64", "darwin_x86_64"]
         #endif
-        
-        let platform = "darwin"
-        let targetPattern = "\(platform)_\(arch)"
-        let skipPatterns = ["windows", "linux", "checksum"]
-        
+        let skipPatterns = ["windows", "linux", "freebsd", "checksum"]
+
         for asset in release.assets {
             let lowercaseName = asset.name.lowercased()
-            
-            let shouldSkip = skipPatterns.contains { lowercaseName.contains($0) }
-            if shouldSkip { continue }
-            
-            if lowercaseName.contains(targetPattern) {
+
+            if skipPatterns.contains(where: { lowercaseName.contains($0) }) { continue }
+
+            if targetPatterns.contains(where: { lowercaseName.contains($0) }) {
                 return CompatibleAsset(name: asset.name, downloadURL: asset.browserDownloadUrl)
             }
         }
-        
+
         return nil
     }
     
@@ -1597,27 +1595,25 @@ extension CLIProxyManager {
     
     /// Find compatible asset from GitHub release.
     private func findCompatibleAsset(from release: GitHubRelease) -> GitHubAsset? {
+        // Upstream renamed assets from `darwin_arm64` -> `darwin_aarch64` starting v6.9.48.
+        // Accept both spellings so we don't get stuck on an old release.
         #if arch(arm64)
-        let arch = "arm64"
+        let targetPatterns = ["darwin_arm64", "darwin_aarch64"]
         #else
-        let arch = "amd64"
+        let targetPatterns = ["darwin_amd64", "darwin_x86_64"]
         #endif
-        
-        let platform = "darwin"
-        let targetPattern = "\(platform)_\(arch)"
-        let skipPatterns = ["windows", "linux", "checksum"]
-        
+        let skipPatterns = ["windows", "linux", "freebsd", "checksum"]
+
         for asset in release.assets {
             let lowercaseName = asset.name.lowercased()
-            
-            let shouldSkip = skipPatterns.contains { lowercaseName.contains($0) }
-            if shouldSkip { continue }
-            
-            if lowercaseName.contains(targetPattern) {
+
+            if skipPatterns.contains(where: { lowercaseName.contains($0) }) { continue }
+
+            if targetPatterns.contains(where: { lowercaseName.contains($0) }) {
                 return asset
             }
         }
-        
+
         return nil
     }
     
