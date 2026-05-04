@@ -651,13 +651,10 @@ final class CLIProxyManager {
     
     private func findCompatibleAsset(in release: ReleaseInfo) -> CompatibleAsset? {
         #if arch(arm64)
-        let arch = "arm64"
+        let targetPatterns = ["darwin_arm64", "darwin_aarch64"]
         #else
-        let arch = "amd64"
+        let targetPatterns = ["darwin_amd64"]
         #endif
-        
-        let platform = "darwin"
-        let targetPattern = "\(platform)_\(arch)"
         let skipPatterns = ["windows", "linux", "checksum"]
         
         for asset in release.assets {
@@ -666,7 +663,7 @@ final class CLIProxyManager {
             let shouldSkip = skipPatterns.contains { lowercaseName.contains($0) }
             if shouldSkip { continue }
             
-            if lowercaseName.contains(targetPattern) {
+            if targetPatterns.contains(where: { lowercaseName.contains($0) }) {
                 return CompatibleAsset(name: asset.name, downloadURL: asset.browserDownloadUrl)
             }
         }
@@ -1598,13 +1595,10 @@ extension CLIProxyManager {
     /// Find compatible asset from GitHub release.
     private func findCompatibleAsset(from release: GitHubRelease) -> GitHubAsset? {
         #if arch(arm64)
-        let arch = "arm64"
+        let targetPatterns = ["darwin_arm64", "darwin_aarch64"]
         #else
-        let arch = "amd64"
+        let targetPatterns = ["darwin_amd64"]
         #endif
-        
-        let platform = "darwin"
-        let targetPattern = "\(platform)_\(arch)"
         let skipPatterns = ["windows", "linux", "checksum"]
         
         for asset in release.assets {
@@ -1613,7 +1607,7 @@ extension CLIProxyManager {
             let shouldSkip = skipPatterns.contains { lowercaseName.contains($0) }
             if shouldSkip { continue }
             
-            if lowercaseName.contains(targetPattern) {
+            if targetPatterns.contains(where: { lowercaseName.contains($0) }) {
                 return asset
             }
         }
