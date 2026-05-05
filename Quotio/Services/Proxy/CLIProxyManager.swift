@@ -119,6 +119,9 @@ final class CLIProxyManager {
     
     /// Path to the test config file (for cleanup).
     private var testConfigPath: String?
+
+    /// Raw management key for the current dry-run proxy.
+    private var testManagementKey: String?
     
     /// The active proxy version (if using versioned storage).
     private(set) var activeVersion: String?
@@ -140,15 +143,33 @@ final class CLIProxyManager {
     
     /// Health monitor task for auto-recovery
     private var healthMonitorTask: Task<Void, Never>?
+
+    /// PIDs that Quotio intentionally terminates during stop/restart/upgrade flows.
+    private var expectedTerminationPIDs = Set<Int32>()
+
+    /// Pending restart after an unexpected proxy process exit.
+    private var crashRestartTask: Task<Void, Never>?
+
+    /// Consecutive restart attempts after unexpected process exits.
+    private var crashRestartAttempts: Int = 0
     
     /// Consecutive health check failures
     private var healthCheckFailures: Int = 0
     
     /// Max failures before auto-restart
     private let maxHealthCheckFailures = 3
+
+    /// Max crash restarts before giving up and leaving the proxy stopped.
+    private let maxCrashRestartAttempts = 3
     
     /// Health check interval in seconds
     private let healthCheckIntervalSeconds: UInt64 = 30
+
+    /// Initial delay before restarting after an unexpected process exit.
+    private let crashRestartBaseDelaySeconds: UInt64 = 2
+
+    /// Maximum restart delay after repeated unexpected process exits.
+    private let maxCrashRestartDelaySeconds: UInt64 = 30
     
     /// Compatibility checker instance.
     private let compatibilityChecker = CompatibilityChecker()
@@ -785,12 +806,17 @@ final class CLIProxyManager {
         return nil
     }
     
-    func start() async throws {
+    func start(resetCrashRecoveryState: Bool = true) async throws {
         guard isBinaryInstalled else {
             throw ProxyError.binaryNotFound
         }
         
         guard !proxyStatus.running else { return }
+
+        if resetCrashRecoveryState {
+            cancelCrashRestart()
+            crashRestartAttempts = 0
+        }
         
         isStarting = true
         lastError = nil
@@ -852,6 +878,7 @@ final class CLIProxyManager {
         
         process.terminationHandler = { terminatedProcess in
             let status = terminatedProcess.terminationStatus
+            let pid = terminatedProcess.processIdentifier
             
             // Clear readability handlers to release closures and prevent resource leaks
             outputPipe.fileHandleForReading.readabilityHandler = nil
@@ -863,17 +890,27 @@ final class CLIProxyManager {
             
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                self.proxyStatus.running = false
-                self.process = nil
-                
-                // Stop ProxyBridge if CLIProxyAPI crashes
+
+                let wasExpected = self.expectedTerminationPIDs.remove(pid) != nil
+
+                guard self.process?.processIdentifier == pid else {
+                    return
+                }
+
+                // Stop ProxyBridge if CLIProxyAPI exits
                 if bridgeEnabled {
                     self.proxyBridge.stop()
                 }
+
+                self.proxyStatus.running = false
+                self.process = nil
                 
-                if status != 0 {
+                if !wasExpected && !self.isStarting {
                     self.lastError = "Process exited with code: \(status)"
-                    NotificationManager.shared.notifyProxyCrashed(exitCode: status)
+                    if status != 0 {
+                        NotificationManager.shared.notifyProxyCrashed(exitCode: status)
+                    }
+                    self.scheduleCrashRestart(exitCode: status)
                 }
             }
         }
@@ -898,6 +935,7 @@ final class CLIProxyManager {
                 
                 guard proxyBridge.isRunning else {
                     // ProxyBridge failed to start, stop CLIProxyAPI
+                    markExpectedTermination(process)
                     process.terminate()
                     throw ProxyError.startupFailed
                 }
@@ -920,6 +958,7 @@ final class CLIProxyManager {
     func stop() {
         terminateAuthProcess()
         stopHealthMonitor()
+        cancelCrashRestart()
         
         // Stop ProxyBridge first if running
         if proxyBridge.isRunning {
@@ -937,6 +976,7 @@ final class CLIProxyManager {
         let userPort = proxyStatus.port
         let bridgeMode = useBridgeMode
         let intPort = internalPort
+        markExpectedTermination(currentProcess)
         
         Task.detached(priority: .userInitiated) {
             // Force terminate the main proxy process
@@ -987,6 +1027,64 @@ final class CLIProxyManager {
         healthMonitorTask?.cancel()
         healthMonitorTask = nil
     }
+
+    private func markExpectedTermination(_ process: Process?) {
+        guard let process else { return }
+        expectedTerminationPIDs.insert(process.processIdentifier)
+    }
+
+    private func cancelCrashRestart() {
+        crashRestartTask?.cancel()
+        crashRestartTask = nil
+    }
+
+    private func scheduleCrashRestart(exitCode: Int32) {
+        guard crashRestartTask == nil else { return }
+
+        switch managerState {
+        case .testing, .promoting, .rollingBack:
+            return
+        case .idle, .active:
+            break
+        }
+
+        guard crashRestartAttempts < maxCrashRestartAttempts else {
+            NSLog("[CLIProxyManager] Max crash restart attempts reached after exit code \(exitCode)")
+            return
+        }
+
+        crashRestartAttempts += 1
+        let attempt = crashRestartAttempts
+        let multiplier = UInt64(1 << max(0, attempt - 1))
+        let delay = min(crashRestartBaseDelaySeconds * multiplier, maxCrashRestartDelaySeconds)
+
+        NSLog("[CLIProxyManager] Scheduling proxy restart in \(delay)s after unexpected exit code \(exitCode) (attempt \(attempt)/\(maxCrashRestartAttempts))")
+
+        crashRestartTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
+            guard !Task.isCancelled, let self else { return }
+
+            self.crashRestartTask = nil
+
+            guard !self.proxyStatus.running else { return }
+
+            switch self.managerState {
+            case .testing, .promoting, .rollingBack:
+                return
+            case .idle, .active:
+                break
+            }
+
+            do {
+                try await self.start(resetCrashRecoveryState: false)
+                NSLog("[CLIProxyManager] Crash auto-restart successful")
+            } catch {
+                self.lastError = "Auto-restart failed: \(error.localizedDescription)"
+                NSLog("[CLIProxyManager] Crash auto-restart failed: \(error)")
+                self.scheduleCrashRestart(exitCode: -1)
+            }
+        }
+    }
     
     private func performHealthCheck() async {
         // Bail out if proxy is not running or manager is in upgrade flow
@@ -1004,7 +1102,10 @@ final class CLIProxyManager {
             break
         }
         
-        let isHealthy = await compatibilityChecker.isHealthy(port: useBridgeMode ? internalPort : proxyStatus.port)
+        let isHealthy = await compatibilityChecker.isHealthy(
+            port: useBridgeMode ? internalPort : proxyStatus.port,
+            managementKey: managementKey
+        )
         
         // Re-check state after await - proxy may have been stopped or upgrade may have started
         guard proxyStatus.running else {
@@ -1022,6 +1123,7 @@ final class CLIProxyManager {
         
         if isHealthy {
             healthCheckFailures = 0
+            crashRestartAttempts = 0
         } else {
             healthCheckFailures += 1
             NSLog("[CLIProxyManager] Health check failed (\(healthCheckFailures)/\(maxHealthCheckFailures))")
@@ -1647,13 +1749,13 @@ extension CLIProxyManager {
         }
         
         // Step 3: Validate compatibility
-        guard let testPort = testPort else {
+        guard let testPort = testPort, let testManagementKey = testManagementKey else {
             await stopTestProxy()
             try? storageManager.deleteVersion(installed.version, source: version.source)
             throw ProxyUpgradeError.dryRunFailed("Test port not available")
         }
         
-        let compatResult = await compatibilityChecker.fullCheck(port: testPort)
+        let compatResult = await compatibilityChecker.fullCheck(port: testPort, managementKey: testManagementKey)
         
         if !compatResult.isCompatible {
             // Compatibility failed, rollback
@@ -1754,8 +1856,10 @@ extension CLIProxyManager {
         testPort = port
         
         // Create a temporary config for the test
-        let configPath = createTestConfig(port: port)
+        let managementKey = UUID().uuidString
+        let configPath = createTestConfig(port: port, managementKey: managementKey)
         testConfigPath = configPath
+        testManagementKey = managementKey
         
         // Track success to determine cleanup behavior
         var succeeded = false
@@ -1765,6 +1869,7 @@ extension CLIProxyManager {
                 stopTestProxySync()
                 cleanupTestConfig(configPath)
                 testConfigPath = nil
+                testManagementKey = nil
                 managerState = proxyStatus.running ? .active : .idle
                 testingVersion = nil
                 testPort = nil
@@ -1802,7 +1907,7 @@ extension CLIProxyManager {
         }
         
         // Verify health
-        let isHealthy = await compatibilityChecker.isHealthy(port: port)
+        let isHealthy = await compatibilityChecker.isHealthy(port: port, managementKey: managementKey)
         guard isHealthy else {
             throw ProxyUpgradeError.dryRunFailed("Test proxy health check failed")
         }
@@ -1825,6 +1930,7 @@ extension CLIProxyManager {
             cleanupTestConfig(configPath)
             testConfigPath = nil
         }
+        testManagementKey = nil
         
         // Stop the current active proxy if running
         let wasRunning = proxyStatus.running
@@ -1884,6 +1990,7 @@ extension CLIProxyManager {
     private func stopTestProxy() async {
         guard let process = testProcess, process.isRunning else {
             testProcess = nil
+            testManagementKey = nil
             return
         }
         
@@ -1901,6 +2008,7 @@ extension CLIProxyManager {
         }
         
         testProcess = nil
+        testManagementKey = nil
         
         // Also kill anything on test port
         if let port = testPort {
@@ -1912,6 +2020,7 @@ extension CLIProxyManager {
     private func stopTestProxySync() {
         guard let process = testProcess, process.isRunning else {
             testProcess = nil
+            testManagementKey = nil
             return
         }
         
@@ -1929,6 +2038,7 @@ extension CLIProxyManager {
         }
         
         testProcess = nil
+        testManagementKey = nil
         
         // Also kill anything on test port
         if let port = testPort {
@@ -1965,7 +2075,7 @@ extension CLIProxyManager {
         return bindResult != 0
     }
     
-    private func createTestConfig(port: UInt16) -> String {
+    private func createTestConfig(port: UInt16, managementKey: String) -> String {
         let tempDir = FileManager.default.temporaryDirectory
         let testConfigPath = tempDir.appendingPathComponent("quotio-test-config-\(port).yaml").path
         
@@ -1979,7 +2089,7 @@ extension CLIProxyManager {
         
         remote-management:
           allow-remote: false
-          secret-key: "\(UUID().uuidString)"
+          secret-key: "\(managementKey)"
         
         debug: false
         logging-to-file: false
