@@ -466,12 +466,42 @@ final class QuotaViewModel {
         }
     }
     
-    /// Refresh Gemini quota using CLI auth file (~/.gemini/oauth_creds.json)
+    /// Refresh Gemini quota using CLIProxyAPI management data when available.
     private func refreshGeminiCLIQuotasInternal() async {
-        // Only use CLI fetcher in quota-only mode
-        guard modeManager.isMonitorMode else { return }
+        var quotaAuthFiles = authFiles
+        var quotaClient = apiClient
+        var transientClient: ManagementAPIClient?
 
-        let quotas = await geminiCLIFetcher.fetchAsProviderQuota()
+        if quotaClient == nil,
+           let config = modeManager.remoteConfig,
+           let managementKey = modeManager.remoteManagementKey {
+            let client = ManagementAPIClient(config: config, managementKey: managementKey)
+            transientClient = client
+            quotaClient = client
+
+            do {
+                quotaAuthFiles = try await client.fetchAuthFiles()
+            } catch {
+                Log.quota(
+                    "Failed to fetch Gemini CLI auth files from saved management config: \(error.localizedDescription)"
+                )
+            }
+        }
+
+        let managementQuotas = await geminiCLIFetcher.fetchAsProviderQuota(
+            authFiles: quotaAuthFiles,
+            apiClient: quotaClient
+        )
+        if let transientClient {
+            await transientClient.invalidate()
+        }
+
+        let quotas: [String: ProviderQuotaData]
+        if managementQuotas.isEmpty {
+            quotas = await geminiCLIFetcher.fetchAsProviderQuota()
+        } else {
+            quotas = managementQuotas
+        }
         if !quotas.isEmpty {
             if var existing = providerQuotas[.gemini] {
                 for (email, quota) in quotas {
@@ -1177,6 +1207,8 @@ final class QuotaViewModel {
 
         // In remote mode, skip local filesystem fetchers — only show data from the remote proxy
         // (auth files, usage stats, API keys are already fetched by refreshData())
+        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
+
         if !modeManager.isRemoteProxyMode {
             // Note: Cursor and Trae removed from auto-refresh (issue #29)
             // User must use "Scan for IDEs" to detect these
@@ -1188,7 +1220,9 @@ final class QuotaViewModel {
             async let warp: () = refreshWarpQuotasInternal()
             async let kiro: () = refreshKiroQuotasInternal()
 
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, geminiCLI)
+        } else {
+            _ = await geminiCLI
         }
 
         checkQuotaNotifications()
@@ -1221,14 +1255,14 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
+        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
 
         // In Quota-Only Mode, also include CLI fetchers
         if modeManager.isMonitorMode {
             async let codexCLI: () = refreshCodexCLIQuotasInternal()
-            async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
             _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, codexCLI, geminiCLI)
         } else {
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, geminiCLI)
         }
 
         checkQuotaNotifications()

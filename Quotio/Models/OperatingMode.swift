@@ -225,10 +225,9 @@ final class OperatingModeManager {
             self.hasCompletedOnboarding = false
         }
         
-        // Load remote config if in remote mode
-        if currentMode == .remoteProxy {
-            loadRemoteConfig()
-        }
+        // Keep the saved remote config available even outside Remote Proxy mode.
+        // Monitor mode can use it for management-only quota lookups.
+        loadRemoteConfig()
     }
     
     // MARK: - Mode Management
