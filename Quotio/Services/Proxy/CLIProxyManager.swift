@@ -1004,6 +1004,49 @@ final class CLIProxyManager {
         process = nil
         proxyStatus.running = false
     }
+
+    /// Stop the proxy and wait for process/port cleanup to complete.
+    /// Used by recovery paths that immediately restart, so the detached cleanup in stop()
+    /// cannot race with and kill the newly started process by port.
+    func stopAndWait() async {
+        terminateAuthProcess()
+        stopHealthMonitor()
+        cancelCrashRestart()
+
+        if proxyBridge.isRunning {
+            proxyBridge.stop()
+        }
+
+        let currentProcess = process
+        let userPort = proxyStatus.port
+        let bridgeMode = useBridgeMode
+        let intPort = internalPort
+        markExpectedTermination(currentProcess)
+
+        process = nil
+        proxyStatus.running = false
+
+        await Task.detached(priority: .userInitiated) {
+            if let proc = currentProcess, proc.isRunning {
+                let pid = proc.processIdentifier
+                proc.terminate()
+
+                let deadline = Date().addingTimeInterval(2.0)
+                while proc.isRunning && Date() < deadline {
+                    usleep(100_000)
+                }
+
+                if proc.isRunning {
+                    kill(pid, SIGKILL)
+                }
+            }
+
+            Self.killProcessOnPortSync(userPort)
+            if bridgeMode {
+                Self.killProcessOnPortSync(intPort)
+            }
+        }.value
+    }
     
     // ════════════════════════════════════════════════════════════════════════
     // MARK: - Health Monitoring

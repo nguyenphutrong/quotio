@@ -1099,8 +1099,14 @@ final class QuotaViewModel {
         if proxyManager.proxyStatus.running {
             // Proxy process is running but not responding - likely hung
             // Stop and restart
-            stopProxy()
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+            refreshTask?.cancel()
+            refreshTask = nil
+            requestTracker.stop()
+
+            Log.quota("Attempting proxy recovery...")
+            await proxyManager.stopAndWait()
+            Log.quota("Proxy recovery stop completed, starting proxy")
+            try? await Task.sleep(nanoseconds: 300_000_000)
             await startProxy()
         }
     }
@@ -1128,7 +1134,13 @@ final class QuotaViewModel {
 
             self.authFiles = newAuthFiles
 
-            self.usageStats = try await client.fetchUsageStats()
+            do {
+                self.usageStats = try await client.fetchUsageStats()
+            } catch APIError.httpError(404) {
+                self.usageStats = nil
+                Log.quota("Usage stats endpoint is not supported by this CLIProxyAPI version")
+            }
+
             self.apiKeys = try await client.fetchAPIKeys()
             
             // Clear any previous error on success
