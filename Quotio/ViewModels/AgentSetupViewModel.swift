@@ -139,7 +139,7 @@ final class AgentSetupViewModel {
         selectedSetupMode = saved.isProxyConfigured ? .proxy : .defaultSetup
         
         // Update current configuration with saved model slots
-        for (slot, model) in saved.modelSlots {
+        for (slot, model) in AvailableModel.normalizedModelSlots(saved.modelSlots) {
             currentConfiguration?.modelSlots[slot] = model
         }
         
@@ -177,7 +177,7 @@ final class AgentSetupViewModel {
 
 
     func updateModelSlot(_ slot: ModelSlot, model: String) {
-        currentConfiguration?.modelSlots[slot] = model
+        currentConfiguration?.modelSlots[slot] = AvailableModel.normalizedModelName(model)
     }
 
     func applyConfiguration() async {
@@ -392,8 +392,9 @@ final class AgentSetupViewModel {
             // On error, use default models if list is empty
             logger.error("[AgentSetupViewModel] Failed to load models: \(error.localizedDescription)")
             if availableModels.isEmpty {
-                self.availableModels = AvailableModel.allModels
-                logger.debug("[AgentSetupViewModel] Using \(AvailableModel.allModels.count) default models")
+                let fallbackModels = AvailableModel.sanitizedModels(AvailableModel.allModels)
+                self.availableModels = fallbackModels
+                logger.debug("[AgentSetupViewModel] Using \(fallbackModels.count) default models")
             }
         }
 
@@ -404,10 +405,12 @@ final class AgentSetupViewModel {
     private func processModels(_ fetchedModels: [AvailableModel]) -> [AvailableModel] {
         // If API returned models, use them; otherwise fallback to default models
         if !fetchedModels.isEmpty {
-            return fetchedModels.sorted { $0.displayName < $1.displayName }
+            return AvailableModel.sanitizedModels(fetchedModels)
+                .sorted { $0.displayName < $1.displayName }
         }
 
-        return AvailableModel.allModels.sorted { $0.displayName < $1.displayName }
+        return AvailableModel.sanitizedModels(AvailableModel.allModels)
+            .sorted { $0.displayName < $1.displayName }
     }
 
     /// Refresh virtual models - removes old ones and adds current ones
