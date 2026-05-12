@@ -196,12 +196,14 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
     }
     
     /// Whether this provider can be added manually (via OAuth, CLI login, or file import)
-    /// Cursor, Trae, Windsurf are excluded because they only read from local app databases
-    /// GLM is excluded because it should only be added via Custom Providers
+    /// Trae is excluded because it only reads from local app databases.
+    /// GLM is excluded because it should only be added via Custom Providers.
+    /// Cursor is supported via a snapshot of the currently-logged-in IDE session — the
+    /// UI flow is custom (no OAuth endpoint), but multiple accounts can be saved.
     var supportsManualAuth: Bool {
         switch self {
-        case .cursor, .trae, .glm:
-            return false  // GLM: only via Custom Providers; Cursor/Trae: only reads from local app database
+        case .trae, .glm:
+            return false  // GLM: only via Custom Providers; Trae: reads only from local app database
         default:
             return true
         }
