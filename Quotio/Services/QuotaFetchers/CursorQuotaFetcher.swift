@@ -173,69 +173,69 @@ actor CursorQuotaFetcher {
         )
     }
     
-    /// Fetch quota from Cursor API using usage-summary endpoint
+    /// Fetch quota from Cursor API using usage-summary endpoint for the
+    /// currently signed-in Cursor IDE account (read from state.vscdb).
     func fetchQuota() async -> CursorQuotaInfo? {
         guard let authData = readAuthFromStateDB(),
               let accessToken = authData.accessToken else {
             return nil
         }
-        
+        return await fetchQuota(authData: authData, accessToken: accessToken)
+    }
+
+    /// Fetch quota for an arbitrary access token + identity. Used by the
+    /// multi-account flow where tokens are pulled from CursorAccountStore.
+    func fetchQuota(
+        email: String,
+        accessToken: String,
+        membershipType: String? = nil
+    ) async -> CursorQuotaInfo? {
+        let authData = CursorAuthData(
+            accessToken: accessToken,
+            refreshToken: nil,
+            email: email,
+            membershipType: membershipType,
+            subscriptionStatus: nil,
+            signUpType: nil
+        )
+        return await fetchQuota(authData: authData, accessToken: accessToken)
+    }
+
+    private func fetchQuota(authData: CursorAuthData, accessToken: String) async -> CursorQuotaInfo? {
         // Fetch usage-summary endpoint (has both plan and on-demand info)
         guard let usageURL = URL(string: "\(cursorAPIBase)/auth/usage-summary") else { return nil }
-        
+
         var request = URLRequest(url: usageURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        
+
+        let fallback = CursorQuotaInfo(
+            email: authData.email,
+            membershipType: authData.membershipType,
+            subscriptionStatus: authData.subscriptionStatus,
+            billingCycleStart: nil,
+            billingCycleEnd: nil,
+            isUnlimited: false,
+            planUsage: nil,
+            onDemandUsage: nil
+        )
+
         do {
             let (data, response) = try await session.data(for: request)
-            
+
             guard let httpResponse = response as? HTTPURLResponse else {
-                return nil
+                return fallback
             }
-            
-            // If unauthorized, return basic info from local auth
-            if httpResponse.statusCode == 401 {
-                return CursorQuotaInfo(
-                    email: authData.email,
-                    membershipType: authData.membershipType,
-                    subscriptionStatus: authData.subscriptionStatus,
-                    billingCycleStart: nil,
-                    billingCycleEnd: nil,
-                    isUnlimited: false,
-                    planUsage: nil,
-                    onDemandUsage: nil
-                )
-            }
-            
+
+            // 401 or non-200: return basic info from supplied auth data
             guard httpResponse.statusCode == 200 else {
-                // Return basic info from local auth if API fails
-                return CursorQuotaInfo(
-                    email: authData.email,
-                    membershipType: authData.membershipType,
-                    subscriptionStatus: authData.subscriptionStatus,
-                    billingCycleStart: nil,
-                    billingCycleEnd: nil,
-                    isUnlimited: false,
-                    planUsage: nil,
-                    onDemandUsage: nil
-                )
+                return fallback
             }
-            
+
             return parseUsageSummaryResponse(data, authData: authData)
         } catch {
-            // Return basic info from local auth on network error
-            return CursorQuotaInfo(
-                email: authData.email,
-                membershipType: authData.membershipType,
-                subscriptionStatus: authData.subscriptionStatus,
-                billingCycleStart: nil,
-                billingCycleEnd: nil,
-                isUnlimited: false,
-                planUsage: nil,
-                onDemandUsage: nil
-            )
+            return fallback
         }
     }
     
@@ -325,11 +325,56 @@ actor CursorQuotaFetcher {
         )
     }
     
-    /// Convert to ProviderQuotaData for unified display
+    /// Convert to ProviderQuotaData for unified display.
+    ///
+    /// Returns one entry per Cursor account known to the app:
+    /// - The account currently signed in to the Cursor IDE (read from state.vscdb).
+    /// - Every account the user has explicitly saved via `CursorAccountStore`.
+    /// Saved accounts win on email collision (their tokens are authoritative).
     func fetchAsProviderQuota() async -> [String: ProviderQuotaData] {
-        guard await isInstalled() else { return [:] }
-        guard let info = await fetchQuota() else { return [:] }
-        
+        let installed = await isInstalled()
+        let savedAccounts = CursorAccountStore.loadMetadataFromDefaults()
+
+        // Nothing to report: Cursor isn't installed AND no saved accounts.
+        if !installed && savedAccounts.isEmpty { return [:] }
+
+        var results: [String: ProviderQuotaData] = [:]
+
+        // 1) Live IDE-signed-in account (preserves existing single-account behavior).
+        if installed, let info = await fetchQuota() {
+            if let (email, data) = buildProviderQuota(from: info) {
+                results[email] = data
+            }
+        }
+
+        // 2) Every saved account — fetched with its stored access token.
+        // Saved accounts override the live one if the emails collide.
+        for account in savedAccounts {
+            guard let tokens = CursorAccountStore.tokens(for: account.email) else {
+                // Token missing (keychain wiped, etc.) — show an empty/unknown row
+                // so the user knows the account is still tracked but needs re-auth.
+                results[account.email] = ProviderQuotaData(
+                    models: [ModelQuota(name: "cursor-usage", percentage: -1, resetTime: "")],
+                    lastUpdated: Date(),
+                    isForbidden: true,
+                    planType: account.membershipType
+                )
+                continue
+            }
+            let info = await fetchQuota(
+                email: account.email,
+                accessToken: tokens.accessToken,
+                membershipType: account.membershipType
+            )
+            guard let info, let (email, data) = buildProviderQuota(from: info) else { continue }
+            results[email] = data
+        }
+
+        return results
+    }
+
+    /// Build a ProviderQuotaData (and its display key) from a CursorQuotaInfo.
+    private func buildProviderQuota(from info: CursorQuotaInfo) -> (String, ProviderQuotaData)? {
         var models: [ModelQuota] = []
         
         // Add plan usage
@@ -400,7 +445,7 @@ actor CursorQuotaFetcher {
             isForbidden: false,
             planType: planDisplayName
         )
-        
-        return [email: quotaData]
+
+        return (email, quotaData)
     }
 }
