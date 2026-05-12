@@ -26,20 +26,24 @@ nonisolated struct CursorOAuthResult: Sendable {
     let accessToken: String
     let refreshToken: String?
     let authId: String?
-    /// Best-effort email pulled from the JWT payload (may be nil).
+    /// Resolved email — from /api/auth/me when reachable, otherwise the JWT
+    /// `sub` claim. May still be nil in pathological cases.
     let email: String?
 }
 
+/// Public profile fields returned by https://cursor.com/api/auth/me.
+nonisolated struct CursorProfile: Sendable {
+    let email: String?
+    let name: String?
+    let sub: String?
+}
+
 enum CursorOAuthError: LocalizedError {
-    case cancelled
     case timedOut
-    case network(String)
 
     var errorDescription: String? {
         switch self {
-        case .cancelled: return "Sign-in cancelled."
         case .timedOut: return "Timed out waiting for browser login."
-        case .network(let msg): return "Network error: \(msg)"
         }
     }
 }
@@ -55,6 +59,7 @@ actor CursorOAuthService {
 
     private let pollEndpoint = "https://api2.cursor.sh/auth/poll"
     private let loginEndpoint = "https://www.cursor.com/loginDeepControl"
+    private let profileEndpoint = "https://cursor.com/api/auth/me"
 
     // Cursor's auth poll endpoint rejects requests that don't look like the IDE.
     private let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/0.48.6 Chrome/132.0.6834.210 Electron/34.3.4 Safari/537.36"
@@ -106,7 +111,7 @@ actor CursorOAuthService {
         while Date() < deadline {
             try Task.checkCancellation()
 
-            if let result = try await pollOnce(uuid: flow.uuid, verifier: flow.verifier) {
+            if let result = await pollOnce(uuid: flow.uuid, verifier: flow.verifier) {
                 return result
             }
 
@@ -124,15 +129,14 @@ actor CursorOAuthService {
         let authId: String?
     }
 
-    private func pollOnce(uuid: String, verifier: String) async throws -> CursorOAuthResult? {
+    private func pollOnce(uuid: String, verifier: String) async -> CursorOAuthResult? {
         var components = URLComponents(string: pollEndpoint)!
         components.queryItems = [
             URLQueryItem(name: "uuid", value: uuid),
             URLQueryItem(name: "verifier", value: verifier)
         ]
-        guard let url = components.url else {
-            throw CursorOAuthError.network("invalid poll URL")
-        }
+        // pollEndpoint is a compile-time literal, components.url is always non-nil.
+        let url = components.url!
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -158,7 +162,8 @@ actor CursorOAuthService {
             return nil
         }
 
-        let email = Self.emailFromJWT(accessToken)
+        let profile = await fetchProfile(accessToken: accessToken)
+        let email = profile?.email ?? Self.jwtSub(accessToken)
 
         return CursorOAuthResult(
             accessToken: accessToken,
@@ -166,6 +171,47 @@ actor CursorOAuthService {
             authId: decoded?.authId,
             email: email
         )
+    }
+
+    // MARK: - Profile
+
+    /// Hit https://cursor.com/api/auth/me with the WorkOS session cookie to
+    /// retrieve the user's real email + display name. Cursor's access tokens
+    /// don't carry email claims (despite the `email` scope), so this is the
+    /// only way to get a friendly identifier.
+    func fetchProfile(accessToken: String) async -> CursorProfile? {
+        guard let subject = Self.jwtSub(accessToken), !subject.isEmpty else { return nil }
+        guard let url = URL(string: profileEndpoint) else { return nil }
+
+        // Cookie value: URL-encode(`<sub>::<accessToken>`).
+        let raw = "\(subject)::\(accessToken)"
+        let allowed = CharacterSet.urlQueryAllowed.subtracting(.init(charactersIn: ":/?#[]@!$&'()*+,;="))
+        guard let encoded = raw.addingPercentEncoding(withAllowedCharacters: allowed) else {
+            return nil
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("WorkosCursorSessionToken=\(encoded)", forHTTPHeaderField: "Cookie")
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                return nil
+            }
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return nil
+            }
+            return CursorProfile(
+                email: json["email"] as? String,
+                name: json["name"] as? String,
+                sub: json["sub"] as? String
+            )
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - PKCE helpers
@@ -191,15 +237,15 @@ actor CursorOAuthService {
             .replacingOccurrences(of: "=", with: "")
     }
 
-    /// Decode the JWT payload (no signature verification — we only need claims
-    /// for display). Returns `email` if present, otherwise `sub` (user id).
-    nonisolated private static func emailFromJWT(_ token: String) -> String? {
+    /// Extract the `sub` claim from a Cursor access-token JWT. Cursor tokens
+    /// don't carry an `email` claim, but the `sub` is needed to build the
+    /// WorkosCursorSessionToken cookie used by /api/auth/me.
+    nonisolated static func jwtSub(_ token: String) -> String? {
         let parts = token.split(separator: ".")
         guard parts.count >= 2 else { return nil }
         var b64 = String(parts[1])
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
-        // Pad to multiple of 4.
         let pad = (4 - (b64.count % 4)) % 4
         b64.append(String(repeating: "=", count: pad))
 
@@ -208,11 +254,6 @@ actor CursorOAuthService {
         else {
             return nil
         }
-
-        if let email = json["email"] as? String, !email.isEmpty {
-            return email
-        }
-        // Fall back to subject (user id like `user_01XXX`).
         return json["sub"] as? String
     }
 }

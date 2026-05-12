@@ -333,7 +333,7 @@ actor CursorQuotaFetcher {
     /// Saved accounts win on email collision (their tokens are authoritative).
     func fetchAsProviderQuota() async -> [String: ProviderQuotaData] {
         let installed = await isInstalled()
-        let savedAccounts = CursorAccountStore.snapshotForFetcher()
+        let savedAccounts = CursorAccountStore.loadMetadataFromDefaults()
 
         // Nothing to report: Cursor isn't installed AND no saved accounts.
         if !installed && savedAccounts.isEmpty { return [:] }

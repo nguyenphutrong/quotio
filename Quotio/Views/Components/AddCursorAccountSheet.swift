@@ -10,10 +10,9 @@
 //      in their default browser.
 //   2. They sign in in the browser (possibly with a different Cursor account
 //      than the one already in their IDE — this is the whole point).
-//   3. We poll api2.cursor.sh/auth/poll until tokens come back, then save
-//      them to CursorAccountStore.
-//
-//  A "Paste Tokens Manually" path is kept for advanced users.
+//   3. We poll api2.cursor.sh/auth/poll until tokens come back, then call
+//      cursor.com/api/auth/me to resolve the real email and save everything
+//      to CursorAccountStore.
 //
 
 import SwiftUI
@@ -34,13 +33,6 @@ struct AddCursorAccountSheet: View {
     @State private var inFlight: CursorOAuthService.InFlightFlow?
     @State private var pollTask: Task<Void, Never>?
     @State private var copiedURL = false
-    @State private var showManualEntry = false
-
-    @State private var manualEmail = ""
-    @State private var manualAccessToken = ""
-    @State private var manualRefreshToken = ""
-    @State private var manualError: String?
-    @State private var isSavingManual = false
 
     private let oauthService = CursorOAuthService()
 
@@ -56,35 +48,21 @@ struct AddCursorAccountSheet: View {
             VStack(spacing: 6) {
                 Text("Connect Cursor")
                     .font(.title2).fontWeight(.bold)
-                Text("Sign in to a Cursor account in your browser. You can repeat this to add multiple accounts.")
+                Text("Sign in to a Cursor account in your browser. Repeat to add more.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
 
-            if showManualEntry {
-                manualEntryForm
-            } else {
-                oauthBody
-            }
+            oauthBody
 
-            HStack(spacing: 12) {
+            HStack {
+                Spacer()
                 Button("action.cancel".localized(), role: .cancel) {
                     cancelAndClose()
                 }
                 .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button(showManualEntry ? "Use Browser Sign-In" : "Paste Tokens Manually") {
-                    if isPolling { pollTask?.cancel(); phase = .idle; inFlight = nil }
-                    showManualEntry.toggle()
-                    manualError = nil
-                }
-                .buttonStyle(.borderless)
-                .disabled(isSavingManual)
             }
-            .frame(maxWidth: .infinity)
         }
         .padding(32)
         .frame(width: 520)
@@ -198,50 +176,6 @@ struct AddCursorAccountSheet: View {
         }
     }
 
-    // MARK: - Manual entry
-
-    @ViewBuilder
-    private var manualEntryForm: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Email").font(.caption).foregroundStyle(.secondary)
-                TextField("you@example.com", text: $manualEmail)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Access Token").font(.caption).foregroundStyle(.secondary)
-                SecureField("cursorAuth/accessToken", text: $manualAccessToken)
-                    .textFieldStyle(.roundedBorder)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Refresh Token (optional)").font(.caption).foregroundStyle(.secondary)
-                SecureField("cursorAuth/refreshToken", text: $manualRefreshToken)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            if let manualError {
-                Text(manualError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            Button {
-                Task { await saveManual() }
-            } label: {
-                if isSavingManual {
-                    SmallProgressView()
-                } else {
-                    Label("Save Account", systemImage: "plus.circle.fill")
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(AIProvider.cursor.color)
-            .frame(maxWidth: .infinity)
-            .disabled(isSavingManual || manualEmail.isEmpty || manualAccessToken.isEmpty)
-        }
-    }
-
     // MARK: - Actions
 
     private func startOAuth() {
@@ -295,28 +229,5 @@ struct AddCursorAccountSheet: View {
     private func cancelAndClose() {
         pollTask?.cancel()
         onDismiss()
-    }
-
-    private func saveManual() async {
-        isSavingManual = true
-        defer { isSavingManual = false }
-        manualError = nil
-
-        let email = manualEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-        let access = manualAccessToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        let refresh = manualRefreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let ok = CursorAccountStore.shared.add(
-            email: email,
-            accessToken: access,
-            refreshToken: refresh.isEmpty ? nil : refresh,
-            membershipType: nil
-        )
-        if ok {
-            await viewModel.refreshQuotaForProvider(.cursor)
-            onDismiss()
-        } else {
-            manualError = "Couldn't save tokens. Check the email and access token."
-        }
     }
 }

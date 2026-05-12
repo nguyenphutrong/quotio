@@ -2,10 +2,10 @@
 //  CursorAccountStore.swift
 //  Quotio - CLIProxyAPI GUI Wrapper
 //
-//  Persists multiple Cursor accounts (tokens in Keychain, metadata in UserDefaults).
-//  Cursor itself only allows one signed-in account in the IDE at a time; this store
-//  lets users snapshot the current Cursor login and keep N saved accounts whose
-//  quotas can be queried independently via the Cursor API.
+//  Persists multiple Cursor accounts (tokens in Keychain, metadata in
+//  UserDefaults). Cursor's IDE only allows one signed-in account at a time;
+//  this store lets users sign in to N accounts via CursorOAuthService and
+//  query each account's quota independently.
 //
 
 import Foundation
@@ -38,7 +38,7 @@ final class CursorAccountStore {
     private(set) var accounts: [CursorSavedAccount] = []
 
     private init() {
-        self.accounts = loadMetadata()
+        self.accounts = Self.loadMetadataFromDefaults()
     }
 
     // MARK: - Public API
@@ -88,6 +88,35 @@ final class CursorAccountStore {
         deleteTokens(email: target)
     }
 
+    /// Rename the email key for an existing account, migrating its keychain
+    /// entry. Used to backfill the real email after /api/auth/me resolves it
+    /// post-login. No-op if the account doesn't exist or the new email is
+    /// already in use.
+    func rename(from oldEmail: String, to newEmail: String, membershipType: String? = nil) {
+        let from = oldEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let to = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !from.isEmpty, !to.isEmpty,
+              from.caseInsensitiveCompare(to) != .orderedSame,
+              let idx = accounts.firstIndex(where: {
+                  $0.email.caseInsensitiveCompare(from) == .orderedSame
+              }),
+              !contains(email: to)
+        else { return }
+
+        guard let tokens = Self.tokens(for: from) else { return }
+
+        // Move keychain row.
+        _ = saveTokens(email: to, access: tokens.accessToken, refresh: tokens.refreshToken)
+        deleteTokens(email: from)
+
+        accounts[idx] = CursorSavedAccount(
+            email: to,
+            membershipType: membershipType ?? accounts[idx].membershipType,
+            addedAt: accounts[idx].addedAt
+        )
+        saveMetadata()
+    }
+
     /// Read tokens for a saved account. nil if the account isn't tracked or
     /// the keychain entry is missing.
     nonisolated static func tokens(for email: String) -> CursorAccountTokens? {
@@ -102,19 +131,11 @@ final class CursorAccountStore {
         )
     }
 
-    /// Snapshot of saved accounts callable from non-MainActor contexts (e.g. the
-    /// quota fetcher actor). Uses the keychain + UserDefaults directly so callers
-    /// don't need to hop to the main actor.
-    nonisolated static func snapshotForFetcher() -> [CursorSavedAccount] {
-        loadMetadataFromDefaults()
-    }
-
     // MARK: - Metadata Persistence
 
-    private func loadMetadata() -> [CursorSavedAccount] {
-        Self.loadMetadataFromDefaults()
-    }
-
+    /// Snapshot of saved accounts callable from non-MainActor contexts (e.g.
+    /// the quota fetcher actor). Reads UserDefaults directly so callers
+    /// don't need to hop to the main actor.
     nonisolated static func loadMetadataFromDefaults() -> [CursorSavedAccount] {
         guard let data = UserDefaults.standard.data(forKey: metadataKey) else { return [] }
         return (try? JSONDecoder().decode([CursorSavedAccount].self, from: data)) ?? []
