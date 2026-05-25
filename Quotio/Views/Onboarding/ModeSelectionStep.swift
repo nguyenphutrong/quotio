@@ -22,6 +22,29 @@ struct ModeSelectionStep: View {
                 }
             }
             .frame(maxWidth: 520)
+
+            if viewModel.selectedMode == .localProxy, let notice = viewModel.localModeNotice {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(notice.title)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                        Text(notice.message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(12)
+                .frame(maxWidth: 520)
+                .background(Color.secondary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
             
             Spacer()
             

@@ -602,6 +602,10 @@ final class CLIProxyManager {
         guard !isBinaryInstalled, hasLegacyCLIProxyAPIInstall else { return nil }
         return "A legacy CLIProxyAPI install was found. Install cpa-plusplus to continue local mode. Existing auth files will be preserved."
     }
+
+    var cpaPlusPlusDevBinaryPath: String? {
+        resolveDevCPAPlusPlusBinaryPath()
+    }
     
     func downloadAndInstallBinary() async throws {
         lastError = nil
@@ -786,12 +790,8 @@ final class CLIProxyManager {
     private func findBinaryInDirectory(_ directory: URL) throws -> URL? {
         let contents = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isExecutableKey, .isRegularFileKey])
         
-        let binaryNames = ["CLIProxyAPI", "cli-proxy-api", "cli-proxy-api-plus", "claude-code-proxy", "proxy"]
-        
-        for name in binaryNames {
-            if let found = contents.first(where: { $0.lastPathComponent.lowercased() == name.lowercased() }) {
-                return found
-            }
+        if let found = contents.first(where: { $0.lastPathComponent == ProxyBinarySource.binaryName }) {
+            return found
         }
         
         for item in contents {
@@ -800,14 +800,6 @@ final class CLIProxyManager {
                 if isDirectory.boolValue {
                     if let found = try findBinaryInDirectory(item) {
                         return found
-                    }
-                } else {
-                    let resourceValues = try item.resourceValues(forKeys: [.isExecutableKey])
-                    if resourceValues.isExecutable == true {
-                        let name = item.lastPathComponent.lowercased()
-                        if !name.hasSuffix(".sh") && !name.hasSuffix(".txt") && !name.hasSuffix(".md") {
-                            return item
-                        }
                     }
                 }
             }
@@ -1381,7 +1373,7 @@ extension CLIProxyManager {
         terminateAuthProcess()
         
         guard isBinaryInstalled else {
-            return AuthCommandResult(success: false, message: "CLIProxyAPI binary not found", deviceCode: nil)
+            return AuthCommandResult(success: false, message: "cpa-plusplus binary not found", deviceCode: nil)
         }
         
         return await withCheckedContinuation { continuation in
@@ -1886,7 +1878,7 @@ extension CLIProxyManager {
             
             downloadProgress = 0.1
             binaryData = try await downloadAsset(url: downloadURL)
-            assetName = URL(string: downloadURL)?.lastPathComponent ?? "CLIProxyAPI"
+            assetName = URL(string: downloadURL)?.lastPathComponent ?? ProxyBinarySource.binaryName
         }
         
         downloadProgress = 0.6
@@ -2275,7 +2267,6 @@ extension CLIProxyManager {
 
     private func resolveDevCPAPlusPlusBinaryPath() -> String? {
         let fileManager = FileManager.default
-        let binaryName = ProxyBinarySource.binaryName
 
         func firstExistingRegularFile(in candidates: [URL?]) -> String? {
             for candidate in candidates.compactMap({ $0 }) {

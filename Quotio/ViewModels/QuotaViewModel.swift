@@ -1018,6 +1018,9 @@ final class QuotaViewModel {
             
             try await proxyManager.start()
             setupAPIClient()
+            if let apiClient {
+                modeManager.setServerInfo(try? await apiClient.checkServer())
+            }
             startAutoRefresh()
             restartWarmupScheduler()
 
@@ -1060,6 +1063,7 @@ final class QuotaViewModel {
         requestTracker.stop()
         
         proxyManager.stop()
+        modeManager.setServerInfo(nil)
         restartWarmupScheduler()
         
         // Invalidate URLSession to close all connections

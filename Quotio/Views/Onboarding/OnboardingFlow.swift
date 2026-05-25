@@ -34,6 +34,7 @@ final class OnboardingViewModel {
     var remoteManagementKey: String = ""
     var direction: SlideDirection = .forward
     @ObservationIgnored private let modeManager = OperatingModeManager.shared
+    @ObservationIgnored private let proxyManager = CLIProxyManager.shared
     
     var visibleSteps: [OnboardingStep] {
         if selectedMode == .remoteProxy {
@@ -73,6 +74,28 @@ final class OnboardingViewModel {
     var isRemoteConfigValid: Bool {
         let validation = RemoteURLValidator.validate(remoteEndpoint)
         return validation.isValid && !remoteManagementKey.isEmpty
+    }
+
+    var localModeNotice: (title: String, message: String)? {
+        if let devPath = proxyManager.cpaPlusPlusDevBinaryPath {
+            return (
+                "Use existing local dev binary",
+                "\(ProxyBinarySource.devBinaryPathEnvironmentKey)=\(devPath)"
+            )
+        }
+
+        if let legacyPrompt = proxyManager.legacyMigrationPrompt {
+            return ("Download/install cpa-plusplus", legacyPrompt)
+        }
+
+        if !proxyManager.isBinaryInstalled {
+            return (
+                "Download/install cpa-plusplus",
+                "Quotio will install cpa-plusplus from nguyenphutrong/cpa-plusplus releases before starting local mode."
+            )
+        }
+
+        return nil
     }
     
     func goNext() {

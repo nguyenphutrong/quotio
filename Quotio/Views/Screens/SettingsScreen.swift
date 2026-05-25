@@ -53,13 +53,12 @@ struct SettingsScreen: View {
 
             // Troubleshooting
             Section {
-                Button("troubleshooting.applyWorkaround".localized()) {
-                    CLIProxyManager.shared.applyBaseURLWorkaround()
+                LabeledContent("Antigravity base URL workaround") {
+                    Text("Requires cpa-plusplus API support.")
+                        .foregroundStyle(.secondary)
                 }
-
-                Button("troubleshooting.restoreOriginal".localized()) {
-                    CLIProxyManager.shared.removeBaseURLWorkaround()
-                }
+                // TODO(cpa-plusplus): add Management API support for updating provider auth metadata,
+                // then re-enable this control without editing auth files directly.
             } header: {
                 Label("troubleshooting.title".localized(), systemImage: "hammer.fill")
             } footer: {
@@ -719,6 +718,7 @@ struct UnifiedProxySettingsSection: View {
 
 struct LocalProxyServerSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @State private var modeManager = OperatingModeManager.shared
     @AppStorage("autoStartProxy") private var autoStartProxy = false
     @AppStorage("autoStartTunnel") private var autoStartTunnel = false
     @AppStorage("autoRestartTunnel") private var autoRestartTunnel = false
@@ -756,6 +756,42 @@ struct LocalProxyServerSection: View {
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
             }
+
+            LabeledContent("Server kind") {
+                Text(serverKindText)
+                    .foregroundStyle(.secondary)
+            }
+
+            LabeledContent("cpa-plusplus version") {
+                Text(serverVersionText)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+
+            LabeledContent("Install status") {
+                Text(installStatusText)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let prompt = viewModel.proxyManager.legacyMigrationPrompt {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(prompt)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let devPath = viewModel.proxyManager.cpaPlusPlusDevBinaryPath {
+                LabeledContent("Dev binary") {
+                    Text(devPath)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
             
             ManagementKeyRow()
             
@@ -788,6 +824,30 @@ struct LocalProxyServerSection: View {
                 isLoadingConfig = false
             }
         }
+    }
+
+    private var serverKindText: String {
+        modeManager.serverInfo?.kind.rawValue ?? "cpa-plusplus"
+    }
+
+    private var serverVersionText: String {
+        if let version = modeManager.serverInfo?.version, !version.isEmpty {
+            return version
+        }
+        return viewModel.proxyManager.currentVersion ?? viewModel.proxyManager.installedProxyVersion ?? "Not detected"
+    }
+
+    private var installStatusText: String {
+        if viewModel.proxyManager.cpaPlusPlusDevBinaryPath != nil {
+            return "Using local dev binary"
+        }
+        if viewModel.proxyManager.isBinaryInstalled {
+            return "Installed from \(ProxyBinarySource.cpaPlusPlus.sourceRepo)"
+        }
+        if viewModel.proxyManager.hasLegacyCLIProxyAPIInstall {
+            return "Legacy compatible install found"
+        }
+        return "Not installed"
     }
 }
 
@@ -1909,14 +1969,14 @@ struct AboutTab: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("CLIProxyAPI GUI Wrapper")
+            Text("cpa-plusplus Management UI")
                 .foregroundStyle(.secondary)
             
             Text("Version 1.0")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             
-            Link("GitHub: CLIProxyAPI", destination: URL(string: "https://github.com/router-for-me/CLIProxyAPI")!)
+            Link("GitHub: cpa-plusplus", destination: URL(string: "https://github.com/nguyenphutrong/cpa-plusplus")!)
                 .buttonStyle(.bordered)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -2087,10 +2147,10 @@ struct AboutScreen: View {
                 )
                 
                 LinkCard(
-                    title: "GitHub: CLIProxyAPI",
+                    title: "GitHub: cpa-plusplus",
                     icon: "link",
                     color: .purple,
-                    url: URL(string: "https://github.com/router-for-me/CLIProxyAPI")!
+                    url: URL(string: "https://github.com/nguyenphutrong/cpa-plusplus")!
                 )
                 
                 LinkCard(

@@ -10,10 +10,10 @@ import SwiftUI
 
 // MARK: - Connection Mode
 
-/// Represents how Quotio connects to CLIProxyAPI
+/// Represents how Quotio connects to cpa-plusplus.
 enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case local = "local"    // Connect to localhost proxy (default)
-    case remote = "remote"  // Connect to remote CLIProxyAPI instance
+    case remote = "remote"  // Connect to remote cpa-plusplus instance
     
     var id: String { rawValue }
     
@@ -27,9 +27,9 @@ enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
     var description: String {
         switch self {
         case .local:
-            return "Connect to local CLIProxyAPI on this machine"
+            return "Connect to local cpa-plusplus on this machine"
         case .remote:
-            return "Connect to a remote CLIProxyAPI server"
+            return "Connect to a remote cpa-plusplus server"
         }
     }
     
@@ -53,7 +53,7 @@ enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
             ]
         case .remote:
             return [
-                "Connect to remote CLIProxyAPI",
+                "Connect to remote cpa-plusplus",
                 "View and manage accounts",
                 "Track quota usage",
                 "OAuth for web-based providers",
@@ -86,9 +86,9 @@ enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
 
 // MARK: - Remote Connection Config
 
-/// Configuration for connecting to a remote CLIProxyAPI instance
+/// Configuration for connecting to a remote cpa-plusplus instance.
 struct RemoteConnectionConfig: Codable, Equatable, Sendable {
-    /// The base URL of the remote CLIProxyAPI management endpoint
+    /// The base URL of the remote cpa-plusplus management endpoint.
     /// Example: "https://proxy.example.com:8317/v0/management"
     var endpointURL: String
     

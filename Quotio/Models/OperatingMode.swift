@@ -16,7 +16,7 @@ import SwiftUI
 enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case monitor = "monitor"        // Quota tracking only (no proxy)
     case localProxy = "local"       // Run local proxy server
-    case remoteProxy = "remote"     // Connect to remote CLIProxyAPI
+    case remoteProxy = "remote"     // Connect to remote cpa-plusplus
     
     var id: String { rawValue }
     
