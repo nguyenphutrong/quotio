@@ -76,7 +76,7 @@ actor ManagementAPIClient {
     
     /// Initialize for local connection (localhost)
     init(baseURL: String, authKey: String) {
-        self.baseURL = baseURL
+        self.baseURL = Self.normalizeManagementBaseURL(baseURL)
         self.authKey = authKey
         self.clientId = String(UUID().uuidString.prefix(6))
         self.isRemote = false
@@ -92,14 +92,14 @@ actor ManagementAPIClient {
         self.sessionDelegate = SessionDelegate(clientId: clientId)
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
         
-        Self.log("[\(clientId)] Local client created, timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s")
+        Self.log("[\(clientId)] Local client created, baseURL=\(self.baseURL), timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s")
     }
     
     /// Initialize for remote connection with custom timeout
     /// - Warning: Setting `verifySSL: false` disables certificate validation, making the connection
     ///   vulnerable to man-in-the-middle attacks. Only use for self-signed certificates in trusted networks.
     init(baseURL: String, authKey: String, timeoutConfig: TimeoutConfig, verifySSL: Bool = true) {
-        self.baseURL = baseURL
+        self.baseURL = Self.normalizeManagementBaseURL(baseURL)
         self.authKey = authKey
         self.clientId = String(UUID().uuidString.prefix(6))
         self.isRemote = true
@@ -115,7 +115,7 @@ actor ManagementAPIClient {
         self.sessionDelegate = SessionDelegate(clientId: clientId, verifySSL: verifySSL)
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
         
-        Self.log("[\(clientId)] Remote client created, timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s, verifySSL=\(verifySSL)")
+        Self.log("[\(clientId)] Remote client created, baseURL=\(self.baseURL), timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s, verifySSL=\(verifySSL)")
         
         if !verifySSL {
             Log.warning("SSL verification disabled for \(baseURL). Connection is vulnerable to MITM attacks.")
@@ -143,6 +143,11 @@ actor ManagementAPIClient {
     }
     
     private func makeRequest(_ endpoint: String, method: String = "GET", body: Data? = nil, retryCount: Int = 0) async throws -> Data {
+        let (data, _) = try await makeDataRequest(endpoint, method: method, body: body, retryCount: retryCount)
+        return data
+    }
+
+    private func makeDataRequest(_ endpoint: String, method: String = "GET", body: Data? = nil, retryCount: Int = 0) async throws -> (Data, HTTPURLResponse) {
         let requestId = String(UUID().uuidString.prefix(6))
         let activeCount = Self.incrementActiveRequests()
         let startTime = Date()
@@ -182,26 +187,44 @@ actor ManagementAPIClient {
                 throw APIError.httpError(httpResponse.statusCode)
             }
             
-            return data
+            return (data, httpResponse)
         } catch let error as URLError {
             Self.log("[\(clientId)][\(requestId)] URL ERROR: \(error.code.rawValue) - \(error.localizedDescription)")
             
             // Retry on timeout or connection errors (handles proxy restart scenarios)
             // Exponential backoff: 0.5s, 1s, 2s, 3s (total ~6.5s wait for proxy restart)
-            if retryCount < timeoutConfig.maxRetries && (error.code == .timedOut || error.code == .networkConnectionLost || error.code == .cannotConnectToHost) {
+            if retryCount < timeoutConfig.maxRetries && (error.code == .timedOut || error.code == .networkConnectionLost || error.code == .cannotConnectToHost || error.code == .cannotFindHost) {
                 let backoffSeconds = min(pow(2.0, Double(retryCount)) * 0.5, 3.0)  // Cap at 3 seconds
                 let backoffStr = String(format: "%.1f", backoffSeconds)
                 Self.log("[\(clientId)][\(requestId)] RETRYING after \(backoffStr)s (attempt \(retryCount + 1)/\(timeoutConfig.maxRetries))...")
                 
                 // Exponential backoff delay
                 try? await Task.sleep(nanoseconds: UInt64(backoffSeconds * 1_000_000_000))
-                return try await makeRequest(endpoint, method: method, body: body, retryCount: retryCount + 1)
+                return try await makeDataRequest(endpoint, method: method, body: body, retryCount: retryCount + 1)
             }
-            throw APIError.connectionError(error.localizedDescription)
+            throw APIError.urlError(error)
         } catch {
             Self.log("[\(clientId)][\(requestId)] UNEXPECTED ERROR: \(error.localizedDescription)")
             throw error
         }
+    }
+
+    nonisolated static func normalizeManagementBaseURL(_ rawURL: String) -> String {
+        var url = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        while url.hasSuffix("/") {
+            url.removeLast()
+        }
+
+        if url.hasSuffix("/v0/management") {
+            return url
+        }
+        if url.hasSuffix("/v0") {
+            return url + "/management"
+        }
+        if let range = url.range(of: "/v0/management/") {
+            return String(url[..<range.upperBound]).dropLast().description
+        }
+        return url + "/v0/management"
     }
     
     func fetchAuthFiles() async throws -> [AuthFile] {
@@ -481,12 +504,31 @@ actor ManagementAPIClient {
     /// This is simpler than /health which may not exist.
     func checkProxyResponding() async -> Bool {
         do {
-            _ = try await makeRequest("/debug")
+            _ = try await checkServer()
             return true
         } catch {
             return false
         }
     }
+
+    func checkServer() async throws -> ManagementServerInfo {
+        let (_, response) = try await makeDataRequest("/debug")
+        let version = response.value(forHTTPHeaderField: "X-CPA-VERSION")
+        return ManagementServerInfo(
+            kind: version == nil ? .legacyCompatible : .cpaPlusPlus,
+            version: version
+        )
+    }
+}
+
+nonisolated enum ManagementServerKind: String, Sendable {
+    case cpaPlusPlus = "cpa-plusplus"
+    case legacyCompatible = "legacy compatible"
+}
+
+nonisolated struct ManagementServerInfo: Sendable, Equatable {
+    let kind: ManagementServerKind
+    let version: String?
 }
 
 // MARK: - Latest Version Response
@@ -597,14 +639,32 @@ nonisolated enum APIError: LocalizedError {
     case httpError(Int)
     case decodingError(String)
     case connectionError(String)
+    case urlError(URLError)
     
     var errorDescription: String? {
         switch self {
         case .invalidURL: return "Invalid URL"
         case .invalidResponse: return "Invalid response"
+        case .httpError(401): return "Unauthorized: check the management key"
+        case .httpError(403): return "Forbidden: management access is not allowed"
+        case .httpError(404): return "Unsupported endpoint: requires cpa-plusplus API support"
+        case .httpError(let code) where 500...599 ~= code: return "Server error: \(code)"
         case .httpError(let code): return "HTTP error: \(code)"
         case .decodingError(let msg): return "Decoding error: \(msg)"
         case .connectionError(let msg): return "Connection error: \(msg)"
+        case .urlError(let error):
+            switch error.code {
+            case .timedOut:
+                return "Request timed out"
+            case .cannotConnectToHost, .networkConnectionLost:
+                return "Connection refused or lost"
+            case .cannotFindHost, .dnsLookupFailed:
+                return "Host not found"
+            case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid:
+                return "SSL verification failed"
+            default:
+                return "Connection error: \(error.localizedDescription)"
+            }
         }
     }
 }

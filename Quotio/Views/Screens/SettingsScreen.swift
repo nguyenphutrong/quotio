@@ -278,6 +278,12 @@ struct RemoteServerSection: View {
             
             Text(statusText)
                 .font(.subheadline)
+
+            if let serverInfo = modeManager.serverInfo {
+                Text(serverInfo.version.map { "\(serverInfo.kind.rawValue) \($0)" } ?? serverInfo.kind.rawValue)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             
             Spacer()
             

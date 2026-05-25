@@ -177,6 +177,9 @@ final class OperatingModeManager {
     
     /// Last connection error
     private(set) var lastError: String?
+
+    /// Detected Management API server details from the last successful health check.
+    private(set) var serverInfo: ManagementServerInfo?
     
     // MARK: - Computed Properties
     
@@ -240,6 +243,7 @@ final class OperatingModeManager {
         // Reset connection status when switching modes
         if mode != .remoteProxy {
             connectionStatus = .disconnected
+            serverInfo = nil
         }
     }
     
@@ -300,6 +304,7 @@ final class OperatingModeManager {
             KeychainHelper.deleteManagementKey(for: config.id)
         }
         remoteConfig = nil
+        serverInfo = nil
         UserDefaults.standard.removeObject(forKey: "remoteConnectionConfig")
         
         if isRemoteProxyMode {
@@ -316,6 +321,10 @@ final class OperatingModeManager {
             lastError = nil
             markConnected()
         }
+    }
+
+    func setServerInfo(_ info: ManagementServerInfo?) {
+        serverInfo = info
     }
     
     /// Mark successful connection

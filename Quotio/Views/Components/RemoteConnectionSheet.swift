@@ -301,12 +301,19 @@ struct RemoteConnectionSheet: View {
             Task { await client.invalidate() }
         }
         
-        let success = await client.checkProxyResponding()
-        
-        testResult = RemoteTestResult(
-            success: success,
-            message: success ? nil : "remote.test.cannotConnect".localized()
-        )
+        do {
+            let info = try await client.checkServer()
+            let versionSuffix = info.version.map { " (\($0))" } ?? ""
+            testResult = RemoteTestResult(
+                success: true,
+                message: "\(info.kind.rawValue)\(versionSuffix)"
+            )
+        } catch {
+            testResult = RemoteTestResult(
+                success: false,
+                message: error.localizedDescription
+            )
+        }
         
         isTestingConnection = false
     }

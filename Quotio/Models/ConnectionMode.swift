@@ -136,20 +136,7 @@ struct RemoteConnectionConfig: Codable, Equatable, Sendable {
     /// Extract base URL for ManagementAPIClient
     /// Converts full endpoint to base management URL
     nonisolated var managementBaseURL: String {
-        var url = endpointURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Remove trailing slashes
-        while url.hasSuffix("/") {
-            url.removeLast()
-        }
-        // Ensure it ends with /v0/management
-        if !url.hasSuffix("/v0/management") {
-            if url.hasSuffix("/v0") {
-                url += "/management"
-            } else {
-                url += "/v0/management"
-            }
-        }
-        return url
+        ManagementAPIClient.normalizeManagementBaseURL(endpointURL)
     }
 }
 

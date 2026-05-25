@@ -317,14 +317,15 @@ final class QuotaViewModel {
             return
         }
         
-        let isConnected = await client.checkProxyResponding()
-        
-        if isConnected {
+        do {
+            let info = try await client.checkServer()
+            modeManager.setServerInfo(info)
             modeManager.markConnected()
             await refreshData()
             startAutoRefresh()
-        } else {
-            modeManager.setConnectionStatus(.error("Could not connect to remote server"))
+        } catch {
+            modeManager.setServerInfo(nil)
+            modeManager.setConnectionStatus(.error(error.localizedDescription))
         }
     }
     
