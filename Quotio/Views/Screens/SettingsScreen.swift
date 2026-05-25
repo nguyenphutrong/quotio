@@ -451,7 +451,7 @@ struct UnifiedProxySettingsSection: View {
     private var upstreamProxySection: some View {
         Section {
             VStack(alignment: .leading, spacing: 6) {
-                LabeledContent("settings.upstreamProxy".localized()) {
+                LabeledContent("settings.cpaPlusPlusProxy".localized()) {
                     TextField("", text: $proxyURL)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 220)
@@ -472,13 +472,13 @@ struct UnifiedProxySettingsSection: View {
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Text("settings.upstreamProxy.placeholder".localized())
+                    Text("settings.cpaPlusPlusProxy.placeholder".localized())
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
         } header: {
-            Label("settings.upstreamProxy.title".localized(), systemImage: "network")
+            Label("settings.cpaPlusPlusProxy.title".localized(), systemImage: "network")
         }
     }
     
@@ -1089,7 +1089,7 @@ struct ProxyUpdateSettingsSection: View {
             }
             
             // Upgrade status
-            if proxyManager.selectedBinarySource == .upstream, proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+            if proxyManager.selectedBinarySource == .cpaPlusPlus, proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Label {
@@ -1124,7 +1124,7 @@ struct ProxyUpdateSettingsSection: View {
             } else {
                 HStack {
                     Label {
-                        Text(proxyManager.selectedBinarySource == .plusLocal ? "Fixed local version" : "settings.proxyUpdate.upToDate".localized())
+                        Text("settings.proxyUpdate.upToDate".localized())
                     } icon: {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
@@ -1132,29 +1132,23 @@ struct ProxyUpdateSettingsSection: View {
                     
                     Spacer()
 
-                    if proxyManager.selectedBinarySource == .upstream {
-                        Button {
-                            checkForUpdate()
-                        } label: {
-                            ZStack {
-                                Text("settings.proxyUpdate.checkNow".localized())
-                                    .opacity(isCheckingForUpdate ? 0 : 1)
+                    Button {
+                        checkForUpdate()
+                    } label: {
+                        ZStack {
+                            Text("settings.proxyUpdate.checkNow".localized())
+                                .opacity(isCheckingForUpdate ? 0 : 1)
 
-                                if isCheckingForUpdate {
-                                    SmallProgressView()
-                                }
+                            if isCheckingForUpdate {
+                                SmallProgressView()
                             }
                         }
-                        .disabled(isCheckingForUpdate)
-                    } else {
-                        Text("v\(ProxyBinarySource.plusLocalVersion)")
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
                     }
+                    .disabled(isCheckingForUpdate)
                 }
 
                 // Last checked time
-                if proxyManager.selectedBinarySource == .upstream, let lastCheck = atomFeedService.lastCLIProxyCheck {
+                if let lastCheck = atomFeedService.lastCLIProxyCheck {
                     HStack {
                         Text("Last checked")
                             .font(.caption)
@@ -1605,7 +1599,7 @@ private struct AvailableVersionRow: View {
                         .font(.system(.body, design: .monospaced))
                         .fontWeight(.medium)
                     
-                    if versionInfo.source == .plusLocal {
+                    if versionInfo.source == .cpaPlusPlus {
                         Text("Local")
                             .font(.caption2)
                             .fontWeight(.medium)
@@ -2310,7 +2304,7 @@ struct AboutProxyUpdateCard: View {
     }
 
     private var statusText: String {
-        if proxyManager.selectedBinarySource == .plusLocal {
+        if proxyManager.selectedBinarySource == .cpaPlusPlus {
             return proxyManager.currentVersion == nil && proxyManager.installedProxyVersion == nil
                 ? "Local install required"
                 : "Fixed local version"
@@ -2331,7 +2325,7 @@ struct AboutProxyUpdateCard: View {
         if upgradeError != nil {
             return .orange
         }
-        if proxyManager.selectedBinarySource == .upstream && proxyManager.upgradeAvailable {
+        if proxyManager.selectedBinarySource == .cpaPlusPlus && proxyManager.upgradeAvailable {
             return .green
         }
         return .secondary
@@ -2389,7 +2383,7 @@ struct AboutProxyUpdateCard: View {
                     .foregroundStyle(statusColor == .secondary ? .secondary : .primary)
             }
 
-            if proxyManager.selectedBinarySource == .upstream, let lastCheck = atomFeedService.lastCLIProxyCheck {
+            if proxyManager.selectedBinarySource == .cpaPlusPlus, let lastCheck = atomFeedService.lastCLIProxyCheck {
                 HStack {
                     Text("Last checked")
                         .font(.caption)
@@ -2412,7 +2406,7 @@ struct AboutProxyUpdateCard: View {
             }
 
             HStack {
-                if proxyManager.selectedBinarySource == .upstream {
+                if proxyManager.selectedBinarySource == .cpaPlusPlus {
                     Button {
                         checkForUpdate()
                     } label: {
@@ -2572,7 +2566,7 @@ struct ProxyBinarySourceSelectionSheet: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedSource: ProxyBinarySource = .upstream
+    @State private var selectedSource: ProxyBinarySource = .cpaPlusPlus
 
     private var proxyManager: CLIProxyManager {
         viewModel.proxyManager
@@ -2603,7 +2597,7 @@ struct ProxyBinarySourceSelectionSheet: View {
                 }
             }
 
-            if selectedSource == .upstream, let warning = selectedSource.legacyAuthWarning {
+            if selectedSource == .cpaPlusPlus, let warning = selectedSource.legacyAuthWarning {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)

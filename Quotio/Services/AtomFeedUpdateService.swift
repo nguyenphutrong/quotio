@@ -53,7 +53,7 @@ final class AtomFeedUpdateService {
 
     // MARK: - Cache Keys
 
-    private static let cliProxyCacheKey = "atomFeedCache_cliproxy"
+    private static let cliProxyCacheKey = "atomFeedCache_cpa_plusplus"
     private static let quotioCacheKey = "atomFeedCache_quotio"
 
     // MARK: - Polling Configuration
@@ -63,13 +63,13 @@ final class AtomFeedUpdateService {
 
     // MARK: - Observable Properties
 
-    /// Whether CLIProxyAPI has an update available
+    /// Whether cpa-plusplus has an update available
     private(set) var cliProxyUpdateAvailable: Bool = false
 
-    /// Latest available CLIProxyAPI version
+    /// Latest available cpa-plusplus version
     private(set) var latestCLIProxyVersion: String?
 
-    /// Last time CLIProxyAPI was checked
+    /// Last time cpa-plusplus was checked
     private(set) var lastCLIProxyCheck: Date?
 
     /// Whether a check is in progress
@@ -119,7 +119,7 @@ final class AtomFeedUpdateService {
 
         switch result {
         case .updated(let entries, let etag):
-            guard let latest = entries.first else {
+            guard let latest = entries.first(where: { CPAPlusPlusVersion($0.version) != nil }) else {
                 return (nil, false)
             }
 
@@ -153,7 +153,7 @@ final class AtomFeedUpdateService {
             return (nil, false)
 
         case .error(let error):
-            NSLog("[AtomFeedUpdateService] CLIProxy feed error: \(error.localizedDescription)")
+            NSLog("[AtomFeedUpdateService] cpa-plusplus feed error: \(error.localizedDescription)")
             return (nil, false)
         }
     }
@@ -280,7 +280,7 @@ final class AtomFeedUpdateService {
                 // Send system notification
                 if let version = latestVersion {
                     NotificationManager.shared.notifyUpgradeAvailable(version: version)
-                    NSLog("[AtomFeedUpdateService] New CLIProxyAPI version available: \(version)")
+                    NSLog("[AtomFeedUpdateService] New cpa-plusplus version available: \(version)")
                 }
             }
         } else {
@@ -308,9 +308,9 @@ final class AtomFeedUpdateService {
         }
 
         if cliProxyUpdateAvailable, let version = latestVersion {
-            NSLog("[AtomFeedUpdateService] Manual check: CLIProxyAPI \(version) available")
+            NSLog("[AtomFeedUpdateService] Manual check: cpa-plusplus \(version) available")
         } else {
-            NSLog("[AtomFeedUpdateService] Manual check: CLIProxyAPI is up to date")
+            NSLog("[AtomFeedUpdateService] Manual check: cpa-plusplus is up to date")
         }
     }
 
@@ -401,39 +401,11 @@ final class AtomFeedUpdateService {
     /// Compare two semantic version strings.
     /// Returns true if `newer` is greater than `older`.
     private func isNewerVersion(_ newer: String, than older: String) -> Bool {
-        func parseVersion(_ version: String) -> [Int] {
-            // Remove 'v' prefix if present
-            let cleaned = version.hasPrefix("v") ? String(version.dropFirst()) : version
-
-            // Split by "-" to separate version from build number
-            let dashParts = cleaned.split(separator: "-")
-            let mainVersion = String(dashParts.first ?? "")
-            let buildNumber = dashParts.count > 1 ? Int(dashParts[1]) : nil
-
-            // Split main version by "."
-            var parts = mainVersion.split(separator: ".").compactMap { Int($0) }
-
-            // Append build number if present
-            if let build = buildNumber {
-                parts.append(build)
-            }
-
-            return parts
+        guard let newerVersion = CPAPlusPlusVersion(newer),
+              let olderVersion = CPAPlusPlusVersion(older) else {
+            return false
         }
-
-        let newerParts = parseVersion(newer)
-        let olderParts = parseVersion(older)
-
-        let maxLength = max(newerParts.count, olderParts.count)
-        let paddedNewer = newerParts + Array(repeating: 0, count: maxLength - newerParts.count)
-        let paddedOlder = olderParts + Array(repeating: 0, count: maxLength - olderParts.count)
-
-        for (n, o) in zip(paddedNewer, paddedOlder) {
-            if n > o { return true }
-            if n < o { return false }
-        }
-
-        return false
+        return newerVersion > olderVersion
     }
 }
 

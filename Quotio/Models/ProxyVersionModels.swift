@@ -10,104 +10,94 @@ import Foundation
 // MARK: - Proxy Binary Source
 
 nonisolated enum ProxyBinarySource: String, Codable, CaseIterable, Identifiable, Sendable {
-    case plusLocal
-    case upstream
+    case cpaPlusPlus = "cpa-plusplus"
 
     static let userDefaultsKey = "selectedProxyBinarySource"
     static let explicitSelectionDefaultsKey = "hasExplicitProxyBinarySourceSelection"
-    static let plusLocalVersion = "6.9.28-0"
-    static let plusLocalSHA256 = "a722885ab3c0cea5535ee69a86220d35c4f95ee7656e009d872d24de2910acf0"
-    static let plusLocalBinaryName = "cli-proxy-api-plus"
-    static let plusLocalResourceSubdirectory = "Proxy"
+    static let devBinaryPathEnvironmentKey = "CPA_PLUSPLUS_BINARY_PATH"
+    static let binaryName = "cpa-plusplus"
+    static let legacyBinaryName = "CLIProxyAPI"
 
     var id: String { rawValue }
 
     var storageDirectoryName: String {
         switch self {
-        case .plusLocal: return "plus"
-        case .upstream: return "upstream"
+        case .cpaPlusPlus: return "cpa-plusplus"
         }
     }
 
     var displayName: String {
         switch self {
-        case .plusLocal:
-            return "CLIProxyAPIPlus"
-        case .upstream:
-            return "CLIProxyAPI"
+        case .cpaPlusPlus:
+            return "cpa-plusplus"
         }
     }
 
     var shortDescription: String {
         switch self {
-        case .plusLocal:
-            return "Bundled 6.9.28-0 with legacy compatibility"
-        case .upstream:
-            return "Latest maintained upstream releases"
+        case .cpaPlusPlus:
+            return "Fork-managed proxy server"
         }
     }
 
     var selectionDescription: String {
         switch self {
-        case .plusLocal:
-            return "CLIProxyAPIPlus (bundled 6.9.28-0)"
-        case .upstream:
-            return "CLIProxyAPI (latest upstream)"
+        case .cpaPlusPlus:
+            return "cpa-plusplus"
         }
     }
 
     var detailDescription: String {
         switch self {
-        case .plusLocal:
-            return "Preserves legacy Copilot and Kiro compatibility."
-        case .upstream:
-            return "Actively maintained upstream releases."
+        case .cpaPlusPlus:
+            return "Managed through the cpa-plusplus Management API."
         }
     }
 
     var installActionTitle: String {
         switch self {
-        case .plusLocal:
-            return "Install CLIProxyAPIPlus"
-        case .upstream:
-            return "Install CLIProxyAPI"
+        case .cpaPlusPlus:
+            return "Install cpa-plusplus"
         }
     }
 
     var notInstalledTitle: String {
         switch self {
-        case .plusLocal:
-            return "CLIProxyAPIPlus Not Installed"
-        case .upstream:
-            return "CLIProxyAPI Not Installed"
+        case .cpaPlusPlus:
+            return "cpa-plusplus Not Installed"
         }
     }
 
     var installDescription: String {
         switch self {
-        case .plusLocal:
-            return "Install the bundled CLIProxyAPIPlus binary to continue."
-        case .upstream:
-            return "Install CLIProxyAPI to continue."
+        case .cpaPlusPlus:
+            return "Install cpa-plusplus to continue local mode."
         }
     }
 
     var githubRepo: String? {
         switch self {
-        case .plusLocal:
-            return nil
-        case .upstream:
-            return "router-for-me/CLIProxyAPI"
+        case .cpaPlusPlus:
+            return "nguyenphutrong/cpa-plusplus"
         }
     }
 
     var releasesFeedURL: String? {
         switch self {
-        case .plusLocal:
-            return nil
-        case .upstream:
-            return "https://github.com/router-for-me/CLIProxyAPI/releases.atom"
+        case .cpaPlusPlus:
+            return "https://github.com/nguyenphutrong/cpa-plusplus/releases.atom"
         }
+    }
+
+    var binaryName: String {
+        switch self {
+        case .cpaPlusPlus:
+            return Self.binaryName
+        }
+    }
+
+    var sourceRepo: String {
+        githubRepo ?? "local"
     }
 
     var installedVersionDefaultsKey: String {
@@ -120,20 +110,53 @@ nonisolated enum ProxyBinarySource: String, Codable, CaseIterable, Identifiable,
 
     var legacyAuthWarning: String? {
         switch self {
-        case .plusLocal:
+        case .cpaPlusPlus:
             return nil
-        case .upstream:
-            return "Copilot and Kiro auth flows may not work with the upstream CLIProxyAPI binary."
         }
     }
 
     var installHint: String {
         switch self {
-        case .plusLocal:
-            return "CLIProxyAPIPlus bundled binary is unavailable. Reinstall Quotio or restore the bundled proxy resource."
-        case .upstream:
-            return "CLIProxyAPI upstream binary is not installed. Open Settings and install a release."
+        case .cpaPlusPlus:
+            return "cpa-plusplus is not installed. Install a release or set CPA_PLUSPLUS_BINARY_PATH for local development."
         }
+    }
+}
+
+// MARK: - cpa-plusplus Version Tags
+
+nonisolated struct CPAPlusPlusVersion: Comparable, Sendable {
+    let major: Int
+    let minor: Int
+    let patch: Int
+    let plus: Int
+
+    init?(_ rawValue: String) {
+        var cleaned = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.hasPrefix("v") {
+            cleaned.removeFirst()
+        }
+
+        let parts = cleaned.components(separatedBy: "-plus.")
+        guard parts.count == 2,
+              let plus = Int(parts[1]) else {
+            return nil
+        }
+
+        let semver = parts[0].split(separator: ".").compactMap { Int($0) }
+        guard semver.count == 3 else { return nil }
+
+        self.major = semver[0]
+        self.minor = semver[1]
+        self.patch = semver[2]
+        self.plus = plus
+    }
+
+    static func < (lhs: CPAPlusPlusVersion, rhs: CPAPlusPlusVersion) -> Bool {
+        if lhs.major != rhs.major { return lhs.major < rhs.major }
+        if lhs.minor != rhs.minor { return lhs.minor < rhs.minor }
+        if lhs.patch != rhs.patch { return lhs.patch < rhs.patch }
+        return lhs.plus < rhs.plus
     }
 }
 
@@ -160,6 +183,10 @@ nonisolated struct GitHubRelease: Codable, Sendable {
     /// Extract version string from tag name (removes 'v' prefix if present).
     var versionString: String {
         tagName.hasPrefix("v") ? String(tagName.dropFirst()) : tagName
+    }
+
+    var isCPAPlusPlusRelease: Bool {
+        CPAPlusPlusVersion(tagName) != nil
     }
 }
 
@@ -293,8 +320,17 @@ nonisolated struct InstalledProxyVersion: Sendable, Identifiable, Equatable {
     let path: String
     let installedAt: Date
     let isCurrent: Bool
+    let binaryKind: String
+    let sourceRepo: String
     
     var id: String { "\(source.rawValue):\(version)" }
+}
+
+nonisolated struct ProxyInstallMetadata: Codable, Sendable {
+    let binaryKind: String
+    let version: String
+    let installedAt: Date
+    let sourceRepo: String
 }
 
 // MARK: - Upgrade Errors

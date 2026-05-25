@@ -7,9 +7,9 @@
 //  Storage Layout:
 //  ~/.quotio/proxy/
 //   ├─ v1.2.3/
-//   │   └─ CLIProxyAPI
+//   │   └─ cpa-plusplus
 //   ├─ v1.3.0/
-//   │   └─ CLIProxyAPI
+//   │   └─ cpa-plusplus
 //   └─ current → v1.2.3
 //
 
@@ -23,7 +23,6 @@ final class ProxyStorageManager {
     
     private let fileManager = FileManager.default
     private let proxyDir: URL
-    private static let binaryName = "CLIProxyAPI"
     
     private init() {
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
@@ -37,12 +36,12 @@ final class ProxyStorageManager {
     
     /// Path to the currently active proxy binary.
     func currentBinaryPath(for source: ProxyBinarySource) -> String? {
-        let binaryPath = currentSymlink(for: source).appendingPathComponent(Self.binaryName).path
+        let binaryPath = currentSymlink(for: source).appendingPathComponent(source.binaryName).path
         return fileManager.fileExists(atPath: binaryPath) ? binaryPath : nil
     }
 
     func expectedBinaryPath(for source: ProxyBinarySource) -> String {
-        currentSymlink(for: source).appendingPathComponent(Self.binaryName).path
+        currentSymlink(for: source).appendingPathComponent(source.binaryName).path
     }
     
     /// Check if any proxy version is installed.
@@ -103,18 +102,21 @@ final class ProxyStorageManager {
             }
             
             // Check if the binary exists inside
-            let binaryPath = url.appendingPathComponent(Self.binaryName).path
+            let binaryPath = url.appendingPathComponent(source.binaryName).path
             guard fileManager.fileExists(atPath: binaryPath) else { return nil }
             
             let version = String(name.dropFirst()) // Remove "v" prefix
             let creationDate = (try? fileManager.attributesOfItem(atPath: url.path)[.creationDate] as? Date) ?? Date()
+            let metadata = readMetadata(in: url)
             
             return InstalledProxyVersion(
                 source: source,
                 version: version,
                 path: binaryPath,
                 installedAt: creationDate,
-                isCurrent: version == currentVersion
+                isCurrent: version == currentVersion,
+                binaryKind: metadata?.binaryKind ?? source.binaryName,
+                sourceRepo: metadata?.sourceRepo ?? source.sourceRepo
             )
         }
         .sorted { $0.installedAt > $1.installedAt }
@@ -123,7 +125,7 @@ final class ProxyStorageManager {
     /// Get the binary path for a specific version.
     func getBinaryPath(for version: String, source: ProxyBinarySource) -> String? {
         let versionDir = directory(for: source).appendingPathComponent("v\(version)")
-        let binaryPath = versionDir.appendingPathComponent(Self.binaryName).path
+        let binaryPath = versionDir.appendingPathComponent(source.binaryName).path
         
         return fileManager.fileExists(atPath: binaryPath) ? binaryPath : nil
     }
@@ -141,7 +143,7 @@ final class ProxyStorageManager {
         try fileManager.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
 
         let versionDir = sourceDirectory.appendingPathComponent("v\(version)")
-        let binaryPath = versionDir.appendingPathComponent(Self.binaryName)
+        let binaryPath = versionDir.appendingPathComponent(source.binaryName)
         
         // Check if already installed
         if fileManager.fileExists(atPath: binaryPath.path) {
@@ -161,13 +163,25 @@ final class ProxyStorageManager {
             // Ad-hoc sign the binary
             try await signBinary(at: binaryPath.path)
             
-            return InstalledProxyVersion(
+            let installed = InstalledProxyVersion(
                 source: source,
                 version: version,
                 path: binaryPath.path,
                 installedAt: Date(),
-                isCurrent: false
+                isCurrent: false,
+                binaryKind: source.binaryName,
+                sourceRepo: source.sourceRepo
             )
+            try writeMetadata(
+                ProxyInstallMetadata(
+                    binaryKind: installed.binaryKind,
+                    version: installed.version,
+                    installedAt: installed.installedAt,
+                    sourceRepo: installed.sourceRepo
+                ),
+                in: versionDir
+            )
+            return installed
         } catch {
             // Cleanup on failure
             try? fileManager.removeItem(at: versionDir)
@@ -308,7 +322,7 @@ final class ProxyStorageManager {
             // Validate extracted files don't escape temp directory
             try validateExtractedFiles(in: tempDir)
             
-            if let binary = try findBinaryInDirectory(tempDir) {
+            if let binary = try findBinaryInDirectory(tempDir, expectedName: destination.lastPathComponent) {
                 try fileManager.copyItem(at: binary, to: destination)
             } else {
                 throw ProxyUpgradeError.extractionFailed("Binary not found in archive")
@@ -328,7 +342,7 @@ final class ProxyStorageManager {
             // Validate extracted files don't escape temp directory
             try validateExtractedFiles(in: tempDir)
             
-            if let binary = try findBinaryInDirectory(tempDir) {
+            if let binary = try findBinaryInDirectory(tempDir, expectedName: destination.lastPathComponent) {
                 try fileManager.copyItem(at: binary, to: destination)
             } else {
                 throw ProxyUpgradeError.extractionFailed("Binary not found in archive")
@@ -373,19 +387,14 @@ final class ProxyStorageManager {
         }
     }
     
-    private func findBinaryInDirectory(_ directory: URL) throws -> URL? {
+    private func findBinaryInDirectory(_ directory: URL, expectedName: String) throws -> URL? {
         let contents = try fileManager.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.isExecutableKey, .isRegularFileKey]
         )
         
-        let binaryNames = ["CLIProxyAPI", "cli-proxy-api", "cli-proxy-api-plus", "claude-code-proxy", "proxy"]
-        
-        // Check for known binary names first
-        for name in binaryNames {
-            if let found = contents.first(where: { $0.lastPathComponent.lowercased() == name.lowercased() }) {
-                return found
-            }
+        if let found = contents.first(where: { $0.lastPathComponent == expectedName }) {
+            return found
         }
         
         // Recursively search subdirectories
@@ -393,22 +402,33 @@ final class ProxyStorageManager {
             var isDirectory: ObjCBool = false
             if fileManager.fileExists(atPath: item.path, isDirectory: &isDirectory) {
                 if isDirectory.boolValue {
-                    if let found = try findBinaryInDirectory(item) {
+                    if let found = try findBinaryInDirectory(item, expectedName: expectedName) {
                         return found
-                    }
-                } else {
-                    let resourceValues = try item.resourceValues(forKeys: [.isExecutableKey])
-                    if resourceValues.isExecutable == true {
-                        let name = item.lastPathComponent.lowercased()
-                        if !name.hasSuffix(".sh") && !name.hasSuffix(".txt") && !name.hasSuffix(".md") {
-                            return item
-                        }
                     }
                 }
             }
         }
         
         return nil
+    }
+
+    private func metadataURL(in versionDir: URL) -> URL {
+        versionDir.appendingPathComponent("install-metadata.json")
+    }
+
+    private func readMetadata(in versionDir: URL) -> ProxyInstallMetadata? {
+        guard let data = try? Data(contentsOf: metadataURL(in: versionDir)) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(ProxyInstallMetadata.self, from: data)
+    }
+
+    private func writeMetadata(_ metadata: ProxyInstallMetadata, in versionDir: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(metadata)
+        try data.write(to: metadataURL(in: versionDir), options: .atomic)
     }
     
     private func signBinary(at path: String) async throws {

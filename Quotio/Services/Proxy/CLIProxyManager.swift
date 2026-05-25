@@ -193,7 +193,7 @@ final class CLIProxyManager {
         }
     }
     
-    private static let binaryName = "CLIProxyAPI"
+    private static let binaryName = ProxyBinarySource.binaryName
     
     /// Base URL for the proxy API (always points to CLIProxyAPI directly)
     /// When bridge mode is enabled, this uses the internal port
@@ -220,7 +220,7 @@ final class CLIProxyManager {
         
         try? FileManager.default.createDirectory(at: quotioDir, withIntermediateDirectories: true)
         
-        self.binaryPath = quotioDir.appendingPathComponent("CLIProxyAPI").path
+        self.binaryPath = quotioDir.appendingPathComponent(Self.binaryName).path
         self.configPath = quotioDir.appendingPathComponent("config.yaml").path
         self.authDir = homeDir.appendingPathComponent(".cli-proxy-api").path
         
@@ -586,29 +586,35 @@ final class CLIProxyManager {
     var isBinaryInstalled: Bool {
         isSourceInstalled(selectedBinarySource)
     }
+
+    var legacyCLIProxyAPIPath: String {
+        URL(fileURLWithPath: binaryPath)
+            .deletingLastPathComponent()
+            .appendingPathComponent(ProxyBinarySource.legacyBinaryName)
+            .path
+    }
+
+    var hasLegacyCLIProxyAPIInstall: Bool {
+        FileManager.default.fileExists(atPath: legacyCLIProxyAPIPath)
+    }
+
+    var legacyMigrationPrompt: String? {
+        guard !isBinaryInstalled, hasLegacyCLIProxyAPIInstall else { return nil }
+        return "A legacy CLIProxyAPI install was found. Install cpa-plusplus to continue local mode. Existing auth files will be preserved."
+    }
     
     func downloadAndInstallBinary() async throws {
         lastError = nil
 
         do {
             let versionInfo: ProxyVersionInfo
-            switch selectedBinarySource {
-            case .plusLocal:
-                guard let localInfo = plusLocalVersionInfo() else {
-                    throw ProxyError.noCompatibleBinary
-                }
+            if let localInfo = cpaPlusPlusDevVersionInfo() {
                 versionInfo = localInfo
-            case .upstream:
-                let releaseInfo = try await fetchLatestRelease(source: .upstream)
-                let latestTag = releaseInfo.tagName.hasPrefix("v")
-                    ? String(releaseInfo.tagName.dropFirst())
-                    : releaseInfo.tagName
-                let release = try await fetchGitHubRelease(tag: "v\(latestTag)", source: .upstream)
-                guard let asset = findCompatibleAsset(from: release),
-                      let upstreamInfo = ProxyVersionInfo(from: release, asset: asset, source: .upstream) else {
+            } else {
+                guard let releaseInfo = try await fetchAvailableUpstreamVersions(limit: 30).first else {
                     throw ProxyError.noCompatibleBinary
                 }
-                versionInfo = upstreamInfo
+                versionInfo = releaseInfo
             }
 
             try await performManagedUpgrade(to: versionInfo)
@@ -671,12 +677,15 @@ final class CLIProxyManager {
     }
     
     private func findCompatibleAsset(in release: ReleaseInfo) -> CompatibleAsset? {
+        let version = release.tagName.hasPrefix("v")
+            ? String(release.tagName.dropFirst()).lowercased()
+            : release.tagName.lowercased()
         #if arch(arm64)
-        let targetPatterns = ["darwin_arm64", "darwin_aarch64"]
+        let targetPatterns = ["darwin_aarch64", "darwin_arm64"]
         #else
         let targetPatterns = ["darwin_amd64"]
         #endif
-        let skipPatterns = ["windows", "linux", "checksum"]
+        let skipPatterns = ["windows", "linux", "checksum", "sha256", "license", "readme"]
         
         for asset in release.assets {
             let lowercaseName = asset.name.lowercased()
@@ -684,7 +693,8 @@ final class CLIProxyManager {
             let shouldSkip = skipPatterns.contains { lowercaseName.contains($0) }
             if shouldSkip { continue }
             
-            if targetPatterns.contains(where: { lowercaseName.contains($0) }) {
+            if lowercaseName.contains("cpa-plusplus_\(version)_"),
+               targetPatterns.contains(where: { lowercaseName.contains($0) }) {
                 return CompatibleAsset(name: asset.name, downloadURL: asset.browserDownloadUrl)
             }
         }
@@ -838,6 +848,10 @@ final class CLIProxyManager {
         
         // Use effectiveBinaryPath to support versioned storage
         let activeBinaryPath = effectiveBinaryPath
+
+        if activeBinaryPath == resolveDevCPAPlusPlusBinaryPath() {
+            try await validateDevBinaryBeforeStart(activeBinaryPath)
+        }
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: activeBinaryPath)
@@ -1297,7 +1311,7 @@ enum ProxyError: LocalizedError {
         switch self {
         case .binaryNotFound:
             let rawSource = UserDefaults.standard.string(forKey: ProxyBinarySource.userDefaultsKey)
-            let source = ProxyBinarySource(rawValue: rawSource ?? "") ?? .upstream
+            let source = ProxyBinarySource(rawValue: rawSource ?? "") ?? .cpaPlusPlus
             return source.installHint
         case .startupFailed:
             return "Failed to start proxy server."
@@ -1544,8 +1558,7 @@ extension CLIProxyManager {
     }
 
     func isLegacyAuthWarningNeeded(for provider: AIProvider) -> Bool {
-        guard selectedBinarySource == .upstream else { return false }
-        return provider == .copilot || provider == .kiro
+        false
     }
 
     func sourceInstallHint(for source: ProxyBinarySource? = nil) -> String {
@@ -1563,24 +1576,25 @@ extension CLIProxyManager {
     }
 
     func isSourceInstalled(_ source: ProxyBinarySource) -> Bool {
+        if source == .cpaPlusPlus, resolveDevCPAPlusPlusBinaryPath() != nil {
+            return true
+        }
+
         if storageManager.hasInstalledVersion(for: source) {
             return true
         }
 
-        if source == .plusLocal {
-            return FileManager.default.fileExists(atPath: binaryPath)
-        }
-
-        return false
+        return FileManager.default.fileExists(atPath: binaryPath)
     }
     
     /// The effective binary path - uses versioned storage if available, otherwise legacy path.
     var effectiveBinaryPath: String {
+        if selectedBinarySource == .cpaPlusPlus,
+           let devPath = resolveDevCPAPlusPlusBinaryPath() {
+            return devPath
+        }
         if let path = storageManager.currentBinaryPath(for: selectedBinarySource) {
             return path
-        }
-        if selectedBinarySource == .plusLocal {
-            return binaryPath
         }
         return storageManager.expectedBinaryPath(for: selectedBinarySource)
     }
@@ -1609,7 +1623,7 @@ extension CLIProxyManager {
         // Record when this check was performed
         lastProxyUpdateCheckDate = Date()
 
-        guard selectedBinarySource == .upstream else {
+        guard selectedBinarySource == .cpaPlusPlus else {
             upgradeAvailable = false
             availableUpgrade = nil
             return
@@ -1669,12 +1683,11 @@ extension CLIProxyManager {
     // MARK: - Fetch All Releases (for Advanced Mode)
     
     func fetchAvailableVersions(limit: Int = 10) async throws -> [ProxyVersionInfo] {
-        switch selectedBinarySource {
-        case .plusLocal:
-            return [plusLocalVersionInfo()].compactMap { $0 }
-        case .upstream:
-            return try await fetchAvailableUpstreamVersions(limit: limit)
+        var versions = try await fetchAvailableUpstreamVersions(limit: limit)
+        if let devVersion = cpaPlusPlusDevVersionInfo() {
+            versions.insert(devVersion, at: 0)
         }
+        return versions
     }
 
     /// Fetch all available releases from GitHub.
@@ -1702,11 +1715,21 @@ extension CLIProxyManager {
         }
 
         let releases = try JSONDecoder().decode([GitHubRelease].self, from: data)
-        return releases.compactMap { versionInfo(from: $0) }
+        return releases
+            .filter { $0.isCPAPlusPlusRelease }
+            .compactMap { versionInfo(from: $0) }
+            .sorted {
+                guard let lhs = CPAPlusPlusVersion($0.version),
+                      let rhs = CPAPlusPlusVersion($1.version) else {
+                    return $0.version > $1.version
+                }
+                return lhs > rhs
+            }
     }
     
     /// Convert a GitHubRelease to ProxyVersionInfo for a compatible asset.
     func versionInfo(from release: GitHubRelease) -> ProxyVersionInfo? {
+        guard release.isCPAPlusPlusRelease else { return nil }
         guard let asset = findCompatibleAsset(from: release) else { return nil }
         return ProxyVersionInfo(from: release, asset: asset, source: selectedBinarySource)
     }
@@ -1740,11 +1763,12 @@ extension CLIProxyManager {
     /// Find compatible asset from GitHub release.
     private func findCompatibleAsset(from release: GitHubRelease) -> GitHubAsset? {
         #if arch(arm64)
-        let targetPatterns = ["darwin_arm64", "darwin_aarch64"]
+        let targetPatterns = ["darwin_aarch64", "darwin_arm64"]
         #else
         let targetPatterns = ["darwin_amd64"]
         #endif
-        let skipPatterns = ["windows", "linux", "checksum"]
+        let skipPatterns = ["windows", "linux", "checksum", "sha256", "license", "readme"]
+        let version = release.versionString.lowercased()
         
         for asset in release.assets {
             let lowercaseName = asset.name.lowercased()
@@ -1752,7 +1776,8 @@ extension CLIProxyManager {
             let shouldSkip = skipPatterns.contains { lowercaseName.contains($0) }
             if shouldSkip { continue }
             
-            if targetPatterns.contains(where: { lowercaseName.contains($0) }) {
+            if lowercaseName.contains("cpa-plusplus_\(version)_"),
+               targetPatterns.contains(where: { lowercaseName.contains($0) }) {
                 return asset
             }
         }
@@ -2145,67 +2170,73 @@ extension CLIProxyManager {
         try? testConfig.write(toFile: testConfigPath, atomically: true, encoding: .utf8)
         return testConfigPath
     }
+
+    private func validateDevBinaryBeforeStart(_ binaryPath: String) async throws {
+        let port = try findUnusedPort()
+        let managementKey = UUID().uuidString
+        let configPath = createTestConfig(port: port, managementKey: managementKey)
+        defer {
+            cleanupTestConfig(configPath)
+            Self.killProcessOnPortSync(port)
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: binaryPath)
+        process.arguments = ["-config", configPath]
+        process.currentDirectoryURL = URL(fileURLWithPath: binaryPath).deletingLastPathComponent()
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+
+        try process.run()
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        try await Task.sleep(nanoseconds: 2_000_000_000)
+        guard process.isRunning else {
+            throw ProxyUpgradeError.dryRunFailed("Dev cpa-plusplus exited immediately")
+        }
+
+        let result = await compatibilityChecker.fullCheck(port: port, managementKey: managementKey)
+        guard result.isCompatible else {
+            throw ProxyUpgradeError.compatibilityCheckFailed(result)
+        }
+    }
     
     private func cleanupTestConfig(_ configPath: String) {
         try? FileManager.default.removeItem(atPath: configPath)
     }
     
-    /// Compare two semantic version strings.
-    /// Returns true if `newer` is greater than `older`.
-    /// Handles versions like "6.6.73-0" where the suffix after "-" is a build number.
     private func isNewerVersion(_ newer: String, than older: String) -> Bool {
-        // Parse version string into (major, minor, patch, build) components
-        // Format: "6.6.73-0" -> [6, 6, 73, 0]
-        func parseVersion(_ version: String) -> [Int] {
-            // First split by "-" to separate version from build number
-            let dashParts = version.split(separator: "-")
-            let mainVersion = String(dashParts.first ?? "")
-            let buildNumber = dashParts.count > 1 ? Int(dashParts[1]) : nil
-            
-            // Split main version by "."
-            var parts = mainVersion.split(separator: ".").compactMap { Int($0) }
-            
-            // Append build number if present
-            if let build = buildNumber {
-                parts.append(build)
-            }
-            
-            return parts
+        guard let newerVersion = CPAPlusPlusVersion(newer),
+              let olderVersion = CPAPlusPlusVersion(older) else {
+            return false
         }
-        
-        let newerParts = parseVersion(newer)
-        let olderParts = parseVersion(older)
-        
-        // Pad shorter array with zeros
-        let maxLength = max(newerParts.count, olderParts.count)
-        let paddedNewer = newerParts + Array(repeating: 0, count: maxLength - newerParts.count)
-        let paddedOlder = olderParts + Array(repeating: 0, count: maxLength - olderParts.count)
-        
-        for (n, o) in zip(paddedNewer, paddedOlder) {
-            if n > o { return true }
-            if n < o { return false }
-        }
-        
-        return false // Equal versions
+        return newerVersion > olderVersion
     }
     
-    private func plusLocalVersionInfo() -> ProxyVersionInfo? {
-        guard let bundledBinaryPath = resolveBundledPlusBinaryPath() else {
+    private func cpaPlusPlusDevVersionInfo() -> ProxyVersionInfo? {
+        guard let binaryPath = resolveDevCPAPlusPlusBinaryPath() else {
             return nil
         }
+        let data = (try? Data(contentsOf: URL(fileURLWithPath: binaryPath))) ?? Data()
+        let checksum = ChecksumVerifier.sha256(of: data)
+        let version = "dev-\(String(checksum.prefix(12)))"
 
         return ProxyVersionInfo(
-            source: .plusLocal,
-            version: ProxyBinarySource.plusLocalVersion,
-            sha256: ProxyBinarySource.plusLocalSHA256,
-            localFilePath: bundledBinaryPath,
-            releaseNotes: "Fixed local CLIProxyAPIPlus binary for legacy compatibility."
+            source: .cpaPlusPlus,
+            version: version,
+            sha256: checksum,
+            localFilePath: binaryPath,
+            releaseNotes: "Local development binary from \(ProxyBinarySource.devBinaryPathEnvironmentKey)."
         )
     }
 
-    private func installLocalPlusBinary() async throws -> InstalledProxyVersion {
-        guard let versionInfo = plusLocalVersionInfo() else {
-            throw ProxyUpgradeError.downloadFailed("Local CLIProxyAPIPlus binary is unavailable")
+    private func installDevCPAPlusPlusBinary() async throws -> InstalledProxyVersion {
+        guard let versionInfo = cpaPlusPlusDevVersionInfo() else {
+            throw ProxyUpgradeError.downloadFailed("Local cpa-plusplus binary is unavailable")
         }
         return try await downloadAndInstallVersion(versionInfo)
     }
@@ -2221,32 +2252,8 @@ extension CLIProxyManager {
             .first?.version
     }
     
-    /// Migrate from legacy single-binary to versioned storage.
+    /// Legacy CLIProxyAPI binaries are intentionally not migrated into cpa-plusplus storage.
     func migrateToVersionedStorage() async throws {
-        guard !isUsingVersionedStorage else { return }
-        guard isBinaryInstalled else { return }
-        
-        // Read the existing binary
-        let legacyBinaryURL = URL(fileURLWithPath: binaryPath)
-        let binaryData = try Data(contentsOf: legacyBinaryURL)
-        
-        // Determine version (use "legacy" if unknown)
-        let version = "legacy"
-        
-        // Install to versioned storage (skip checksum for legacy migration)
-        _ = try await storageManager.installVersion(
-            source: .plusLocal,
-            version: version,
-            binaryData: binaryData,
-            assetName: "CLIProxyAPI"
-        )
-        
-        // Set as current
-        try storageManager.setCurrentVersion(version, source: .plusLocal)
-        activeVersion = version
-        
-        // Optionally remove legacy binary
-        try? FileManager.default.removeItem(atPath: binaryPath)
     }
 
     private func initializeSelectedBinarySourceIfNeeded() {
@@ -2256,48 +2263,19 @@ extension CLIProxyManager {
 
         let defaultSource = defaultBinarySource()
         UserDefaults.standard.set(defaultSource.rawValue, forKey: ProxyBinarySource.userDefaultsKey)
-        UserDefaults.standard.set(defaultSource == .plusLocal, forKey: ProxyBinarySource.explicitSelectionDefaultsKey)
+        UserDefaults.standard.set(false, forKey: ProxyBinarySource.explicitSelectionDefaultsKey)
     }
 
     private func defaultBinarySource() -> ProxyBinarySource {
-        if storageManager.hasAnyInstalledVersion || FileManager.default.fileExists(atPath: binaryPath) {
-            return .plusLocal
-        }
-        return .upstream
+        return .cpaPlusPlus
     }
 
     private func migrateLegacyVersionedStorageIfNeeded() {
-        let legacyRoot = URL(fileURLWithPath: binaryPath)
-            .deletingLastPathComponent()
-            .appendingPathComponent("proxy")
-        let legacyCurrent = legacyRoot.appendingPathComponent("current")
-        let plusRoot = URL(fileURLWithPath: binaryPath)
-            .deletingLastPathComponent()
-            .appendingPathComponent("proxy")
-            .appendingPathComponent(ProxyBinarySource.plusLocal.storageDirectoryName)
-
-        guard FileManager.default.fileExists(atPath: legacyCurrent.path) else { return }
-        guard !FileManager.default.fileExists(atPath: plusRoot.path) else { return }
-
-        do {
-            try FileManager.default.createDirectory(at: plusRoot, withIntermediateDirectories: true)
-
-            if let contents = try? FileManager.default.contentsOfDirectory(at: legacyRoot, includingPropertiesForKeys: nil) {
-                for item in contents where item.lastPathComponent != ProxyBinarySource.plusLocal.storageDirectoryName &&
-                    item.lastPathComponent != ProxyBinarySource.upstream.storageDirectoryName {
-                    let destination = plusRoot.appendingPathComponent(item.lastPathComponent)
-                    try FileManager.default.moveItem(at: item, to: destination)
-                }
-            }
-        } catch {
-            Log.proxy("Failed to migrate legacy proxy storage: \(error)")
-        }
     }
 
-    private func resolveBundledPlusBinaryPath() -> String? {
+    private func resolveDevCPAPlusPlusBinaryPath() -> String? {
         let fileManager = FileManager.default
-        let binaryName = ProxyBinarySource.plusLocalBinaryName
-        let resourceSubdirectory = ProxyBinarySource.plusLocalResourceSubdirectory
+        let binaryName = ProxyBinarySource.binaryName
 
         func firstExistingRegularFile(in candidates: [URL?]) -> String? {
             for candidate in candidates.compactMap({ $0 }) {
@@ -2314,38 +2292,13 @@ extension CLIProxyManager {
             return nil
         }
 
-        let bundleCandidates: [URL?] = [
-            Bundle.main.url(forResource: binaryName, withExtension: nil, subdirectory: resourceSubdirectory),
-            Bundle.main.resourceURL?
-                .appendingPathComponent(resourceSubdirectory, isDirectory: true)
-                .appendingPathComponent(binaryName, isDirectory: false),
-            Bundle.main.url(forResource: binaryName, withExtension: nil),
-            Bundle.main.resourceURL?
-                .appendingPathComponent(binaryName, isDirectory: false),
-        ]
-
-        if let bundledPath = firstExistingRegularFile(in: bundleCandidates) {
-            return bundledPath
+        if let override = ProcessInfo.processInfo.environment[ProxyBinarySource.devBinaryPathEnvironmentKey],
+           !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let path = firstExistingRegularFile(in: [URL(fileURLWithPath: override)]) {
+            return path
         }
 
-        let repoResourcesRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Resources", isDirectory: true)
-        let repoCandidates: [URL?] = [
-            repoResourcesRoot
-                .appendingPathComponent(resourceSubdirectory, isDirectory: true)
-                .appendingPathComponent(binaryName, isDirectory: false),
-            repoResourcesRoot
-                .appendingPathComponent(binaryName, isDirectory: false),
-        ]
-
-        if let repoPath = firstExistingRegularFile(in: repoCandidates) {
-            return repoPath
-        }
-
-        Log.proxy("Bundled CLIProxyAPIPlus binary not found in app resources or repo resources")
+        Log.proxy("No \(ProxyBinarySource.devBinaryPathEnvironmentKey) cpa-plusplus binary override found")
         return nil
     }
 }
