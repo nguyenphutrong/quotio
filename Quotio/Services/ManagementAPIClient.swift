@@ -267,6 +267,22 @@ actor ManagementAPIClient {
         let data = try await makeRequest("/usage")
         return try JSONDecoder().decode(UsageStats.self, from: data)
     }
+
+    func fetchQuota() async throws -> ManagementQuotaView {
+        let data = try await makeRequest("/quota")
+        return try JSONDecoder().decode(ManagementQuotaView.self, from: data)
+    }
+
+    func refreshQuota(provider: AIProvider? = nil, authID: String? = nil) async throws -> ManagementQuotaView {
+        let endpoint: String
+        if let provider, let authID {
+            endpoint = "/quota/refresh/\(provider.rawValue)/\(authID)"
+        } else {
+            endpoint = "/quota/refresh"
+        }
+        let data = try await makeRequest(endpoint, method: "POST")
+        return try JSONDecoder().decode(ManagementQuotaView.self, from: data)
+    }
     
     func getOAuthURL(for provider: AIProvider, projectId: String? = nil) async throws -> OAuthURLResponse {
         var endpoint = provider.oauthEndpoint
@@ -538,6 +554,98 @@ nonisolated struct LatestVersionResponse: Codable, Sendable {
     
     enum CodingKeys: String, CodingKey {
         case latestVersion = "latest-version"
+    }
+}
+
+// MARK: - Quota Response Types
+
+nonisolated struct ManagementQuotaView: Codable, Sendable {
+    let providers: [ManagementQuotaProvider]
+
+    func providerQuotas() -> [AIProvider: [String: ProviderQuotaData]] {
+        var result: [AIProvider: [String: ProviderQuotaData]] = [:]
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fallbackFormatter = ISO8601DateFormatter()
+        fallbackFormatter.formatOptions = [.withInternetDateTime]
+
+        for providerView in providers {
+            guard let provider = AIProvider(rawValue: providerView.provider) else { continue }
+            for account in providerView.accounts {
+                let key = account.accountKey.isEmpty ? account.credentialID : account.accountKey
+                guard !key.isEmpty else { continue }
+                let lastUpdated = formatter.date(from: account.lastUpdated ?? "")
+                    ?? fallbackFormatter.date(from: account.lastUpdated ?? "")
+                    ?? Date()
+                let models = account.models.map { model in
+                    ModelQuota(
+                        name: model.name.isEmpty ? model.displayName : model.name,
+                        percentage: model.remainingPercent ?? max(0, 100 - (model.usedPercent ?? 0)),
+                        resetTime: model.resetTime ?? "",
+                        used: model.used.map(Int.init),
+                        limit: model.limit.map(Int.init),
+                        remaining: model.remaining.map(Int.init),
+                        tooltip: model.sourceDescription
+                    )
+                }
+                result[provider, default: [:]][key] = ProviderQuotaData(
+                    models: models,
+                    lastUpdated: lastUpdated,
+                    isForbidden: account.isForbidden,
+                    planType: account.planDisplayName ?? account.planType
+                )
+            }
+        }
+        return result
+    }
+}
+
+nonisolated struct ManagementQuotaProvider: Codable, Sendable {
+    let provider: String
+    let accounts: [ManagementQuotaAccount]
+}
+
+nonisolated struct ManagementQuotaAccount: Codable, Sendable {
+    let credentialID: String
+    let accountKey: String
+    let planType: String?
+    let planDisplayName: String?
+    let isForbidden: Bool
+    let lastUpdated: String?
+    let models: [ManagementQuotaModel]
+
+    enum CodingKeys: String, CodingKey {
+        case credentialID = "credential_id"
+        case accountKey = "account_key"
+        case planType = "plan_type"
+        case planDisplayName = "plan_display_name"
+        case isForbidden = "is_forbidden"
+        case lastUpdated = "last_updated"
+        case models
+    }
+}
+
+nonisolated struct ManagementQuotaModel: Codable, Sendable {
+    let name: String
+    let displayName: String
+    let remainingPercent: Double?
+    let usedPercent: Double?
+    let used: Double?
+    let limit: Double?
+    let remaining: Double?
+    let resetTime: String?
+    let sourceDescription: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case displayName = "display_name"
+        case remainingPercent = "remaining_percent"
+        case usedPercent = "used_percent"
+        case used
+        case limit
+        case remaining
+        case resetTime = "reset_time"
+        case sourceDescription = "source_description"
     }
 }
 

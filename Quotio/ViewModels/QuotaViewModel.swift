@@ -1216,34 +1216,45 @@ final class QuotaViewModel {
         guard !isLoadingQuotas else { return }
 
         isLoadingQuotas = true
+        defer {
+            isLoadingQuotas = false
+            notifyQuotaDataChanged()
+        }
         lastQuotaRefresh = Date()
 
-        // In remote mode, skip local filesystem fetchers — only show data from the remote proxy
-        // (auth files, usage stats, API keys are already fetched by refreshData())
-        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-
-        if !modeManager.isRemoteProxyMode {
-            // Note: Cursor and Trae removed from auto-refresh (issue #29)
-            // User must use "Scan for IDEs" to detect these
-            async let antigravity: () = refreshAntigravityQuotasInternal()
-            async let openai: () = refreshOpenAIQuotasInternal()
-            async let copilot: () = refreshCopilotQuotasInternal()
-            async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-            async let glm: () = refreshGlmQuotasInternal()
-            async let warp: () = refreshWarpQuotasInternal()
-            async let kiro: () = refreshKiroQuotasInternal()
-
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, geminiCLI)
-        } else {
-            _ = await geminiCLI
+        if let apiClient {
+            do {
+                providerQuotas = try await apiClient.fetchQuota().providerQuotas()
+                errorMessage = nil
+                checkQuotaNotifications()
+                pruneMenuBarItems()
+                autoSelectMenuBarItems()
+                return
+            } catch {
+                errorMessage = error.localizedDescription
+                if modeManager.isProxyMode {
+                    return
+                }
+            }
         }
+
+        // Monitor mode has no Management API; keep direct local quota fetchers there.
+        guard modeManager.isMonitorMode else { return }
+
+        async let antigravity: () = refreshAntigravityQuotasInternal()
+        async let openai: () = refreshOpenAIQuotasInternal()
+        async let copilot: () = refreshCopilotQuotasInternal()
+        async let claudeCode: () = refreshClaudeCodeQuotasInternal()
+        async let glm: () = refreshGlmQuotasInternal()
+        async let warp: () = refreshWarpQuotasInternal()
+        async let kiro: () = refreshKiroQuotasInternal()
+        async let codexCLI: () = refreshCodexCLIQuotasInternal()
+        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
+        _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, codexCLI, geminiCLI)
 
         checkQuotaNotifications()
         pruneMenuBarItems()
         autoSelectMenuBarItems()
-
-        isLoadingQuotas = false
-        notifyQuotaDataChanged()
     }
 
     /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
@@ -1362,6 +1373,18 @@ final class QuotaViewModel {
     }
     
     func refreshQuotaForProvider(_ provider: AIProvider) async {
+        if let apiClient, modeManager.isProxyMode {
+            do {
+                providerQuotas = try await apiClient.refreshQuota().providerQuotas()
+                errorMessage = nil
+                pruneMenuBarItems()
+                notifyQuotaDataChanged()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            return
+        }
+
         switch provider {
         case .antigravity:
             await refreshAntigravityQuotasInternal()
