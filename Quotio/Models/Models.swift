@@ -207,7 +207,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    /// Whether this provider uses API key authentication (stored in CustomProviderService)
+    /// Whether this provider uses API key authentication.
     var usesAPIKeyAuth: Bool {
         switch self {
         case .glm, .warp:

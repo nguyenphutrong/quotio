@@ -14,8 +14,6 @@ struct AddProviderPopover: View {
     let providers: [AIProvider]
     let existingCounts: [AIProvider: Int]  // Number of existing accounts per provider
     var onSelectProvider: (AIProvider) -> Void
-    var onScanIDEs: () -> Void
-    var onAddCustomProvider: () -> Void
     var onDismiss: () -> Void
 
     private let columns = [
@@ -144,12 +142,6 @@ private struct ProviderButton: View {
         existingCounts: [.claude: 2, .antigravity: 1],  // Preview with some existing accounts
         onSelectProvider: { provider in
             print("Selected: \(provider.displayName)")
-        },
-        onScanIDEs: {
-            print("Scan IDEs")
-        },
-        onAddCustomProvider: {
-            print("Add Custom Provider")
         },
         onDismiss: {}
     )

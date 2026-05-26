@@ -13,11 +13,8 @@ import Security
 enum KeychainHelper {
     private static let remoteService = "dev.quotio.desktop.remote-management"
     private static let localService = "dev.quotio.desktop.local-management"
-    private static let warpService = "dev.quotio.desktop.warp"
     private static let localManagementAccount = "local-management-key"
-    private static let warpTokensAccount = "warp-tokens"
     private static let localManagementDefaultsKey = "managementKey"
-    private static let warpTokensDefaultsKey = "warpTokens"
 
     // Legacy service names for keychain migration (newest first)
     private static let legacyRemoteServices = [
@@ -27,10 +24,6 @@ enum KeychainHelper {
     private static let legacyLocalServices = [
         "proseek.io.vn.Quotio.local-management",
         "com.quotio.local-management",
-    ]
-    private static let legacyWarpServices = [
-        "proseek.io.vn.Quotio.warp",
-        "com.quotio.warp",
     ]
 
     static func saveManagementKey(_ key: String, for configId: String) {
@@ -98,42 +91,6 @@ enum KeychainHelper {
             deleteData(service: legacy, account: localManagementAccount)
         }
         UserDefaults.standard.removeObject(forKey: localManagementDefaultsKey)
-    }
-
-    static func saveWarpTokens(_ data: Data) -> Bool {
-        let saved = saveData(data, service: warpService, account: warpTokensAccount)
-        if !saved {
-            Log.keychain("Failed to save Warp tokens")
-        }
-        return saved
-    }
-
-    static func getWarpTokens() -> Data? {
-        if let data = readData(service: warpService, account: warpTokensAccount) {
-            return data
-        }
-
-        if let legacyData = migrateData(from: legacyWarpServices, to: warpService, account: warpTokensAccount) {
-            return legacyData
-        }
-
-        guard let legacyData = UserDefaults.standard.data(forKey: warpTokensDefaultsKey) else {
-            return nil
-        }
-
-        if saveWarpTokens(legacyData) {
-            UserDefaults.standard.removeObject(forKey: warpTokensDefaultsKey)
-        }
-
-        return legacyData
-    }
-
-    static func deleteWarpTokens() {
-        deleteData(service: warpService, account: warpTokensAccount)
-        for legacy in legacyWarpServices {
-            deleteData(service: legacy, account: warpTokensAccount)
-        }
-        UserDefaults.standard.removeObject(forKey: warpTokensDefaultsKey)
     }
 
     private static func migrateData(from oldServices: [String], to newService: String, account: String) -> Data? {
