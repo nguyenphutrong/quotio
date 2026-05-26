@@ -574,15 +574,6 @@ final class CLIProxyManager {
         updateConfigProxyURL(isValid ? sanitized : nil)
     }
     
-    private func syncCustomProvidersToConfig() {
-        do {
-            try CustomProviderService.shared.syncToConfigFile(configPath: configPath)
-        } catch {
-            // Silent failure - custom providers are optional
-            Log.proxy("Failed to sync custom providers to config: \\(error)")
-        }
-    }
-    
     var isBinaryInstalled: Bool {
         isSourceInstalled(selectedBinarySource)
     }
@@ -830,7 +821,6 @@ final class CLIProxyManager {
         
         syncSecretKeyInConfig()
         syncProxyURLInConfig()
-        syncCustomProvidersToConfig()
         
         // Determine which port CLIProxyAPI should listen on
         let cliProxyPort = useBridgeMode ? internalPort : proxyStatus.port

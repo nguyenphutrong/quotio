@@ -3,7 +3,7 @@
 //  Quotio - CLIProxyAPI GUI Wrapper
 //
 //  Service for managing custom AI provider configurations.
-//  Handles CRUD operations, persistence, and YAML config generation.
+//  Handles CRUD operations and local draft persistence.
 //
 
 import Foundation
@@ -20,7 +20,6 @@ final class CustomProviderService {
     private(set) var lastError: String?
     
     private let storageKey = "customProviders"
-    private let fileManager = FileManager.default
     
     // MARK: - Initialization
     
@@ -158,114 +157,6 @@ final class CustomProviderService {
     /// Force reload providers from storage
     func reloadProviders() {
         loadProviders()
-    }
-    
-    // MARK: - Config Generation
-    
-    /// Generate YAML config sections for all enabled custom providers
-    func generateYAMLConfig() -> String {
-        enabledProviders.toYAMLSections()
-    }
-    
-    /// Update the CLIProxyAPI config file to include custom providers
-    func syncToConfigFile(configPath: String) throws {
-        guard fileManager.fileExists(atPath: configPath) else {
-            throw CustomProviderError.configFileNotFound
-        }
-        
-        var content = try String(contentsOfFile: configPath, encoding: .utf8)
-        
-        // Remove existing custom provider sections
-        content = removeCustomProviderSections(from: content)
-        
-        // Append new custom provider sections
-        let customProviderYAML = generateYAMLConfig()
-        if !customProviderYAML.isEmpty {
-            content += "\n# Custom Providers (managed by Quotio)\n"
-            content += customProviderYAML
-        }
-        
-        try content.write(toFile: configPath, atomically: true, encoding: .utf8)
-    }
-    
-    /// Remove custom provider sections from config content
-    private func removeCustomProviderSections(from content: String) -> String {
-        var result = content
-        
-        // Dynamically derive custom provider keys from CustomProviderType enum
-        // This ensures new provider types are automatically handled
-        let customProviderKeys = CustomProviderType.allCases.map { "\($0.rawValue):" }
-        
-        // Remove marker comment and everything after it that belongs to custom providers
-        if let markerRange = result.range(of: "# Custom Providers (managed by Quotio)") {
-            // Find the end of custom providers section (next top-level key or end of file)
-            let afterMarker = result[markerRange.upperBound...]
-            
-            var endIndex = result.endIndex
-            
-            // Look for any non-custom-provider top-level key
-            let topLevelKeyPattern = #"(?m)^[a-z][\w-]*:"#
-            if let regex = try? NSRegularExpression(pattern: topLevelKeyPattern, options: []) {
-                let searchRange = NSRange(afterMarker.startIndex..<afterMarker.endIndex, in: result)
-                let matches = regex.matches(in: result, options: [], range: searchRange)
-                
-                for match in matches {
-                    if let range = Range(match.range, in: result) {
-                        let key = String(result[range])
-                        if !customProviderKeys.contains(key) {
-                            endIndex = range.lowerBound
-                            break
-                        }
-                    }
-                }
-            }
-            
-            // Remove the custom providers section
-            result.removeSubrange(markerRange.lowerBound..<endIndex)
-        }
-        
-        // Also remove standalone custom provider sections that might exist without marker
-        for key in customProviderKeys {
-            result = removeYAMLSection(key, from: result)
-        }
-        
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
-    /// Remove a top-level YAML section by key
-    private func removeYAMLSection(_ key: String, from content: String) -> String {
-        var result = content
-        
-        // Pattern to match the section start
-        guard let startRange = result.range(of: "\n\(key)") ?? result.range(of: key) else {
-            return result
-        }
-        
-        guard startRange.upperBound < result.endIndex else {
-            result.removeSubrange(startRange.lowerBound..<result.endIndex)
-            return result
-        }
-        
-        let searchStart = result.index(after: startRange.upperBound)
-        guard searchStart < result.endIndex else {
-            result.removeSubrange(startRange.lowerBound..<result.endIndex)
-            return result
-        }
-        
-        // Find the next top-level key (line starting with non-whitespace followed by colon)
-        let afterSection = result[searchStart...]
-        let pattern = #"(?m)^[a-z][\w-]*:"#
-        
-        if let regex = try? NSRegularExpression(pattern: pattern, options: []),
-           let firstMatch = regex.firstMatch(in: result, options: [], range: NSRange(afterSection.startIndex..<afterSection.endIndex, in: result)),
-           let matchRange = Range(firstMatch.range, in: result) {
-            result.removeSubrange(startRange.lowerBound..<matchRange.lowerBound)
-        } else {
-            // No more top-level keys, remove to end
-            result.removeSubrange(startRange.lowerBound..<result.endIndex)
-        }
-        
-        return result
     }
     
     // MARK: - Validation

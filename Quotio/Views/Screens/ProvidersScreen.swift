@@ -165,7 +165,7 @@ struct ProvidersScreen: View {
                 } else {
                     customProviderService.addProvider(provider)
                 }
-                syncCustomProvidersToConfig()
+                markCustomProviderAPISyncRequired()
             }
         }
         .sheet(isPresented: $showWarpConnectionSheet) {
@@ -327,11 +327,11 @@ struct ProvidersScreen: View {
                     },
                     onDelete: {
                         customProviderService.deleteProvider(id: provider.id)
-                        syncCustomProvidersToConfig()
+                        markCustomProviderAPISyncRequired()
                     },
                     onToggle: {
                         customProviderService.toggleProvider(id: provider.id)
-                        syncCustomProvidersToConfig()
+                        markCustomProviderAPISyncRequired()
                     }
                 )
             }
@@ -386,7 +386,7 @@ struct ProvidersScreen: View {
             // Find the GLM provider by ID and delete it
             if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
                 customProviderService.deleteProvider(id: glmProvider.id)
-                syncCustomProvidersToConfig()
+                markCustomProviderAPISyncRequired()
             }
             return
         }
@@ -431,10 +431,9 @@ struct ProvidersScreen: View {
         }
     }
 
-    private func syncCustomProvidersToConfig() {
-        // Silent failure - custom provider sync is non-critical
-        // Config will be synced on next proxy start
-        try? customProviderService.syncToConfigFile(configPath: viewModel.proxyManager.configPath)
+    private func markCustomProviderAPISyncRequired() {
+        // TODO(cpa-plusplus): sync custom provider edits through config-list Management API endpoints.
+        viewModel.errorMessage = "Requires cpa-plusplus API support."
     }
 }
 
