@@ -3,7 +3,7 @@
 //  Quotio
 //
 //  Unified account row component for ProvidersScreen.
-//  Replaces: AuthFileRow, DirectAuthFileRow, AutoDetectedAccountRow
+//  Replaces: AuthFileRow, AutoDetectedAccountRow
 //
 
 import SwiftUI
@@ -11,7 +11,7 @@ import SwiftUI
 /// Represents the source/type of an account for display purposes
 enum AccountSource: Equatable {
     case proxy           // From proxy API (AuthFile)
-    case direct          // From disk auth files (DirectAuthFile)
+    case direct          // From custom provider stores
     case autoDetected    // Auto-detected from IDE (Cursor, Trae)
     
     var displayName: String {
@@ -84,22 +84,6 @@ struct AccountRowData: Identifiable, Hashable {
             statusMessage: authFile.statusMessage,
             isDisabled: authFile.disabled,
             canDelete: true
-        )
-    }
-    
-    /// Create from DirectAuthFile (quota-only mode or proxy stopped)
-    static func from(directAuthFile: DirectAuthFile) -> AccountRowData {
-        let name = directAuthFile.email ?? directAuthFile.filename
-        return AccountRowData(
-            id: directAuthFile.id,
-            provider: directAuthFile.provider,
-            displayName: name,
-            menuBarAccountKey: directAuthFile.menuBarAccountKey,
-            source: .direct,
-            status: nil,
-            statusMessage: nil,
-            isDisabled: false,
-            canDelete: false
         )
     }
     

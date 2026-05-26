@@ -15,12 +15,6 @@ final class QuotaViewModel {
     @ObservationIgnored private var _apiClient: ManagementAPIClient?
     
     var apiClient: ManagementAPIClient? { _apiClient }
-    @ObservationIgnored private let antigravityFetcher = AntigravityQuotaFetcher()
-    @ObservationIgnored private let openAIFetcher = OpenAIQuotaFetcher()
-    @ObservationIgnored private let copilotFetcher = CopilotQuotaFetcher()
-    @ObservationIgnored private let glmFetcher = GLMQuotaFetcher()
-    @ObservationIgnored private let warpFetcher = WarpQuotaFetcher()
-    @ObservationIgnored private let directAuthService = DirectAuthFileService()
     @ObservationIgnored private let notificationManager = NotificationManager.shared
     @ObservationIgnored private let modeManager = OperatingModeManager.shared
     @ObservationIgnored private let refreshSettings = RefreshSettingsManager.shared
@@ -30,7 +24,6 @@ final class QuotaViewModel {
     private var warmupStatuses: [WarmupAccountKey: WarmupStatus] = [:]
     @ObservationIgnored private var warmupModelCache: [WarmupAccountKey: (models: [WarmupModelInfo], fetchedAt: Date)] = [:]
     @ObservationIgnored private let warmupModelCacheTTL: TimeInterval = 28800
-    @ObservationIgnored private var lastProxyURL: String?
     
     /// Request tracker for monitoring API requests through ProxyBridge
     let requestTracker = RequestTracker.shared
@@ -38,14 +31,6 @@ final class QuotaViewModel {
     /// Tunnel manager for Cloudflare Tunnel integration
     let tunnelManager = TunnelManager.shared
     
-    // Quota-Only Mode Fetchers (CLI-based)
-    @ObservationIgnored private let claudeCodeFetcher = ClaudeCodeQuotaFetcher()
-    @ObservationIgnored private let cursorFetcher = CursorQuotaFetcher()
-    @ObservationIgnored private let codexCLIFetcher = CodexCLIQuotaFetcher()
-    @ObservationIgnored private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
-    @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
-    @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
-
     @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
     
     var currentPage: NavigationPage = .dashboard
@@ -67,9 +52,6 @@ final class QuotaViewModel {
 
     /// Notification name for quota data updates (used for menu bar refresh)
     static let quotaDataDidChangeNotification = Notification.Name("QuotaViewModel.quotaDataDidChange")
-    
-    /// Direct auth files for quota-only mode
-    var directAuthFiles: [DirectAuthFile] = []
     
     /// Last quota refresh time (for quota-only mode display)
     var lastQuotaRefreshTime: Date?
@@ -125,9 +107,6 @@ final class QuotaViewModel {
     
     // MARK: - IDE Quota Persistence Keys
 
-    private static let ideQuotasKey = "persisted.ideQuotas"
-    private static let ideProvidersToSave: Set<AIProvider> = [.cursor, .trae]
-
     /// Key for tracking when auth files last changed (for model cache invalidation)
     static let authFilesChangedKey = "quotio.authFiles.lastChanged"
 
@@ -172,53 +151,13 @@ final class QuotaViewModel {
 
     init() {
         self.proxyManager = CLIProxyManager.shared
-        loadPersistedIDEQuotas()
         setupRefreshCadenceCallback()
         setupWarmupCallback()
         restartWarmupScheduler()
-        lastProxyURL = normalizedProxyURL(UserDefaults.standard.string(forKey: "proxyURL"))
-        setupProxyURLObserver()
     }
 
-    private func setupProxyURLObserver() {
-        NotificationCenter.default.addObserver(
-            forName: UserDefaults.didChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                let currentProxyURL = self.normalizedProxyURL(UserDefaults.standard.string(forKey: "proxyURL"))
-                guard currentProxyURL != self.lastProxyURL else { return }
-                self.lastProxyURL = currentProxyURL
-                await self.updateProxyConfiguration()
-            }
-        }
-    }
-
-    private func normalizedProxyURL(_ rawValue: String?) -> String? {
-        guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !rawValue.isEmpty else {
-            return nil
-        }
-
-        let sanitized = ProxyURLValidator.sanitize(rawValue)
-        return sanitized.isEmpty ? nil : sanitized
-    }
-
-    /// Update proxy configuration for all quota fetchers
+    /// Direct Swift quota fetchers were removed; quota configuration now lives in cpa-plusplus.
     func updateProxyConfiguration() async {
-        await antigravityFetcher.updateProxyConfiguration()
-        await openAIFetcher.updateProxyConfiguration()
-        await copilotFetcher.updateProxyConfiguration()
-        await glmFetcher.updateProxyConfiguration()
-        await claudeCodeFetcher.updateProxyConfiguration()
-        await cursorFetcher.updateProxyConfiguration()
-        await codexCLIFetcher.updateProxyConfiguration()
-        await geminiCLIFetcher.updateProxyConfiguration()
-        await warpFetcher.updateProxyConfiguration()
-        await traeFetcher.updateProxyConfiguration()
-        await kiroFetcher.updateProxyConfiguration()
     }
 
     private func setupRefreshCadenceCallback() {
@@ -318,18 +257,6 @@ final class QuotaViewModel {
         await initializeRemoteMode()
     }
     
-    // MARK: - Legacy Direct Quota Refresh
-
-    @available(*, deprecated, message: "Use cpa-plusplus Management API quota endpoints instead.")
-    func loadDirectAuthFiles() async {
-        directAuthFiles = []
-    }
-
-    @available(*, deprecated, message: "Use cpa-plusplus Management API quota endpoints instead.")
-    func refreshQuotasDirectly() async {
-        await refreshAllQuotas()
-    }
-
     private func autoSelectMenuBarItems() {
         var availableItems: [MenuBarQuotaItem] = []
         var seen = Set<String>()
@@ -359,175 +286,6 @@ final class QuotaViewModel {
     func syncMenuBarSelection() {
         pruneMenuBarItems()
         autoSelectMenuBarItems()
-    }
-    
-    /// Refresh Claude Code quota using CLI
-    private func refreshClaudeCodeQuotasInternal() async {
-        let quotas = await claudeCodeFetcher.fetchAsProviderQuota()
-        if quotas.isEmpty {
-            // Only remove if no other source has Claude data
-            if providerQuotas[.claude]?.isEmpty ?? true {
-                providerQuotas.removeValue(forKey: .claude)
-            }
-        } else {
-            // Merge with existing data (don't overwrite proxy data)
-            if var existing = providerQuotas[.claude] {
-                for (email, quota) in quotas {
-                    existing[email] = quota
-                }
-                providerQuotas[.claude] = existing
-            } else {
-                providerQuotas[.claude] = quotas
-            }
-        }
-    }
-    
-    /// Refresh Cursor quota using browser cookies
-    private func refreshCursorQuotasInternal() async {
-        let quotas = await cursorFetcher.fetchAsProviderQuota()
-        if quotas.isEmpty {
-            // No Cursor auth found - remove from providerQuotas
-            providerQuotas.removeValue(forKey: .cursor)
-        } else {
-            providerQuotas[.cursor] = quotas
-        }
-    }
-    
-    /// Refresh Codex quota using CLI auth file (~/.codex/auth.json)
-    private func refreshCodexCLIQuotasInternal() async {
-        // TODO(cpa-plusplus): expose Codex CLI quota discovery through /v0/management/quota.
-    }
-    
-    /// Refresh Gemini quota using CLIProxyAPI management data when available.
-    private func refreshGeminiCLIQuotasInternal() async {
-        var quotaAuthFiles = authFiles
-        var quotaClient = apiClient
-        var transientClient: ManagementAPIClient?
-
-        if quotaClient == nil,
-           let config = modeManager.remoteConfig,
-           let managementKey = modeManager.remoteManagementKey {
-            let client = ManagementAPIClient(config: config, managementKey: managementKey)
-            transientClient = client
-            quotaClient = client
-
-            do {
-                quotaAuthFiles = try await client.fetchAuthFiles()
-            } catch {
-                Log.quota(
-                    "Failed to fetch Gemini CLI auth files from saved management config: \(error.localizedDescription)"
-                )
-            }
-        }
-
-        let managementQuotas = await geminiCLIFetcher.fetchAsProviderQuota(
-            authFiles: quotaAuthFiles,
-            apiClient: quotaClient
-        )
-        if let transientClient {
-            await transientClient.invalidate()
-        }
-
-        let quotas: [String: ProviderQuotaData]
-        if managementQuotas.isEmpty {
-            quotas = await geminiCLIFetcher.fetchAsProviderQuota()
-        } else {
-            quotas = managementQuotas
-        }
-        if !quotas.isEmpty {
-            if var existing = providerQuotas[.gemini] {
-                for (email, quota) in quotas {
-                    existing[email] = quota
-                }
-                providerQuotas[.gemini] = existing
-            } else {
-                providerQuotas[.gemini] = quotas
-            }
-        }
-    }
-
-    /// Refresh GLM quota using API keys from CustomProviderService
-    private func refreshGlmQuotasInternal() async {
-        let quotas = await glmFetcher.fetchAllQuotas()
-        if !quotas.isEmpty {
-            providerQuotas[.glm] = quotas
-        } else {
-            providerQuotas.removeValue(forKey: .glm)
-        }
-    }
-    
-    /// Refresh Warp quota using API keys from WarpService
-    private func refreshWarpQuotasInternal() async {
-        let warpTokens = await MainActor.run {
-            WarpService.shared.tokens.filter { $0.isEnabled }
-        }
-        
-        var results: [String: ProviderQuotaData] = [:]
-        
-        for entry in warpTokens {
-            do {
-                let quota = try await warpFetcher.fetchQuota(apiKey: entry.token)
-                results[entry.name] = quota
-            } catch {
-                Log.quota("Failed to fetch Warp quota for \(entry.name): \(error)")
-            }
-        }
-        
-        if !results.isEmpty {
-            providerQuotas[.warp] = results
-        } else {
-            providerQuotas.removeValue(forKey: .warp)
-        }
-    }
-    
-    /// Refresh Trae quota using SQLite database
-    private func refreshTraeQuotasInternal() async {
-        let quotas = await traeFetcher.fetchAsProviderQuota()
-        if quotas.isEmpty {
-            providerQuotas.removeValue(forKey: .trae)
-        } else {
-            providerQuotas[.trae] = quotas
-        }
-    }
-    
-    /// Refresh Kiro quota using IDE JSON tokens
-    private func refreshKiroQuotasInternal() async {
-        let rawQuotas = await kiroFetcher.fetchAllQuotas()
-        
-        var remappedQuotas: [String: ProviderQuotaData] = [:]
-        
-        // Helper: clean filename (remove .json)
-        func cleanName(_ name: String) -> String {
-            name.replacingOccurrences(of: ".json", with: "")
-        }
-        
-        // 1. Remap for Proxy AuthFiles
-        var consumedRawKeys = Set<String>()
-        
-        for file in authFiles where file.providerType == .kiro {
-            // The fetcher returns data keyed by clean filename
-            let filenameKey = cleanName(file.name)
-            
-            if let data = rawQuotas[filenameKey] {
-                // Store under the key the UI expects (AuthFile.quotaLookupKey)
-                let targetKey = file.quotaLookupKey.isEmpty ? file.name : file.quotaLookupKey
-                remappedQuotas[targetKey] = data
-                consumedRawKeys.insert(filenameKey)
-            }
-        }
-        
-        // 2. Fallback: Include original keys ONLY if not mapped
-        for (key, data) in rawQuotas {
-            if !consumedRawKeys.contains(key) {
-                remappedQuotas[key] = data
-            }
-        }
-
-        if remappedQuotas.isEmpty {
-            providerQuotas.removeValue(forKey: .kiro)
-        } else {
-            providerQuotas[.kiro] = remappedQuotas
-        }
     }
     
     // MARK: - Warmup
@@ -1129,38 +887,6 @@ final class QuotaViewModel {
         await refreshAllQuotas()
     }
 
-    private func refreshAntigravityQuotasInternal() async {
-        // Fetch both quotas and subscriptions in one call (avoids duplicate API calls)
-        let (quotas, subscriptions) = await antigravityFetcher.fetchAllAntigravityData()
-        
-        providerQuotas[.antigravity] = quotas
-        
-        // Merge instead of replace to preserve data if API fails
-        var providerInfos = subscriptionInfos[.antigravity] ?? [:]
-        for (email, info) in subscriptions {
-            providerInfos[email] = info
-        }
-        subscriptionInfos[.antigravity] = providerInfos
-        
-        // Detect active account in IDE (reads email directly from database)
-        await antigravitySwitcher.detectActiveAccount()
-    }
-    
-    /// Refresh Antigravity quotas without re-detecting active account
-    /// Used after switching accounts (active account already set by switch operation)
-    private func refreshAntigravityQuotasWithoutDetect() async {
-        let (quotas, subscriptions) = await antigravityFetcher.fetchAllAntigravityData()
-        
-        providerQuotas[.antigravity] = quotas
-        
-        var providerInfos = subscriptionInfos[.antigravity] ?? [:]
-        for (email, info) in subscriptions {
-            providerInfos[email] = info
-        }
-        subscriptionInfos[.antigravity] = providerInfos
-        // Note: Don't call detectActiveAccount() here - already set by switch operation
-    }
-    
     // MARK: - Antigravity Account Switching
     
     /// Check if an Antigravity account is currently active in the IDE
@@ -1173,9 +899,8 @@ final class QuotaViewModel {
     func switchAntigravityAccount(email: String) async {
         await antigravitySwitcher.executeSwitchForEmail(email)
 
-        // Refresh to update active account
         if case .success = antigravitySwitcher.switchState {
-            await refreshAntigravityQuotasWithoutDetect()
+            await refreshAllQuotas()
         }
     }
     
@@ -1192,16 +917,6 @@ final class QuotaViewModel {
     /// Dismiss switch result
     func dismissAntigravitySwitchResult() {
         antigravitySwitcher.dismissResult()
-    }
-    
-    private func refreshOpenAIQuotasInternal() async {
-        let quotas = await openAIFetcher.fetchAllCodexQuotas()
-        providerQuotas[.codex] = quotas
-    }
-    
-    private func refreshCopilotQuotasInternal() async {
-        let quotas = await copilotFetcher.fetchAllCopilotQuotas()
-        providerQuotas[.copilot] = quotas
     }
     
     func refreshQuotaForProvider(_ provider: AIProvider) async {
@@ -1230,20 +945,14 @@ final class QuotaViewModel {
     }
     
     func startOAuth(for provider: AIProvider, projectId: String? = nil, authMethod: AuthCommand? = nil, launchMode: OAuthLaunchMode = .manual) async {
-        // GitHub Copilot uses Device Code Flow via CLI binary, not Management API
-        if provider == .copilot {
-            await startCopilotAuth()
-            return
-        }
-        
-        // Kiro uses CLI-based auth with multiple options
-        if provider == .kiro {
-            await startKiroAuth(method: authMethod ?? .kiroGoogleLogin)
+        guard let client = apiClient else {
+            oauthState = OAuthState(provider: provider, status: .error, error: "Proxy not running. Please start the proxy first.")
             return
         }
 
-        guard let client = apiClient else {
-            oauthState = OAuthState(provider: provider, status: .error, error: "Proxy not running. Please start the proxy first.")
+        guard !provider.oauthEndpoint.isEmpty else {
+            // TODO(cpa-plusplus): add Management API auth URL support for \(provider.rawValue).
+            oauthState = OAuthState(provider: provider, status: .error, error: "Requires cpa-plusplus API support.")
             return
         }
 
@@ -1270,105 +979,6 @@ final class QuotaViewModel {
         } catch {
             oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
         }
-    }
-    
-    /// Start GitHub Copilot authentication using Device Code Flow
-    private func startCopilotAuth() async {
-        oauthState = OAuthState(provider: .copilot, status: .waiting)
-        
-        let result = await proxyManager.runAuthCommand(.copilotLogin)
-        
-        if result.success {
-            if let deviceCode = result.deviceCode {
-                oauthState = OAuthState(provider: .copilot, status: .polling, state: deviceCode, error: result.message)
-            } else {
-                oauthState = OAuthState(provider: .copilot, status: .polling, error: result.message)
-            }
-            
-            await pollCopilotAuthCompletion()
-        } else {
-            oauthState = OAuthState(provider: .copilot, status: .error, error: result.message)
-        }
-    }
-    
-    private func startKiroAuth(method: AuthCommand) async {
-        oauthState = OAuthState(provider: .kiro, status: .waiting)
-        
-        let result = await proxyManager.runAuthCommand(method)
-        
-        if result.success {
-            // Check if it's an import - simply wait and refresh, don't poll for new files (files might already exist)
-            if method == .kiroImport {
-                oauthState = OAuthState(provider: .kiro, status: .polling, error: "Importing quotas...")
-
-                // Allow some time for file operations
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-
-                let refreshedCount = await kiroFetcher.refreshAllTokensIfNeeded()
-                if refreshedCount > 0 {
-                    Log.quota("[Kiro] Refreshed \(refreshedCount) token(s) after import")
-                }
-
-                await refreshData()
-
-                // For import, we assume success if the command succeeded
-                oauthState = OAuthState(provider: .kiro, status: .success)
-                return
-            }
-            
-            // For other methods (login), poll for new auth files
-            if let deviceCode = result.deviceCode {
-                oauthState = OAuthState(provider: .kiro, status: .polling, state: deviceCode, error: result.message)
-            } else {
-                oauthState = OAuthState(provider: .kiro, status: .polling, error: result.message)
-            }
-            
-            await pollKiroAuthCompletion()
-        } else {
-            oauthState = OAuthState(provider: .kiro, status: .error, error: result.message)
-        }
-    }
-    
-    /// Poll for Copilot auth completion by monitoring auth files
-    private func pollCopilotAuthCompletion() async {
-        let startFileCount = authFiles.filter { $0.provider == "github-copilot" || $0.provider == "copilot" }.count
-        
-        for _ in 0..<90 {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            
-            await refreshData()
-            
-            let currentFileCount = authFiles.filter { $0.provider == "github-copilot" || $0.provider == "copilot" }.count
-            if currentFileCount > startFileCount {
-                oauthState = OAuthState(provider: .copilot, status: .success)
-                return
-            }
-        }
-        
-        oauthState = OAuthState(provider: .copilot, status: .error, error: "Authentication timeout")
-    }
-    
-    private func pollKiroAuthCompletion() async {
-        let startFileCount = authFiles.filter { $0.provider == "kiro" }.count
-
-        for _ in 0..<90 {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-            await refreshData()
-
-            let currentFileCount = authFiles.filter { $0.provider == "kiro" }.count
-            if currentFileCount > startFileCount {
-                let refreshedCount = await kiroFetcher.refreshAllTokensIfNeeded()
-                if refreshedCount > 0 {
-                    Log.quota("[Kiro] Refreshed \(refreshedCount) token(s) after login")
-                }
-                await refreshData()
-                oauthState = OAuthState(provider: .kiro, status: .success)
-                return
-            }
-        }
-
-        oauthState = OAuthState(provider: .kiro, status: .error, error: "Authentication timeout")
     }
     
     private func pollOAuthStatus(state: String, provider: AIProvider) async {
@@ -1622,114 +1232,9 @@ final class QuotaViewModel {
     /// Only scans what the user has opted into
     func scanIDEsWithConsent(options: IDEScanOptions) async {
         ideScanSettings.setScanningState(true)
-        
-        var cursorFound = false
-        var cursorEmail: String?
-        var traeFound = false
-        var traeEmail: String?
-        var cliToolsFound: [String] = []
-        
-        // Scan Cursor if opted in
-        if options.scanCursor {
-            let quotas = await cursorFetcher.fetchAsProviderQuota()
-            if !quotas.isEmpty {
-                cursorFound = true
-                cursorEmail = quotas.keys.first
-                providerQuotas[.cursor] = quotas
-            } else {
-                // Clear stale data when not found (consistent with refreshCursorQuotasInternal)
-                providerQuotas.removeValue(forKey: .cursor)
-            }
-        }
-        
-        // Scan Trae if opted in
-        if options.scanTrae {
-            let quotas = await traeFetcher.fetchAsProviderQuota()
-            if !quotas.isEmpty {
-                traeFound = true
-                traeEmail = quotas.keys.first
-                providerQuotas[.trae] = quotas
-            } else {
-                // Clear stale data when not found (consistent with refreshTraeQuotasInternal)
-                providerQuotas.removeValue(forKey: .trae)
-            }
-        }
-        
-        // Scan CLI tools if opted in
-        if options.scanCLITools {
-            let cliNames = ["claude", "codex", "gemini", "gh"]
-            for name in cliNames {
-                if await CLIExecutor.shared.isCLIInstalled(name: name) {
-                    cliToolsFound.append(name)
-                }
-            }
-        }
-        
-        let result = IDEScanResult(
-            cursorFound: cursorFound,
-            cursorEmail: cursorEmail,
-            traeFound: traeFound,
-            traeEmail: traeEmail,
-            cliToolsFound: cliToolsFound,
-            timestamp: Date()
-        )
-        
-        ideScanSettings.updateScanResult(result)
+        errorMessage = "Requires cpa-plusplus API support."
+        // TODO(cpa-plusplus): expose explicit IDE/CLI account discovery through Management API.
         ideScanSettings.setScanningState(false)
-        
-        // Persist IDE quota data for Cursor and Trae
-        savePersistedIDEQuotas()
-
-        // Update menu bar items
-        pruneMenuBarItems()
-        autoSelectMenuBarItems()
-
-        notifyQuotaDataChanged()
-    }
-
-    // MARK: - IDE Quota Persistence
-    
-    /// Save Cursor and Trae quota data to UserDefaults for persistence across app restarts
-    private func savePersistedIDEQuotas() {
-        var dataToSave: [String: [String: ProviderQuotaData]] = [:]
-        
-        for provider in Self.ideProvidersToSave {
-            if let quotas = providerQuotas[provider], !quotas.isEmpty {
-                dataToSave[provider.rawValue] = quotas
-            }
-        }
-        
-        if dataToSave.isEmpty {
-            UserDefaults.standard.removeObject(forKey: Self.ideQuotasKey)
-            return
-        }
-        
-        do {
-            let encoded = try JSONEncoder().encode(dataToSave)
-            UserDefaults.standard.set(encoded, forKey: Self.ideQuotasKey)
-        } catch {
-            Log.error("Failed to save IDE quotas: \(error)")
-        }
-    }
-    
-    /// Load persisted Cursor and Trae quota data from UserDefaults
-    private func loadPersistedIDEQuotas() {
-        guard let data = UserDefaults.standard.data(forKey: Self.ideQuotasKey) else { return }
-        
-        do {
-            let decoded = try JSONDecoder().decode([String: [String: ProviderQuotaData]].self, from: data)
-            
-            for (providerRaw, quotas) in decoded {
-                if let provider = AIProvider(rawValue: providerRaw),
-                   Self.ideProvidersToSave.contains(provider) {
-                    providerQuotas[provider] = quotas
-                }
-            }
-        } catch {
-            Log.error("Failed to load IDE quotas: \(error)")
-            // Clear corrupted data
-            UserDefaults.standard.removeObject(forKey: Self.ideQuotasKey)
-        }
     }
     
     // MARK: - Menu Bar Quota Items
