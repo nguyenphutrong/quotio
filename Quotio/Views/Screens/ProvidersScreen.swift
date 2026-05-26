@@ -21,7 +21,6 @@ struct ProvidersScreen: View {
     @State private var showProxyRequiredAlert = false
     @State private var showIDEScanSheet = false
     @State private var showAddProviderPopover = false
-    @State private var switchingAccount: AccountRowData?
     @State private var modeManager = OperatingModeManager.shared
     
     // MARK: - Computed Properties
@@ -127,15 +126,6 @@ struct ProvidersScreen: View {
                 }
             )
         }
-        .sheet(item: $switchingAccount) { account in
-            SwitchAccountSheet(
-                accountEmail: account.displayName,
-                onDismiss: {
-                    switchingAccount = nil
-                }
-            )
-            .environment(viewModel)
-        }
     }
     
     // MARK: - Toolbar
@@ -198,15 +188,9 @@ struct ProvidersScreen: View {
                             Task { await deleteAccount(account) }
                         },
                         onEditAccount: { _ in markCustomProviderAPISyncRequired() },
-                        onSwitchAccount: provider == .antigravity ? { account in
-                            switchingAccount = account
-                        } : nil,
                         onToggleDisabled: { account in
                             Task { await toggleAccountDisabled(account) }
-                        },
-                        isAccountActive: provider == .antigravity ? { account in
-                            viewModel.isAntigravityAccountActive(email: account.displayName)
-                        } : nil
+                        }
                     )
                 }
             }

@@ -435,7 +435,6 @@ private struct AccountQuotaCardV2: View {
     let isLoading: Bool
     
     @State private var isRefreshing = false
-    @State private var showSwitchSheet = false
     @State private var showModelsDetailSheet = false
 
     /// Check if OAuth is in progress for this provider
@@ -465,11 +464,6 @@ private struct AccountQuotaCardV2: View {
     
     private var isWarmupEnabled: Bool {
         viewModel.isWarmupEnabled(for: provider, accountKey: account.key)
-    }
-    
-    /// Check if this Antigravity account is active in IDE
-    private var isActiveInIDE: Bool {
-        provider == .antigravity && viewModel.isAntigravityAccountActive(email: account.email)
     }
     
     /// Build 4-group display for Antigravity: Gemini 3 Pro, Gemini 3 Flash, Gemini 3 Image, Claude 4.5
@@ -601,36 +595,12 @@ private struct AccountQuotaCardV2: View {
                     .help("action.warmup".localized())
                 }
                 
-                if isActiveInIDE {
-                    Text("antigravity.active".localized())
+                if provider == .antigravity {
+                    Label("Requires cpa-plusplus API support.", systemImage: "lock")
                         .font(.caption2)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.green)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.green.opacity(0.1))
-                        .clipShape(Capsule())
-                }
-                
-                if provider == .antigravity && !isActiveInIDE {
-                    Button {
-                        showSwitchSheet = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.right.square")
-                                .font(.caption)
-                            Text("Use in IDE")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                        }
-                            .foregroundStyle(.blue)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .background(Color.blue.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .help("antigravity.useInIDE".localized())
+                        .foregroundStyle(.secondary)
+                        .help("antigravity.useInIDE".localized())
+                    // TODO(cpa-plusplus): add Management API endpoint for Antigravity active-account switching.
                 }
                 
                 Button {
@@ -717,15 +687,6 @@ private struct AccountQuotaCardV2: View {
                     }
                 }
             }
-        }
-        .sheet(isPresented: $showSwitchSheet) {
-            SwitchAccountSheet(
-                accountEmail: account.email,
-                onDismiss: {
-                    showSwitchSheet = false
-                }
-            )
-            .environment(viewModel)
         }
         .sheet(isPresented: $showWarmupSheet) {
             WarmupSheet(

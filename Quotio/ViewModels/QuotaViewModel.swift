@@ -77,9 +77,6 @@ final class QuotaViewModel {
     /// Subscription info per provider per account (provider -> email -> SubscriptionInfo)
     var subscriptionInfos: [AIProvider: [String: SubscriptionInfo]] = [:]
     
-    /// Antigravity account switcher (for IDE token injection)
-    let antigravitySwitcher = AntigravityAccountSwitcher.shared
-    
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var warmupTask: Task<Void, Never>?
     @ObservationIgnored private var isStartingProxyFlow = false
@@ -849,38 +846,6 @@ final class QuotaViewModel {
         await refreshAllQuotas()
     }
 
-    // MARK: - Antigravity Account Switching
-    
-    /// Check if an Antigravity account is currently active in the IDE
-    /// Simply compares email from database with the given email
-    func isAntigravityAccountActive(email: String) -> Bool {
-        return antigravitySwitcher.isActiveAccount(email: email)
-    }
-    
-    /// Switch Antigravity account in the IDE
-    func switchAntigravityAccount(email: String) async {
-        await antigravitySwitcher.executeSwitchForEmail(email)
-
-        if case .success = antigravitySwitcher.switchState {
-            await refreshAllQuotas()
-        }
-    }
-    
-    /// Begin the switch confirmation flow
-    func beginAntigravitySwitch(accountId: String, email: String) {
-        antigravitySwitcher.beginSwitch(accountId: accountId, accountEmail: email)
-    }
-    
-    /// Cancel the switch operation
-    func cancelAntigravitySwitch() {
-        antigravitySwitcher.cancelSwitch()
-    }
-    
-    /// Dismiss switch result
-    func dismissAntigravitySwitchResult() {
-        antigravitySwitcher.dismissResult()
-    }
-    
     func refreshQuotaForProvider(_ provider: AIProvider) async {
         guard let apiClient else {
             errorMessage = "Requires cpa-plusplus API support."

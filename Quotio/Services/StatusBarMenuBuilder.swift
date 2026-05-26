@@ -222,17 +222,13 @@ final class StatusBarMenuBuilder {
         provider: AIProvider
     ) -> NSMenuItem {
         let subscriptionInfo = viewModel.subscriptionInfos[provider]?[email]
-        let isActiveInIDE = provider == .antigravity && viewModel.isAntigravityAccountActive(email: email)
-
         let cardView = MenuAccountCardView(
             email: email,
             data: data,
             provider: provider,
             subscriptionInfo: subscriptionInfo,
-            isActiveInIDE: isActiveInIDE,
-            onUseAccount: provider == .antigravity && !isActiveInIDE ? { [weak viewModel] in
-                Self.showSwitchConfirmation(email: email, viewModel: viewModel)
-            } : nil
+            isActiveInIDE: false,
+            onUseAccount: nil
         )
 
         let item = viewItem(for: cardView)
@@ -261,35 +257,6 @@ final class StatusBarMenuBuilder {
         return submenu
     }
 
-    // MARK: - Switch Account Confirmation
-    
-    private static func showSwitchConfirmation(email: String, viewModel: QuotaViewModel?) {
-        guard let viewModel = viewModel else { return }
-        
-        let isIDERunning = viewModel.antigravitySwitcher.isIDERunning()
-        
-        let alert = NSAlert()
-        alert.messageText = "antigravity.switch.dialog.title".localized()
-        alert.informativeText = String(format: "antigravity.switch.dialog.message".localized(), email)
-        
-        if isIDERunning {
-            alert.informativeText += "\n\n⚠️ " + "antigravity.switch.dialog.warning".localized()
-        }
-        
-        alert.alertStyle = isIDERunning ? .warning : .informational
-        alert.addButton(withTitle: "antigravity.switch.title".localized())
-        alert.addButton(withTitle: "action.cancel".localized())
-        
-        let response = alert.runModal()
-        
-        if response == .alertFirstButtonReturn {
-            Task { @MainActor in
-                await viewModel.switchAntigravityAccount(email: email)
-                StatusBarManager.shared.rebuildMenuInPlace()
-            }
-        }
-    }
-    
     // MARK: - Empty State
     
     private func buildEmptyStateItem() -> NSMenuItem {
