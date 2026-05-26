@@ -184,7 +184,7 @@ struct QuotioApp: App {
 
 
     var body: some Scene {
-        Window("Quotio", id: "main") {
+        Window(AppRuntimeIdentity.windowTitle, id: "main") {
             ContentView()
                 .id(languageManager.currentLanguage) // Force re-render on language change
                 .environment(viewModel)
@@ -263,11 +263,13 @@ struct QuotioApp: App {
             CommandGroup(replacing: .newItem) { }
 
             #if canImport(Sparkle)
-            CommandGroup(after: .appInfo) {
+            if AppRuntimeIdentity.updatesEnabled {
+                CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {
                     UpdaterService.shared.checkForUpdates()
                 }
                 .disabled(!UpdaterService.shared.canCheckForUpdates)
+            }
             }
             #endif
         }
@@ -660,7 +662,7 @@ struct ContentView: View {
                 }
                 .background(.regularMaterial)
             }
-            .navigationTitle("Quotio")
+            .navigationTitle(AppRuntimeIdentity.displayName)
             .toolbar {
                 ToolbarItem {
                     if modeManager.isLocalProxyMode {

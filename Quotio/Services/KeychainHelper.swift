@@ -11,8 +11,8 @@ import Security
 // MARK: - Keychain Helper
 
 enum KeychainHelper {
-    private static let remoteService = "dev.quotio.desktop.remote-management"
-    private static let localService = "dev.quotio.desktop.local-management"
+    private static var remoteService: String { AppRuntimeIdentity.keychainService(suffix: "remote-management") }
+    private static var localService: String { AppRuntimeIdentity.keychainService(suffix: "local-management") }
     private static let localManagementAccount = "local-management-key"
     private static let localManagementDefaultsKey = "managementKey"
 
@@ -39,6 +39,7 @@ enum KeychainHelper {
         if let key = readString(service: remoteService, account: account) {
             return key
         }
+        guard AppRuntimeIdentity.isStable else { return nil }
         return migrateString(from: legacyRemoteServices, to: remoteService, account: account)
     }
 
@@ -69,7 +70,8 @@ enum KeychainHelper {
         }
 
         // Migrate from legacy keychain service name
-        if let legacyKey = migrateString(from: legacyLocalServices, to: localService, account: localManagementAccount) {
+        if AppRuntimeIdentity.isStable,
+           let legacyKey = migrateString(from: legacyLocalServices, to: localService, account: localManagementAccount) {
             return legacyKey
         }
 

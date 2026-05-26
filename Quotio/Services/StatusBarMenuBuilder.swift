@@ -321,7 +321,7 @@ final class MenuActionHandler: NSObject {
 
         NSApplication.shared.activate(ignoringOtherApps: true)
 
-        if let window = NSApplication.shared.windows.first(where: { $0.title == "Quotio" }) {
+        if let window = NSApplication.shared.windows.first(where: { $0.title == AppRuntimeIdentity.windowTitle }) {
             window.makeKeyAndOrderFront(nil)
 
             if window.isMiniaturized {
@@ -342,7 +342,7 @@ private struct MenuHeaderView: View {
     
     var body: some View {
         HStack {
-            Text("Quotio")
+            Text(AppRuntimeIdentity.displayName)
                 .font(.headline)
                 .fontWeight(.semibold)
             

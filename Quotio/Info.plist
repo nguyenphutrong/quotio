@@ -4,7 +4,7 @@
 <dict>
     <!-- Sparkle Auto-Update Configuration -->
     <key>SUFeedURL</key>
-    <string>https://github.com/nguyenphutrong/quotio/releases/latest/download/appcast.xml</string>
+    <string>$(QUOTIO_SPARKLE_FEED_URL)</string>
     
     <key>SUPublicEDKey</key>
     <string>HBpWFjUcNUuuZfdxhVlw2Mc87IT8tj1C68rufluZ0M4=</string>
@@ -14,6 +14,9 @@
     
     <key>SUScheduledCheckInterval</key>
     <integer>86400</integer>
+
+    <key>QuotioUpdatesEnabled</key>
+    <string>$(QUOTIO_ENABLE_UPDATES)</string>
     
     <!-- App Info -->
     <key>LSMinimumSystemVersion</key>
@@ -27,10 +30,10 @@
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>Quotio</string>
+            <string>$(QUOTIO_URL_NAME)</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>quotio</string>
+                <string>$(QUOTIO_URL_SCHEME)</string>
             </array>
         </dict>
     </array>

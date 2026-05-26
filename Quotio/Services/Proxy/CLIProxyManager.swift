@@ -10,6 +10,23 @@ import AppKit
 @Observable
 final class CLIProxyManager {
     static let shared = CLIProxyManager()
+
+    private enum AuthDirConfigurationError: LocalizedError {
+        case emptyPath
+        case notDirectory(String)
+        case notWritable(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .emptyPath:
+                return "settings.authDir.error.empty".localizedStatic()
+            case .notDirectory(let path):
+                return String(format: "settings.authDir.error.notDirectory".localizedStatic(), path)
+            case .notWritable(let path):
+                return String(format: "settings.authDir.error.notWritable".localizedStatic(), path)
+            }
+        }
+    }
     
     // MARK: - Two-Layer Proxy Architecture
     
@@ -176,10 +193,13 @@ final class CLIProxyManager {
     /// Storage manager for versioned binaries.
     var storageManager: ProxyStorageManager { ProxyStorageManager.shared }
     
+    private static let authDirDefaultsKey = "localAuthDir"
+
     let binaryPath: String
     let configPath: String
-    let authDir: String
+    private(set) var authDir: String
     private(set) var managementKey: String
+    let defaultAuthDir: String
     
     var port: UInt16 {
         get { proxyStatus.port }
@@ -211,17 +231,15 @@ final class CLIProxyManager {
     }
     
     init() {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Application Support directory not found")
-        }
-        let quotioDir = appSupport.appendingPathComponent("Quotio")
+        let quotioDir = AppRuntimeIdentity.applicationSupportDirectoryURL()
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         
         try? FileManager.default.createDirectory(at: quotioDir, withIntermediateDirectories: true)
         
         self.binaryPath = quotioDir.appendingPathComponent(Self.binaryName).path
         self.configPath = quotioDir.appendingPathComponent("config.yaml").path
-        self.authDir = homeDir.appendingPathComponent(".cli-proxy-api").path
+        self.defaultAuthDir = homeDir.appendingPathComponent(".cli-proxy-api").path
+        self.authDir = Self.resolveInitialAuthDir(configPath: quotioDir.appendingPathComponent("config.yaml").path, defaultAuthDir: defaultAuthDir)
         
         // Always use key from Keychain, generate new if not exists
         // Never read from config because CLIProxyAPI hashes the key on startup
@@ -248,6 +266,7 @@ final class CLIProxyManager {
         migrateLegacyVersionedStorageIfNeeded()
         initializeSelectedBinarySourceIfNeeded()
         ensureConfigExists()
+        syncAuthDirInConfig()
     }
 
     /// Restart the proxy if it is currently running.
@@ -297,6 +316,81 @@ final class CLIProxyManager {
 
     private func updateConfigHost(_ host: String) {
         updateConfigValue(pattern: #"host:\s*"[^"]*""#, replacement: "host: \"\(host)\"")
+    }
+
+    private func updateConfigAuthDir(_ path: String) {
+        updateConfigValue(pattern: #"auth-dir:\s*"[^"]*""#, replacement: "auth-dir: \"\(path)\"")
+    }
+
+    private static func resolveInitialAuthDir(configPath: String, defaultAuthDir: String) -> String {
+        if let savedPath = UserDefaults.standard.string(forKey: authDirDefaultsKey),
+           !savedPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return normalizePath(savedPath)
+        }
+
+        if let configPathValue = readAuthDirFromConfig(at: configPath) {
+            let normalized = normalizePath(configPathValue)
+            UserDefaults.standard.set(normalized, forKey: authDirDefaultsKey)
+            return normalized
+        }
+
+        return defaultAuthDir
+    }
+
+    private static func readAuthDirFromConfig(at configPath: String) -> String? {
+        guard let content = try? String(contentsOfFile: configPath, encoding: .utf8),
+              let match = content.range(of: #"auth-dir:\s*"([^"]+)""#, options: .regularExpression) else {
+            return nil
+        }
+
+        let line = String(content[match])
+        guard let quotedRange = line.range(of: #""([^"]+)""#, options: .regularExpression) else {
+            return nil
+        }
+
+        return String(line[quotedRange]).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+    }
+
+    private static func normalizePath(_ rawValue: String) -> String {
+        NSString(string: rawValue).expandingTildeInPath
+    }
+
+    private func syncAuthDirInConfig() {
+        updateConfigAuthDir(authDir)
+    }
+
+    func setAuthDir(_ rawValue: String) throws {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw AuthDirConfigurationError.emptyPath
+        }
+
+        let normalizedPath = Self.normalizePath(trimmed)
+        var isDirectory: ObjCBool = false
+        let fileExists = FileManager.default.fileExists(atPath: normalizedPath, isDirectory: &isDirectory)
+
+        if fileExists && !isDirectory.boolValue {
+            throw AuthDirConfigurationError.notDirectory(normalizedPath)
+        }
+
+        if !fileExists {
+            try FileManager.default.createDirectory(atPath: normalizedPath, withIntermediateDirectories: true)
+        }
+
+        guard FileManager.default.isWritableFile(atPath: normalizedPath) else {
+            throw AuthDirConfigurationError.notWritable(normalizedPath)
+        }
+
+        guard normalizedPath != authDir else { return }
+
+        authDir = normalizedPath
+        UserDefaults.standard.set(normalizedPath, forKey: Self.authDirDefaultsKey)
+        updateConfigAuthDir(normalizedPath)
+        restartProxyIfRunning()
+    }
+
+    func resetAuthDir() throws {
+        try setAuthDir(defaultAuthDir)
     }
 
     private func ensureApiKeyExistsInConfig() {

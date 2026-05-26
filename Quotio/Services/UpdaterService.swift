@@ -95,6 +95,7 @@ final class UpdaterService: NSObject {
     /// Initialize Sparkle updater on-demand (memory optimization)
     func initializeIfNeeded() {
         guard !isInitialized else { return }
+        guard AppRuntimeIdentity.updatesEnabled else { return }
         
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
@@ -117,13 +118,19 @@ final class UpdaterService: NSObject {
     /// Check for updates in background (no UI if no update)
     func checkForUpdatesInBackground() {
         initializeIfNeeded()
+        guard AppRuntimeIdentity.updatesEnabled else { return }
         updater?.checkForUpdatesInBackground()
     }
     
     // MARK: - Icon Management
     
     func updateAppIcon() {
-        let iconName = updateChannel == .beta ? "AppIconBetaImage" : "AppIconImage"
+        let iconName: String
+        if AppRuntimeIdentity.isBeta {
+            iconName = "AppIconBetaImage"
+        } else {
+            iconName = updateChannel == .beta ? "AppIconBetaImage" : "AppIconImage"
+        }
         
         guard let iconImage = NSImage(named: iconName) else { return }
         
@@ -145,6 +152,7 @@ final class UpdaterService: NSObject {
 extension UpdaterService: SPUUpdaterDelegate {
     
     nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
+        guard AppRuntimeIdentity.updatesEnabled else { return nil }
         return "https://github.com/nguyenphutrong/quotio/releases/latest/download/appcast.xml"
     }
     

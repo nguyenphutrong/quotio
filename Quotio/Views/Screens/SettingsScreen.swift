@@ -874,6 +874,8 @@ struct NetworkAccessSection: View {
 
 struct LocalPathsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @State private var authDirText: String = ""
+    @State private var authDirErrorMessage: String?
     
     var body: some View {
         Section {
@@ -886,11 +888,119 @@ struct LocalPathsSection: View {
             }
             
             LabeledContent("settings.authDir".localized()) {
-                PathLabel(path: viewModel.proxyManager.authDir)
+                AuthDirEditorRow(
+                    authDirText: $authDirText,
+                    currentPath: viewModel.proxyManager.authDir,
+                    onSave: saveAuthDir,
+                    onChooseFolder: chooseAuthDirFolder,
+                    onReset: resetAuthDir
+                )
             }
         } header: {
             Label("settings.paths".localized(), systemImage: "folder")
         }
+        .onAppear {
+            authDirText = viewModel.proxyManager.authDir
+        }
+        .onChange(of: viewModel.proxyManager.authDir) { _, newValue in
+            authDirText = newValue
+        }
+        .alert("status.error".localized(), isPresented: Binding(
+            get: { authDirErrorMessage != nil },
+            set: { if !$0 { authDirErrorMessage = nil } }
+        )) {
+            Button("action.cancel".localized(), role: .cancel) {
+                authDirErrorMessage = nil
+            }
+        } message: {
+            Text(authDirErrorMessage ?? "")
+        }
+    }
+
+    private func saveAuthDir() {
+        do {
+            try viewModel.proxyManager.setAuthDir(authDirText)
+            authDirText = viewModel.proxyManager.authDir
+        } catch {
+            authDirErrorMessage = error.localizedDescription
+            authDirText = viewModel.proxyManager.authDir
+        }
+    }
+
+    private func resetAuthDir() {
+        do {
+            try viewModel.proxyManager.resetAuthDir()
+            authDirText = viewModel.proxyManager.authDir
+        } catch {
+            authDirErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func chooseAuthDirFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = URL(fileURLWithPath: viewModel.proxyManager.authDir)
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        authDirText = url.path
+        saveAuthDir()
+    }
+}
+
+struct AuthDirEditorRow: View {
+    @Binding var authDirText: String
+    let currentPath: String
+    let onSave: () -> Void
+    let onChooseFolder: () -> Void
+    let onReset: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TextField("", text: $authDirText)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.caption, design: .monospaced))
+                .onSubmit(onSave)
+
+            IconButton(systemName: "checkmark", helpText: "action.save".localized(), action: onSave)
+            IconButton(systemName: "folder", helpText: "settings.authDir.choose".localized(), action: onChooseFolder)
+            IconButton(systemName: "arrow.counterclockwise", helpText: "settings.authDir.reset".localized(), action: onReset)
+            CopyPathButton(path: currentPath)
+        }
+    }
+}
+
+private struct IconButton: View {
+    let systemName: String
+    let helpText: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.caption)
+        }
+        .buttonStyle(.borderless)
+        .help(helpText)
+    }
+}
+
+private struct CopyPathButton: View {
+    let path: String
+
+    var body: some View {
+        Button {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(path, forType: .string)
+        } label: {
+            Image(systemName: "doc.on.doc")
+                .font(.caption)
+        }
+        .buttonStyle(.borderless)
+        .help("action.copy".localized())
     }
 }
 
@@ -907,15 +1017,7 @@ struct PathLabel: View {
                 .truncationMode(.middle)
                 .textSelection(.enabled)
             
-            Button {
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(path, forType: .string)
-            } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.caption)
-            }
-            .buttonStyle(.borderless)
+            CopyPathButton(path: path)
         }
     }
 }
@@ -1952,7 +2054,7 @@ struct AboutTab: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.blue)
             
-            Text("Quotio")
+            Text(AppRuntimeIdentity.displayName)
                 .font(.title)
                 .fontWeight(.bold)
             
@@ -2060,7 +2162,7 @@ struct AboutScreen: View {
             
             // App Name & Tagline
             VStack(spacing: 8) {
-                Text("Quotio")
+                Text(AppRuntimeIdentity.displayName)
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 

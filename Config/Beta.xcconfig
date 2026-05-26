@@ -1,0 +1,15 @@
+// Beta.xcconfig
+// Base configuration for tracked Beta builds
+// This file is tracked by git
+
+PRODUCT_BUNDLE_IDENTIFIER = dev.quotio.desktop.beta
+PRODUCT_NAME = Quotio Beta
+INFOPLIST_KEY_CFBundleDisplayName = Quotio Beta
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIconBeta
+
+QUOTIO_URL_NAME = Quotio Beta
+QUOTIO_URL_SCHEME = quotio-beta
+QUOTIO_ENABLE_UPDATES = NO
+QUOTIO_SPARKLE_FEED_URL =
+
+#include? "Local.xcconfig"

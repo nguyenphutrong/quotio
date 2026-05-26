@@ -25,10 +25,8 @@ final class ProxyStorageManager {
     private let proxyDir: URL
     
     private init() {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Application Support directory not found")
-        }
-        self.proxyDir = appSupport.appendingPathComponent("Quotio/proxy")
+        self.proxyDir = AppRuntimeIdentity.applicationSupportDirectoryURL(fileManager: fileManager)
+            .appendingPathComponent("proxy", isDirectory: true)
         try? fileManager.createDirectory(at: proxyDir, withIntermediateDirectories: true)
     }
     

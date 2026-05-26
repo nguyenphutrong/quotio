@@ -38,14 +38,11 @@ final class RequestTracker {
     private var store: RequestHistoryStore = .empty
     
     /// Queue for file operations
-    private let fileQueue = DispatchQueue(label: "dev.quotio.desktop.request-tracker-file")
+    private let fileQueue = DispatchQueue(label: "\(AppRuntimeIdentity.bundleIdentifier).request-tracker-file")
     
     /// Storage file URL
     private var storageURL: URL {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Application Support directory not found")
-        }
-        let quotioDir = appSupport.appendingPathComponent("Quotio")
+        let quotioDir = AppRuntimeIdentity.applicationSupportDirectoryURL()
         try? FileManager.default.createDirectory(at: quotioDir, withIntermediateDirectories: true)
         return quotioDir.appendingPathComponent("request-history.json")
     }
