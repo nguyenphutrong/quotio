@@ -1,0 +1,14 @@
+{
+  "sourceRepo": "nguyenphutrong/cpa-plusplus",
+  "tag": "v7.1.19-plus.1",
+  "assets": {
+    "darwin_aarch64": {
+      "name": "cpa-plusplus_7.1.19-plus.1_darwin_aarch64.tar.gz",
+      "sha256": "861bc32cea348f36f7c38a2d36087307f4de299a638ee34fd691b6419284fd6f"
+    },
+    "darwin_amd64": {
+      "name": "cpa-plusplus_7.1.19-plus.1_darwin_amd64.tar.gz",
+      "sha256": "8b3ab3f9850e62a7230026d72c8ac3ced7fee30db9fd0a6e5dec2b7859a1b3a4"
+    }
+  }
+}

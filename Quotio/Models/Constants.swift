@@ -10,12 +10,6 @@ import Foundation
 /// App-wide constants
 enum AppConstants {
     
-    // MARK: - Proxy Version Management
-    
-    /// Maximum number of proxy versions to keep installed.
-    /// Older versions beyond this limit will be automatically deleted after upgrades.
-    static let maxInstalledVersions = 3
-    
     // MARK: - Network
     
     /// Default proxy port

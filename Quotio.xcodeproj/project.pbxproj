@@ -12,10 +12,12 @@
 
 /* Begin PBXFileReference section */
 		78D386942EFBF30400C40FB6 /* Quotio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Quotio.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		78D386B22EFBF30500C40FB6 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
-		78D386B32EFBF30500C40FB6 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
-		78D386B42EFBF30500C40FB6 /* Local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig.example; sourceTree = "<group>"; };
-		78D386B62EFBF30500C40FB6 /* Beta.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Beta.xcconfig; sourceTree = "<group>"; };
+			78D386B22EFBF30500C40FB6 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+			78D386B32EFBF30500C40FB6 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+			78D386B42EFBF30500C40FB6 /* Local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig.example; sourceTree = "<group>"; };
+			78D386B62EFBF30500C40FB6 /* Beta.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Beta.xcconfig; sourceTree = "<group>"; };
+			78D386C02EFBF30500C40FB6 /* CPAPlusPlusBundle.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = CPAPlusPlusBundle.json; sourceTree = "<group>"; };
+			78D386C22EFBF30500C40FB6 /* download-cpa-plusplus.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "download-cpa-plusplus.sh"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -53,11 +55,12 @@
 /* Begin PBXGroup section */
 		78D3868B2EFBF30400C40FB6 = {
 			isa = PBXGroup;
-			children = (
-				78D386B52EFBF30500C40FB6 /* Config */,
-				78D386962EFBF30400C40FB6 /* Quotio */,
-				78D386952EFBF30400C40FB6 /* Products */,
-			);
+				children = (
+					78D386B52EFBF30500C40FB6 /* Config */,
+					78D386C12EFBF30500C40FB6 /* scripts */,
+					78D386962EFBF30400C40FB6 /* Quotio */,
+					78D386952EFBF30400C40FB6 /* Products */,
+				);
 			sourceTree = "<group>";
 		};
 		78D386952EFBF30400C40FB6 /* Products */ = {
@@ -72,13 +75,22 @@
 			isa = PBXGroup;
 			children = (
 				78D386B22EFBF30500C40FB6 /* Debug.xcconfig */,
-				78D386B32EFBF30500C40FB6 /* Release.xcconfig */,
-				78D386B62EFBF30500C40FB6 /* Beta.xcconfig */,
-				78D386B42EFBF30500C40FB6 /* Local.xcconfig.example */,
-			);
-			path = Config;
-			sourceTree = "<group>";
-		};
+					78D386B32EFBF30500C40FB6 /* Release.xcconfig */,
+					78D386B62EFBF30500C40FB6 /* Beta.xcconfig */,
+					78D386B42EFBF30500C40FB6 /* Local.xcconfig.example */,
+					78D386C02EFBF30500C40FB6 /* CPAPlusPlusBundle.json */,
+				);
+				path = Config;
+				sourceTree = "<group>";
+			};
+			78D386C12EFBF30500C40FB6 /* scripts */ = {
+				isa = PBXGroup;
+				children = (
+					78D386C22EFBF30500C40FB6 /* download-cpa-plusplus.sh */,
+				);
+				path = scripts;
+				sourceTree = "<group>";
+			};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -86,10 +98,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 78D3869F2EFBF30500C40FB6 /* Build configuration list for PBXNativeTarget "Quotio" */;
 			buildPhases = (
-				78D386902EFBF30400C40FB6 /* Sources */,
-				78D386912EFBF30400C40FB6 /* Frameworks */,
-				78D386922EFBF30400C40FB6 /* Resources */,
-			);
+					78D386902EFBF30400C40FB6 /* Sources */,
+					78D386912EFBF30400C40FB6 /* Frameworks */,
+					78D386922EFBF30400C40FB6 /* Resources */,
+					78D386C32EFBF30500C40FB6 /* Bundle cpa-plusplus */,
+				);
 			buildRules = (
 			);
 			dependencies = (
@@ -152,7 +165,33 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXResourcesBuildPhase section */
+	/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		78D386C32EFBF30500C40FB6 /* Bundle cpa-plusplus */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Config/CPAPlusPlusBundle.json",
+				"$(SRCROOT)/scripts/download-cpa-plusplus.sh",
+			);
+			name = "Bundle cpa-plusplus";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/cpa-plusplus",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/CPAPlusPlusBundle.json",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"$SRCROOT/scripts/download-cpa-plusplus.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		78D386902EFBF30400C40FB6 /* Sources */ = {
@@ -203,7 +242,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+					ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -265,7 +304,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+					ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -315,8 +354,9 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_TESTABILITY = YES;
+					ENABLE_STRICT_OBJC_MSGSEND = YES;
+					ENABLE_TESTABILITY = YES;
+					ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;

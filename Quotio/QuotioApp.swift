@@ -300,13 +300,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // if already initialized.
         Task { @MainActor in
             await AppBootstrap.shared.initializeIfNeeded()
-
-            // Start background polling for CLIProxyAPI updates (every 5 minutes)
-            // Uses Atom feed with ETag caching for efficiency
-            AtomFeedUpdateService.shared.startPolling(
-                getCurrentSource: { CLIProxyManager.shared.selectedBinarySource },
-                getCurrentVersion: { CLIProxyManager.shared.currentVersion ?? CLIProxyManager.shared.installedProxyVersion }
-            )
         }
 
         windowWillCloseObserver = NotificationCenter.default.addObserver(
@@ -468,9 +461,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Stop background polling
-        AtomFeedUpdateService.shared.stopPolling()
-
         CLIProxyManager.terminateProxyOnShutdown()
         
         // Use semaphore to ensure tunnel cleanup completes before app terminates

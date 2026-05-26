@@ -47,7 +47,7 @@ enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
             return [
                 "Start/stop proxy server",
                 "Configure proxy port and paths",
-                "Auto-upgrade proxy binary",
+                "Use bundled cpa-plusplus",
                 "Full OAuth authentication",
                 "Configure CLI agents"
             ]
@@ -64,11 +64,6 @@ enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
     
     /// Whether proxy start/stop controls should be shown
     var supportsProxyControl: Bool {
-        self == .local
-    }
-    
-    /// Whether binary upgrade UI should be shown
-    var supportsBinaryUpgrade: Bool {
         self == .local
     }
     

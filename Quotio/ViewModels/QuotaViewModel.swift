@@ -165,13 +165,7 @@ final class QuotaViewModel {
         let autoStartProxy = UserDefaults.standard.bool(forKey: "autoStartProxy")
         if autoStartProxy && proxyManager.isBinaryInstalled {
             await startProxy()
-            // Note: checkForProxyUpgrade() is now called inside startProxy()
         }
-    }
-    
-    /// Check for proxy upgrade (non-blocking)
-    private func checkForProxyUpgrade() async {
-        await proxyManager.checkForUpgrade()
     }
     
     private func initializeRemoteMode() async {
@@ -627,11 +621,6 @@ final class QuotaViewModel {
             await refreshData()
 
             await runWarmupCycle()
-
-            // Check for proxy upgrade (non-blocking, fire-and-forget)
-            Task {
-                await checkForProxyUpgrade()
-            }
 
             let autoStartTunnel = UserDefaults.standard.bool(forKey: "autoStartTunnel")
             if autoStartTunnel && tunnelManager.installation.isInstalled {

@@ -311,27 +311,14 @@ struct DashboardScreen: View {
         } description: {
             Text(viewModel.proxyManager.selectedBinarySource.installDescription)
         } actions: {
-            if viewModel.proxyManager.isDownloading {
-                ProgressView(value: viewModel.proxyManager.downloadProgress)
-                    .progressViewStyle(.linear)
-                    .frame(width: 200)
-            } else {
-                Button(viewModel.proxyManager.selectedBinarySource.installActionTitle) {
-                    Task {
-                        do {
-                            try await viewModel.proxyManager.downloadAndInstallBinary()
-                        } catch {
-                            viewModel.errorMessage = error.localizedDescription
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            
             if let error = viewModel.proxyManager.lastError {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
+            } else {
+                Text("Bundled cpa-plusplus is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH for local development.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 300)

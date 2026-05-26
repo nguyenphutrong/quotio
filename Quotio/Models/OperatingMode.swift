@@ -87,11 +87,6 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
         self == .localProxy
     }
     
-    /// Whether binary upgrade UI should be shown
-    var supportsBinaryUpgrade: Bool {
-        self == .localProxy
-    }
-    
     /// Whether port configuration should be shown
     var supportsPortConfig: Bool {
         self == .localProxy

@@ -21,14 +21,13 @@ Three concurrency patterns used:
 | Menu bar changes | `StatusBarManager.swift` + `StatusBarMenuBuilder.swift` | Singleton + builder |
 | Proxy lifecycle | `CLIProxyManager.swift` | `start()`, `stop()`, `toggle()` |
 | Auth commands | `CLIProxyManager.swift` | `runAuthCommand()` extension |
-| Binary management | `ProxyStorageManager.swift` | Versioned storage with symlinks |
+| Binary management | `scripts/download-cpa-plusplus.sh` | Build-time cpa-plusplus bundling |
 
 ## Service Categories
 
 ### Core Infrastructure
-- `CLIProxyManager` - Proxy process lifecycle, binary download, auth commands
+- `CLIProxyManager` - Proxy process lifecycle, bundled/dev binary resolution, auth commands
 - `ProxyBridge` - TCP bridge layer, forces `Connection: close`
-- `ProxyStorageManager` - Versioned binary storage, SHA256 verification
 - `CompatibilityChecker` - Version compatibility validation
 
 ### API Clients
@@ -119,8 +118,8 @@ actor NewProviderQuotaFetcher {
 
 ## Critical Rules
 
-- **CLIProxyManager**: Base URL always points to CLIProxyAPI directly
-- **ProxyStorageManager**: Never delete current version symlink
+- **CLIProxyManager**: Base URL always points to cpa-plusplus directly
+- **Binary bundling**: Runtime must use `CPA_PLUSPLUS_BINARY_PATH` or bundled app resource, not GitHub release downloads
 - **ProxyBridge**: Target host always localhost
 - **ManagementAPIClient**: Uses `Connection: close` to prevent stale connections
 
@@ -137,7 +136,6 @@ QuotaViewModel
 
 CLIProxyManager
 ├── ProxyBridge
-├── ProxyStorageManager
 └── CompatibilityChecker
 
 StatusBarManager

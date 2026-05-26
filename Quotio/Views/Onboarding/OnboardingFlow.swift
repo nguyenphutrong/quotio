@@ -85,13 +85,13 @@ final class OnboardingViewModel {
         }
 
         if let legacyPrompt = proxyManager.legacyMigrationPrompt {
-            return ("Download/install cpa-plusplus", legacyPrompt)
+            return ("Use bundled cpa-plusplus", legacyPrompt)
         }
 
         if !proxyManager.isBinaryInstalled {
             return (
-                "Download/install cpa-plusplus",
-                "Quotio will install cpa-plusplus from nguyenphutrong/cpa-plusplus releases before starting local mode."
+                "Use bundled cpa-plusplus",
+                "Bundled cpa-plusplus is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH for local development."
             )
         }
 

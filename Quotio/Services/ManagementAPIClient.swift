@@ -558,15 +558,8 @@ actor ManagementAPIClient {
         _ = try await makeRequest("/api-keys?index=\(index)", method: "DELETE")
     }
     
-    // MARK: - Proxy Version & Health
-    
-    /// Fetch the latest proxy version available from the running proxy.
-    /// The proxy fetches this from GitHub releases.
-    func fetchLatestVersion() async throws -> LatestVersionResponse {
-        let data = try await makeRequest("/latest-version")
-        return try decode(LatestVersionResponse.self, from: data)
-    }
-    
+    // MARK: - Proxy Health
+
     /// Check if proxy is responding by calling the debug endpoint.
     /// This is simpler than /health which may not exist.
     func checkProxyResponding() async -> Bool {
@@ -605,16 +598,6 @@ private extension String {
 
     nonisolated var urlQueryEncoded: String {
         addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? self
-    }
-}
-
-// MARK: - Latest Version Response
-
-nonisolated struct LatestVersionResponse: Codable, Sendable {
-    let latestVersion: String
-    
-    enum CodingKeys: String, CodingKey {
-        case latestVersion = "latest-version"
     }
 }
 
