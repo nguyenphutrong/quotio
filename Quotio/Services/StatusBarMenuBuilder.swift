@@ -168,7 +168,7 @@ final class StatusBarMenuBuilder {
     
     private func resolveSelectedProvider(from providers: [AIProvider]) -> AIProvider {
         if !selectedProviderRaw.isEmpty,
-           let provider = AIProvider(rawValue: selectedProviderRaw),
+           let provider = AIProvider.fromProviderID(selectedProviderRaw),
            providers.contains(provider) {
             return provider
         }
@@ -388,7 +388,7 @@ private struct MenuProviderPickerView: View {
     
     private var selectedProvider: AIProvider {
         if !selectedProviderRaw.isEmpty,
-           let provider = AIProvider(rawValue: selectedProviderRaw),
+           let provider = AIProvider.fromProviderID(selectedProviderRaw),
            providers.contains(provider) {
             return provider
         }
@@ -1345,6 +1345,8 @@ private extension AIProvider {
         case .copilot: return "Copilot"
         case .trae: return "Trae"
         case .antigravity: return "Antigravity"
+        case .kimi: return "Kimi"
+        case .xai: return "xAI"
         case .qwen: return "Qwen"
         case .iflow: return "iFlow"
         case .vertex: return "Vertex"

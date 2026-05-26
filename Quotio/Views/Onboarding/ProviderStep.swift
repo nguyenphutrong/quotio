@@ -50,7 +50,7 @@ struct ProviderStep: View {
     }
     
     private var featuredProviders: [AIProvider] {
-        [.gemini, .claude, .codex, .copilot, .antigravity, .qwen]
+        [.gemini, .claude, .codex, .copilot, .kiro, .antigravity, .kimi, .xai, .qwen]
     }
     
     private var hintSection: some View {

@@ -147,6 +147,10 @@ actor ManagementAPIClient {
         return data
     }
 
+    private func jsonBody(_ object: [String: Any]) throws -> Data {
+        try JSONSerialization.data(withJSONObject: object)
+    }
+
     private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         do {
             return try JSONDecoder().decode(type, from: data)
@@ -237,9 +241,13 @@ actor ManagementAPIClient {
     }
     
     func fetchAuthFiles() async throws -> [AuthFile] {
-        let data = try await makeRequest("/auth-files")
-        let response = try decode(AuthFilesResponse.self, from: data)
-        return response.files
+        do {
+            return try await fetchProviders().map(\.authFile)
+        } catch APIError.httpError(404) {
+            let data = try await makeRequest("/auth-files")
+            let response = try decode(AuthFilesResponse.self, from: data)
+            return response.files
+        }
     }
     
     func fetchAuthFileModels(name: String) async throws -> [AuthFileModelInfo] {
@@ -256,20 +264,36 @@ actor ManagementAPIClient {
     }
     
     func deleteAuthFile(name: String) async throws {
-        _ = try await makeRequest("/auth-files?name=\(name)", method: "DELETE")
+        do {
+            _ = try await makeRequest("/providers/\(name.urlPathEncoded)", method: "DELETE")
+        } catch APIError.httpError(404) {
+            _ = try await makeRequest("/auth-files?name=\(name.urlQueryEncoded)", method: "DELETE")
+        }
     }
     
-    func deleteAllAuthFiles() async throws {
-        _ = try await makeRequest("/auth-files?all=true", method: "DELETE")
+    func setAuthFileDisabled(name: String, disabled: Bool) async throws {
+        do {
+            let body = try JSONEncoder().encode(["disabled": disabled])
+            _ = try await makeRequest("/providers/\(name.urlPathEncoded)", method: "PATCH", body: body)
+        } catch APIError.httpError(404) {
+            struct Request: Encodable {
+                let name: String
+                let disabled: Bool
+            }
+            let body = try JSONEncoder().encode(Request(name: name, disabled: disabled))
+            _ = try await makeRequest("/auth-files/status", method: "PATCH", body: body)
+        }
     }
 
-    func setAuthFileDisabled(name: String, disabled: Bool) async throws {
-        struct Request: Encodable {
-            let name: String
-            let disabled: Bool
-        }
-        let body = try JSONEncoder().encode(Request(name: name, disabled: disabled))
-        _ = try await makeRequest("/auth-files/status", method: "PATCH", body: body)
+    func fetchProviders() async throws -> [ProviderResponse] {
+        let data = try await makeRequest("/providers")
+        let response = try decode(ProvidersResponse.self, from: data)
+        return response.providers
+    }
+
+    func refreshProvider(id: String) async throws -> ProviderResponse {
+        let data = try await makeRequest("/providers/\(id.urlPathEncoded)/refresh", method: "POST")
+        return try decode(ProviderResponse.self, from: data)
     }
     
     func fetchUsageStats() async throws -> UsageStats {
@@ -285,38 +309,45 @@ actor ManagementAPIClient {
     func refreshQuota(provider: AIProvider? = nil, authID: String? = nil) async throws -> ManagementQuotaView {
         let endpoint: String
         if let provider, let authID {
-            endpoint = "/quota/refresh/\(provider.rawValue)/\(authID)"
+            endpoint = "/quota/refresh/\(provider.canonicalProviderID.urlPathEncoded)/\(authID.urlPathEncoded)"
         } else {
             endpoint = "/quota/refresh"
         }
         let data = try await makeRequest(endpoint, method: "POST")
         return try decode(ManagementQuotaView.self, from: data)
     }
-    
-    func getOAuthURL(for provider: AIProvider, projectId: String? = nil) async throws -> OAuthURLResponse {
-        var endpoint = provider.oauthEndpoint
-        var queryParams: [String] = []
-        
-        if let projectId = projectId, provider == .gemini {
-            queryParams.append("project_id=\(projectId)")
-        }
-        
-        let webUIProviders: [AIProvider] = [.antigravity, .claude, .codex, .gemini, .iflow, .kiro]
-        if webUIProviders.contains(provider) {
-            queryParams.append("is_webui=true")
-        }
-        
-        if !queryParams.isEmpty {
-            endpoint += "?" + queryParams.joined(separator: "&")
-        }
-        
-        let data = try await makeRequest(endpoint)
-        return try decode(OAuthURLResponse.self, from: data)
+
+    func fetchQuota(provider: AIProvider) async throws -> ManagementQuotaView {
+        let data = try await makeRequest("/quota/providers/\(provider.canonicalProviderID.urlPathEncoded)")
+        return try decode(ManagementQuotaView.self, from: data)
     }
     
-    func pollOAuthStatus(state: String) async throws -> OAuthStatusResponse {
-        let data = try await makeRequest("/get-auth-status?state=\(state)")
-        return try decode(OAuthStatusResponse.self, from: data)
+    func startProviderOAuth(provider: AIProvider, method: ProviderOAuthMethod? = nil, options: [String: String] = [:]) async throws -> ProviderOAuthSession {
+        var request: [String: Any] = ["provider": provider.canonicalProviderID]
+        if let method {
+            request["method"] = method.rawValue
+        }
+        if !options.isEmpty {
+            request["options"] = options
+        }
+        let data = try await makeRequest("/providers/oauth/start", method: "POST", body: try jsonBody(request))
+        return try decode(ProviderOAuthSession.self, from: data)
+    }
+
+    func fetchProviderOAuthSession(_ sessionID: String) async throws -> ProviderOAuthSession {
+        let data = try await makeRequest("/providers/oauth/sessions/\(sessionID.urlPathEncoded)")
+        return try decode(ProviderOAuthSession.self, from: data)
+    }
+
+    func cancelProviderOAuthSession(_ sessionID: String) async throws -> ProviderOAuthSession {
+        let data = try await makeRequest("/providers/oauth/sessions/\(sessionID.urlPathEncoded)", method: "DELETE")
+        return try decode(ProviderOAuthSession.self, from: data)
+    }
+
+    func completeProviderOAuthCallback(sessionID: String, state: String, code: String) async throws -> ProviderOAuthSession {
+        let body = try JSONEncoder().encode(ProviderOAuthCallbackRequest(sessionID: sessionID, state: state, code: code))
+        let data = try await makeRequest("/providers/oauth/callback", method: "POST", body: body)
+        return try decode(ProviderOAuthSession.self, from: data)
     }
     
     func fetchLogs(after: Int? = nil) async throws -> LogsResponse {
@@ -539,6 +570,16 @@ nonisolated struct ManagementServerInfo: Sendable, Equatable {
     let version: String?
 }
 
+private extension String {
+    nonisolated var urlPathEncoded: String {
+        addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? self
+    }
+
+    nonisolated var urlQueryEncoded: String {
+        addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? self
+    }
+}
+
 // MARK: - Latest Version Response
 
 nonisolated struct LatestVersionResponse: Codable, Sendable {
@@ -546,6 +587,153 @@ nonisolated struct LatestVersionResponse: Codable, Sendable {
     
     enum CodingKeys: String, CodingKey {
         case latestVersion = "latest-version"
+    }
+}
+
+// MARK: - Canonical Provider API Types
+
+nonisolated struct ProvidersResponse: Decodable, Sendable {
+    let providers: [ProviderResponse]
+
+    init(from decoder: Decoder) throws {
+        if let array = try? [ProviderResponse](from: decoder) {
+            providers = array
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        providers = try container.decode([ProviderResponse].self, forKey: .providers)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case providers
+    }
+}
+
+nonisolated struct ProviderResponse: Codable, Sendable {
+    let id: String
+    let type: String?
+    let provider: String
+    let label: String?
+    let disabled: Bool
+    let projectID: String?
+    let validation: ProviderValidation?
+
+    enum CodingKeys: String, CodingKey {
+        case id, type, provider, label, disabled, validation
+        case projectID = "project_id"
+    }
+
+    var authFile: AuthFile {
+        let valid = validation?.valid ?? !disabled
+        let accountIdentity = validation?.accountIdentity
+        let warning = validation?.warnings?.joined(separator: "\n")
+        let statusMessage = validation?.error ?? warning
+
+        return AuthFile(
+            id: id,
+            name: id,
+            provider: provider,
+            label: label,
+            status: disabled ? "disabled" : (valid ? "ready" : "error"),
+            statusMessage: statusMessage,
+            disabled: disabled,
+            unavailable: !valid,
+            runtimeOnly: nil,
+            source: "providers",
+            path: nil,
+            email: accountIdentity,
+            accountType: type,
+            account: accountIdentity,
+            authIndex: id,
+            createdAt: nil,
+            updatedAt: validation?.checkedAt,
+            lastRefresh: validation?.checkedAt
+        )
+    }
+}
+
+nonisolated struct ProviderValidation: Codable, Sendable {
+    let valid: Bool?
+    let authType: String?
+    let accountIdentity: String?
+    let expiresAt: String?
+    let warnings: [String]?
+    let checkedAt: String?
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case valid, warnings, error
+        case authType = "auth_type"
+        case accountIdentity = "account_identity"
+        case expiresAt = "expires_at"
+        case checkedAt = "checked_at"
+    }
+}
+
+// MARK: - Canonical OAuth API Types
+
+nonisolated enum ProviderOAuthMethod: String, Codable, Sendable {
+    case deviceCode = "device_code"
+    case builderIDDevice = "builder_id_device"
+    case awsDevice = "aws_device"
+    case builderIDAuthCode = "builder_id_auth_code"
+    case idcDevice = "idc_device"
+    case idcAuthCode = "idc_auth_code"
+}
+
+nonisolated enum ProviderOAuthSessionStatus: String, Codable, Sendable {
+    case starting
+    case awaitingCallback = "awaiting_callback"
+    case awaitingDeviceConfirmation = "awaiting_device_confirmation"
+    case completed
+    case failed
+    case expired
+    case cancelled
+
+    var isTerminal: Bool {
+        switch self {
+        case .completed, .failed, .expired, .cancelled:
+            return true
+        case .starting, .awaitingCallback, .awaitingDeviceConfirmation:
+            return false
+        }
+    }
+}
+
+nonisolated struct ProviderOAuthSession: Codable, Sendable {
+    let sessionID: String
+    let provider: String
+    let status: ProviderOAuthSessionStatus
+    let authURL: String?
+    let verificationURI: String?
+    let userCode: String?
+    let expiresAt: String?
+    let intervalSeconds: Int?
+    let error: String?
+    let credential: ProviderResponse?
+    let state: String?
+
+    enum CodingKeys: String, CodingKey {
+        case provider, status, error, credential, state
+        case sessionID = "session_id"
+        case authURL = "auth_url"
+        case verificationURI = "verification_uri"
+        case userCode = "user_code"
+        case expiresAt = "expires_at"
+        case intervalSeconds = "interval_seconds"
+    }
+}
+
+nonisolated struct ProviderOAuthCallbackRequest: Encodable, Sendable {
+    let sessionID: String
+    let state: String
+    let code: String
+
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "session_id"
+        case state
+        case code
     }
 }
 
@@ -562,16 +750,20 @@ nonisolated struct ManagementQuotaView: Codable, Sendable {
         fallbackFormatter.formatOptions = [.withInternetDateTime]
 
         for providerView in providers {
-            guard let provider = AIProvider(rawValue: providerView.provider) else { continue }
-            for account in providerView.accounts {
-                let key = account.accountKey.isEmpty ? account.credentialID : account.accountKey
+            let providerID = providerView.providerKey ?? providerView.provider
+            guard let provider = AIProvider.fromProviderID(providerID) else { continue }
+            for account in providerView.accounts ?? [] {
+                let accountKey = account.accountKey ?? account.account ?? account.email ?? ""
+                let credentialID = account.credentialID ?? account.authID ?? account.id ?? ""
+                let key = accountKey.isEmpty ? credentialID : accountKey
                 guard !key.isEmpty else { continue }
-                let lastUpdated = formatter.date(from: account.lastUpdated ?? "")
-                    ?? fallbackFormatter.date(from: account.lastUpdated ?? "")
+                let rawUpdated = account.lastUpdated ?? account.lastRefresh ?? ""
+                let lastUpdated = formatter.date(from: rawUpdated)
+                    ?? fallbackFormatter.date(from: rawUpdated)
                     ?? Date()
-                let models = account.models.map { model in
+                let models = (account.models ?? []).map { model in
                     ModelQuota(
-                        name: model.name.isEmpty ? model.displayName : model.name,
+                        name: (model.name ?? "").isEmpty ? (model.displayName ?? "Quota") : (model.name ?? "Quota"),
                         percentage: model.remainingPercent ?? max(0, 100 - (model.usedPercent ?? 0)),
                         resetTime: model.resetTime ?? "",
                         used: model.used.map(Int.init),
@@ -583,7 +775,7 @@ nonisolated struct ManagementQuotaView: Codable, Sendable {
                 result[provider, default: [:]][key] = ProviderQuotaData(
                     models: models,
                     lastUpdated: lastUpdated,
-                    isForbidden: account.isForbidden,
+                    isForbidden: account.isForbidden ?? false,
                     planType: account.planDisplayName ?? account.planType
                 )
             }
@@ -594,32 +786,46 @@ nonisolated struct ManagementQuotaView: Codable, Sendable {
 
 nonisolated struct ManagementQuotaProvider: Codable, Sendable {
     let provider: String
-    let accounts: [ManagementQuotaAccount]
+    let providerKey: String?
+    let accounts: [ManagementQuotaAccount]?
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case providerKey = "provider_key"
+        case accounts
+    }
 }
 
 nonisolated struct ManagementQuotaAccount: Codable, Sendable {
-    let credentialID: String
-    let accountKey: String
+    let id: String?
+    let credentialID: String?
+    let authID: String?
+    let accountKey: String?
+    let account: String?
+    let email: String?
     let planType: String?
     let planDisplayName: String?
-    let isForbidden: Bool
+    let isForbidden: Bool?
     let lastUpdated: String?
-    let models: [ManagementQuotaModel]
+    let lastRefresh: String?
+    let models: [ManagementQuotaModel]?
 
     enum CodingKeys: String, CodingKey {
+        case id, account, email, models
         case credentialID = "credential_id"
+        case authID = "auth_id"
         case accountKey = "account_key"
         case planType = "plan_type"
         case planDisplayName = "plan_display_name"
         case isForbidden = "is_forbidden"
         case lastUpdated = "last_updated"
-        case models
+        case lastRefresh = "last_refresh"
     }
 }
 
 nonisolated struct ManagementQuotaModel: Codable, Sendable {
-    let name: String
-    let displayName: String
+    let name: String?
+    let displayName: String?
     let remainingPercent: Double?
     let usedPercent: Double?
     let used: Double?

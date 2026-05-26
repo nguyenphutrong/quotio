@@ -455,7 +455,6 @@ struct OAuthSheet: View {
     let onDismiss: () -> Void
     
     @State private var hasStartedAuth = false
-    @State private var selectedKiroMethod: AuthCommand = .kiroImport
     
     private var isPolling: Bool {
         viewModel.oauthState?.status == .polling || viewModel.oauthState?.status == .waiting
@@ -466,11 +465,8 @@ struct OAuthSheet: View {
     }
     
     private var isError: Bool {
-        viewModel.oauthState?.status == .error
-    }
-    
-    private var kiroAuthMethods: [AuthCommand] {
-        [.kiroImport, .kiroGoogleLogin, .kiroAWSAuthCode, .kiroAWSLogin]
+        guard let status = viewModel.oauthState?.status else { return false }
+        return status == .failed || status == .expired || status == .cancelled
     }
     
     var body: some View {
@@ -487,35 +483,6 @@ struct OAuthSheet: View {
                     .foregroundStyle(.secondary)
             }
             
-            if provider == .gemini {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("oauth.projectId".localized())
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    TextField("oauth.projectIdPlaceholder".localized(), text: $projectId)
-                        .textFieldStyle(.roundedBorder)
-                }
-                .frame(maxWidth: 320)
-            }
-            
-            if provider == .kiro {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("oauth.authMethod".localized())
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    Picker("", selection: $selectedKiroMethod) {
-                        ForEach(kiroAuthMethods, id: \.self) { method in
-                            Text(method.displayName).tag(method)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    
-
-                }
-                .frame(maxWidth: 320)
-            }
-
             if viewModel.proxyManager.isLegacyAuthWarningNeeded(for: provider),
                let warning = viewModel.proxyManager.selectedBinarySourceWarning {
                 HStack(alignment: .top, spacing: 8) {
@@ -532,7 +499,14 @@ struct OAuthSheet: View {
             }
             
             if let state = viewModel.oauthState, state.provider == provider {
-                OAuthStatusView(status: state.status, error: state.error, state: state.state, authURL: state.authURL, provider: provider)
+                OAuthStatusView(
+                    status: state.status,
+                    error: state.error,
+                    authURL: state.authURL,
+                    verificationURI: state.verificationURI,
+                    userCode: state.userCode,
+                    provider: provider
+                )
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
             
@@ -547,7 +521,7 @@ struct OAuthSheet: View {
                     Button {
                         hasStartedAuth = false
                         Task {
-                            await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId, authMethod: provider == .kiro ? selectedKiroMethod : nil)
+                            await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId)
                         }
                     } label: {
                         Label("oauth.retry".localized(), systemImage: "arrow.clockwise")
@@ -558,7 +532,7 @@ struct OAuthSheet: View {
                     Button {
                         hasStartedAuth = true
                         Task {
-                            await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId, authMethod: provider == .kiro ? selectedKiroMethod : nil)
+                            await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId)
                         }
                     } label: {
                         if isPolling {
@@ -592,8 +566,9 @@ struct OAuthSheet: View {
 private struct OAuthStatusView: View {
     let status: OAuthState.OAuthStatus
     let error: String?
-    let state: String?
     let authURL: String?
+    let verificationURI: String?
+    let userCode: String?
     let provider: AIProvider
     
     /// Stable rotation angle for spinner animation (fixes UUID() infinite re-render)
@@ -638,8 +613,8 @@ private struct OAuthStatusView: View {
                             .foregroundStyle(provider.color)
                     }
                     
-                    // For Copilot Device Code flow, show device code with copy button
-                    if provider == .copilot, let deviceCode = state, !deviceCode.isEmpty {
+                    // Device-code providers expose a user code through the canonical session.
+                    if let deviceCode = userCode, !deviceCode.isEmpty {
                         VStack(spacing: 8) {
                             Text("oauth.enterCodeInBrowser".localized())
                                 .font(.subheadline)
@@ -669,19 +644,13 @@ private struct OAuthStatusView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                    } else if provider == .copilot, let message = error {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: 350)
                     } else {
                         Text("oauth.waitingForAuth".localized())
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
                         // Show auth URL with copy/open buttons
-                        if let urlString = authURL, let url = URL(string: urlString) {
+                        if let urlString = authURL ?? verificationURI, let url = URL(string: urlString) {
                             VStack(spacing: 12) {
                                 Text("oauth.copyLinkOrOpen".localized())
                                     .font(.caption)
@@ -734,13 +703,13 @@ private struct OAuthStatusView: View {
                 }
                 .padding(.vertical, 16)
                 
-            case .error:
+            case .failed, .expired, .cancelled:
                 VStack(spacing: 12) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 48))
                         .foregroundStyle(.red)
                     
-                    Text("oauth.failed".localized())
+                    Text(status.failureTitle)
                         .font(.headline)
                         .foregroundStyle(.red)
                     
@@ -756,5 +725,20 @@ private struct OAuthStatusView: View {
             }
         }
         .frame(minHeight: 100)
+    }
+}
+
+private extension OAuthState.OAuthStatus {
+    var failureTitle: String {
+        switch self {
+        case .expired:
+            return "OAuth session expired"
+        case .cancelled:
+            return "OAuth session cancelled"
+        case .failed:
+            return "oauth.failed".localized()
+        case .waiting, .polling, .success:
+            return ""
+        }
     }
 }

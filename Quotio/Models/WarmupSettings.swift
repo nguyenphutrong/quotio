@@ -307,7 +307,7 @@ final class WarmupSettingsManager {
         guard let separator = id.range(of: "::") else { return nil }
         let providerRaw = String(id[..<separator.lowerBound])
         let accountKey = String(id[separator.upperBound...])
-        guard let provider = AIProvider(rawValue: providerRaw), !accountKey.isEmpty else { return nil }
+        guard let provider = AIProvider.fromProviderID(providerRaw), !accountKey.isEmpty else { return nil }
         return WarmupAccountKey(provider: provider, accountKey: accountKey)
     }
     

@@ -867,73 +867,73 @@ final class QuotaViewModel {
         }
     }
     
-    func startOAuth(for provider: AIProvider, projectId: String? = nil, authMethod: AuthCommand? = nil, launchMode: OAuthLaunchMode = .manual) async {
+    func startOAuth(for provider: AIProvider, projectId: String? = nil, method: ProviderOAuthMethod? = nil, launchMode: OAuthLaunchMode = .manual) async {
         guard let client = apiClient else {
-            oauthState = OAuthState(provider: provider, status: .error, error: "Proxy not running. Please start the proxy first.")
-            return
-        }
-
-        guard !provider.oauthEndpoint.isEmpty else {
-            // TODO(cpa-plusplus): add Management API auth URL support for \(provider.rawValue).
-            oauthState = OAuthState(provider: provider, status: .error, error: "Requires cpa-plusplus API support.")
+            oauthState = OAuthState(provider: provider, status: .failed, error: "Proxy not running. Please start the proxy first.")
             return
         }
 
         oauthState = OAuthState(provider: provider, status: .waiting)
         
         do {
-            let response = try await client.getOAuthURL(for: provider, projectId: projectId)
-            
-            guard response.status == "ok", let urlString = response.url, let state = response.state else {
-                oauthState = OAuthState(provider: provider, status: .error, error: response.error)
-                return
-            }
-            
-            // Store URL for copy/open buttons
-            oauthState = OAuthState(provider: provider, status: .polling, state: state, authURL: urlString)
-            
-            // Auto-open browser if launchMode is .autoOpen
-            if launchMode == .autoOpen, let url = URL(string: urlString) {
+            let session = try await client.startProviderOAuth(
+                provider: provider,
+                method: method,
+                options: oauthOptions(for: provider, projectId: projectId)
+            )
+
+            oauthState = OAuthState(provider: provider, session: session)
+
+            if launchMode == .autoOpen,
+               let urlString = session.authURL ?? session.verificationURI,
+               let url = URL(string: urlString) {
                 NSWorkspace.shared.open(url)
             }
-            
-            await pollOAuthStatus(state: state, provider: provider)
-            
+
+            await pollOAuthSession(sessionID: session.sessionID, provider: provider)
         } catch {
-            oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
+            oauthState = OAuthState(provider: provider, status: .failed, error: error.localizedDescription)
         }
     }
     
-    private func pollOAuthStatus(state: String, provider: AIProvider) async {
+    private func pollOAuthSession(sessionID: String, provider: AIProvider) async {
         guard let client = apiClient else { return }
         
-        for _ in 0..<60 {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            
+        while !Task.isCancelled {
             do {
-                let response = try await client.pollOAuthStatus(state: state)
-                
-                switch response.status {
-                case "ok":
-                    oauthState = OAuthState(provider: provider, status: .success)
+                let session = try await client.fetchProviderOAuthSession(sessionID)
+                oauthState = OAuthState(provider: provider, session: session)
+
+                if session.status == .completed {
                     await refreshData()
                     return
-                case "error":
-                    oauthState = OAuthState(provider: provider, status: .error, error: response.error)
-                    return
-                default:
-                    continue
                 }
+                if session.status.isTerminal {
+                    return
+                }
+
+                let interval = max(1, min(session.intervalSeconds ?? 2, 15))
+                try? await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
             } catch {
-                continue
+                oauthState = OAuthState(provider: provider, status: .failed, sessionID: sessionID, error: error.localizedDescription)
+                return
             }
         }
-        
-        oauthState = OAuthState(provider: provider, status: .error, error: "OAuth timeout")
     }
     
     func cancelOAuth() {
+        guard let sessionID = oauthState?.sessionID, let client = apiClient else {
+            oauthState = nil
+            return
+        }
+        Task {
+            _ = try? await client.cancelProviderOAuthSession(sessionID)
+        }
         oauthState = nil
+    }
+
+    private func oauthOptions(for provider: AIProvider, projectId: String?) -> [String: String] {
+        [:]
     }
     
     func deleteAuthFile(_ file: AuthFile) async {
@@ -1189,11 +1189,61 @@ final class QuotaViewModel {
 struct OAuthState {
     let provider: AIProvider
     var status: OAuthStatus
+    var sessionID: String?
     var state: String?
     var error: String?
     var authURL: String?
+    var verificationURI: String?
+    var userCode: String?
+    var expiresAt: String?
+    var intervalSeconds: Int?
+
+    init(provider: AIProvider, status: OAuthStatus, sessionID: String? = nil, state: String? = nil, error: String? = nil, authURL: String? = nil, verificationURI: String? = nil, userCode: String? = nil, expiresAt: String? = nil, intervalSeconds: Int? = nil) {
+        self.provider = provider
+        self.status = status
+        self.sessionID = sessionID
+        self.state = state
+        self.error = error
+        self.authURL = authURL
+        self.verificationURI = verificationURI
+        self.userCode = userCode
+        self.expiresAt = expiresAt
+        self.intervalSeconds = intervalSeconds
+    }
+
+    init(provider: AIProvider, session: ProviderOAuthSession) {
+        self.init(
+            provider: provider,
+            status: OAuthStatus(session.status),
+            sessionID: session.sessionID,
+            state: session.state,
+            error: session.error,
+            authURL: session.authURL,
+            verificationURI: session.verificationURI,
+            userCode: session.userCode,
+            expiresAt: session.expiresAt,
+            intervalSeconds: session.intervalSeconds
+        )
+    }
     
     enum OAuthStatus {
-        case waiting, polling, success, error
+        case waiting, polling, success, failed, expired, cancelled
+
+        init(_ sessionStatus: ProviderOAuthSessionStatus) {
+            switch sessionStatus {
+            case .starting:
+                self = .waiting
+            case .awaitingCallback, .awaitingDeviceConfirmation:
+                self = .polling
+            case .completed:
+                self = .success
+            case .failed:
+                self = .failed
+            case .expired:
+                self = .expired
+            case .cancelled:
+                self = .cancelled
+            }
+        }
     }
 }

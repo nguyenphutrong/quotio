@@ -15,6 +15,8 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
     case qwen = "qwen"
     case iflow = "iflow"
     case antigravity = "antigravity"
+    case kimi = "kimi"
+    case xai = "xai"
     case vertex = "vertex"
     case kiro = "kiro"
     case copilot = "github-copilot"
@@ -33,6 +35,8 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .qwen: return "Qwen Code"
         case .iflow: return "iFlow"
         case .antigravity: return "Antigravity"
+        case .kimi: return "Kimi"
+        case .xai: return "xAI"
         case .vertex: return "Vertex AI"
         case .kiro: return "Kiro"
         case .copilot: return "GitHub Copilot"
@@ -51,6 +55,8 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .qwen: return "cloud"
         case .iflow: return "arrow.triangle.branch"
         case .antigravity: return "wand.and.stars"
+        case .kimi: return "moon.stars"
+        case .xai: return "xmark"
         case .vertex: return "cube"
         case .kiro: return "cloud.fill"
         case .copilot: return "chevron.left.forwardslash.chevron.right"
@@ -70,6 +76,8 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .qwen: return "qwen"
         case .iflow: return "iflow"
         case .antigravity: return "antigravity"
+        case .kimi: return "kimi"
+        case .xai: return "xai"
         case .vertex: return "vertex"
         case .kiro: return "kiro"
         case .copilot: return "copilot"
@@ -88,6 +96,8 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .qwen: return Color(hex: "7C3AED") ?? .purple
         case .iflow: return Color(hex: "06B6D4") ?? .cyan
         case .antigravity: return Color(hex: "EC4899") ?? .pink
+        case .kimi: return Color(hex: "111827") ?? .primary
+        case .xai: return Color(hex: "374151") ?? .gray
         case .vertex: return Color(hex: "EA4335") ?? .red
         case .kiro: return Color(hex: "9046FF") ?? .purple
         case .copilot: return Color(hex: "238636") ?? .green
@@ -98,21 +108,26 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         }
     }
     
-    var oauthEndpoint: String {
+    /// Canonical cpa-plusplus provider id from Management API.
+    var canonicalProviderID: String {
         switch self {
-        case .gemini: return "/gemini-cli-auth-url"
-        case .claude: return "/anthropic-auth-url"
-        case .codex: return "/codex-auth-url"
-        case .qwen: return "/qwen-auth-url"
-        case .iflow: return "/iflow-auth-url"
-        case .antigravity: return "/antigravity-auth-url"
-        case .vertex: return ""
-        case .kiro: return ""  // Uses CLI-based auth like Copilot
-        case .copilot: return ""
-        case .cursor: return ""  // Uses browser session
-        case .trae: return ""  // Uses browser session
-        case .glm: return ""
-        case .warp: return ""
+        case .gemini: return "gemini"
+        case .claude: return "anthropic"
+        case .copilot: return "github-copilot"
+        default: return rawValue
+        }
+    }
+
+    static func fromProviderID(_ value: String) -> AIProvider? {
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "github", "copilot", "github-copilot":
+            return .copilot
+        case "claude", "claude-code", "anthropic":
+            return .claude
+        case "gemini", "gemini-cli":
+            return .gemini
+        default:
+            return AIProvider(rawValue: value)
         }
     }
     
@@ -125,6 +140,8 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .qwen: return "Q"
         case .iflow: return "F"
         case .antigravity: return "A"
+        case .kimi: return "K"
+        case .xai: return "X"
         case .vertex: return "V"
         case .kiro: return "K"
         case .copilot: return "CP"
@@ -145,6 +162,8 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .copilot: return "copilot-menubar"
         // These don't have custom icons, use SF Symbols
         case .antigravity: return "antigravity-menubar"
+        case .kimi: return "kimi-menubar"
+        case .xai: return "xai-menubar"
         case .kiro: return "kiro-menubar"
         case .iflow: return "iflow-menubar"
         case .vertex: return "vertex-menubar"
@@ -276,11 +295,7 @@ nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
     }
     
     var providerType: AIProvider? {
-        // Handle "copilot" alias for "github-copilot"
-        if provider == "copilot" {
-            return .copilot
-        }
-        return AIProvider(rawValue: provider)
+        AIProvider.fromProviderID(provider)
     }
     
     var quotaLookupKey: String {
@@ -402,20 +417,6 @@ nonisolated struct UsageData: Codable, Sendable {
         guard let total = totalRequests, total > 0, let success = successCount else { return 0 }
         return Double(success) / Double(total) * 100
     }
-}
-
-// MARK: - OAuth Flow
-
-nonisolated struct OAuthURLResponse: Codable, Sendable {
-    let status: String
-    let url: String?
-    let state: String?
-    let error: String?
-}
-
-nonisolated struct OAuthStatusResponse: Codable, Sendable {
-    let status: String
-    let error: String?
 }
 
 // MARK: - App Config

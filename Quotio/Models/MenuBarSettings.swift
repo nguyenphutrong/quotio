@@ -51,11 +51,7 @@ struct MenuBarQuotaItem: Codable, Identifiable, Hashable {
     
     /// Get the AIProvider enum value
     var aiProvider: AIProvider? {
-        // Handle "copilot" alias
-        if provider == "copilot" {
-            return .copilot
-        }
-        return AIProvider(rawValue: provider)
+        AIProvider.fromProviderID(provider)
     }
     
     /// Short display symbol for the provider
