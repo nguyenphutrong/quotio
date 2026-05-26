@@ -20,21 +20,15 @@ struct ProvidersScreen: View {
     @State private var projectId: String = ""
     @State private var showProxyRequiredAlert = false
     @State private var showIDEScanSheet = false
-    @State private var customProviderSheetMode: CustomProviderSheetMode?
-    @State private var showWarpConnectionSheet = false
-    @State private var editingWarpToken: WarpService.WarpToken?
     @State private var showAddProviderPopover = false
     @State private var switchingAccount: AccountRowData?
     @State private var modeManager = OperatingModeManager.shared
-
-    private let customProviderService = CustomProviderService.shared
-    private let warpService = WarpService.shared
     
     // MARK: - Computed Properties
     
     /// Providers that can be added manually
     private var addableProviders: [AIProvider] {
-        AIProvider.allCases.filter { $0.supportsManualAuth }
+        AIProvider.allCases.filter { $0.supportsManualAuth && $0 != .warp }
     }
     
     /// All accounts grouped by provider
@@ -47,50 +41,14 @@ struct ProvidersScreen: View {
             groups[provider, default: []].append(data)
         }
 
-        // Add auto-detected accounts (Cursor, Trae)
-        // Note: GLM uses API key auth via CustomProviderService, so skip it here
+        // Add accounts reported by cpa-plusplus quota/account endpoints.
         for (provider, quotas) in viewModel.providerQuotas {
-            if !provider.supportsManualAuth && provider != .glm {
+            if !provider.supportsManualAuth {
                 for (accountKey, _) in quotas {
                     let data = AccountRowData.from(provider: provider, accountKey: accountKey)
                     groups[provider, default: []].append(data)
                 }
             }
-        }
-
-        // Add GLM providers from CustomProviderService
-        for glmProvider in customProviderService.providers.filter({ $0.type == .glmCompatibility && $0.isEnabled }) {
-            // Use provider name as display name (store provider ID for editing)
-            let data = AccountRowData(
-                id: glmProvider.id.uuidString,
-                provider: .glm,
-                displayName: glmProvider.name.isEmpty ? "GLM" : glmProvider.name,
-                menuBarAccountKey: glmProvider.name,
-                source: .direct,
-                status: "ready",
-                statusMessage: nil,
-                isDisabled: false,
-                canDelete: true,
-                canEdit: true
-            )
-            groups[.glm, default: []].append(data)
-        }
-
-        // Add Warp providers from WarpService
-        for warpToken in warpService.tokens.filter({ $0.isEnabled }) {
-            let data = AccountRowData(
-                id: warpToken.id.uuidString,
-                provider: .warp,
-                displayName: warpToken.name.isEmpty ? "Warp" : warpToken.name,
-                menuBarAccountKey: warpToken.name,
-                source: .direct,
-                status: "ready",
-                statusMessage: nil,
-                isDisabled: false,
-                canDelete: true,
-                canEdit: true
-            )
-            groups[.warp, default: []].append(data)
         }
 
         return groups
@@ -157,31 +115,6 @@ struct ProvidersScreen: View {
             IDEScanSheet {}
             .environment(viewModel)
         }
-        .sheet(item: $customProviderSheetMode) { mode in
-            CustomProviderSheet(provider: mode.provider) { provider in
-                // Check if provider already exists by ID to determine if we're updating or adding
-                if customProviderService.providers.contains(where: { $0.id == provider.id }) {
-                    customProviderService.updateProvider(provider)
-                } else {
-                    customProviderService.addProvider(provider)
-                }
-                markCustomProviderAPISyncRequired()
-            }
-        }
-        .sheet(isPresented: $showWarpConnectionSheet) {
-            WarpConnectionSheet(token: editingWarpToken) { name, token in
-                if let existing = editingWarpToken {
-                    var updated = existing
-                    updated.name = name
-                    updated.token = token
-                    warpService.updateToken(updated)
-                } else {
-                    warpService.addToken(name: name, token: token)
-                }
-                editingWarpToken = nil
-                Task { await viewModel.refreshAutoDetectedProviders() }
-            }
-        }
         .sheet(isPresented: $showAddProviderPopover) {
             AddProviderPopover(
                 providers: addableProviders,
@@ -192,9 +125,7 @@ struct ProvidersScreen: View {
                 onScanIDEs: {
                     showIDEScanSheet = true
                 },
-                onAddCustomProvider: {
-                    customProviderSheetMode = .add
-                },
+                onAddCustomProvider: markCustomProviderAPISyncRequired,
                 onDismiss: {
                     showAddProviderPopover = false
                 }
@@ -270,13 +201,7 @@ struct ProvidersScreen: View {
                         onDeleteAccount: { account in
                             Task { await deleteAccount(account) }
                         },
-                        onEditAccount: { account in
-                            if provider == .glm {
-                                handleEditGlmAccount(account)
-                            } else if provider == .warp {
-                                handleEditWarpAccount(account)
-                            }
-                        },
+                        onEditAccount: { _ in markCustomProviderAPISyncRequired() },
                         onSwitchAccount: provider == .antigravity ? { account in
                             switchingAccount = account
                         } : nil,
@@ -314,40 +239,11 @@ struct ProvidersScreen: View {
 
     @ViewBuilder
     private var customProvidersSection: some View {
-        // Filter out GLM providers (they're shown in Your Accounts section)
-        let nonGlmProviders = customProviderService.providers.filter { $0.type != .glmCompatibility }
-
         Section {
-            // List existing custom providers
-            ForEach(nonGlmProviders) { provider in
-                CustomProviderRow(
-                    provider: provider,
-                    onEdit: {
-                        customProviderSheetMode = .edit(provider)
-                    },
-                    onDelete: {
-                        customProviderService.deleteProvider(id: provider.id)
-                        markCustomProviderAPISyncRequired()
-                    },
-                    onToggle: {
-                        customProviderService.toggleProvider(id: provider.id)
-                        markCustomProviderAPISyncRequired()
-                    }
-                )
-            }
+            RequiresCPAPLUSPLUSAPISupportRow()
         } header: {
             HStack {
                 Label("customProviders.title".localized(), systemImage: "puzzlepiece.extension.fill")
-
-                if !nonGlmProviders.isEmpty {
-                    Spacer()
-                    Text("\(nonGlmProviders.count)")
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.2))
-                        .clipShape(Capsule())
-                }
             }
         } footer: {
             Text("customProviders.footer".localized())
@@ -368,8 +264,7 @@ struct ProvidersScreen: View {
         if provider == .vertex {
             isImporterPresented = true
         } else if provider == .warp {
-            editingWarpToken = nil
-            showWarpConnectionSheet = true
+            markCustomProviderAPISyncRequired()
         } else {
             viewModel.oauthState = nil
             selectedProvider = provider
@@ -379,26 +274,6 @@ struct ProvidersScreen: View {
     private func deleteAccount(_ account: AccountRowData) async {
         // Only proxy accounts can be deleted via API
         guard account.canDelete else { return }
-
-        // Handle GLM accounts (stored in CustomProviderService)
-        if account.provider == .glm {
-            // GLM accounts are stored as custom providers
-            // Find the GLM provider by ID and delete it
-            if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
-                customProviderService.deleteProvider(id: glmProvider.id)
-                markCustomProviderAPISyncRequired()
-            }
-            return
-        }
-        
-        // Handle Warp accounts (stored in WarpService)
-        if account.provider == .warp {
-            if let uuid = UUID(uuidString: account.id) {
-                warpService.deleteToken(id: uuid)
-                await viewModel.refreshQuotaForProvider(.warp)
-            }
-            return
-        }
 
         // Find the original AuthFile to delete
         if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
@@ -416,24 +291,21 @@ struct ProvidersScreen: View {
         }
     }
 
-    private func handleEditGlmAccount(_ account: AccountRowData) {
-        // Find the GLM provider by ID and open edit sheet using CustomProviderSheet
-        if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
-            customProviderSheetMode = .edit(glmProvider)
-        }
-    }
-    
-    private func handleEditWarpAccount(_ account: AccountRowData) {
-        // Find the Warp token by ID and open edit sheet
-        if let token = warpService.tokens.first(where: { $0.id.uuidString == account.id }) {
-            editingWarpToken = token
-            showWarpConnectionSheet = true
-        }
-    }
-
     private func markCustomProviderAPISyncRequired() {
-        // TODO(cpa-plusplus): sync custom provider edits through config-list Management API endpoints.
+        // TODO(cpa-plusplus): add typed Management API endpoints for GLM/Warp/custom-provider CRUD.
         viewModel.errorMessage = "Requires cpa-plusplus API support."
+    }
+}
+
+private struct RequiresCPAPLUSPLUSAPISupportRow: View {
+    var body: some View {
+        Label {
+            Text("Requires cpa-plusplus API support.")
+                .foregroundStyle(.secondary)
+        } icon: {
+            Image(systemName: "lock")
+                .foregroundStyle(.secondary)
+        }
     }
 }
 

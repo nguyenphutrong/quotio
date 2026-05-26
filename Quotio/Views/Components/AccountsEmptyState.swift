@@ -14,6 +14,7 @@ struct AccountsEmptyState: View {
     var onScanIDEs: (() -> Void)?
     var onAddProvider: (() -> Void)?
     var isQuotaOnlyMode: Bool = false
+    var isIDEScanSupported: Bool = false
     
     var body: some View {
         VStack(spacing: 20) {
@@ -43,12 +44,22 @@ struct AccountsEmptyState: View {
             // Action buttons
             HStack(spacing: 12) {
                 if let onScanIDEs = onScanIDEs {
-                    Button {
-                        onScanIDEs()
-                    } label: {
-                        Label("ideScan.title".localized(), systemImage: "sparkle.magnifyingglass")
+                    VStack(spacing: 4) {
+                        Button {
+                            onScanIDEs()
+                        } label: {
+                            Label("ideScan.title".localized(), systemImage: "sparkle.magnifyingglass")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!isIDEScanSupported)
+
+                        if !isIDEScanSupported {
+                            Text("Requires cpa-plusplus API support.")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
+                    // TODO(cpa-plusplus): enable after Management API exposes IDE discovery.
                 }
                 
                 if let onAddProvider = onAddProvider {

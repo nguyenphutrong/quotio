@@ -49,44 +49,42 @@ struct AddProviderPopover: View {
             Divider()
             
             // Scan for IDEs option
-            Button {
-                onScanIDEs()
-                onDismiss()
-            } label: {
-                HStack {
-                    Image(systemName: "sparkle.magnifyingglass")
-                        .foregroundStyle(.blue)
-                    Text("ideScan.scanExisting".localized())
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .buttonStyle(.menuRow)
-            .focusEffectDisabled()
+            unsupportedFeatureRow(
+                title: "ideScan.scanExisting".localized(),
+                systemImage: "sparkle.magnifyingglass"
+            )
             
             // Add Custom Provider option
-            Button {
-                onAddCustomProvider()
-                onDismiss()
-            } label: {
-                HStack {
-                    Image(systemName: "puzzlepiece.extension")
-                        .foregroundStyle(.purple)
-                    Text("customProviders.add".localized())
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .buttonStyle(.menuRow)
-            .focusEffectDisabled()
+            unsupportedFeatureRow(
+                title: "customProviders.add".localized(),
+                systemImage: "puzzlepiece.extension"
+            )
         }
         .padding(16)
         .frame(width: 320)
         .focusEffectDisabled()
+    }
+
+    private func unsupportedFeatureRow(title: String, systemImage: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: systemImage)
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .foregroundStyle(.secondary)
+                Text("Requires cpa-plusplus API support.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+            Image(systemName: "lock")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        // TODO(cpa-plusplus): enable after Management API exposes IDE discovery and custom-provider CRUD.
     }
 }
 
