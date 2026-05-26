@@ -147,6 +147,15 @@ actor ManagementAPIClient {
         return data
     }
 
+    private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            let preview = String(data: data.prefix(160), encoding: .utf8) ?? "<non-utf8 response>"
+            throw APIError.decodingError("Invalid JSON for \(type): \(preview)")
+        }
+    }
+
     private func makeDataRequest(_ endpoint: String, method: String = "GET", body: Data? = nil, retryCount: Int = 0) async throws -> (Data, HTTPURLResponse) {
         let requestId = String(UUID().uuidString.prefix(6))
         let activeCount = Self.incrementActiveRequests()
@@ -229,21 +238,21 @@ actor ManagementAPIClient {
     
     func fetchAuthFiles() async throws -> [AuthFile] {
         let data = try await makeRequest("/auth-files")
-        let response = try JSONDecoder().decode(AuthFilesResponse.self, from: data)
+        let response = try decode(AuthFilesResponse.self, from: data)
         return response.files
     }
     
     func fetchAuthFileModels(name: String) async throws -> [AuthFileModelInfo] {
         let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
         let data = try await makeRequest("/auth-files/models?name=\(encoded)")
-        let response = try JSONDecoder().decode(AuthFileModelsResponse.self, from: data)
+        let response = try decode(AuthFileModelsResponse.self, from: data)
         return response.models
     }
     
     func apiCall(_ request: APICallRequest) async throws -> APICallResponse {
         let body = try JSONEncoder().encode(request)
         let data = try await makeRequest("/api-call", method: "POST", body: body)
-        return try JSONDecoder().decode(APICallResponse.self, from: data)
+        return try decode(APICallResponse.self, from: data)
     }
     
     func deleteAuthFile(name: String) async throws {
@@ -265,12 +274,12 @@ actor ManagementAPIClient {
     
     func fetchUsageStats() async throws -> UsageStats {
         let data = try await makeRequest("/usage")
-        return try JSONDecoder().decode(UsageStats.self, from: data)
+        return try decode(UsageStats.self, from: data)
     }
 
     func fetchQuota() async throws -> ManagementQuotaView {
         let data = try await makeRequest("/quota")
-        return try JSONDecoder().decode(ManagementQuotaView.self, from: data)
+        return try decode(ManagementQuotaView.self, from: data)
     }
 
     func refreshQuota(provider: AIProvider? = nil, authID: String? = nil) async throws -> ManagementQuotaView {
@@ -281,7 +290,7 @@ actor ManagementAPIClient {
             endpoint = "/quota/refresh"
         }
         let data = try await makeRequest(endpoint, method: "POST")
-        return try JSONDecoder().decode(ManagementQuotaView.self, from: data)
+        return try decode(ManagementQuotaView.self, from: data)
     }
     
     func getOAuthURL(for provider: AIProvider, projectId: String? = nil) async throws -> OAuthURLResponse {
@@ -302,12 +311,12 @@ actor ManagementAPIClient {
         }
         
         let data = try await makeRequest(endpoint)
-        return try JSONDecoder().decode(OAuthURLResponse.self, from: data)
+        return try decode(OAuthURLResponse.self, from: data)
     }
     
     func pollOAuthStatus(state: String) async throws -> OAuthStatusResponse {
         let data = try await makeRequest("/get-auth-status?state=\(state)")
-        return try JSONDecoder().decode(OAuthStatusResponse.self, from: data)
+        return try decode(OAuthStatusResponse.self, from: data)
     }
     
     func fetchLogs(after: Int? = nil) async throws -> LogsResponse {
@@ -316,7 +325,7 @@ actor ManagementAPIClient {
             endpoint += "?after=\(after)"
         }
         let data = try await makeRequest(endpoint)
-        return try JSONDecoder().decode(LogsResponse.self, from: data)
+        return try decode(LogsResponse.self, from: data)
     }
     
     func clearLogs() async throws {
@@ -330,31 +339,14 @@ actor ManagementAPIClient {
     
     func setRoutingStrategy(_ strategy: String) async throws {
         let body = try JSONEncoder().encode(["value": strategy])
-
-        // Try new endpoint first (CLIProxyAPIPlus v6.6.92+)
-        do {
-            _ = try await makeRequest("/routing/strategy", method: "PUT", body: body)
-            return
-        } catch APIError.httpError(404) {
-            // Fall back to legacy endpoint for older CLIProxyAPI versions
-            let legacyBody = try JSONEncoder().encode(["strategy": strategy])
-            _ = try await makeRequest("/routing", method: "PUT", body: legacyBody)
-        }
+        _ = try await makeRequest("/routing/strategy", method: "PUT", body: body)
     }
     
     /// Get routing strategy
     func getRoutingStrategy() async throws -> String {
-        // Try new endpoint first (CLIProxyAPIPlus v6.6.92+)
-        do {
-            let data = try await makeRequest("/routing/strategy")
-            let response = try JSONDecoder().decode(RoutingStrategyResponse.self, from: data)
-            return response.strategy
-        } catch APIError.httpError(404) {
-            // Fall back to legacy endpoint for older CLIProxyAPI versions
-            let data = try await makeRequest("/routing")
-            let response = try JSONDecoder().decode(RoutingStrategyResponse.self, from: data)
-            return response.strategy
-        }
+        let data = try await makeRequest("/routing/strategy")
+        let response = try decode(RoutingStrategyResponse.self, from: data)
+        return response.strategy
     }
     
     func setQuotaExceededSwitchProject(_ enabled: Bool) async throws {
@@ -377,20 +369,20 @@ actor ManagementAPIClient {
     /// Fetch the full configuration from the remote server
     func fetchConfig() async throws -> RemoteProxyConfig {
         let data = try await makeRequest("/config")
-        return try JSONDecoder().decode(RemoteProxyConfig.self, from: data)
+        return try decode(RemoteProxyConfig.self, from: data)
     }
     
     /// Get debug mode status
     func getDebug() async throws -> Bool {
         let data = try await makeRequest("/debug")
-        let response = try JSONDecoder().decode(DebugResponse.self, from: data)
+        let response = try decode(DebugResponse.self, from: data)
         return response.debug
     }
     
     /// Get proxy URL (upstream proxy)
     func getProxyURL() async throws -> String {
         let data = try await makeRequest("/proxy-url")
-        let response = try JSONDecoder().decode(ProxyURLResponse.self, from: data)
+        let response = try decode(ProxyURLResponse.self, from: data)
         return response.proxyURL
     }
     
@@ -408,7 +400,7 @@ actor ManagementAPIClient {
     /// Get logging to file status
     func getLoggingToFile() async throws -> Bool {
         let data = try await makeRequest("/logging-to-file")
-        let response = try JSONDecoder().decode(LoggingToFileResponse.self, from: data)
+        let response = try decode(LoggingToFileResponse.self, from: data)
         return response.loggingToFile
     }
     
@@ -421,7 +413,7 @@ actor ManagementAPIClient {
     /// Get request log status
     func getRequestLog() async throws -> Bool {
         let data = try await makeRequest("/request-log")
-        let response = try JSONDecoder().decode(RequestLogResponse.self, from: data)
+        let response = try decode(RequestLogResponse.self, from: data)
         return response.requestLog
     }
     
@@ -434,14 +426,14 @@ actor ManagementAPIClient {
     /// Get request retry count
     func getRequestRetry() async throws -> Int {
         let data = try await makeRequest("/request-retry")
-        let response = try JSONDecoder().decode(RequestRetryResponse.self, from: data)
+        let response = try decode(RequestRetryResponse.self, from: data)
         return response.requestRetry
     }
     
     /// Get max retry interval
     func getMaxRetryInterval() async throws -> Int {
         let data = try await makeRequest("/max-retry-interval")
-        let response = try JSONDecoder().decode(MaxRetryIntervalResponse.self, from: data)
+        let response = try decode(MaxRetryIntervalResponse.self, from: data)
         return response.maxRetryInterval
     }
     
@@ -454,14 +446,14 @@ actor ManagementAPIClient {
     /// Get quota exceeded switch project status
     func getQuotaExceededSwitchProject() async throws -> Bool {
         let data = try await makeRequest("/quota-exceeded/switch-project")
-        let response = try JSONDecoder().decode(SwitchProjectResponse.self, from: data)
+        let response = try decode(SwitchProjectResponse.self, from: data)
         return response.switchProject
     }
     
     /// Get quota exceeded switch preview model status
     func getQuotaExceededSwitchPreviewModel() async throws -> Bool {
         let data = try await makeRequest("/quota-exceeded/switch-preview-model")
-        let response = try JSONDecoder().decode(SwitchPreviewModelResponse.self, from: data)
+        let response = try decode(SwitchPreviewModelResponse.self, from: data)
         return response.switchPreviewModel
     }
     
@@ -477,7 +469,7 @@ actor ManagementAPIClient {
     
     func fetchAPIKeys() async throws -> [String] {
         let data = try await makeRequest("/api-keys")
-        let response = try JSONDecoder().decode(APIKeysResponse.self, from: data)
+        let response = try decode(APIKeysResponse.self, from: data)
         return response.apiKeys
     }
     
@@ -513,7 +505,7 @@ actor ManagementAPIClient {
     /// The proxy fetches this from GitHub releases.
     func fetchLatestVersion() async throws -> LatestVersionResponse {
         let data = try await makeRequest("/latest-version")
-        return try JSONDecoder().decode(LatestVersionResponse.self, from: data)
+        return try decode(LatestVersionResponse.self, from: data)
     }
     
     /// Check if proxy is responding by calling the debug endpoint.
