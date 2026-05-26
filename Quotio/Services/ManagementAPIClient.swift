@@ -82,12 +82,7 @@ actor ManagementAPIClient {
         self.isRemote = false
         self.timeoutConfig = .local
         
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = timeoutConfig.requestTimeout
-        config.timeoutIntervalForResource = timeoutConfig.resourceTimeout
-        config.httpMaximumConnectionsPerHost = 4
-        config.urlCache = nil
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        let config = Self.makeSessionConfiguration(timeoutConfig: timeoutConfig)
         
         self.sessionDelegate = SessionDelegate(clientId: clientId)
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
@@ -105,12 +100,7 @@ actor ManagementAPIClient {
         self.isRemote = true
         self.timeoutConfig = timeoutConfig
         
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = timeoutConfig.requestTimeout
-        config.timeoutIntervalForResource = timeoutConfig.resourceTimeout
-        config.httpMaximumConnectionsPerHost = 4
-        config.urlCache = nil
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        let config = Self.makeSessionConfiguration(timeoutConfig: timeoutConfig)
         
         self.sessionDelegate = SessionDelegate(clientId: clientId, verifySSL: verifySSL)
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
@@ -140,6 +130,44 @@ actor ManagementAPIClient {
     func invalidate() {
         Self.log("[\(clientId)] Session invalidating...")
         session.invalidateAndCancel()
+    }
+
+    private static func makeSessionConfiguration(timeoutConfig: TimeoutConfig) -> URLSessionConfiguration {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = timeoutConfig.requestTimeout
+        config.timeoutIntervalForResource = timeoutConfig.resourceTimeout
+        config.httpMaximumConnectionsPerHost = 4
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+
+        applyHTTPProxyOverride(to: config)
+
+        return config
+    }
+
+    private static func applyHTTPProxyOverride(to config: URLSessionConfiguration) {
+        let rawValue = ProcessInfo.processInfo.environment["QUOTIO_HTTP_PROXY"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !rawValue.isEmpty else { return }
+
+        guard let url = URL(string: rawValue),
+              let host = url.host,
+              let port = url.port,
+              url.scheme == "http" || url.scheme == "https" else {
+            Log.warning("Ignoring invalid QUOTIO_HTTP_PROXY value. Expected http://host:port or https://host:port")
+            return
+        }
+
+        config.connectionProxyDictionary = [
+            kCFNetworkProxiesHTTPEnable as String: true,
+            kCFNetworkProxiesHTTPProxy as String: host,
+            kCFNetworkProxiesHTTPPort as String: port,
+            kCFNetworkProxiesHTTPSEnable as String: true,
+            kCFNetworkProxiesHTTPSProxy as String: host,
+            kCFNetworkProxiesHTTPSPort as String: port
+        ]
+
+        Log.api("Management API HTTP proxy override enabled via QUOTIO_HTTP_PROXY=\(url.scheme ?? "http")://\(host):\(port)")
     }
     
     private func makeRequest(_ endpoint: String, method: String = "GET", body: Data? = nil, retryCount: Int = 0) async throws -> Data {
