@@ -755,7 +755,12 @@ nonisolated struct ManagementQuotaView: Codable, Sendable {
             for account in providerView.accounts ?? [] {
                 let accountKey = account.accountKey ?? account.account ?? account.email ?? ""
                 let credentialID = account.credentialID ?? account.authID ?? account.id ?? ""
-                let key = accountKey.isEmpty ? credentialID : accountKey
+                let key = quotaAccountKey(
+                    provider: provider,
+                    accountKey: accountKey,
+                    credentialID: credentialID,
+                    existing: result[provider] ?? [:]
+                )
                 guard !key.isEmpty else { continue }
                 let rawUpdated = account.lastUpdated ?? account.lastRefresh ?? ""
                 let lastUpdated = formatter.date(from: rawUpdated)
@@ -781,6 +786,32 @@ nonisolated struct ManagementQuotaView: Codable, Sendable {
             }
         }
         return result
+    }
+
+    private func quotaAccountKey(
+        provider: AIProvider,
+        accountKey: String,
+        credentialID: String,
+        existing: [String: ProviderQuotaData]
+    ) -> String {
+        let normalizedCredentialID = provider == .codex ? credentialID.codexFilenameKey : credentialID
+        let preferred = provider == .codex ? normalizedCredentialID : accountKey
+        let fallback = provider == .codex ? accountKey : normalizedCredentialID
+        let key = preferred.isEmpty ? fallback : preferred
+
+        if !key.isEmpty, existing[key] == nil {
+            return key
+        }
+
+        if !fallback.isEmpty, existing[fallback] == nil {
+            return fallback
+        }
+
+        if !key.isEmpty, !normalizedCredentialID.isEmpty {
+            return "\(key)::\(normalizedCredentialID)"
+        }
+
+        return key
     }
 }
 
