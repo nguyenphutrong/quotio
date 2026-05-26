@@ -34,30 +34,17 @@ struct ProvidersScreen: View {
     
     /// Providers that can be added manually
     private var addableProviders: [AIProvider] {
-        if modeManager.isLocalProxyMode {
-            return AIProvider.allCases.filter { $0.supportsManualAuth }
-        } else {
-            return AIProvider.allCases.filter { $0.supportsQuotaOnlyMode && $0.supportsManualAuth }
-        }
+        AIProvider.allCases.filter { $0.supportsManualAuth }
     }
     
     /// All accounts grouped by provider
     private var groupedAccounts: [AIProvider: [AccountRowData]] {
         var groups: [AIProvider: [AccountRowData]] = [:]
 
-        if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
-            // From proxy auth files (proxy running)
-            for file in viewModel.authFiles {
-                guard let provider = file.providerType else { continue }
-                let data = AccountRowData.from(authFile: file)
-                groups[provider, default: []].append(data)
-            }
-        } else {
-            // From direct auth files (proxy not running or quota-only mode)
-            for file in viewModel.directAuthFiles {
-                let data = AccountRowData.from(directAuthFile: file)
-                groups[file.provider, default: []].append(data)
-            }
+        for file in viewModel.authFiles {
+            guard let provider = file.providerType else { continue }
+            let data = AccountRowData.from(authFile: file)
+            groups[provider, default: []].append(data)
         }
 
         // Add auto-detected accounts (Cursor, Trae)
@@ -136,7 +123,7 @@ struct ProvidersScreen: View {
                 customProvidersSection
             }
         }
-        .navigationTitle(modeManager.isMonitorMode ? "nav.accounts".localized() : "nav.providers".localized())
+        .navigationTitle("nav.providers".localized())
         .toolbar {
             toolbarContent
         }
@@ -157,9 +144,6 @@ struct ProvidersScreen: View {
                 Task { await viewModel.importVertexServiceAccount(url: url) }
             }
             // Failure case is silently ignored - user can retry via UI
-        }
-        .task {
-            await viewModel.loadDirectAuthFiles()
         }
         .alert("providers.proxyRequired.title".localized(), isPresented: $showProxyRequiredAlert) {
             Button("action.startProxy".localized()) {
@@ -243,10 +227,10 @@ struct ProvidersScreen: View {
         ToolbarItem(placement: .automatic) {
             Button {
                 Task {
-        if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
+                    if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
                         await viewModel.refreshData()
                     } else {
-                        await viewModel.loadDirectAuthFiles()
+                        await viewModel.manualRefresh()
                     }
                     await viewModel.refreshAutoDetectedProviders()
                 }

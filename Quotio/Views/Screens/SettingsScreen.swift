@@ -162,9 +162,6 @@ struct OperatingModeSection: View {
     @ViewBuilder
     private var footerText: some View {
         switch modeManager.currentMode {
-        case .monitor:
-            Label("settings.appMode.quotaOnlyNote".localized(), systemImage: "info.circle")
-                .font(.caption)
         case .remoteProxy:
             Label("settings.appMode.remoteNote".localized(), systemImage: "info.circle")
                 .font(.caption)
@@ -183,7 +180,7 @@ struct OperatingModeSection: View {
         }
         
         // Confirm when switching FROM local proxy mode (stops the local proxy)
-        if modeManager.currentMode == .localProxy && (mode == .monitor || mode == .remoteProxy) {
+        if modeManager.currentMode == .localProxy && mode == .remoteProxy {
             pendingMode = mode
             showModeChangeConfirmation = true
         } else {

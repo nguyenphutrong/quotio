@@ -29,7 +29,7 @@ enum OnboardingStep: Int, CaseIterable {
 @Observable
 final class OnboardingViewModel {
     var currentStep: OnboardingStep = .welcome
-    var selectedMode: OperatingMode = .monitor
+    var selectedMode: OperatingMode = .localProxy
     var remoteEndpoint: String = ""
     var remoteManagementKey: String = ""
     var direction: SlideDirection = .forward

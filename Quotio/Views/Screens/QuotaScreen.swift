@@ -69,9 +69,6 @@ struct QuotaScreen: View {
     
     /// Check if we have any data to show
     private var hasAnyData: Bool {
-        if modeManager.isMonitorMode {
-            return !viewModel.providerQuotas.isEmpty || !viewModel.directAuthFiles.isEmpty
-        }
         return !viewModel.authFiles.isEmpty || !viewModel.providerQuotas.isEmpty
     }
     
@@ -362,27 +359,11 @@ private struct ProviderQuotaView: View {
         
         // From quota data (if not already added)
         let existingKeys = Set(accounts.map { $0.key })
-        // Only Codex needs direct-auth email backfill because its quota key is
-        // filename-based to distinguish same-email Plus/Team accounts.
-        let directAuthEmailsByKey: [String: String] = provider == .codex
-            ? Dictionary(
-                grouping: viewModel.directAuthFiles
-                    .lazy
-                    .filter { $0.provider == .codex },
-                by: { $0.filename.codexFilenameKey }
-            ).reduce(into: [:]) { result, entry in
-                let (key, files) = entry
-                // Ambiguous normalized keys should keep the quota key as-is
-                // instead of guessing which email to display.
-                guard !key.isEmpty, files.count == 1 else { return }
-                result[key] = files[0].email ?? files[0].displayName
-            }
-            : [:]
         for (key, data) in quotaData {
             if !existingKeys.contains(key) {
                 accounts.append(AccountInfo(
                     key: key,
-                    email: directAuthEmailsByKey[key] ?? key,
+                    email: key,
                     status: "active",
                     statusColor: .green,
                     authFile: nil,

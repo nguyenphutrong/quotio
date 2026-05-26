@@ -99,11 +99,6 @@ final class StatusBarMenuBuilder {
     private var providersWithData: [AIProvider] {
         var providers = Set<AIProvider>()
         
-        // From direct auth files (scanned from filesystem - available immediately)
-        for file in viewModel.directAuthFiles {
-            providers.insert(file.provider)
-        }
-        
         // From quota data (available after API calls complete)
         for (provider, accountQuotas) in viewModel.providerQuotas {
             if !accountQuotas.isEmpty {

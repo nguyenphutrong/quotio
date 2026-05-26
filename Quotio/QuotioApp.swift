@@ -55,10 +55,6 @@ final class AppBootstrap {
     }
 
     private func performFullInitialization() async {
-        // Scan auth files immediately (fast filesystem scan)
-        // This allows menu bar to show providers before quota API calls complete
-        await viewModel.loadDirectAuthFiles()
-
         // Setup menu bar immediately so user can open it while data loads
         statusBarManager.setViewModel(viewModel)
         updateStatusBar()
@@ -242,10 +238,6 @@ struct QuotioApp: App {
                     bootstrap.updateStatusBar()
                 }
                 .onChange(of: viewModel.providerQuotas.count) {
-                    bootstrap.updateStatusBar()
-                    statusBarManager.rebuildMenuInPlace()
-                }
-                .onChange(of: viewModel.directAuthFiles.count) {
                     bootstrap.updateStatusBar()
                     statusBarManager.rebuildMenuInPlace()
                 }
@@ -612,8 +604,7 @@ struct ContentView: View {
                         Label("nav.quota".localized(), systemImage: "chart.bar.fill")
                             .tag(NavigationPage.quota)
                         
-                        Label(modeManager.isMonitorMode ? "nav.accounts".localized() : "nav.providers".localized(), 
-                              systemImage: "person.2.badge.key")
+                        Label("nav.providers".localized(), systemImage: "person.2.badge.key")
                             .tag(NavigationPage.providers)
                         
                         // Proxy mode only (local or remote)
@@ -660,10 +651,8 @@ struct ContentView: View {
                     Group {
                         if modeManager.isLocalProxyMode {
                             ProxyStatusRow(viewModel: viewModel)
-                        } else if modeManager.isRemoteProxyMode {
-                            RemoteStatusRow()
                         } else {
-                            QuotaRefreshStatusRow(viewModel: viewModel)
+                            RemoteStatusRow()
                         }
                     }
                     .padding(.horizontal, 16)
@@ -687,9 +676,9 @@ struct ContentView: View {
                             .help(viewModel.proxyManager.proxyStatus.running ? "action.stopProxy".localized() : "action.startProxy".localized())
                         }
                     } else {
-                        // Monitor or remote mode: refresh button
+                        // Remote mode: refresh button
                         Button {
-                            Task { await viewModel.refreshQuotasDirectly() }
+                            Task { await viewModel.manualRefresh() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
                         }

@@ -35,18 +35,10 @@ struct DashboardScreen: View {
     
     /// Check if we should show main content
     private var shouldShowContent: Bool {
-        if modeManager.isMonitorMode {
-            return true // Always show content in quota-only mode
-        }
         return viewModel.proxyManager.proxyStatus.running
     }
     
     // MARK: - Precomputed Properties (performance optimization)
-    
-    /// Unique provider count from direct auth files
-    private var directProvidersCount: Int {
-        Set(viewModel.directAuthFiles.map { $0.provider }).count
-    }
     
     /// Lowest quota percentage across all providers using total usage logic
     private var lowestQuotaPercentage: Double {
@@ -66,18 +58,13 @@ struct DashboardScreen: View {
         return allTotals.min() ?? 100
     }
     
-    /// Grouped accounts by provider (cached computation)
-    private var groupedDirectAuthFiles: [AIProvider: [DirectAuthFile]] {
-        Dictionary(grouping: viewModel.directAuthFiles) { $0.provider }
-    }
-    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 if modeManager.isRemoteProxyMode {
                     // Remote Mode: Show remote connection status and data
                     remoteModeContent
-                } else if modeManager.isLocalProxyMode {
+                } else {
                     // Full Mode: Check binary and proxy status
                     if !viewModel.proxyManager.isBinaryInstalled {
                         installBinarySection
@@ -86,9 +73,6 @@ struct DashboardScreen: View {
                     } else {
                         fullModeContent
                     }
-                } else {
-                    // Quota-Only Mode: Show quota dashboard
-                    quotaOnlyModeContent
                 }
             }
             .padding(24)
@@ -101,7 +85,7 @@ struct DashboardScreen: View {
                         if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
                             await viewModel.refreshData()
                         } else {
-                            await viewModel.refreshQuotasUnified()
+                            await viewModel.manualRefresh()
                         }
                     }
                 } label: {
@@ -158,21 +142,6 @@ struct DashboardScreen: View {
             providerSection
             endpointSection
             tunnelSection
-        }
-    }
-    
-    // MARK: - Quota-Only Mode Content
-    
-    private var quotaOnlyModeContent: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            // Quota Overview KPIs
-            quotaOnlyKPISection
-            
-            // Quick Quota Status
-            quotaStatusSection
-            
-            // Tracked Accounts
-            trackedAccountsSection
         }
     }
     
@@ -331,141 +300,6 @@ struct DashboardScreen: View {
             }
         } label: {
             Label("dashboard.remoteEndpoint".localized(), systemImage: "link")
-        }
-    }
-    
-    private var quotaOnlyKPISection: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 16)], spacing: 16) {
-            KPICard(
-                title: "dashboard.trackedAccounts".localized(),
-                value: "\(viewModel.directAuthFiles.count)",
-                subtitle: "dashboard.accounts".localized(),
-                icon: "person.2.fill",
-                color: .blue
-            )
-            
-            KPICard(
-                title: "dashboard.providers".localized(),
-                value: "\(directProvidersCount)",
-                subtitle: "dashboard.connected".localized(),
-                icon: "cpu",
-                color: .green
-            )
-            
-            // Show lowest quota percentage (precomputed)
-            KPICard(
-                title: "dashboard.lowestQuota".localized(),
-                value: String(format: "%.0f%%", lowestQuotaPercentage),
-                subtitle: "dashboard.remaining".localized(),
-                icon: "chart.bar.fill",
-                color: lowestQuotaPercentage > 50 ? .green : (lowestQuotaPercentage > 20 ? .orange : .red)
-            )
-            
-            if let lastRefresh = viewModel.lastQuotaRefreshTime {
-                KPICard(
-                    title: "dashboard.lastRefresh".localized(),
-                    value: lastRefresh.formatted(date: .omitted, time: .shortened),
-                    subtitle: "dashboard.updated".localized(),
-                    icon: "clock.fill",
-                    color: .purple
-                )
-            }
-        }
-    }
-    
-    private var quotaStatusSection: some View {
-        GroupBox {
-            if viewModel.providerQuotas.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "chart.bar.xaxis")
-                        .font(.largeTitle)
-                        .foregroundStyle(.tertiary)
-                    
-                    Text("dashboard.noQuotaData".localized())
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    
-                    Button {
-                        Task { await viewModel.refreshQuotasDirectly() }
-                    } label: {
-                        Label("action.refresh".localized(), systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.isLoadingQuotas)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    // Sort providers for stable iteration order (ForEach performance fix)
-                    ForEach(viewModel.providerQuotas.keys.sorted { $0.displayName < $1.displayName }) { provider in
-                        if let accounts = viewModel.providerQuotas[provider], !accounts.isEmpty {
-                            QuotaProviderRow(provider: provider, accounts: accounts)
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack {
-                Label("dashboard.quotaOverview".localized(), systemImage: "chart.bar.fill")
-                
-                Spacer()
-                
-                if viewModel.isLoadingQuotas {
-                    SmallProgressView()
-                }
-            }
-        }
-    }
-    
-    private var trackedAccountsSection: some View {
-        GroupBox {
-            if viewModel.directAuthFiles.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "person.crop.circle.badge.questionmark")
-                        .font(.largeTitle)
-                        .foregroundStyle(.tertiary)
-                    
-                    Text("dashboard.noAccountsTracked".localized())
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    
-                    Text("dashboard.addAccountsHint".localized())
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    // Use precomputed groupedDirectAuthFiles instead of inline Dictionary(grouping:)
-                    ForEach(AIProvider.allCases.filter { groupedDirectAuthFiles[$0] != nil }) { provider in
-                        if let accounts = groupedDirectAuthFiles[provider] {
-                            HStack(spacing: 12) {
-                                ProviderIcon(provider: provider, size: 20)
-                                
-                                Text(provider.displayName)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                
-                                Spacer()
-                                
-                                Text("\(accounts.count)")
-                                    .font(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 2)
-                                    .background(provider.color.opacity(0.15))
-                                    .foregroundStyle(provider.color)
-                                    .clipShape(Capsule())
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                }
-            }
-        } label: {
-            Label("dashboard.trackedAccounts".localized(), systemImage: "person.2.badge.key")
         }
     }
     

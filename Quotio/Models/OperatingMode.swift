@@ -2,7 +2,7 @@
 //  OperatingMode.swift
 //  Quotio - CLIProxyAPI GUI Wrapper
 //
-//  Unified operating mode: Monitor (Quota-Only), Local Proxy, Remote Proxy
+//  Unified operating mode: Local Proxy, Remote Proxy
 //  Replaces the two-layer AppMode + ConnectionMode system
 //
 
@@ -14,7 +14,6 @@ import SwiftUI
 /// Unified operating mode for Quotio
 /// Replaces AppMode + ConnectionMode with a single, user-friendly enum
 enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
-    case monitor = "monitor"        // Quota tracking only (no proxy)
     case localProxy = "local"       // Run local proxy server
     case remoteProxy = "remote"     // Connect to remote cpa-plusplus
     
@@ -24,7 +23,6 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     
     var displayName: String {
         switch self {
-        case .monitor: return "onboarding.mode.monitor.title".localizedStatic()
         case .localProxy: return "onboarding.mode.localProxy.title".localizedStatic()
         case .remoteProxy: return "onboarding.mode.remoteProxy.title".localizedStatic()
         }
@@ -32,7 +30,6 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     
     var description: String {
         switch self {
-        case .monitor: return "onboarding.mode.monitor.description".localizedStatic()
         case .localProxy: return "onboarding.mode.localProxy.description".localizedStatic()
         case .remoteProxy: return "onboarding.mode.remoteProxy.description".localizedStatic()
         }
@@ -40,7 +37,6 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     
     var icon: String {
         switch self {
-        case .monitor: return "chart.bar.fill"
         case .localProxy: return "server.rack"
         case .remoteProxy: return "network"
         }
@@ -48,7 +44,6 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     
     var color: Color {
         switch self {
-        case .monitor: return .green
         case .localProxy: return .blue
         case .remoteProxy: return .purple
         }
@@ -56,7 +51,6 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     
     var badge: String? {
         switch self {
-        case .monitor: return "onboarding.mode.badge.default".localizedStatic()
         case .localProxy: return nil
         case .remoteProxy: return "badge.experimental".localizedStatic()
         }
@@ -66,12 +60,6 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     
     var features: [String] {
         switch self {
-        case .monitor:
-            return [
-                "onboarding.mode.monitor.feature1".localizedStatic(),
-                "onboarding.mode.monitor.feature2".localizedStatic(),
-                "onboarding.mode.monitor.feature3".localizedStatic()
-            ]
         case .localProxy:
             return [
                 "onboarding.mode.localProxy.feature1".localizedStatic(),
@@ -91,7 +79,7 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     
     /// Whether proxy server functionality is available
     var supportsProxy: Bool {
-        self != .monitor
+        true
     }
     
     /// Whether local proxy controls (start/stop) should be shown
@@ -122,8 +110,6 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     /// Sidebar navigation pages visible in this mode
     var visiblePages: [NavigationPage] {
         switch self {
-        case .monitor:
-            return [.dashboard, .quota, .providers, .settings, .about]
         case .localProxy:
             return [.dashboard, .quota, .providers, .agents, .apiKeys, .logs, .settings, .about]
         case .remoteProxy:
@@ -135,11 +121,11 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     
     /// Create from legacy AppMode + ConnectionMode
     static func fromLegacy(appModeRaw: String?, connectionMode: ConnectionMode?) -> OperatingMode {
-        guard let appModeRaw = appModeRaw else { return .monitor }
+        guard let appModeRaw = appModeRaw else { return .localProxy }
         
         switch appModeRaw {
         case "quotaOnly":
-            return .monitor
+            return .localProxy
         case "full":
             switch connectionMode {
             case .remote:
@@ -148,7 +134,7 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
                 return .localProxy
             }
         default:
-            return .monitor
+            return .localProxy
         }
     }
 }
@@ -183,12 +169,12 @@ final class OperatingModeManager {
     
     // MARK: - Computed Properties
     
-    var isMonitorMode: Bool { currentMode == .monitor }
+    var isMonitorMode: Bool { false }
     var isLocalProxyMode: Bool { currentMode == .localProxy }
     var isRemoteProxyMode: Bool { currentMode == .remoteProxy }
     
     /// Whether any proxy mode is active
-    var isProxyMode: Bool { currentMode != .monitor }
+    var isProxyMode: Bool { true }
     
     /// Whether remote config is valid
     var hasValidRemoteConfig: Bool { remoteConfig?.isValid == true }
@@ -222,14 +208,17 @@ final class OperatingModeManager {
                   let mode = OperatingMode(rawValue: stored) {
             self.currentMode = mode
             self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        } else if UserDefaults.standard.string(forKey: "operatingMode") != nil {
+            self.currentMode = .localProxy
+            self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+            UserDefaults.standard.set(OperatingMode.localProxy.rawValue, forKey: "operatingMode")
         } else {
-            // New installation - default to monitor mode
-            self.currentMode = .monitor
+            // New installation - default to local cpa-plusplus mode
+            self.currentMode = .localProxy
             self.hasCompletedOnboarding = false
         }
         
         // Keep the saved remote config available even outside Remote Proxy mode.
-        // Monitor mode can use it for management-only quota lookups.
         loadRemoteConfig()
     }
     
@@ -308,7 +297,7 @@ final class OperatingModeManager {
         UserDefaults.standard.removeObject(forKey: "remoteConnectionConfig")
         
         if isRemoteProxyMode {
-            setMode(.monitor)
+            setMode(.localProxy)
         }
     }
     

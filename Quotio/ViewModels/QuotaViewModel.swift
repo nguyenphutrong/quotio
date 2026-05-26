@@ -248,12 +248,8 @@ final class QuotaViewModel {
     }
     
     private func restartAutoRefresh() {
-        if modeManager.isMonitorMode {
-            startQuotaOnlyAutoRefresh()
-        } else if proxyManager.proxyStatus.running {
+        if proxyManager.proxyStatus.running || modeManager.isRemoteProxyMode {
             startAutoRefresh()
-        } else {
-            startQuotaAutoRefreshWithoutProxy()
         }
     }
     
@@ -262,42 +258,22 @@ final class QuotaViewModel {
     func initialize() async {
         if modeManager.isRemoteProxyMode {
             await initializeRemoteMode()
-        } else if modeManager.isMonitorMode {
-            await initializeQuotaOnlyMode()
         } else {
             await initializeFullMode()
         }
     }
 
     private func initializeFullMode() async {
-        // Always refresh quotas directly first (works without proxy)
-        await refreshQuotasUnified()
-        
         let autoStartProxy = UserDefaults.standard.bool(forKey: "autoStartProxy")
         if autoStartProxy && proxyManager.isBinaryInstalled {
             await startProxy()
             // Note: checkForProxyUpgrade() is now called inside startProxy()
-        } else {
-            // If not auto-starting proxy, start quota auto-refresh
-            startQuotaAutoRefreshWithoutProxy()
         }
     }
     
     /// Check for proxy upgrade (non-blocking)
     private func checkForProxyUpgrade() async {
         await proxyManager.checkForUpgrade()
-    }
-    
-    /// Initialize for Quota-Only Mode (no proxy)
-    private func initializeQuotaOnlyMode() async {
-        // Load auth files directly from filesystem
-        await loadDirectAuthFiles()
-        
-        // Fetch quotas directly
-        await refreshQuotasDirectly()
-        
-        // Start auto-refresh for quota-only mode
-        startQuotaOnlyAutoRefresh()
     }
     
     private func initializeRemoteMode() async {
@@ -342,42 +318,16 @@ final class QuotaViewModel {
         await initializeRemoteMode()
     }
     
-    // MARK: - Direct Auth File Management (Quota-Only Mode)
-    
-    /// Load auth files directly from filesystem
+    // MARK: - Legacy Direct Quota Refresh
+
+    @available(*, deprecated, message: "Use cpa-plusplus Management API quota endpoints instead.")
     func loadDirectAuthFiles() async {
-        directAuthFiles = await directAuthService.scanAllAuthFiles()
+        directAuthFiles = []
     }
-    
-    /// Refresh quotas directly without proxy (for Quota-Only Mode)
-    /// Note: Cursor and Trae are NOT auto-refreshed - user must use "Scan for IDEs" (issue #29)
+
+    @available(*, deprecated, message: "Use cpa-plusplus Management API quota endpoints instead.")
     func refreshQuotasDirectly() async {
-        guard !isLoadingQuotas else { return }
-        
-        isLoadingQuotas = true
-        lastQuotaRefreshTime = Date()
-        
-        // Fetch from available fetchers in parallel
-        // Note: Cursor and Trae removed from auto-refresh to address privacy concerns (issue #29)
-        // User must explicitly scan for IDEs to detect Cursor/Trae quotas
-        async let antigravity: () = refreshAntigravityQuotasInternal()
-        async let openai: () = refreshOpenAIQuotasInternal()
-        async let copilot: () = refreshCopilotQuotasInternal()
-        async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        async let codexCLI: () = refreshCodexCLIQuotasInternal()
-        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-        async let glm: () = refreshGlmQuotasInternal()
-        async let warp: () = refreshWarpQuotasInternal()
-        async let kiro: () = refreshKiroQuotasInternal()
-
-        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, warp, kiro)
-        
-        checkQuotaNotifications()
-        pruneMenuBarItems()
-        autoSelectMenuBarItems()
-
-        isLoadingQuotas = false
-        notifyQuotaDataChanged()
+        await refreshAllQuotas()
     }
 
     private func autoSelectMenuBarItems() {
@@ -397,14 +347,6 @@ final class QuotaViewModel {
         for file in authFiles {
             guard let provider = file.providerType else { continue }
             let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey)
-            if !seen.contains(item.id) {
-                seen.insert(item.id)
-                availableItems.append(item)
-            }
-        }
-        
-        for file in directAuthFiles {
-            let item = MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.menuBarAccountKey)
             if !seen.contains(item.id) {
                 seen.insert(item.id)
                 availableItems.append(item)
@@ -453,18 +395,7 @@ final class QuotaViewModel {
     
     /// Refresh Codex quota using CLI auth file (~/.codex/auth.json)
     private func refreshCodexCLIQuotasInternal() async {
-        // Only use CLI fetcher if proxy is not available or in quota-only mode
-        // The openAIFetcher handles Codex via proxy auth files
-        guard modeManager.isMonitorMode else { return }
-
-        // Skip if OpenAI fetcher already populated codex quotas (avoids duplicate entries
-        // since OpenAIQuotaFetcher keys by filename while CodexCLIFetcher keys by JWT email)
-        if let existing = providerQuotas[.codex], !existing.isEmpty { return }
-
-        let quotas = await codexCLIFetcher.fetchAsProviderQuota()
-        if !quotas.isEmpty {
-            providerQuotas[.codex] = quotas
-        }
+        // TODO(cpa-plusplus): expose Codex CLI quota discovery through /v0/management/quota.
     }
     
     /// Refresh Gemini quota using CLIProxyAPI management data when available.
@@ -585,21 +516,7 @@ final class QuotaViewModel {
             }
         }
         
-        // 2. Remap for Direct AuthFiles (fallback when proxy authFiles not yet loaded)
-        for file in directAuthFiles where file.provider == .kiro {
-            let filenameKey = cleanName(file.filename)
-
-            // Skip if already processed by Proxy loop
-            if consumedRawKeys.contains(filenameKey) { continue }
-
-            if let data = rawQuotas[filenameKey] {
-                let targetKey = file.menuBarAccountKey
-                remappedQuotas[targetKey] = data
-                consumedRawKeys.insert(filenameKey)
-            }
-        }
-        
-        // 3. Fallback: Include original keys ONLY if not mapped
+        // 2. Fallback: Include original keys ONLY if not mapped
         for (key, data) in rawQuotas {
             if !consumedRawKeys.contains(key) {
                 remappedQuotas[key] = data
@@ -613,43 +530,6 @@ final class QuotaViewModel {
         }
     }
     
-    /// Start auto-refresh for quota-only mode
-    private func startQuotaOnlyAutoRefresh() {
-        refreshTask?.cancel()
-        
-        guard let intervalNs = refreshSettings.refreshCadence.intervalNanoseconds else {
-            // Manual mode - no auto-refresh
-            return
-        }
-        
-        refreshTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: intervalNs)
-                _ = await kiroFetcher.refreshAllTokensIfNeeded()
-                await refreshQuotasDirectly()
-            }
-        }
-    }
-    
-    /// Start auto-refresh for quota when proxy is not running (Full Mode)
-    private func startQuotaAutoRefreshWithoutProxy() {
-        refreshTask?.cancel()
-        
-        guard let intervalNs = refreshSettings.refreshCadence.intervalNanoseconds else {
-            return
-        }
-        
-        refreshTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: intervalNs)
-                if !proxyManager.proxyStatus.running {
-                    _ = await kiroFetcher.refreshAllTokensIfNeeded()
-                    await refreshQuotasUnified()
-                }
-            }
-        }
-    }
-
     // MARK: - Warmup
 
     func isWarmupEnabled(for provider: AIProvider, accountKey: String) -> Bool {
@@ -1206,12 +1086,10 @@ final class QuotaViewModel {
     }
     
     func manualRefresh() async {
-        if modeManager.isMonitorMode {
-            await refreshQuotasDirectly()
-        } else if proxyManager.proxyStatus.running {
+        if proxyManager.proxyStatus.running || modeManager.isRemoteProxyMode {
             await refreshData()
         } else {
-            await refreshQuotasUnified()
+            await refreshAllQuotas()
         }
         lastQuotaRefreshTime = Date()
     }
@@ -1242,63 +1120,13 @@ final class QuotaViewModel {
             }
         }
 
-        // Monitor mode has no Management API; keep direct local quota fetchers there.
-        guard modeManager.isMonitorMode else { return }
-
-        async let antigravity: () = refreshAntigravityQuotasInternal()
-        async let openai: () = refreshOpenAIQuotasInternal()
-        async let copilot: () = refreshCopilotQuotasInternal()
-        async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        async let glm: () = refreshGlmQuotasInternal()
-        async let warp: () = refreshWarpQuotasInternal()
-        async let kiro: () = refreshKiroQuotasInternal()
-        async let codexCLI: () = refreshCodexCLIQuotasInternal()
-        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-        _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, codexCLI, geminiCLI)
-
-        checkQuotaNotifications()
-        pruneMenuBarItems()
-        autoSelectMenuBarItems()
+        errorMessage = "Requires cpa-plusplus API support."
     }
 
-    /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
-    /// In Full Mode: uses direct fetchers (works without proxy)
-    /// In Quota-Only Mode: uses direct fetchers + CLI fetchers
-    /// In Remote Mode: skips local fetchers (data comes from remote proxy)
-    /// Note: Cursor and Trae require explicit user scan (issue #29)
+    /// Unified quota refresh now delegates to cpa-plusplus Management API.
     func refreshQuotasUnified() async {
-        guard !isLoadingQuotas else { return }
-        guard !modeManager.isRemoteProxyMode else { return }
-
-        isLoadingQuotas = true
         lastQuotaRefreshTime = Date()
-        lastQuotaRefresh = Date()
-
-        // Refresh direct fetchers (these don't need proxy)
-        // Note: Cursor and Trae removed - require explicit scan (issue #29)
-        async let antigravity: () = refreshAntigravityQuotasInternal()
-        async let openai: () = refreshOpenAIQuotasInternal()
-        async let copilot: () = refreshCopilotQuotasInternal()
-        async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        async let glm: () = refreshGlmQuotasInternal()
-        async let warp: () = refreshWarpQuotasInternal()
-        async let kiro: () = refreshKiroQuotasInternal()
-        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-
-        // In Quota-Only Mode, also include CLI fetchers
-        if modeManager.isMonitorMode {
-            async let codexCLI: () = refreshCodexCLIQuotasInternal()
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, codexCLI, geminiCLI)
-        } else {
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, geminiCLI)
-        }
-
-        checkQuotaNotifications()
-        pruneMenuBarItems()
-        autoSelectMenuBarItems()
-
-        isLoadingQuotas = false
-        notifyQuotaDataChanged()
+        await refreshAllQuotas()
     }
 
     private func refreshAntigravityQuotasInternal() async {
@@ -1377,48 +1205,19 @@ final class QuotaViewModel {
     }
     
     func refreshQuotaForProvider(_ provider: AIProvider) async {
-        if let apiClient, modeManager.isProxyMode {
-            do {
-                providerQuotas = try await apiClient.refreshQuota().providerQuotas()
-                errorMessage = nil
-                pruneMenuBarItems()
-                notifyQuotaDataChanged()
-            } catch {
-                errorMessage = error.localizedDescription
-            }
+        guard let apiClient else {
+            errorMessage = "Requires cpa-plusplus API support."
             return
         }
 
-        switch provider {
-        case .antigravity:
-            await refreshAntigravityQuotasInternal()
-        case .codex:
-            await refreshOpenAIQuotasInternal()
-            await refreshCodexCLIQuotasInternal()
-        case .copilot:
-            await refreshCopilotQuotasInternal()
-        case .claude:
-            await refreshClaudeCodeQuotasInternal()
-        case .cursor:
-            await refreshCursorQuotasInternal()
-        case .gemini:
-            await refreshGeminiCLIQuotasInternal()
-        case .trae:
-            await refreshTraeQuotasInternal()
-        case .glm:
-            await refreshGlmQuotasInternal()
-        case .warp:
-            await refreshWarpQuotasInternal()
-        case .kiro:
-            await refreshKiroQuotasInternal()
-        default:
-            break
+        do {
+            providerQuotas = try await apiClient.refreshQuota().providerQuotas()
+            errorMessage = nil
+            pruneMenuBarItems()
+            notifyQuotaDataChanged()
+        } catch {
+            errorMessage = error.localizedDescription
         }
-
-        // Prune menu bar items after refresh to remove deleted accounts
-        pruneMenuBarItems()
-
-        notifyQuotaDataChanged()
     }
 
     /// Refresh all auto-detected providers (those that don't support manual auth)
@@ -1689,15 +1488,6 @@ final class QuotaViewModel {
         for file in authFiles {
             guard let provider = file.providerType else { continue }
             let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey)
-            if !seen.contains(item.id) {
-                seen.insert(item.id)
-                validItems.append(item)
-            }
-        }
-        
-        // Add items from direct auth files (quota-only mode)
-        for file in directAuthFiles {
-            let item = MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.menuBarAccountKey)
             if !seen.contains(item.id) {
                 seen.insert(item.id)
                 validItems.append(item)
