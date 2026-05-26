@@ -1506,23 +1506,10 @@ actor AgentConfigurationService {
 
         let decoded = try JSONDecoder().decode(ModelsResponse.self, from: data)
 
-        // Fetch available Copilot models to filter out unavailable ones
-        let copilotFetcher = CopilotQuotaFetcher()
-        let availableCopilotModelIds = await copilotFetcher.fetchUserAvailableModelIds()
-
         return decoded.data.compactMap { item in
             let provider = item.owned_by ?? "openai"
 
-            // Filter GitHub Copilot models - only include those actually available to the user
-            if provider == "github-copilot" {
-                // If we have Copilot accounts, filter by available models
-                if !availableCopilotModelIds.isEmpty {
-                    guard availableCopilotModelIds.contains(item.id) else {
-                        return nil
-                    }
-                }
-                // If no Copilot accounts, still show the model (user might add account later)
-            }
+            // TODO(cpa-plusplus): expose provider entitlement-aware model availability through Management API.
 
             return AvailableModel(
                 id: item.id,

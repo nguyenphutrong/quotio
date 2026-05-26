@@ -331,28 +331,6 @@ nonisolated struct SubscriptionInfo: Codable, Sendable {
     }
 }
 
-// MARK: - Quota Fetch Errors
-
-nonisolated enum QuotaFetchError: LocalizedError {
-    case invalidURL
-    case invalidResponse
-    case forbidden
-    case httpError(Int)
-    case unknown
-    case apiErrorMessage(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL: return "Invalid URL"
-        case .invalidResponse: return "Invalid response from server"
-        case .forbidden: return "Access forbidden"
-        case .httpError(let code): return "HTTP error: \(code)"
-        case .unknown: return "Unknown error"
-        case .apiErrorMessage(let message): return "API error: \(message)"
-        }
-    }
-}
-
 nonisolated private func formatResetInterval(to date: Date) -> String {
     let interval = date.timeIntervalSince(Date())
 
