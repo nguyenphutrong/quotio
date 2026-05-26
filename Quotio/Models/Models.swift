@@ -155,16 +155,6 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         }
     }
     
-    /// Whether this provider supports quota tracking in quota-only mode
-    var supportsQuotaOnlyMode: Bool {
-        switch self {
-        case .claude, .codex, .cursor, .gemini, .antigravity, .copilot, .trae, .glm, .warp, .kiro:
-            return true
-        case .qwen, .iflow, .vertex:
-            return false
-        }
-    }
-    
     /// Whether this provider uses browser cookies for auth
     var usesBrowserAuth: Bool {
         switch self {

@@ -25,7 +25,7 @@ struct QuotaScreen: View {
             }
         }
         
-        // From direct quota data
+        // From Management API quota data
         for provider in viewModel.providerQuotas.keys {
             providers.insert(provider)
         }

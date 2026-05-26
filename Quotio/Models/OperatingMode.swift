@@ -169,7 +169,6 @@ final class OperatingModeManager {
     
     // MARK: - Computed Properties
     
-    var isMonitorMode: Bool { false }
     var isLocalProxyMode: Bool { currentMode == .localProxy }
     var isRemoteProxyMode: Bool { currentMode == .remoteProxy }
     

@@ -2,8 +2,7 @@
 //  CLIExecutor.swift
 //  Quotio - CLIProxyAPI GUI Wrapper
 //
-//  Utility for executing CLI commands and parsing output
-//  Used for quota-only mode to run commands like `claude /usage`, `codex /status`, etc.
+//  Utility for detecting and executing local CLI tools.
 //
 
 import Foundation

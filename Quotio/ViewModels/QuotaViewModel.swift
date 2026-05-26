@@ -53,12 +53,8 @@ final class QuotaViewModel {
     /// Notification name for quota data updates (used for menu bar refresh)
     static let quotaDataDidChangeNotification = Notification.Name("QuotaViewModel.quotaDataDidChange")
     
-    /// Last quota refresh time (for quota-only mode display)
+    /// Last quota refresh time.
     var lastQuotaRefreshTime: Date?
-    
-    /// IDE Scan state
-    var showIDEScanSheet = false
-    @ObservationIgnored private let ideScanSettings = IDEScanSettingsManager.shared
     
     @ObservationIgnored private var _agentSetupViewModel: AgentSetupViewModel?
     var agentSetupViewModel: AgentSetupViewModel {
@@ -1133,17 +1129,6 @@ final class QuotaViewModel {
                 }
             }
         }
-    }
-    
-    // MARK: - IDE Scan with Consent
-    
-    /// Scan IDEs with explicit user consent - addresses issue #29
-    /// Only scans what the user has opted into
-    func scanIDEsWithConsent(options: IDEScanOptions) async {
-        ideScanSettings.setScanningState(true)
-        errorMessage = "Requires cpa-plusplus API support."
-        // TODO(cpa-plusplus): expose explicit IDE/CLI account discovery through Management API.
-        ideScanSettings.setScanningState(false)
     }
     
     // MARK: - Menu Bar Quota Items

@@ -19,7 +19,6 @@ struct ProvidersScreen: View {
     @State private var selectedProvider: AIProvider?
     @State private var projectId: String = ""
     @State private var showProxyRequiredAlert = false
-    @State private var showIDEScanSheet = false
     @State private var showAddProviderPopover = false
     @State private var modeManager = OperatingModeManager.shared
     
@@ -110,10 +109,6 @@ struct ProvidersScreen: View {
         } message: {
             Text("providers.proxyRequired.message".localized())
         }
-        .sheet(isPresented: $showIDEScanSheet) {
-            IDEScanSheet {}
-            .environment(viewModel)
-        }
         .sheet(isPresented: $showAddProviderPopover) {
             AddProviderPopover(
                 providers: addableProviders,
@@ -171,9 +166,7 @@ struct ProvidersScreen: View {
             if groupedAccounts.isEmpty {
                 // Empty state
                 AccountsEmptyState(
-                    onScanIDEs: {
-                        showIDEScanSheet = true
-                    },
+                    onScanIDEs: {},
                     onAddProvider: {
                         showAddProviderPopover = true
                     }
