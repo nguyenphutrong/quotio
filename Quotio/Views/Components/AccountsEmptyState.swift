@@ -13,7 +13,6 @@ import SwiftUI
 struct AccountsEmptyState: View {
     var onScanIDEs: (() -> Void)?
     var onAddProvider: (() -> Void)?
-    var isQuotaOnlyMode: Bool = false
     var isIDEScanSupported: Bool = false
     
     var body: some View {
