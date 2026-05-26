@@ -110,40 +110,6 @@ final class QuotaViewModel {
     /// Key for tracking when auth files last changed (for model cache invalidation)
     static let authFilesChangedKey = "quotio.authFiles.lastChanged"
 
-    // MARK: - Disabled Auth Files Persistence
-
-    private static let disabledAuthFilesKey = "persisted.disabledAuthFiles"
-
-    /// Load disabled auth file names from UserDefaults
-    private func loadDisabledAuthFiles() -> Set<String> {
-        let array = UserDefaults.standard.stringArray(forKey: Self.disabledAuthFilesKey) ?? []
-        return Set(array)
-    }
-
-    /// Save disabled auth file names to UserDefaults
-    private func saveDisabledAuthFiles(_ names: Set<String>) {
-        UserDefaults.standard.set(Array(names), forKey: Self.disabledAuthFilesKey)
-    }
-
-    /// Sync local disabled state to backend after proxy starts
-    private func syncDisabledStatesToBackend() async {
-        guard let client = apiClient else { return }
-
-        let localDisabled = loadDisabledAuthFiles()
-        guard !localDisabled.isEmpty else { return }
-
-        for name in localDisabled {
-            // Only sync if this auth file exists
-            guard authFiles.contains(where: { $0.name == name }) else { continue }
-
-            do {
-                try await client.setAuthFileDisabled(name: name, disabled: true)
-            } catch {
-                Log.error("syncDisabledStatesToBackend: Failed for \(name) - \(error.localizedDescription)")
-            }
-        }
-    }
-
     /// Post notification to trigger UI updates (works even when window is closed)
     private func notifyQuotaDataChanged() {
         NotificationCenter.default.post(name: Self.quotaDataDidChangeNotification, object: nil)
@@ -667,10 +633,6 @@ final class QuotaViewModel {
 
             await refreshData()
 
-            // Sync local disabled states to backend after data is loaded
-            await syncDisabledStatesToBackend()
-            await refreshData()
-
             await runWarmupCycle()
 
             // Check for proxy upgrade (non-blocking, fire-and-forget)
@@ -1031,15 +993,6 @@ final class QuotaViewModel {
                 }
             }
 
-            // Clear persisted disabled flags for this account
-            var disabledSet = loadDisabledAuthFiles()
-            disabledSet.remove(file.name)
-            disabledSet.remove(accountKey)
-            if let email = file.email, email != accountKey {
-                disabledSet.remove(email)
-            }
-            saveDisabledAuthFiles(disabledSet)
-
             // Prune menu bar items that no longer exist
             pruneMenuBarItems()
 
@@ -1060,15 +1013,6 @@ final class QuotaViewModel {
         do {
             Log.debug("toggleAuthFileDisabled: Setting \(file.name) disabled=\(newDisabled)")
             try await client.setAuthFileDisabled(name: file.name, disabled: newDisabled)
-
-            // Update local persistence
-            var disabledSet = loadDisabledAuthFiles()
-            if newDisabled {
-                disabledSet.insert(file.name)
-            } else {
-                disabledSet.remove(file.name)
-            }
-            saveDisabledAuthFiles(disabledSet)
 
             Log.debug("toggleAuthFileDisabled: Success, refreshing data")
             await refreshData()
