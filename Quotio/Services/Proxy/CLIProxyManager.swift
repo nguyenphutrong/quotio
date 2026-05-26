@@ -1350,7 +1350,6 @@ extension CLIProxyManager {
             guard previousSource != newValue else { return }
 
             UserDefaults.standard.set(newValue.rawValue, forKey: ProxyBinarySource.userDefaultsKey)
-            UserDefaults.standard.set(true, forKey: ProxyBinarySource.explicitSelectionDefaultsKey)
             upgradeAvailable = false
             availableUpgrade = nil
             lastError = nil
@@ -1361,34 +1360,8 @@ extension CLIProxyManager {
         }
     }
 
-    var availableBinarySources: [ProxyBinarySource] {
-        ProxyBinarySource.allCases
-    }
-
-    var shouldPromptForBinarySourceSelection: Bool {
-        !UserDefaults.standard.bool(forKey: ProxyBinarySource.explicitSelectionDefaultsKey)
-    }
-
-    var selectedBinarySourceWarning: String? {
-        selectedBinarySource.legacyAuthWarning
-    }
-
-    func isLegacyAuthWarningNeeded(for provider: AIProvider) -> Bool {
-        false
-    }
-
     func sourceInstallHint(for source: ProxyBinarySource? = nil) -> String {
         (source ?? selectedBinarySource).installHint
-    }
-
-    func confirmBinarySourceSelection(_ source: ProxyBinarySource) {
-        let previousSource = selectedBinarySource
-        UserDefaults.standard.set(true, forKey: ProxyBinarySource.explicitSelectionDefaultsKey)
-        if previousSource != source {
-            selectedBinarySource = source
-        } else {
-            UserDefaults.standard.set(source.rawValue, forKey: ProxyBinarySource.userDefaultsKey)
-        }
     }
 
     func isSourceInstalled(_ source: ProxyBinarySource) -> Bool {
@@ -2079,7 +2052,6 @@ extension CLIProxyManager {
 
         let defaultSource = defaultBinarySource()
         UserDefaults.standard.set(defaultSource.rawValue, forKey: ProxyBinarySource.userDefaultsKey)
-        UserDefaults.standard.set(false, forKey: ProxyBinarySource.explicitSelectionDefaultsKey)
     }
 
     private func defaultBinarySource() -> ProxyBinarySource {

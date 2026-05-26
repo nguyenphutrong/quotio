@@ -13,7 +13,6 @@ nonisolated enum ProxyBinarySource: String, Codable, CaseIterable, Identifiable,
     case cpaPlusPlus = "cpa-plusplus"
 
     static let userDefaultsKey = "selectedProxyBinarySource"
-    static let explicitSelectionDefaultsKey = "hasExplicitProxyBinarySourceSelection"
     static let devBinaryPathEnvironmentKey = "CPA_PLUSPLUS_BINARY_PATH"
     static let binaryName = "cpa-plusplus"
     static let legacyBinaryName = "CLIProxyAPI"
@@ -106,13 +105,6 @@ nonisolated enum ProxyBinarySource: String, Codable, CaseIterable, Identifiable,
 
     var notificationVersionKey: String {
         "notifiedCLIProxyVersion_\(rawValue)"
-    }
-
-    var legacyAuthWarning: String? {
-        switch self {
-        case .cpaPlusPlus:
-            return nil
-        }
     }
 
     var installHint: String {

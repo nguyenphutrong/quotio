@@ -1244,7 +1244,7 @@ struct ProxyUpdateSettingsSection: View {
             }
             
             // Upgrade status
-            if proxyManager.selectedBinarySource == .cpaPlusPlus, proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+            if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Label {
@@ -1554,9 +1554,6 @@ struct ProxyVersionManagerSheet: View {
         .frame(width: 500, height: 500)
         .task {
             await loadReleases()
-        }
-        .onChange(of: proxyManager.selectedBinarySource) { _, _ in
-            Task { await loadReleases() }
         }
         .alert("settings.proxyUpdate.deleteWarning.title".localized(), isPresented: $showDeleteWarning) {
             Button("action.cancel".localized(), role: .cancel) {
@@ -2480,7 +2477,7 @@ struct AboutProxyUpdateCard: View {
         if upgradeError != nil {
             return .orange
         }
-        if proxyManager.selectedBinarySource == .cpaPlusPlus && proxyManager.upgradeAvailable {
+        if proxyManager.upgradeAvailable {
             return .green
         }
         return .secondary
@@ -2494,28 +2491,25 @@ struct AboutProxyUpdateCard: View {
                 color: .purple
             )
 
-            VStack(spacing: 10) {
-                ForEach(proxyManager.availableBinarySources) { source in
-                    ProxyBinarySourceOptionBlock(
-                        source: source,
-                        isSelected: proxyManager.selectedBinarySource == source
-                    ) {
-                        proxyManager.confirmBinarySourceSelection(source)
-                    }
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(proxyManager.selectedBinarySource.detailDescription)
-                    .font(.caption)
+            HStack(spacing: 10) {
+                Image(systemName: "server.rack")
                     .foregroundStyle(.secondary)
 
-                if let warning = proxyManager.selectedBinarySourceWarning {
-                    Text(warning)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(proxyManager.selectedBinarySource.selectionDescription)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    Text(proxyManager.selectedBinarySource.detailDescription)
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                 }
+
+                Spacer()
             }
+            .padding(12)
+            .background(Color.secondary.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
 
             Divider()
 
@@ -2674,113 +2668,6 @@ struct AboutProxyUpdateCard: View {
                 upgradeError = error.localizedDescription
                 isUpgrading = false
             }
-        }
-    }
-}
-
-private struct ProxyBinarySourceOptionBlock: View {
-    let source: ProxyBinarySource
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(source.selectionDescription)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.primary)
-
-                    Text(source.detailDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.45) : Color.secondary.opacity(0.15), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-struct ProxyBinarySourceSelectionSheet: View {
-    @Environment(QuotaViewModel.self) private var viewModel
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var selectedSource: ProxyBinarySource = .cpaPlusPlus
-
-    private var proxyManager: CLIProxyManager {
-        viewModel.proxyManager
-    }
-
-    var onDismiss: (() -> Void)?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Choose Your Proxy")
-                    .font(.title2)
-                    .fontWeight(.bold)
-
-                Text("Select which proxy family Quotio should use by default. You can change this later in About > Proxy Updates.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(spacing: 10) {
-                ForEach(proxyManager.availableBinarySources) { source in
-                    ProxyBinarySourceOptionBlock(
-                        source: source,
-                        isSelected: selectedSource == source
-                    ) {
-                        selectedSource = source
-                    }
-                }
-            }
-
-            if selectedSource == .cpaPlusPlus, let warning = selectedSource.legacyAuthWarning {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    Text(warning)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(12)
-                .background(Color.orange.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-
-            HStack {
-                Spacer()
-
-                Button("Continue") {
-                    proxyManager.confirmBinarySourceSelection(selectedSource)
-                    onDismiss?()
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(24)
-        .frame(width: 520)
-        .interactiveDismissDisabled()
-        .onAppear {
-            selectedSource = proxyManager.selectedBinarySource
         }
     }
 }

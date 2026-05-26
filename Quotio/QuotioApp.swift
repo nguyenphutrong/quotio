@@ -177,7 +177,6 @@ struct QuotioApp: App {
     @State private var appearanceManager = AppearanceManager.shared
     @State private var languageManager = LanguageManager.shared
     @State private var showOnboarding = false
-    @State private var showProxyBinarySourceSelection = false
     @Environment(\.openWindow) private var openWindow
 
     private var viewModel: QuotaViewModel { bootstrap.viewModel }
@@ -198,8 +197,6 @@ struct QuotioApp: App {
                     // Show onboarding if needed
                     if bootstrap.needsOnboarding {
                         showOnboarding = true
-                    } else if viewModel.proxyManager.shouldPromptForBinarySourceSelection {
-                        showProxyBinarySourceSelection = true
                     }
                 }
                 .onChange(of: viewModel.proxyManager.proxyStatus.running) {
@@ -245,17 +242,8 @@ struct QuotioApp: App {
                     OnboardingFlow {
                         Task {
                             await bootstrap.completeOnboarding()
-                            if viewModel.proxyManager.shouldPromptForBinarySourceSelection {
-                                showProxyBinarySourceSelection = true
-                            }
                         }
                     }
-                }
-                .sheet(isPresented: $showProxyBinarySourceSelection) {
-                    ProxyBinarySourceSelectionSheet {
-                        showProxyBinarySourceSelection = false
-                    }
-                    .environment(viewModel)
                 }
         }
         .defaultSize(width: 1000, height: 700)

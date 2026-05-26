@@ -483,21 +483,6 @@ struct OAuthSheet: View {
                     .foregroundStyle(.secondary)
             }
             
-            if viewModel.proxyManager.isLegacyAuthWarningNeeded(for: provider),
-               let warning = viewModel.proxyManager.selectedBinarySourceWarning {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    Text(warning)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: 320, alignment: .leading)
-                .padding(12)
-                .background(Color.orange.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-            
             if let state = viewModel.oauthState, state.provider == provider {
                 OAuthStatusView(
                     status: state.status,
