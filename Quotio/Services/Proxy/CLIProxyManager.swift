@@ -353,41 +353,6 @@ final class CLIProxyManager {
         updateConfigValue(pattern: #"allow-remote:\s*(true|false)"#, replacement: "allow-remote: \(enabled)")
     }
 
-    func updateConfigLogging(enabled: Bool) {
-        updateConfigValue(pattern: #"logging-to-file:\s*(true|false)"#, replacement: "logging-to-file: \(enabled)")
-        restartProxyIfRunning()
-    }
-    
-    /// Update routing strategy in config file
-    /// Note: Changes take effect after proxy restart (CLIProxyAPI does not support live routing API)
-    func updateConfigRoutingStrategy(_ strategy: String) {
-        updateConfigValue(pattern: #"strategy:\s*"[^"]*""#, replacement: "strategy: \"\(strategy)\"")
-        NSLog("[CLIProxyManager] Routing strategy updated to: \(strategy) (restarting proxy)")
-        restartProxyIfRunning()
-    }
-    
-    func updateConfigProxyURL(_ url: String?) {
-        guard FileManager.default.fileExists(atPath: configPath),
-              var content = try? String(contentsOfFile: configPath, encoding: .utf8) else { return }
-
-        let proxyValue = url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        if let range = content.range(of: #"proxy-url:\s*\"[^\"]*\""#, options: .regularExpression) {
-            content.replaceSubrange(range, with: "proxy-url: \"\(proxyValue)\"")
-            try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
-        } else if let range = content.range(of: #"proxy-url:\s*[^\n]*"#, options: .regularExpression) {
-            content.replaceSubrange(range, with: "proxy-url: \"\(proxyValue)\"")
-            try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
-        } else {
-            if let portRange = content.range(of: #"port:\s*\d+\n"#, options: .regularExpression) {
-                content.insert(contentsOf: "proxy-url: \"\(proxyValue)\"\n", at: portRange.upperBound)
-                try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
-            }
-        }
-
-        restartProxyIfRunning()
-    }
-
     // MARK: - Workarounds
 
     /// Applies a workaround to force the primary Google API URL in all auth files.
@@ -550,29 +515,6 @@ final class CLIProxyManager {
         }
     }
     
-    /// Synchronizes the proxy URL from UserDefaults into the config.yaml file.
-    ///
-    /// If no local preference has been set (i.e., the user has never saved a proxy URL from the UI),
-    /// this method returns early to preserve any value configured via the management web UI or
-    /// direct config.yaml editing. Once the user sets a value through the app, UserDefaults becomes
-    /// the source of truth and its value is written to config.yaml on each proxy start.
-    private func syncProxyURLInConfig() {
-        // If no local preference exists, keep config.yaml as-is (it may be set via management UI).
-        guard UserDefaults.standard.object(forKey: "proxyURL") != nil else {
-            return
-        }
-
-        let savedURL = UserDefaults.standard.string(forKey: "proxyURL") ?? ""
-        
-        guard !savedURL.isEmpty else {
-            updateConfigProxyURL(nil)
-            return
-        }
-        
-        let sanitized = ProxyURLValidator.sanitize(savedURL)
-        let isValid = ProxyURLValidator.validate(sanitized) == .valid
-        updateConfigProxyURL(isValid ? sanitized : nil)
-    }
     
     var isBinaryInstalled: Bool {
         isSourceInstalled(selectedBinarySource)
@@ -820,7 +762,6 @@ final class CLIProxyManager {
         await cleanupOrphanProcesses()
         
         syncSecretKeyInConfig()
-        syncProxyURLInConfig()
         
         // Determine which port CLIProxyAPI should listen on
         let cliProxyPort = useBridgeMode ? internalPort : proxyStatus.port
