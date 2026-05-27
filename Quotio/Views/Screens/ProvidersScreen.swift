@@ -17,6 +17,8 @@ struct ProvidersScreen: View {
     @State private var showProxyRequiredAlert = false
     @State private var expandedProviderIDs: Set<String> = []
     @State private var modeManager = OperatingModeManager.shared
+    @State private var searchText = ""
+    @State private var showAddProviderPopover = false
     
     // MARK: - Computed Properties
     
@@ -53,6 +55,25 @@ struct ProvidersScreen: View {
         let providers = Set(addableProviders).union(groupedAccounts.keys)
         return providers.sorted { $0.displayName < $1.displayName }
     }
+
+    private var filteredTableProviders: [AIProvider] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return tableProviders }
+
+        return tableProviders.filter { provider in
+            if provider.displayName.lowercased().contains(query) || provider.rawValue.lowercased().contains(query) {
+                return true
+            }
+            return (groupedAccounts[provider] ?? []).contains { account in
+                account.displayName.lowercased().contains(query) ||
+                (account.status ?? "").lowercased().contains(query)
+            }
+        }
+    }
+
+    private var existingProviderCounts: [AIProvider: Int] {
+        groupedAccounts.mapValues(\.count)
+    }
     
     /// Total account count across all providers
     private var totalAccountCount: Int {
@@ -68,19 +89,38 @@ struct ProvidersScreen: View {
     // MARK: - Body
     
     var body: some View {
-        List {
-            // Section 1: Your Accounts (grouped by provider)
-            accountsSection
-            
-            // Section 2: Custom Providers (Local Proxy Mode only)
-            if modeManager.isLocalProxyMode {
-                customProvidersSection
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                ProvidersScreenHeader(
+                    isRefreshing: viewModel.isLoadingQuotas,
+                    onRefresh: refreshProviders,
+                    onAddProvider: {
+                        showAddProviderPopover = true
+                    }
+                )
+                .popover(isPresented: $showAddProviderPopover, arrowEdge: .bottom) {
+                    AddProviderPopover(
+                        providers: addableProviders,
+                        existingCounts: existingProviderCounts,
+                        onSelectProvider: handleAddProvider,
+                        onDismiss: {
+                            showAddProviderPopover = false
+                        }
+                    )
+                }
+
+                ProviderTableSearchField(text: $searchText)
+
+                accountsSection
+
+                if modeManager.isLocalProxyMode {
+                    customProvidersSection
+                }
             }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .navigationTitle("nav.providers".localized())
-        .toolbar {
-            toolbarContent
-        }
         .sheet(item: $selectedProvider) { provider in
             OAuthSheet(provider: provider, projectId: $projectId) {
                 selectedProvider = nil
@@ -115,42 +155,22 @@ struct ProvidersScreen: View {
         }
     }
     
-    // MARK: - Toolbar
-    
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .automatic) {
-            Button {
-                Task {
-                    if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
-                        await viewModel.refreshData()
-                    } else {
-                        await viewModel.manualRefresh()
-                    }
-                    await viewModel.refreshAutoDetectedProviders()
-                }
-            } label: {
-                if viewModel.isLoadingQuotas {
-                    SmallProgressView()
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                }
-            }
-            .disabled(viewModel.isLoadingQuotas)
-            .help("action.refresh".localized())
-        }
-    }
-    
     // MARK: - Accounts Section
     
     @ViewBuilder
     private var accountsSection: some View {
-        Section {
+        VStack(spacing: 0) {
             ProviderTableHeader()
 
-            ForEach(tableProviders, id: \.self) { provider in
+            if filteredTableProviders.isEmpty {
+                ProviderTableEmptyRow()
+            }
+
+            ForEach(filteredTableProviders, id: \.self) { provider in
                 let accounts = groupedAccounts[provider] ?? []
                 let isExpanded = expandedProviderIDs.contains(provider.rawValue)
+
+                Divider()
 
                 ProviderTableProviderRow(
                     provider: provider,
@@ -166,6 +186,8 @@ struct ProvidersScreen: View {
 
                 if isExpanded {
                     ForEach(accounts) { account in
+                        Divider()
+
                         ProviderTableAccountRow(
                             account: account,
                             onDelete: account.canDelete ? {
@@ -181,40 +203,33 @@ struct ProvidersScreen: View {
                     }
                 }
             }
-        } header: {
-            HStack {
-                Label("providers.yourAccounts".localized(), systemImage: "person.2.badge.key")
-                
-                if totalAccountCount > 0 {
-                    Spacer()
-                    Text("\(totalAccountCount)")
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.2))
-                        .clipShape(Capsule())
-                }
-            }
-        } footer: {
-            MenuBarHintView()
         }
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+        )
+
+        MenuBarHintView()
     }
     
     // MARK: - Custom Providers Section
 
     @ViewBuilder
     private var customProvidersSection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("customProviders.title".localized(), systemImage: "puzzlepiece.extension.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
             RequiresCPAPLUSPLUSAPISupportRow()
-        } header: {
-            HStack {
-                Label("customProviders.title".localized(), systemImage: "puzzlepiece.extension.fill")
-            }
-        } footer: {
+
             Text("customProviders.footer".localized())
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
+        .padding(.top, 4)
     }
     
     // MARK: - Helper Functions
@@ -233,6 +248,17 @@ struct ProvidersScreen: View {
         } else {
             viewModel.oauthState = nil
             selectedProvider = provider
+        }
+    }
+
+    private func refreshProviders() {
+        Task {
+            if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
+                await viewModel.refreshData()
+            } else {
+                await viewModel.manualRefresh()
+            }
+            await viewModel.refreshAutoDetectedProviders()
         }
     }
     
@@ -280,9 +306,83 @@ struct ProvidersScreen: View {
 // MARK: - Provider Table
 
 private enum ProviderTableMetrics {
-    static let providerWidth: CGFloat = 240
-    static let statusWidth: CGFloat = 136
-    static let actionsWidth: CGFloat = 184
+    static let providerWidth: CGFloat = 360
+    static let typeWidth: CGFloat = 120
+    static let connectionsWidth: CGFloat = 150
+    static let statusWidth: CGFloat = 140
+    static let actionsWidth: CGFloat = 220
+    static let rowHeight: CGFloat = 58
+}
+
+private struct ProvidersScreenHeader: View {
+    let isRefreshing: Bool
+    var onRefresh: () -> Void
+    var onAddProvider: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center) {
+            Text("nav.providers".localized())
+                .font(.system(size: 28, weight: .bold))
+
+            Spacer()
+
+            Button {
+                onRefresh()
+            } label: {
+                Label("action.refresh".localized(), systemImage: "arrow.clockwise")
+                    .frame(minWidth: 112)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .disabled(isRefreshing)
+            .help("action.refresh".localized())
+
+            Button {
+                onAddProvider()
+            } label: {
+                Label("providers.addConnection".localized(), systemImage: "plus")
+                    .frame(minWidth: 142)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(.orange)
+            .help("providers.addConnection".localized())
+        }
+    }
+}
+
+private struct ProviderTableSearchField: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+
+            TextField("providers.searchPrompt".localized(), text: $text)
+                .textFieldStyle(.plain)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("action.clear".localized())
+            }
+        }
+        .font(.system(size: 15))
+        .padding(.horizontal, 14)
+        .frame(width: 460, height: 40)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+        )
+    }
 }
 
 private struct ProviderTableHeader: View {
@@ -291,8 +391,11 @@ private struct ProviderTableHeader: View {
             Text("providers.table.provider".localized())
                 .frame(width: ProviderTableMetrics.providerWidth, alignment: .leading)
 
-            Text("providers.table.accountsKey".localized())
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("providers.table.type".localized())
+                .frame(width: ProviderTableMetrics.typeWidth, alignment: .leading)
+
+            Text("providers.table.connections".localized())
+                .frame(width: ProviderTableMetrics.connectionsWidth, alignment: .leading)
 
             Text("providers.table.status".localized())
                 .frame(width: ProviderTableMetrics.statusWidth, alignment: .leading)
@@ -303,6 +406,17 @@ private struct ProviderTableHeader: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
         .textCase(.uppercase)
+        .padding(.horizontal, 16)
+        .frame(height: 44)
+    }
+}
+
+private struct ProviderTableEmptyRow: View {
+    var body: some View {
+        Text("empty.noAccounts".localized())
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: 72)
     }
 }
 
@@ -348,26 +462,17 @@ private struct ProviderTableProviderRow: View {
                 .frame(width: ProviderTableMetrics.providerWidth, alignment: .leading)
             }
             .buttonStyle(.plain)
+            .help(canExpand ? (isExpanded ? "providers.collapse".localized() : "providers.expand".localized()) : provider.displayName)
 
-            HStack(spacing: 8) {
-                Text(accounts.isEmpty ? "providers.noAccounts".localized() : accountCountText)
-                    .foregroundStyle(accounts.isEmpty ? .secondary : .primary)
+            ProviderTypeBadge(text: providerTypeText)
+                .frame(width: ProviderTableMetrics.typeWidth, alignment: .leading)
 
-                if accounts.allSatisfy({ $0.source == .autoDetected }) && !accounts.isEmpty {
-                    Text("providers.autoDetected".localized())
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(Capsule())
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text(statusText)
-                .font(.caption)
+            Text(accounts.isEmpty ? "0" : "\(accounts.count)")
+                .fontWeight(accounts.isEmpty ? .regular : .semibold)
                 .foregroundStyle(accounts.isEmpty ? .secondary : .primary)
+                .frame(width: ProviderTableMetrics.connectionsWidth, alignment: .leading)
+
+            ProviderStatusBadge(text: statusText, isReady: !accounts.isEmpty && accounts.contains { !$0.isDisabled })
                 .frame(width: ProviderTableMetrics.statusWidth, alignment: .leading)
 
             Button {
@@ -380,12 +485,13 @@ private struct ProviderTableProviderRow: View {
             .controlSize(.small)
             .frame(width: ProviderTableMetrics.actionsWidth, alignment: .trailing)
             .disabled(!provider.supportsManualAuth)
+            .help("providers.addConnection".localized())
         }
+        .padding(.horizontal, 16)
+        .frame(height: ProviderTableMetrics.rowHeight)
     }
 
-    private var accountCountText: String {
-        String(format: "providers.accountCountFormat".localized(), accounts.count)
-    }
+    private var providerTypeText: String { "providers.type.oauth".localized() }
 }
 
 private struct ProviderTableAccountRow: View {
@@ -428,23 +534,36 @@ private struct ProviderTableAccountRow: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            Color.clear
-                .frame(width: ProviderTableMetrics.providerWidth)
-                .accessibilityHidden(true)
+            HStack(spacing: 10) {
+                Spacer()
+                    .frame(width: 44)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(maskedDisplayName)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
+                Image(systemName: "cable.connector")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-                if let message = account.statusMessage, !message.isEmpty {
-                    Text(message)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(maskedDisplayName)
+                        .fontWeight(.medium)
                         .lineLimit(1)
+
+                    if let message = account.statusMessage, !message.isEmpty {
+                        Text(message)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: ProviderTableMetrics.providerWidth, alignment: .leading)
+
+            Color.clear
+                .frame(width: ProviderTableMetrics.typeWidth)
+                .accessibilityHidden(true)
+
+            Color.clear
+                .frame(width: ProviderTableMetrics.connectionsWidth)
+                .accessibilityHidden(true)
 
             HStack(spacing: 6) {
                 Circle()
@@ -476,9 +595,9 @@ private struct ProviderTableAccountRow: View {
                     Button {
                         onToggleDisabled()
                     } label: {
-                        Image(systemName: account.isDisabled ? "xmark.circle.fill" : "checkmark.circle")
-                            .font(.system(size: 14))
-                            .foregroundStyle(account.isDisabled ? .red : .secondary)
+                        Image(systemName: account.isDisabled ? "play.circle" : "pause.circle")
+                            .font(.system(size: 15))
+                            .foregroundStyle(account.isDisabled ? .green : .yellow)
                     }
                     .buttonStyle(.rowAction)
                     .help(account.isDisabled ? "providers.enable".localized() : "providers.disable".localized())
@@ -509,6 +628,8 @@ private struct ProviderTableAccountRow: View {
             }
             .frame(width: ProviderTableMetrics.actionsWidth, alignment: .trailing)
         }
+        .padding(.horizontal, 16)
+        .frame(height: ProviderTableMetrics.rowHeight)
         .contextMenu {
             Button {
                 handleMenuBarToggle()
@@ -578,6 +699,35 @@ private struct ProviderTableAccountRow: View {
         } else {
             settings.toggleItem(account.menuBarItem)
         }
+    }
+}
+
+private struct ProviderTypeBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.secondary.opacity(0.14))
+            .clipShape(Capsule())
+    }
+}
+
+private struct ProviderStatusBadge: View {
+    let text: String
+    let isReady: Bool
+
+    var body: some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(isReady ? .green : .secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background((isReady ? Color.green : Color.secondary).opacity(0.12))
+            .clipShape(Capsule())
     }
 }
 
@@ -812,6 +962,7 @@ struct OAuthSheet: View {
                     onDismiss()
                 }
                 .buttonStyle(.bordered)
+                .help("action.cancel".localized())
                 
                 if isError {
                     Button {
@@ -828,6 +979,7 @@ struct OAuthSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
+                    .help("oauth.retry".localized())
                 } else if !isSuccess {
                     Button {
                         hasStartedAuth = true
@@ -848,6 +1000,7 @@ struct OAuthSheet: View {
                     .buttonStyle(.borderedProminent)
                     .tint(provider.color)
                     .disabled(isPolling)
+                    .help("oauth.authenticate".localized())
                 }
             }
         }
@@ -1065,6 +1218,7 @@ private struct OAuthURLFallbackView: View {
                     Label(copied ? "oauth.copied".localized() : "oauth.copyLink".localized(), systemImage: copied ? "checkmark" : "doc.on.doc")
                 }
                 .buttonStyle(.bordered)
+                .help("oauth.copyLink".localized())
 
                 Button {
                     NSWorkspace.shared.open(url)
@@ -1073,6 +1227,7 @@ private struct OAuthURLFallbackView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(provider.color)
+                .help("oauth.openLink".localized())
             }
         }
     }

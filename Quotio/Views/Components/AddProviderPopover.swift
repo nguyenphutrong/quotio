@@ -126,6 +126,7 @@ private struct ProviderButton: View {
         }
         .buttonStyle(.gridItem(hoverColor: provider.color.opacity(0.1)))
         .focusEffectDisabled()
+        .help(String(format: "providers.addConnectionForFormat".localized(), provider.displayName))
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
