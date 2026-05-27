@@ -246,7 +246,7 @@ struct QuotioApp: App {
                     }
                 }
         }
-        .defaultSize(width: 1000, height: 700)
+        .defaultSize(width: 1100, height: 700)
         .commands {
             CommandGroup(replacing: .newItem) { }
 

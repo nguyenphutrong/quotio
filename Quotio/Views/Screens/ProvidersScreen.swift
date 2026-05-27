@@ -280,14 +280,14 @@ struct ProvidersScreen: View {
 // MARK: - Provider Table
 
 private enum ProviderTableMetrics {
-    static let providerWidth: CGFloat = 220
-    static let statusWidth: CGFloat = 120
-    static let actionsWidth: CGFloat = 160
+    static let providerWidth: CGFloat = 240
+    static let statusWidth: CGFloat = 136
+    static let actionsWidth: CGFloat = 184
 }
 
 private struct ProviderTableHeader: View {
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             Text("providers.table.provider".localized())
                 .frame(width: ProviderTableMetrics.providerWidth, alignment: .leading)
 
@@ -328,7 +328,7 @@ private struct ProviderTableProviderRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             Button {
                 guard canExpand else { return }
                 onToggleExpanded()
@@ -427,7 +427,7 @@ private struct ProviderTableAccountRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             HStack(spacing: 8) {
                 Spacer()
                     .frame(width: 34)
