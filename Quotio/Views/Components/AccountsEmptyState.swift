@@ -53,7 +53,7 @@ struct AccountsEmptyState: View {
                         .disabled(!isIDEScanSupported)
 
                         if !isIDEScanSupported {
-                            Text("Requires cpa-plusplus API support.")
+                            Text("Requires cpa++ API support.")
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                         }

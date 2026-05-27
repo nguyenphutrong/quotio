@@ -197,7 +197,7 @@ struct AccountRow: View {
             }
             
             if account.provider == .antigravity {
-                Label("Requires cpa-plusplus API support.", systemImage: "lock")
+                Label("Requires cpa++ API support.", systemImage: "lock")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 // TODO(cpa-plusplus): add Management API endpoint for Antigravity active-account switching.

@@ -266,14 +266,14 @@ struct ProvidersScreen: View {
 
     private func markCustomProviderAPISyncRequired() {
         // TODO(cpa-plusplus): add typed Management API endpoints for GLM/Warp/custom-provider CRUD.
-        viewModel.errorMessage = "Requires cpa-plusplus API support."
+        viewModel.errorMessage = "Requires cpa++ API support."
     }
 }
 
 private struct RequiresCPAPLUSPLUSAPISupportRow: View {
     var body: some View {
         Label {
-            Text("Requires cpa-plusplus API support.")
+            Text("Requires cpa++ API support.")
                 .foregroundStyle(.secondary)
         } icon: {
             Image(systemName: "lock")

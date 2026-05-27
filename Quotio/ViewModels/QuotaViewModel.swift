@@ -850,7 +850,7 @@ final class QuotaViewModel {
             }
         }
 
-        errorMessage = "Requires cpa-plusplus API support."
+        errorMessage = "Requires cpa++ API support."
     }
 
     /// Unified quota refresh now delegates to cpa-plusplus Management API.
@@ -861,7 +861,7 @@ final class QuotaViewModel {
 
     func refreshQuotaForProvider(_ provider: AIProvider) async {
         guard let apiClient else {
-            errorMessage = "Requires cpa-plusplus API support."
+            errorMessage = "Requires cpa++ API support."
             return
         }
 

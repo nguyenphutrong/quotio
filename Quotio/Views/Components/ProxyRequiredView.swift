@@ -103,7 +103,7 @@ struct ProxyRequiredView: View {
 
 #Preview {
     ProxyRequiredView(
-        description: "cpa-plusplus is starting so API keys can be managed."
+        description: "cpa++ is starting so API keys can be managed."
     ) {
         try? await Task.sleep(nanoseconds: 1_000_000_000)
     }

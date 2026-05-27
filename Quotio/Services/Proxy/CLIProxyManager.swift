@@ -585,7 +585,7 @@ final class CLIProxyManager {
 
     var legacyMigrationPrompt: String? {
         guard !isBinaryInstalled, hasLegacyCLIProxyAPIInstall else { return nil }
-        return "A legacy CLIProxyAPI install was found. Install cpa-plusplus to continue local mode. Existing auth files will be preserved."
+        return "A legacy CLIProxyAPI install was found. Install cpa++ to continue local mode. Existing auth files will be preserved."
     }
 
     var cpaPlusPlusDevBinaryPath: String? {
@@ -597,7 +597,7 @@ final class CLIProxyManager {
     }
 
     var activeBinaryPathDescription: String {
-        effectiveBinaryPath ?? "Missing bundled cpa-plusplus"
+        effectiveBinaryPath ?? "Missing bundled cpa++"
     }
 
     var activeBinarySourceDescription: String {
@@ -626,7 +626,7 @@ final class CLIProxyManager {
     
     func start(resetCrashRecoveryState: Bool = true) async throws {
         guard let activeBinaryPath = effectiveBinaryPath else {
-            throw ProxyError.networkError("Bundled cpa-plusplus is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH for local development.")
+            throw ProxyError.networkError("Bundled cpa++ is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH for local development.")
         }
         
         guard !proxyStatus.running else { return }

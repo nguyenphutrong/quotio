@@ -71,7 +71,7 @@ struct AddProviderPopover: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .foregroundStyle(.secondary)
-                Text("Requires cpa-plusplus API support.")
+                Text("Requires cpa++ API support.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }

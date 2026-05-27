@@ -28,7 +28,7 @@ nonisolated enum ProxyBinarySource: String, Codable, CaseIterable, Identifiable,
     var displayName: String {
         switch self {
         case .cpaPlusPlus:
-            return "cpa-plusplus"
+            return "cpa++"
         }
     }
 
@@ -42,14 +42,14 @@ nonisolated enum ProxyBinarySource: String, Codable, CaseIterable, Identifiable,
     var selectionDescription: String {
         switch self {
         case .cpaPlusPlus:
-            return "cpa-plusplus"
+            return "cpa++"
         }
     }
 
     var detailDescription: String {
         switch self {
         case .cpaPlusPlus:
-            return "Managed through the cpa-plusplus Management API."
+            return "Managed through the cpa++ Management API."
         }
     }
 
@@ -63,14 +63,14 @@ nonisolated enum ProxyBinarySource: String, Codable, CaseIterable, Identifiable,
     var notInstalledTitle: String {
         switch self {
         case .cpaPlusPlus:
-            return "Bundled cpa-plusplus Missing"
+            return "Bundled cpa++ Missing"
         }
     }
 
     var installDescription: String {
         switch self {
         case .cpaPlusPlus:
-            return "Quotio includes a tested cpa-plusplus binary. Rebuild the app or set CPA_PLUSPLUS_BINARY_PATH for local development."
+            return "Quotio includes a tested cpa++ binary. Rebuild the app or set CPA_PLUSPLUS_BINARY_PATH for local development."
         }
     }
 
@@ -84,7 +84,7 @@ nonisolated enum ProxyBinarySource: String, Codable, CaseIterable, Identifiable,
     var installHint: String {
         switch self {
         case .cpaPlusPlus:
-            return "Bundled cpa-plusplus is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH for local development."
+            return "Bundled cpa++ is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH for local development."
         }
     }
 }

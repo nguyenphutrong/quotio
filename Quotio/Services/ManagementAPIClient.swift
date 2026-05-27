@@ -995,7 +995,7 @@ nonisolated enum APIError: LocalizedError {
         case .invalidResponse: return "Invalid response"
         case .httpError(401): return "Unauthorized: check the management key"
         case .httpError(403): return "Forbidden: management access is not allowed"
-        case .httpError(404): return "Unsupported endpoint: requires cpa-plusplus API support"
+        case .httpError(404): return "Unsupported endpoint: requires cpa++ API support"
         case .httpError(let code) where 500...599 ~= code: return "Server error: \(code)"
         case .httpError(let code): return "HTTP error: \(code)"
         case .decodingError(let msg): return "Decoding error: \(msg)"

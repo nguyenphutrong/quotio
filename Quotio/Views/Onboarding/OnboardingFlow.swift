@@ -85,13 +85,13 @@ final class OnboardingViewModel {
         }
 
         if let legacyPrompt = proxyManager.legacyMigrationPrompt {
-            return ("Use bundled cpa-plusplus", legacyPrompt)
+            return ("Use bundled cpa++", legacyPrompt)
         }
 
         if !proxyManager.isBinaryInstalled {
             return (
-                "Use bundled cpa-plusplus",
-                "Bundled cpa-plusplus is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH for local development."
+                "Use bundled cpa++",
+                "Bundled cpa++ is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH for local development."
             )
         }
 

@@ -54,7 +54,7 @@ struct SettingsScreen: View {
             // Troubleshooting
             Section {
                 LabeledContent("Antigravity base URL workaround") {
-                    Text("Requires cpa-plusplus API support.")
+                    Text("Requires cpa++ API support.")
                         .foregroundStyle(.secondary)
                 }
                 // TODO(cpa-plusplus): add Management API support for updating provider auth metadata,
@@ -748,7 +748,7 @@ struct LocalProxyServerSection: View {
                     .foregroundStyle(.secondary)
             }
 
-            LabeledContent("cpa-plusplus version") {
+            LabeledContent("cpa++ version") {
                 Text(serverVersionText)
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -819,7 +819,7 @@ struct LocalProxyServerSection: View {
     }
 
     private var serverKindText: String {
-        modeManager.serverInfo?.kind.rawValue ?? "cpa-plusplus"
+        modeManager.serverInfo?.kind == .cpaPlusPlus ? "cpa++" : modeManager.serverInfo?.kind.rawValue ?? "cpa++"
     }
 
     private var serverVersionText: String {
@@ -1450,14 +1450,14 @@ struct AboutTab: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("cpa-plusplus Management UI")
+            Text("cpa++ Management UI")
                 .foregroundStyle(.secondary)
             
             Text("Version 1.0")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             
-            Link("GitHub: cpa-plusplus", destination: URL(string: "https://github.com/nguyenphutrong/cpa-plusplus")!)
+            Link("GitHub: cpa++", destination: URL(string: "https://github.com/nguyenphutrong/cpa-plusplus")!)
                 .buttonStyle(.bordered)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1624,7 +1624,7 @@ struct AboutScreen: View {
                 )
                 
                 LinkCard(
-                    title: "GitHub: cpa-plusplus",
+                    title: "GitHub: cpa++",
                     icon: "link",
                     color: .purple,
                     url: URL(string: "https://github.com/nguyenphutrong/cpa-plusplus")!

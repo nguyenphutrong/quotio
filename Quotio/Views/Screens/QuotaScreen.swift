@@ -596,7 +596,7 @@ private struct AccountQuotaCardV2: View {
                 }
                 
                 if provider == .antigravity {
-                    Label("Requires cpa-plusplus API support.", systemImage: "lock")
+                    Label("Requires cpa++ API support.", systemImage: "lock")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .help("antigravity.useInIDE".localized())

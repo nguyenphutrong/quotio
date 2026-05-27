@@ -254,25 +254,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quotio is a native macOS application for managing cpa-plusplus - a local proxy server that powers your AI coding agents. Manage multiple AI accounts, track quotas, and configure CLI tools in one place."
+            "value" : "Quotio is a native macOS application for managing cpa++ - a local proxy server that powers your AI coding agents. Manage multiple AI accounts, track quotas, and configure CLI tools in one place."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quotio est une application macOS native pour gérer cpa-plusplus - un serveur proxy local qui alimente vos agents de codage IA. Gérez plusieurs comptes IA, suivez les quotas et configurez les outils CLI en un seul endroit."
+            "value" : "Quotio est une application macOS native pour gérer cpa++ - un serveur proxy local qui alimente vos agents de codage IA. Gérez plusieurs comptes IA, suivez les quotas et configurez les outils CLI en un seul endroit."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quotio là ứng dụng macOS để quản lý cpa-plusplus - máy chủ proxy cục bộ hỗ trợ các AI coding agent. Quản lý nhiều tài khoản AI, theo dõi hạn mức và cấu hình các công cụ CLI tại một nơi."
+            "value" : "Quotio là ứng dụng macOS để quản lý cpa++ - máy chủ proxy cục bộ hỗ trợ các AI coding agent. Quản lý nhiều tài khoản AI, theo dõi hạn mức và cấu hình các công cụ CLI tại một nơi."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quotio 是一个原生 macOS 应用程序，用于管理 cpa-plusplus - 一个为您的 AI 编码代理提供支持的使用本地 cpa-plusplus服务器。在一个地方管理多个 AI 账户、跟踪配额和配置 CLI 工具。"
+            "value" : "Quotio 是一个原生 macOS 应用程序，用于管理 cpa++ - 一个为您的 AI 编码代理提供支持的使用本地 cpa++服务器。在一个地方管理多个 AI 账户、跟踪配额和配置 CLI 工具。"
           }
         }
       }
@@ -1009,25 +1009,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start cpa-plusplus"
+            "value" : "Start cpa++"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Démarrer cpa-plusplus"
+            "value" : "Démarrer cpa++"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Khởi động cpa-plusplus"
+            "value" : "Khởi động cpa++"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "启动 cpa-plusplus"
+            "value" : "启动 cpa++"
           }
         }
       }
@@ -2053,25 +2053,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy (cpa-plusplus)"
+            "value" : "Proxy (cpa++)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy (cpa-plusplus)"
+            "value" : "Proxy (cpa++)"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy (cpa-plusplus)"
+            "value" : "Proxy (cpa++)"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "代理（cpa-plusplus）"
+            "value" : "代理（cpa++）"
           }
         }
       }
@@ -2256,25 +2256,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Configure CLI agents to use cpa-plusplus"
+            "value" : "Configure CLI agents to use cpa++"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Configurer les agents CLI pour utiliser cpa-plusplus"
+            "value" : "Configurer les agents CLI pour utiliser cpa++"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cấu hình CLI agent để sử dụng cpa-plusplus"
+            "value" : "Cấu hình CLI agent để sử dụng cpa++"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "配置 CLI 代理以使用 cpa-plusplus"
+            "value" : "配置 CLI 代理以使用 cpa++"
           }
         }
       }
@@ -3217,25 +3217,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus is starting so API keys can be managed."
+            "value" : "cpa++ is starting so API keys can be managed."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus démarre pour permettre la gestion des clés API."
+            "value" : "cpa++ démarre pour permettre la gestion des clés API."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus đang khởi động để quản lý API keys."
+            "value" : "cpa++ đang khởi động để quản lý API keys."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus 正在启动，以便管理 API 密钥。"
+            "value" : "cpa++ 正在启动，以便管理 API 密钥。"
           }
         }
       }
@@ -3306,8 +3306,8 @@
       "comment" : "A button that checks for software updates.",
       "isCommentAutoGenerated" : true
     },
-    "cpa-plusplus GUI Wrapper" : {
-      "comment" : "The name of the cpa-plusplus GUI Wrapper.",
+    "cpa++ GUI Wrapper" : {
+      "comment" : "The name of the cpa++ GUI Wrapper.",
       "isCommentAutoGenerated" : true
     },
     "Config" : {
@@ -5323,25 +5323,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus Not Installed"
+            "value" : "cpa++ Not Installed"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus non installé"
+            "value" : "cpa++ non installé"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus chưa cài đặt"
+            "value" : "cpa++ chưa cài đặt"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus 未安装"
+            "value" : "cpa++ 未安装"
           }
         }
       }
@@ -5468,25 +5468,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Install cpa-plusplus"
+            "value" : "Install cpa++"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Installer cpa-plusplus"
+            "value" : "Installer cpa++"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cài đặt cpa-plusplus"
+            "value" : "Cài đặt cpa++"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "安装 cpa-plusplus"
+            "value" : "安装 cpa++"
           }
         }
       }
@@ -5932,25 +5932,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Starting local cpa-plusplus. Use Restart if it does not recover."
+            "value" : "Starting local cpa++. Use Restart if it does not recover."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Démarrage de cpa-plusplus local. Utilisez Redémarrer si la récupération échoue."
+            "value" : "Démarrage de cpa++ local. Utilisez Redémarrer si la récupération échoue."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Đang khởi động cpa-plusplus local. Dùng Khởi động lại nếu chưa phục hồi."
+            "value" : "Đang khởi động cpa++ local. Dùng Khởi động lại nếu chưa phục hồi."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在启动本地 cpa-plusplus。若未恢复，请使用重启。"
+            "value" : "正在启动本地 cpa++。若未恢复，请使用重启。"
           }
         }
       }
@@ -6226,25 +6226,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus Starting"
+            "value" : "cpa++ Starting"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus démarre"
+            "value" : "cpa++ démarre"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus đang khởi động"
+            "value" : "cpa++ đang khởi động"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus 正在启动"
+            "value" : "cpa++ 正在启动"
           }
         }
       }
@@ -7762,8 +7762,8 @@
         }
       }
     },
-    "GitHub: cpa-plusplus" : {
-      "comment" : "A link to the cpa-plusplus repository on GitHub.",
+    "GitHub: cpa++" : {
+      "comment" : "A link to the cpa++ repository on GitHub.",
       "isCommentAutoGenerated" : true
     },
     "glm.add" : {
@@ -8115,7 +8115,7 @@
       }
     },
     "https://proxy.example.com:8317" : {
-      "comment" : "A placeholder text for the URL of the remote cpa-plusplus endpoint.",
+      "comment" : "A placeholder text for the URL of the remote cpa++ endpoint.",
       "isCommentAutoGenerated" : true
     },
     "ideScan.cliTools" : {
@@ -9353,25 +9353,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus is starting so logs can be loaded."
+            "value" : "cpa++ is starting so logs can be loaded."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus démarre pour charger les journaux."
+            "value" : "cpa++ démarre pour charger les journaux."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus đang khởi động để tải nhật ký."
+            "value" : "cpa++ đang khởi động để tải nhật ký."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus 正在启动，以便加载日志。"
+            "value" : "cpa++ 正在启动，以便加载日志。"
           }
         }
       }
@@ -10136,25 +10136,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use local cpa-plusplus"
+            "value" : "Use local cpa++"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Utiliser cpa-plusplus local"
+            "value" : "Utiliser cpa++ local"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dùng cpa-plusplus cục bộ"
+            "value" : "Dùng cpa++ cục bộ"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用本地 cpa-plusplus"
+            "value" : "使用本地 cpa++"
           }
         }
       }
@@ -10890,25 +10890,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus has been upgraded to version %@"
+            "value" : "cpa++ has been upgraded to version %@"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus a été mis à jour vers la version %@"
+            "value" : "cpa++ a été mis à jour vers la version %@"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus đã được nâng cấp lên phiên bản %@"
+            "value" : "cpa++ đã được nâng cấp lên phiên bản %@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus 已升级到版本 %@"
+            "value" : "cpa++ 已升级到版本 %@"
           }
         }
       }
@@ -10948,25 +10948,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus v%@ is available. Open Settings to update."
+            "value" : "cpa++ v%@ is available. Open Settings to update."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus v%@ est disponible. Ouvrez les Paramètres pour mettre à jour."
+            "value" : "cpa++ v%@ est disponible. Ouvrez les Paramètres pour mettre à jour."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus v%@ đã có. Mở Cài đặt để cập nhật."
+            "value" : "cpa++ v%@ đã có. Mở Cài đặt để cập nhật."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus v%@ 可用。打开设置进行更新。"
+            "value" : "cpa++ v%@ 可用。打开设置进行更新。"
           }
         }
       }
@@ -11982,7 +11982,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "运行使用本地 cpa-plusplus服务器来管理 AI 请求"
+            "value" : "运行使用本地 cpa++服务器来管理 AI 请求"
           }
         }
       }
@@ -12080,25 +12080,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use local cpa-plusplus"
+            "value" : "Use local cpa++"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Utiliser cpa-plusplus local"
+            "value" : "Utiliser cpa++ local"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dùng cpa-plusplus cục bộ"
+            "value" : "Dùng cpa++ cục bộ"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用本地 cpa-plusplus"
+            "value" : "使用本地 cpa++"
           }
         }
       }
@@ -12254,25 +12254,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connect to a remote cpa-plusplus server"
+            "value" : "Connect to a remote cpa++ server"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se connecter à un serveur cpa-plusplus distant"
+            "value" : "Se connecter à un serveur cpa++ distant"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kết nối tới máy chủ cpa-plusplus từ xa"
+            "value" : "Kết nối tới máy chủ cpa++ từ xa"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "连接到远程 cpa-plusplus 服务器"
+            "value" : "连接到远程 cpa++ 服务器"
           }
         }
       }
@@ -12660,25 +12660,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enter your remote cpa-plusplus server details"
+            "value" : "Enter your remote cpa++ server details"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Entrez les détails de votre serveur cpa-plusplus distant"
+            "value" : "Entrez les détails de votre serveur cpa++ distant"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nhập thông tin máy chủ cpa-plusplus từ xa của bạn"
+            "value" : "Nhập thông tin máy chủ cpa++ từ xa của bạn"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "输入您的远程 cpa-plusplus 服务器详情"
+            "value" : "输入您的远程 cpa++ 服务器详情"
           }
         }
       }
@@ -13158,25 +13158,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus must be running to add provider accounts. Quotio will try to recover it automatically."
+            "value" : "cpa++ must be running to add provider accounts. Quotio will try to recover it automatically."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus doit être en cours d'exécution pour ajouter des comptes fournisseur. Quotio tentera de le récupérer automatiquement."
+            "value" : "cpa++ doit être en cours d'exécution pour ajouter des comptes fournisseur. Quotio tentera de le récupérer automatiquement."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus cần chạy để thêm tài khoản provider. Quotio sẽ tự thử phục hồi."
+            "value" : "cpa++ cần chạy để thêm tài khoản provider. Quotio sẽ tự thử phục hồi."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "必须运行 cpa-plusplus 才能添加提供商账户。Quotio 将自动尝试恢复。"
+            "value" : "必须运行 cpa++ 才能添加提供商账户。Quotio 将自动尝试恢复。"
           }
         }
       }
@@ -13187,25 +13187,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus Required"
+            "value" : "cpa++ Required"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cpa-plusplus requis"
+            "value" : "cpa++ requis"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cần cpa-plusplus"
+            "value" : "Cần cpa++"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要 cpa-plusplus"
+            "value" : "需要 cpa++"
           }
         }
       }
@@ -13632,25 +13632,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connect to a remote cpa-plusplus server instead of running locally."
+            "value" : "Connect to a remote cpa++ server instead of running locally."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connectez-vous à un serveur cpa-plusplus distant au lieu de l'exécuter localement."
+            "value" : "Connectez-vous à un serveur cpa++ distant au lieu de l'exécuter localement."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kết nối đến máy chủ cpa-plusplus từ xa thay vì chạy cục bộ."
+            "value" : "Kết nối đến máy chủ cpa++ từ xa thay vì chạy cục bộ."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "连接到远程cpa-plusplus服务器，而不是本地运行。"
+            "value" : "连接到远程cpa++服务器，而不是本地运行。"
           }
         }
       }
@@ -14850,25 +14850,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connected to remote cpa-plusplus server"
+            "value" : "Connected to remote cpa++ server"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connecté au serveur cpa-plusplus distant"
+            "value" : "Connecté au serveur cpa++ distant"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Đã kết nối đến máy chủ cpa-plusplus từ xa"
+            "value" : "Đã kết nối đến máy chủ cpa++ từ xa"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已连接到远程 cpa-plusplus 服务器"
+            "value" : "已连接到远程 cpa++ 服务器"
           }
         }
       }
@@ -15541,25 +15541,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connect to a remote cpa-plusplus server"
+            "value" : "Connect to a remote cpa++ server"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se connecter à un serveur cpa-plusplus distant"
+            "value" : "Se connecter à un serveur cpa++ distant"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kết nối đến máy chủ cpa-plusplus từ xa"
+            "value" : "Kết nối đến máy chủ cpa++ từ xa"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "连接到远程cpa-plusplus服务器"
+            "value" : "连接到远程cpa++服务器"
           }
         }
       }
@@ -18586,25 +18586,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Configure connection to your remote cpa-plusplus server"
+            "value" : "Configure connection to your remote cpa++ server"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Configurer la connexion à votre serveur cpa-plusplus distant"
+            "value" : "Configurer la connexion à votre serveur cpa++ distant"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cấu hình kết nối đến máy chủ cpa-plusplus từ xa của bạn"
+            "value" : "Cấu hình kết nối đến máy chủ cpa++ từ xa của bạn"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "配置连接到您的远程cpa-plusplus服务器"
+            "value" : "配置连接到您的远程cpa++服务器"
           }
         }
       }
@@ -20361,25 +20361,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use local cpa-plusplus"
+            "value" : "Use local cpa++"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Utiliser cpa-plusplus local"
+            "value" : "Utiliser cpa++ local"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dùng cpa-plusplus cục bộ"
+            "value" : "Dùng cpa++ cục bộ"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用本地 cpa-plusplus"
+            "value" : "使用本地 cpa++"
           }
         }
       }

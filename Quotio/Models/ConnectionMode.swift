@@ -27,9 +27,9 @@ enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
     var description: String {
         switch self {
         case .local:
-            return "Connect to local cpa-plusplus on this machine"
+            return "Connect to local cpa++ on this machine"
         case .remote:
-            return "Connect to a remote cpa-plusplus server"
+            return "Connect to a remote cpa++ server"
         }
     }
     
@@ -45,15 +45,15 @@ enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .local:
             return [
-                "Auto-start local cpa-plusplus",
+                "Auto-start local cpa++",
                 "Configure proxy port and paths",
-                "Use bundled cpa-plusplus",
+                "Use bundled cpa++",
                 "Full OAuth authentication",
                 "Configure CLI agents"
             ]
         case .remote:
             return [
-                "Connect to remote cpa-plusplus",
+                "Connect to remote cpa++",
                 "View and manage accounts",
                 "Track quota usage",
                 "OAuth for web-based providers",
