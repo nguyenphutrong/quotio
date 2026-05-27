@@ -428,19 +428,9 @@ private struct ProviderTableAccountRow: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            HStack(spacing: 8) {
-                Spacer()
-                    .frame(width: 34)
-
-                Image(systemName: "key")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Text(account.provider.displayName)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            .frame(width: ProviderTableMetrics.providerWidth, alignment: .leading)
+            Color.clear
+                .frame(width: ProviderTableMetrics.providerWidth)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(maskedDisplayName)
