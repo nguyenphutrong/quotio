@@ -465,48 +465,25 @@ private struct AccountQuotaCardV2: View {
     private var isWarmupEnabled: Bool {
         viewModel.isWarmupEnabled(for: provider, accountKey: account.key)
     }
+
+    private var refreshAuthID: String? {
+        account.authFile?.id
+    }
     
-    /// Build 4-group display for Antigravity: Gemini 3 Pro, Gemini 3 Flash, Gemini 3 Image, Claude 4.5
+    /// Build grouped display for Antigravity while preserving model-level details in each group.
     private var antigravityDisplayGroups: [AntigravityDisplayGroup] {
         guard let data = account.quotaData, provider == .antigravity else { return [] }
-        
-        var groups: [AntigravityDisplayGroup] = []
-        
-        let gemini3ProModels = data.models.filter { 
-            $0.name.contains("gemini-3-pro") && !$0.name.contains("image") 
+
+        return data.groupedModels.compactMap { group in
+            let aggregatedQuota = settings.aggregateModelPercentages(group.models.map(\.percentage))
+            guard aggregatedQuota >= 0 else { return nil }
+            return AntigravityDisplayGroup(
+                name: group.displayName,
+                percentage: aggregatedQuota,
+                models: group.models
+            )
         }
-        if !gemini3ProModels.isEmpty {
-            let aggregatedQuota = settings.aggregateModelPercentages(gemini3ProModels.map(\.percentage))
-            if aggregatedQuota >= 0 {
-                groups.append(AntigravityDisplayGroup(name: "Gemini 3 Pro", percentage: aggregatedQuota, models: gemini3ProModels))
-            }
-        }
-        
-        let gemini3FlashModels = data.models.filter { $0.name.contains("gemini-3-flash") }
-        if !gemini3FlashModels.isEmpty {
-            let aggregatedQuota = settings.aggregateModelPercentages(gemini3FlashModels.map(\.percentage))
-            if aggregatedQuota >= 0 {
-                groups.append(AntigravityDisplayGroup(name: "Gemini 3 Flash", percentage: aggregatedQuota, models: gemini3FlashModels))
-            }
-        }
-        
-        let geminiImageModels = data.models.filter { $0.name.contains("image") }
-        if !geminiImageModels.isEmpty {
-            let aggregatedQuota = settings.aggregateModelPercentages(geminiImageModels.map(\.percentage))
-            if aggregatedQuota >= 0 {
-                groups.append(AntigravityDisplayGroup(name: "Gemini 3 Image", percentage: aggregatedQuota, models: geminiImageModels))
-            }
-        }
-        
-        let claudeModels = data.models.filter { $0.name.contains("claude") }
-        if !claudeModels.isEmpty {
-            let aggregatedQuota = settings.aggregateModelPercentages(claudeModels.map(\.percentage))
-            if aggregatedQuota >= 0 {
-                groups.append(AntigravityDisplayGroup(name: "Claude", percentage: aggregatedQuota, models: claudeModels))
-            }
-        }
-        
-        return groups.sorted { $0.percentage < $1.percentage }
+        .sorted { $0.percentage < $1.percentage }
     }
     
     var body: some View {
@@ -606,7 +583,7 @@ private struct AccountQuotaCardV2: View {
                 Button {
                     Task {
                         isRefreshing = true
-                        await viewModel.refreshQuotaForProvider(provider)
+                        await viewModel.refreshQuota(provider: provider, authID: refreshAuthID)
                         isRefreshing = false
                     }
                 } label: {

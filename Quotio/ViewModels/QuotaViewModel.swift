@@ -860,13 +860,17 @@ final class QuotaViewModel {
     }
 
     func refreshQuotaForProvider(_ provider: AIProvider) async {
+        await refreshQuota(provider: provider, authID: nil)
+    }
+
+    func refreshQuota(provider: AIProvider, authID: String?) async {
         guard let apiClient else {
             errorMessage = "Requires cpa++ API support."
             return
         }
 
         do {
-            providerQuotas = try await apiClient.refreshQuota().providerQuotas()
+            providerQuotas = try await apiClient.refreshQuota(provider: provider, authID: authID).providerQuotas()
             errorMessage = nil
             pruneMenuBarItems()
             notifyQuotaDataChanged()
