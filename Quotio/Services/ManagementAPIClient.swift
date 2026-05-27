@@ -685,6 +685,7 @@ nonisolated struct ProviderValidation: Codable, Sendable {
 // MARK: - Canonical OAuth API Types
 
 nonisolated enum ProviderOAuthMethod: String, Codable, Sendable {
+    case signinLocalhost = "signin_localhost"
     case deviceCode = "device_code"
     case builderIDDevice = "builder_id_device"
     case awsDevice = "aws_device"
@@ -792,7 +793,8 @@ nonisolated struct ManagementQuotaView: Codable, Sendable {
                     models: models,
                     lastUpdated: lastUpdated,
                     isForbidden: account.isForbidden ?? false,
-                    planType: account.planDisplayName ?? account.planType
+                    planType: account.planDisplayName ?? account.planType,
+                    error: account.error
                 )
             }
         }
@@ -850,10 +852,11 @@ nonisolated struct ManagementQuotaAccount: Codable, Sendable {
     let isForbidden: Bool?
     let lastUpdated: String?
     let lastRefresh: String?
+    let error: String?
     let models: [ManagementQuotaModel]?
 
     enum CodingKeys: String, CodingKey {
-        case id, account, email, models
+        case id, account, email, error, models
         case credentialID = "credential_id"
         case authID = "auth_id"
         case accountKey = "account_key"

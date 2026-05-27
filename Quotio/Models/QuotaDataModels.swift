@@ -205,19 +205,22 @@ nonisolated struct ProviderQuotaData: Codable, Sendable {
     var isForbidden: Bool
     var planType: String?
     var tokenExpiresAt: Date?
+    var error: String?
 
     init(
         models: [ModelQuota] = [],
         lastUpdated: Date = Date(),
         isForbidden: Bool = false,
         planType: String? = nil,
-        tokenExpiresAt: Date? = nil
+        tokenExpiresAt: Date? = nil,
+        error: String? = nil
     ) {
         self.models = models
         self.lastUpdated = lastUpdated
         self.isForbidden = isForbidden
         self.planType = planType
         self.tokenExpiresAt = tokenExpiresAt
+        self.error = error
     }
 
     var formattedTokenExpiry: String? {

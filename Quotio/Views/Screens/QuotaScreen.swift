@@ -684,6 +684,12 @@ private struct AccountQuotaCardV2: View {
         guard let data = account.quotaData else { return false }
         return data.models.allSatisfy { $0.percentage < 0 }
     }
+
+    private var requiresKiroReconnect: Bool {
+        guard provider == .kiro, let data = account.quotaData else { return false }
+        return data.error?.contains("kiro_quota_profile_missing") == true
+            || data.planType?.lowercased() == "quota-unavailable"
+    }
     
     private var displayStyle: QuotaDisplayStyle { settings.quotaDisplayStyle }
 
@@ -738,13 +744,21 @@ private struct AccountQuotaCardV2: View {
     }
     
     private var quotaUnavailableView: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "info.circle")
-                .font(.subheadline)
-                .foregroundStyle(.tertiary)
-            Text("quota.notAvailable".localized())
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "info.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+                Text("quota.notAvailable".localized())
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            if requiresKiroReconnect {
+                Text("quota.kiroReconnectRequired".localized())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)

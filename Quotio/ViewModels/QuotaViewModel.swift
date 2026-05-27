@@ -899,7 +899,7 @@ final class QuotaViewModel {
         do {
             let session = try await client.startProviderOAuth(
                 provider: provider,
-                method: method,
+                method: method ?? defaultOAuthMethod(for: provider),
                 options: oauthOptions(for: provider, projectId: projectId)
             )
 
@@ -915,6 +915,10 @@ final class QuotaViewModel {
         } catch {
             oauthState = OAuthState(provider: provider, status: .failed, error: error.localizedDescription)
         }
+    }
+
+    private func defaultOAuthMethod(for provider: AIProvider) -> ProviderOAuthMethod? {
+        provider == .kiro ? .signinLocalhost : nil
     }
     
     private func pollOAuthSession(sessionID: String, provider: AIProvider) async {

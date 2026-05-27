@@ -13675,6 +13675,35 @@
         }
       }
     },
+    "quota.kiroReconnectRequired" : {
+      "comment" : "Hint shown when a Kiro account was authenticated without profile metadata required for quota",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnect Kiro to refresh required profile metadata."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnectez Kiro pour actualiser les métadonnées de profil requises."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết nối lại Kiro để cập nhật metadata hồ sơ bắt buộc."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新连接 Kiro 以刷新所需的个人资料元数据。"
+          }
+        }
+      }
+    },
     "quota.reauthenticate" : {
       "comment" : "Button label shown when Claude Code token has expired and re-authentication is needed",
       "extractionState" : "stale",
