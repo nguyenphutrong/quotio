@@ -2,11 +2,7 @@
 //  ProvidersScreen.swift
 //  Quotio
 //
-//  Redesigned ProvidersScreen with improved UI/UX:
-//  - Consolidated from 5-6 sections to 2 main sections
-//  - Accounts grouped by provider using DisclosureGroup
-//  - Add Provider moved to toolbar popover
-//  - IDE Scan integrated into toolbar and empty state
+//  Providers table with expandable provider/account rows.
 //
 
 import SwiftUI
@@ -19,7 +15,7 @@ struct ProvidersScreen: View {
     @State private var selectedProvider: AIProvider?
     @State private var projectId: String = ""
     @State private var showProxyRequiredAlert = false
-    @State private var showAddProviderPopover = false
+    @State private var expandedProviderIDs: Set<String> = []
     @State private var modeManager = OperatingModeManager.shared
     
     // MARK: - Computed Properties
@@ -52,9 +48,10 @@ struct ProvidersScreen: View {
         return groups
     }
     
-    /// Sorted providers for consistent display order
-    private var sortedProviders: [AIProvider] {
-        groupedAccounts.keys.sorted { $0.displayName < $1.displayName }
+    /// Providers shown in the table: all addable providers plus any provider with existing accounts.
+    private var tableProviders: [AIProvider] {
+        let providers = Set(addableProviders).union(groupedAccounts.keys)
+        return providers.sorted { $0.displayName < $1.displayName }
     }
     
     /// Total account count across all providers
@@ -62,9 +59,10 @@ struct ProvidersScreen: View {
         groupedAccounts.values.reduce(0) { $0 + $1.count }
     }
 
-    /// Account count per provider (for AddProviderPopover badge display)
-    private var providerAccountCounts: [AIProvider: Int] {
-        groupedAccounts.mapValues { $0.count }
+    private var accountsExpansionSignature: String {
+        tableProviders.map { provider in
+            "\(provider.rawValue):\(groupedAccounts[provider]?.count ?? 0)"
+        }.joined(separator: "|")
     }
     
     // MARK: - Body
@@ -109,17 +107,11 @@ struct ProvidersScreen: View {
         } message: {
             Text("providers.proxyRequired.message".localized())
         }
-        .sheet(isPresented: $showAddProviderPopover) {
-            AddProviderPopover(
-                providers: addableProviders,
-                existingCounts: providerAccountCounts,
-                onSelectProvider: { provider in
-                    handleAddProvider(provider)
-                },
-                onDismiss: {
-                    showAddProviderPopover = false
-                }
-            )
+        .onAppear {
+            expandProvidersWithAccounts()
+        }
+        .onChange(of: accountsExpansionSignature) { _, _ in
+            expandProvidersWithAccounts()
         }
     }
     
@@ -127,15 +119,6 @@ struct ProvidersScreen: View {
     
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                showAddProviderPopover = true
-            } label: {
-                Image(systemName: "plus")
-            }
-            .help("providers.addAccount".localized())
-        }
-        
         ToolbarItem(placement: .automatic) {
             Button {
                 Task {
@@ -163,28 +146,39 @@ struct ProvidersScreen: View {
     @ViewBuilder
     private var accountsSection: some View {
         Section {
-            if groupedAccounts.isEmpty {
-                // Empty state
-                AccountsEmptyState(
-                    onScanIDEs: {},
-                    onAddProvider: {
-                        showAddProviderPopover = true
+            ProviderTableHeader()
+
+            ForEach(tableProviders, id: \.self) { provider in
+                let accounts = groupedAccounts[provider] ?? []
+                let isExpanded = expandedProviderIDs.contains(provider.rawValue)
+
+                ProviderTableProviderRow(
+                    provider: provider,
+                    accounts: accounts,
+                    isExpanded: isExpanded,
+                    onToggleExpanded: {
+                        toggleExpanded(provider)
+                    },
+                    onAddConnection: {
+                        handleAddProvider(provider)
                     }
                 )
-            } else {
-                // Grouped accounts by provider
-                ForEach(sortedProviders, id: \.self) { provider in
-                    ProviderDisclosureGroup(
-                        provider: provider,
-                        accounts: groupedAccounts[provider] ?? [],
-                        onDeleteAccount: { account in
-                            Task { await deleteAccount(account) }
-                        },
-                        onEditAccount: { _ in markCustomProviderAPISyncRequired() },
-                        onToggleDisabled: { account in
-                            Task { await toggleAccountDisabled(account) }
-                        }
-                    )
+
+                if isExpanded {
+                    ForEach(accounts) { account in
+                        ProviderTableAccountRow(
+                            account: account,
+                            onDelete: account.canDelete ? {
+                                Task<Void, Never> { await deleteAccount(account) }
+                            } : nil,
+                            onEdit: account.canEdit ? {
+                                markCustomProviderAPISyncRequired()
+                            } : nil,
+                            onToggleDisabled: account.source == .proxy ? {
+                                Task<Void, Never> { await toggleAccountDisabled(account) }
+                            } : nil
+                        )
+                    }
                 }
             }
         } header: {
@@ -202,9 +196,7 @@ struct ProvidersScreen: View {
                 }
             }
         } footer: {
-            if !groupedAccounts.isEmpty {
-                MenuBarHintView()
-            }
+            MenuBarHintView()
         }
     }
     
@@ -267,6 +259,335 @@ struct ProvidersScreen: View {
     private func markCustomProviderAPISyncRequired() {
         // TODO(cpa-plusplus): add typed Management API endpoints for GLM/Warp/custom-provider CRUD.
         viewModel.errorMessage = "Requires cpa++ API support."
+    }
+
+    private func toggleExpanded(_ provider: AIProvider) {
+        let id = provider.rawValue
+        if expandedProviderIDs.contains(id) {
+            expandedProviderIDs.remove(id)
+        } else {
+            expandedProviderIDs.insert(id)
+        }
+    }
+
+    private func expandProvidersWithAccounts() {
+        for provider in tableProviders where !(groupedAccounts[provider] ?? []).isEmpty {
+            expandedProviderIDs.insert(provider.rawValue)
+        }
+    }
+}
+
+// MARK: - Provider Table
+
+private enum ProviderTableMetrics {
+    static let providerWidth: CGFloat = 220
+    static let statusWidth: CGFloat = 120
+    static let actionsWidth: CGFloat = 160
+}
+
+private struct ProviderTableHeader: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("providers.table.provider".localized())
+                .frame(width: ProviderTableMetrics.providerWidth, alignment: .leading)
+
+            Text("providers.table.accountsKey".localized())
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text("providers.table.status".localized())
+                .frame(width: ProviderTableMetrics.statusWidth, alignment: .leading)
+
+            Text("providers.table.actions".localized())
+                .frame(width: ProviderTableMetrics.actionsWidth, alignment: .trailing)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .textCase(.uppercase)
+    }
+}
+
+private struct ProviderTableProviderRow: View {
+    let provider: AIProvider
+    let accounts: [AccountRowData]
+    let isExpanded: Bool
+    var onToggleExpanded: () -> Void
+    var onAddConnection: () -> Void
+
+    private var canExpand: Bool { !accounts.isEmpty }
+
+    private var statusText: String {
+        if accounts.isEmpty {
+            return "providers.notConnected".localized()
+        }
+
+        let enabledCount = accounts.filter { !$0.isDisabled }.count
+        if enabledCount == 0 {
+            return "providers.disabled".localized()
+        }
+        return "status.connected".localized()
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button {
+                guard canExpand else { return }
+                onToggleExpanded()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: canExpand ? (isExpanded ? "chevron.down" : "chevron.right") : "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(canExpand ? Color.secondary : Color.clear)
+                        .frame(width: 12)
+
+                    ProviderIcon(provider: provider, size: 22)
+
+                    Text(provider.displayName)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                }
+                .frame(width: ProviderTableMetrics.providerWidth, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 8) {
+                Text(accounts.isEmpty ? "providers.noAccounts".localized() : accountCountText)
+                    .foregroundStyle(accounts.isEmpty ? .secondary : .primary)
+
+                if accounts.allSatisfy({ $0.source == .autoDetected }) && !accounts.isEmpty {
+                    Text("providers.autoDetected".localized())
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(statusText)
+                .font(.caption)
+                .foregroundStyle(accounts.isEmpty ? .secondary : .primary)
+                .frame(width: ProviderTableMetrics.statusWidth, alignment: .leading)
+
+            Button {
+                onAddConnection()
+            } label: {
+                Label("providers.addConnection".localized(), systemImage: "plus")
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .frame(width: ProviderTableMetrics.actionsWidth, alignment: .trailing)
+            .disabled(!provider.supportsManualAuth)
+        }
+    }
+
+    private var accountCountText: String {
+        String(format: "providers.accountCountFormat".localized(), accounts.count)
+    }
+}
+
+private struct ProviderTableAccountRow: View {
+    let account: AccountRowData
+    var onDelete: (() -> Void)?
+    var onEdit: (() -> Void)?
+    var onToggleDisabled: (() -> Void)?
+
+    @State private var settings = MenuBarSettingsManager.shared
+    @State private var showWarning = false
+    @State private var showMaxItemsAlert = false
+    @State private var showDeleteConfirmation = false
+
+    private var isMenuBarSelected: Bool {
+        settings.isSelected(account.menuBarItem)
+    }
+
+    private var maskedDisplayName: String {
+        account.displayName.masked(if: settings.hideSensitiveInfo)
+    }
+
+    private var statusColor: Color {
+        switch account.status {
+        case "ready": return account.isDisabled ? .gray : .green
+        case "cooling": return .orange
+        case "error": return .red
+        default: return .gray
+        }
+    }
+
+    private var statusText: String {
+        if account.isDisabled {
+            return "providers.disabled".localized()
+        }
+        if let status = account.status, !status.isEmpty {
+            return status
+        }
+        return account.source.displayName
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Spacer()
+                    .frame(width: 34)
+
+                Image(systemName: "key")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text(account.provider.displayName)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(width: ProviderTableMetrics.providerWidth, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(maskedDisplayName)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+
+                if let message = account.statusMessage, !message.isEmpty {
+                    Text(message)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 6, height: 6)
+
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(account.status == nil ? .secondary : statusColor)
+                    .lineLimit(1)
+            }
+            .frame(width: ProviderTableMetrics.statusWidth, alignment: .leading)
+
+            HStack(spacing: 6) {
+                if account.provider == .antigravity {
+                    Label("Requires cpa++ API support.", systemImage: "lock")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .labelStyle(.iconOnly)
+                        .help("Requires cpa++ API support.")
+                }
+
+                MenuBarBadge(
+                    isSelected: isMenuBarSelected,
+                    onTap: handleMenuBarToggle
+                )
+
+                if account.source == .proxy, let onToggleDisabled {
+                    Button {
+                        onToggleDisabled()
+                    } label: {
+                        Image(systemName: account.isDisabled ? "xmark.circle.fill" : "checkmark.circle")
+                            .font(.system(size: 14))
+                            .foregroundStyle(account.isDisabled ? .red : .secondary)
+                    }
+                    .buttonStyle(.rowAction)
+                    .help(account.isDisabled ? "providers.enable".localized() : "providers.disable".localized())
+                    .accessibilityLabel(account.isDisabled ? "providers.enable".localized() : "providers.disable".localized())
+                }
+
+                if account.canEdit, let onEdit {
+                    Button {
+                        onEdit()
+                    } label: {
+                        Image(systemName: "pencil")
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.rowAction)
+                    .help("action.edit".localized())
+                }
+
+                if account.canDelete, onDelete != nil {
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red.opacity(0.8))
+                    }
+                    .buttonStyle(.rowActionDestructive)
+                    .help("action.delete".localized())
+                }
+            }
+            .frame(width: ProviderTableMetrics.actionsWidth, alignment: .trailing)
+        }
+        .contextMenu {
+            Button {
+                handleMenuBarToggle()
+            } label: {
+                if isMenuBarSelected {
+                    Label("menubar.hideFromMenuBar".localized(), systemImage: "chart.bar")
+                } else {
+                    Label("menubar.showOnMenuBar".localized(), systemImage: "chart.bar.fill")
+                }
+            }
+
+            if account.source == .proxy, let onToggleDisabled {
+                Button {
+                    onToggleDisabled()
+                } label: {
+                    if account.isDisabled {
+                        Label("providers.enable".localized(), systemImage: "checkmark.circle")
+                    } else {
+                        Label("providers.disable".localized(), systemImage: "minus.circle")
+                    }
+                }
+            }
+
+            if account.canDelete, onDelete != nil {
+                Divider()
+
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    Label("action.delete".localized(), systemImage: "trash")
+                }
+            }
+        }
+        .confirmationDialog("providers.deleteConfirm".localized(), isPresented: $showDeleteConfirmation) {
+            Button("action.delete".localized(), role: .destructive) {
+                onDelete?()
+            }
+            Button("action.cancel".localized(), role: .cancel) {}
+        } message: {
+            Text("providers.deleteMessage".localized())
+        }
+        .alert("menubar.warning.title".localized(), isPresented: $showWarning) {
+            Button("menubar.warning.confirm".localized()) {
+                settings.toggleItem(account.menuBarItem)
+            }
+            Button("menubar.warning.cancel".localized(), role: .cancel) {}
+        } message: {
+            Text("menubar.warning.message".localized())
+        }
+        .alert("menubar.maxItems.title".localized(), isPresented: $showMaxItemsAlert) {
+            Button("action.ok".localized(), role: .cancel) {}
+        } message: {
+            Text(String(
+                format: "menubar.maxItems.message".localized(),
+                settings.menuBarMaxItems
+            ))
+        }
+    }
+
+    private func handleMenuBarToggle() {
+        if isMenuBarSelected {
+            settings.toggleItem(account.menuBarItem)
+        } else if settings.isAtMaxItems {
+            showMaxItemsAlert = true
+        } else if settings.shouldWarnOnAdd {
+            showWarning = true
+        } else {
+            settings.toggleItem(account.menuBarItem)
+        }
     }
 }
 
