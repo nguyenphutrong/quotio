@@ -827,7 +827,11 @@ struct OAuthSheet: View {
                     Button {
                         hasStartedAuth = false
                         Task {
-                            await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId)
+                            await viewModel.startOAuth(
+                                for: provider,
+                                projectId: projectId.isEmpty ? nil : projectId,
+                                launchMode: .autoOpen
+                            )
                         }
                     } label: {
                         Label("oauth.retry".localized(), systemImage: "arrow.clockwise")
@@ -838,7 +842,11 @@ struct OAuthSheet: View {
                     Button {
                         hasStartedAuth = true
                         Task {
-                            await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId)
+                            await viewModel.startOAuth(
+                                for: provider,
+                                projectId: projectId.isEmpty ? nil : projectId,
+                                launchMode: .autoOpen
+                            )
                         }
                     } label: {
                         if isPolling {
@@ -949,6 +957,16 @@ private struct OAuthStatusView: View {
                             Text("oauth.waitingForAuth".localized())
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+
+                            if let urlString = authURL ?? verificationURI,
+                               let url = URL(string: urlString) {
+                                OAuthURLFallbackView(
+                                    urlString: urlString,
+                                    url: url,
+                                    provider: provider,
+                                    copied: $copied
+                                )
+                            }
                         }
                     } else {
                         Text("oauth.waitingForAuth".localized())
@@ -957,33 +975,12 @@ private struct OAuthStatusView: View {
                         
                         // Show auth URL with copy/open buttons
                         if let urlString = authURL ?? verificationURI, let url = URL(string: urlString) {
-                            VStack(spacing: 12) {
-                                Text("oauth.copyLinkOrOpen".localized())
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                
-                                HStack(spacing: 12) {
-                                    Button {
-                                        NSPasteboard.general.clearContents()
-                                        NSPasteboard.general.setString(urlString, forType: .string)
-                                        copied = true
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                            copied = false
-                                        }
-                                    } label: {
-                                        Label(copied ? "oauth.copied".localized() : "oauth.copyLink".localized(), systemImage: copied ? "checkmark" : "doc.on.doc")
-                                    }
-                                    .buttonStyle(.bordered)
-                                    
-                                    Button {
-                                        NSWorkspace.shared.open(url)
-                                    } label: {
-                                        Label("oauth.openLink".localized(), systemImage: "safari")
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(provider.color)
-                                }
-                            }
+                            OAuthURLFallbackView(
+                                urlString: urlString,
+                                url: url,
+                                provider: provider,
+                                copied: $copied
+                            )
                         } else {
                             Text("oauth.completeBrowser".localized())
                                 .font(.caption)
@@ -1031,6 +1028,63 @@ private struct OAuthStatusView: View {
             }
         }
         .frame(minHeight: 100)
+    }
+}
+
+private struct OAuthURLFallbackView: View {
+    let urlString: String
+    let url: URL
+    let provider: AIProvider
+    @Binding var copied: Bool
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Text("oauth.copyLinkOrOpen".localized())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Link(destination: url) {
+                HStack(spacing: 6) {
+                    Image(systemName: "link")
+                        .font(.caption)
+                        .foregroundStyle(provider.color)
+                    Text(urlString)
+                        .font(.caption.monospaced())
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.primary.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help(urlString)
+
+            HStack(spacing: 12) {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(urlString, forType: .string)
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        copied = false
+                    }
+                } label: {
+                    Label(copied ? "oauth.copied".localized() : "oauth.copyLink".localized(), systemImage: copied ? "checkmark" : "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Label("oauth.openLink".localized(), systemImage: "safari")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(provider.color)
+            }
+        }
     }
 }
 
