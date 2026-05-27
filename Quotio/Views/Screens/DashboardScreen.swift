@@ -324,13 +324,13 @@ struct DashboardScreen: View {
         .frame(maxWidth: .infinity, minHeight: 300)
     }
     
-    // MARK: - Start Proxy
+    // MARK: - Proxy Recovery
     
     private var startProxySection: some View {
         ProxyRequiredView(
             description: "dashboard.startToBegin".localized()
         ) {
-            await viewModel.startProxy()
+            await viewModel.ensureProxyRunning()
         }
         .frame(maxWidth: .infinity, minHeight: 300)
     }

@@ -49,7 +49,7 @@ struct APIKeysScreen: View {
         ProxyRequiredView(
             description: "apiKeys.proxyRequired".localized()
         ) {
-            await viewModel.startProxy()
+            await viewModel.ensureProxyRunning()
         }
     }
     

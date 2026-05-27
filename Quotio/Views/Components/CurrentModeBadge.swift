@@ -74,8 +74,10 @@ struct CurrentModeBadge: View {
         case .localProxy:
             if viewModel.proxyManager.proxyStatus.running {
                 return ":" + String(viewModel.proxyManager.port) + " - " + "status.running".localized()
+            } else if viewModel.proxyManager.isStarting {
+                return "status.starting".localized()
             } else {
-                return "status.stopped".localized()
+                return "status.recovering".localized()
             }
         case .remoteProxy:
             switch modeManager.connectionStatus {

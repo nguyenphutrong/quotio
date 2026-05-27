@@ -102,8 +102,8 @@ struct ProvidersScreen: View {
             // Failure case is silently ignored - user can retry via UI
         }
         .alert("providers.proxyRequired.title".localized(), isPresented: $showProxyRequiredAlert) {
-            Button("action.startProxy".localized()) {
-                Task { await viewModel.startProxy() }
+            Button("action.restartProxy".localized()) {
+                Task { await viewModel.ensureProxyRunning() }
             }
             Button("action.cancel".localized(), role: .cancel) {}
         } message: {

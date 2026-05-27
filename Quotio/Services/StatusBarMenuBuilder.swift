@@ -193,8 +193,8 @@ final class StatusBarMenuBuilder {
         let networkView = MenuNetworkInfoView(
             port: String(viewModel.proxyManager.port),
             isProxyRunning: viewModel.proxyManager.proxyStatus.running,
-            onProxyToggle: { [weak viewModel] in
-                Task { await viewModel?.toggleProxy() }
+            onProxyRestart: { [weak viewModel] in
+                Task { await viewModel?.ensureProxyRunning(forceRestart: true) }
             },
             onCopyProxyURL: {
                 let url = "http://127.0.0.1:\(self.viewModel.proxyManager.port)"
@@ -474,7 +474,7 @@ private struct ProviderIconMono: View {
 private struct MenuNetworkInfoView: View {
     let port: String
     let isProxyRunning: Bool
-    let onProxyToggle: () -> Void
+    let onProxyRestart: () -> Void
     let onCopyProxyURL: () -> Void
     let onTunnelToggle: () -> Void
     let onCopyTunnelURL: () -> Void
@@ -522,10 +522,10 @@ private struct MenuNetworkInfoView: View {
 
                 Spacer()
 
-                Button(action: onProxyToggle) {
-                    Image(systemName: isProxyRunning ? "stop.fill" : "play.fill")
+                Button(action: onProxyRestart) {
+                    Image(systemName: isProxyRunning ? "arrow.clockwise" : "play.fill")
                         .font(.system(size: 9))
-                        .foregroundStyle(isProxyRunning ? .red : .green)
+                        .foregroundStyle(isProxyRunning ? Color.secondary : Color.green)
                 }
                 .buttonStyle(.plain)
             }

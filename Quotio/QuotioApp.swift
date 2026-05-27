@@ -71,7 +71,7 @@ final class AppBootstrap {
             }
         }
 
-        // Load data in background (includes proxy auto-start if enabled)
+        // Load data in background and keep the local cpa-plusplus server available.
         await viewModel.initialize()
 
         #if canImport(Sparkle)
@@ -644,16 +644,16 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItem {
                     if modeManager.isLocalProxyMode {
-                        // Local proxy mode: proxy controls
+                        // Local proxy mode: start/restart control
                         if viewModel.proxyManager.isStarting {
                             SmallProgressView()
                         } else {
                             Button {
-                                Task { await viewModel.toggleProxy() }
+                                Task { await viewModel.ensureProxyRunning(forceRestart: true) }
                             } label: {
-                                Image(systemName: viewModel.proxyManager.proxyStatus.running ? "stop.fill" : "play.fill")
+                                Image(systemName: viewModel.proxyManager.proxyStatus.running ? "arrow.clockwise" : "play.fill")
                             }
-                            .help(viewModel.proxyManager.proxyStatus.running ? "action.stopProxy".localized() : "action.startProxy".localized())
+                            .help(viewModel.proxyManager.proxyStatus.running ? "action.restartProxy".localized() : "action.startProxy".localized())
                         }
                     } else {
                         // Remote mode: refresh button
@@ -755,7 +755,7 @@ struct ProxyStatusRow: View {
                 Text("status.starting".localized())
                     .font(.caption)
             } else {
-                Text(viewModel.proxyManager.proxyStatus.running ? "status.running".localized() : "status.stopped".localized())
+                Text(viewModel.proxyManager.proxyStatus.running ? "status.running".localized() : "status.recovering".localized())
                     .font(.caption)
             }
             

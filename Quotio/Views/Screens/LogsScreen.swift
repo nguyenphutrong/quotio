@@ -40,7 +40,7 @@ struct LogsScreen: View {
                 ProxyRequiredView(
                     description: "logs.startProxy".localized()
                 ) {
-                    await viewModel.startProxy()
+                    await viewModel.ensureProxyRunning()
                 }
             } else {
                 VStack(spacing: 0) {

@@ -162,10 +162,7 @@ final class QuotaViewModel {
     }
 
     private func initializeFullMode() async {
-        let autoStartProxy = UserDefaults.standard.bool(forKey: "autoStartProxy")
-        if autoStartProxy && proxyManager.isBinaryInstalled {
-            await startProxy()
-        }
+        await ensureProxyRunning()
     }
     
     private func initializeRemoteMode() async {
@@ -592,9 +589,21 @@ final class QuotaViewModel {
     
     var totalAccounts: Int { authFiles.count }
     var readyAccounts: Int { authFiles.filter { $0.isReady }.count }
+
+    func ensureProxyRunning(forceRestart: Bool = false) async {
+        guard modeManager.isLocalProxyMode else { return }
+        guard proxyManager.isBinaryInstalled else { return }
+
+        if forceRestart {
+            await restartProxy()
+        } else if !proxyManager.proxyStatus.running {
+            await startProxy()
+        }
+    }
     
     func startProxy() async {
         guard !isStartingProxyFlow else { return }
+        guard modeManager.isLocalProxyMode else { return }
         isStartingProxyFlow = true
 
         defer {
@@ -630,6 +639,33 @@ final class QuotaViewModel {
             errorMessage = error.localizedDescription
         }
     }
+
+    func restartProxy() async {
+        guard modeManager.isLocalProxyMode else { return }
+        guard proxyManager.isBinaryInstalled else { return }
+        guard !isStartingProxyFlow else { return }
+
+        if proxyManager.proxyStatus.running {
+            refreshTask?.cancel()
+            refreshTask = nil
+
+            if tunnelManager.tunnelState.isActive || tunnelManager.tunnelState.status == .starting {
+                await tunnelManager.stopTunnel()
+            }
+
+            requestTracker.stop()
+            modeManager.setServerInfo(nil)
+            restartWarmupScheduler()
+
+            let clientToInvalidate = _apiClient
+            _apiClient = nil
+            await clientToInvalidate?.invalidate()
+
+            await proxyManager.stopAndWait()
+        }
+
+        await startProxy()
+    }
     
     func stopProxy() {
         refreshTask?.cancel()
@@ -659,15 +695,7 @@ final class QuotaViewModel {
             }
         }
     }
-    
-    func toggleProxy() async {
-        if proxyManager.proxyStatus.running {
-            stopProxy()
-        } else {
-            await startProxy()
-        }
-    }
-    
+
     private func setupAPIClient() {
         _apiClient = ManagementAPIClient(
             baseURL: proxyManager.managementURL,

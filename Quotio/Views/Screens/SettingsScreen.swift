@@ -706,7 +706,6 @@ struct UnifiedProxySettingsSection: View {
 struct LocalProxyServerSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var modeManager = OperatingModeManager.shared
-    @AppStorage("autoStartProxy") private var autoStartProxy = false
     @AppStorage("autoStartTunnel") private var autoStartTunnel = false
     @AppStorage("autoRestartTunnel") private var autoRestartTunnel = false
     @AppStorage("allowNetworkAccess") private var allowNetworkAccess = false
@@ -734,7 +733,7 @@ struct LocalProxyServerSection: View {
                     Circle()
                         .fill(viewModel.proxyManager.proxyStatus.running ? .green : .gray)
                         .frame(width: 8, height: 8)
-                    Text(viewModel.proxyManager.proxyStatus.running ? "status.running".localized() : "status.stopped".localized())
+                    Text(viewModel.proxyManager.proxyStatus.running ? "status.running".localized() : "status.recovering".localized())
                 }
             }
             
@@ -789,8 +788,6 @@ struct LocalProxyServerSection: View {
             }
             
             ManagementKeyRow()
-            
-            Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
             
             Toggle("settings.autoStartTunnel".localized(), isOn: $autoStartTunnel)
                 .disabled(!viewModel.tunnelManager.installation.isInstalled)
@@ -1408,16 +1405,12 @@ struct PrivacySettingsSection: View {
 }
 
 struct GeneralSettingsTab: View {
-    @AppStorage("autoStartProxy") private var autoStartProxy = false
-    
     var body: some View {
         @Bindable var lang = LanguageManager.shared
         
         Form {
             Section {
                 LaunchAtLoginToggle()
-                
-                Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
             } header: {
                 Label("settings.startup".localized(), systemImage: "power")
             }

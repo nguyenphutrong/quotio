@@ -45,7 +45,7 @@ enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .local:
             return [
-                "Start/stop proxy server",
+                "Auto-start local cpa-plusplus",
                 "Configure proxy port and paths",
                 "Use bundled cpa-plusplus",
                 "Full OAuth authentication",
@@ -62,7 +62,7 @@ enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
     
-    /// Whether proxy start/stop controls should be shown
+    /// Whether local proxy restart controls should be shown
     var supportsProxyControl: Bool {
         self == .local
     }

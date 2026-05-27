@@ -1009,25 +1009,54 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start Proxy"
+            "value" : "Start cpa-plusplus"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Démarrer le proxy"
+            "value" : "Démarrer cpa-plusplus"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Khởi động Proxy"
+            "value" : "Khởi động cpa-plusplus"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "启动代理"
+            "value" : "启动 cpa-plusplus"
+          }
+        }
+      }
+    },
+    "action.restartProxy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart Proxy"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redémarrer le proxy"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khởi động lại Proxy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重启代理"
           }
         }
       }
@@ -1057,35 +1086,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "停止"
-          }
-        }
-      }
-    },
-    "action.stopProxy" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stop Proxy"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Arrêter le proxy"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dừng Proxy"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "停止代理"
           }
         }
       }
@@ -3217,25 +3217,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start the proxy to manage API keys"
+            "value" : "cpa-plusplus is starting so API keys can be managed."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Démarrez le proxy pour gérer les clés API"
+            "value" : "cpa-plusplus démarre pour permettre la gestion des clés API."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Khởi động proxy để quản lý khóa API"
+            "value" : "cpa-plusplus đang khởi động để quản lý API keys."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "启动代理以管理 API 密钥"
+            "value" : "cpa-plusplus 正在启动，以便管理 API 密钥。"
           }
         }
       }
@@ -5932,25 +5932,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start the proxy server to begin"
+            "value" : "Starting local cpa-plusplus. Use Restart if it does not recover."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Démarrez le serveur proxy pour commencer"
+            "value" : "Démarrage de cpa-plusplus local. Utilisez Redémarrer si la récupération échoue."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Khởi động máy chủ proxy để bắt đầu"
+            "value" : "Đang khởi động cpa-plusplus local. Dùng Khởi động lại nếu chưa phục hồi."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "启动代理服务器以开始"
+            "value" : "正在启动本地 cpa-plusplus。若未恢复，请使用重启。"
           }
         }
       }
@@ -6226,25 +6226,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy Not Running"
+            "value" : "cpa-plusplus Starting"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy non démarré"
+            "value" : "cpa-plusplus démarre"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy chưa chạy"
+            "value" : "cpa-plusplus đang khởi động"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "代理未运行"
+            "value" : "cpa-plusplus 正在启动"
           }
         }
       }
@@ -9353,25 +9353,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start the proxy to view logs"
+            "value" : "cpa-plusplus is starting so logs can be loaded."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Démarrez le proxy pour voir les journaux"
+            "value" : "cpa-plusplus démarre pour charger les journaux."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Khởi động proxy để xem nhật ký"
+            "value" : "cpa-plusplus đang khởi động để tải nhật ký."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "启动代理以查看日志"
+            "value" : "cpa-plusplus 正在启动，以便加载日志。"
           }
         }
       }
@@ -13158,25 +13158,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The proxy server must be running to add new provider accounts."
+            "value" : "cpa-plusplus must be running to add provider accounts. Quotio will try to recover it automatically."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le serveur proxy doit être en cours d'exécution pour ajouter de nouveaux comptes fournisseur."
+            "value" : "cpa-plusplus doit être en cours d'exécution pour ajouter des comptes fournisseur. Quotio tentera de le récupérer automatiquement."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cần khởi động proxy để thêm tài khoản nhà cung cấp mới."
+            "value" : "cpa-plusplus cần chạy để thêm tài khoản provider. Quotio sẽ tự thử phục hồi."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "必须运行代理服务器才能添加新的提供商账户。"
+            "value" : "必须运行 cpa-plusplus 才能添加提供商账户。Quotio 将自动尝试恢复。"
           }
         }
       }
@@ -13187,25 +13187,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy Required"
+            "value" : "cpa-plusplus Required"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy requis"
+            "value" : "cpa-plusplus requis"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cần khởi động Proxy"
+            "value" : "Cần cpa-plusplus"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要代理"
+            "value" : "需要 cpa-plusplus"
           }
         }
       }
@@ -15154,35 +15154,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "断开时自动重启隧道"
-          }
-        }
-      }
-    },
-    "settings.autoStartProxy" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto-start proxy on launch"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Démarrage automatique du proxy au lancement"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tự khởi động proxy khi mở app"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "启动时自动启动代理"
           }
         }
       }
@@ -19765,6 +19736,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "运行中"
+          }
+        }
+      }
+    },
+    "status.recovering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovering"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Récupération"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang phục hồi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在恢复"
           }
         }
       }

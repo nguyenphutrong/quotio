@@ -1,29 +1,30 @@
 //
 //  ProxyRequiredView.swift
-//  Quotio - Unified "Proxy Not Running" view component
+//  Quotio - Unified local proxy recovery view component
 //
 
 import SwiftUI
 
-/// A unified view component shown when proxy is required but not running
+/// A unified view component shown while the local proxy is starting or needs recovery.
 struct ProxyRequiredView: View {
     let title: String
     let description: String
     let icon: String
-    let onStartProxy: () async -> Void
+    let onRestartProxy: () async -> Void
     
     @State private var isStarting = false
+    @State private var hasRequestedStart = false
     
     init(
         title: String? = nil,
         description: String? = nil,
         icon: String = "network.slash",
-        onStartProxy: @escaping () async -> Void
+        onRestartProxy: @escaping () async -> Void
     ) {
         self.title = title ?? "empty.proxyNotRunning".localized()
         self.description = description ?? "dashboard.startToBegin".localized()
         self.icon = icon
-        self.onStartProxy = onStartProxy
+        self.onRestartProxy = onRestartProxy
     }
     
     var body: some View {
@@ -64,11 +65,11 @@ struct ProxyRequiredView: View {
                     .frame(maxWidth: 300)
             }
             
-            // Start button
+            // Recovery button
             Button {
                 isStarting = true
                 Task {
-                    await onStartProxy()
+                    await onRestartProxy()
                     isStarting = false
                 }
             } label: {
@@ -77,9 +78,9 @@ struct ProxyRequiredView: View {
                         SmallProgressView()
                             .tint(.white)
                     } else {
-                        Image(systemName: "play.fill")
+                        Image(systemName: "arrow.clockwise")
                     }
-                    Text("action.startProxy".localized())
+                    Text("action.restartProxy".localized())
                 }
                 .frame(minWidth: 140)
             }
@@ -90,12 +91,19 @@ struct ProxyRequiredView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
+        .task {
+            guard !hasRequestedStart else { return }
+            hasRequestedStart = true
+            isStarting = true
+            await onRestartProxy()
+            isStarting = false
+        }
     }
 }
 
 #Preview {
     ProxyRequiredView(
-        description: "Start the proxy to manage API keys"
+        description: "cpa-plusplus is starting so API keys can be managed."
     ) {
         try? await Task.sleep(nanoseconds: 1_000_000_000)
     }
