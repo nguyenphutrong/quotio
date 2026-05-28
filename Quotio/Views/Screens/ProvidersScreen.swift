@@ -160,7 +160,7 @@ struct ProvidersScreen: View {
     
     @ViewBuilder
     private var accountsSection: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             ProviderTableHeader()
 
             if filteredTableProviders.isEmpty {
@@ -205,6 +205,7 @@ struct ProvidersScreen: View {
                 }
             }
         }
+        .frame(width: ProviderTableMetrics.tableWidth, alignment: .leading)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.22))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
@@ -307,13 +308,16 @@ struct ProvidersScreen: View {
 // MARK: - Provider Table
 
 private enum ProviderTableMetrics {
-    static let providerWidth: CGFloat = 300
-    static let typeWidth: CGFloat = 92
-    static let connectionsWidth: CGFloat = 108
-    static let statusWidth: CGFloat = 118
-    static let actionsWidth: CGFloat = 168
-    static let rowHeight: CGFloat = 44
-    static let headerHeight: CGFloat = 34
+    static let providerWidth: CGFloat = 270
+    static let typeWidth: CGFloat = 76
+    static let connectionsWidth: CGFloat = 92
+    static let statusWidth: CGFloat = 106
+    static let actionsWidth: CGFloat = 148
+    static let columnSpacing: CGFloat = 12
+    static let horizontalPadding: CGFloat = 10
+    static let rowHeight: CGFloat = 38
+    static let headerHeight: CGFloat = 32
+    static let tableWidth = providerWidth + typeWidth + connectionsWidth + statusWidth + actionsWidth + (columnSpacing * 4) + (horizontalPadding * 2)
 }
 
 private struct ProvidersScreenHeader: View {
@@ -389,7 +393,7 @@ private struct ProviderTableSearchField: View {
 
 private struct ProviderTableHeader: View {
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: ProviderTableMetrics.columnSpacing) {
             Text("providers.table.provider".localized())
                 .frame(width: ProviderTableMetrics.providerWidth, alignment: .leading)
 
@@ -408,7 +412,7 @@ private struct ProviderTableHeader: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
         .textCase(.uppercase)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, ProviderTableMetrics.horizontalPadding)
         .frame(height: ProviderTableMetrics.headerHeight)
     }
 }
@@ -444,7 +448,7 @@ private struct ProviderTableProviderRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: ProviderTableMetrics.columnSpacing) {
             Button {
                 guard canExpand else { return }
                 onToggleExpanded()
@@ -455,7 +459,7 @@ private struct ProviderTableProviderRow: View {
                         .foregroundStyle(canExpand ? Color.secondary : Color.clear)
                         .frame(width: 10)
 
-                    ProviderIcon(provider: provider, size: 20)
+                    ProviderIcon(provider: provider, size: 18)
 
                     Text(provider.displayName)
                         .font(.subheadline)
@@ -482,8 +486,8 @@ private struct ProviderTableProviderRow: View {
                 onAddConnection()
             } label: {
                 Label("providers.addConnection".localized(), systemImage: "plus")
-                    .labelStyle(.titleAndIcon)
                     .font(.caption)
+                    .lineLimit(1)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -491,7 +495,7 @@ private struct ProviderTableProviderRow: View {
             .disabled(!provider.supportsManualAuth)
             .help("providers.addConnection".localized())
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, ProviderTableMetrics.horizontalPadding)
         .frame(height: ProviderTableMetrics.rowHeight)
     }
 
@@ -537,10 +541,10 @@ private struct ProviderTableAccountRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: ProviderTableMetrics.columnSpacing) {
             HStack(spacing: 10) {
                 Spacer()
-                    .frame(width: 34)
+                    .frame(width: 28)
 
                 Image(systemName: "cable.connector")
                     .font(.caption2)
@@ -633,7 +637,7 @@ private struct ProviderTableAccountRow: View {
             }
             .frame(width: ProviderTableMetrics.actionsWidth, alignment: .trailing)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, ProviderTableMetrics.horizontalPadding)
         .frame(height: ProviderTableMetrics.rowHeight)
         .contextMenu {
             Button {
