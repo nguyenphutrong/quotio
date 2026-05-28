@@ -90,7 +90,7 @@ struct ProvidersScreen: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 16) {
                 ProvidersScreenHeader(
                     isRefreshing: viewModel.isLoadingQuotas,
                     onRefresh: refreshProviders,
@@ -117,7 +117,8 @@ struct ProvidersScreen: View {
                     customProvidersSection
                 }
             }
-            .padding(24)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .navigationTitle("nav.providers".localized())
@@ -204,11 +205,11 @@ struct ProvidersScreen: View {
                 }
             }
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.22))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
 
         MenuBarHintView()
@@ -306,12 +307,13 @@ struct ProvidersScreen: View {
 // MARK: - Provider Table
 
 private enum ProviderTableMetrics {
-    static let providerWidth: CGFloat = 360
-    static let typeWidth: CGFloat = 120
-    static let connectionsWidth: CGFloat = 150
-    static let statusWidth: CGFloat = 140
-    static let actionsWidth: CGFloat = 220
-    static let rowHeight: CGFloat = 58
+    static let providerWidth: CGFloat = 300
+    static let typeWidth: CGFloat = 92
+    static let connectionsWidth: CGFloat = 108
+    static let statusWidth: CGFloat = 118
+    static let actionsWidth: CGFloat = 168
+    static let rowHeight: CGFloat = 44
+    static let headerHeight: CGFloat = 34
 }
 
 private struct ProvidersScreenHeader: View {
@@ -322,7 +324,7 @@ private struct ProvidersScreenHeader: View {
     var body: some View {
         HStack(alignment: .center) {
             Text("nav.providers".localized())
-                .font(.system(size: 28, weight: .bold))
+                .font(.title2.weight(.semibold))
 
             Spacer()
 
@@ -330,10 +332,10 @@ private struct ProvidersScreenHeader: View {
                 onRefresh()
             } label: {
                 Label("action.refresh".localized(), systemImage: "arrow.clockwise")
-                    .frame(minWidth: 112)
+                    .frame(minWidth: 88)
             }
             .buttonStyle(.bordered)
-            .controlSize(.large)
+            .controlSize(.regular)
             .disabled(isRefreshing)
             .help("action.refresh".localized())
 
@@ -341,10 +343,10 @@ private struct ProvidersScreenHeader: View {
                 onAddProvider()
             } label: {
                 Label("providers.addConnection".localized(), systemImage: "plus")
-                    .frame(minWidth: 142)
+                    .frame(minWidth: 118)
             }
             .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .controlSize(.regular)
             .tint(.orange)
             .help("providers.addConnection".localized())
         }
@@ -373,14 +375,14 @@ private struct ProviderTableSearchField: View {
                 .help("action.clear".localized())
             }
         }
-        .font(.system(size: 15))
-        .padding(.horizontal, 14)
-        .frame(width: 460, height: 40)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .font(.system(size: 14))
+        .padding(.horizontal, 12)
+        .frame(width: 360, height: 34)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.32))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.09), lineWidth: 1)
         )
     }
 }
@@ -406,8 +408,8 @@ private struct ProviderTableHeader: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
         .textCase(.uppercase)
-        .padding(.horizontal, 16)
-        .frame(height: 44)
+        .padding(.horizontal, 12)
+        .frame(height: ProviderTableMetrics.headerHeight)
     }
 }
 
@@ -449,13 +451,14 @@ private struct ProviderTableProviderRow: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: canExpand ? (isExpanded ? "chevron.down" : "chevron.right") : "chevron.right")
-                        .font(.caption.weight(.semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(canExpand ? Color.secondary : Color.clear)
-                        .frame(width: 12)
+                        .frame(width: 10)
 
-                    ProviderIcon(provider: provider, size: 22)
+                    ProviderIcon(provider: provider, size: 20)
 
                     Text(provider.displayName)
+                        .font(.subheadline)
                         .fontWeight(.medium)
                         .lineLimit(1)
                 }
@@ -480,6 +483,7 @@ private struct ProviderTableProviderRow: View {
             } label: {
                 Label("providers.addConnection".localized(), systemImage: "plus")
                     .labelStyle(.titleAndIcon)
+                    .font(.caption)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -487,7 +491,7 @@ private struct ProviderTableProviderRow: View {
             .disabled(!provider.supportsManualAuth)
             .help("providers.addConnection".localized())
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .frame(height: ProviderTableMetrics.rowHeight)
     }
 
@@ -536,14 +540,15 @@ private struct ProviderTableAccountRow: View {
         HStack(spacing: 16) {
             HStack(spacing: 10) {
                 Spacer()
-                    .frame(width: 44)
+                    .frame(width: 34)
 
                 Image(systemName: "cable.connector")
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(maskedDisplayName)
+                        .font(.subheadline)
                         .fontWeight(.medium)
                         .lineLimit(1)
 
@@ -628,7 +633,7 @@ private struct ProviderTableAccountRow: View {
             }
             .frame(width: ProviderTableMetrics.actionsWidth, alignment: .trailing)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .frame(height: ProviderTableMetrics.rowHeight)
         .contextMenu {
             Button {
@@ -707,11 +712,11 @@ private struct ProviderTypeBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.caption.weight(.semibold))
+            .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.secondary.opacity(0.14))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Color.secondary.opacity(0.1))
             .clipShape(Capsule())
     }
 }
@@ -722,11 +727,11 @@ private struct ProviderStatusBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.caption.weight(.semibold))
+            .font(.caption2.weight(.semibold))
             .foregroundStyle(isReady ? .green : .secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background((isReady ? Color.green : Color.secondary).opacity(0.12))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background((isReady ? Color.green : Color.secondary).opacity(0.1))
             .clipShape(Capsule())
     }
 }
