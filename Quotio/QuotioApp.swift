@@ -589,6 +589,9 @@ struct ContentView: View {
                         
                         // Proxy mode only (local or remote)
                         if modeManager.isProxyMode {
+                            Label("nav.models".localized(), systemImage: "list.bullet.rectangle")
+                                .tag(NavigationPage.models)
+
                             HStack(spacing: 6) {
                                 Label("nav.fallback".localized(), systemImage: "arrow.triangle.branch")
                                 ExperimentalBadge()
@@ -675,6 +678,8 @@ struct ContentView: View {
                 QuotaScreen()
             case .providers:
                 ProvidersScreen()
+            case .models:
+                ModelsScreen()
             case .fallback:
                 FallbackScreen()
             case .agents:

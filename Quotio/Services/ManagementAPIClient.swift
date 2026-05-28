@@ -319,6 +319,47 @@ actor ManagementAPIClient {
         return response.providers
     }
 
+    func fetchModelCatalog() async throws -> ManagementModelCatalog {
+        let providers = try await fetchProviders()
+        let targets = (try? await fetchVirtualModelAvailableTargets())?.targets ?? []
+        let providerIDs = Set(
+            providers.map { Self.normalizedProviderID($0.provider) }
+                + targets.map { Self.normalizedProviderID($0.provider) }
+        )
+
+        var definitionsByProvider: [String: [String: ManagementModelDefinition]] = [:]
+        for providerID in providerIDs.sorted() {
+            guard let channel = Self.modelDefinitionChannel(for: providerID) else { continue }
+            guard let response = try? await fetchModelDefinitions(channel: channel) else { continue }
+
+            var definitions: [String: ManagementModelDefinition] = [:]
+            for definition in response.models {
+                let modelID = Self.normalizedModelID(definition.id, providerID: providerID)
+                definitions[modelID] = definition
+                definitions[definition.id] = definition
+            }
+            definitionsByProvider[providerID] = definitions
+        }
+
+        return ManagementModelCatalog(
+            providers: ManagementModelCatalog.buildProviders(
+                providers: providers,
+                targets: targets,
+                definitionsByProvider: definitionsByProvider
+            )
+        )
+    }
+
+    private func fetchModelDefinitions(channel: String) async throws -> ManagementModelDefinitionsResponse {
+        let data = try await makeRequest("/model-definitions/\(channel.urlPathEncoded)")
+        return try decode(ManagementModelDefinitionsResponse.self, from: data)
+    }
+
+    private func fetchVirtualModelAvailableTargets() async throws -> VirtualModelAvailableTargetsResponse {
+        let data = try await makeRequest("/virtual-models/available-targets")
+        return try decode(VirtualModelAvailableTargetsResponse.self, from: data)
+    }
+
     func refreshProvider(id: String) async throws -> ProviderResponse {
         let data = try await makeRequest("/providers/\(id.urlPathEncoded)/refresh", method: "POST")
         return try decode(ProviderResponse.self, from: data)
@@ -628,11 +669,13 @@ nonisolated struct ProviderResponse: Codable, Sendable {
     let label: String?
     let disabled: Bool
     let projectID: String?
+    let excludedModels: [String]?
     let validation: ProviderValidation?
 
     enum CodingKeys: String, CodingKey {
         case id, type, provider, label, disabled, validation
         case projectID = "project_id"
+        case excludedModels = "excluded_models"
     }
 
     var authFile: AuthFile {
@@ -667,6 +710,7 @@ nonisolated struct ProviderResponse: Codable, Sendable {
 nonisolated struct ProviderValidation: Codable, Sendable {
     let valid: Bool?
     let authType: String?
+    let supportedModels: [String]?
     let accountIdentity: String?
     let expiresAt: String?
     let warnings: [String]?
@@ -676,9 +720,278 @@ nonisolated struct ProviderValidation: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case valid, warnings, error
         case authType = "auth_type"
+        case supportedModels = "supported_models"
         case accountIdentity = "account_identity"
         case expiresAt = "expires_at"
         case checkedAt = "checked_at"
+    }
+}
+
+// MARK: - Model Catalog Types
+
+nonisolated struct ManagementModelCatalog: Sendable {
+    let providers: [ManagementModelCatalogProvider]
+
+    var rows: [ManagementModelCatalogItem] {
+        providers.flatMap(\.models)
+    }
+
+    static func buildProviders(
+        providers: [ProviderResponse],
+        targets: [VirtualModelAvailableTarget],
+        definitionsByProvider: [String: [String: ManagementModelDefinition]]
+    ) -> [ManagementModelCatalogProvider] {
+        let providersByID = Dictionary(grouping: providers) { ManagementAPIClient.normalizedProviderID($0.provider) }
+        let targetsByID = Dictionary(grouping: targets) { ManagementAPIClient.normalizedProviderID($0.provider) }
+        let providerIDs = Set(Array(providersByID.keys) + Array(targetsByID.keys))
+
+        return providerIDs.compactMap { providerID -> ManagementModelCatalogProvider? in
+            let credentials = providersByID[providerID] ?? []
+            let targetModelIDs = Set((targetsByID[providerID] ?? []).map {
+                ManagementAPIClient.normalizedModelID($0.model, providerID: providerID)
+            })
+            var modelIDs = Set<String>()
+
+            for credential in credentials {
+                for modelID in credential.validation?.supportedModels ?? [] {
+                    modelIDs.insert(ManagementAPIClient.normalizedModelID(modelID, providerID: providerID))
+                }
+            }
+            modelIDs.formUnion(targetModelIDs)
+
+            let hasUsableCredential = credentials.contains { credential in
+                !credential.disabled && (credential.validation?.valid ?? true)
+            }
+            if modelIDs.isEmpty, hasUsableCredential, let definitions = definitionsByProvider[providerID] {
+                modelIDs.formUnion(definitions.keys)
+            }
+
+            guard !modelIDs.isEmpty else { return nil }
+
+            let aiProvider = AIProvider.fromProviderID(providerID)
+            let providerName = aiProvider?.displayName ?? providerID
+            let activeCredentials = credentials.filter { !$0.disabled && ($0.validation?.valid ?? true) }
+            let providerHasCredentials = !credentials.isEmpty
+            let providerIsAvailable = !providerHasCredentials || !activeCredentials.isEmpty || !targetModelIDs.isEmpty
+
+            let models = modelIDs.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }.map { modelID in
+                let definition = definitionsByProvider[providerID]?[modelID]
+                    ?? definitionsByProvider[providerID]?[ManagementAPIClient.prefixedModelID(providerID: providerID, modelID: modelID)]
+                let excludedCount = credentials.filter { credential in
+                    let excluded = Set((credential.excludedModels ?? []).map {
+                        ManagementAPIClient.normalizedModelID($0, providerID: providerID)
+                    })
+                    return excluded.contains(modelID)
+                }.count
+                let enabledByExclusions = credentials.isEmpty || excludedCount < credentials.count
+
+                return ManagementModelCatalogItem(
+                    id: "\(providerID)::\(modelID)",
+                    providerID: providerID,
+                    providerName: providerName,
+                    modelID: modelID,
+                    displayName: definition?.displayName ?? definition?.name,
+                    ownedBy: definition?.ownedBy,
+                    contextLength: definition?.contextLength ?? definition?.inputTokenLimit,
+                    maxOutputTokens: definition?.maxCompletionTokens ?? definition?.outputTokenLimit,
+                    isEnabled: providerIsAvailable && enabledByExclusions,
+                    isAvailable: providerIsAvailable,
+                    capabilities: ManagementModelCapability.infer(from: definition, modelID: modelID)
+                )
+            }
+
+            return ManagementModelCatalogProvider(
+                id: providerID,
+                name: providerName,
+                models: models
+            )
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+}
+
+nonisolated struct ManagementModelCatalogProvider: Identifiable, Sendable {
+    let id: String
+    let name: String
+    let models: [ManagementModelCatalogItem]
+}
+
+nonisolated struct ManagementModelCatalogItem: Identifiable, Hashable, Sendable {
+    let id: String
+    let providerID: String
+    let providerName: String
+    let modelID: String
+    let displayName: String?
+    let ownedBy: String?
+    let contextLength: Int?
+    let maxOutputTokens: Int?
+    let isEnabled: Bool
+    let isAvailable: Bool
+    let capabilities: [ManagementModelCapability]
+
+    var routeID: String {
+        ManagementAPIClient.prefixedModelID(providerID: providerID, modelID: modelID)
+    }
+}
+
+nonisolated struct ManagementModelCapability: Identifiable, Hashable, Sendable {
+    let id: String
+    let label: String
+    let localizationKey: String
+
+    static func infer(from definition: ManagementModelDefinition?, modelID: String) -> [ManagementModelCapability] {
+        let loweredID = modelID.lowercased()
+        let inputModalities = Set((definition?.supportedInputModalities ?? []).map { $0.lowercased() })
+        let parameters = Set((definition?.supportedParameters ?? []).map { $0.lowercased() })
+        let type = definition?.type?.lowercased() ?? ""
+        var capabilities: [ManagementModelCapability] = []
+
+        if definition?.thinking != nil
+            || loweredID.contains("reasoning")
+            || loweredID.contains("thinking")
+            || loweredID.contains("opus")
+            || loweredID.contains("o1")
+            || loweredID.contains("o3")
+            || loweredID.contains("o4") {
+            capabilities.append(.init(id: "reasoning", label: "R", localizationKey: "models.capability.reasoning"))
+        }
+
+        if inputModalities.contains("image")
+            || inputModalities.contains("vision")
+            || inputModalities.contains("video")
+            || loweredID.contains("vision")
+            || loweredID.contains("image")
+            || loweredID.contains("-vl") {
+            capabilities.append(.init(id: "vision", label: "V", localizationKey: "models.capability.vision"))
+        }
+
+        if parameters.contains("tools")
+            || parameters.contains("tool_choice")
+            || parameters.contains("functions")
+            || parameters.contains("function_call")
+            || loweredID.contains("tool") {
+            capabilities.append(.init(id: "tools", label: "T", localizationKey: "models.capability.tools"))
+        }
+
+        if loweredID.contains("free") || loweredID.contains("mini") || loweredID.contains("lite") {
+            capabilities.append(.init(id: "free", label: "F", localizationKey: "models.capability.free"))
+        }
+
+        if type.contains("embedding") || loweredID.contains("embed") {
+            capabilities.append(.init(id: "embedding", label: "E", localizationKey: "models.capability.embedding"))
+        }
+
+        if loweredID.contains("rerank") {
+            capabilities.append(.init(id: "rerank", label: "RR", localizationKey: "models.capability.rerank"))
+        }
+
+        return capabilities
+    }
+}
+
+nonisolated struct ManagementModelDefinitionsResponse: Decodable, Sendable {
+    let channel: String
+    let models: [ManagementModelDefinition]
+}
+
+nonisolated struct ManagementModelDefinition: Decodable, Sendable {
+    let id: String
+    let object: String?
+    let created: Int?
+    let ownedBy: String?
+    let type: String?
+    let displayName: String?
+    let name: String?
+    let version: String?
+    let description: String?
+    let inputTokenLimit: Int?
+    let outputTokenLimit: Int?
+    let contextLength: Int?
+    let maxCompletionTokens: Int?
+    let supportedParameters: [String]?
+    let supportedInputModalities: [String]?
+    let supportedOutputModalities: [String]?
+    let thinking: ManagementModelThinking?
+
+    enum CodingKeys: String, CodingKey {
+        case id, object, created, type, name, version, description, thinking
+        case ownedBy = "owned_by"
+        case displayName = "display_name"
+        case inputTokenLimit
+        case outputTokenLimit
+        case contextLength = "context_length"
+        case maxCompletionTokens = "max_completion_tokens"
+        case supportedParameters = "supported_parameters"
+        case supportedInputModalities
+        case supportedOutputModalities
+    }
+}
+
+nonisolated struct ManagementModelThinking: Decodable, Sendable {
+    let min: Int?
+    let max: Int?
+    let zeroAllowed: Bool?
+    let dynamicAllowed: Bool?
+    let levels: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case min, max, levels
+        case zeroAllowed = "zero_allowed"
+        case dynamicAllowed = "dynamic_allowed"
+    }
+}
+
+nonisolated struct VirtualModelAvailableTargetsResponse: Decodable, Sendable {
+    let targets: [VirtualModelAvailableTarget]
+}
+
+nonisolated struct VirtualModelAvailableTarget: Decodable, Sendable {
+    let provider: String
+    let model: String
+    let target: String
+}
+
+nonisolated extension ManagementAPIClient {
+    static func normalizedProviderID(_ providerID: String) -> String {
+        let trimmed = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return AIProvider.fromProviderID(trimmed)?.canonicalProviderID ?? trimmed
+    }
+
+    static func modelDefinitionChannel(for providerID: String) -> String? {
+        switch normalizedProviderID(providerID) {
+        case "anthropic":
+            return "claude"
+        case "gemini":
+            return "gemini-cli"
+        case "github-copilot":
+            return "github-copilot"
+        case "codex", "antigravity", "kiro", "kimi", "xai", "vertex":
+            return normalizedProviderID(providerID)
+        default:
+            return nil
+        }
+    }
+
+    static func normalizedModelID(_ modelID: String, providerID: String) -> String {
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let provider = normalizedProviderID(providerID)
+        var aliases = Set([provider])
+        if let aiProvider = AIProvider.fromProviderID(provider) {
+            aliases.insert(aiProvider.rawValue)
+            aliases.insert(aiProvider.canonicalProviderID)
+        }
+        if let channel = modelDefinitionChannel(for: provider) {
+            aliases.insert(channel)
+        }
+
+        for alias in aliases where trimmed.lowercased().hasPrefix(alias.lowercased() + "/") {
+            return String(trimmed.dropFirst(alias.count + 1))
+        }
+        return trimmed
+    }
+
+    static func prefixedModelID(providerID: String, modelID: String) -> String {
+        "\(normalizedProviderID(providerID))/\(modelID)"
     }
 }
 
