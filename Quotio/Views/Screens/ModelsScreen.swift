@@ -5,6 +5,7 @@
 //  Backend-backed provider model catalog.
 //
 
+import AppKit
 import SwiftUI
 
 struct ModelsScreen: View {
@@ -240,6 +241,7 @@ private struct ModelsTableHeader: View {
 
 private struct ModelsTableRow: View {
     let row: ManagementModelCatalogItem
+    @State private var didCopyModelID = false
 
     var body: some View {
         ModelsTableGrid {
@@ -278,10 +280,23 @@ private struct ModelsTableRow: View {
 
     private var modelColumn: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(row.routeID)
-                .font(.system(.callout, design: .monospaced).weight(.semibold))
-                .lineLimit(1)
-                .truncationMode(.middle)
+            HStack(spacing: 6) {
+                Text(row.routeID)
+                    .font(.system(.callout, design: .monospaced).weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Button {
+                    copyModelID()
+                } label: {
+                    Image(systemName: didCopyModelID ? "checkmark" : "doc.on.doc")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(didCopyModelID ? .green : .secondary)
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.plain)
+                .help("models.copyModelID".localized())
+            }
 
             if let detail = modelDetail {
                 Text(detail)
@@ -305,6 +320,17 @@ private struct ModelsTableRow: View {
             parts.append("\(maxOutputTokens.formatted()) out")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " / ")
+    }
+
+    private func copyModelID() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(row.routeID, forType: .string)
+        didCopyModelID = true
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            didCopyModelID = false
+        }
     }
 }
 
