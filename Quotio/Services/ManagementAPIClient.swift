@@ -225,6 +225,9 @@ actor ManagementAPIClient {
             
             guard 200...299 ~= httpResponse.statusCode else {
                 Self.log("[\(clientId)][\(requestId)] HTTP ERROR \(httpResponse.statusCode)")
+                if let apiError = Self.apiError(statusCode: httpResponse.statusCode, data: data) {
+                    throw apiError
+                }
                 throw APIError.httpError(httpResponse.statusCode)
             }
             
@@ -266,6 +269,17 @@ actor ManagementAPIClient {
             return String(url[..<range.upperBound]).dropLast().description
         }
         return url + "/v0/management"
+    }
+
+    private nonisolated static func apiError(statusCode: Int, data: Data) -> APIError? {
+        guard let response = try? JSONDecoder().decode(ManagementErrorResponse.self, from: data) else {
+            return nil
+        }
+        guard let message = response.message?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !message.isEmpty else {
+            return nil
+        }
+        return .apiError(statusCode: statusCode, code: response.error, message: message)
     }
     
     func fetchAuthFiles() async throws -> [AuthFile] {
@@ -370,7 +384,22 @@ actor ManagementAPIClient {
         return try decode(ManagementModelDefinitionsResponse.self, from: data)
     }
 
-    private func fetchVirtualModelAvailableTargets() async throws -> VirtualModelAvailableTargetsResponse {
+    func fetchVirtualModelsConfiguration() async throws -> VirtualModelsConfiguration {
+        let data = try await makeRequest("/virtual-models")
+        return try decode(VirtualModelsConfiguration.self, from: data)
+    }
+
+    func updateVirtualModelsConfiguration(_ configuration: VirtualModelsConfiguration) async throws {
+        let body = try JSONEncoder().encode(configuration)
+        _ = try await makeRequest("/virtual-models", method: "PUT", body: body)
+    }
+
+    func setVirtualModelsEnabled(_ enabled: Bool) async throws {
+        let body = try JSONEncoder().encode(VirtualModelsEnabledUpdate(enabled: enabled))
+        _ = try await makeRequest("/virtual-models/enabled", method: "PATCH", body: body)
+    }
+
+    func fetchVirtualModelAvailableTargets() async throws -> VirtualModelAvailableTargetsResponse {
         let data = try await makeRequest("/virtual-models/available-targets")
         return try decode(VirtualModelAvailableTargetsResponse.self, from: data)
     }
@@ -761,6 +790,96 @@ private nonisolated struct ProviderEnabledModelsUpdateRequest: Encodable, Sendab
     }
 }
 
+private nonisolated struct ManagementErrorResponse: Decodable, Sendable {
+    let error: String
+    let message: String?
+}
+
+// MARK: - Virtual Model Types
+
+private nonisolated struct VirtualModelsEnabledUpdate: Encodable, Sendable {
+    let enabled: Bool
+}
+
+nonisolated struct VirtualModelsConfiguration: Codable, Equatable, Sendable {
+    var enabled: Bool
+    var cacheTTL: String
+    var maxDepth: Int
+    var virtualModels: [String: VirtualModelRouteConfiguration]
+
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case cacheTTL = "cache_ttl"
+        case maxDepth = "max_depth"
+        case virtualModels = "virtual_models"
+    }
+
+    init(
+        enabled: Bool = true,
+        cacheTTL: String = "30s",
+        maxDepth: Int = 5,
+        virtualModels: [String: VirtualModelRouteConfiguration] = [:]
+    ) {
+        self.enabled = enabled
+        self.cacheTTL = cacheTTL
+        self.maxDepth = maxDepth
+        self.virtualModels = virtualModels
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        cacheTTL = try container.decodeIfPresent(String.self, forKey: .cacheTTL) ?? "30s"
+        maxDepth = try container.decodeIfPresent(Int.self, forKey: .maxDepth) ?? 5
+        virtualModels = try container.decodeIfPresent(
+            [String: VirtualModelRouteConfiguration].self,
+            forKey: .virtualModels
+        ) ?? [:]
+    }
+}
+
+nonisolated struct VirtualModelRouteConfiguration: Codable, Equatable, Sendable {
+    var enabled: Bool
+    var targets: [VirtualModelTargetConfiguration]
+
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case targets
+    }
+
+    init(enabled: Bool = true, targets: [VirtualModelTargetConfiguration] = []) {
+        self.enabled = enabled
+        self.targets = targets
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        targets = try container.decodeIfPresent([VirtualModelTargetConfiguration].self, forKey: .targets) ?? []
+    }
+}
+
+nonisolated struct VirtualModelTargetConfiguration: Codable, Equatable, Sendable {
+    var target: String
+    var enabled: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case target
+        case enabled
+    }
+
+    init(target: String, enabled: Bool = true) {
+        self.target = target
+        self.enabled = enabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        target = try container.decode(String.self, forKey: .target)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+    }
+}
+
 private nonisolated struct ManagementModelCatalogAPIResponse: Decodable, Sendable {
     let providers: [ManagementModelCatalogAPIProvider]
 
@@ -1077,14 +1196,16 @@ nonisolated struct ManagementModelThinking: Decodable, Sendable {
     }
 }
 
-nonisolated struct VirtualModelAvailableTargetsResponse: Decodable, Sendable {
+nonisolated struct VirtualModelAvailableTargetsResponse: Codable, Sendable {
     let targets: [VirtualModelAvailableTarget]
 }
 
-nonisolated struct VirtualModelAvailableTarget: Decodable, Sendable {
+nonisolated struct VirtualModelAvailableTarget: Codable, Hashable, Identifiable, Sendable {
     let provider: String
     let model: String
     let target: String
+
+    var id: String { target }
 }
 
 nonisolated extension ManagementAPIClient {
@@ -1437,6 +1558,7 @@ nonisolated enum APIError: LocalizedError {
     case invalidURL
     case invalidResponse
     case httpError(Int)
+    case apiError(statusCode: Int, code: String, message: String)
     case decodingError(String)
     case connectionError(String)
     case urlError(URLError)
@@ -1450,6 +1572,7 @@ nonisolated enum APIError: LocalizedError {
         case .httpError(404): return "Unsupported endpoint: requires cpa++ API support"
         case .httpError(let code) where 500...599 ~= code: return "Server error: \(code)"
         case .httpError(let code): return "HTTP error: \(code)"
+        case .apiError(_, _, let message): return message
         case .decodingError(let msg): return "Decoding error: \(msg)"
         case .connectionError(let msg): return "Connection error: \(msg)"
         case .urlError(let error):

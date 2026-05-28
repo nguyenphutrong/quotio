@@ -7648,25 +7648,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Model Fallback"
+            "value" : "Virtual Models"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repli de modèle"
+            "value" : "Modèles virtuels"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dự phòng mô hình"
+            "value" : "Mô hình ảo"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "模型回退"
+            "value" : "虚拟模型"
           }
         }
       }
@@ -7756,6 +7756,558 @@
             "value" : "虚拟模型映射到真实的提供商模型，当配额耗尽时自动回退。"
           }
         }
+      }
+    },
+    "virtualModels.addSelected" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add selected" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ajouter la sélection" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thêm mục đã chọn" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加所选" } }
+      }
+    },
+    "virtualModels.addTarget" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add target" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ajouter une cible" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thêm target" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加目标" } }
+      }
+    },
+    "virtualModels.addTargetDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose concrete targets or add a bare virtual model reference for %@." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Choisissez des cibles concrètes ou ajoutez une référence de modèle virtuel nue pour %@." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chọn target cụ thể hoặc thêm tham chiếu bare virtual model cho %@." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为 %@ 选择具体目标，或添加裸虚拟模型引用。" } }
+      }
+    },
+    "virtualModels.addTargetTitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add target" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ajouter une cible" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thêm target" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加目标" } }
+      }
+    },
+    "virtualModels.alreadyAdded" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Already added" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déjà ajouté" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã thêm" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已添加" } }
+      }
+    },
+    "virtualModels.cacheTTL" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cache TTL" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "TTL du cache" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cache TTL" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "缓存 TTL" } }
+      }
+    },
+    "virtualModels.cacheTTLHelp" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Duration such as 30s or 1m." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Durée comme 30s ou 1m." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thời lượng như 30s hoặc 1m." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "例如 30s 或 1m。" } }
+      }
+    },
+    "virtualModels.concreteTarget" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Concrete provider/model target" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Cible fournisseur/modèle concrète" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Target provider/model cụ thể" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "具体 provider/model 目标" } }
+      }
+    },
+    "virtualModels.configuration" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Configuration" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Configuration" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cấu hình" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "配置" } }
+      }
+    },
+    "virtualModels.configuredModels" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Configured models" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Modèles configurés" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mô hình đã cấu hình" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已配置模型" } }
+      }
+    },
+    "virtualModels.configuredModelsDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Create, edit, disable, and reorder explicit fallback chains." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créez, modifiez, désactivez et réordonnez les chaînes de repli explicites." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tạo, sửa, tắt và sắp xếp lại các fallback chain tường minh." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建、编辑、禁用并重排显式 fallback 链。" } }
+      }
+    },
+    "virtualModels.create" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Create" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créer" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tạo" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建" } }
+      }
+    },
+    "virtualModels.createDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Bare model names route through virtual models. Provider/model requests bypass this routing." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les noms de modèle nus passent par les modèles virtuels. Les requêtes fournisseur/modèle contournent ce routage." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bare model name sẽ đi qua virtual models. Request provider/model sẽ bypass routing này." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "裸模型名会经过虚拟模型路由。provider/model 请求会绕过该路由。" } }
+      }
+    },
+    "virtualModels.createFirst" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Create first model" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créer le premier modèle" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tạo mô hình đầu tiên" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建第一个模型" } }
+      }
+    },
+    "virtualModels.createHelp" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Create a virtual model draft." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créer un brouillon de modèle virtuel." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tạo draft virtual model." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建虚拟模型草稿。" } }
+      }
+    },
+    "virtualModels.createTitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Create virtual model" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créer un modèle virtuel" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tạo virtual model" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建虚拟模型" } }
+      }
+    },
+    "virtualModels.deleteModelMessage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete \"%@\" from the draft? This is not sent until you save." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer \"%@\" du brouillon ? Ce ne sera envoyé qu'après l'enregistrement." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Xoá \"%@\" khỏi draft? Thay đổi chỉ gửi khi bạn lưu." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从草稿中删除“%@”？保存前不会发送。" } }
+      }
+    },
+    "virtualModels.deleteModelTitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete virtual model?" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer le modèle virtuel ?" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Xoá virtual model?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除虚拟模型？" } }
+      }
+    },
+    "virtualModels.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Configure bare model names that resolve to ordered provider/model fallback targets." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Configurez des noms de modèle nus qui se résolvent vers des cibles fournisseur/modèle ordonnées." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cấu hình bare model name trỏ tới danh sách target provider/model theo thứ tự fallback." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "配置裸模型名，使其解析为有序的 provider/model fallback 目标。" } }
+      }
+    },
+    "virtualModels.disabled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disabled" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Désactivé" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã tắt" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已禁用" } }
+      }
+    },
+    "virtualModels.emptyDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Create a bare model name such as fast-agent, then add ordered targets." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créez un nom de modèle nu comme fast-agent, puis ajoutez des cibles ordonnées." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tạo bare model name như fast-agent, rồi thêm các target theo thứ tự." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建如 fast-agent 的裸模型名，然后添加有序目标。" } }
+      }
+    },
+    "virtualModels.emptyTitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No virtual models" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucun modèle virtuel" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chưa có virtual model" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有虚拟模型" } }
+      }
+    },
+    "virtualModels.enabled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enabled" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Activé" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang bật" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已启用" } }
+      }
+    },
+    "virtualModels.globalRouting" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Global routing" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Routage global" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Global routing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全局路由" } }
+      }
+    },
+    "virtualModels.globalRoutingDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enable virtual routing for bare model names only." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Active le routage virtuel uniquement pour les noms de modèle nus." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chỉ bật virtual routing cho bare model name." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅对裸模型名启用虚拟路由。" } }
+      }
+    },
+    "virtualModels.invalidDraft" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fix validation issues" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Corriger les erreurs de validation" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Sửa lỗi validate" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "修复校验问题" } }
+      }
+    },
+    "virtualModels.loadFailed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not load virtual models" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Impossible de charger les modèles virtuels" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không tải được virtual models" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载虚拟模型" } }
+      }
+    },
+    "virtualModels.loading" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading virtual models..." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Chargement des modèles virtuels..." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang tải virtual models..." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载虚拟模型..." } }
+      }
+    },
+    "virtualModels.manualTarget" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual nested virtual model" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Modèle virtuel imbriqué manuel" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nested virtual model nhập tay" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "手动嵌套虚拟模型" } }
+      }
+    },
+    "virtualModels.manualTargetHelp" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use a bare virtual model name only, without provider/model slash." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utilisez uniquement un nom de modèle virtuel nu, sans barre fournisseur/modèle." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chỉ nhập bare virtual model name, không có dấu / provider/model." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅使用裸虚拟模型名，不包含 provider/model 斜杠。" } }
+      }
+    },
+    "virtualModels.manualTargetNoSlash" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual nested targets must be bare names without /." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les cibles imbriquées manuelles doivent être des noms nus sans /." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nested target nhập tay phải là bare name, không có /." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "手动嵌套目标必须是不含 / 的裸名称。" } }
+      }
+    },
+    "virtualModels.manualTargetPlaceholder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "oracle" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "oracle" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "oracle" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "oracle" } }
+      }
+    },
+    "virtualModels.manualTargetSelf" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "A virtual model cannot target itself." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Un modèle virtuel ne peut pas se cibler lui-même." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Virtual model không thể trỏ tới chính nó." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟模型不能指向自身。" } }
+      }
+    },
+    "virtualModels.maxDepth" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Max depth" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Profondeur max" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Độ sâu tối đa" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最大深度" } }
+      }
+    },
+    "virtualModels.maxDepthHelp" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Limits nested virtual model expansion." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Limite l'expansion des modèles virtuels imbriqués." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giới hạn độ sâu nested virtual model." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "限制嵌套虚拟模型展开深度。" } }
+      }
+    },
+    "virtualModels.modelName" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Virtual model name" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Nom du modèle virtuel" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tên virtual model" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟模型名称" } }
+      }
+    },
+    "virtualModels.modelNamePlaceholder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "fast-agent" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "fast-agent" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "fast-agent" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "fast-agent" } }
+      }
+    },
+    "virtualModels.moveDown" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Move target down" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Descendre la cible" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Di chuyển target xuống" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下移目标" } }
+      }
+    },
+    "virtualModels.moveUp" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Move target up" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Monter la cible" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Di chuyển target lên" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上移目标" } }
+      }
+    },
+    "virtualModels.nameDuplicate" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "A virtual model with this name already exists." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Un modèle virtuel porte déjà ce nom." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã có virtual model với tên này." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已存在同名虚拟模型。" } }
+      }
+    },
+    "virtualModels.nameHelp" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use a bare model name. Do not include provider/model slash." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utilisez un nom de modèle nu. N'incluez pas de barre fournisseur/modèle." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Dùng bare model name. Không nhập dạng provider/model." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用裸模型名。不要包含 provider/model 斜杠。" } }
+      }
+    },
+    "virtualModels.nameNoSlash" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Virtual model names cannot contain /." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les noms de modèle virtuel ne peuvent pas contenir /." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tên virtual model không được chứa /." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟模型名称不能包含 /。" } }
+      }
+    },
+    "virtualModels.nestedVirtualModel" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Nested virtual model reference" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Référence de modèle virtuel imbriqué" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tham chiếu nested virtual model" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "嵌套虚拟模型引用" } }
+      }
+    },
+    "virtualModels.noAvailableTargets" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No available targets" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucune cible disponible" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chưa có target khả dụng" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有可用目标" } }
+      }
+    },
+    "virtualModels.noAvailableTargetsDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Refresh after the backend has loaded provider models, or add a manual nested virtual model." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Actualisez après le chargement des modèles fournisseur, ou ajoutez un modèle virtuel imbriqué manuel." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Refresh sau khi backend tải provider models, hoặc thêm nested virtual model nhập tay." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "后端加载 provider 模型后刷新，或添加手动嵌套虚拟模型。" } }
+      }
+    },
+    "virtualModels.noTargetMatches" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No matching targets" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucune cible correspondante" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không có target phù hợp" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有匹配目标" } }
+      }
+    },
+    "virtualModels.noTargetMatchesDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Try another model or provider search." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Essayez une autre recherche de modèle ou fournisseur." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thử tìm model hoặc provider khác." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尝试搜索其他模型或 provider。" } }
+      }
+    },
+    "virtualModels.noTargets" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No targets yet. Add at least one fallback target before saving." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucune cible. Ajoutez au moins une cible de repli avant d'enregistrer." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chưa có target. Thêm ít nhất một fallback target trước khi lưu." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有目标。保存前至少添加一个 fallback 目标。" } }
+      }
+    },
+    "virtualModels.refreshHelp" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reload virtual model configuration from the backend." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Recharge la configuration depuis le backend." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tải lại cấu hình virtual model từ backend." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从后端重新加载虚拟模型配置。" } }
+      }
+    },
+    "virtualModels.refreshTargets" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Refresh available targets" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Actualiser les cibles disponibles" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Refresh target khả dụng" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "刷新可用目标" } }
+      }
+    },
+    "virtualModels.renameTitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rename virtual model" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Renommer le modèle virtuel" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đổi tên virtual model" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重命名虚拟模型" } }
+      }
+    },
+    "virtualModels.saveFailed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save failed" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Échec de l'enregistrement" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Lưu thất bại" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存失败" } }
+      }
+    },
+    "virtualModels.saveHelp" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save the full virtual models payload to the backend." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistre tout le payload des modèles virtuels sur le backend." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Lưu toàn bộ payload virtual models lên backend." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将完整虚拟模型 payload 保存到后端。" } }
+      }
+    },
+    "virtualModels.saved" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Saved" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistré" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã lưu" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存" } }
+      }
+    },
+    "virtualModels.searchTargets" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search models, providers, or targets" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rechercher des modèles, fournisseurs ou cibles" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tìm model, provider hoặc target" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索模型、provider 或目标" } }
+      }
+    },
+    "virtualModels.selectedTargetsFormat" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d selected" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%d sélectionné(s)" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã chọn %d" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选择 %d 个" } }
+      }
+    },
+    "virtualModels.targetAlreadyAdded" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This target is already in the chain." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Cette cible est déjà dans la chaîne." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Target này đã có trong chain." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "该目标已在链中。" } }
+      }
+    },
+    "virtualModels.targetCountFormat" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d targets" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%d cibles" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%d target" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%d 个目标" } }
+      }
+    },
+    "virtualModels.targetsAvailableFormat" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d targets available" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%d cibles disponibles" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%d target khả dụng" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%d 个可用目标" } }
+      }
+    },
+    "virtualModels.targetsLoadFailed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not load available targets" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Impossible de charger les cibles disponibles" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không tải được target khả dụng" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载可用目标" } }
+      }
+    },
+    "virtualModels.unsavedChanges" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unsaved changes" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Modifications non enregistrées" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Có thay đổi chưa lưu" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未保存的更改" } }
+      }
+    },
+    "virtualModels.unsavedChangesDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save sends the full edited payload to the backend. Failed saves keep this draft intact." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrer envoie tout le payload modifié au backend. Les échecs conservent ce brouillon." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Save sẽ gửi toàn bộ payload đã chỉnh lên backend. Nếu lưu lỗi, draft vẫn được giữ nguyên." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存会将完整编辑后的 payload 发送到后端。保存失败会保留草稿。" } }
+      }
+    },
+    "virtualModels.validation.cacheTTLRequired" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cache TTL is required." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Le TTL du cache est requis." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cache TTL là bắt buộc." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "必须填写缓存 TTL。" } }
+      }
+    },
+    "virtualModels.validation.duplicateNames" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Virtual model names must be unique." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les noms de modèle virtuel doivent être uniques." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tên virtual model phải là duy nhất." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟模型名称必须唯一。" } }
+      }
+    },
+    "virtualModels.validation.emptyTargetsFormat" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "\"%@\" needs at least one target." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "\"%@\" nécessite au moins une cible." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "\"%@\" cần ít nhất một target." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "“%@” 至少需要一个目标。" } }
+      }
+    },
+    "virtualModels.validation.maxDepthRequired" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Max depth must be at least 1." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "La profondeur maximale doit être au moins 1." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Độ sâu tối đa phải ít nhất là 1." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最大深度必须至少为 1。" } }
+      }
+    },
+    "virtualModels.validation.nameNoSlashFormat" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "\"%@\" cannot contain /." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "\"%@\" ne peut pas contenir /." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "\"%@\" không được chứa /." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "“%@” 不能包含 /。" } }
+      }
+    },
+    "virtualModels.validation.nameRequired" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Virtual model name is required." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Le nom du modèle virtuel est requis." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tên virtual model là bắt buộc." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "必须填写虚拟模型名称。" } }
+      }
+    },
+    "virtualModels.validation.targetRequiredFormat" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "\"%@\" has an empty target." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "\"%@\" contient une cible vide." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "\"%@\" có target rỗng." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "“%@” 有空目标。" } }
       }
     },
     "Filter" : {
@@ -11238,25 +11790,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fallback"
+            "value" : "Virtual Models"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repli"
+            "value" : "Modèles virtuels"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dự phòng"
+            "value" : "Mô hình ảo"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "回退"
+            "value" : "虚拟模型"
           }
         }
       }

@@ -1,362 +1,428 @@
 //
 //  FallbackSheets.swift
-//  Quotio - Fallback Configuration Sheets
+//  Quotio
 //
 
+import AppKit
 import SwiftUI
 
-// MARK: - Virtual Model Sheet
+enum VirtualModelNameSheetMode {
+    case create
+    case edit
 
-struct VirtualModelSheet: View {
-    let virtualModel: VirtualModel?
-    let onSave: (String) -> Void
-    let onDismiss: () -> Void
+    var titleKey: String {
+        switch self {
+        case .create:
+            return "virtualModels.createTitle"
+        case .edit:
+            return "virtualModels.renameTitle"
+        }
+    }
+
+    var actionKey: String {
+        switch self {
+        case .create:
+            return "action.create"
+        case .edit:
+            return "action.save"
+        }
+    }
+}
+
+struct VirtualModelNameSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let mode: VirtualModelNameSheetMode
+    let existingNames: Set<String>
+    let originalName: String?
+    var onSave: (String) -> Void
 
     @State private var name: String = ""
-    @State private var showValidationError = false
+    @State private var didSubmit = false
 
-    private var isEditing: Bool {
-        virtualModel != nil
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var isValidName: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var validationMessage: String? {
+        if trimmedName.isEmpty {
+            return "virtualModels.validation.nameRequired".localized()
+        }
+        if trimmedName.contains("/") {
+            return "virtualModels.nameNoSlash".localized()
+        }
+
+        let lowercasedNames = Set(existingNames.map { $0.lowercased() })
+        let lowercasedOriginal = originalName?.lowercased()
+        if lowercasedNames.contains(trimmedName.lowercased()),
+           trimmedName.lowercased() != lowercasedOriginal {
+            return "virtualModels.nameDuplicate".localized()
+        }
+
+        return nil
+    }
+
+    private var canSave: Bool {
+        validationMessage == nil && trimmedName != (originalName ?? "")
     }
 
     var body: some View {
-        VStack(spacing: 24) {
-            // Header
-            VStack(spacing: 8) {
-                Image(systemName: isEditing ? "pencil.circle.fill" : "plus.circle.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.blue)
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(mode.titleKey.localized())
+                        .font(.title3.weight(.semibold))
+                    Text("virtualModels.createDescription".localized())
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                Text(isEditing ? "fallback.editVirtualModel".localized() : "fallback.createVirtualModel".localized())
-                    .font(.title2)
-                    .fontWeight(.bold)
+                Spacer()
 
-                Text("fallback.virtualModelDescription".localized())
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.plain)
+                .help("action.close".localized())
             }
 
-            // Name input
-            VStack(alignment: .leading, spacing: 6) {
-                Text("fallback.modelName".localized())
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+            VStack(alignment: .leading, spacing: 7) {
+                Text("virtualModels.modelName".localized())
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
 
-                TextField("fallback.modelNamePlaceholder".localized(), text: $name)
+                TextField("virtualModels.modelNamePlaceholder".localized(), text: $name)
                     .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .onSubmit(save)
 
-                if showValidationError && !isValidName {
-                    Text("fallback.nameRequired".localized())
+                if didSubmit, let validationMessage {
+                    Text(validationMessage)
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
 
-                Text("fallback.modelNameHint".localized())
+                Text("virtualModels.nameHelp".localized())
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: 320)
 
-            // Buttons
-            HStack(spacing: 16) {
+            Divider()
+
+            HStack {
+                Spacer()
                 Button("action.cancel".localized(), role: .cancel) {
-                    onDismiss()
+                    dismiss()
                 }
-                .buttonStyle(.bordered)
+                .keyboardShortcut(.cancelAction)
 
-                Button {
-                    if isValidName {
-                        onSave(name.trimmingCharacters(in: .whitespacesAndNewlines))
-                        onDismiss()
-                    } else {
-                        showValidationError = true
-                    }
-                } label: {
-                    Text(isEditing ? "action.save".localized() : "action.create".localized())
+                Button(mode.actionKey.localized()) {
+                    save()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!isValidName)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canSave)
             }
         }
-        .padding(40)
-        .frame(width: 440)
+        .padding(24)
+        .frame(width: 460)
         .onAppear {
-            if let model = virtualModel {
-                name = model.name
-            }
+            name = originalName ?? ""
         }
+    }
+
+    private func save() {
+        didSubmit = true
+        guard canSave else { return }
+        onSave(trimmedName)
+        dismiss()
     }
 }
 
-// MARK: - Add Fallback Entry Sheet
+struct VirtualModelTargetSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let modelName: String
+    let availableTargets: [VirtualModelAvailableTarget]
+    let existingTargets: [String]
+    var onAdd: ([String]) -> Void
 
-struct AddFallbackEntrySheet: View {
-    let virtualModelId: UUID
-    let virtualModelName: String
-    let existingEntries: [FallbackEntry]
-    let availableModels: [AvailableModel]
-    let onAdd: (AIProvider, String) -> Void
-    let onDismiss: () -> Void
-    /// Optional async refresh callback. Returns `true` on success, `false` on failure.
-    var onRefresh: (() async -> Bool)? = nil
+    @State private var searchText = ""
+    @State private var selectedTargets: Set<String> = []
+    @State private var manualTarget = ""
+    @State private var didSubmit = false
 
-    @State private var selectedModelId: String = ""
-    @State private var showValidationError = false
-
-    // MARK: Refresh State
-    @State private var isRefreshing = false
-    /// Transient feedback after refresh completes: nil = none, true = success, false = failure.
-    @State private var refreshSuccess: Bool?
-
-    /// The model type of the virtual model (determined by its name)
-    private var virtualModelType: ModelType {
-        ModelType.detect(from: virtualModelName)
+    private var existingTargetSet: Set<String> {
+        Set(existingTargets.map { $0.lowercased() })
     }
 
-    private var existingModelIds: Set<String> {
-        Set(existingEntries.map { $0.modelId })
+    private var trimmedManualTarget: String {
+        manualTarget.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func isSelectableModel(_ model: AvailableModel) -> Bool {
-        model.provider.lowercased() != "fallback" &&
-        !existingModelIds.contains(model.id) &&
-        ModelType.detect(from: model.id) == virtualModelType
-    }
-
-    /// Filter out virtual models, already added entries, and incompatible model types
-    private var filteredModels: [AvailableModel] {
-        availableModels.filter { isSelectableModel($0) }
-    }
-
-    /// Get the selected model object
-    private var selectedModel: AvailableModel? {
-        filteredModels.first { $0.id == selectedModelId }
-    }
-
-    /// Maps a model to its hosting AIProvider for icon display.
-    ///
-    /// Aggregator providers (Copilot, Antigravity, Kiro) host models from other providers,
-    /// so their model IDs carry the underlying provider's prefix (e.g., Copilot's
-    /// `claude-3.5-sonnet`). The `provider` field from the proxy API (`owned_by`) is the
-    /// most reliable source and is checked first. Model ID prefix matching serves as a
-    /// fallback for models with unknown or missing provider metadata.
-    private func providerFromModel(_ model: AvailableModel) -> AIProvider {
-        let providerName = model.provider.lowercased()
-        let modelId = model.id.lowercased()
-
-        // FIRST: Try exact match on provider field (most reliable — from proxy API owned_by)
-        // e.g., "github-copilot" -> .copilot, "antigravity" -> .antigravity
-        for provider in AIProvider.allCases {
-            if provider.rawValue.lowercased() == providerName {
-                return provider
-            }
+    private var manualValidationMessage: String? {
+        guard !trimmedManualTarget.isEmpty else { return nil }
+        if trimmedManualTarget.contains("/") {
+            return "virtualModels.manualTargetNoSlash".localized()
         }
-
-        // SECOND: Try to match by model ID prefix (fallback for unknown provider strings)
-        // e.g., "kiro-claude-xxx" -> kiro, "gemini-claude-xxx" -> gemini
-        for provider in AIProvider.allCases {
-            let providerKey = provider.rawValue.lowercased()
-            if modelId.hasPrefix(providerKey + "-") || modelId.hasPrefix(providerKey + "_") {
-                return provider
-            }
+        if trimmedManualTarget.lowercased() == modelName.lowercased() {
+            return "virtualModels.manualTargetSelf".localized()
         }
-
-        // THIRD: Try to infer from model ID content (for models without prefix)
-        if modelId.contains("kiro") {
-            return .kiro
-        } else if modelId.contains("gemini") {
-            return .gemini
-        } else if modelId.contains("copilot") {
-            return .copilot
-        } else if modelId.contains("codex") {
-            return .codex
+        if existingTargetSet.contains(trimmedManualTarget.lowercased()) {
+            return "virtualModels.targetAlreadyAdded".localized()
         }
-
-        // Default to claude for generic claude models
-        return .claude
+        return nil
     }
 
-    private var isValidEntry: Bool {
-        !selectedModelId.isEmpty && selectedModel != nil
+    private var filteredTargets: [VirtualModelAvailableTarget] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return availableTargets }
+        return availableTargets.filter { target in
+            [
+                target.provider,
+                target.model,
+                target.target
+            ]
+            .joined(separator: " ")
+            .lowercased()
+            .contains(query)
+        }
+    }
+
+    private var canAdd: Bool {
+        let hasValidManualTarget = !trimmedManualTarget.isEmpty && manualValidationMessage == nil
+        let hasInvalidManualTarget = !trimmedManualTarget.isEmpty && manualValidationMessage != nil
+        return !hasInvalidManualTarget && (!selectedTargets.isEmpty || hasValidManualTarget)
     }
 
     var body: some View {
-        VStack(spacing: 24) {
-            // Header
-            VStack(spacing: 8) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.green)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("virtualModels.addTargetTitle".localized())
+                        .font(.title3.weight(.semibold))
+                    Text(String(format: "virtualModels.addTargetDescription".localized(), modelName))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                Text("fallback.addFallbackEntry".localized())
-                    .font(.title2)
-                    .fontWeight(.bold)
+                Spacer()
 
-                Text("fallback.addEntryDescription".localized())
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.plain)
+                .help("action.close".localized())
             }
 
-            // Model selection
-            VStack(alignment: .leading, spacing: 6) {
-                Text("fallback.modelId".localized())
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+            searchField
 
-                if filteredModels.isEmpty {
-                    // Manual input when no models available
-                    HStack(spacing: 8) {
-                        Text("fallback.noModelsHint".localized())
-                            .font(.caption)
-                            .foregroundStyle(.orange)
+            targetsList
 
-                        if onRefresh != nil {
-                            refreshButton
-                        }
-                    }
-                    .padding(.vertical, 8)
-                } else {
-                    // Picker for model selection - grouped by provider
-                    HStack(spacing: 8) {
-                        Picker("", selection: $selectedModelId) {
-                            Text("fallback.selectModelPlaceholder".localized())
-                                .tag("")
+            manualTargetField
 
-                            let providers = Set(filteredModels.map { $0.provider }).sorted()
+            Divider()
 
-                            ForEach(providers, id: \.self) { provider in
-                                Section(header: Text(provider.capitalized)) {
-                                    ForEach(filteredModels.filter { $0.provider == provider }) { model in
-                                        Text(model.displayName)
-                                            .tag(model.id)
+            HStack {
+                Text(String(format: "virtualModels.selectedTargetsFormat".localized(), selectedTargets.count))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button("action.cancel".localized(), role: .cancel) {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("virtualModels.addSelected".localized()) {
+                    addTargets()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canAdd)
+            }
+        }
+        .padding(24)
+        .frame(width: 640, height: 620)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+
+            TextField("virtualModels.searchTargets".localized(), text: $searchText)
+                .textFieldStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 36)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.28))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+        )
+    }
+
+    private var targetsList: some View {
+        VStack(spacing: 0) {
+            if availableTargets.isEmpty {
+                VirtualModelSheetMessage(
+                    title: "virtualModels.noAvailableTargets".localized(),
+                    message: "virtualModels.noAvailableTargetsDescription".localized()
+                )
+            } else if filteredTargets.isEmpty {
+                VirtualModelSheetMessage(
+                    title: "virtualModels.noTargetMatches".localized(),
+                    message: "virtualModels.noTargetMatchesDescription".localized()
+                )
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredTargets) { target in
+                            VirtualModelAvailableTargetRow(
+                                target: target,
+                                isSelected: selectedTargets.contains(target.target),
+                                isExisting: existingTargetSet.contains(target.target.lowercased()),
+                                onToggle: { selected in
+                                    if selected {
+                                        selectedTargets.insert(target.target)
+                                    } else {
+                                        selectedTargets.remove(target.target)
                                     }
                                 }
+                            )
+
+                            if target.id != (filteredTargets.last?.id ?? "") {
+                                Divider()
+                                    .padding(.leading, 44)
                             }
                         }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-
-                        if onRefresh != nil {
-                            refreshButton
-                        }
                     }
                 }
-
-                if showValidationError && !isValidEntry {
-                    Text("fallback.entryRequired".localized())
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                // Show selected model info
-                if let model = selectedModel {
-                    HStack(spacing: 8) {
-                        let provider = providerFromModel(model)
-                        ProviderIcon(provider: provider, size: 16)
-                        Text(provider.displayName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("→")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                        Text(model.id)
-                            .font(.caption)
-                            .fontDesign(.monospaced)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.top, 4)
-                }
-            }
-            .frame(maxWidth: 400)
-
-            // Buttons
-            HStack(spacing: 16) {
-                Button("action.cancel".localized(), role: .cancel) {
-                    onDismiss()
-                }
-                .buttonStyle(.bordered)
-
-                Button {
-                    if isValidEntry, let model = selectedModel {
-                        let provider = providerFromModel(model)
-                        onAdd(provider, model.id)
-                        onDismiss()
-                    } else {
-                        showValidationError = true
-                    }
-                } label: {
-                    Label("fallback.addEntry".localized(), systemImage: "plus")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!isValidEntry)
             }
         }
-        .padding(40)
-        .frame(width: 480)
+        .frame(maxWidth: .infinity, minHeight: 260, maxHeight: 300)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.09), lineWidth: 1)
+        )
     }
 
-    // MARK: - Refresh Button
+    private var manualTargetField: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("virtualModels.manualTarget".localized())
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
 
-    private var refreshButton: some View {
-        Button {
-            guard !isRefreshing else { return }
-            isRefreshing = true
-            refreshSuccess = nil
+            TextField("virtualModels.manualTargetPlaceholder".localized(), text: $manualTarget)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .onSubmit(addTargets)
 
-            Task {
-                let success = await onRefresh?() ?? false
-
-                await MainActor.run {
-                    isRefreshing = false
-                    refreshSuccess = success
-
-                    // Clear invalid selection after model list updates
-                    if selectedModel == nil {
-                        selectedModelId = ""
-                    }
-                }
-
-                // Show feedback icon briefly, then clear
-                try? await Task.sleep(nanoseconds: 1_200_000_000)
-                await MainActor.run {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        refreshSuccess = nil
-                    }
-                }
-            }
-        } label: {
-            Group {
-                if let success = refreshSuccess {
-                    Image(systemName: success ? "checkmark" : "xmark")
-                        .foregroundStyle(success ? .green : .red)
-                } else if isRefreshing {
-                    // TimelineView drives per-frame rotation for smooth continuous spin
-                    TimelineView(.animation) { context in
-                        Image(systemName: "arrow.clockwise")
-                            .rotationEffect(.degrees(
-                                context.date.timeIntervalSinceReferenceDate
-                                    .truncatingRemainder(dividingBy: 1) * 360
-                            ))
-                    }
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                }
+            if (didSubmit || !trimmedManualTarget.isEmpty), let manualValidationMessage {
+                Text(manualValidationMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else {
+                Text("virtualModels.manualTargetHelp".localized())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .disabled(isRefreshing || refreshSuccess != nil)
+    }
+
+    private func addTargets() {
+        didSubmit = true
+        guard canAdd else { return }
+
+        var targets = availableTargets
+            .filter { selectedTargets.contains($0.target) }
+            .map(\.target)
+
+        if !trimmedManualTarget.isEmpty {
+            targets.append(trimmedManualTarget)
+        }
+
+        onAdd(targets)
+        dismiss()
     }
 }
 
-// MARK: - UUID Extension for Sheet Binding
+private struct VirtualModelAvailableTargetRow: View {
+    let target: VirtualModelAvailableTarget
+    let isSelected: Bool
+    let isExisting: Bool
+    var onToggle: (Bool) -> Void
 
-extension UUID: @retroactive Identifiable {
-    public var id: UUID { self }
+    var body: some View {
+        HStack(spacing: 10) {
+            Toggle("", isOn: Binding(
+                get: { isSelected },
+                set: onToggle
+            ))
+            .labelsHidden()
+            .disabled(isExisting)
+
+            if let provider = AIProvider.fromProviderID(target.provider) {
+                ProviderIcon(provider: provider, size: 22)
+            } else {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(target.target)
+                    .font(.system(.callout, design: .monospaced).weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Text(target.provider)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            if isExisting {
+                Text("virtualModels.alreadyAdded".localized())
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.secondary.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .opacity(isExisting ? 0.55 : 1)
+    }
+}
+
+private struct VirtualModelSheetMessage: View {
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(title)
+                .font(.headline)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, minHeight: 220, alignment: .center)
+        .padding()
+    }
 }

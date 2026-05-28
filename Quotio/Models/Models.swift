@@ -522,7 +522,7 @@ nonisolated enum NavigationPage: String, CaseIterable, Identifiable {
         case .quota: return "chart.bar.fill"
         case .providers: return "person.2.badge.key"
         case .models: return "list.bullet.rectangle"
-        case .fallback: return "arrow.triangle.branch"
+        case .fallback: return "point.3.connected.trianglepath.dotted"
         case .agents: return "terminal"
         case .apiKeys: return "key.horizontal"
         case .logs: return "doc.text"

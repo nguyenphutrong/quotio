@@ -106,9 +106,9 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     var visiblePages: [NavigationPage] {
         switch self {
         case .localProxy:
-            return [.dashboard, .quota, .providers, .models, .agents, .apiKeys, .logs, .settings, .about]
+            return [.dashboard, .quota, .providers, .models, .fallback, .agents, .apiKeys, .logs, .settings, .about]
         case .remoteProxy:
-            return [.dashboard, .quota, .providers, .models, .apiKeys, .settings, .about]
+            return [.dashboard, .quota, .providers, .models, .fallback, .apiKeys, .settings, .about]
         }
     }
     

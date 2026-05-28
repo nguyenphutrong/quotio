@@ -592,10 +592,7 @@ struct ContentView: View {
                             Label("nav.models".localized(), systemImage: "list.bullet.rectangle")
                                 .tag(NavigationPage.models)
 
-                            HStack(spacing: 6) {
-                                Label("nav.fallback".localized(), systemImage: "arrow.triangle.branch")
-                                ExperimentalBadge()
-                            }
+                            Label("nav.fallback".localized(), systemImage: "point.3.connected.trianglepath.dotted")
                             .tag(NavigationPage.fallback)
 
                             if modeManager.currentMode.supportsAgentConfig {
