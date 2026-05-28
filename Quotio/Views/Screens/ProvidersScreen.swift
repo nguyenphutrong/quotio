@@ -205,7 +205,7 @@ struct ProvidersScreen: View {
                 }
             }
         }
-        .frame(width: ProviderTableMetrics.tableWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.22))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
@@ -315,9 +315,8 @@ private enum ProviderTableMetrics {
     static let actionsWidth: CGFloat = 148
     static let columnSpacing: CGFloat = 12
     static let horizontalPadding: CGFloat = 10
-    static let rowHeight: CGFloat = 38
-    static let headerHeight: CGFloat = 32
-    static let tableWidth = providerWidth + typeWidth + connectionsWidth + statusWidth + actionsWidth + (columnSpacing * 4) + (horizontalPadding * 2)
+    static let rowHeight: CGFloat = 34
+    static let headerHeight: CGFloat = 30
 }
 
 private struct ProvidersScreenHeader: View {
@@ -406,6 +405,8 @@ private struct ProviderTableHeader: View {
             Text("providers.table.status".localized())
                 .frame(width: ProviderTableMetrics.statusWidth, alignment: .leading)
 
+            Spacer(minLength: 12)
+
             Text("providers.table.actions".localized())
                 .frame(width: ProviderTableMetrics.actionsWidth, alignment: .trailing)
         }
@@ -481,6 +482,8 @@ private struct ProviderTableProviderRow: View {
 
             ProviderStatusBadge(text: statusText, isReady: !accounts.isEmpty && accounts.contains { !$0.isDisabled })
                 .frame(width: ProviderTableMetrics.statusWidth, alignment: .leading)
+
+            Spacer(minLength: 12)
 
             Button {
                 onAddConnection()
@@ -585,6 +588,8 @@ private struct ProviderTableAccountRow: View {
                     .lineLimit(1)
             }
             .frame(width: ProviderTableMetrics.statusWidth, alignment: .leading)
+
+            Spacer(minLength: 12)
 
             HStack(spacing: 6) {
                 if account.provider == .antigravity {
