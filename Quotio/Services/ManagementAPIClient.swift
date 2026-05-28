@@ -320,6 +320,16 @@ actor ManagementAPIClient {
     }
 
     func fetchModelCatalog() async throws -> ManagementModelCatalog {
+        do {
+            let data = try await makeRequest("/models/catalog")
+            let response = try decode(ManagementModelCatalogAPIResponse.self, from: data)
+            return response.catalog
+        } catch APIError.httpError(404) {
+            return try await fetchLegacyModelCatalog()
+        }
+    }
+
+    private func fetchLegacyModelCatalog() async throws -> ManagementModelCatalog {
         let providers = try await fetchProviders()
         let targets = (try? await fetchVirtualModelAvailableTargets())?.targets ?? []
         let providerIDs = Set(
@@ -348,6 +358,11 @@ actor ManagementAPIClient {
                 definitionsByProvider: definitionsByProvider
             )
         )
+    }
+
+    func updateProviderEnabledModels(providerID: String, enabledModels: [String]?) async throws {
+        let body = try JSONEncoder().encode(ProviderEnabledModelsUpdateRequest(enabledModels: enabledModels))
+        _ = try await makeRequest("/providers/\(providerID.urlPathEncoded)/enabled-models", method: "PUT", body: body)
     }
 
     private func fetchModelDefinitions(channel: String) async throws -> ManagementModelDefinitionsResponse {
@@ -729,6 +744,98 @@ nonisolated struct ProviderValidation: Codable, Sendable {
 
 // MARK: - Model Catalog Types
 
+private nonisolated struct ProviderEnabledModelsUpdateRequest: Encodable, Sendable {
+    let enabledModels: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case enabledModels = "enabled_models"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        if let enabledModels {
+            try container.encode(enabledModels, forKey: .enabledModels)
+        } else {
+            try container.encodeNil(forKey: .enabledModels)
+        }
+    }
+}
+
+private nonisolated struct ManagementModelCatalogAPIResponse: Decodable, Sendable {
+    let providers: [ManagementModelCatalogAPIProvider]
+
+    var catalog: ManagementModelCatalog {
+        ManagementModelCatalog(
+            providers: providers.map(\.catalogProvider)
+                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        )
+    }
+}
+
+private nonisolated struct ManagementModelCatalogAPIProvider: Decodable, Sendable {
+    let providerID: String
+    let providerName: String
+    let models: [ManagementModelCatalogAPIItem]
+
+    enum CodingKeys: String, CodingKey {
+        case models
+        case providerID = "provider_id"
+        case providerName = "provider_name"
+    }
+
+    var catalogProvider: ManagementModelCatalogProvider {
+        let normalizedProviderID = ManagementAPIClient.normalizedProviderID(providerID)
+        return ManagementModelCatalogProvider(
+            id: normalizedProviderID,
+            name: providerName,
+            models: models.map { $0.catalogItem(providerID: normalizedProviderID, providerName: providerName) }
+                .sorted { $0.modelID.localizedCaseInsensitiveCompare($1.modelID) == .orderedAscending }
+        )
+    }
+}
+
+private nonisolated struct ManagementModelCatalogAPIItem: Decodable, Sendable {
+    let id: String
+    let modelID: String
+    let provider: String
+    let type: String?
+    let displayName: String?
+    let name: String?
+    let ownedBy: String?
+    let contextWindow: Int?
+    let maxOutputTokens: Int?
+    let available: Bool
+    let isEnabled: Bool
+    let capabilities: [String: Bool]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, provider, type, name, available, capabilities
+        case modelID = "model_id"
+        case displayName = "display_name"
+        case ownedBy = "owned_by"
+        case contextWindow = "context_window"
+        case maxOutputTokens = "max_output_tokens"
+        case isEnabled = "is_enabled"
+    }
+
+    func catalogItem(providerID: String, providerName: String) -> ManagementModelCatalogItem {
+        let normalizedModelID = ManagementAPIClient.normalizedModelID(modelID, providerID: providerID)
+        return ManagementModelCatalogItem(
+            id: "\(providerID)::\(normalizedModelID)",
+            providerID: providerID,
+            providerName: providerName,
+            modelID: normalizedModelID,
+            displayName: displayName ?? name,
+            ownedBy: ownedBy,
+            contextLength: contextWindow,
+            maxOutputTokens: maxOutputTokens,
+            isEnabled: isEnabled,
+            isAvailable: available,
+            capabilities: ManagementModelCapability.fromCatalog(capabilities, modelID: normalizedModelID, type: type)
+        )
+    }
+}
+
 nonisolated struct ManagementModelCatalog: Sendable {
     let providers: [ManagementModelCatalogProvider]
 
@@ -838,6 +945,35 @@ nonisolated struct ManagementModelCapability: Identifiable, Hashable, Sendable {
     let id: String
     let label: String
     let localizationKey: String
+
+    static func fromCatalog(_ capabilities: [String: Bool]?, modelID: String, type: String?) -> [ManagementModelCapability] {
+        let enabledCapabilities = Set((capabilities ?? [:]).compactMap { key, isEnabled -> String? in
+            guard isEnabled else { return nil }
+            switch key.lowercased() {
+            case "embedding", "embeddings":
+                return "embedding"
+            case "reasoning", "vision", "tools", "free", "rerank":
+                return key.lowercased()
+            default:
+                return nil
+            }
+        })
+
+        let ordered: [ManagementModelCapability] = [
+            .init(id: "reasoning", label: "R", localizationKey: "models.capability.reasoning"),
+            .init(id: "vision", label: "V", localizationKey: "models.capability.vision"),
+            .init(id: "tools", label: "T", localizationKey: "models.capability.tools"),
+            .init(id: "free", label: "F", localizationKey: "models.capability.free"),
+            .init(id: "embedding", label: "E", localizationKey: "models.capability.embedding"),
+            .init(id: "rerank", label: "RR", localizationKey: "models.capability.rerank")
+        ]
+        let fromCatalog = ordered.filter { enabledCapabilities.contains($0.id) }
+        if !fromCatalog.isEmpty {
+            return fromCatalog
+        }
+
+        return infer(from: nil, modelID: [modelID, type ?? ""].joined(separator: " "))
+    }
 
     static func infer(from definition: ManagementModelDefinition?, modelID: String) -> [ManagementModelCapability] {
         let loweredID = modelID.lowercased()

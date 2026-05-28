@@ -15,6 +15,8 @@ struct ModelsScreen: View {
     @State private var searchText = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var modelActionError: String?
+    @State private var updatingModelIDs: Set<String> = []
 
     private var rows: [ManagementModelCatalogItem] {
         catalog?.rows ?? []
@@ -62,8 +64,12 @@ struct ModelsScreen: View {
                     errorMessage: errorMessage,
                     isFiltered: !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                     hasLoadedRows: !rows.isEmpty,
+                    updatingModelIDs: updatingModelIDs,
                     onRetry: {
                         Task { await loadModels(force: true) }
+                    },
+                    onToggleModel: { row in
+                        Task { await toggleModel(row) }
                     }
                 )
             }
@@ -74,6 +80,16 @@ struct ModelsScreen: View {
         .navigationTitle("nav.models".localized())
         .task {
             await loadModels(force: false)
+        }
+        .alert("models.updateFailed".localized(), isPresented: Binding(
+            get: { modelActionError != nil },
+            set: { if !$0 { modelActionError = nil } }
+        )) {
+            Button("OK", role: .cancel) {
+                modelActionError = nil
+            }
+        } message: {
+            Text(modelActionError ?? "")
         }
     }
 
@@ -99,6 +115,43 @@ struct ModelsScreen: View {
             catalog = try await client.fetchModelCatalog()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func toggleModel(_ row: ManagementModelCatalogItem) async {
+        guard row.isAvailable else { return }
+        guard !updatingModelIDs.contains(row.id) else { return }
+        guard let client = viewModel.apiClient else {
+            modelActionError = "models.proxyRequired".localized()
+            return
+        }
+
+        let providerRows = rows.filter { $0.providerID == row.providerID }
+        guard !providerRows.isEmpty else { return }
+
+        updatingModelIDs.insert(row.id)
+        defer { updatingModelIDs.remove(row.id) }
+
+        do {
+            let allModelIDs = Set(providerRows.map(\.modelID))
+            var enabledModelIDs = Set(providerRows.filter(\.isEnabled).map(\.modelID))
+            if row.isEnabled {
+                enabledModelIDs.remove(row.modelID)
+            } else {
+                enabledModelIDs.insert(row.modelID)
+            }
+
+            let enabledPayload: [String]? = enabledModelIDs == allModelIDs
+                ? nil
+                : enabledModelIDs.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+
+            try await client.updateProviderEnabledModels(providerID: row.providerID, enabledModels: enabledPayload)
+            catalog = try await client.fetchModelCatalog()
+        } catch APIError.httpError(404) {
+            modelActionError = "Requires cpa++ API support."
+        } catch {
+            modelActionError = error.localizedDescription
         }
     }
 }
@@ -173,7 +226,9 @@ private struct ModelsTable: View {
     let errorMessage: String?
     let isFiltered: Bool
     let hasLoadedRows: Bool
+    let updatingModelIDs: Set<String>
     var onRetry: () -> Void
+    var onToggleModel: (ManagementModelCatalogItem) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -199,7 +254,11 @@ private struct ModelsTable: View {
                 )
             } else {
                 ForEach(rows) { row in
-                    ModelsTableRow(row: row)
+                    ModelsTableRow(
+                        row: row,
+                        isUpdating: updatingModelIDs.contains(row.id),
+                        onToggleModel: onToggleModel
+                    )
                     if row.id != rows.last?.id {
                         Divider()
                     }
@@ -241,6 +300,8 @@ private struct ModelsTableHeader: View {
 
 private struct ModelsTableRow: View {
     let row: ManagementModelCatalogItem
+    let isUpdating: Bool
+    var onToggleModel: (ManagementModelCatalogItem) -> Void
     @State private var didCopyModelID = false
 
     var body: some View {
@@ -254,7 +315,7 @@ private struct ModelsTableRow: View {
             CapabilityBadgeGroup(capabilities: row.capabilities)
                 .frame(width: ModelsTableMetrics.capabilitiesWidth, alignment: .leading)
 
-            ModelStatusBadge(isAvailable: row.isAvailable, isEnabled: row.isEnabled)
+            statusColumn
                 .frame(width: ModelsTableMetrics.statusWidth, alignment: .leading)
         }
         .frame(minHeight: ModelsTableMetrics.rowHeight)
@@ -320,6 +381,23 @@ private struct ModelsTableRow: View {
             parts.append("\(maxOutputTokens.formatted()) out")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " / ")
+    }
+
+    @ViewBuilder
+    private var statusColumn: some View {
+        if row.isAvailable {
+            Button {
+                onToggleModel(row)
+            } label: {
+                ModelStatusBadge(isAvailable: row.isAvailable, isEnabled: row.isEnabled, isUpdating: isUpdating)
+            }
+            .buttonStyle(.plain)
+            .disabled(isUpdating)
+            .help(row.isEnabled ? "models.disableModelHelp".localized() : "models.enableModelHelp".localized())
+        } else {
+            ModelStatusBadge(isAvailable: row.isAvailable, isEnabled: row.isEnabled, isUpdating: false)
+                .help("models.status.unavailable".localized())
+        }
     }
 
     private func copyModelID() {
@@ -389,12 +467,20 @@ private struct CapabilityBadgeGroup: View {
 private struct ModelStatusBadge: View {
     let isAvailable: Bool
     let isEnabled: Bool
+    let isUpdating: Bool
 
     var body: some View {
         let title = statusTitle
         HStack(spacing: 5) {
-            Image(systemName: statusIcon)
-                .font(.caption.weight(.semibold))
+            if isUpdating {
+                ProgressView()
+                    .controlSize(.mini)
+                    .scaleEffect(0.65)
+                    .frame(width: 12, height: 12)
+            } else {
+                Image(systemName: statusIcon)
+                    .font(.caption.weight(.semibold))
+            }
             Text(title)
                 .font(.caption.weight(.semibold))
         }
@@ -406,6 +492,7 @@ private struct ModelStatusBadge: View {
     }
 
     private var statusTitle: String {
+        if isUpdating { return "models.status.updating".localized() }
         if !isAvailable { return "models.status.unavailable".localized() }
         return isEnabled ? "models.status.enabled".localized() : "models.status.disabled".localized()
     }
