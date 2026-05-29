@@ -7798,6 +7798,22 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已添加" } }
       }
     },
+    "virtualModels.autoSavePending" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Auto-save pending" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrement automatique en attente" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang chờ tự động lưu" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待自动保存" } }
+      }
+    },
+    "virtualModels.autoSavePendingDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Changes will save automatically when the draft is valid." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les modifications seront enregistrées automatiquement lorsque le brouillon sera valide." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thay đổi sẽ tự động lưu khi draft hợp lệ." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "草稿有效后会自动保存更改。" } }
+      }
+    },
     "virtualModels.cacheTTL" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Cache TTL" } },
@@ -8188,6 +8204,22 @@
         "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistré" } },
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã lưu" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存" } }
+      }
+    },
+    "virtualModels.saving" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Saving changes" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrement des modifications" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang lưu thay đổi" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在保存更改" } }
+      }
+    },
+    "virtualModels.savingDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The full virtual models payload is being sent to the backend." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Le payload complet des modèles virtuels est envoyé au backend." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Toàn bộ payload virtual models đang được gửi lên backend." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在将完整虚拟模型 payload 发送到后端。" } }
       }
     },
     "virtualModels.searchTargets" : {

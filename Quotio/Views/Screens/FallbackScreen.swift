@@ -20,6 +20,8 @@ struct FallbackScreen: View {
     @State private var saveError: String?
     @State private var targetLoadError: String?
     @State private var savedAt: Date?
+    @State private var autoSaveTask: Task<Void, Never>?
+    @State private var isAutoSaveScheduled = false
     @State private var showCreateModelSheet = false
     @State private var editingModel: VirtualModelNameSelection?
     @State private var addingTargetsToModel: VirtualModelNameSelection?
@@ -42,8 +44,8 @@ struct FallbackScreen: View {
         return draft != configuration
     }
 
-    private var canSave: Bool {
-        hasLoadedConfiguration && isDirty && validationMessages.isEmpty && !isSaving
+    private var hasValidDirtyDraft: Bool {
+        hasLoadedConfiguration && isDirty && validationMessages.isEmpty
     }
 
     var body: some View {
@@ -87,22 +89,18 @@ struct FallbackScreen: View {
                 .disabled(!hasLoadedConfiguration || isSaving)
                 .help("virtualModels.createHelp".localized())
 
-                Button {
-                    Task { await saveConfiguration() }
-                } label: {
-                    if isSaving {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Label("action.save".localized(), systemImage: "tray.and.arrow.down")
-                    }
+                if isSaving {
+                    ProgressView()
+                        .controlSize(.small)
+                        .help("virtualModels.saving".localized())
                 }
-                .disabled(!canSave)
-                .help("virtualModels.saveHelp".localized())
             }
         }
         .task {
             await loadConfiguration(force: false)
+        }
+        .onDisappear {
+            flushPendingAutosave()
         }
         .sheet(isPresented: $showCreateModelSheet) {
             VirtualModelNameSheet(
@@ -165,6 +163,12 @@ struct FallbackScreen: View {
                 message: targetLoadError,
                 style: .warning
             )
+        } else if isSaving {
+            VirtualModelsBanner(
+                title: "virtualModels.saving".localized(),
+                message: "virtualModels.savingDescription".localized(),
+                style: .info
+            )
         } else if let savedAt {
             VirtualModelsBanner(
                 title: "virtualModels.saved".localized(),
@@ -179,10 +183,10 @@ struct FallbackScreen: View {
                 message: validationMessages.joined(separator: "\n"),
                 style: .error
             )
-        } else if isDirty {
+        } else if isAutoSaveScheduled && isDirty {
             VirtualModelsBanner(
-                title: "virtualModels.unsavedChanges".localized(),
-                message: "virtualModels.unsavedChangesDescription".localized(),
+                title: "virtualModels.autoSavePending".localized(),
+                message: "virtualModels.autoSavePendingDescription".localized(),
                 style: .info
             )
         }
@@ -200,16 +204,14 @@ struct FallbackScreen: View {
                 get: { draft.cacheTTL },
                 set: {
                     draft.cacheTTL = $0
-                    savedAt = nil
-                    saveError = nil
+                    markDraftChanged()
                 }
             ),
             maxDepth: Binding(
                 get: { draft.maxDepth },
                 set: {
                     draft.maxDepth = $0
-                    savedAt = nil
-                    saveError = nil
+                    markDraftChanged()
                 }
             )
         )
@@ -342,6 +344,9 @@ struct FallbackScreen: View {
             configuration = loaded
             draft = loaded
             savedAt = nil
+            autoSaveTask?.cancel()
+            autoSaveTask = nil
+            isAutoSaveScheduled = false
         } catch APIError.httpError(404) {
             loadError = "Requires cpa++ API support."
             return
@@ -376,26 +381,41 @@ struct FallbackScreen: View {
 
     @MainActor
     private func saveConfiguration() async {
-        guard canSave, let client = viewModel.apiClient else { return }
+        guard hasValidDirtyDraft, let client = viewModel.apiClient else { return }
+
+        guard !isSaving else {
+            scheduleAutosave()
+            return
+        }
 
         isSaving = true
         saveError = nil
         savedAt = nil
+        autoSaveTask?.cancel()
+        autoSaveTask = nil
+        isAutoSaveScheduled = false
         defer { isSaving = false }
 
         let payload = VirtualModelsFormValidator.sanitized(draft)
+        let currentDraft = { VirtualModelsFormValidator.sanitized(draft) }
 
         do {
             try await client.updateVirtualModelsConfiguration(payload)
+            let savedConfiguration: VirtualModelsConfiguration
             do {
-                let fresh = try await client.fetchVirtualModelsConfiguration()
-                configuration = fresh
-                draft = fresh
+                savedConfiguration = try await client.fetchVirtualModelsConfiguration()
             } catch {
-                configuration = payload
-                draft = payload
+                savedConfiguration = payload
             }
-            savedAt = Date()
+
+            configuration = savedConfiguration
+            if currentDraft() == payload {
+                draft = savedConfiguration
+                savedAt = Date()
+            } else {
+                savedAt = nil
+                scheduleAutosave()
+            }
             await loadAvailableTargets()
         } catch APIError.httpError(404) {
             saveError = "Requires cpa++ API support."
@@ -445,8 +465,7 @@ struct FallbackScreen: View {
     private func createModel(named name: String) {
         let sanitizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         draft.virtualModels[sanitizedName] = VirtualModelRouteConfiguration(enabled: true, targets: [])
-        savedAt = nil
-        saveError = nil
+        markDraftChanged()
     }
 
     private func renameModel(_ currentName: String, to newName: String) {
@@ -456,22 +475,19 @@ struct FallbackScreen: View {
             return
         }
         draft.virtualModels[sanitizedName] = model
-        savedAt = nil
-        saveError = nil
+        markDraftChanged()
     }
 
     private func deleteModel(_ name: String) {
         draft.virtualModels.removeValue(forKey: name)
-        savedAt = nil
-        saveError = nil
+        markDraftChanged()
     }
 
     private func setModelEnabled(_ name: String, enabled: Bool) {
         guard var model = draft.virtualModels[name] else { return }
         model.enabled = enabled
         draft.virtualModels[name] = model
-        savedAt = nil
-        saveError = nil
+        markDraftChanged()
     }
 
     private func addTargets(_ targets: [String], to modelName: String) {
@@ -485,8 +501,7 @@ struct FallbackScreen: View {
             existing.insert(sanitizedTarget.lowercased())
         }
         draft.virtualModels[modelName] = model
-        savedAt = nil
-        saveError = nil
+        markDraftChanged()
     }
 
     private func setTargetEnabled(modelName: String, index: Int, enabled: Bool) {
@@ -494,8 +509,7 @@ struct FallbackScreen: View {
               model.targets.indices.contains(index) else { return }
         model.targets[index].enabled = enabled
         draft.virtualModels[modelName] = model
-        savedAt = nil
-        saveError = nil
+        markDraftChanged()
     }
 
     private func moveTarget(modelName: String, index: Int, direction: VirtualModelTargetMoveDirection) {
@@ -505,8 +519,7 @@ struct FallbackScreen: View {
         guard model.targets.indices.contains(destination) else { return }
         model.targets.swapAt(index, destination)
         draft.virtualModels[modelName] = model
-        savedAt = nil
-        saveError = nil
+        markDraftChanged()
     }
 
     private func deleteTarget(modelName: String, index: Int) {
@@ -514,8 +527,52 @@ struct FallbackScreen: View {
               model.targets.indices.contains(index) else { return }
         model.targets.remove(at: index)
         draft.virtualModels[modelName] = model
+        markDraftChanged()
+    }
+
+    @MainActor
+    private func markDraftChanged() {
         savedAt = nil
         saveError = nil
+        scheduleAutosave()
+    }
+
+    @MainActor
+    private func scheduleAutosave() {
+        autoSaveTask?.cancel()
+        autoSaveTask = nil
+        isAutoSaveScheduled = false
+
+        guard hasValidDirtyDraft else { return }
+
+        isAutoSaveScheduled = true
+        autoSaveTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(700))
+            } catch {
+                isAutoSaveScheduled = false
+                return
+            }
+
+            guard !Task.isCancelled else {
+                isAutoSaveScheduled = false
+                return
+            }
+
+            isAutoSaveScheduled = false
+            await saveConfiguration()
+        }
+    }
+
+    @MainActor
+    private func flushPendingAutosave() {
+        autoSaveTask?.cancel()
+        autoSaveTask = nil
+        isAutoSaveScheduled = false
+        guard hasValidDirtyDraft else { return }
+        Task { @MainActor in
+            await saveConfiguration()
+        }
     }
 }
 
