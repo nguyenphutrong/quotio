@@ -114,6 +114,27 @@ final class UpdaterService: NSObject {
         updater?.checkForUpdates()
     }
     
+    /// Manually check for Quotio app updates and update CLIProxyAPI when needed.
+    func checkForUpdatesIncludingCLIProxy() {
+        checkForUpdates()
+
+        Task { @MainActor in
+            do {
+                let result = try await CLIProxyManager.shared.checkAndUpdateCLIProxyIfNeeded()
+                switch result {
+                case .updated(let version):
+                    Log.update("CLIProxyAPI updated to v\(version)")
+                case .alreadyUpToDate(let version):
+                    Log.update("CLIProxyAPI is already up to date\(version.map { " (v\($0))" } ?? "")")
+                case .skipped(let reason):
+                    Log.update("CLIProxyAPI update skipped: \(reason)")
+                }
+            } catch {
+                Log.update("CLIProxyAPI update failed: \(error.localizedDescription)")
+            }
+        }
+    }
+    
     /// Check for updates in background (no UI if no update)
     func checkForUpdatesInBackground() {
         initializeIfNeeded()
