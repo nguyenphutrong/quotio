@@ -282,7 +282,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         UserDefaults.standard.register(defaults: [
-            "useBridgeMode": true,
             "showInDock": true,
             "totalUsageMode": TotalUsageMode.sessionOnly.rawValue,
             "modelAggregationMode": ModelAggregationMode.lowest.rawValue
@@ -567,7 +566,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 struct ContentView: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @AppStorage("loggingToFile") private var loggingToFile = true
     @State private var modeManager = OperatingModeManager.shared
     
     var body: some View {
@@ -603,10 +601,11 @@ struct ContentView: View {
                             Label("nav.apiKeys".localized(), systemImage: "key.horizontal")
                                 .tag(NavigationPage.apiKeys)
                             
-                            if modeManager.isLocalProxyMode && loggingToFile {
-                                Label("nav.logs".localized(), systemImage: "doc.text")
-                                    .tag(NavigationPage.logs)
-                            }
+                            Label("nav.logs".localized(), systemImage: "doc.text")
+                                .tag(NavigationPage.logs)
+
+                            Label("nav.usageStatistics".localized(), systemImage: "chart.xyaxis.line")
+                                .tag(NavigationPage.usageStatistics)
                         }
                         
                         Label("nav.settings".localized(), systemImage: "gearshape")
@@ -685,6 +684,8 @@ struct ContentView: View {
                 APIKeysScreen()
             case .logs:
                 LogsScreen()
+            case .usageStatistics:
+                UsageStatisticsScreen()
             case .settings:
                 SettingsScreen()
             case .about:

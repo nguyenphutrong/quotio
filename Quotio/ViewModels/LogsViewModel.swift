@@ -34,25 +34,23 @@ final class LogsViewModel {
         
         do {
             let response = try await client.fetchLogs(after: lastLogTimestamp)
-            if let lines = response.lines {
-                let newEntries: [LogEntry] = lines.map { line in
-                    let level: LogEntry.LogLevel
-                    if line.contains("error") || line.contains("ERROR") {
-                        level = .error
-                    } else if line.contains("warn") || line.contains("WARN") {
-                        level = .warn
-                    } else if line.contains("debug") || line.contains("DEBUG") {
-                        level = .debug
-                    } else {
-                        level = .info
-                    }
-                    return LogEntry(timestamp: Date(), level: level, message: line)
+            let newEntries: [LogEntry] = response.lines.map { line in
+                let level: LogEntry.LogLevel
+                if line.contains("error") || line.contains("ERROR") {
+                    level = .error
+                } else if line.contains("warn") || line.contains("WARN") {
+                    level = .warn
+                } else if line.contains("debug") || line.contains("DEBUG") {
+                    level = .debug
+                } else {
+                    level = .info
                 }
-                logs.append(contentsOf: newEntries)
-                // Keep only last 50 entries to limit memory usage
-                if logs.count > 50 {
-                    logs = Array(logs.suffix(50))
-                }
+                return LogEntry(timestamp: Date(), level: level, message: line)
+            }
+            logs.append(contentsOf: newEntries)
+            // Keep only last 50 entries to limit memory usage
+            if logs.count > 50 {
+                logs = Array(logs.suffix(50))
             }
             lastLogTimestamp = response.latestTimestamp
         } catch {

@@ -14,7 +14,6 @@ final class AgentSetupViewModel {
     private let detectionService = AgentDetectionService()
     private let configurationService = AgentConfigurationService()
     private let shellManager = ShellProfileManager()
-    private let fallbackSettings = FallbackSettingsManager.shared
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Quotio", category: "AgentSetup")
 
     var agentStatuses: [AgentStatus] = []
@@ -397,7 +396,6 @@ final class AgentSetupViewModel {
             }
         }
 
-        refreshVirtualModels()
         return loadedFromRemote
     }
 
@@ -408,25 +406,6 @@ final class AgentSetupViewModel {
         }
 
         return AvailableModel.allModels.sorted { $0.displayName < $1.displayName }
-    }
-
-    /// Refresh virtual models - removes old ones and adds current ones
-    private func refreshVirtualModels() {
-        // First remove any existing virtual models (provider == "fallback")
-        availableModels.removeAll { $0.provider.lowercased() == "fallback" }
-
-        // Then add current virtual models
-        guard fallbackSettings.isEnabled else { return }
-
-        for virtualModel in fallbackSettings.virtualModels where virtualModel.isEnabled {
-            let model = AvailableModel(
-                id: virtualModel.name,
-                name: virtualModel.name,
-                provider: "fallback",
-                isDefault: false
-            )
-            availableModels.append(model)
-        }
     }
 
     /// Check if a provider has available quota for a specific model
@@ -447,10 +426,4 @@ final class AgentSetupViewModel {
         return false
     }
 
-    /// Resolve a virtual model to a real provider + model combination
-    /// Returns nil if the model is not a virtual model or no fallback is available
-    /// Note: Actual fallback resolution happens at request time in ProxyBridge
-    func isVirtualModel(_ modelName: String) -> Bool {
-        return fallbackSettings.isVirtualModel(modelName)
-    }
 }

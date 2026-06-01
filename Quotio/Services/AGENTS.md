@@ -1,6 +1,6 @@
 # Services Layer
 
-30 services implementing business logic, API clients, and system integrations.
+Services implementing business logic, API clients, and system integrations.
 
 ## Architecture
 
@@ -27,7 +27,6 @@ Three concurrency patterns used:
 
 ### Core Infrastructure
 - `CLIProxyManager` - Proxy process lifecycle, bundled/dev binary resolution, auth commands
-- `ProxyBridge` - TCP bridge layer, forces `Connection: close`
 - `CompatibilityChecker` - Version compatibility validation
 
 ### API Clients
@@ -120,7 +119,6 @@ actor NewProviderQuotaFetcher {
 
 - **CLIProxyManager**: Base URL always points to cpa-plusplus directly
 - **Binary bundling**: Runtime must use `CPA_PLUSPLUS_BINARY_PATH` or bundled app resource, not GitHub release downloads
-- **ProxyBridge**: Target host always localhost
 - **ManagementAPIClient**: Uses `Connection: close` to prevent stale connections
 
 ## Dependencies Between Services
@@ -131,11 +129,9 @@ QuotaViewModel
 ├── ManagementAPIClient
 ├── All QuotaFetchers
 ├── DirectAuthFileService
-├── NotificationManager
-└── RequestTracker
+└── NotificationManager
 
 CLIProxyManager
-├── ProxyBridge
 └── CompatibilityChecker
 
 StatusBarManager

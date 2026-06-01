@@ -511,6 +511,7 @@ nonisolated enum NavigationPage: String, CaseIterable, Identifiable {
     case agents = "Agents"
     case apiKeys = "API Keys"
     case logs = "Logs"
+    case usageStatistics = "Usage Statistics"
     case settings = "Settings"
     case about = "About"
 
@@ -526,6 +527,7 @@ nonisolated enum NavigationPage: String, CaseIterable, Identifiable {
         case .agents: return "terminal"
         case .apiKeys: return "key.horizontal"
         case .logs: return "doc.text"
+        case .usageStatistics: return "chart.xyaxis.line"
         case .settings: return "gearshape"
         case .about: return "info.circle"
         }

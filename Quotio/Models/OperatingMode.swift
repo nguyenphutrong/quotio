@@ -106,9 +106,9 @@ enum OperatingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     var visiblePages: [NavigationPage] {
         switch self {
         case .localProxy:
-            return [.dashboard, .quota, .providers, .models, .fallback, .agents, .apiKeys, .logs, .settings, .about]
+            return [.dashboard, .quota, .providers, .models, .fallback, .agents, .apiKeys, .logs, .usageStatistics, .settings, .about]
         case .remoteProxy:
-            return [.dashboard, .quota, .providers, .models, .fallback, .apiKeys, .settings, .about]
+            return [.dashboard, .quota, .providers, .models, .fallback, .apiKeys, .logs, .usageStatistics, .settings, .about]
         }
     }
     
@@ -181,11 +181,7 @@ final class OperatingModeManager {
     
     /// Check if a page should be visible in current mode
     func isPageVisible(_ page: NavigationPage, loggingEnabled: Bool = true) -> Bool {
-        var pages = currentMode.visiblePages
-        if !loggingEnabled {
-            pages.removeAll { $0 == .logs }
-        }
-        return pages.contains(page)
+        currentMode.visiblePages.contains(page)
     }
     
     // MARK: - Initialization

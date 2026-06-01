@@ -179,6 +179,19 @@ actor ManagementAPIClient {
         try JSONSerialization.data(withJSONObject: object)
     }
 
+    private func queryEndpoint(_ path: String, items: [URLQueryItem]) -> String {
+        let filteredItems = items.filter { item in
+            guard let value = item.value else { return false }
+            return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !filteredItems.isEmpty else { return path }
+
+        var components = URLComponents()
+        components.path = path
+        components.queryItems = filteredItems
+        return components.string ?? path
+    }
+
     private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         do {
             return try JSONDecoder().decode(type, from: data)
@@ -463,17 +476,66 @@ actor ManagementAPIClient {
         return try decode(ProviderOAuthSession.self, from: data)
     }
     
-    func fetchLogs(after: Int? = nil) async throws -> LogsResponse {
-        var endpoint = "/logs"
-        if let after = after {
-            endpoint += "?after=\(after)"
+    func fetchLogs(limit: Int? = nil, after: Int? = nil) async throws -> LogsResponse {
+        var items: [URLQueryItem] = []
+        if let limit {
+            items.append(URLQueryItem(name: "limit", value: String(limit)))
         }
+        if let after = after {
+            items.append(URLQueryItem(name: "after", value: String(after)))
+        }
+        let endpoint = queryEndpoint("/logs", items: items)
         let data = try await makeRequest(endpoint)
         return try decode(LogsResponse.self, from: data)
+    }
+
+    func fetchLogs(after: Int? = nil) async throws -> LogsResponse {
+        try await fetchLogs(limit: nil, after: after)
     }
     
     func clearLogs() async throws {
         _ = try await makeRequest("/logs", method: "DELETE")
+    }
+
+    func fetchRequestErrorLogs() async throws -> [RequestErrorLogFile] {
+        let data = try await makeRequest("/request-error-logs")
+        let response = try decode(RequestErrorLogsResponse.self, from: data)
+        return response.files
+    }
+
+    func fetchRequestErrorLog(name: String) async throws -> Data {
+        try await makeRequest("/request-error-logs/\(name.urlPathEncoded)")
+    }
+
+    func fetchRequestLogByID(_ id: String) async throws -> Data {
+        try await makeRequest("/request-log-by-id/\(id.urlPathEncoded)")
+    }
+
+    func fetchUsageStatsStatus() async throws -> UsageStatsStatus {
+        let data = try await makeRequest("/usage-stats/status")
+        return try decode(UsageStatsStatus.self, from: data)
+    }
+
+    func fetchUsageStatsEvents(filter: UsageStatsFilter, limit: Int, offset: Int) async throws -> UsageStatsEventsResponse {
+        var items = filter.queryItems
+        items.append(URLQueryItem(name: "limit", value: String(limit)))
+        items.append(URLQueryItem(name: "offset", value: String(offset)))
+        let data = try await makeRequest(queryEndpoint("/usage-stats/events", items: items))
+        return try decode(UsageStatsEventsResponse.self, from: data)
+    }
+
+    func fetchUsageStatsSummary(filter: UsageStatsFilter, includeCost: Bool = true) async throws -> UsageStatsSummary {
+        var items = filter.queryItems
+        items.append(URLQueryItem(name: "include_cost", value: includeCost ? "true" : "false"))
+        let data = try await makeRequest(queryEndpoint("/usage-stats/summary", items: items))
+        let response = try decode(UsageStatsSummaryResponse.self, from: data)
+        return response.summary
+    }
+
+    func syncUsageStatsModelPrices(models: [String] = [], includePrices: Bool = false) async throws -> UsageStatsModelPricesSyncResult {
+        let body = try JSONEncoder().encode(UsageStatsModelPricesSyncRequest(models: models, includePrices: includePrices))
+        let data = try await makeRequest("/usage-stats/model-prices/sync", method: "POST", body: body)
+        return try decode(UsageStatsModelPricesSyncResult.self, from: data)
     }
     
     func setDebug(_ enabled: Bool) async throws {
@@ -1502,18 +1564,6 @@ private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTas
 }
 
 // MARK: - Response Types
-
-nonisolated struct LogsResponse: Codable, Sendable {
-    let lines: [String]?
-    let lineCount: Int?
-    let latestTimestamp: Int?
-    
-    enum CodingKeys: String, CodingKey {
-        case lines
-        case lineCount = "line-count"
-        case latestTimestamp = "latest-timestamp"
-    }
-}
 
 nonisolated struct AuthFileModelsResponse: Codable, Sendable {
     let models: [AuthFileModelInfo]

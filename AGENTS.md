@@ -46,7 +46,6 @@ docs/                         # Architecture docs
 | `AIProvider` | Enum | Models/ | Provider definitions (13 providers) |
 | `CLIAgent` | Enum | Models/ | CLI agent definitions (6 agents) |
 | `StatusBarManager` | Class | Services/ | Menu bar icon and menu |
-| `ProxyBridge` | Class | Services/ | TCP bridge layer for connection management |
 
 ## Build Commands
 
@@ -136,7 +135,6 @@ struct DashboardScreen: View {
 From code comments - **never violate**:
 - ProxyStorageManager: **never delete current** version
 - AgentConfigurationService: backups **never overwritten**
-- ProxyBridge: target host **always localhost**
 - CLIProxyManager: base URL **always points to CLIProxyAPI directly**
 
 ## Key Patterns

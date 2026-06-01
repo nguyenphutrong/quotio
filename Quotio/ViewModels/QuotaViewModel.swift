@@ -25,9 +25,6 @@ final class QuotaViewModel {
     @ObservationIgnored private var warmupModelCache: [WarmupAccountKey: (models: [WarmupModelInfo], fetchedAt: Date)] = [:]
     @ObservationIgnored private let warmupModelCacheTTL: TimeInterval = 28800
     
-    /// Request tracker for monitoring API requests through ProxyBridge
-    let requestTracker = RequestTracker.shared
-    
     /// Tunnel manager for Cloudflare Tunnel integration
     let tunnelManager = TunnelManager.shared
     
@@ -611,11 +608,6 @@ final class QuotaViewModel {
         }
 
         do {
-            // Wire up ProxyBridge callback to RequestTracker before starting
-            proxyManager.proxyBridge.onRequestCompleted = { [weak self] metadata in
-                self?.requestTracker.addRequest(from: metadata)
-            }
-            
             try await proxyManager.start()
             setupAPIClient()
             if let apiClient {
@@ -623,9 +615,6 @@ final class QuotaViewModel {
             }
             startAutoRefresh()
             restartWarmupScheduler()
-
-            // Start RequestTracker
-            requestTracker.start()
 
             await refreshData()
 
@@ -652,8 +641,6 @@ final class QuotaViewModel {
             if tunnelManager.tunnelState.isActive || tunnelManager.tunnelState.status == .starting {
                 await tunnelManager.stopTunnel()
             }
-
-            requestTracker.stop()
             modeManager.setServerInfo(nil)
             restartWarmupScheduler()
 
@@ -676,10 +663,7 @@ final class QuotaViewModel {
                 await tunnelManager.stopTunnel()
             }
         }
-        
-        // Stop RequestTracker
-        requestTracker.stop()
-        
+
         proxyManager.stop()
         modeManager.setServerInfo(nil)
         restartWarmupScheduler()
@@ -746,7 +730,6 @@ final class QuotaViewModel {
             // Stop and restart
             refreshTask?.cancel()
             refreshTask = nil
-            requestTracker.stop()
 
             Log.quota("Attempting proxy recovery...")
             await proxyManager.stopAndWait()
