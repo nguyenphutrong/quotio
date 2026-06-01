@@ -8,7 +8,6 @@ import SwiftUI
 
 struct FallbackScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var modeManager = OperatingModeManager.shared
     @State private var configuration: VirtualModelsConfiguration?
     @State private var draft = VirtualModelsConfiguration()
     @State private var availableTargets: [VirtualModelAvailableTarget] = []
@@ -330,12 +329,9 @@ struct FallbackScreen: View {
         targetLoadError = nil
         defer { isLoading = false }
 
-        if modeManager.isLocalProxyMode && !viewModel.proxyManager.proxyStatus.running {
-            await viewModel.ensureProxyRunning()
-        }
-
-        guard let client = viewModel.apiClient else {
-            loadError = "models.proxyRequired".localized()
+        let readiness = await virtualModelsAPIClient()
+        guard let client = readiness.client else {
+            loadError = readiness.errorMessage
             return
         }
 
@@ -348,7 +344,7 @@ struct FallbackScreen: View {
             autoSaveTask = nil
             isAutoSaveScheduled = false
         } catch APIError.httpError(404) {
-            loadError = "Requires cpa++ API support."
+            loadError = "virtualModels.error.unsupported".localized()
             return
         } catch {
             loadError = error.localizedDescription
@@ -361,7 +357,11 @@ struct FallbackScreen: View {
     @MainActor
     private func loadAvailableTargets() async {
         guard !isLoadingTargets else { return }
-        guard let client = viewModel.apiClient else { return }
+        let readiness = await virtualModelsAPIClient()
+        guard let client = readiness.client else {
+            targetLoadError = readiness.errorMessage
+            return
+        }
 
         isLoadingTargets = true
         targetLoadError = nil
@@ -373,7 +373,7 @@ struct FallbackScreen: View {
                 $0.target.localizedCaseInsensitiveCompare($1.target) == .orderedAscending
             }
         } catch APIError.httpError(404) {
-            targetLoadError = "Requires cpa++ API support."
+            targetLoadError = "virtualModels.error.targetsUnsupported".localized()
         } catch {
             targetLoadError = error.localizedDescription
         }
@@ -381,10 +381,16 @@ struct FallbackScreen: View {
 
     @MainActor
     private func saveConfiguration() async {
-        guard hasValidDirtyDraft, let client = viewModel.apiClient else { return }
+        guard hasValidDirtyDraft else { return }
 
         guard !isSaving else {
             scheduleAutosave()
+            return
+        }
+
+        let readiness = await virtualModelsAPIClient()
+        guard let client = readiness.client else {
+            saveError = readiness.errorMessage
             return
         }
 
@@ -418,7 +424,7 @@ struct FallbackScreen: View {
             }
             await loadAvailableTargets()
         } catch APIError.httpError(404) {
-            saveError = "Requires cpa++ API support."
+            saveError = "virtualModels.error.unsupported".localized()
         } catch {
             saveError = error.localizedDescription
         }
@@ -439,18 +445,26 @@ struct FallbackScreen: View {
 
         Task { @MainActor in
             defer { isPatchingEnabled = false }
-            guard let client = viewModel.apiClient else {
+            let readiness = await virtualModelsAPIClient()
+            guard let client = readiness.client else {
                 draft.enabled = previousValue
                 if var currentConfiguration = configuration {
                     currentConfiguration.enabled = previousValue
                     configuration = currentConfiguration
                 }
-                saveError = "models.proxyRequired".localized()
+                saveError = readiness.errorMessage
                 return
             }
 
             do {
                 try await client.setVirtualModelsEnabled(enabled)
+            } catch APIError.httpError(404) {
+                draft.enabled = previousValue
+                if var currentConfiguration = configuration {
+                    currentConfiguration.enabled = previousValue
+                    configuration = currentConfiguration
+                }
+                saveError = "virtualModels.error.unsupported".localized()
             } catch {
                 draft.enabled = previousValue
                 if var currentConfiguration = configuration {
@@ -460,6 +474,16 @@ struct FallbackScreen: View {
                 saveError = error.localizedDescription
             }
         }
+    }
+
+    @MainActor
+    private func virtualModelsAPIClient() async -> (client: ManagementAPIClient?, errorMessage: String?) {
+        await viewModel.managementAPIClientForAction(
+            bundleMissingMessage: "virtualModels.error.bundleMissing".localized(),
+            startLocalMessage: "virtualModels.error.startLocal".localized(),
+            remoteDisconnectedMessage: "virtualModels.error.remoteDisconnected".localized(),
+            connectMessage: "virtualModels.error.connectToCPA".localized()
+        )
     }
 
     private func createModel(named name: String) {

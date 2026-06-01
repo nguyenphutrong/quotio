@@ -687,15 +687,19 @@ final class QuotaViewModel {
         )
     }
 
-    private func quotaRefreshAPIClient() async -> ManagementAPIClient? {
+    func managementAPIClientForAction(
+        bundleMissingMessage: String,
+        startLocalMessage: String,
+        remoteDisconnectedMessage: String,
+        connectMessage: String
+    ) async -> (client: ManagementAPIClient?, errorMessage: String?) {
         if let apiClient {
-            return apiClient
+            return (apiClient, nil)
         }
 
         if modeManager.isLocalProxyMode {
             guard proxyManager.isBinaryInstalled else {
-                errorMessage = "quota.error.bundleMissing".localized()
-                return nil
+                return (nil, bundleMissingMessage)
             }
 
             if !proxyManager.proxyStatus.running {
@@ -704,20 +708,28 @@ final class QuotaViewModel {
 
             if proxyManager.proxyStatus.running {
                 setupAPIClient()
-                return _apiClient
+                return (_apiClient, nil)
             }
 
-            errorMessage = proxyManager.lastError ?? "quota.error.startLocal".localized()
-            return nil
+            return (nil, proxyManager.lastError ?? startLocalMessage)
         }
 
         if modeManager.isRemoteProxyMode {
-            errorMessage = "quota.error.remoteDisconnected".localized()
-            return nil
+            return (nil, remoteDisconnectedMessage)
         }
 
-        errorMessage = "quota.error.connectToCPA".localized()
-        return nil
+        return (nil, connectMessage)
+    }
+
+    private func quotaRefreshAPIClient() async -> ManagementAPIClient? {
+        let result = await managementAPIClientForAction(
+            bundleMissingMessage: "quota.error.bundleMissing".localized(),
+            startLocalMessage: "quota.error.startLocal".localized(),
+            remoteDisconnectedMessage: "quota.error.remoteDisconnected".localized(),
+            connectMessage: "quota.error.connectToCPA".localized()
+        )
+        errorMessage = result.errorMessage
+        return result.client
     }
     
     private func startAutoRefresh() {

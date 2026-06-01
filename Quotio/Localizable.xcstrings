@@ -7896,6 +7896,54 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "配置裸模型名，使其解析为有序的 provider/model fallback 目标。" } }
       }
     },
+    "virtualModels.error.bundleMissing" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Bundled cpa++ is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Le cpa++ intégré est manquant. Recompilez Quotio ou définissez CPA_PLUSPLUS_BINARY_PATH." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thiếu cpa++ đi kèm. Build lại Quotio hoặc đặt CPA_PLUSPLUS_BINARY_PATH." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "缺少内置 cpa++。请重新构建 Quotio 或设置 CPA_PLUSPLUS_BINARY_PATH。" } }
+      }
+    },
+    "virtualModels.error.connectToCPA" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connect to cpa++ to manage virtual models." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Connectez-vous à cpa++ pour gérer les modèles virtuels." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kết nối cpa++ để quản lý virtual models." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接到 cpa++ 以管理虚拟模型。" } }
+      }
+    },
+    "virtualModels.error.remoteDisconnected" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remote cpa++ is not connected. Check Settings and reconnect." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Le cpa++ distant n'est pas connecté. Vérifiez les réglages et reconnectez-vous." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "cpa++ từ xa chưa kết nối. Kiểm tra Cài đặt và kết nối lại." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "远程 cpa++ 未连接。请检查设置并重新连接。" } }
+      }
+    },
+    "virtualModels.error.startLocal" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start cpa++ to load virtual models." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrez cpa++ pour charger les modèles virtuels." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Khởi động cpa++ để tải virtual models." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启动 cpa++ 以加载虚拟模型。" } }
+      }
+    },
+    "virtualModels.error.targetsUnsupported" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This cpa++ server does not support virtual model targets. Update cpa++ and try again." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ce serveur cpa++ ne prend pas en charge les cibles des modèles virtuels. Mettez cpa++ à jour puis réessayez." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy chủ cpa++ này chưa hỗ trợ target của virtual model. Cập nhật cpa++ rồi thử lại." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此 cpa++ 服务器不支持虚拟模型目标。请更新 cpa++ 后重试。" } }
+      }
+    },
+    "virtualModels.error.unsupported" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This cpa++ server does not support Virtual Models. Update cpa++ and try again." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ce serveur cpa++ ne prend pas en charge les modèles virtuels. Mettez cpa++ à jour puis réessayez." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy chủ cpa++ này chưa hỗ trợ Virtual Models. Cập nhật cpa++ rồi thử lại." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此 cpa++ 服务器不支持虚拟模型。请更新 cpa++ 后重试。" } }
+      }
+    },
     "virtualModels.disabled" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Disabled" } },
