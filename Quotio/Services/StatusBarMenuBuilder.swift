@@ -850,7 +850,7 @@ private struct MenuAccountCardView: View {
                 RingGridLayout(models: models)
             } else {
                 // Standard Card Grid (Bars)
-                CardGridLayout(models: models)
+                CardGridLayout(models: models, columnCount: isAntigravity ? 1 : nil)
             }
         }
     }
@@ -1102,10 +1102,15 @@ private struct RingGridLayout: View {
 
 private struct CardGridLayout: View {
     let models: [ModelBadgeData]
+    let columnCount: Int?
     
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
 
     private var columns: [GridItem] {
+        if let columnCount {
+            return Array(repeating: GridItem(.flexible()), count: columnCount)
+        }
+
         // Single metric: full width. Multiple: 2 columns
         if models.count == 1 {
             return [GridItem(.flexible())]

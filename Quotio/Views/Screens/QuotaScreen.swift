@@ -991,24 +991,12 @@ private struct AntigravityGroupRow: View {
         max(0, min(100, group.percentage))
     }
     
-    private var groupIcon: String {
-        if group.name.contains("Claude") { return "brain.head.profile" }
-        if group.name.contains("Image") { return "photo" }
-        if group.name.contains("Flash") { return "bolt.fill" }
-        return "sparkles"
-    }
-    
     var body: some View {
         let displayPercent = displayHelper.displayPercent(remainingPercent: remainingPercent)
         let statusColor = displayHelper.statusColor(remainingPercent: remainingPercent)
         
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Image(systemName: groupIcon)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 16)
-                
                 Text(group.name)
                     .font(.subheadline)
                     .fontWeight(.medium)
