@@ -10,7 +10,6 @@ import SwiftUI
 
 struct ModelsScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var modeManager = OperatingModeManager.shared
     @State private var catalog: ManagementModelCatalog?
     @State private var searchText = ""
     @State private var isLoading = false
@@ -102,12 +101,9 @@ struct ModelsScreen: View {
         errorMessage = nil
         defer { isLoading = false }
 
-        if modeManager.isLocalProxyMode && !viewModel.proxyManager.proxyStatus.running {
-            await viewModel.ensureProxyRunning()
-        }
-
-        guard let client = viewModel.apiClient else {
-            errorMessage = "models.proxyRequired".localized()
+        let readiness = await modelsAPIClient()
+        guard let client = readiness.client else {
+            errorMessage = readiness.errorMessage
             return
         }
 
@@ -122,8 +118,9 @@ struct ModelsScreen: View {
     private func toggleModel(_ row: ManagementModelCatalogItem) async {
         guard row.isAvailable else { return }
         guard !updatingModelIDs.contains(row.id) else { return }
-        guard let client = viewModel.apiClient else {
-            modelActionError = "models.proxyRequired".localized()
+        let readiness = await modelsAPIClient()
+        guard let client = readiness.client else {
+            modelActionError = readiness.errorMessage
             return
         }
 
@@ -149,10 +146,20 @@ struct ModelsScreen: View {
             try await client.updateProviderEnabledModels(providerID: row.providerID, enabledModels: enabledPayload)
             catalog = try await client.fetchModelCatalog()
         } catch APIError.httpError(404) {
-            modelActionError = "Requires cpa++ API support."
+            modelActionError = "models.error.enableDisableUnsupported".localized()
         } catch {
             modelActionError = error.localizedDescription
         }
+    }
+
+    @MainActor
+    private func modelsAPIClient() async -> (client: ManagementAPIClient?, errorMessage: String?) {
+        await viewModel.managementAPIClientForAction(
+            bundleMissingMessage: "models.error.bundleMissing".localized(),
+            startLocalMessage: "models.error.startLocal".localized(),
+            remoteDisconnectedMessage: "models.error.remoteDisconnected".localized(),
+            connectMessage: "models.error.connectToCPA".localized()
+        )
     }
 }
 

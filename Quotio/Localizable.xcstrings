@@ -11406,6 +11406,146 @@
         }
       }
     },
+    "models.error.bundleMissing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bundled cpa++ is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le cpa++ intégré est manquant. Recompilez Quotio ou définissez CPA_PLUSPLUS_BINARY_PATH."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thiếu cpa++ đi kèm. Build lại Quotio hoặc đặt CPA_PLUSPLUS_BINARY_PATH."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少内置 cpa++。请重新构建 Quotio 或设置 CPA_PLUSPLUS_BINARY_PATH。"
+          }
+        }
+      }
+    },
+    "models.error.connectToCPA" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect to cpa++ to load models."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous à cpa++ pour charger les modèles."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết nối cpa++ để tải model."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接到 cpa++ 以加载模型。"
+          }
+        }
+      }
+    },
+    "models.error.enableDisableUnsupported" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cpa++ server does not support model enable/disable. Update cpa++ and try again."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce serveur cpa++ ne prend pas en charge l'activation ou la désactivation des modèles. Mettez cpa++ à jour puis réessayez."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy chủ cpa++ này chưa hỗ trợ bật/tắt model. Cập nhật cpa++ rồi thử lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 cpa++ 服务器不支持启用/禁用模型。请更新 cpa++ 后重试。"
+          }
+        }
+      }
+    },
+    "models.error.remoteDisconnected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote cpa++ is not connected. Check Settings and reconnect."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le cpa++ distant n'est pas connecté. Vérifiez les réglages et reconnectez-vous."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cpa++ từ xa chưa kết nối. Kiểm tra Cài đặt và kết nối lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远程 cpa++ 未连接。请检查设置并重新连接。"
+          }
+        }
+      }
+    },
+    "models.error.startLocal" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start cpa++ to load models."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarrez cpa++ pour charger les modèles."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khởi động cpa++ để tải model."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动 cpa++ 以加载模型。"
+          }
+        }
+      }
+    },
     "models.refreshHelp" : {
       "localizations" : {
         "en" : {
