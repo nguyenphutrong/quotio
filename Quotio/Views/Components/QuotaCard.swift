@@ -242,7 +242,7 @@ private struct QuotaSection: View {
                         HStack(spacing: 2) {
                             Image(systemName: "clock")
                                 .font(.caption2)
-                            Text(verbatim: "reset \(resetTime)")
+                            Text(verbatim: resetTime)
                                 .font(.caption)
                         }
                         .foregroundStyle(.secondary)

@@ -173,6 +173,23 @@ enum QuotaDisplayMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Reset Time Display Mode
+
+/// Display mode for quota reset times.
+enum ResetTimeDisplayMode: String, Codable, CaseIterable, Identifiable {
+    case relative = "relative"
+    case absolute = "absolute"
+
+    var id: String { rawValue }
+
+    var localizationKey: String {
+        switch self {
+        case .relative: return "settings.quota.resetTime.relative"
+        case .absolute: return "settings.quota.resetTime.absolute"
+        }
+    }
+}
+
 // MARK: - Quota Display Style
 
 /// Visual style for quota display in the main UI
@@ -429,6 +446,7 @@ final class MenuBarSettingsManager {
     private let menuBarMaxItemsKey = "menuBarMaxItems"
     private let quotaDisplayModeKey = "quotaDisplayMode"
     private let quotaDisplayStyleKey = "quotaDisplayStyle"
+    private let resetTimeDisplayModeKey = "resetTimeDisplayMode"
     private let hideSensitiveInfoKey = "hideSensitiveInfo"
     private let totalUsageModeKey = "totalUsageMode"
     private let modelAggregationModeKey = "modelAggregationMode"
@@ -474,6 +492,11 @@ final class MenuBarSettingsManager {
     /// Visual style for quota display
     var quotaDisplayStyle: QuotaDisplayStyle {
         didSet { defaults.set(quotaDisplayStyle.rawValue, forKey: quotaDisplayStyleKey) }
+    }
+
+    /// Reset time display mode (relative vs absolute)
+    var resetTimeDisplayMode: ResetTimeDisplayMode {
+        didSet { defaults.set(resetTimeDisplayMode.rawValue, forKey: resetTimeDisplayModeKey) }
     }
     
     /// Whether to hide sensitive information (emails, account names)
@@ -529,6 +552,7 @@ final class MenuBarSettingsManager {
         self.colorMode = MenuBarColorMode(rawValue: defaults.string(forKey: colorModeKey) ?? "") ?? .colored
         self.quotaDisplayMode = QuotaDisplayMode(rawValue: defaults.string(forKey: quotaDisplayModeKey) ?? "") ?? .used
         self.quotaDisplayStyle = QuotaDisplayStyle(rawValue: defaults.string(forKey: quotaDisplayStyleKey) ?? "") ?? .card
+        self.resetTimeDisplayMode = ResetTimeDisplayMode(rawValue: defaults.string(forKey: resetTimeDisplayModeKey) ?? "") ?? .relative
         self.selectedItems = Self.loadSelectedItems(from: defaults, key: selectedItemsKey)
 
         // Load and clamp menuBarMaxItems, then persist the clamped value

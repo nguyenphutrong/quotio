@@ -51,6 +51,12 @@ struct QuotaScreen: View {
         
         return accounts.count
     }
+
+    private var totalAccountCount: Int {
+        availableProviders.reduce(0) { total, provider in
+            total + accountCount(for: provider)
+        }
+    }
     
     private func lowestQuotaPercent(for provider: AIProvider) -> Double? {
         guard let accounts = viewModel.providerQuotas[provider] else { return nil }
@@ -65,6 +71,10 @@ struct QuotaScreen: View {
         }
         
         return allTotals.min()
+    }
+
+    private var lowestQuotaPercentAcrossProviders: Double? {
+        availableProviders.compactMap { lowestQuotaPercent(for: $0) }.min()
     }
     
     /// Check if we have any data to show
@@ -103,6 +113,22 @@ struct QuotaScreen: View {
                         .pickerStyle(.inline)
                         
                         Divider()
+
+                        // Reset Time Mode (Relative vs Absolute)
+                        Picker(selection: Binding(
+                            get: { settings.resetTimeDisplayMode },
+                            set: { settings.resetTimeDisplayMode = $0 }
+                        )) {
+                            ForEach(ResetTimeDisplayMode.allCases) { mode in
+                                Text(mode.localizationKey.localized())
+                                    .tag(mode)
+                            }
+                        } label: {
+                            Text("settings.quota.resetTime".localized())
+                        }
+                        .pickerStyle(.inline)
+
+                        Divider()
                         
                         // Display Mode (Used vs Remaining)
                         Picker(selection: Binding(
@@ -134,13 +160,11 @@ struct QuotaScreen: View {
             }
         }
         .onAppear {
-            if selectedProvider == nil, let first = availableProviders.first {
-                selectedProvider = first
-            }
+            selectedProvider = selectedProvider.flatMap { availableProviders.contains($0) ? $0 : nil }
         }
         .onChange(of: availableProviders) { _, newProviders in
-            if selectedProvider == nil || !newProviders.contains(selectedProvider!) {
-                selectedProvider = newProviders.first
+            if let selectedProvider, !newProviders.contains(selectedProvider) {
+                self.selectedProvider = nil
             }
         }
     }
@@ -159,14 +183,16 @@ struct QuotaScreen: View {
             
             // Selected Provider Content
             ScrollView {
-                if let provider = selectedProvider ?? availableProviders.first {
-                    ProviderQuotaView(
-                        provider: provider,
-                        authFiles: viewModel.authFiles.filter { $0.providerType == provider },
-                        quotaData: viewModel.providerQuotas[provider] ?? [:],
-                        subscriptionInfos: viewModel.subscriptionInfos[provider] ?? [:],
-                        isLoading: viewModel.isLoadingQuotas
-                    )
+                if let provider = selectedProvider {
+                    providerQuotaView(for: provider)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 16)
+                } else if !availableProviders.isEmpty {
+                    VStack(spacing: 16) {
+                        ForEach(availableProviders) { provider in
+                            providerQuotaView(for: provider)
+                        }
+                    }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 16)
                 } else {
@@ -181,12 +207,32 @@ struct QuotaScreen: View {
             .scrollContentBackground(.hidden)
         }
     }
+
+    private func providerQuotaView(for provider: AIProvider) -> some View {
+        ProviderQuotaView(
+            provider: provider,
+            authFiles: viewModel.authFiles.filter { $0.providerType == provider },
+            quotaData: viewModel.providerQuotas[provider] ?? [:],
+            subscriptionInfos: viewModel.subscriptionInfos[provider] ?? [:],
+            isLoading: viewModel.isLoadingQuotas
+        )
+    }
     
     // MARK: - Segmented Control
     
     private var providerSegmentedControl: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
+                AllProviderSegmentButton(
+                    quotaPercent: lowestQuotaPercentAcrossProviders,
+                    accountCount: totalAccountCount,
+                    isSelected: selectedProvider == nil
+                ) {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        selectedProvider = nil
+                    }
+                }
+
                 ForEach(availableProviders) { provider in
                     ProviderSegmentButton(
                         provider: provider,
@@ -233,6 +279,83 @@ fileprivate struct QuotaDisplayHelper {
 }
 
 // MARK: - Provider Segment Button
+
+private struct AllProviderSegmentButton: View {
+    let quotaPercent: Double?
+    let accountCount: Int
+    let isSelected: Bool
+    let action: () -> Void
+
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
+
+    private var statusColor: Color {
+        guard let percent = quotaPercent else { return .secondary }
+        return displayHelper.statusColor(remainingPercent: percent)
+    }
+
+    private var remainingPercent: Double {
+        max(0, min(100, quotaPercent ?? 0))
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 15, weight: .medium))
+                    .frame(width: 20, height: 20)
+
+                Text("logs.all".localized())
+                    .font(.subheadline)
+                    .fontWeight(isSelected ? .semibold : .medium)
+
+                if accountCount > 1 {
+                    Text(String(accountCount))
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(isSelected ? .white : .secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(isSelected ? statusColor : Color.primary.opacity(0.08))
+                        .clipShape(Capsule())
+                }
+
+                if quotaPercent != nil {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 2)
+                        Circle()
+                            .trim(from: 0, to: remainingPercent / 100)
+                            .stroke(statusColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                    }
+                    .frame(width: 12, height: 12)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(statusColor.opacity(0.3), lineWidth: 1)
+                        )
+                } else {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.primary.opacity(0.04))
+                }
+            }
+            .foregroundStyle(isSelected ? .primary : .secondary)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.15), value: isSelected)
+    }
+}
 
 private struct ProviderSegmentButton: View {
     let provider: AIProvider
@@ -1012,19 +1135,19 @@ private struct AntigravityGroupRow: View {
                 }
                 
                 Spacer()
-                
-                Text(String(format: "%.0f%%", displayPercent))
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(statusColor)
-                    .monospacedDigit()
-                
+
                 if let firstModel = group.models.first,
                    firstModel.formattedResetTime != "—" && !firstModel.formattedResetTime.isEmpty {
                     Text(firstModel.formattedResetTime)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
+
+                Text(String(format: "%.0f%%", displayPercent))
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(statusColor)
+                    .monospacedDigit()
             }
             
             GeometryReader { proxy in
@@ -1199,6 +1322,11 @@ private struct StandardLowestBarLayout: View {
                             .font(.subheadline)
                             .fontWeight(.semibold)
                         Spacer()
+                        if lowest.formattedResetTime != "—" && !lowest.formattedResetTime.isEmpty {
+                            Text(lowest.formattedResetTime)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                         Text(String(format: "%.0f%%", displayPercent(for: lowest.percentage)))
                             .font(.subheadline)
                             .fontWeight(.bold)
@@ -1216,12 +1344,6 @@ private struct StandardLowestBarLayout: View {
                         }
                     }
                     .frame(height: 8)
-                    
-                    if lowest.formattedResetTime != "—" && !lowest.formattedResetTime.isEmpty {
-                        Text(lowest.formattedResetTime)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
                 }
                 .padding(10)
                 .background(displayHelper.statusColor(remainingPercent: lowest.percentage).opacity(0.08))
@@ -1409,21 +1531,21 @@ private struct ModelDetailCard: View {
             }
             .frame(height: 6)
             
-            // Footer: Percentage + Reset time
+            // Footer: reset time + percentage
             HStack {
-                Text(String(format: "%.0f%%", displayPercent))
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(statusColor)
-                    .monospacedDigit()
-                
                 Spacer()
-                
+
                 if model.formattedResetTime != "—" && !model.formattedResetTime.isEmpty {
                     Text(model.formattedResetTime)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
+
+                Text(String(format: "%.0f%%", displayPercent))
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(statusColor)
+                    .monospacedDigit()
             }
         }
         .padding(10)
@@ -1488,9 +1610,15 @@ private struct UsageRowV2: View {
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                             .monospacedDigit()
-                    }
+	                    }
+	                }
+
+                if resetTime != "—" && !resetTime.isEmpty {
+                    Text(resetTime)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
-                
+
                 if !isUnknown {
                     Text(String(format: "%.0f%%", displayPercent))
                         .font(.subheadline)
@@ -1502,13 +1630,7 @@ private struct UsageRowV2: View {
                         .font(.subheadline)
                         .foregroundStyle(.tertiary)
                 }
-                
-                if resetTime != "—" && !resetTime.isEmpty {
-                    Text(resetTime)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-            }
+	            }
             
             if !isUnknown {
                 GeometryReader { proxy in

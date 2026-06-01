@@ -62,7 +62,7 @@ nonisolated struct GroupedModelQuota: Identifiable, Sendable {
 
     var resetTime: String {
         models.compactMap { model -> Date? in
-            parseISO8601Date(model.resetTime)
+            parseResetDate(model.resetTime)
         }.min().map { date in
             ISO8601DateFormatter().string(from: date)
         } ?? ""
@@ -70,22 +70,11 @@ nonisolated struct GroupedModelQuota: Identifiable, Sendable {
 
     var formattedResetTime: String {
         guard !resetTime.isEmpty,
-              let date = parseISO8601Date(resetTime) else {
+              let date = parseResetDate(resetTime) else {
             return "—"
         }
 
-        return formatResetInterval(to: date)
-    }
-
-    private func parseISO8601Date(_ dateString: String) -> Date? {
-        let isoFormatterWithFractional = ISO8601DateFormatter()
-        isoFormatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-        let isoFormatterStandard = ISO8601DateFormatter()
-        isoFormatterStandard.formatOptions = [.withInternetDateTime]
-
-        return isoFormatterWithFractional.date(from: dateString)
-            ?? isoFormatterStandard.date(from: dateString)
+        return formatResetTime(to: date)
     }
 
     var displayName: String { group.displayName }
@@ -180,22 +169,11 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
 
     var formattedResetTime: String {
         guard !resetTime.isEmpty,
-              let date = parseISO8601Date(resetTime) else {
+              let date = parseResetDate(resetTime) else {
             return "—"
         }
 
-        return formatResetInterval(to: date)
-    }
-
-    private func parseISO8601Date(_ dateString: String) -> Date? {
-        let isoFormatterWithFractional = ISO8601DateFormatter()
-        isoFormatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-        let isoFormatterStandard = ISO8601DateFormatter()
-        isoFormatterStandard.formatOptions = [.withInternetDateTime]
-
-        return isoFormatterWithFractional.date(from: dateString)
-            ?? isoFormatterStandard.date(from: dateString)
+        return formatResetTime(to: date)
     }
 }
 
@@ -334,6 +312,43 @@ nonisolated struct SubscriptionInfo: Codable, Sendable {
     }
 }
 
+nonisolated private func parseResetDate(_ dateString: String) -> Date? {
+    let isoFormatterWithFractional = ISO8601DateFormatter()
+    isoFormatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+    let isoFormatterStandard = ISO8601DateFormatter()
+    isoFormatterStandard.formatOptions = [.withInternetDateTime]
+
+    let localFormatter = DateFormatter()
+    localFormatter.locale = Locale(identifier: "en_US_POSIX")
+    localFormatter.timeZone = TimeZone.current
+    localFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+
+    return isoFormatterWithFractional.date(from: dateString)
+        ?? isoFormatterStandard.date(from: dateString)
+        ?? localFormatter.date(from: dateString)
+}
+
+nonisolated private func formatResetTime(to date: Date) -> String {
+    let rawMode = UserDefaults.standard.string(forKey: "resetTimeDisplayMode") ?? ""
+    let mode = ResetTimeDisplayMode(rawValue: rawMode) ?? .relative
+
+    switch mode {
+    case .relative:
+        return formatResetInterval(to: date)
+    case .absolute:
+        return formatResetDate(to: date)
+    }
+}
+
+nonisolated private func formatResetDate(to date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone.current
+    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    return formatter.string(from: date)
+}
+
 nonisolated private func formatResetInterval(to date: Date) -> String {
     let interval = date.timeIntervalSince(Date())
 
@@ -349,12 +364,12 @@ nonisolated private func formatResetInterval(to date: Date) -> String {
 
     if days > 0 {
         if remainingHours > 0 {
-            return "\(days)d \(remainingHours)h"
+            return "\(days)d\(remainingHours)h"
         }
         return "\(days)d"
     } else if hours > 0 {
         if minutes > 0 {
-            return "\(hours)h \(minutes)m"
+            return "\(hours)h\(minutes)m"
         }
         return "\(hours)h"
     } else {

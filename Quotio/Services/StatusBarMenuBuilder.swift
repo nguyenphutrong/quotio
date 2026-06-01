@@ -51,33 +51,21 @@ final class StatusBarMenuBuilder {
             menu.addItem(NSMenuItem.separator())
         }
 
-        // 3. All provider accounts shown together, grouped by provider header
+        // 3. Provider picker + account cards
         let providers = providersWithData
         if !providers.isEmpty {
-            for (index, provider) in providers.enumerated() {
-                let accounts = accountsForProvider(provider)
-
-                // Provider section header
-                let headerView = MenuProviderSectionHeader(provider: provider)
-                menu.addItem(viewItem(for: headerView))
-
-                if accounts.isEmpty {
-                    menu.addItem(buildEmptyStateItem())
-                } else {
-                    for account in accounts {
-                        let cardItem = buildAccountCardItem(
-                            email: account.email,
-                            data: account.data,
-                            provider: provider
-                        )
-                        menu.addItem(cardItem)
-                    }
+            let pickerView = MenuProviderPickerView(providers: providers) {
+                DispatchQueue.main.async {
+                    StatusBarManager.shared.rebuildMenuInPlace()
                 }
+            }
+            menu.addItem(viewItem(for: pickerView))
+            menu.addItem(NSMenuItem.separator())
 
-                // Separator between provider groups (not after the last one)
-                if index < providers.count - 1 {
-                    menu.addItem(NSMenuItem.separator())
-                }
+            if let selectedProvider = resolveSelectedProvider(from: providers) {
+                addProviderSection(selectedProvider, to: menu, showsHeader: false)
+            } else {
+                addAllProviderSections(providers, to: menu)
             }
 
             menu.addItem(NSMenuItem.separator())
@@ -166,18 +154,49 @@ final class StatusBarMenuBuilder {
         return false
     }
     
-    private func resolveSelectedProvider(from providers: [AIProvider]) -> AIProvider {
+    private func resolveSelectedProvider(from providers: [AIProvider]) -> AIProvider? {
         if !selectedProviderRaw.isEmpty,
            let provider = AIProvider.fromProviderID(selectedProviderRaw),
            providers.contains(provider) {
             return provider
         }
-        return providers.first ?? .gemini
+        return nil
     }
     
     private func accountsForProvider(_ provider: AIProvider) -> [(email: String, data: ProviderQuotaData)] {
         guard let quotas = viewModel.providerQuotas[provider] else { return [] }
         return quotas.map { ($0.key, $0.value) }.sorted { $0.email < $1.email }
+    }
+
+    private func addAllProviderSections(_ providers: [AIProvider], to menu: NSMenu) {
+        for (index, provider) in providers.enumerated() {
+            addProviderSection(provider, to: menu, showsHeader: true)
+            if index < providers.count - 1 {
+                menu.addItem(NSMenuItem.separator())
+            }
+        }
+    }
+
+    private func addProviderSection(_ provider: AIProvider, to menu: NSMenu, showsHeader: Bool) {
+        let accounts = accountsForProvider(provider)
+
+        if showsHeader {
+            let headerView = MenuProviderSectionHeader(provider: provider)
+            menu.addItem(viewItem(for: headerView))
+        }
+
+        if accounts.isEmpty {
+            menu.addItem(buildEmptyStateItem())
+        } else {
+            for account in accounts {
+                let cardItem = buildAccountCardItem(
+                    email: account.email,
+                    data: account.data,
+                    provider: provider
+                )
+                menu.addItem(cardItem)
+            }
+        }
     }
 
     // MARK: - Header Item
@@ -386,18 +405,23 @@ private struct MenuProviderPickerView: View {
     let providers: [AIProvider]
     let onProviderChanged: () -> Void
     
-    private var selectedProvider: AIProvider {
+    private var selectedProvider: AIProvider? {
         if !selectedProviderRaw.isEmpty,
            let provider = AIProvider.fromProviderID(selectedProviderRaw),
            providers.contains(provider) {
             return provider
         }
-        return providers.first ?? .gemini
+        return nil
     }
     
     var body: some View {
         // Wrap providers in a flexible layout
         FlowLayout(spacing: 6) {
+            AllProviderFilterButton(isSelected: selectedProvider == nil) {
+                selectedProviderRaw = ""
+                onProviderChanged()
+            }
+
             ForEach(providers) { provider in
                 ProviderFilterButton(
                     provider: provider,
@@ -410,6 +434,38 @@ private struct MenuProviderPickerView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: All Provider Filter Button
+
+private struct AllProviderFilterButton: View {
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 12, weight: .medium))
+                    .opacity(isSelected ? 1.0 : 0.7)
+
+                Text("logs.all".localized())
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .medium, design: .rounded))
+            }
+            .foregroundStyle(isSelected ? .primary : .secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.05))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -723,7 +779,7 @@ private struct MenuAccountCardView: View {
         if !claudeModels.isEmpty {
             let aggregatedPercent = settings.aggregateModelPercentages(claudeModels.map(\.percentage))
             let minModel = claudeModels.min(by: { $0.percentage < $1.percentage })
-            groups.append(AntigravityDisplayGroup(name: "Claude 4.5", percentage: aggregatedPercent, resetTime: minModel?.resetTime))
+            groups.append(AntigravityDisplayGroup(name: "Claude", percentage: aggregatedPercent, resetTime: minModel?.resetTime))
         }
 
         return groups.sorted { $0.percentage < $1.percentage }
@@ -917,33 +973,8 @@ private struct ModelBadgeData: Identifiable {
 
     var formattedResetTime: String? {
         guard let resetTime = resetTime else { return nil }
-
-        // Try parsing with fractional seconds first, then standard format
-        let isoFormatterWithFractional = ISO8601DateFormatter()
-        isoFormatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-        let isoFormatterStandard = ISO8601DateFormatter()
-        isoFormatterStandard.formatOptions = [.withInternetDateTime]
-
-        guard let date = isoFormatterWithFractional.date(from: resetTime)
-              ?? isoFormatterStandard.date(from: resetTime) else { return nil }
-
-        let now = Date()
-        let diff = date.timeIntervalSince(now)
-        guard diff > 0 else { return nil }
-
-        let totalMinutes = Int(diff) / 60
-        let days = totalMinutes / 1440  // 24 * 60
-        let hours = (totalMinutes % 1440) / 60
-        let minutes = totalMinutes % 60
-
-        if days > 0 {
-            return "\(days)d\(hours)h"
-        } else if hours > 0 {
-            return "\(hours)h\(minutes)m"
-        } else {
-            return "\(minutes)m"
-        }
+        let formatted = ModelQuota(name: name, percentage: percentage, resetTime: resetTime).formattedResetTime
+        return formatted == "—" ? nil : formatted
     }
 }
 

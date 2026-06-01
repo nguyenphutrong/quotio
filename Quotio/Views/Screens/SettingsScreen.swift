@@ -1105,6 +1105,13 @@ struct QuotaDisplaySettingsSection: View {
             set: { settings.quotaDisplayStyle = $0 }
         )
     }
+
+    private var resetTimeDisplayModeBinding: Binding<ResetTimeDisplayMode> {
+        Binding(
+            get: { settings.resetTimeDisplayMode },
+            set: { settings.resetTimeDisplayMode = $0 }
+        )
+    }
     
     var body: some View {
         Section {
@@ -1117,6 +1124,13 @@ struct QuotaDisplaySettingsSection: View {
             Picker("settings.quota.displayStyle".localized(), selection: displayStyleBinding) {
                 ForEach(QuotaDisplayStyle.allCases) { style in
                     Text(style.localizationKey.localized()).tag(style)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Picker("settings.quota.resetTime".localized(), selection: resetTimeDisplayModeBinding) {
+                ForEach(ResetTimeDisplayMode.allCases) { mode in
+                    Text(mode.localizationKey.localized()).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
