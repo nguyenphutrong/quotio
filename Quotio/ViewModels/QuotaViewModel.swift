@@ -686,6 +686,39 @@ final class QuotaViewModel {
             authKey: proxyManager.managementKey
         )
     }
+
+    private func quotaRefreshAPIClient() async -> ManagementAPIClient? {
+        if let apiClient {
+            return apiClient
+        }
+
+        if modeManager.isLocalProxyMode {
+            guard proxyManager.isBinaryInstalled else {
+                errorMessage = "quota.error.bundleMissing".localized()
+                return nil
+            }
+
+            if !proxyManager.proxyStatus.running {
+                await ensureProxyRunning()
+            }
+
+            if proxyManager.proxyStatus.running {
+                setupAPIClient()
+                return _apiClient
+            }
+
+            errorMessage = proxyManager.lastError ?? "quota.error.startLocal".localized()
+            return nil
+        }
+
+        if modeManager.isRemoteProxyMode {
+            errorMessage = "quota.error.remoteDisconnected".localized()
+            return nil
+        }
+
+        errorMessage = "quota.error.connectToCPA".localized()
+        return nil
+    }
     
     private func startAutoRefresh() {
         refreshTask?.cancel()
@@ -817,23 +850,19 @@ final class QuotaViewModel {
         }
         lastQuotaRefresh = Date()
 
-        if let apiClient {
-            do {
-                providerQuotas = try await apiClient.fetchQuota().providerQuotas()
-                errorMessage = nil
-                checkQuotaNotifications()
-                pruneMenuBarItems()
-                autoSelectMenuBarItems()
-                return
-            } catch {
-                errorMessage = error.localizedDescription
-                if modeManager.isProxyMode {
-                    return
-                }
-            }
-        }
+        guard let apiClient = await quotaRefreshAPIClient() else { return }
 
-        errorMessage = "Requires cpa++ API support."
+        do {
+            providerQuotas = try await apiClient.refreshQuota().providerQuotas()
+            errorMessage = nil
+            checkQuotaNotifications()
+            pruneMenuBarItems()
+            autoSelectMenuBarItems()
+        } catch APIError.httpError(404) {
+            errorMessage = "quota.error.refreshUnsupported".localized()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     /// Unified quota refresh now delegates to cpa-plusplus Management API.
@@ -847,16 +876,15 @@ final class QuotaViewModel {
     }
 
     func refreshQuota(provider: AIProvider, authID: String?) async {
-        guard let apiClient else {
-            errorMessage = "Requires cpa++ API support."
-            return
-        }
+        guard let apiClient = await quotaRefreshAPIClient() else { return }
 
         do {
             providerQuotas = try await apiClient.refreshQuota(provider: provider, authID: authID).providerQuotas()
             errorMessage = nil
             pruneMenuBarItems()
             notifyQuotaDataChanged()
+        } catch APIError.httpError(404) {
+            errorMessage = "quota.error.providerRefreshUnsupported".localized()
         } catch {
             errorMessage = error.localizedDescription
         }

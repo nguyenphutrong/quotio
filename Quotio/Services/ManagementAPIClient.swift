@@ -434,8 +434,11 @@ actor ManagementAPIClient {
 
     func refreshQuota(provider: AIProvider? = nil, authID: String? = nil) async throws -> ManagementQuotaView {
         let endpoint: String
-        if let provider, let authID {
-            endpoint = "/quota/refresh/\(provider.canonicalProviderID.urlPathEncoded)/\(authID.urlPathEncoded)"
+        let trimmedAuthID = authID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if let provider, !trimmedAuthID.isEmpty {
+            endpoint = "/quota/refresh/\(provider.canonicalProviderID.urlPathEncoded)/\(trimmedAuthID.urlPathEncoded)"
+        } else if let provider {
+            endpoint = "/quota/refresh/\(provider.canonicalProviderID.urlPathEncoded)"
         } else {
             endpoint = "/quota/refresh"
         }

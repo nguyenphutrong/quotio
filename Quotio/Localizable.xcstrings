@@ -15242,6 +15242,174 @@
         }
       }
     },
+    "quota.error.bundleMissing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bundled cpa++ is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le cpa++ intégré est manquant. Recompilez Quotio ou définissez CPA_PLUSPLUS_BINARY_PATH."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thiếu cpa++ đi kèm. Build lại Quotio hoặc đặt CPA_PLUSPLUS_BINARY_PATH."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少内置 cpa++。请重新构建 Quotio 或设置 CPA_PLUSPLUS_BINARY_PATH。"
+          }
+        }
+      }
+    },
+    "quota.error.connectToCPA" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect to cpa++ to refresh quotas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous à cpa++ pour actualiser les quotas."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết nối cpa++ để làm mới quota."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接到 cpa++ 以刷新配额。"
+          }
+        }
+      }
+    },
+    "quota.error.providerRefreshUnsupported" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cpa++ server does not support provider quota refresh. Update cpa++ and try again."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce serveur cpa++ ne prend pas en charge l'actualisation du quota par fournisseur. Mettez cpa++ à jour puis réessayez."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy chủ cpa++ này chưa hỗ trợ làm mới quota theo nhà cung cấp. Cập nhật cpa++ rồi thử lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 cpa++ 服务器不支持按提供商刷新配额。请更新 cpa++ 后重试。"
+          }
+        }
+      }
+    },
+    "quota.error.refreshUnsupported" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cpa++ server does not support quota refresh. Update cpa++ and try again."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce serveur cpa++ ne prend pas en charge l'actualisation des quotas. Mettez cpa++ à jour puis réessayez."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy chủ cpa++ này chưa hỗ trợ làm mới quota. Cập nhật cpa++ rồi thử lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 cpa++ 服务器不支持刷新配额。请更新 cpa++ 后重试。"
+          }
+        }
+      }
+    },
+    "quota.error.remoteDisconnected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote cpa++ is not connected. Check Settings and reconnect."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le cpa++ distant n'est pas connecté. Vérifiez les réglages et reconnectez-vous."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cpa++ từ xa chưa kết nối. Kiểm tra Cài đặt và kết nối lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远程 cpa++ 未连接。请检查设置并重新连接。"
+          }
+        }
+      }
+    },
+    "quota.error.startLocal" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start cpa++ to refresh quotas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarrez cpa++ pour actualiser les quotas."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khởi động cpa++ để làm mới quota."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动 cpa++ 以刷新配额。"
+          }
+        }
+      }
+    },
     "quota.noDataYet" : {
       "extractionState" : "stale",
       "localizations" : {
