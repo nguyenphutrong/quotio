@@ -7,6 +7,7 @@ import Foundation
 
 actor AgentConfigurationService {
     private let fileManager = FileManager.default
+    private let codexPatcher = CodexConfigPatcher()
     
     // MARK: - Saved Configuration Models
     
@@ -146,44 +147,18 @@ actor AgentConfigurationService {
     }
     
     private func readCodexConfig() -> SavedAgentConfig? {
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let configPath = "\(home)/.codex/config.toml"
-        
-        guard fileManager.fileExists(atPath: configPath),
-              let content = try? String(contentsOfFile: configPath, encoding: .utf8) else {
-            return nil
-        }
-        
-        // Simple TOML parsing for the values we need
-        var baseURL: String?
-        var model: String?
-        var isProxy = false
-        
-        for line in content.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            
-            if trimmed.hasPrefix("base_url") {
-                if let value = extractTOMLValue(from: trimmed) {
-                    baseURL = value
-                    isProxy = value.contains("127.0.0.1") || value.contains("localhost")
-                }
-            } else if trimmed.hasPrefix("model =") {
-                model = extractTOMLValue(from: trimmed)
-            } else if trimmed.contains("model_provider") && trimmed.contains("cliproxyapi") {
-                isProxy = true
-            }
-        }
-        
+        guard let snapshot = codexPatcher.readSnapshot() else { return nil }
+
         var modelSlots: [ModelSlot: String] = [:]
-        if let m = model {
+        if let m = snapshot.model {
             modelSlots[.sonnet] = m  // Codex uses single model
         }
-        
+
         return SavedAgentConfig(
-            baseURL: baseURL,
-            apiKey: nil,  // API key is in auth.json
+            baseURL: snapshot.baseURL,
+            apiKey: snapshot.apiKey,
             modelSlots: modelSlots,
-            isProxyConfigured: isProxy,
+            isProxyConfigured: snapshot.isProxyConfigured,
             backupFiles: listBackups(agent: .codexCLI)
         )
     }
@@ -323,17 +298,6 @@ actor AgentConfigurationService {
     
     // MARK: - Helper Functions
     
-    private func extractTOMLValue(from line: String) -> String? {
-        guard let equalIndex = line.firstIndex(of: "=") else { return nil }
-        let valueStart = line.index(after: equalIndex)
-        var value = String(line[valueStart...]).trimmingCharacters(in: .whitespaces)
-        // Remove quotes
-        if value.hasPrefix("\"") && value.hasSuffix("\"") {
-            value = String(value.dropFirst().dropLast())
-        }
-        return value.isEmpty ? nil : value
-    }
-    
     private func extractExportValue(from line: String) -> String? {
         // Handle: export VAR="value" or export VAR=value
         guard let equalIndex = line.firstIndex(of: "=") else { return nil }
@@ -344,217 +308,6 @@ actor AgentConfigurationService {
             value = String(value.dropFirst().dropLast())
         }
         return value.isEmpty ? nil : value
-    }
-
-    /// Escape a value for use in a TOML basic string.
-    /// Handles quotes, backslashes, and ASCII control characters.
-    private func escapeTOMLString(_ value: String) -> String {
-        var escaped = ""
-
-        for scalar in value.unicodeScalars {
-            switch scalar.value {
-            case 0x22:
-                escaped += "\\\""
-            case 0x5C:
-                escaped += "\\\\"
-            case 0x08:
-                escaped += "\\b"
-            case 0x09:
-                escaped += "\\t"
-            case 0x0A:
-                escaped += "\\n"
-            case 0x0C:
-                escaped += "\\f"
-            case 0x0D:
-                escaped += "\\r"
-            case 0x00...0x1F, 0x7F:
-                escaped += String(format: "\\u%04X", scalar.value)
-            default:
-                escaped.unicodeScalars.append(scalar)
-            }
-        }
-
-        return escaped
-    }
-
-    private func buildManagedCodexTOML(model: String, proxyURL: String) -> String {
-        let escapedModel = escapeTOMLString(model)
-        let escapedProxyURL = escapeTOMLString(proxyURL)
-
-        return """
-        # CLIProxyAPI Configuration for Codex CLI
-        model_provider = "cliproxyapi"
-        model = "\(escapedModel)"
-        model_reasoning_effort = "high"
-
-        [model_providers.cliproxyapi]
-        name = "cliproxyapi"
-        base_url = "\(escapedProxyURL)"
-        wire_api = "responses"
-        """
-    }
-
-    private func parseTOMLSectionName(from line: String) -> String? {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard trimmed.hasPrefix("[") else { return nil }
-
-        if trimmed.hasPrefix("[[") {
-            guard let closeRange = trimmed.range(of: "]]") else { return nil }
-            let start = trimmed.index(trimmed.startIndex, offsetBy: 2)
-            let section = String(trimmed[start..<closeRange.lowerBound]).trimmingCharacters(in: .whitespaces)
-            return section.isEmpty ? nil : section
-        }
-
-        guard let closeIndex = trimmed.firstIndex(of: "]") else { return nil }
-        let start = trimmed.index(after: trimmed.startIndex)
-        guard start <= closeIndex else { return nil }
-        let section = String(trimmed[start..<closeIndex]).trimmingCharacters(in: .whitespaces)
-        return section.isEmpty ? nil : section
-    }
-
-    private func isCodexManagedTopLevelKey(_ line: String) -> Bool {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard let equalIndex = trimmed.firstIndex(of: "=") else { return false }
-        let key = String(trimmed[..<equalIndex]).trimmingCharacters(in: .whitespaces)
-        return key == "model_provider" || key == "model" || key == "model_reasoning_effort"
-    }
-
-    private typealias ManagedCodexConfigParts = (topLevel: [String], section: [String])
-
-    private func splitManagedCodexConfig(_ managedConfig: String) -> ManagedCodexConfigParts {
-        let lines = managedConfig.components(separatedBy: .newlines)
-        guard let sectionStart = lines.firstIndex(where: { parseTOMLSectionName(from: $0) != nil }) else {
-            return (lines, [])
-        }
-        return (Array(lines[..<sectionStart]), Array(lines[sectionStart...]))
-    }
-
-    private func extractManagedCodexBanner(from managedConfig: String) -> String? {
-        for line in managedConfig.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard !trimmed.isEmpty else { continue }
-            return trimmed.hasPrefix("#") ? trimmed : nil
-        }
-        return nil
-    }
-
-    private func filterExistingCodexLines(existingContent: String, managedBanner: String?) -> [String] {
-        let lines = existingContent.components(separatedBy: .newlines)
-        var filteredLines: [String] = []
-        var skippingCliproxySection = false
-        var hasSeenAnySection = false
-
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-            if let sectionName = parseTOMLSectionName(from: trimmed) {
-                let cliproxySection = "model_providers.cliproxyapi"
-                if sectionName == cliproxySection || sectionName.hasPrefix(cliproxySection + ".") {
-                    skippingCliproxySection = true
-                    continue
-                }
-                skippingCliproxySection = false
-                hasSeenAnySection = true
-            }
-
-            if skippingCliproxySection {
-                continue
-            }
-
-            if let managedBanner, !hasSeenAnySection && trimmed == managedBanner {
-                continue
-            }
-
-            if !hasSeenAnySection && isCodexManagedTopLevelKey(trimmed) {
-                continue
-            }
-
-            filteredLines.append(line)
-        }
-
-        while filteredLines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
-            filteredLines.removeLast()
-        }
-
-        return filteredLines
-    }
-
-    private func composeMergedCodexConfig(filteredLines: [String], managedParts: ManagedCodexConfigParts) -> String {
-        var firstSectionIndex = filteredLines.count
-        if let sectionIndex = filteredLines.firstIndex(where: { parseTOMLSectionName(from: $0) != nil }) {
-            firstSectionIndex = sectionIndex
-        }
-
-        var topLevelLines = Array(filteredLines[..<firstSectionIndex])
-        let remainingSections = Array(filteredLines[firstSectionIndex...])
-
-        while topLevelLines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
-            topLevelLines.removeLast()
-        }
-
-        var leadingHeaderIndex = 0
-        while leadingHeaderIndex < topLevelLines.count {
-            let trimmed = topLevelLines[leadingHeaderIndex].trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty || trimmed.hasPrefix("#") {
-                leadingHeaderIndex += 1
-            } else {
-                break
-            }
-        }
-
-        var leadingHeader = Array(topLevelLines[..<leadingHeaderIndex])
-        var userTopLevel = Array(topLevelLines[leadingHeaderIndex...])
-
-        while leadingHeader.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
-            leadingHeader.removeLast()
-        }
-
-        while userTopLevel.first?.trimmingCharacters(in: .whitespaces).isEmpty == true {
-            userTopLevel.removeFirst()
-        }
-        while userTopLevel.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
-            userTopLevel.removeLast()
-        }
-
-        var merged: [String] = []
-        if !leadingHeader.isEmpty {
-            merged.append(contentsOf: leadingHeader)
-        }
-
-        if !merged.isEmpty && merged.last?.isEmpty == false {
-            merged.append("")
-        }
-        merged.append(contentsOf: managedParts.topLevel)
-
-        if !userTopLevel.isEmpty {
-            if merged.last?.isEmpty == false {
-                merged.append("")
-            }
-            merged.append(contentsOf: userTopLevel)
-        }
-
-        if merged.last?.isEmpty == false {
-            merged.append("")
-        }
-        merged.append(contentsOf: managedParts.section)
-
-        if !remainingSections.isEmpty {
-            if merged.last?.isEmpty == false {
-                merged.append("")
-            }
-            merged.append(contentsOf: remainingSections)
-        }
-
-        return merged
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
-    }
-
-    private func mergeCodexConfig(existingContent: String, managedConfig: String) -> String {
-        let managedBanner = extractManagedCodexBanner(from: managedConfig)
-        let managedParts = splitManagedCodexConfig(managedConfig)
-        let filteredLines = filterExistingCodexLines(existingContent: existingContent, managedBanner: managedBanner)
-        return composeMergedCodexConfig(filteredLines: filteredLines, managedParts: managedParts)
     }
     
     func generateConfiguration(
@@ -576,7 +329,7 @@ actor AgentConfigurationService {
             return generateClaudeCodeConfig(config: config, mode: mode, storageOption: storageOption)
 
         case .codexCLI:
-            return try await generateCodexConfig(config: config, mode: mode)
+            return try await generateCodexConfig(config: config, mode: mode, availableModels: availableModels)
 
         case .geminiCLI:
             return generateGeminiCLIConfig(config: config, mode: mode)
@@ -698,48 +451,47 @@ actor AgentConfigurationService {
     }
     
     private func generateCodexDefaultConfig(mode: ConfigurationMode) -> AgentConfigResult {
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let configPath = "\(home)/.codex/config.toml"
-        
-        if mode == .automatic && fileManager.fileExists(atPath: configPath) {
+        let configPath = codexPatcher.configURL.path
+
+        if mode == .automatic {
             do {
-                let content = try String(contentsOfFile: configPath, encoding: .utf8)
-                
-                // Create backup
-                let backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
-                try content.write(toFile: backupPath, atomically: true, encoding: .utf8)
-                
-                // Reuse the same TOML-aware filtering used by merge path,
-                // including managed banner removal.
-                let stubManagedConfig = buildManagedCodexTOML(model: "", proxyURL: "")
-                let managedBanner = extractManagedCodexBanner(from: stubManagedConfig)
-                let filteredLines = filterExistingCodexLines(existingContent: content, managedBanner: managedBanner)
-                let newContent = filteredLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
-                try newContent.write(toFile: configPath, atomically: true, encoding: .utf8)
-                
+                let restore = try codexPatcher.restoreDefaultConfig()
                 return .success(
                     type: .file,
                     mode: mode,
-                    configPath: configPath,
+                    configPath: restore.configPath,
                     authPath: nil,
                     shellConfig: nil,
                     rawConfigs: [],
-                    instructions: "Removed CLIProxyAPI configuration. Codex CLI will now use OpenAI API directly.",
-                    modelsConfigured: 0
+                    instructions: "Removed Quotio configuration. Codex CLI will now use its default provider.",
+                    modelsConfigured: 0,
+                    backupPath: restore.backupPath
                 )
             } catch {
                 return .failure(error: "Failed to update config: \(error.localizedDescription)")
             }
         }
-        
+
+        let rawConfigs: [RawConfigOutput]
+        if let restored = try? codexPatcher.makeRestoredConfigContent() {
+            rawConfigs = [RawConfigOutput(
+                format: .toml,
+                content: restored,
+                filename: "config.toml",
+                targetPath: configPath,
+                instructions: "Save this as ~/.codex/config.toml"
+            )]
+        } else {
+            rawConfigs = []
+        }
+
         return .success(
             type: .file,
             mode: mode,
             configPath: nil,
             authPath: nil,
-            shellConfig: nil,
-            rawConfigs: [],
-            instructions: "Remove [model_providers.cliproxyapi] section from ~/.codex/config.toml",
+            rawConfigs: rawConfigs,
+            instructions: "Remove the Quotio managed blocks and [model_providers.quotio] section from ~/.codex/config.toml.",
             modelsConfigured: 0
         )
     }
@@ -1054,86 +806,53 @@ actor AgentConfigurationService {
         }
     }
     
-    private func generateCodexConfig(config: AgentConfiguration, mode: ConfigurationMode) async throws -> AgentConfigResult {
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let codexDir = "\(home)/.codex"
-        let configPath = "\(codexDir)/config.toml"
-        let authPath = "\(codexDir)/auth.json"
+    private func generateCodexConfig(
+        config: AgentConfiguration,
+        mode: ConfigurationMode,
+        availableModels: [AvailableModel]
+    ) async throws -> AgentConfigResult {
+        let prepared = try codexPatcher.makePreparedConfig(config: config, availableModels: availableModels)
 
-        let managedConfigTOML = buildManagedCodexTOML(
-            model: config.modelSlots[.sonnet] ?? "gpt-5-codex",
-            proxyURL: config.proxyURL
-        )
-
-        let configTOML: String
-        if fileManager.fileExists(atPath: configPath) {
-            do {
-                let existingConfig = try String(contentsOfFile: configPath, encoding: .utf8)
-                configTOML = mergeCodexConfig(existingContent: existingConfig, managedConfig: managedConfigTOML)
-            } catch {
-                Log.warning("Failed to read existing Codex config at \(configPath): \(error.localizedDescription). Falling back to managed-only config.")
-                configTOML = managedConfigTOML + "\n"
-            }
-        } else {
-            configTOML = managedConfigTOML + "\n"
-        }
-        
-        let authJSON = """
-        {
-          "OPENAI_API_KEY": "\(config.apiKey)"
-        }
-        """
-        
         let rawConfigs = [
             RawConfigOutput(
                 format: .toml,
-                content: configTOML,
+                content: prepared.configTOML,
                 filename: "config.toml",
-                targetPath: configPath,
+                targetPath: prepared.configPath,
                 instructions: "Save this as ~/.codex/config.toml"
             ),
             RawConfigOutput(
                 format: .json,
-                content: authJSON,
-                filename: "auth.json",
-                targetPath: authPath,
-                instructions: "Save this as ~/.codex/auth.json"
+                content: prepared.catalogJSON,
+                filename: "custom_model_catalog.json",
+                targetPath: prepared.catalogPath,
+                instructions: "Save this as the local Codex model catalog and keep model_catalog_json pointing to it."
             )
         ]
-        
+
         if mode == .automatic {
-            try fileManager.createDirectory(atPath: codexDir, withIntermediateDirectories: true)
-            
-            var backupPath: String? = nil
-            if fileManager.fileExists(atPath: configPath) {
-                backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
-                try? fileManager.copyItem(atPath: configPath, toPath: backupPath!)
-            }
-            
-            try configTOML.write(toFile: configPath, atomically: true, encoding: .utf8)
-            try authJSON.write(toFile: authPath, atomically: true, encoding: .utf8)
-            
-            try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: authPath)
-            
+            let install = try codexPatcher.install(prepared)
             return .success(
                 type: .file,
                 mode: mode,
-                configPath: configPath,
-                authPath: authPath,
+                configPath: install.configPath,
+                authPath: nil,
+                catalogPath: install.catalogPath,
                 rawConfigs: rawConfigs,
-                instructions: "Configuration files created. Codex CLI is now configured to use CLIProxyAPI.",
-                modelsConfigured: 1,
-                backupPath: backupPath
+                instructions: "Codex CLI is now configured to use Quotio.",
+                modelsConfigured: install.modelsConfigured,
+                backupPath: install.backupPath
             )
         } else {
             return .success(
                 type: .file,
                 mode: mode,
-                configPath: configPath,
-                authPath: authPath,
+                configPath: prepared.configPath,
+                authPath: nil,
+                catalogPath: prepared.catalogPath,
                 rawConfigs: rawConfigs,
                 instructions: "agents.codex.mergeAndSaveFiles".localizedStatic(),
-                modelsConfigured: 1
+                modelsConfigured: prepared.modelsConfigured
             )
         }
     }

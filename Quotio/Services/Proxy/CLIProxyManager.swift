@@ -51,7 +51,8 @@ final class CLIProxyManager {
         killProcessOnPort(port)
     }
     
-    nonisolated private static func killProcessOnPort(_ port: UInt16) {
+    @discardableResult
+    nonisolated private static func killProcessOnPort(_ port: UInt16) -> Int {
         let lsofProcess = Process()
         lsofProcess.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         lsofProcess.arguments = ["-ti", "tcp:\(port)"]
@@ -62,6 +63,7 @@ final class CLIProxyManager {
 
         // Get own PID to avoid killing ourselves.
         let ownPid = ProcessInfo.processInfo.processIdentifier
+        var killedCount = 0
 
         do {
             try lsofProcess.run()
@@ -69,7 +71,7 @@ final class CLIProxyManager {
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             guard let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !output.isEmpty else { return }
+                  !output.isEmpty else { return killedCount }
 
             for pidString in output.components(separatedBy: .newlines) {
                 if let pid = Int32(pidString.trimmingCharacters(in: .whitespaces)) {
@@ -77,11 +79,15 @@ final class CLIProxyManager {
                         NSLog("[CLIProxyManager] Skipping kill of own PID \(pid) on port \(port) during shutdown")
                         continue
                     }
-                    kill(pid, SIGKILL)
+                    if kill(pid, SIGKILL) == 0 {
+                        killedCount += 1
+                    }
                 }
             }
         } catch {
         }
+
+        return killedCount
     }
     
     private var process: Process?
@@ -606,6 +612,8 @@ final class CLIProxyManager {
         lastError = nil
         
         defer { isStarting = false }
+
+        NSLog("[CLIProxyManager] Starting proxy on port \(proxyStatus.port) using \(activeBinaryPath)")
         
         // Clean up any orphan processes from previous runs
         await cleanupOrphanProcesses()
@@ -700,9 +708,10 @@ final class CLIProxyManager {
             proxyStatus.running = true
             
             startHealthMonitor()
-            
+
         } catch {
             lastError = error.localizedDescription
+            NSLog("[CLIProxyManager] Failed to start proxy on port \(proxyStatus.port): \(error.localizedDescription)")
             throw error
         }
     }
@@ -899,8 +908,10 @@ final class CLIProxyManager {
         // Execute blocking operations on background thread
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             Task.detached(priority: .userInitiated) {
-                Self.killProcessOnPortSync(userPort)
-                NSLog("[CLIProxyManager] Cleaned up orphan processes on port \(userPort)")
+                let killedCount = Self.killProcessOnPortSync(userPort)
+                if killedCount > 0 {
+                    NSLog("[CLIProxyManager] Cleaned up \(killedCount) orphan proxy process(es) on port \(userPort)")
+                }
                 
                 // Small delay to ensure ports are released
                 usleep(200_000)  // 200ms, avoid Thread.sleep in async context
@@ -912,7 +923,8 @@ final class CLIProxyManager {
     /// Synchronous port cleanup for use in detached tasks.
     /// This method is `nonisolated` to allow calling from background threads.
     /// IMPORTANT: Excludes own PID to prevent killing Quotio itself.
-    nonisolated private static func killProcessOnPortSync(_ port: UInt16) {
+    @discardableResult
+    nonisolated private static func killProcessOnPortSync(_ port: UInt16) -> Int {
         let lsofProcess = Process()
         lsofProcess.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         lsofProcess.arguments = ["-ti", "tcp:\(port)"]
@@ -923,6 +935,7 @@ final class CLIProxyManager {
 
         // Get own PID to avoid killing ourselves.
         let ownPid = ProcessInfo.processInfo.processIdentifier
+        var killedCount = 0
 
         do {
             try lsofProcess.run()
@@ -930,7 +943,7 @@ final class CLIProxyManager {
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             guard let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !output.isEmpty else { return }
+                  !output.isEmpty else { return killedCount }
 
             for pidString in output.components(separatedBy: .newlines) {
                 if let pid = Int32(pidString.trimmingCharacters(in: .whitespaces)) {
@@ -939,12 +952,16 @@ final class CLIProxyManager {
                         NSLog("[CLIProxyManager] Skipping kill of own PID \(pid) on port \(port)")
                         continue
                     }
-                    kill(pid, SIGKILL)
+                    if kill(pid, SIGKILL) == 0 {
+                        killedCount += 1
+                    }
                 }
             }
         } catch {
             // Silent failure - process may not exist
         }
+
+        return killedCount
     }
     
     func toggle() async throws {

@@ -13,6 +13,7 @@ import os.log
 final class AgentSetupViewModel {
     private let detectionService = AgentDetectionService()
     private let configurationService = AgentConfigurationService()
+    private let codexDesktopPatchService = CodexDesktopPatchService()
     private let shellManager = ShellProfileManager()
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Quotio", category: "AgentSetup")
 
@@ -27,6 +28,10 @@ final class AgentSetupViewModel {
 
     var availableModels: [AvailableModel] = []
     var isFetchingModels = false
+    var codexPatchDesktopOnApply = false
+    var codexRelaunchAfterApply = false
+    var codexDesktopPatchStatus: CodexDesktopPatchStatus?
+    var isPatchingCodexDesktop = false
 
     var currentConfiguration: AgentConfiguration?
     var detectedShell: ShellType = .zsh
@@ -83,6 +88,10 @@ final class AgentSetupViewModel {
         savedConfig = nil
         availableBackups = []
         selectedSetupMode = .proxy  // Reset to default
+        codexPatchDesktopOnApply = false
+        codexRelaunchAfterApply = false
+        codexDesktopPatchStatus = nil
+        isPatchingCodexDesktop = false
 
         guard let proxyManager = proxyManager else {
             errorMessage = "Proxy manager not available"
@@ -120,6 +129,10 @@ final class AgentSetupViewModel {
             guard !Task.isCancelled, self.selectedAgent == agent else { return }
             
             await self.loadModels()
+
+            if agent == .codexCLI {
+                await self.refreshCodexDesktopPatchStatus()
+            }
         }
     }
     
@@ -217,6 +230,15 @@ final class AgentSetupViewModel {
 
             if !result.success {
                 errorMessage = result.error
+            } else if agent == .codexCLI && configurationMode == .automatic {
+                if codexPatchDesktopOnApply {
+                    await patchCodexDesktop()
+                    guard codexDesktopPatchStatus?.state == .patched else { return }
+                }
+
+                if codexRelaunchAfterApply {
+                    await codexDesktopPatchService.restartCodexDesktop()
+                }
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -240,6 +262,7 @@ final class AgentSetupViewModel {
                 mode: configurationMode,
                 configPath: configResult?.configPath,
                 authPath: configResult?.authPath,
+                catalogPath: configResult?.catalogPath,
                 shellConfig: shellConfig,
                 rawConfigs: configResult?.rawConfigs ?? [],
                 instructions: "Added to \(detectedShell.profilePath). Restart your terminal for changes to take effect.",
@@ -327,6 +350,10 @@ final class AgentSetupViewModel {
         savedConfig = nil
         availableBackups = []
         selectedSetupMode = .proxy
+        codexPatchDesktopOnApply = false
+        codexRelaunchAfterApply = false
+        codexDesktopPatchStatus = nil
+        isPatchingCodexDesktop = false
     }
 
     func resetSheetState() {
@@ -338,8 +365,48 @@ final class AgentSetupViewModel {
         isConfiguring = false
         isTesting = false
         selectedSetupMode = .proxy
+        codexPatchDesktopOnApply = false
+        codexRelaunchAfterApply = false
+        codexDesktopPatchStatus = nil
+        isPatchingCodexDesktop = false
         // Don't reset availableModels here to allow caching to persist across dismissals
         // Don't reset savedConfig/availableBackups - they persist while sheet is open
+    }
+
+    func refreshCodexDesktopPatchStatus() async {
+        codexDesktopPatchStatus = await codexDesktopPatchService.status()
+    }
+
+    func patchCodexDesktop() async {
+        isPatchingCodexDesktop = true
+        defer { isPatchingCodexDesktop = false }
+
+        do {
+            codexDesktopPatchStatus = try await codexDesktopPatchService.patch()
+        } catch {
+            codexDesktopPatchStatus = CodexDesktopPatchStatus(
+                state: .unsupported,
+                appPath: codexDesktopPatchStatus?.appPath,
+                message: error.localizedDescription
+            )
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func restoreCodexDesktopPatch() async {
+        isPatchingCodexDesktop = true
+        defer { isPatchingCodexDesktop = false }
+
+        do {
+            codexDesktopPatchStatus = try await codexDesktopPatchService.restore()
+        } catch {
+            codexDesktopPatchStatus = CodexDesktopPatchStatus(
+                state: .unsupported,
+                appPath: codexDesktopPatchStatus?.appPath,
+                message: error.localizedDescription
+            )
+            errorMessage = error.localizedDescription
+        }
     }
 
     /// Load available models for agent configuration.

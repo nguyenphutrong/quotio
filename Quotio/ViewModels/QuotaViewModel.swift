@@ -589,7 +589,12 @@ final class QuotaViewModel {
 
     func ensureProxyRunning(forceRestart: Bool = false) async {
         guard modeManager.isLocalProxyMode else { return }
-        guard proxyManager.isBinaryInstalled else { return }
+        guard proxyManager.isBinaryInstalled else {
+            let message = proxyManager.sourceInstallHint()
+            errorMessage = message
+            NSLog("[QuotaViewModel] Skipping local proxy auto-start: \(message)")
+            return
+        }
 
         if forceRestart {
             await restartProxy()
@@ -626,6 +631,7 @@ final class QuotaViewModel {
             }
         } catch {
             errorMessage = error.localizedDescription
+            NSLog("[QuotaViewModel] Failed to start local proxy: \(error.localizedDescription)")
         }
     }
 

@@ -65,7 +65,7 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
     var configPaths: [String] {
         switch self {
         case .claudeCode: return ["~/.claude/settings.json"]
-        case .codexCLI: return ["~/.codex/config.toml", "~/.codex/auth.json"]
+        case .codexCLI: return ["~/.codex/config.toml"]
         case .geminiCLI: return []
         case .ampCLI: return ["~/.config/amp/settings.json", "~/.local/share/amp/secrets.json"]
         case .openCode: return ["~/.config/opencode/opencode.json"]
@@ -222,11 +222,7 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
     let provider: String
     let isDefault: Bool
 
-    var displayName: String {
-        name.split(separator: "-")
-            .map { $0.capitalized }
-            .joined(separator: " ")
-    }
+    var displayName: String { name }
 
     static let defaultModels: [ModelSlot: AvailableModel] = [
         .opus: AvailableModel(id: "opus", name: "gemini-claude-opus-4-6-thinking", provider: "openai", isDefault: true),
@@ -311,9 +307,13 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
         self.apiKey = apiKey
         self.useOAuth = agent == .geminiCLI
         self.setupMode = setupMode
-        self.modelSlots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
-            AvailableModel.defaultModels[slot].map { (slot, $0.name) }
-        })
+        if agent == .codexCLI {
+            self.modelSlots = [.sonnet: "gpt-5-codex"]
+        } else {
+            self.modelSlots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
+                AvailableModel.defaultModels[slot].map { (slot, $0.name) }
+            })
+        }
     }
 
     /// Initialize with saved model slots (for restoring existing configuration)
@@ -325,9 +325,14 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
         self.setupMode = setupMode
 
         // Start with defaults, then overlay saved slots
-        var slots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
-            AvailableModel.defaultModels[slot].map { (slot, $0.name) }
-        })
+        var slots: [ModelSlot: String]
+        if agent == .codexCLI {
+            slots = [.sonnet: "gpt-5-codex"]
+        } else {
+            slots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
+                AvailableModel.defaultModels[slot].map { (slot, $0.name) }
+            })
+        }
         for (slot, model) in savedModelSlots {
             slots[slot] = model
         }
@@ -360,6 +365,7 @@ nonisolated struct AgentConfigResult: Sendable {
     let mode: ConfigurationMode
     var configPath: String?
     var authPath: String?
+    var catalogPath: String?
     var shellConfig: String?
     var rawConfigs: [RawConfigOutput]
     var instructions: String
@@ -372,6 +378,7 @@ nonisolated struct AgentConfigResult: Sendable {
         mode: ConfigurationMode,
         configPath: String? = nil,
         authPath: String? = nil,
+        catalogPath: String? = nil,
         shellConfig: String? = nil,
         rawConfigs: [RawConfigOutput] = [],
         instructions: String,
@@ -384,6 +391,7 @@ nonisolated struct AgentConfigResult: Sendable {
             mode: mode,
             configPath: configPath,
             authPath: authPath,
+            catalogPath: catalogPath,
             shellConfig: shellConfig,
             rawConfigs: rawConfigs,
             instructions: instructions,
@@ -400,6 +408,7 @@ nonisolated struct AgentConfigResult: Sendable {
             mode: .automatic,
             configPath: nil,
             authPath: nil,
+            catalogPath: nil,
             shellConfig: nil,
             rawConfigs: [],
             instructions: "",

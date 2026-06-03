@@ -13,6 +13,8 @@ struct AgentConfigSheet: View {
     @State private var previewConfig: AgentConfigResult?
     @State private var showRestoreConfirm = false
     @State private var backupToRestore: AgentConfigurationService.BackupFile?
+    @State private var codexPatchExpanded = false
+    @State private var connectionInfoExpanded = false
     
     private var hasResult: Bool {
         viewModel.configResult != nil
@@ -51,6 +53,9 @@ struct AgentConfigSheet: View {
         .frame(width: 720, height: 600)
         .onAppear {
             viewModel.resetSheetState()
+            if agent == .codexCLI {
+                Task { await viewModel.refreshCodexDesktopPatchStatus() }
+            }
             if isManualMode {
                 generatePreview()
             }
@@ -60,6 +65,11 @@ struct AgentConfigSheet: View {
                 generatePreview()
             } else {
                 previewConfig = nil
+            }
+        }
+        .onChange(of: viewModel.codexDesktopPatchStatus?.state) { _, newState in
+            if newState == .unpatched {
+                codexPatchExpanded = true
             }
         }
         .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
@@ -87,15 +97,21 @@ struct AgentConfigSheet: View {
                     .foregroundStyle(agent.color)
             }
             
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("agents.configure".localized() + " " + agent.displayName)
                     .font(.headline)
-                
-                Text(agent.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 6) {
+                    Text(agent.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if agent == .codexCLI {
+                        codexHeaderStatusPills
+                    }
+                }
             }
-            
+
             Spacer()
             
             Button {
@@ -111,6 +127,21 @@ struct AgentConfigSheet: View {
         .padding(16)
     }
     
+    @ViewBuilder
+    private var codexHeaderStatusPills: some View {
+        let proxyOn = viewModel.savedConfig?.isProxyConfigured == true
+        HeaderStatusPill(
+            label: proxyOn
+                ? "agents.codex.header.proxyOn".localized()
+                : "agents.codex.header.proxyOff".localized(),
+            color: proxyOn ? .green : .secondary,
+            icon: proxyOn ? "checkmark.circle.fill" : "circle"
+        )
+        if let status = viewModel.codexDesktopPatchStatus, status.state != .notFound {
+            PatchStatusBadge(status: status)
+        }
+    }
+
     private var configurationView: some View {
         VStack(spacing: 16) {
             setupModeSection
@@ -127,6 +158,14 @@ struct AgentConfigSheet: View {
                 
                 if agent == .claudeCode {
                     modelSlotsSection
+                }
+
+                if agent == .codexCLI {
+                    codexModelSection
+
+                    if !isManualMode, viewModel.codexDesktopPatchStatus?.state != .notFound {
+                        codexDesktopPatchSection
+                    }
                 }
                 
                 if agent == .geminiCLI {
@@ -310,14 +349,17 @@ struct AgentConfigSheet: View {
     }
     
     private var connectionInfoSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("agents.connectionInfo".localized())
-                .font(.subheadline)
-                .fontWeight(.medium)
-            
-            VStack(spacing: 6) {
-                InfoRow(label: "agents.proxyURL".localized(), value: viewModel.currentConfiguration?.proxyURL ?? "")
-                InfoRow(label: "agents.apiKey".localized(), value: maskedAPIKey, isMasked: true)
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureGroup(isExpanded: $connectionInfoExpanded) {
+                VStack(spacing: 6) {
+                    InfoRow(label: "agents.proxyURL".localized(), value: viewModel.currentConfiguration?.proxyURL ?? "")
+                    InfoRow(label: "agents.apiKey".localized(), value: maskedAPIKey, isMasked: true)
+                }
+                .padding(.top, 8)
+            } label: {
+                Text("agents.connectionInfo".localized())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
             }
         }
         .padding(14)
@@ -366,6 +408,135 @@ struct AgentConfigSheet: View {
                             viewModel.updateModelSlot(slot, model: model)
                         }
                     )
+                }
+            }
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var codexModelSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("agents.codex.activeModel".localized())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Spacer()
+
+                Button {
+                    Task { await viewModel.loadModels(forceRefresh: true) }
+                } label: {
+                    if viewModel.isFetchingModels {
+                        SmallProgressView()
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.borderless)
+                .help("action.refresh".localized())
+                .disabled(viewModel.isFetchingModels)
+            }
+
+            CodexModelRow(
+                selectedModel: viewModel.currentConfiguration?.modelSlots[.sonnet] ?? "",
+                availableModels: viewModel.availableModels,
+                onModelChange: { model in
+                    viewModel.updateModelSlot(.sonnet, model: model)
+                }
+            )
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var codexDesktopPatchSection: some View {
+        let state = viewModel.codexDesktopPatchStatus?.state
+        let isPatched = state == .patched
+
+        return VStack(alignment: .leading, spacing: 0) {
+            DisclosureGroup(isExpanded: $codexPatchExpanded) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let status = viewModel.codexDesktopPatchStatus, let appPath = status.appPath {
+                        Text(appPath)
+                            .font(.caption2)
+                            .fontDesign(.monospaced)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle(isOn: $viewModel.codexPatchDesktopOnApply) {
+                                Text("agents.codex.patchOnApply".localized())
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                            Text("agents.codex.patchOnApply.desc".localized())
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+
+                            Toggle(isOn: $viewModel.codexRelaunchAfterApply) {
+                                Text("agents.codex.relaunchAfterApply".localized())
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    HStack(spacing: 8) {
+                        Button {
+                            Task { await viewModel.patchCodexDesktop() }
+                        } label: {
+                            if viewModel.isPatchingCodexDesktop {
+                                SmallProgressView()
+                            } else {
+                                Label("agents.codex.patchNow".localized(), systemImage: "wrench.and.screwdriver")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(viewModel.isPatchingCodexDesktop || isPatched)
+
+                        if isPatched {
+                            Button(role: .destructive) {
+                                Task { await viewModel.restoreCodexDesktopPatch() }
+                            } label: {
+                                Label("agents.codex.restorePatch".localized(), systemImage: "arrow.uturn.backward")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(viewModel.isPatchingCodexDesktop)
+                        }
+
+                        Spacer()
+
+                        Button {
+                            Task { await viewModel.refreshCodexDesktopPatchStatus() }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("action.refresh".localized())
+                        .disabled(viewModel.isPatchingCodexDesktop)
+                    }
+                }
+                .padding(.top, 8)
+            } label: {
+                HStack(spacing: 8) {
+                    Text("agents.codex.desktopPatch".localized())
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    PatchStatusBadge(status: viewModel.codexDesktopPatchStatus)
+
+                    Spacer()
                 }
             }
         }
@@ -552,6 +723,10 @@ struct AgentConfigSheet: View {
                 
                 if let authPath = result.authPath {
                     FilePathRow(icon: "key.fill", label: "Auth", path: authPath)
+                }
+
+                if let catalogPath = result.catalogPath {
+                    FilePathRow(icon: "list.bullet.rectangle", label: "Catalog", path: catalogPath)
                 }
                 
                 if result.shellConfig != nil {
@@ -857,7 +1032,7 @@ private struct ModelSlotRow: View {
                 let providers = Set(availableModels.map { $0.provider }).sorted()
                 
                 ForEach(providers, id: \.self) { provider in
-                    Section(header: Text(provider.capitalized)) {
+                    Section(header: Text(provider)) {
                         ForEach(availableModels.filter { $0.provider == provider }) { model in
                             Text(model.displayName)
                                 .tag(model.name)
@@ -874,6 +1049,115 @@ private struct ModelSlotRow: View {
                 onModelChange(effectiveSelection)
             }
         }
+    }
+}
+
+private struct CodexModelRow: View {
+    let selectedModel: String
+    let availableModels: [AvailableModel]
+    let onModelChange: (String) -> Void
+
+    private var effectiveSelection: String {
+        if !selectedModel.isEmpty && availableModels.contains(where: { $0.name == selectedModel }) {
+            return selectedModel
+        }
+        if availableModels.contains(where: { $0.name == "gpt-5-codex" }) {
+            return "gpt-5-codex"
+        }
+        return availableModels.first?.name ?? selectedModel
+    }
+
+    var body: some View {
+        Picker("", selection: Binding(
+            get: { effectiveSelection },
+            set: { onModelChange($0) }
+        )) {
+            let providers = Set(availableModels.map { $0.provider }).sorted()
+
+            ForEach(providers, id: \.self) { provider in
+                Section(header: Text(provider)) {
+                    ForEach(availableModels.filter { $0.provider == provider }) { model in
+                        Text(model.displayName)
+                            .tag(model.name)
+                    }
+                }
+            }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .frame(maxWidth: .infinity)
+        .onAppear {
+            if selectedModel.isEmpty || !availableModels.contains(where: { $0.name == selectedModel }) {
+                onModelChange(effectiveSelection)
+            }
+        }
+    }
+}
+
+private struct HeaderStatusPill: View {
+    let label: String
+    let color: Color
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2)
+                .fontWeight(.medium)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .foregroundStyle(color)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
+    }
+}
+
+private struct PatchStatusBadge: View {
+    let status: CodexDesktopPatchStatus?
+
+    private var label: String {
+        switch status?.state {
+        case .patched: return "agents.codex.patch.badge.patched".localized()
+        case .unpatched: return "agents.codex.patch.badge.unpatched".localized()
+        case .unsupported: return "agents.codex.patch.badge.unsupported".localized()
+        case .notFound, .none: return "agents.codex.patch.badge.notFound".localized()
+        }
+    }
+
+    private var color: Color {
+        switch status?.state {
+        case .patched: return .green
+        case .unpatched: return .orange
+        case .unsupported: return .red
+        case .notFound, .none: return .secondary
+        }
+    }
+
+    private var icon: String {
+        switch status?.state {
+        case .patched: return "checkmark.seal.fill"
+        case .unpatched: return "exclamationmark.triangle.fill"
+        case .unsupported: return "xmark.octagon.fill"
+        case .notFound, .none: return "questionmark.circle"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2)
+                .fontWeight(.medium)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .foregroundStyle(color)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
     }
 }
 
@@ -918,7 +1202,7 @@ private struct FilePathRow: View {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 45, alignment: .leading)
+                .frame(width: 58, alignment: .leading)
             
             Text(path)
                 .font(.caption)
