@@ -224,6 +224,7 @@ actor CloudflaredService {
         do {
             try termProcess.run()
             termProcess.waitUntilExit()
+            var killedOrphans = termProcess.terminationStatus == 0
             
             // Wait briefly for graceful shutdown
             Thread.sleep(forTimeInterval: 0.3)
@@ -237,8 +238,11 @@ actor CloudflaredService {
             
             try killProcess.run()
             killProcess.waitUntilExit()
+            killedOrphans = killedOrphans || killProcess.terminationStatus == 0
             
-            NSLog("[CloudflaredService] Cleaned up orphan cloudflared processes")
+            if killedOrphans {
+                NSLog("[CloudflaredService] Cleaned up orphan cloudflared processes")
+            }
         } catch {
             // Silent failure - no orphans to kill is fine
         }

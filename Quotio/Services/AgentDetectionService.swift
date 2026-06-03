@@ -6,6 +6,11 @@
 import Foundation
 
 actor AgentDetectionService {
+    private struct CommandResult: Sendable {
+        let exitCode: Int32
+        let output: String
+    }
+
     private var cachedStatuses: [AgentStatus]?
     private var cacheTimestamp: Date?
     private let cacheValidity: TimeInterval = 60
@@ -153,60 +158,77 @@ actor AgentDetectionService {
     }
     
     private func whichCommand(_ name: String) async -> String? {
-        await withCheckedContinuation { continuation in
-            let process = Process()
-            let pipe = Pipe()
-            
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-            process.arguments = [name]
-            process.standardOutput = pipe
-            process.standardError = FileHandle.nullDevice
-            
-            do {
-                try process.run()
-                process.waitUntilExit()
-                
-                if process.terminationStatus == 0 {
-                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                    if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !path.isEmpty {
-                        continuation.resume(returning: path)
-                        return
-                    }
-                }
-            } catch {
-            }
-            continuation.resume(returning: nil)
+        guard let result = await Self.runCommand(
+            executablePath: "/usr/bin/which",
+            arguments: [name],
+            timeout: 1
+        ), result.exitCode == 0 else {
+            return nil
         }
+
+        let path = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return path.isEmpty ? nil : path
     }
-    
-    private func getVersion(binaryPath: String) async -> String? {
-        await withCheckedContinuation { continuation in
+
+    private nonisolated static func runCommand(
+        executablePath: String,
+        arguments: [String],
+        timeout: TimeInterval
+    ) async -> CommandResult? {
+        await Task.detached(priority: .utility) { () -> CommandResult? in
             let process = Process()
             let pipe = Pipe()
-            
-            process.executableURL = URL(fileURLWithPath: binaryPath)
-            process.arguments = ["--version"]
+
+            process.executableURL = URL(fileURLWithPath: executablePath)
+            process.arguments = arguments
+            process.standardInput = FileHandle.nullDevice
             process.standardOutput = pipe
             process.standardError = pipe
-            
+
+            var environment = ProcessInfo.processInfo.environment
+            environment["CI"] = "1"
+            environment["NO_COLOR"] = "1"
+            environment["TERM"] = "dumb"
+            process.environment = environment
+
             do {
                 try process.run()
-                process.waitUntilExit()
-                
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let output = String(data: data, encoding: .utf8) {
-                    let version = output
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .components(separatedBy: .newlines)
-                        .first ?? output
-                    continuation.resume(returning: version)
-                    return
-                }
             } catch {
+                return nil
             }
-            continuation.resume(returning: nil)
+
+            let deadline = Date().addingTimeInterval(timeout)
+            while process.isRunning && Date() < deadline {
+                usleep(50_000)
+            }
+
+            guard !process.isRunning else {
+                kill(process.processIdentifier, SIGKILL)
+                process.waitUntilExit()
+                _ = pipe.fileHandleForReading.readDataToEndOfFile()
+                return nil
+            }
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            return CommandResult(
+                exitCode: process.terminationStatus,
+                output: String(data: data, encoding: .utf8) ?? ""
+            )
+        }.value
+    }
+
+    private func getVersion(binaryPath: String) async -> String? {
+        guard let result = await Self.runCommand(
+            executablePath: binaryPath,
+            arguments: ["--version"],
+            timeout: 3
+        ) else {
+            NSLog("[AgentDetectionService] Version probe failed or timed out: \(binaryPath)")
+            return nil
         }
+
+        let output = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return output.components(separatedBy: .newlines).first ?? output
     }
     
     private func checkConfiguration(agent: CLIAgent) async -> Bool {
@@ -227,7 +249,11 @@ actor AgentDetectionService {
             
             if fileManager.fileExists(atPath: expandedPath) {
                 if let content = try? String(contentsOfFile: expandedPath, encoding: .utf8) {
-                    if content.contains("127.0.0.1") || content.contains("localhost") || content.contains("cliproxyapi") {
+                    if content.contains("127.0.0.1") ||
+                        content.contains("localhost") ||
+                        content.contains("cliproxyapi") ||
+                        content.contains("model_provider = \"quotio\"") ||
+                        content.contains("[model_providers.quotio]") {
                         return true
                     }
                 }
