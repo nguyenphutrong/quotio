@@ -74,6 +74,8 @@ actor CodexDesktopPatchService {
     private static let modelReasoningReplacement = "s=!1;"
     private static let sidebarNeedle = "listRecentThreads({cursor:e,limit:t}){return this.params.requestClient.sendRequest(`thread/list`,{limit:t,cursor:e,sortKey:this.recentConversationSortKey,modelProviders:null,archived:!1,sourceKinds:ke})}"
     private static let sidebarReplacement = "listRecentThreads({cursor:e,limit:t}){return this.params.requestClient.sendRequest(`thread/list`,{limit:t,cursor:e,sortKey:this.recentConversationSortKey,modelProviders:[],archived:!1,sourceKinds:ke})}"
+    private static let sidebarNeedleSourceKindsHE = "listRecentThreads({cursor:e,limit:t}){return this.params.requestClient.sendRequest(`thread/list`,{limit:t,cursor:e,sortKey:this.recentConversationSortKey,modelProviders:null,archived:!1,sourceKinds:he})}"
+    private static let sidebarReplacementSourceKindsHE = "listRecentThreads({cursor:e,limit:t}){return this.params.requestClient.sendRequest(`thread/list`,{limit:t,cursor:e,sortKey:this.recentConversationSortKey,modelProviders:[],archived:!1,sourceKinds:he})}"
 
     private let fileManager: FileManager
     private let runtimeDirectory: URL
@@ -308,8 +310,10 @@ actor CodexDesktopPatchService {
         let modelPickerData = Data(Self.modelPickerReplacement.utf8)
         let modelReasoningData = Data(Self.modelReasoningReplacement.utf8)
         let sidebarData = Data(Self.sidebarReplacement.utf8)
+        let sidebarDataSourceKindsHE = Data(Self.sidebarReplacementSourceKindsHE.utf8)
         let modelPatchFound = data.range(of: modelPickerData) != nil || data.range(of: modelReasoningData) != nil
-        return modelPatchFound && data.range(of: sidebarData) != nil
+        let sidebarPatchFound = data.range(of: sidebarData) != nil || data.range(of: sidebarDataSourceKindsHE) != nil
+        return modelPatchFound && sidebarPatchFound
     }
 
     // MARK: - Patch Operations
@@ -337,7 +341,10 @@ actor CodexDesktopPatchService {
             in: assetsDirectory,
             preferredFilenameFragment: "app-server-manager-signals",
             label: "sidebar recent threads",
-            patterns: [TextPatch(needle: Self.sidebarNeedle, replacement: Self.sidebarReplacement)]
+            patterns: [
+                TextPatch(needle: Self.sidebarNeedle, replacement: Self.sidebarReplacement),
+                TextPatch(needle: Self.sidebarNeedleSourceKindsHE, replacement: Self.sidebarReplacementSourceKindsHE)
+            ]
         ) || changed
 
         return changed
