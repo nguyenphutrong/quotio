@@ -13,7 +13,6 @@ struct AgentConfigSheet: View {
     @State private var previewConfig: AgentConfigResult?
     @State private var showRestoreConfirm = false
     @State private var backupToRestore: AgentConfigurationService.BackupFile?
-    @State private var codexPatchExpanded = false
     @State private var connectionInfoExpanded = false
     
     private var hasResult: Bool {
@@ -65,11 +64,6 @@ struct AgentConfigSheet: View {
                 generatePreview()
             } else {
                 previewConfig = nil
-            }
-        }
-        .onChange(of: viewModel.codexDesktopPatchStatus?.state) { _, newState in
-            if newState == .unpatched {
-                codexPatchExpanded = true
             }
         }
         .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
@@ -154,29 +148,29 @@ struct AgentConfigSheet: View {
             
             // Only show proxy-specific options when in proxy mode
             if viewModel.selectedSetupMode == .proxy {
-                connectionInfoSection
-                
-                if agent == .claudeCode {
-                    modelSlotsSection
-                }
-
                 if agent == .codexCLI {
-                    codexModelSection
+                    codexSetupSection
 
-                    if !isManualMode, viewModel.codexDesktopPatchStatus?.state != .notFound {
-                        codexDesktopPatchSection
+                    if isManualMode {
+                        manualPreviewSection
                     }
+                } else {
+                    connectionInfoSection
+
+                    if agent == .claudeCode {
+                        modelSlotsSection
+                    }
+
+                    if agent == .geminiCLI {
+                        oauthToggleSection
+                    }
+
+                    if isManualMode {
+                        manualPreviewSection
+                    }
+
+                    testConnectionSection
                 }
-                
-                if agent == .geminiCLI {
-                    oauthToggleSection
-                }
-                
-                if isManualMode {
-                    manualPreviewSection
-                }
-                
-                testConnectionSection
             } else {
                 defaultModeInfoSection
             }
@@ -416,29 +410,60 @@ struct AgentConfigSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private var codexModelSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("agents.codex.activeModel".localized())
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+    private var codexSetupSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.title3)
+                    .foregroundStyle(agent.color)
+                    .frame(width: 28, height: 28)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(agent.displayName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text(agent.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Spacer()
 
-                Button {
-                    Task { await viewModel.loadModels(forceRefresh: true) }
-                } label: {
-                    if viewModel.isFetchingModels {
-                        SmallProgressView()
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.caption)
-                    }
+                if let status = viewModel.codexDesktopPatchStatus, status.state != .notFound {
+                    PatchStatusBadge(status: status)
                 }
-                .buttonStyle(.borderless)
-                .help("action.refresh".localized())
-                .disabled(viewModel.isFetchingModels)
             }
+
+            Divider()
+
+            codexModelPickerRow
+
+            if !isManualMode, viewModel.codexDesktopPatchStatus?.state != .notFound {
+                Divider()
+                codexDesktopIntegrationRow
+            }
+
+            Divider()
+            codexAdvancedSection
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var codexModelPickerRow: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Label("agents.codex.activeModel".localized(), systemImage: "cpu")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                Text(viewModel.currentConfiguration?.modelSlots[.sonnet] ?? "gpt-5-codex")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .frame(width: 170, alignment: .leading)
 
             CodexModelRow(
                 selectedModel: viewModel.currentConfiguration?.modelSlots[.sonnet] ?? "",
@@ -447,104 +472,139 @@ struct AgentConfigSheet: View {
                     viewModel.updateModelSlot(.sonnet, model: model)
                 }
             )
+
+            Button {
+                Task { await viewModel.loadModels(forceRefresh: true) }
+            } label: {
+                if viewModel.isFetchingModels {
+                    SmallProgressView()
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                }
+            }
+            .buttonStyle(.borderless)
+            .help("action.refresh".localized())
+            .disabled(viewModel.isFetchingModels)
         }
-        .padding(14)
-        .background(Color(.controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private var codexDesktopPatchSection: some View {
+    private var codexDesktopIntegrationRow: some View {
         let state = viewModel.codexDesktopPatchStatus?.state
         let isPatched = state == .patched
 
-        return VStack(alignment: .leading, spacing: 0) {
-            DisclosureGroup(isExpanded: $codexPatchExpanded) {
-                VStack(alignment: .leading, spacing: 10) {
-                    if let status = viewModel.codexDesktopPatchStatus, let appPath = status.appPath {
-                        Text(appPath)
-                            .font(.caption2)
-                            .fontDesign(.monospaced)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label("agents.codex.desktopPatch".localized(), systemImage: "macwindow")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Text("agents.codex.patchOnApply.desc".localized())
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
 
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Toggle(isOn: $viewModel.codexPatchDesktopOnApply) {
-                                Text("agents.codex.patchOnApply".localized())
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                            }
-                            Text("agents.codex.patchOnApply.desc".localized())
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                Spacer()
 
-                            Toggle(isOn: $viewModel.codexRelaunchAfterApply) {
-                                Text("agents.codex.relaunchAfterApply".localized())
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
+                PatchStatusBadge(status: viewModel.codexDesktopPatchStatus)
+            }
 
-                    HStack(spacing: 8) {
-                        Button {
-                            Task { await viewModel.patchCodexDesktop() }
-                        } label: {
-                            if viewModel.isPatchingCodexDesktop {
-                                SmallProgressView()
-                            } else {
-                                Label("agents.codex.patchNow".localized(), systemImage: "wrench.and.screwdriver")
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(viewModel.isPatchingCodexDesktop || isPatched)
+            if let appPath = viewModel.codexDesktopPatchStatus?.appPath {
+                Text(appPath)
+                    .font(.caption2)
+                    .fontDesign(.monospaced)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
 
-                        if isPatched {
-                            Button(role: .destructive) {
-                                Task { await viewModel.restoreCodexDesktopPatch() }
-                            } label: {
-                                Label("agents.codex.restorePatch".localized(), systemImage: "arrow.uturn.backward")
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .disabled(viewModel.isPatchingCodexDesktop)
-                        }
+            HStack(spacing: 12) {
+                Toggle("agents.codex.patchOnApply".localized(), isOn: $viewModel.codexPatchDesktopOnApply)
+                    .font(.caption)
+                    .toggleStyle(.checkbox)
 
-                        Spacer()
+                Toggle("agents.codex.relaunchAfterApply".localized(), isOn: $viewModel.codexRelaunchAfterApply)
+                    .font(.caption)
+                    .toggleStyle(.checkbox)
 
-                        Button {
-                            Task { await viewModel.refreshCodexDesktopPatchStatus() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.borderless)
-                        .help("action.refresh".localized())
-                        .disabled(viewModel.isPatchingCodexDesktop)
+                Spacer()
+
+                Button {
+                    Task { await viewModel.refreshCodexDesktopPatchStatus() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .help("action.refresh".localized())
+                .disabled(viewModel.isPatchingCodexDesktop)
+
+                Button {
+                    Task { await viewModel.patchCodexDesktop() }
+                } label: {
+                    if viewModel.isPatchingCodexDesktop {
+                        SmallProgressView()
+                    } else {
+                        Text("agents.codex.patchNow".localized())
                     }
                 }
-                .padding(.top, 8)
-            } label: {
-                HStack(spacing: 8) {
-                    Text("agents.codex.desktopPatch".localized())
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(viewModel.isPatchingCodexDesktop || isPatched)
 
-                    PatchStatusBadge(status: viewModel.codexDesktopPatchStatus)
-
-                    Spacer()
+                if isPatched {
+                    Button(role: .destructive) {
+                        Task { await viewModel.restoreCodexDesktopPatch() }
+                    } label: {
+                        Text("agents.codex.restorePatch".localized())
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(viewModel.isPatchingCodexDesktop)
                 }
             }
         }
-        .padding(14)
-        .background(Color(.controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
-    
+
+    private var codexAdvancedSection: some View {
+        DisclosureGroup(isExpanded: $connectionInfoExpanded) {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(spacing: 6) {
+                    InfoRow(label: "agents.proxyURL".localized(), value: viewModel.currentConfiguration?.proxyURL ?? "")
+                    InfoRow(label: "agents.apiKey".localized(), value: maskedAPIKey, isMasked: true)
+                }
+
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await viewModel.testConnection() }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if viewModel.isTesting {
+                                SmallProgressView()
+                            } else {
+                                Image(systemName: "bolt.fill")
+                            }
+                            Text("agents.test".localized())
+                        }
+                        .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(viewModel.isTesting)
+
+                    if let result = viewModel.testResult {
+                        TestResultView(result: result)
+                    }
+                }
+            }
+            .padding(.top, 10)
+        } label: {
+            Text("agents.connectionInfo".localized())
+                .font(.caption)
+                .fontWeight(.medium)
+        }
+    }
+
     private var oauthToggleSection: some View {
         Toggle(isOn: Binding(
             get: { viewModel.currentConfiguration?.useOAuth ?? true },
