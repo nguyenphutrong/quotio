@@ -340,6 +340,12 @@ actor ManagementAPIClient {
         }
     }
 
+    func setAntigravityActiveAccount(id: String) async throws -> AntigravityActiveAccountResponse {
+        let body = try JSONEncoder().encode(AntigravityActiveAccountRequest(id: id))
+        let data = try await makeRequest("/providers/antigravity/active-account", method: "POST", body: body)
+        return try decode(AntigravityActiveAccountResponse.self, from: data)
+    }
+
     func fetchProviders() async throws -> [ProviderResponse] {
         let data = try await makeRequest("/providers")
         let response = try decode(ProvidersResponse.self, from: data)
@@ -833,6 +839,28 @@ nonisolated struct ProviderValidation: Codable, Sendable {
         case accountIdentity = "account_identity"
         case expiresAt = "expires_at"
         case checkedAt = "checked_at"
+    }
+}
+
+private nonisolated struct AntigravityActiveAccountRequest: Encodable, Sendable {
+    let id: String
+}
+
+nonisolated struct AntigravityActiveAccountResponse: Codable, Sendable {
+    let provider: String
+    let activeID: String
+    let accountIdentity: String
+    let projectID: String?
+    let idePatched: Bool
+    let restartRequired: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case activeID = "active_id"
+        case accountIdentity = "account_identity"
+        case projectID = "project_id"
+        case idePatched = "ide_patched"
+        case restartRequired = "restart_required"
     }
 }
 

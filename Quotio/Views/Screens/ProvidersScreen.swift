@@ -197,6 +197,9 @@ struct ProvidersScreen: View {
                             onEdit: account.canEdit ? {
                                 markCustomProviderAPISyncRequired()
                             } : nil,
+                            onSwitch: account.canSwitch ? {
+                                Task<Void, Never> { await setAntigravityActiveAccount(account) }
+                            } : nil,
                             onToggleDisabled: account.source == .proxy ? {
                                 Task<Void, Never> { await toggleAccountDisabled(account) }
                             } : nil
@@ -281,6 +284,14 @@ struct ProvidersScreen: View {
         // Find the original AuthFile to toggle
         if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
             await viewModel.toggleAuthFileDisabled(authFile)
+        }
+    }
+
+    private func setAntigravityActiveAccount(_ account: AccountRowData) async {
+        guard account.canSwitch else { return }
+
+        if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
+            await viewModel.setAntigravityActiveAccount(authFile)
         }
     }
 
@@ -509,6 +520,7 @@ private struct ProviderTableAccountRow: View {
     let account: AccountRowData
     var onDelete: (() -> Void)?
     var onEdit: (() -> Void)?
+    var onSwitch: (() -> Void)?
     var onToggleDisabled: (() -> Void)?
 
     @State private var settings = MenuBarSettingsManager.shared
@@ -592,12 +604,17 @@ private struct ProviderTableAccountRow: View {
             Spacer(minLength: 12)
 
             HStack(spacing: 6) {
-                if account.provider == .antigravity {
-                    Label("Requires cpa++ API support.", systemImage: "lock")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .labelStyle(.iconOnly)
-                        .help("Requires cpa++ API support.")
+                if account.canSwitch, let onSwitch {
+                    Button {
+                        onSwitch()
+                    } label: {
+                        Image(systemName: "display")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.rowAction)
+                    .help("antigravity.useInIDE".localized())
+                    .accessibilityLabel("antigravity.useInIDE".localized())
                 }
 
                 MenuBarBadge(
@@ -664,6 +681,14 @@ private struct ProviderTableAccountRow: View {
                     } else {
                         Label("providers.disable".localized(), systemImage: "minus.circle")
                     }
+                }
+            }
+
+            if account.canSwitch, let onSwitch {
+                Button {
+                    onSwitch()
+                } label: {
+                    Label("antigravity.useInIDE".localized(), systemImage: "display")
                 }
             }
 

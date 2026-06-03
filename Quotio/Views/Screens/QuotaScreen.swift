@@ -558,6 +558,7 @@ private struct AccountQuotaCardV2: View {
     let isLoading: Bool
     
     @State private var isRefreshing = false
+    @State private var isSettingActiveAccount = false
     @State private var showModelsDetailSheet = false
 
     /// Check if OAuth is in progress for this provider
@@ -695,12 +696,37 @@ private struct AccountQuotaCardV2: View {
                     .help("action.warmup".localized())
                 }
                 
-                if provider == .antigravity {
-                    Label("Requires cpa++ API support.", systemImage: "lock")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .help("antigravity.useInIDE".localized())
-                    // TODO(cpa-plusplus): add Management API endpoint for Antigravity active-account switching.
+                if provider == .antigravity, let authFile = account.authFile, !authFile.disabled, !authFile.unavailable {
+                    Button {
+                        Task {
+                            isSettingActiveAccount = true
+                            await viewModel.setAntigravityActiveAccount(authFile)
+                            isSettingActiveAccount = false
+                        }
+                    } label: {
+                        if isSettingActiveAccount {
+                            ProgressView()
+                                .controlSize(.small)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                        } else {
+                            HStack(spacing: 4) {
+                                Image(systemName: "display")
+                                    .font(.caption)
+                                Text("antigravity.useInIDE".localized())
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundStyle(provider.color)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(provider.color.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSettingActiveAccount)
+                    .help("antigravity.useInIDE".localized())
                 }
                 
                 Button {

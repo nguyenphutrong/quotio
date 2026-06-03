@@ -1037,6 +1037,26 @@ final class QuotaViewModel {
         }
     }
 
+    func setAntigravityActiveAccount(_ file: AuthFile) async {
+        guard let client = apiClient else {
+            errorMessage = "quota.error.connectToCPA".localized()
+            return
+        }
+
+        guard file.providerType == .antigravity else { return }
+
+        do {
+            let response = try await client.setAntigravityActiveAccount(id: file.id)
+            Log.debug("setAntigravityActiveAccount: activeID=\(response.activeID), idePatched=\(response.idePatched), restartRequired=\(response.restartRequired)")
+            errorMessage = nil
+            await refreshData()
+        } catch APIError.httpError(404) {
+            errorMessage = "Unsupported endpoint: requires cpa++ API support"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     /// Remove menu bar items that no longer have valid quota data
     private func pruneMenuBarItems() {
         var validItems: [MenuBarQuotaItem] = []

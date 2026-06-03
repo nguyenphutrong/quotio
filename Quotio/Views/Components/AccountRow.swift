@@ -74,16 +74,18 @@ struct AccountRowData: Identifiable, Hashable {
     /// Create from AuthFile (proxy mode)
     static func from(authFile: AuthFile) -> AccountRowData {
         let name = authFile.email ?? authFile.name
+        let provider = authFile.providerType ?? .gemini
         return AccountRowData(
             id: authFile.id,
-            provider: authFile.providerType ?? .gemini,
+            provider: provider,
             displayName: name,
             menuBarAccountKey: authFile.menuBarAccountKey,
             source: .proxy,
             status: authFile.status,
             statusMessage: authFile.statusMessage,
             isDisabled: authFile.disabled,
-            canDelete: true
+            canDelete: true,
+            canSwitch: provider == .antigravity && !authFile.disabled && !authFile.unavailable
         )
     }
     
@@ -121,6 +123,7 @@ struct AccountRow: View {
     let account: AccountRowData
     var onDelete: (() -> Void)?
     var onEdit: (() -> Void)?
+    var onSwitch: (() -> Void)?
     var onToggleDisabled: (() -> Void)?
     
     @State private var settings = MenuBarSettingsManager.shared
@@ -196,11 +199,16 @@ struct AccountRow: View {
                     .clipShape(Capsule())
             }
             
-            if account.provider == .antigravity {
-                Label("Requires cpa++ API support.", systemImage: "lock")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                // TODO(cpa-plusplus): add Management API endpoint for Antigravity active-account switching.
+            if account.canSwitch, let onSwitch {
+                Button {
+                    onSwitch()
+                } label: {
+                    Label("antigravity.useInIDE".localized(), systemImage: "display")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.rowAction)
+                .help("antigravity.useInIDE".localized())
+                .accessibilityLabel("antigravity.useInIDE".localized())
             }
             
             // Menu bar toggle
@@ -276,6 +284,14 @@ struct AccountRow: View {
                     } else {
                         Label("providers.disable".localized(), systemImage: "minus.circle")
                     }
+                }
+            }
+
+            if account.canSwitch, let onSwitch {
+                Button {
+                    onSwitch()
+                } label: {
+                    Label("antigravity.useInIDE".localized(), systemImage: "display")
                 }
             }
 
