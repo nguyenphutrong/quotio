@@ -107,6 +107,25 @@ func testLegacyCliproxyapiDoesNotRestoreAsUserConfig() throws {
     try expect(!restored.contains("cliproxyapi"), "legacy provider was restored instead of cleaned")
 }
 
+func testHashInQuotedTOMLValueIsPreserved() throws {
+    let home = try tempDirectory(named: "home")
+    let runtime = try tempDirectory(named: "runtime")
+    let codexDir = home.appendingPathComponent(".codex", isDirectory: true)
+    try FileManager.default.createDirectory(at: codexDir, withIntermediateDirectories: true)
+    let configURL = codexDir.appendingPathComponent("config.toml")
+    try """
+    model = "gpt-5"
+    model_provider = "openai#team"
+    """.write(to: configURL, atomically: true, encoding: .utf8)
+
+    let patcher = CodexConfigPatcher(homeDirectory: home, runtimeDirectory: runtime)
+    _ = try patcher.install(try patcher.makePreparedConfig(config: makeConfig(), availableModels: models))
+    _ = try patcher.restoreDefaultConfig()
+
+    let restored = try String(contentsOf: configURL, encoding: .utf8)
+    try expect(restored.contains("model_provider = \"openai#team\""), "quoted hash value was truncated")
+}
+
 func testMalformedManagedBlockFailsClosed() throws {
     let home = try tempDirectory(named: "home")
     let runtime = try tempDirectory(named: "runtime")
@@ -129,5 +148,6 @@ func testMalformedManagedBlockFailsClosed() throws {
 
 try testInstallRestoreAndIdempotency()
 try testLegacyCliproxyapiDoesNotRestoreAsUserConfig()
+try testHashInQuotedTOMLValueIsPreserved()
 try testMalformedManagedBlockFailsClosed()
 print("CodexConfigPatcher smoke tests passed")
