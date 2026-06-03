@@ -724,7 +724,7 @@ final class CLIProxyManager {
         //
         // Trade-off note: If start() is called immediately after stop(), there is a small
         // window where the detached task could kill the newly started process (since
-        // killProcessOnPortSync kills by PORT, not PID). This is an acceptable trade-off
+        // killProcessOnPort kills by PORT, not PID). This is an acceptable trade-off
         // because UI responsiveness is more important than this rare edge case.
         // A 150ms buffer is added below to reduce (but not eliminate) this race window.
         let currentProcess = process
@@ -739,7 +739,7 @@ final class CLIProxyManager {
                 
                 let deadline = Date().addingTimeInterval(2.0)
                 while proc.isRunning && Date() < deadline {
-                    usleep(100_000)  // 100ms, avoid Thread.sleep in async context
+                    try? await Task.sleep(nanoseconds: 100_000_000)
                 }
                 
                 if proc.isRunning {
@@ -747,7 +747,7 @@ final class CLIProxyManager {
                 }
             }
             
-            Self.killProcessOnPortSync(userPort)
+            Self.killProcessOnPort(userPort)
         }
         
         process = nil
@@ -775,7 +775,7 @@ final class CLIProxyManager {
 
                 let deadline = Date().addingTimeInterval(2.0)
                 while proc.isRunning && Date() < deadline {
-                    usleep(100_000)
+                    try? await Task.sleep(nanoseconds: 100_000_000)
                 }
 
                 if proc.isRunning {
@@ -783,7 +783,7 @@ final class CLIProxyManager {
                 }
             }
 
-            Self.killProcessOnPortSync(userPort)
+            Self.killProcessOnPort(userPort)
         }.value
     }
     
@@ -904,64 +904,17 @@ final class CLIProxyManager {
     /// Executes blocking operations on background thread to avoid blocking MainActor.
     private func cleanupOrphanProcesses() async {
         let userPort = proxyStatus.port
-        
-        // Execute blocking operations on background thread
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            Task.detached(priority: .userInitiated) {
-                let killedCount = Self.killProcessOnPortSync(userPort)
-                if killedCount > 0 {
-                    NSLog("[CLIProxyManager] Cleaned up \(killedCount) orphan proxy process(es) on port \(userPort)")
-                }
-                
-                // Small delay to ensure ports are released
-                usleep(200_000)  // 200ms, avoid Thread.sleep in async context
-                continuation.resume()
+
+        // Execute blocking process scan/kill on a background task to avoid blocking MainActor.
+        await Task.detached(priority: .userInitiated) {
+            let killedCount = Self.killProcessOnPort(userPort)
+            if killedCount > 0 {
+                NSLog("[CLIProxyManager] Cleaned up \(killedCount) orphan proxy process(es) on port \(userPort)")
             }
-        }
-    }
-    
-    /// Synchronous port cleanup for use in detached tasks.
-    /// This method is `nonisolated` to allow calling from background threads.
-    /// IMPORTANT: Excludes own PID to prevent killing Quotio itself.
-    @discardableResult
-    nonisolated private static func killProcessOnPortSync(_ port: UInt16) -> Int {
-        let lsofProcess = Process()
-        lsofProcess.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
-        lsofProcess.arguments = ["-ti", "tcp:\(port)"]
 
-        let pipe = Pipe()
-        lsofProcess.standardOutput = pipe
-        lsofProcess.standardError = FileHandle.nullDevice
-
-        // Get own PID to avoid killing ourselves.
-        let ownPid = ProcessInfo.processInfo.processIdentifier
-        var killedCount = 0
-
-        do {
-            try lsofProcess.run()
-            lsofProcess.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !output.isEmpty else { return killedCount }
-
-            for pidString in output.components(separatedBy: .newlines) {
-                if let pid = Int32(pidString.trimmingCharacters(in: .whitespaces)) {
-                    // Never kill our own process.
-                    if pid == ownPid {
-                        NSLog("[CLIProxyManager] Skipping kill of own PID \(pid) on port \(port)")
-                        continue
-                    }
-                    if kill(pid, SIGKILL) == 0 {
-                        killedCount += 1
-                    }
-                }
-            }
-        } catch {
-            // Silent failure - process may not exist
-        }
-
-        return killedCount
+            // Small delay to ensure ports are released.
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }.value
     }
     
     func toggle() async throws {
@@ -1110,7 +1063,7 @@ extension CLIProxyManager {
         let configPath = createTestConfig(port: port, managementKey: managementKey)
         defer {
             cleanupTestConfig(configPath)
-            Self.killProcessOnPortSync(port)
+            Self.killProcessOnPort(port)
         }
 
         let process = Process()

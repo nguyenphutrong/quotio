@@ -297,9 +297,10 @@ actor CodexDesktopPatchService {
     }
 
     private func appAsarIsPatched(_ appAsar: URL) -> Bool {
-        guard let data = try? Data(contentsOf: appAsar) else { return false }
-        let text = String(decoding: data, as: UTF8.self)
-        return text.contains(Self.modelPickerReplacement) && text.contains(Self.sidebarReplacement)
+        guard let data = try? Data(contentsOf: appAsar, options: .mappedIfSafe) else { return false }
+        let modelPickerData = Data(Self.modelPickerReplacement.utf8)
+        let sidebarData = Data(Self.sidebarReplacement.utf8)
+        return data.range(of: modelPickerData) != nil && data.range(of: sidebarData) != nil
     }
 
     // MARK: - Patch Operations

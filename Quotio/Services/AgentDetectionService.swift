@@ -175,7 +175,7 @@ actor AgentDetectionService {
         arguments: [String],
         timeout: TimeInterval
     ) async -> CommandResult? {
-        await Task.detached(priority: .utility) { () -> CommandResult? in
+        await Task.detached(priority: .utility) { () async -> CommandResult? in
             let process = Process()
             let pipe = Pipe()
 
@@ -199,7 +199,7 @@ actor AgentDetectionService {
 
             let deadline = Date().addingTimeInterval(timeout)
             while process.isRunning && Date() < deadline {
-                usleep(50_000)
+                try? await Task.sleep(nanoseconds: 50_000_000)
             }
 
             guard !process.isRunning else {
