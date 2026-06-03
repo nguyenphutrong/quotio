@@ -181,22 +181,37 @@ jobs:
             git add CHANGELOG.md Quotio.xcodeproj/project.pbxproj
             git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }} [skip ci]"
             
-            # Determine target branch with deterministic priority
+            # Determine target branch. For tag-triggered releases, never guess
+            # master/main when the tag commit is present on multiple branches.
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               # For manual dispatch, push to the branch that triggered the workflow
               TARGET_BRANCH="${{ github.ref_name }}"
             else
-              # For tag push, find branches containing HEAD with deterministic priority
-              # Priority: master > main > first available
-              BRANCHES=$(git branch -r --contains HEAD | grep -E 'origin/(master|main)' | sed 's|origin/||' | xargs)
-              
-              if echo "$BRANCHES" | grep -qw "master"; then
-                TARGET_BRANCH="master"
-              elif echo "$BRANCHES" | grep -qw "main"; then
-                TARGET_BRANCH="main"
+              # For tag push, prefer the source branch from the webhook payload.
+              BASE_REF="${{ github.event.base_ref }}"
+
+              if [[ "$BASE_REF" == refs/heads/* ]]; then
+                TARGET_BRANCH="${BASE_REF#refs/heads/}"
               else
-                # Fallback to master if neither found
-                TARGET_BRANCH="master"
+                # If GitHub did not provide a source branch, only push when the
+                # tag commit belongs to exactly one remote branch. Otherwise the
+                # workflow cannot know whether this release came from dev,
+                # master, or another branch, so fail instead of updating the
+                # wrong branch.
+                BRANCHES=$(git branch -r --contains HEAD \
+                  | sed 's/^ *//' \
+                  | grep -v ' -> ' \
+                  | sed 's|^origin/||')
+                BRANCH_COUNT=$(printf '%s\n' "$BRANCHES" | grep -c . || true)
+
+                if [ "$BRANCH_COUNT" -eq 1 ]; then
+                  TARGET_BRANCH="$BRANCHES"
+                else
+                  echo "Error: Cannot determine the source branch for tag ${{ github.ref_name }}."
+                  echo "Branches containing this commit: ${BRANCHES:-none}"
+                  echo "Push the version/changelog commit manually to the intended branch, or run this workflow with workflow_dispatch from that branch."
+                  exit 1
+                fi
               fi
             fi
             
