@@ -687,7 +687,23 @@ nonisolated struct CodexConfigPatcher {
         let valueStart = line.index(after: equalIndex)
         var value = String(line[valueStart...]).trimmingCharacters(in: .whitespaces)
 
-        if let commentIndex = value.firstIndex(of: "#") {
+        var inQuotes = false
+        var previousWasBackslash = false
+        var commentIndex: String.Index?
+
+        for index in value.indices {
+            let character = value[index]
+            if character == "\"", !previousWasBackslash {
+                inQuotes.toggle()
+            } else if character == "#", !inQuotes {
+                commentIndex = index
+                break
+            }
+
+            previousWasBackslash = character == "\\" && !previousWasBackslash
+        }
+
+        if let commentIndex {
             value = String(value[..<commentIndex]).trimmingCharacters(in: .whitespaces)
         }
 
