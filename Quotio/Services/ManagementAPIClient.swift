@@ -1414,13 +1414,22 @@ nonisolated struct ManagementQuotaView: Codable, Sendable {
                     ?? fallbackFormatter.date(from: rawUpdated)
                     ?? Date()
                 let models = (account.models ?? []).map { model in
-                    ModelQuota(
-                        name: (model.name ?? "").isEmpty ? (model.displayName ?? "Quota") : (model.name ?? "Quota"),
-                        percentage: model.remainingPercent ?? max(0, 100 - (model.usedPercent ?? 0)),
-                        resetTime: model.resetTime ?? "",
-                        used: model.used.map(Int.init),
-                        limit: model.limit.map(Int.init),
-                        remaining: model.remaining.map(Int.init),
+                    let modelName = model.name ?? ""
+                    let displayName = model.displayName ?? "Quota"
+                    let name = modelName.isEmpty ? displayName : modelName
+                    let percentage = model.remainingPercent ?? max(0, 100 - (model.usedPercent ?? 0))
+                    let resetTime = model.resetTime ?? ""
+                    let used = model.used.map { Int($0) }
+                    let limit = model.limit.map { Int($0) }
+                    let remaining = model.remaining.map { Int($0) }
+
+                    return ModelQuota(
+                        name: name,
+                        percentage: percentage,
+                        resetTime: resetTime,
+                        used: used,
+                        limit: limit,
+                        remaining: remaining,
                         tooltip: model.sourceDescription
                     )
                 }
