@@ -20,6 +20,11 @@ nonisolated struct CodexDesktopPatchStatus: Sendable {
 }
 
 actor CodexDesktopPatchService {
+    private struct TextPatch {
+        let needle: String
+        let replacement: String
+    }
+
     enum PatchError: LocalizedError {
         case macOSOnly
         case codexAppNotFound
@@ -65,6 +70,8 @@ actor CodexDesktopPatchService {
 
     private static let modelPickerNeedle = "let u=c.useHiddenModels&&o!==`amazonBedrock`,d;"
     private static let modelPickerReplacement = "let u=!1,d;"
+    private static let modelReasoningNeedle = "s=i&&e!==`amazonBedrock`;"
+    private static let modelReasoningReplacement = "s=!1;"
     private static let sidebarNeedle = "listRecentThreads({cursor:e,limit:t}){return this.params.requestClient.sendRequest(`thread/list`,{limit:t,cursor:e,sortKey:this.recentConversationSortKey,modelProviders:null,archived:!1,sourceKinds:ke})}"
     private static let sidebarReplacement = "listRecentThreads({cursor:e,limit:t}){return this.params.requestClient.sendRequest(`thread/list`,{limit:t,cursor:e,sortKey:this.recentConversationSortKey,modelProviders:[],archived:!1,sourceKinds:ke})}"
 
@@ -299,8 +306,10 @@ actor CodexDesktopPatchService {
     private func appAsarIsPatched(_ appAsar: URL) -> Bool {
         guard let data = try? Data(contentsOf: appAsar, options: .mappedIfSafe) else { return false }
         let modelPickerData = Data(Self.modelPickerReplacement.utf8)
+        let modelReasoningData = Data(Self.modelReasoningReplacement.utf8)
         let sidebarData = Data(Self.sidebarReplacement.utf8)
-        return data.range(of: modelPickerData) != nil && data.range(of: sidebarData) != nil
+        let modelPatchFound = data.range(of: modelPickerData) != nil || data.range(of: modelReasoningData) != nil
+        return modelPatchFound && data.range(of: sidebarData) != nil
     }
 
     // MARK: - Patch Operations
@@ -318,16 +327,17 @@ actor CodexDesktopPatchService {
             in: assetsDirectory,
             preferredFilenameFragment: "model-queries",
             label: "model picker",
-            needle: Self.modelPickerNeedle,
-            replacement: Self.modelPickerReplacement
+            patterns: [
+                TextPatch(needle: Self.modelPickerNeedle, replacement: Self.modelPickerReplacement),
+                TextPatch(needle: Self.modelReasoningNeedle, replacement: Self.modelReasoningReplacement)
+            ]
         ) || changed
 
         changed = try patchBundle(
             in: assetsDirectory,
             preferredFilenameFragment: "app-server-manager-signals",
             label: "sidebar recent threads",
-            needle: Self.sidebarNeedle,
-            replacement: Self.sidebarReplacement
+            patterns: [TextPatch(needle: Self.sidebarNeedle, replacement: Self.sidebarReplacement)]
         ) || changed
 
         return changed
@@ -337,8 +347,7 @@ actor CodexDesktopPatchService {
         in assetsDirectory: URL,
         preferredFilenameFragment: String,
         label: String,
-        needle: String,
-        replacement: String
+        patterns: [TextPatch]
     ) throws -> Bool {
         let candidates = try jsCandidates(in: assetsDirectory, preferredFilenameFragment: preferredFilenameFragment)
 
@@ -346,17 +355,18 @@ actor CodexDesktopPatchService {
             let data = try Data(contentsOf: candidate)
             let text = String(decoding: data, as: UTF8.self)
 
-            if text.contains(replacement) {
+            if patterns.contains(where: { text.contains($0.replacement) }) {
                 return false
             }
 
-            let count = text.components(separatedBy: needle).count - 1
-            guard count != 0 else { continue }
+            guard let pattern = patterns.first(where: { text.contains($0.needle) }) else { continue }
+
+            let count = text.components(separatedBy: pattern.needle).count - 1
             guard count == 1 else {
                 throw PatchError.unsupportedCodexVersion(label)
             }
 
-            let updated = text.replacingOccurrences(of: needle, with: replacement)
+            let updated = text.replacingOccurrences(of: pattern.needle, with: pattern.replacement)
             try updated.write(to: candidate, atomically: true, encoding: .utf8)
             return true
         }
