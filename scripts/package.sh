@@ -15,9 +15,9 @@ if [ ! -d "$APP_TO_PACKAGE" ]; then
 fi
 
 VERSION=$(get_version)
-DMG_NAME="${PROJECT_NAME}-${VERSION}.dmg"
+DMG_NAME="${RELEASE_BASENAME}-${VERSION}.dmg"
 FINAL_DMG="${RELEASE_DIR}/${DMG_NAME}"
-ZIP_NAME="${PROJECT_NAME}-${VERSION}.zip"
+ZIP_NAME="${RELEASE_BASENAME}-${VERSION}.zip"
 FINAL_ZIP="${RELEASE_DIR}/${ZIP_NAME}"
 
 print_summary "Package Configuration" \
@@ -43,12 +43,12 @@ start_step_timer "dmg"
 if command -v create-dmg &> /dev/null; then
     start_spinner "Creating DMG with custom layout..."
     create-dmg \
-        --volname "${PROJECT_NAME}" \
+        --volname "${APP_NAME}" \
         --window-pos 200 120 \
         --window-size 600 400 \
         --icon-size 100 \
-        --icon "${PROJECT_NAME}.app" 150 190 \
-        --hide-extension "${PROJECT_NAME}.app" \
+        --icon "${APP_NAME}.app" 150 190 \
+        --hide-extension "${APP_NAME}.app" \
         --app-drop-link 450 185 \
         --no-internet-enable \
         "${FINAL_DMG}" \
@@ -59,7 +59,7 @@ else
     log_item "create-dmg not found, using hdiutil"
     start_spinner "Creating DMG..."
     TEMP_DMG="${BUILD_DIR}/temp.dmg"
-    hdiutil create -volname "${PROJECT_NAME}" -srcfolder "${APP_TO_PACKAGE}" -ov -format UDRW "${TEMP_DMG}" >/dev/null 2>&1
+    hdiutil create -volname "${APP_NAME}" -srcfolder "${APP_TO_PACKAGE}" -ov -format UDRW "${TEMP_DMG}" >/dev/null 2>&1
     hdiutil convert "${TEMP_DMG}" -format UDZO -o "${FINAL_DMG}" >/dev/null 2>&1
     rm -f "${TEMP_DMG}"
     stop_spinner

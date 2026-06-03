@@ -55,6 +55,11 @@ start_spinner "Generating appcast..."
 "$GENERATE_APPCAST" "${RELEASE_DIR}" 2>/dev/null
 stop_spinner
 
+GENERATED_APPCAST_PATH="${RELEASE_DIR}/appcast.xml"
+if [ "${APPCAST_PATH}" != "${GENERATED_APPCAST_PATH}" ] && [ -f "${GENERATED_APPCAST_PATH}" ]; then
+    mv "${GENERATED_APPCAST_PATH}" "${APPCAST_PATH}"
+fi
+
 if [ -d "$TEMP_DMG_DIR" ] && [ -n "$(ls -A "$TEMP_DMG_DIR" 2>/dev/null)" ]; then
     mv "$TEMP_DMG_DIR"/*.dmg "$RELEASE_DIR/"
     rmdir "$TEMP_DMG_DIR"
@@ -78,7 +83,7 @@ if [ -f "${APPCAST_PATH}" ]; then
     
     echo ""
     print_summary "Appcast Details" \
-        "File" "appcast.xml" \
+        "File" "${APPCAST_FILENAME}" \
         "Size" "${APPCAST_SIZE}" \
         "Version" "${CURRENT_VERSION}"
 else

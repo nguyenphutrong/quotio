@@ -13,7 +13,6 @@ on:
 
 env:
   PROJECT_NAME: Quotio
-  SCHEME: Quotio
 
 jobs:
   build-and-release:
@@ -62,7 +61,26 @@ jobs:
           echo "Releasing version: ${VERSION}"
 
       # ===========================================
-      # 4. Update CHANGELOG if needed
+      # 4. Configure stable vs beta build target
+      # ===========================================
+      - name: Configure release target
+        run: |
+          if [ "${{ steps.version.outputs.IS_PRERELEASE }}" = "true" ]; then
+            echo "SCHEME=Quotio Beta" >> $GITHUB_ENV
+            echo "BUILD_CONFIGURATION=Beta" >> $GITHUB_ENV
+            echo "APP_NAME=Quotio Beta" >> $GITHUB_ENV
+            echo "RELEASE_BASENAME=Quotio-Beta" >> $GITHUB_ENV
+            echo "APPCAST_FILENAME=appcast-beta.xml" >> $GITHUB_ENV
+          else
+            echo "SCHEME=Quotio" >> $GITHUB_ENV
+            echo "BUILD_CONFIGURATION=Release" >> $GITHUB_ENV
+            echo "APP_NAME=Quotio" >> $GITHUB_ENV
+            echo "RELEASE_BASENAME=Quotio" >> $GITHUB_ENV
+            echo "APPCAST_FILENAME=appcast.xml" >> $GITHUB_ENV
+          fi
+
+      # ===========================================
+      # 5. Update CHANGELOG if needed
       # ===========================================
       - name: Update CHANGELOG
         run: |
@@ -70,7 +88,7 @@ jobs:
           ./scripts/update-changelog.sh "${{ steps.version.outputs.VERSION }}"
 
       # ===========================================
-      # 5. Bump version in Xcode project
+      # 6. Bump version in Xcode project
       # ===========================================
       - name: Bump version
         run: |
@@ -78,7 +96,7 @@ jobs:
           ./scripts/bump-version.sh "${{ steps.version.outputs.VERSION }}"
 
       # ===========================================
-      # 6. Build
+      # 7. Build
       # ===========================================
       - name: Build
         run: |
@@ -86,7 +104,7 @@ jobs:
           ./scripts/build.sh
 
       # ===========================================
-      # 7. Package (ZIP + DMG)
+      # 8. Package (ZIP + DMG)
       # ===========================================
       - name: Install create-dmg
         run: brew install create-dmg
@@ -97,7 +115,7 @@ jobs:
           ./scripts/package.sh
 
       # ===========================================
-      # 8. Generate Appcast with Sparkle signing
+      # 9. Generate Appcast with Sparkle signing
       # ===========================================
       - name: Generate Appcast
         env:
@@ -107,7 +125,7 @@ jobs:
           ./scripts/generate-appcast-ci.sh
 
       # ===========================================
-      # 9. Create tag (for workflow_dispatch)
+      # 10. Create tag (for workflow_dispatch)
       # ===========================================
       - name: Create tag
         if: github.event_name == 'workflow_dispatch'
@@ -119,7 +137,7 @@ jobs:
           fi
 
       # ===========================================
-      # 10. Create GitHub Release
+      # 11. Create GitHub Release
       # ===========================================
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -129,25 +147,25 @@ jobs:
           files: |
             build/release/*.dmg
             build/release/*.zip
-            build/release/appcast.xml
+            build/release/*.xml
           generate_release_notes: true
           append_body: true
           body: |
             
             ## Installation
 
-            Download `Quotio-${{ steps.version.outputs.VERSION }}.dmg` or `Quotio-${{ steps.version.outputs.VERSION }}.zip` below.
+            Download the DMG or ZIP below.
 
             > ⚠️ **Note**: The app is not signed with an Apple Developer certificate. If macOS blocks the app, run:
             > ```bash
-            > xattr -cr /Applications/Quotio.app
+            > xattr -cr "/Applications/${{ env.APP_NAME }}.app"
             > ```
           prerelease: ${{ steps.version.outputs.IS_PRERELEASE == 'true' }}
 
       # ===========================================
-      # 11. Update latest stable release with merged appcast
+      # 12. Update latest stable release with beta appcast
       # ===========================================
-      - name: Update latest stable appcast
+      - name: Update latest stable beta appcast
         if: steps.version.outputs.IS_PRERELEASE == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -156,15 +174,15 @@ jobs:
           LATEST_STABLE=$(gh release list --exclude-pre-releases --limit 1 --json tagName -q '.[0].tagName')
           
           if [ -n "$LATEST_STABLE" ]; then
-            echo "Updating appcast on latest stable release: $LATEST_STABLE"
+            echo "Updating beta appcast on latest stable release: $LATEST_STABLE"
             
-            # Delete old appcast from stable release
-            gh release delete-asset "$LATEST_STABLE" appcast.xml --yes 2>/dev/null || true
+            # Delete old beta appcast from stable release
+            gh release delete-asset "$LATEST_STABLE" appcast-beta.xml --yes 2>/dev/null || true
             
-            # Upload merged appcast to stable release
-            gh release upload "$LATEST_STABLE" build/release/appcast.xml --clobber
+            # Upload merged beta appcast to stable release, preserving stable appcast.xml
+            gh release upload "$LATEST_STABLE" build/release/appcast-beta.xml --clobber
             
-            echo "Updated appcast.xml on $LATEST_STABLE with merged entries"
+            echo "Updated appcast-beta.xml on $LATEST_STABLE with merged beta entries"
           else
             echo "No stable release found to update"
           fi
@@ -211,7 +229,7 @@ jobs:
           fi
 
       # ===========================================
-      # 12. Summary
+      # 13. Summary
       # ===========================================
       - name: Summary
         run: |
@@ -225,7 +243,7 @@ jobs:
           ls -la build/release/ >> $GITHUB_STEP_SUMMARY
 
       # ===========================================
-      # 13. Trigger homebrew-tap update
+      # 14. Trigger homebrew-tap update
       # ===========================================
       - name: Trigger homebrew-tap update
         if: steps.version.outputs.IS_PRERELEASE == 'false'

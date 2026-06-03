@@ -45,9 +45,13 @@ final class CLIProxyManager {
         }
     }
     
+    nonisolated private static var defaultPort: UInt16 {
+        AppRuntimeIdentity.isBeta ? 8081 : 8080
+    }
+
     nonisolated static func terminateProxyOnShutdown() {
         let savedPort = UserDefaults.standard.integer(forKey: "proxyPort")
-        let port = (savedPort > 0 && savedPort < 65536) ? UInt16(savedPort) : 8080
+        let port = (savedPort > 0 && savedPort < 65536) ? UInt16(savedPort) : defaultPort
         killProcessOnPort(port)
     }
     
@@ -190,6 +194,8 @@ final class CLIProxyManager {
         let savedPort = UserDefaults.standard.integer(forKey: "proxyPort")
         if savedPort > 0 && savedPort < 65536 {
             self.proxyStatus.port = UInt16(savedPort)
+        } else {
+            self.proxyStatus.port = Self.defaultPort
         }
 
         try? FileManager.default.createDirectory(atPath: authDir, withIntermediateDirectories: true)

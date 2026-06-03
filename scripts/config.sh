@@ -8,15 +8,18 @@
 
 # Project settings
 export PROJECT_NAME="Quotio"
-export SCHEME="Quotio"
-export BUNDLE_ID="dev.quotio.desktop"
+export SCHEME="${SCHEME:-Quotio}"
+export BUILD_CONFIGURATION="${BUILD_CONFIGURATION:-Release}"
+export APP_NAME="${APP_NAME:-Quotio}"
+export RELEASE_BASENAME="${RELEASE_BASENAME:-${APP_NAME// /-}}"
+export BUNDLE_ID="${BUNDLE_ID:-dev.quotio.desktop}"
 
 # Paths
 export PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export BUILD_DIR="${PROJECT_DIR}/build"
-export ARCHIVE_PATH="${BUILD_DIR}/${PROJECT_NAME}.xcarchive"
-export APP_PATH="${BUILD_DIR}/${PROJECT_NAME}.app"
-export DMG_PATH="${BUILD_DIR}/${PROJECT_NAME}.dmg"
+export ARCHIVE_PATH="${BUILD_DIR}/${APP_NAME}.xcarchive"
+export APP_PATH="${BUILD_DIR}/${APP_NAME}.app"
+export DMG_PATH="${BUILD_DIR}/${RELEASE_BASENAME}.dmg"
 export RELEASE_DIR="${BUILD_DIR}/release"
 
 # Code signing (set via environment or keychain)
@@ -28,7 +31,8 @@ export GITHUB_REPO="nguyenphutrong/quotio"
 
 # Sparkle
 export SPARKLE_PRIVATE_KEY_PATH="${PROJECT_DIR}/.sparkle_private_key"
-export APPCAST_PATH="${RELEASE_DIR}/appcast.xml"
+export APPCAST_FILENAME="${APPCAST_FILENAME:-appcast.xml}"
+export APPCAST_PATH="${RELEASE_DIR}/${APPCAST_FILENAME}"
 
 # =============================================================================
 # Terminal Detection & Colors

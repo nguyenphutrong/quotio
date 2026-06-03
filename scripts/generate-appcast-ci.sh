@@ -50,6 +50,12 @@ CURRENT_VERSION=$(get_version)
 BUILD_NUMBER=$(get_build_number)
 log_info "Generating appcast for version ${CURRENT_VERSION} (build ${BUILD_NUMBER})"
 
+# Determine if this is a beta release
+IS_BETA=false
+if [[ "$CURRENT_VERSION" == *"-beta"* ]] || [[ "$CURRENT_VERSION" == *"-alpha"* ]] || [[ "$CURRENT_VERSION" == *"-rc"* ]]; then
+    IS_BETA=true
+fi
+
 # Temporarily move DMG files to avoid Sparkle duplicate version error
 DMG_FILES=$(find "$RELEASE_DIR" -name "*.dmg" -type f 2>/dev/null)
 TEMP_DMG_DIR="${BUILD_DIR}/dmg_temp"
@@ -82,13 +88,6 @@ log_info "Generated signature: ${SIGNATURE:0:20}..."
 ZIP_SIZE=$(stat -f%z "$ZIP_FILE")
 ZIP_NAME=$(basename "$ZIP_FILE")
 
-# Generate appcast XML manually
-# Determine if this is a beta release
-IS_BETA=false
-if [[ "$CURRENT_VERSION" == *"-beta"* ]] || [[ "$CURRENT_VERSION" == *"-alpha"* ]] || [[ "$CURRENT_VERSION" == *"-rc"* ]]; then
-    IS_BETA=true
-fi
-
 # Build the new item entry
 NEW_ITEM="        <item>
             <title>Version ${CURRENT_VERSION}</title>
@@ -108,13 +107,14 @@ NEW_ITEM="${NEW_ITEM}
                        type=\"application/octet-stream\"/>
         </item>"
 
-log_step "Generating appcast.xml..."
+log_step "Generating ${APPCAST_FILENAME}..."
 
-# Try to fetch existing appcast from latest stable release
-EXISTING_APPCAST_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/appcast.xml"
+# Try to fetch the existing appcast for this channel from the latest stable release.
+# Stable and beta feeds are intentionally separate so Quotio Beta never sees stable artifacts.
+EXISTING_APPCAST_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/${APPCAST_FILENAME}"
 EXISTING_ITEMS=""
 
-log_step "Fetching existing appcast from latest release..."
+log_step "Fetching existing ${APPCAST_FILENAME} from latest release..."
 EXISTING_APPCAST=$(curl -sL "$EXISTING_APPCAST_URL" 2>/dev/null || echo "")
 
 if [[ -n "$EXISTING_APPCAST" ]] && [[ "$EXISTING_APPCAST" == *"<item>"* ]]; then

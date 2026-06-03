@@ -14,6 +14,8 @@ print_summary "Build Configuration" \
     "Version" "${VERSION}" \
     "Build" "${BUILD_NUM}" \
     "Scheme" "${SCHEME}" \
+    "Configuration" "${BUILD_CONFIGURATION}" \
+    "App" "${APP_NAME}.app" \
     "Output" "${BUILD_DIR}"
 
 rm -rf "${BUILD_DIR}"
@@ -26,7 +28,7 @@ start_step_timer "archive"
 xcodebuild archive \
     -project "${PROJECT_DIR}/${PROJECT_NAME}.xcodeproj" \
     -scheme "${SCHEME}" \
-    -configuration Release \
+    -configuration "${BUILD_CONFIGURATION}" \
     -archivePath "${ARCHIVE_PATH}" \
     -destination "generic/platform=macOS" \
     SKIP_INSTALL=NO \
@@ -60,7 +62,7 @@ log_success "Archive created (${ARCHIVE_DURATION})"
 print_step 2 4 "Extracting App"
 start_step_timer "extract"
 
-cp -R "${ARCHIVE_PATH}/Products/Applications/${PROJECT_NAME}.app" "${APP_PATH}"
+cp -R "${ARCHIVE_PATH}/Products/Applications/${APP_NAME}.app" "${APP_PATH}"
 
 if [ ! -d "${APP_PATH}" ]; then
     log_failure "Failed to extract app from archive"

@@ -30,13 +30,25 @@ fi
 
 TOTAL_STEPS=5
 RELEASE_TYPE="Release"
-[[ "$IS_BETA" == true ]] && RELEASE_TYPE="Beta Release"
+if [[ "$IS_BETA" == true ]]; then
+    RELEASE_TYPE="Beta Release"
+    export SCHEME="Quotio Beta"
+    export BUILD_CONFIGURATION="Beta"
+    export APP_NAME="Quotio Beta"
+    export RELEASE_BASENAME="Quotio-Beta"
+    export APPCAST_FILENAME="appcast-beta.xml"
+    export ARCHIVE_PATH="${BUILD_DIR}/${APP_NAME}.xcarchive"
+    export APP_PATH="${BUILD_DIR}/${APP_NAME}.app"
+    export DMG_PATH="${BUILD_DIR}/${RELEASE_BASENAME}.dmg"
+    export APPCAST_PATH="${RELEASE_DIR}/${APPCAST_FILENAME}"
+fi
 
 print_header "${PROJECT_NAME} ${RELEASE_TYPE}" 55
 
 print_summary "Release Configuration" \
     "Version" "v${NEW_VERSION}" \
     "Type" "${RELEASE_TYPE}" \
+    "Scheme" "${SCHEME}" \
     "Repository" "${GITHUB_REPO}"
 
 print_step 1 $TOTAL_STEPS "Building Application"
@@ -77,8 +89,8 @@ print_step 5 $TOTAL_STEPS "Creating GitHub Release"
 start_step_timer "github"
 
 TAG_NAME="v${NEW_VERSION}"
-DMG_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${NEW_VERSION}.dmg"
-ZIP_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${NEW_VERSION}.zip"
+DMG_FILE="${RELEASE_DIR}/${RELEASE_BASENAME}-${NEW_VERSION}.dmg"
+ZIP_FILE="${RELEASE_DIR}/${RELEASE_BASENAME}-${NEW_VERSION}.zip"
 
 if [ ! -f "$DMG_FILE" ] && [ ! -f "$ZIP_FILE" ]; then
     log_failure "No release files found"

@@ -13,4 +13,4 @@ ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
 QUOTIO_URL_NAME = Quotio
 QUOTIO_URL_SCHEME = quotio
 QUOTIO_ENABLE_UPDATES = YES
-QUOTIO_SPARKLE_FEED_URL = https://github.com/nguyenphutrong/quotio/releases/latest/download/appcast.xml
+QUOTIO_SPARKLE_FEED_URL = https:/$()/github.com/nguyenphutrong/quotio/releases/latest/download/appcast.xml

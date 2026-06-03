@@ -153,10 +153,19 @@ extension UpdaterService: SPUUpdaterDelegate {
     
     nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
         guard AppRuntimeIdentity.updatesEnabled else { return nil }
-        return "https://github.com/nguyenphutrong/quotio/releases/latest/download/appcast.xml"
+        guard let feedURL = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String,
+              !feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        return feedURL
     }
     
     nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        if AppRuntimeIdentity.isBeta {
+            return Set(["beta"])
+        }
+
         let channel = UserDefaults.standard.string(forKey: "updateChannel") ?? "stable"
         return channel == "beta" ? Set(["beta"]) : Set()
     }

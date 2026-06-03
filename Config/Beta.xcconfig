@@ -9,7 +9,7 @@ ASSETCATALOG_COMPILER_APPICON_NAME = AppIconBeta
 
 QUOTIO_URL_NAME = Quotio Beta
 QUOTIO_URL_SCHEME = quotio-beta
-QUOTIO_ENABLE_UPDATES = NO
-QUOTIO_SPARKLE_FEED_URL =
+QUOTIO_ENABLE_UPDATES = YES
+QUOTIO_SPARKLE_FEED_URL = https:/$()/github.com/nguyenphutrong/quotio/releases/latest/download/appcast-beta.xml
 
 #include? "Local.xcconfig"
