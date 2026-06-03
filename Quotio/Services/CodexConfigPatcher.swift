@@ -164,13 +164,7 @@ nonisolated struct CodexConfigPatcher {
         try fileManager.createDirectory(at: configURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try fileManager.createDirectory(at: runtimeDirectory, withIntermediateDirectories: true)
 
-        var backupPath: String?
-        if fileManager.fileExists(atPath: configURL.path) {
-            let backupURL = configURL.deletingLastPathComponent()
-                .appendingPathComponent("config.toml.backup.\(Int(Date().timeIntervalSince1970))")
-            try? fileManager.copyItem(at: configURL, to: backupURL)
-            backupPath = backupURL.path
-        }
+        let backupPath = try backupConfigIfNeeded()
 
         try prepared.catalogJSON.write(to: catalogURL, atomically: true, encoding: .utf8)
         try prepared.configTOML.write(to: configURL, atomically: true, encoding: .utf8)
@@ -195,13 +189,7 @@ nonisolated struct CodexConfigPatcher {
             return RestoreResult(configPath: configURL.path, backupPath: nil)
         }
 
-        var backupPath: String?
-        if fileManager.fileExists(atPath: configURL.path) {
-            let backupURL = configURL.deletingLastPathComponent()
-                .appendingPathComponent("config.toml.backup.\(Int(Date().timeIntervalSince1970))")
-            try? fileManager.copyItem(at: configURL, to: backupURL)
-            backupPath = backupURL.path
-        }
+        let backupPath = try backupConfigIfNeeded()
 
         try restored.write(to: configURL, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configURL.path)
@@ -214,6 +202,21 @@ nonisolated struct CodexConfigPatcher {
         let updated = rewriteManagedModel(content, model: model)
         try updated.write(to: configURL, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configURL.path)
+    }
+
+    private func backupConfigIfNeeded() throws -> String? {
+        guard fileManager.fileExists(atPath: configURL.path) else { return nil }
+
+        let backupURL = configURL.deletingLastPathComponent()
+            .appendingPathComponent("config.toml.backup.\(Int(Date().timeIntervalSince1970))")
+
+        do {
+            try fileManager.copyItem(at: configURL, to: backupURL)
+            return backupURL.path
+        } catch {
+            NSLog("[CodexConfigPatcher] Failed to create backup at \(backupURL.path): \(error.localizedDescription)")
+            throw error
+        }
     }
 
     // MARK: - Merge/Restore
