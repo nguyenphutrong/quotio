@@ -205,16 +205,16 @@ jobs:
               TARGET_BRANCH="${{ github.ref_name }}"
             else
               # For tag push, find branches containing HEAD with deterministic priority
-              # Priority: master > main > first available
-              BRANCHES=$(git branch -r --contains HEAD | grep -E 'origin/(master|main)' | sed 's|origin/||' | xargs)
+              # Priority: dev > main
+              BRANCHES=$(git branch -r --contains HEAD | grep -E 'origin/(dev|main)' | sed 's|origin/||' | xargs)
               
-              if echo "$BRANCHES" | grep -qw "master"; then
-                TARGET_BRANCH="master"
+              if echo "$BRANCHES" | grep -qw "dev"; then
+                TARGET_BRANCH="dev"
               elif echo "$BRANCHES" | grep -qw "main"; then
                 TARGET_BRANCH="main"
               else
-                # Fallback to master if neither found
-                TARGET_BRANCH="master"
+                # Fallback to dev if no containing branch is found after the release commit
+                TARGET_BRANCH="dev"
               fi
             fi
             

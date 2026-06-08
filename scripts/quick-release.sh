@@ -82,7 +82,7 @@ if git tag -l | grep -q "^${TAG_NAME}$"; then
 fi
 
 git tag -a "${TAG_NAME}" -m "Release ${VERSION}"
-git push origin master
+git push origin dev
 git push origin "${TAG_NAME}"
 
 log_step "Step 3/3: Triggering GitHub Actions..."
