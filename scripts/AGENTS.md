@@ -1,6 +1,6 @@
 # Build & Release Scripts
 
-11 bash scripts for building, packaging, notarizing, and releasing Quotio.
+12 bash scripts for building, packaging, notarizing, and releasing Quotio.
 
 ## Quick Reference
 
@@ -12,6 +12,7 @@
 | `./scripts/release.sh` | Full release pipeline |
 | `./scripts/quick-release.sh` | Interactive release helper |
 | `./scripts/bump-version.sh` | Version management |
+| `./scripts/bump-cpa-plusplus.sh` | Bundled cpa++ manifest update |
 
 ## Build Pipeline
 
@@ -67,6 +68,13 @@ Updates version in Xcode project.
 ```bash
 ./scripts/bump-version.sh 1.2.3
 # Updates: MARKETING_VERSION, CURRENT_PROJECT_VERSION
+```
+
+### bump-cpa-plusplus.sh
+Updates the bundled cpa++ manifest to the latest stable cpa++ release.
+```bash
+./scripts/bump-cpa-plusplus.sh
+# Updates: Config/CPAPlusPlusBundle.json
 ```
 
 ### generate-appcast.sh / generate-appcast-ci.sh
