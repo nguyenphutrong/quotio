@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0-beta-2] - 2026-06-08
 
+## [1.0.0-beta-1] - 2026-06-03
+
+### Added
+
+- First tracked `Quotio Beta` build, with separate app identity, URL scheme, Sparkle feed, and default proxy port.
+- cpa++ / cpa-plusplus local proxy runtime, bundled at build time.
+- Management API based quota and provider flows, including quota refresh, all-providers quota tab, and reset-time controls.
+- Models catalog, virtual model settings/autosave, copy model ID action, and expandable providers table.
+
+### Changed
+
+- Normalized management API connections and canonical provider management flows.
+- Refactored Codex agent setup and removed legacy local provider/proxy flows.
+- Polished provider table layout, spacing, and actions.
+
+### Fixed
+
+- Fix Gemini CLI quota lookup (#406). Thanks @yangeni.
+- Fix OpenAI-compatible provider base URL handling (#398). Thanks @Luzenrocy.
+- Fix model enable toggle, management-client readiness in fallback/model flows, and quota refresh per account.
+- Fix current Codex sidebar/model picker support while preserving quoted TOML hash values.
+- Fix Kiro sign-in OAuth, provider OAuth links, duplicate Codex quota accounts, and Antigravity quota layout issues.
+
+**Full Changelog**: https://github.com/nguyenphutrong/quotio/compare/v0.17.1...v1.0.0-beta-1
+
 ## [0.17.1] - 2026-05-11
 
 ## [0.17.0] - 2026-05-05
