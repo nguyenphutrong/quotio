@@ -1,5 +1,6 @@
 param(
   [string]$HostOutput = "apps/windows-host/bin/Release/net8.0-windows10.0.19041.0",
+  [string]$Configuration = "Release",
   [string]$OutputDirectory = "artifacts",
   [string]$ArtifactName = "quotio-windows-preview.zip",
   [string]$VerifyDirectory = "artifacts/quotio-windows-preview-verify",
@@ -37,6 +38,20 @@ foreach ($requiredFile in $requiredFiles) {
   if (!(Test-Path $path)) {
     throw "Windows preview zip is missing required file: $requiredFile"
   }
+  if ((Get-Item $path).Length -le 0) {
+    throw "Windows preview zip contains an empty required file: $requiredFile"
+  }
+}
+
+$requiredFileDetails = foreach ($requiredFile in $requiredFiles) {
+  $path = Join-Path $VerifyDirectory $requiredFile
+  $file = Get-Item $path
+  $fileHash = Get-FileHash -Path $path -Algorithm SHA256
+  [ordered]@{
+    path = $requiredFile
+    bytes = $file.Length
+    sha256 = $fileHash.Hash.ToLowerInvariant()
+  }
 }
 
 $hash = Get-FileHash -Path $zipPath -Algorithm SHA256
@@ -49,7 +64,9 @@ $manifest = [ordered]@{
   sha256 = $hash.Hash.ToLowerInvariant()
   commit = $CommitSha
   hostOutput = $HostOutput
+  configuration = $Configuration
   requiredFiles = $requiredFiles
+  requiredFileDetails = $requiredFileDetails
   installer = $false
   signing = $false
 }
