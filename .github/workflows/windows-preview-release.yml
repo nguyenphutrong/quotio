@@ -64,7 +64,7 @@ jobs:
       - run: bun run contracts:check
       - run: bun run windows:gates:check
       - run: bun run build
-      - run: dotnet build apps/windows-host/Quotio.Windows.csproj --configuration Debug
+      - run: dotnet build apps/windows-host/Quotio.Windows.csproj --configuration Release
       - run: dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release
 
       - name: Package and verify Windows preview

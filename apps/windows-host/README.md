@@ -14,7 +14,7 @@ in `docs/architecture/multiplatform/0006-cutover-gap-matrix.md` are done.
 Build from Windows with the .NET 8 SDK and Windows App SDK workloads:
 
 ```powershell
-dotnet build apps/windows-host/Quotio.Windows.csproj
+dotnet build apps/windows-host/Quotio.Windows.csproj --configuration Release
 dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release
 ```
 

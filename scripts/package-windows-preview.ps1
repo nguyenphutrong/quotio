@@ -1,5 +1,5 @@
 param(
-  [string]$HostOutput = "apps/windows-host/bin/Debug/net8.0-windows10.0.19041.0",
+  [string]$HostOutput = "apps/windows-host/bin/Release/net8.0-windows10.0.19041.0",
   [string]$OutputDirectory = "artifacts",
   [string]$ArtifactName = "quotio-windows-preview.zip",
   [string]$VerifyDirectory = "artifacts/quotio-windows-preview-verify",
