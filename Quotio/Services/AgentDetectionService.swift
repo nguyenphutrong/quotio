@@ -175,46 +175,57 @@ actor AgentDetectionService {
         arguments: [String],
         timeout: TimeInterval
     ) async -> CommandResult? {
-        await Task.detached(priority: .utility) { () async -> CommandResult? in
-            let process = Process()
-            let pipe = Pipe()
+        guard !Task.isCancelled else { return nil }
 
-            process.executableURL = URL(fileURLWithPath: executablePath)
-            process.arguments = arguments
-            process.standardInput = FileHandle.nullDevice
-            process.standardOutput = pipe
-            process.standardError = pipe
+        let process = Process()
+        let pipe = Pipe()
 
-            var environment = ProcessInfo.processInfo.environment
-            environment["CI"] = "1"
-            environment["NO_COLOR"] = "1"
-            environment["TERM"] = "dumb"
-            process.environment = environment
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = pipe
+        process.standardError = pipe
 
-            do {
-                try process.run()
-            } catch {
-                return nil
-            }
+        var environment = ProcessInfo.processInfo.environment
+        environment["CI"] = "1"
+        environment["NO_COLOR"] = "1"
+        environment["TERM"] = "dumb"
+        process.environment = environment
 
-            let deadline = Date().addingTimeInterval(timeout)
-            while process.isRunning && Date() < deadline {
-                try? await Task.sleep(nanoseconds: 50_000_000)
-            }
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
 
-            guard !process.isRunning else {
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning {
+            if Task.isCancelled || Date() >= deadline {
                 kill(process.processIdentifier, SIGKILL)
                 process.waitUntilExit()
                 _ = pipe.fileHandleForReading.readDataToEndOfFile()
                 return nil
             }
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return CommandResult(
-                exitCode: process.terminationStatus,
-                output: String(data: data, encoding: .utf8) ?? ""
-            )
-        }.value
+            do {
+                try await Task.sleep(nanoseconds: 50_000_000)
+            } catch {
+                if process.isRunning {
+                    kill(process.processIdentifier, SIGKILL)
+                    process.waitUntilExit()
+                }
+                _ = pipe.fileHandleForReading.readDataToEndOfFile()
+                return nil
+            }
+        }
+
+        guard !Task.isCancelled else { return nil }
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return CommandResult(
+            exitCode: process.terminationStatus,
+            output: String(data: data, encoding: .utf8) ?? ""
+        )
     }
 
     private func getVersion(binaryPath: String) async -> String? {
