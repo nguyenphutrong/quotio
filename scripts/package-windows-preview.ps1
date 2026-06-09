@@ -9,6 +9,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Write-Utf8LfFile {
+  param(
+    [string]$Path,
+    [string]$Content
+  )
+
+  $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+  [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+}
+
 if (!(Test-Path $HostOutput)) {
   throw "Windows host output not found: $HostOutput"
 }
@@ -56,7 +66,7 @@ $requiredFileDetails = foreach ($requiredFile in $requiredFiles) {
 
 $hash = Get-FileHash -Path $zipPath -Algorithm SHA256
 $shaPath = "$zipPath.sha256"
-"$($hash.Hash.ToLowerInvariant())  $ArtifactName" | Set-Content -Path $shaPath -Encoding utf8
+Write-Utf8LfFile -Path $shaPath -Content "$($hash.Hash.ToLowerInvariant())  $ArtifactName`n"
 
 $manifestPath = "$zipPath.manifest.json"
 $manifest = [ordered]@{
@@ -71,7 +81,7 @@ $manifest = [ordered]@{
   signing = $false
 }
 
-$manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $manifestPath -Encoding utf8
+Write-Utf8LfFile -Path $manifestPath -Content (($manifest | ConvertTo-Json -Depth 4) + "`n")
 
 Write-Host "Packaged Windows preview: $zipPath"
 Write-Host "SHA256: $($hash.Hash.ToLowerInvariant())"
