@@ -7,11 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		78D386D02F00000100C40FB6 /* QuotioContractGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D386CF2F00000100C40FB6 /* QuotioContractGenerated.swift */; };
 		782F8F9C2EFD797D00CE18C5 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 78D386B12EFBF30500C40FB6 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		78D386942EFBF30400C40FB6 /* Quotio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Quotio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+			78D386CF2F00000100C40FB6 /* QuotioContractGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = generated/swift/QuotioContractGenerated.swift; sourceTree = SOURCE_ROOT; };
 			78D386B22EFBF30500C40FB6 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 			78D386B32EFBF30500C40FB6 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 			78D386B42EFBF30500C40FB6 /* Local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig.example; sourceTree = "<group>"; };
@@ -59,6 +61,7 @@
 					78D386B52EFBF30500C40FB6 /* Config */,
 					78D386C12EFBF30500C40FB6 /* scripts */,
 					78D386962EFBF30400C40FB6 /* Quotio */,
+					78D386CF2F00000100C40FB6 /* QuotioContractGenerated.swift */,
 					78D386952EFBF30400C40FB6 /* Products */,
 				);
 			sourceTree = "<group>";
@@ -198,6 +201,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				78D386D02F00000100C40FB6 /* QuotioContractGenerated.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

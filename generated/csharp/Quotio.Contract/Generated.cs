@@ -14,6 +14,9 @@ public enum QuotioRequestKind
     RuntimeStop,
     RuntimeRestart,
     ManagementRequest,
+    NativeConfirm,
+    NativeOpenExternal,
+    NativeOpenTextFile,
 }
 
 public enum QuotioEventKind

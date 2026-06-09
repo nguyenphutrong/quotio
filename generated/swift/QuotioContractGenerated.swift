@@ -8,6 +8,9 @@ public enum QuotioRequestKind: String, Sendable {
     case RuntimeStop = "runtime.stop"
     case RuntimeRestart = "runtime.restart"
     case ManagementRequest = "management.request"
+    case NativeConfirm = "native.confirm"
+    case NativeOpenExternal = "native.openExternal"
+    case NativeOpenTextFile = "native.openTextFile"
 }
 
 public enum QuotioEventKind: String, Sendable {

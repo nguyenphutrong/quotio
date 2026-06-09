@@ -20,6 +20,15 @@
     {
       "kind": "management.request",
       "response": "ManagementResponse"
+    },
+    {
+      "kind": "native.confirm"
+    },
+    {
+      "kind": "native.openExternal"
+    },
+    {
+      "kind": "native.openTextFile"
     }
   ],
   "events": [

@@ -76,13 +76,13 @@ enum WebViewSource {
 }
 
 private enum DesktopBridgeContract {
-    static let version = 1
+    static let version = quotioContractVersion
 
     enum RequestKind {
-        static let managementRequest = "management.request"
-        static let nativeConfirm = "native.confirm"
-        static let nativeOpenExternal = "native.openExternal"
-        static let nativeOpenTextFile = "native.openTextFile"
+        static let managementRequest = QuotioRequestKind.ManagementRequest.rawValue
+        static let nativeConfirm = QuotioRequestKind.NativeConfirm.rawValue
+        static let nativeOpenExternal = QuotioRequestKind.NativeOpenExternal.rawValue
+        static let nativeOpenTextFile = QuotioRequestKind.NativeOpenTextFile.rawValue
     }
 }
 
