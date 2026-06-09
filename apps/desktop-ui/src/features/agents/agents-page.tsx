@@ -33,18 +33,28 @@ export function AgentsPage() {
       ),
     [query.data?.agents],
   );
+  const hasAmpAgent = useMemo(
+    () =>
+      safeArray<AgentItem>(query.data?.agents).some(
+        (item) => item.id === 'amp',
+      ),
+    [query.data?.agents],
+  );
 
   useEffect(() => {
-    const allTabs = [AMP_CODE_TAB, ...agents.map((item) => item.id)];
+    const allTabs = [
+      ...(hasAmpAgent ? [AMP_CODE_TAB] : []),
+      ...agents.map((item) => item.id),
+    ];
     if (allTabs.length === 0) {
       setSelectedTab('');
       return;
     }
 
     if (!selectedTab || !allTabs.includes(selectedTab)) {
-      setSelectedTab(AMP_CODE_TAB);
+      setSelectedTab(allTabs[0] ?? '');
     }
-  }, [agents, selectedTab]);
+  }, [agents, hasAmpAgent, selectedTab]);
 
   if (query.isPending) {
     return <LoadingState label={t('agents.loading')} />;
@@ -63,7 +73,7 @@ export function AgentsPage() {
     );
   }
 
-  if (agents.length === 0) {
+  if (agents.length === 0 && !hasAmpAgent) {
     return (
       <HeaderActionsProvider>
         <div className="space-y-6">
@@ -92,9 +102,11 @@ export function AgentsPage() {
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab}>
           <TabsList className="h-auto max-w-full overflow-x-auto rounded-[1rem] bg-secondary/50 p-1.5">
-            <TabsTrigger value={AMP_CODE_TAB}>
-              {t('agents.ampcodeTab')}
-            </TabsTrigger>
+            {hasAmpAgent ? (
+              <TabsTrigger value={AMP_CODE_TAB}>
+                {t('agents.ampcodeTab')}
+              </TabsTrigger>
+            ) : null}
             {agents.map((item) => (
               <TabsTrigger key={item.id} value={item.id}>
                 {item.label}
@@ -102,9 +114,11 @@ export function AgentsPage() {
             ))}
           </TabsList>
 
-          <TabsContent value={AMP_CODE_TAB} className="mt-4">
-            <AmpCodePage embedded />
-          </TabsContent>
+          {hasAmpAgent ? (
+            <TabsContent value={AMP_CODE_TAB} className="mt-4">
+              <AmpCodePage embedded />
+            </TabsContent>
+          ) : null}
 
           {agents.map((item) => (
             <TabsContent key={item.id} value={item.id} className="mt-4">

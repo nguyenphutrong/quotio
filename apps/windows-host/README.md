@@ -37,3 +37,8 @@ falls back to generic Windows Credential Manager entries:
 The bootstrap still does not advertise remote connection, credential storage, or
 native onboarding capabilities. Later plans should add verified write/update
 flows before enabling those shared UI controls.
+
+The shared Agents route is enabled with a read-only Windows adapter. It lists
+agent descriptors, detects binaries/config files, and serves manual guides.
+Automatic install and rollback actions remain disabled until backup and rollback
+behavior is verified on Windows.

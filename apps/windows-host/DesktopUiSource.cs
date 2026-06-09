@@ -38,7 +38,7 @@ public static class DesktopUiSource
                 ["usage"] = true,
                 ["virtualModels"] = false,
                 ["models"] = false,
-                ["agents"] = false,
+                ["agents"] = true,
                 ["apiKeys"] = false,
                 ["logs"] = false,
                 ["settings"] = false,

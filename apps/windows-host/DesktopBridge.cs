@@ -14,13 +14,15 @@ public sealed class DesktopBridge
     private readonly WebView2 webView;
     private readonly RuntimeProcessController runtime;
     private readonly WindowsHostConfig config;
+    private readonly WindowsAgentAdapter agents;
     private readonly HttpClient httpClient = new();
 
-    public DesktopBridge(WebView2 webView, RuntimeProcessController runtime, WindowsHostConfig config)
+    public DesktopBridge(WebView2 webView, RuntimeProcessController runtime, WindowsHostConfig config, WindowsAgentAdapter agents)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.config = config;
+        this.agents = agents;
     }
 
     public string CreateBootstrapScript(DesktopBootstrap bootstrap)
@@ -147,6 +149,11 @@ public sealed class DesktopBridge
             && init.TryGetProperty("body", out var bodyElement)
             ? bodyElement.GetString()
             : null;
+
+        if (path == "/agents" || path.StartsWith("/agents/", StringComparison.Ordinal))
+        {
+            return agents.Handle(path, method);
+        }
 
         var baseUrl = config.ManagementBaseUrl;
         var managementKey = config.ManagementKey;
