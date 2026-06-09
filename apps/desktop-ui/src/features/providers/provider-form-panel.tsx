@@ -130,7 +130,7 @@ export function ProviderFormPanel({
   hideHeader?: boolean;
   initialProviderKey?: string;
 }) {
-  const { request, openExternal } = useAdminRuntime();
+  const { request, openExternal, openTextFile } = useAdminRuntime();
   const [step, setStep] = useState<1 | 2>(
     mode === 'create' && !initialProviderKey ? 1 : 2,
   );
@@ -858,6 +858,13 @@ export function ProviderFormPanel({
             <Button
               type="button"
               variant="outline"
+              onClick={handleImportOpencodeGoCookieFile}
+            >
+              Choose File
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => setCookieImportOpen(false)}
             >
               Cancel
@@ -959,6 +966,31 @@ export function ProviderFormPanel({
     }
   }
 
+  async function handleImportOpencodeGoCookieFile() {
+    try {
+      const text = await openTextFile({
+        title: 'Import OpenCode Cookie JSON',
+        allowedExtensions: ['json', 'txt'],
+      });
+
+      if (text === null) {
+        return;
+      }
+
+      setCookieImportText(text);
+      const parsed = parseOpencodeGoCookieInput(text);
+      setOpencodeGoAuthCookie(parsed);
+      setCookieImportError(null);
+      setCookieImportOpen(false);
+      setCookieImportText('');
+    } catch (error) {
+      setCookieImportError(
+        error instanceof Error ? error.message : 'Failed to import cookie file',
+      );
+      setCookieImportOpen(true);
+    }
+  }
+
   function renderOpencodeGoQuotaMetadata() {
     return (
       <Field label="Quota Metadata">
@@ -995,11 +1027,7 @@ export function ProviderFormPanel({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      setCookieImportText('');
-                      setCookieImportError(null);
-                      setCookieImportOpen(true);
-                    }}
+                    onClick={handleImportOpencodeGoCookieFile}
                   >
                     Import Cookie JSON
                   </Button>

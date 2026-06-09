@@ -29,6 +29,11 @@ export type NativeConfirmRequest = {
   destructive?: boolean;
 };
 
+export type NativeOpenTextFileRequest = {
+  title: string;
+  allowedExtensions?: string[];
+};
+
 type DesktopBridge = {
   request: <T>(request: DesktopBridgeRequest) => Promise<T>;
   runtimeStatus?: () => Promise<RuntimeStatus>;
@@ -36,6 +41,7 @@ type DesktopBridge = {
   runtimeStop?: () => Promise<RuntimeStatus>;
   confirm?: (request: NativeConfirmRequest) => Promise<boolean>;
   openExternal?: (url: string) => Promise<boolean>;
+  openTextFile?: (request: NativeOpenTextFileRequest) => Promise<string | null>;
 };
 
 declare global {
@@ -55,6 +61,7 @@ type AdminRuntimeValue = {
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
   confirm: (request: NativeConfirmRequest) => Promise<boolean>;
   openExternal: (url: string) => Promise<boolean>;
+  openTextFile: (request: NativeOpenTextFileRequest) => Promise<string | null>;
 };
 
 const AdminRuntimeContext = createContext<AdminRuntimeValue | null>(null);
@@ -104,6 +111,37 @@ export function AdminRuntimeProvider({
     return window.open(url, '_blank', 'noopener,noreferrer') !== null;
   }, []);
 
+  const openTextFile = useCallback(
+    async (request: NativeOpenTextFileRequest) => {
+      const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+      if (bridge?.openTextFile) {
+        return bridge.openTextFile(request);
+      }
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = (request.allowedExtensions ?? [])
+        .map((extension) => `.${extension}`)
+        .join(',');
+
+      return new Promise<string | null>((resolve, reject) => {
+        input.onchange = () => {
+          const file = input.files?.[0];
+          if (!file) {
+            resolve(null);
+            return;
+          }
+
+          file.text().then(resolve, reject);
+        };
+        input.oncancel = () => resolve(null);
+        input.click();
+      });
+    },
+    [],
+  );
+
   const value = useMemo<AdminRuntimeValue>(
     () => ({
       bootstrap,
@@ -116,8 +154,9 @@ export function AdminRuntimeProvider({
       request,
       confirm,
       openExternal,
+      openTextFile,
     }),
-    [bootstrap, confirm, openExternal, request],
+    [bootstrap, confirm, openExternal, openTextFile, request],
   );
 
   return (

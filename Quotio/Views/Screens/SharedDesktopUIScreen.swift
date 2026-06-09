@@ -5,6 +5,7 @@
 
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import WebKit
 
 enum SharedDesktopUIFeature {
@@ -79,6 +80,7 @@ private enum DesktopBridgeContract {
         static let managementRequest = "management.request"
         static let nativeConfirm = "native.confirm"
         static let nativeOpenExternal = "native.openExternal"
+        static let nativeOpenTextFile = "native.openTextFile"
     }
 }
 
@@ -208,6 +210,17 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 kind: '\(DesktopBridgeContract.RequestKind.nativeOpenExternal)',
                 url
               });
+            }),
+            openTextFile: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.nativeOpenTextFile)',
+                title: request?.title,
+                allowedExtensions: request?.allowedExtensions || []
+              });
             })
           };
           window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__ = (message) => {
@@ -319,6 +332,8 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                     value = handleNativeConfirm(body)
                 case DesktopBridgeContract.RequestKind.nativeOpenExternal:
                     value = try handleNativeOpenExternal(body)
+                case DesktopBridgeContract.RequestKind.nativeOpenTextFile:
+                    value = try handleNativeOpenTextFile(body) ?? NSNull()
                 default:
                     throw APIError.invalidURL
                 }
@@ -380,6 +395,30 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
         }
 
         return NSWorkspace.shared.open(url)
+    }
+
+    private func handleNativeOpenTextFile(_ body: [String: Any]) throws -> String? {
+        let panel = NSOpenPanel()
+        panel.title = body["title"] as? String ?? "Open File"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = Self.allowedTextFileTypes(body)
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return nil
+        }
+
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private static func allowedTextFileTypes(_ body: [String: Any]) -> [UTType] {
+        let extensions = body["allowedExtensions"] as? [String] ?? []
+        let types = extensions.compactMap { fileExtension in
+            UTType(filenameExtension: fileExtension.trimmingCharacters(in: CharacterSet(charactersIn: ".")))
+        }
+
+        return types.isEmpty ? [.json, .plainText, .text] : types
     }
 
     private func sendResponse(id: String, ok: Bool, value: Any, error: String?) {

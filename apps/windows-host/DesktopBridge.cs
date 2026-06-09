@@ -7,6 +7,7 @@ using System.Text.Json;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
 using Quotio.Contract;
+using WinForms = System.Windows.Forms;
 
 public sealed class DesktopBridge
 {
@@ -85,6 +86,17 @@ public sealed class DesktopBridge
               window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
               window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
               chrome.webview.postMessage({ id, kind: 'native.openExternal', url });
+            }),
+            openTextFile: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({
+                id,
+                kind: 'native.openTextFile',
+                title: request?.title,
+                allowedExtensions: request?.allowedExtensions || []
+              });
             })
           };
           window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__ = (message) => {
@@ -126,6 +138,7 @@ public sealed class DesktopBridge
                 "management.request" => await HandleManagementRequestAsync(root),
                 "native.confirm" => await HandleNativeConfirmAsync(root),
                 "native.openExternal" => HandleNativeOpenExternal(root),
+                "native.openTextFile" => HandleNativeOpenTextFile(root),
                 _ => throw new InvalidOperationException("Unsupported bridge request")
             };
 
@@ -233,6 +246,50 @@ public sealed class DesktopBridge
 
         Process.Start(new ProcessStartInfo(url.ToString()) { UseShellExecute = true });
         return true;
+    }
+
+    private static string? HandleNativeOpenTextFile(JsonElement root)
+    {
+        var dialog = new WinForms.OpenFileDialog
+        {
+            Title = ReadString(root, "title", "Open File"),
+            Filter = BuildOpenTextFileFilter(root),
+            Multiselect = false,
+            CheckFileExists = true
+        };
+
+        return dialog.ShowDialog() == WinForms.DialogResult.OK
+            ? File.ReadAllText(dialog.FileName, Encoding.UTF8)
+            : null;
+    }
+
+    private static string ReadString(JsonElement element, string propertyName, string fallback)
+    {
+        return element.TryGetProperty(propertyName, out var property)
+            && property.ValueKind == JsonValueKind.String
+            ? property.GetString() ?? fallback
+            : fallback;
+    }
+
+    private static string BuildOpenTextFileFilter(JsonElement root)
+    {
+        if (!root.TryGetProperty("allowedExtensions", out var extensions)
+            || extensions.ValueKind != JsonValueKind.Array)
+        {
+            return "Text files (*.json;*.txt)|*.json;*.txt|All files (*.*)|*.*";
+        }
+
+        var patterns = extensions.EnumerateArray()
+            .Where(extension => extension.ValueKind == JsonValueKind.String)
+            .Select(extension => extension.GetString()?.Trim().TrimStart('.'))
+            .Where(extension => !string.IsNullOrWhiteSpace(extension))
+            .Select(extension => $"*.{extension}")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return patterns.Length == 0
+            ? "Text files (*.json;*.txt)|*.json;*.txt|All files (*.*)|*.*"
+            : $"Supported files ({string.Join(';', patterns)})|{string.Join(';', patterns)}|All files (*.*)|*.*";
     }
 
     private Task SendResponseAsync(string id, bool ok, object? value, string? error)
