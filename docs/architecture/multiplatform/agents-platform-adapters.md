@@ -16,14 +16,14 @@ macOS and Windows share shell, path, or backup behavior.
 
 ## Current Agent Inventory
 
-| Agent | ID | Binaries | macOS config paths | Windows state |
+| Agent | ID | Binaries | macOS config paths | Windows preview state |
 | --- | --- | --- | --- | --- |
-| Claude Code | `claude-code` | `claude` | `~/.claude/settings.json` | `unknown` until Windows adapter validates the official config path |
-| Codex CLI | `codex` | `codex` | `~/.codex/config.toml` | `unknown` until Windows adapter validates the official config path |
+| Claude Code | `claude-code` | `claude` | `~/.claude/settings.json` | Read-only descriptor, binary/config detection, guide, and diff preview; writes disabled until backup/rollback validation |
+| Codex CLI | `codex` | `codex` | `~/.codex/config.toml` | Read-only descriptor, binary/config detection, guide, and diff preview; writes disabled until backup/rollback validation |
 | Gemini CLI | `gemini-cli` | `gemini` | shell profile only | `guide-only` until PowerShell/profile writes are implemented |
 | Amp CLI | `amp` | `amp` | `~/.config/amp/settings.json`, `~/.local/share/amp/secrets.json` | `unknown` until Windows adapter validates settings and secrets paths |
-| OpenCode | `opencode` | `opencode`, `oc` | `~/.config/opencode/opencode.json` | `unknown` until Windows adapter validates the official config path |
-| Factory Droid | `factory-droid` | `droid`, `factory-droid` | `~/.factory/config.json` | `unknown` until Windows adapter validates the official config path |
+| OpenCode | `opencode` | `opencode`, `oc` | `~/.config/opencode/opencode.json` | Read-only descriptor, binary/config detection, guide, and diff preview; writes disabled until backup/rollback validation |
+| Factory Droid | `factory-droid` | `droid`, `factory-droid` | `~/.factory/config.json` | Read-only descriptor, binary/config detection, guide, and diff preview; writes disabled until backup/rollback validation |
 
 ## macOS Adapter Rules
 
@@ -47,7 +47,8 @@ macOS and Windows share shell, path, or backup behavior.
 
 ## Cutover Gate
 
-The shared Agents route can be enabled only after both hosts expose native
-adapter-backed endpoints or bridge methods for descriptor list, detection,
-preview diff, install, and rollback. Until then, existing macOS SwiftUI remains
-the authoritative write path.
+The shared Agents route can be enabled for read-only Windows preview use after
+the host exposes native adapter-backed descriptor, detection, guide, and diff
+preview responses. Automatic install and rollback remain gated until both hosts
+expose verified backup-before-write and restore behavior. Until then, existing
+macOS SwiftUI remains the authoritative write path.

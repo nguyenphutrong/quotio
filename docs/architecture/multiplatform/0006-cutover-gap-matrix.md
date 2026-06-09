@@ -10,8 +10,10 @@ Plan 10 requires native integration, release, and cutover readiness across
 macOS and Windows. The current macOS app already has production release plumbing
 through Sparkle, notarization scripts, appcast generation, and GitHub release
 automation. The Windows host is still a preview scaffold: it builds a native
-WinUI/WebView2 shell and bridge, but it does not yet have installer, signing,
-updater, crash reporting, or credential-store-backed settings parity.
+WinUI/WebView2 shell and bridge with Credential Manager-backed bootstrap
+configuration and a read-only agent adapter, but it does not yet have
+installer, signing, updater, crash reporting, shared credential editing, or
+agent write/rollback parity.
 
 The cutover must preserve native feel without claiming production parity before
 the Windows host can actually install, update, and preserve data correctly.

@@ -40,7 +40,7 @@ falls back to generic Windows Credential Manager entries:
 - `QUOTIO_PROXY_ARGS` or `Quotio/ProxyArgs`
 - `QUOTIO_PROXY_ENDPOINT` or `Quotio/ProxyEndpoint`
 
-The bootstrap still does not advertise remote connection, credential storage, or
+The bootstrap still does not advertise remote connection, credential editing, or
 native onboarding capabilities. Later plans should add verified write/update
 flows before enabling those shared UI controls.
 
