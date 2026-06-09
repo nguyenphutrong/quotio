@@ -146,8 +146,32 @@ func testMalformedManagedBlockFailsClosed() throws {
     }
 }
 
+func testRapidWritesCreateUniqueBackups() throws {
+    let home = try tempDirectory(named: "home")
+    let runtime = try tempDirectory(named: "runtime")
+    let codexDir = home.appendingPathComponent(".codex", isDirectory: true)
+    try FileManager.default.createDirectory(at: codexDir, withIntermediateDirectories: true)
+    let configURL = codexDir.appendingPathComponent("config.toml")
+    try """
+    model = "gpt-5"
+    model_provider = "openai"
+    """.write(to: configURL, atomically: true, encoding: .utf8)
+
+    let patcher = CodexConfigPatcher(homeDirectory: home, runtimeDirectory: runtime)
+    _ = try patcher.install(try patcher.makePreparedConfig(config: makeConfig(), availableModels: models))
+    _ = try patcher.install(try patcher.makePreparedConfig(config: makeConfig(), availableModels: models))
+    try patcher.switchActiveModel(to: "gemini-3-pro-preview")
+    _ = try patcher.restoreDefaultConfig()
+
+    let backups = try FileManager.default.contentsOfDirectory(atPath: codexDir.path)
+        .filter { $0.hasPrefix("config.toml.backup.") }
+    try expect(backups.count == 4, "rapid writes should create four backups, found \(backups.count)")
+    try expect(Set(backups).count == backups.count, "rapid write backups were overwritten")
+}
+
 try testInstallRestoreAndIdempotency()
 try testLegacyCliproxyapiDoesNotRestoreAsUserConfig()
 try testHashInQuotedTOMLValueIsPreserved()
 try testMalformedManagedBlockFailsClosed()
+try testRapidWritesCreateUniqueBackups()
 print("CodexConfigPatcher smoke tests passed")
