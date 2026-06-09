@@ -635,10 +635,17 @@
     },
     "badges": {
       "guideOnly": "Guide-only",
+      "unsupported": "不支持",
+      "unknownSupport": "未验证",
       "installed": "Installed",
       "notInstalled": "Not installed",
       "rollbackAvailable": "Backup available",
       "noBackup": "No backup"
+    },
+    "support": {
+      "guide-only": "此平台暂不支持自动配置。请改用手动指南。",
+      "unsupported": "此平台不支持该代理。",
+      "unknown": "此平台尚未验证该代理支持状态。"
     },
     "actionState": {
       "running": "Running",

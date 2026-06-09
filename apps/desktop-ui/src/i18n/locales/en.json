@@ -639,10 +639,17 @@
     },
     "badges": {
       "guideOnly": "Guide-only",
+      "unsupported": "Unsupported",
+      "unknownSupport": "Unvalidated",
       "installed": "Installed",
       "notInstalled": "Not installed",
       "rollbackAvailable": "Backup available",
       "noBackup": "No backup"
+    },
+    "support": {
+      "guide-only": "Automatic configuration is not available on this platform yet. Use the guide instead.",
+      "unsupported": "This agent is not supported on this platform.",
+      "unknown": "Support for this agent has not been validated on this platform yet."
     },
     "actionState": {
       "running": "Running",

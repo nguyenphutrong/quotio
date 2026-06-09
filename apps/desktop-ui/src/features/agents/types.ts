@@ -4,6 +4,12 @@ export type AgentItem = {
   aliases?: string[];
   binaries?: string[];
   config_mode?: string;
+  platform_support?: string;
+  platformSupport?: string;
+  support_message?: string;
+  message?: string;
+  rollback_available?: boolean;
+  rollbackAvailable?: boolean;
   target_paths?: string[];
   docs_url?: string;
   capabilities?: string[];
@@ -39,8 +45,12 @@ export type AgentDiffResponse = {
     base_url?: string;
     target_paths?: string[];
     installed: boolean;
+    platform_support?: string;
+    platformSupport?: string;
     latest_manifest?: string;
     rollback_available: boolean;
+    rollbackAvailable?: boolean;
+    message?: string;
   };
   plan: {
     tool: string;

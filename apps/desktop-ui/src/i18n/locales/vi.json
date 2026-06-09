@@ -634,10 +634,17 @@
     },
     "badges": {
       "guideOnly": "Guide-only",
+      "unsupported": "Chưa hỗ trợ",
+      "unknownSupport": "Chưa xác thực",
       "installed": "Installed",
       "notInstalled": "Not installed",
       "rollbackAvailable": "Backup available",
       "noBackup": "No backup"
+    },
+    "support": {
+      "guide-only": "Chưa có cấu hình tự động cho platform này. Hãy dùng hướng dẫn thủ công.",
+      "unsupported": "Agent này chưa được hỗ trợ trên platform này.",
+      "unknown": "Hỗ trợ cho agent này chưa được xác thực trên platform này."
     },
     "actionState": {
       "running": "Running",

@@ -23,7 +23,9 @@ export type AgentActionState = {
   error?: string;
   finishedAt?: number;
   installed?: boolean;
+  platformSupport?: string;
   rollbackAvailable?: boolean;
+  message?: string;
 };
 
 type AgentStateMap = Record<string, AgentActionState>;
@@ -48,6 +50,13 @@ type AgentStateAction =
   | { type: 'reset_all' };
 
 const idleState: AgentActionState = { status: 'idle' };
+
+function statusFromPayload(payload: AgentActionPayload) {
+  if (!('status' in payload)) {
+    return undefined;
+  }
+  return payload.status;
+}
 
 function agentStateReducer(
   state: AgentStateMap,
@@ -91,6 +100,7 @@ function agentStateReducer(
   }
 
   if (action.type === 'success') {
+    const payloadStatus = statusFromPayload(action.payload);
     return {
       ...state,
       [action.agentId]: {
@@ -99,14 +109,16 @@ function agentStateReducer(
         status: 'success',
         payload: action.payload,
         finishedAt: action.finishedAt,
-        installed:
-          'status' in action.payload
-            ? action.payload.status.installed
-            : state[action.agentId]?.installed,
+        installed: payloadStatus?.installed ?? state[action.agentId]?.installed,
+        platformSupport:
+          payloadStatus?.platform_support ??
+          payloadStatus?.platformSupport ??
+          state[action.agentId]?.platformSupport,
         rollbackAvailable:
-          'status' in action.payload
-            ? action.payload.status.rollback_available
-            : state[action.agentId]?.rollbackAvailable,
+          payloadStatus?.rollback_available ??
+          payloadStatus?.rollbackAvailable ??
+          state[action.agentId]?.rollbackAvailable,
+        message: payloadStatus?.message ?? state[action.agentId]?.message,
       },
     };
   }
