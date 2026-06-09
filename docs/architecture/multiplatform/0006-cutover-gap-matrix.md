@@ -37,7 +37,7 @@ and production write paths are implemented and verified on Windows CI.
 | Settings | Native Swift settings remain authoritative | Credential Manager-backed bootstrap config; shared settings controls hidden | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
 | Agents | Native macOS SwiftUI write path remains authoritative | Read-only adapter for descriptor, detection, diff preview, and guides | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
 | Updates | Sparkle/appcast release path exists | No updater yet | Windows updater strategy chosen and tested before production release |
-| Packaging | Existing build, package, notarize, appcast scripts | Zipped preview artifact from CI | Installer, signing, uninstall, upgrade, and user-data preservation tested |
+| Packaging | Existing build, package, notarize, appcast scripts | Zipped preview artifact from CI and manual prerelease workflow | Installer, signing, uninstall, upgrade, and user-data preservation tested |
 | Rollback | Keep old Swift screens behind route flags | Keep shared route flags disabled by default | One release window with runtime flag rollback before removing superseded code |
 
 ## Rollback Window
@@ -68,6 +68,8 @@ Before production cutover:
   --configuration Release` on Windows CI.
 - Verify the Windows preview artifact is uploaded from CI, and verify the zip
   itself contains `desktop-ui/index.html` plus the Windows host executable.
+- For public smoke testing, run the `Windows Preview Release` workflow with a
+  `windows-preview-*` tag and verify the prerelease asset is uploaded.
 - Manually verify light/dark mode, keyboard navigation, multiple monitors,
   sleep/restart recovery, offline behavior, and no stuck child processes on
   both operating systems before enabling route flags by default.

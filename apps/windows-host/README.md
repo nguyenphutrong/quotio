@@ -22,6 +22,10 @@ CI uploads `quotio-windows-preview.zip` from the Windows job. The artifact is a
 preview build output for smoke testing only; it is not an installer, is not
 signed, and does not include an updater.
 
+Maintainers can publish the same unsigned ZIP as a GitHub prerelease through the
+`Windows Preview Release` workflow. Preview release tags must start with
+`windows-preview-`.
+
 The host loads `apps/desktop-ui/dist` when bundled by MSBuild. For live UI
 development, set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL.
 

@@ -1,0 +1,108 @@
+name: Windows Preview Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Preview tag to publish, e.g. windows-preview-2026-06-10'
+        required: true
+        type: string
+      title:
+        description: 'Release title'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'windows-preview-*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build and publish Windows preview
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.3
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Resolve release metadata
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ github.event.inputs.tag }}"
+            $title = "${{ github.event.inputs.title }}"
+          } else {
+            $tag = "${{ github.ref_name }}"
+            $title = ""
+          }
+
+          if ([string]::IsNullOrWhiteSpace($tag) -or -not $tag.StartsWith("windows-preview-")) {
+            throw "Windows preview releases must use a windows-preview-* tag."
+          }
+          if ([string]::IsNullOrWhiteSpace($title)) {
+            $title = "Quotio Windows Preview $tag"
+          }
+
+          "PREVIEW_TAG=$tag" >> $env:GITHUB_ENV
+          "PREVIEW_TITLE=$title" >> $env:GITHUB_ENV
+          "ARTIFACT_NAME=quotio-windows-preview-$tag.zip" >> $env:GITHUB_ENV
+
+      - run: bun install --frozen-lockfile
+      - run: bun run contracts:check
+      - run: bun run windows:gates:check
+      - run: bun run build
+      - run: dotnet build apps/windows-host/Quotio.Windows.csproj --configuration Debug
+      - run: dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release
+
+      - name: Package and verify Windows preview
+        shell: pwsh
+        run: |
+          $output = "apps/windows-host/bin/Debug/net8.0-windows10.0.19041.0"
+          if (!(Test-Path $output)) {
+            throw "Windows host output not found: $output"
+          }
+          if (!(Test-Path "$output/desktop-ui/index.html")) {
+            throw "Windows host output is missing bundled desktop UI: $output/desktop-ui/index.html"
+          }
+
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          $zip = "artifacts/$env:ARTIFACT_NAME"
+          Compress-Archive -Path "$output/*" -DestinationPath $zip -Force
+
+          $verify = "artifacts/quotio-windows-preview-verify"
+          Remove-Item -Recurse -Force $verify -ErrorAction SilentlyContinue
+          Expand-Archive -Path $zip -DestinationPath $verify -Force
+          if (!(Test-Path "$verify/desktop-ui/index.html")) {
+            throw "Windows preview zip is missing bundled desktop UI: desktop-ui/index.html"
+          }
+          if (!(Get-ChildItem -Path $verify -Filter "Quotio.Windows.exe" -Recurse | Select-Object -First 1)) {
+            throw "Windows preview zip is missing Quotio.Windows.exe"
+          }
+
+      - name: Write release notes
+        shell: pwsh
+        run: |
+          @"
+          ## Windows Preview
+
+          This is an unsigned preview build for smoke testing the native Windows host.
+
+          - Not a production Windows release.
+          - No installer, signing, or updater is included yet.
+          - Includes the bundled shared desktop UI and the read-only Windows agent adapter.
+          - Built from commit `${{ github.sha }}`.
+          "@ | Set-Content -Path artifacts/windows-preview-notes.md -Encoding utf8
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.PREVIEW_TAG }}
+          name: ${{ env.PREVIEW_TITLE }}
+          body_path: artifacts/windows-preview-notes.md
+          prerelease: true
+          files: artifacts/${{ env.ARTIFACT_NAME }}
