@@ -34,7 +34,7 @@ and production write paths are implemented and verified on Windows CI.
 | Shared UI host | Embedded WKWebView host with feature flags | WebView2 host with feature flags | Both hosts pass the same contract version and route gate matrix |
 | Runtime process | Existing CLIProxyAPI lifecycle plus shared Rust foundation | Shared Rust foundation not packaged into a production installer | Start, stop, restart, crash recovery, and no-zombie-process checks pass on both OSes |
 | Management API | Existing Swift management client plus shared bridge | Bridge can proxy management requests | Endpoint parity approved per screen before enabling routes |
-| Settings | Native Swift settings remain authoritative | Credential Manager-backed bootstrap config; shared settings controls hidden | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
+| Settings | Native Swift settings remain authoritative | Credential Manager-backed bootstrap config; shared settings placeholder enabled, shared settings controls hidden | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
 | Agents | Native macOS SwiftUI write path remains authoritative | Read-only adapter for descriptor, detection, diff preview, and guides | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
 | Updates | Sparkle/appcast release path exists | No updater yet | Windows updater strategy chosen and tested before production release |
 | Packaging | Existing release path plus unsigned preview artifact workflow | Zipped preview artifact from CI and manual prerelease workflow | Installer, signing, uninstall, upgrade, and user-data preservation tested |

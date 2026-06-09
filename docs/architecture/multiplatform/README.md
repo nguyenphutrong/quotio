@@ -49,10 +49,10 @@ CI.
 Current shared route scope:
 
 - Enabled by default in host bootstrap: overview, providers, quota, usage,
-  agents.
+  agents, settings.
 - Implemented but still gated until adapter/parity approval: virtual models,
   models, API keys, logs.
-- Placeholder only: settings, about.
+- Placeholder only and still gated: about.
 
 ## ADRs
 
