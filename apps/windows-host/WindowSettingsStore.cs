@@ -1,7 +1,7 @@
 namespace Quotio.Windows;
 
 using System.Text.Json;
-using Windows.Graphics;
+using global::Windows.Graphics;
 
 public sealed class WindowSettingsStore
 {

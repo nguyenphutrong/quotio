@@ -4,7 +4,7 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using Windows.Graphics;
+using global::Windows.Graphics;
 using WinRT.Interop;
 using Forms = System.Windows.Forms;
 
