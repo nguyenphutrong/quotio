@@ -29,9 +29,12 @@ Maintainers can publish the same unsigned ZIP as a GitHub prerelease through the
 The host loads `apps/desktop-ui/dist` when bundled by MSBuild. For live UI
 development, set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL.
 
-The preview runtime bridge can start and stop a process owned by the Windows
-host when `QUOTIO_PROXY_BINARY` is set. Optional `QUOTIO_PROXY_ARGS` are split on
-spaces, and `QUOTIO_PROXY_ENDPOINT` defaults to `http://127.0.0.1:8386`.
+The preview runtime bridge can start, stop, and restart a process owned by the
+Windows host when `QUOTIO_PROXY_BINARY` is set. Optional `QUOTIO_PROXY_ARGS` are
+split on spaces, and `QUOTIO_PROXY_ENDPOINT` defaults to
+`http://127.0.0.1:8386`. Startup is gated on the endpoint becoming reachable;
+unexpected child exits are reported once as a crashed runtime status before the
+bridge returns to stopped.
 
 The management bridge keeps credentials out of the shared UI. In this
 foundation phase it reads configuration from environment variables first, then

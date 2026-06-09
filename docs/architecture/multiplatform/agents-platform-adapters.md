@@ -21,7 +21,7 @@ macOS and Windows share shell, path, or backup behavior.
 | Claude Code | `claude-code` | `claude` | `~/.claude/settings.json` | Read-only descriptor, binary/config detection, guide, and diff preview; writes disabled until backup/rollback validation |
 | Codex CLI | `codex` | `codex` | `~/.codex/config.toml` | Read-only descriptor, binary/config detection, guide, and diff preview; writes disabled until backup/rollback validation |
 | Gemini CLI | `gemini-cli` | `gemini` | shell profile only | `guide-only` until PowerShell/profile writes are implemented |
-| Amp CLI | `amp` | `amp` | `~/.config/amp/settings.json`, `~/.local/share/amp/secrets.json` | `unknown` until Windows adapter validates settings and secrets paths |
+| Amp CLI | `amp` | `amp` | `~/.config/amp/settings.json`, `~/.local/share/amp/secrets.json` | Read-only descriptor, binary/config detection, guide, and diff preview; writes disabled until backup/rollback validation |
 | OpenCode | `opencode` | `opencode`, `oc` | `~/.config/opencode/opencode.json` | Read-only descriptor, binary/config detection, guide, and diff preview; writes disabled until backup/rollback validation |
 | Factory Droid | `factory-droid` | `droid`, `factory-droid` | `~/.factory/config.json` | Read-only descriptor, binary/config detection, guide, and diff preview; writes disabled until backup/rollback validation |
 

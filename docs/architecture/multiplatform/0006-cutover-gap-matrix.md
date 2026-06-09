@@ -32,7 +32,7 @@ and production write paths are implemented and verified on Windows CI.
 | --- | --- | --- | --- |
 | App shell | Production SwiftUI menu bar app | Preview WinUI shell | Windows tray, lifecycle, single-instance, window restore, and native dialogs verified |
 | Shared UI host | Embedded WKWebView host with feature flags | WebView2 host with feature flags | Both hosts pass the same contract version and route gate matrix |
-| Runtime process | Existing CLIProxyAPI lifecycle plus shared Rust foundation | Shared Rust foundation not packaged into a production installer | Start, stop, restart, crash recovery, and no-zombie-process checks pass on both OSes |
+| Runtime process | Existing CLIProxyAPI lifecycle plus shared Rust foundation | Preview host can start, stop, restart, health-gate startup, and report crashed child exits; shared Rust foundation is not packaged into a production installer | No-zombie-process and recovery checks pass in CI and manual OS smoke tests before production packaging |
 | Management API | Existing Swift management client plus shared bridge | Bridge can proxy management requests | Endpoint parity approved per screen before enabling routes |
 | Settings | Native Swift settings remain authoritative | Credential Manager-backed bootstrap config; shared settings placeholder enabled, shared settings controls hidden | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
 | Agents | Native macOS SwiftUI write path remains authoritative | Read-only adapter for descriptor, detection, diff preview, and guides | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
