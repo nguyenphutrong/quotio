@@ -26,11 +26,11 @@ jobs:
     name: Build and publish Windows preview
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.3
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 8.0.x
 
