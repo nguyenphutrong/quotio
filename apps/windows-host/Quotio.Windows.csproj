@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWinUI>true</UseWinUI>
     <UseWindowsForms>true</UseWindowsForms>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Platforms>x64;arm64</Platforms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
