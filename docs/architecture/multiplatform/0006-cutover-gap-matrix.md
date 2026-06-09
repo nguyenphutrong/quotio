@@ -31,14 +31,14 @@ and production write paths are implemented and verified on Windows CI.
 | Area | macOS status | Windows status | Cutover gate |
 | --- | --- | --- | --- |
 | App shell | Production SwiftUI menu bar app | Preview WinUI shell | Windows tray, lifecycle, single-instance, window restore, and native dialogs verified |
-| Shared UI host | Embedded WKWebView host with feature flags | WebView2 host with feature flags | Both hosts pass the same contract version and route gate matrix |
+| Shared UI host | Embedded WKWebView host with environment and defaults-based runtime route flags | WebView2 host with feature flags | Both hosts pass the same contract version and route gate matrix |
 | Runtime process | Existing CLIProxyAPI lifecycle plus shared Rust foundation | Preview host can start, stop, restart, health-gate startup, and report crashed child exits; shared Rust foundation is not packaged into a production installer | No-zombie-process and recovery checks pass in CI and manual OS smoke tests before production packaging |
 | Management API | Existing Swift management client plus shared bridge | Bridge can proxy management requests | Endpoint parity approved per screen before enabling routes |
 | Settings | Native Swift settings remain authoritative | Credential Manager-backed bootstrap config; shared settings placeholder enabled, shared settings controls hidden | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
 | Agents | Native macOS SwiftUI write path remains authoritative | Codex adapter supports descriptor, detection, diff preview, install, backup, and rollback; other agents remain read-only | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
 | Updates | Sparkle/appcast release path exists | No updater yet | Windows updater strategy chosen and tested before production release |
 | Packaging | Existing release path plus unsigned preview artifact workflow | Zipped preview artifact from CI and manual prerelease workflow | Installer, signing, uninstall, upgrade, and user-data preservation tested |
-| Rollback | Keep old Swift screens behind route flags | Keep shared route flags disabled by default | One release window with runtime flag rollback before removing superseded code |
+| Rollback | Keep old Swift screens behind `sharedDesktopUIEnabled` and `QUOTIO_DISABLE_SHARED_UI` route flags | Keep shared route flags disabled by default | One release window with runtime flag rollback before removing superseded code |
 
 ## Rollback Window
 

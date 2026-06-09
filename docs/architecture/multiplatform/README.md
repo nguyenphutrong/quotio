@@ -38,6 +38,23 @@ bun --cwd apps/desktop-ui build
 QUOTIO_ENABLE_SHARED_UI=1 open Quotio.xcodeproj
 ```
 
+For release-candidate cutover testing, the shared UI can also be enabled with a
+persisted macOS defaults flag and rolled back without rebuilding:
+
+```bash
+defaults write dev.quotio.desktop sharedDesktopUIEnabled -bool true
+defaults write dev.quotio.desktop.beta sharedDesktopUIEnabled -bool true
+```
+
+Set `QUOTIO_DISABLE_SHARED_UI=1` at launch to force the native Swift screens even
+when the persisted flag is enabled. Delete the defaults key to return to the
+build default:
+
+```bash
+defaults delete dev.quotio.desktop sharedDesktopUIEnabled
+defaults delete dev.quotio.desktop.beta sharedDesktopUIEnabled
+```
+
 For Windows preview development, build `apps/desktop-ui` before the host build,
 or set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL. The Windows host
 currently advertises only preview-safe capabilities. Credential Manager-backed

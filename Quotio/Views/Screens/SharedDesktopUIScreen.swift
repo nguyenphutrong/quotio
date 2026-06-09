@@ -9,11 +9,22 @@ import UniformTypeIdentifiers
 import WebKit
 
 enum SharedDesktopUIFeature {
+    static let userDefaultsKey = "sharedDesktopUIEnabled"
+
     static var isEnabled: Bool {
-        #if DEBUG
         let environment = ProcessInfo.processInfo.environment
-        return environment["QUOTIO_ENABLE_SHARED_UI"] == "1"
-            || environment["QUOTIO_DESKTOP_UI_DEV_SERVER"]?.isEmpty == false
+        if environment["QUOTIO_DISABLE_SHARED_UI"] == "1" {
+            return false
+        }
+        if environment["QUOTIO_ENABLE_SHARED_UI"] == "1" {
+            return true
+        }
+        if UserDefaults.standard.bool(forKey: userDefaultsKey) {
+            return true
+        }
+
+        #if DEBUG
+        return environment["QUOTIO_DESKTOP_UI_DEV_SERVER"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         #else
         return false
         #endif

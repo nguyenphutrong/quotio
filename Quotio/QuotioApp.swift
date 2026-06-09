@@ -570,6 +570,7 @@ struct ContentView: View {
     
     var body: some View {
         @Bindable var vm = viewModel
+        let sharedUIEnabled = SharedDesktopUIFeature.isEnabled
         
         NavigationSplitView {
             VStack(spacing: 0) {
@@ -614,7 +615,7 @@ struct ContentView: View {
                         Label("nav.about".localized(), systemImage: "info.circle")
                             .tag(NavigationPage.about)
 
-                        if SharedDesktopUIFeature.isEnabled {
+                        if sharedUIEnabled {
                             Label("nav.sharedUI".localized(), systemImage: "rectangle.connected.to.line.below")
                                 .tag(NavigationPage.sharedUI)
                         }
@@ -696,7 +697,11 @@ struct ContentView: View {
             case .about:
                 AboutScreen()
             case .sharedUI:
-                SharedDesktopUIScreen()
+                if sharedUIEnabled {
+                    SharedDesktopUIScreen()
+                } else {
+                    DashboardScreen()
+                }
             }
         }
     }
