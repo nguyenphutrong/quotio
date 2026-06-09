@@ -28,7 +28,20 @@ public static class DesktopUiSource
             ServerListen: "localhost:8386",
             Platform: "windows",
             Locale: Thread.CurrentThread.CurrentUICulture.Name,
-            Appearance: "system"
+            Appearance: "system",
+            Features: new Dictionary<string, bool>
+            {
+                ["overview"] = true,
+                ["providers"] = true,
+                ["quota"] = true,
+                ["virtualModels"] = false,
+                ["models"] = false,
+                ["agents"] = false,
+                ["apiKeys"] = false,
+                ["logs"] = false,
+                ["settings"] = false,
+                ["about"] = false
+            }
         );
     }
 }
@@ -40,5 +53,6 @@ public sealed record DesktopBootstrap(
     string ServerListen,
     string Platform,
     string Locale,
-    string Appearance
+    string Appearance,
+    IReadOnlyDictionary<string, bool> Features
 );

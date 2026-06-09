@@ -192,7 +192,19 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             "serverListen": "localhost:8386",
             "platform": "macos",
             "locale": bootstrap.locale,
-            "appearance": bootstrap.appearance
+            "appearance": bootstrap.appearance,
+            "features": [
+                "overview": true,
+                "providers": true,
+                "quota": true,
+                "virtualModels": false,
+                "models": false,
+                "agents": false,
+                "apiKeys": false,
+                "logs": false,
+                "settings": false,
+                "about": false
+            ]
         ]
     }
 

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { PlaceholderPage } from '@/components/shared/-placeholder-page';
-import { requireAuth } from '@/lib/admin/auth-guard';
+import { requireScreenFeature } from '@/lib/admin/auth-guard';
 
 function AboutPage() {
   const { t } = useTranslation();
@@ -14,6 +14,6 @@ function AboutPage() {
 }
 
 export const Route = createFileRoute('/(authenticated)/about')({
-  beforeLoad: () => requireAuth(),
+  beforeLoad: () => requireScreenFeature('about'),
   component: AboutPage,
 });

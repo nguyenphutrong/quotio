@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { AgentsPage } from '@/features/agents/agents-page';
-import { requireAuth } from '@/lib/admin/auth-guard';
+import { requireScreenFeature } from '@/lib/admin/auth-guard';
 
 export const Route = createFileRoute('/(authenticated)/agents')({
-  beforeLoad: () => requireAuth(),
+  beforeLoad: () => requireScreenFeature('agents'),
   component: AgentsPage,
 });
