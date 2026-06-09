@@ -15,6 +15,7 @@ Build from Windows with the .NET 8 SDK and Windows App SDK workloads:
 
 ```powershell
 dotnet build apps/windows-host/Quotio.Windows.csproj
+dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release
 ```
 
 CI uploads `quotio-windows-preview.zip` from the Windows job. The artifact is a

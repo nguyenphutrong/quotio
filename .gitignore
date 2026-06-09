@@ -45,6 +45,8 @@ node_modules/
 .turbo/
 dist/
 **/dist/
+**/bin/
+**/obj/
 coverage/
 bun.lockb
 npm-debug.log*

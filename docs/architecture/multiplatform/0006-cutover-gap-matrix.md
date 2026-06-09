@@ -62,6 +62,8 @@ Before production cutover:
 - Run `xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug build`.
 - Run `xcodebuild -project Quotio.xcodeproj -scheme "Quotio Beta" -configuration Beta build`.
 - Run `dotnet build apps/windows-host/Quotio.Windows.csproj` on Windows CI.
+- Run `dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj
+  --configuration Release` on Windows CI.
 - Verify the Windows preview artifact is uploaded from CI, and verify the zip
   itself contains `desktop-ui/index.html` plus the Windows host executable.
 - Manually verify light/dark mode, keyboard navigation, multiple monitors,

@@ -9,6 +9,8 @@
     "ignoreUnknown": false,
     "includes": [
       "**",
+      "!apps/**/bin",
+      "!apps/**/obj",
       "!apps/desktop-ui/src/routeTree.gen.ts",
       "!packages/desktop-contract/src/generated.ts",
       "!generated"

@@ -4,6 +4,17 @@ public sealed class WindowsHostConfig
 {
     private const string DefaultEndpoint = "http://127.0.0.1:8386";
     private const string DefaultAuthority = "127.0.0.1:8386";
+    private readonly Func<string, string?> credentialReader;
+
+    public WindowsHostConfig()
+        : this(WindowsCredentialStore.TryReadGenericCredential)
+    {
+    }
+
+    public WindowsHostConfig(Func<string, string?> credentialReader)
+    {
+        this.credentialReader = credentialReader;
+    }
 
     public string? DesktopUiDevServer => ReadValue(
         "QUOTIO_DESKTOP_UI_DEV_SERVER",
@@ -39,7 +50,7 @@ public sealed class WindowsHostConfig
         ? endpoint.Authority
         : DefaultAuthority;
 
-    private static string? ReadValue(string environmentVariable, string credentialTargetName)
+    private string? ReadValue(string environmentVariable, string credentialTargetName)
     {
         var environmentValue = Environment.GetEnvironmentVariable(environmentVariable)?.Trim();
         if (!string.IsNullOrEmpty(environmentValue))
@@ -47,7 +58,7 @@ public sealed class WindowsHostConfig
             return environmentValue;
         }
 
-        var credentialValue = WindowsCredentialStore.TryReadGenericCredential(credentialTargetName)?.Trim();
+        var credentialValue = credentialReader(credentialTargetName)?.Trim();
         return string.IsNullOrEmpty(credentialValue) ? null : credentialValue;
     }
 }
