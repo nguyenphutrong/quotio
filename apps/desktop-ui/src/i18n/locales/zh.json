@@ -597,7 +597,7 @@
     "logsDesc": "请求日志和送达历史正在开发中。",
     "modelsDesc": "模型配置和路由管理即将推出。",
     "quotaDesc": "使用限额和支出控制将在此提供。",
-    "settingsDesc": "管理偏好和配置选项正在开发中。"
+    "settingsDesc": "共享设置会保持只读，直到原生主机和 management bridge 明确拥有每个控件。"
   },
   "about": {
     "description": "此桌面构建的主机诊断、路由开关和平台能力状态。",

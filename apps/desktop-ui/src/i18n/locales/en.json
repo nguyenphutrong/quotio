@@ -601,7 +601,7 @@
     "logsDesc": "Request logs and delivery history are on the way.",
     "modelsDesc": "Model configuration and routing management is coming up.",
     "quotaDesc": "Usage limits and spending controls will be available here.",
-    "settingsDesc": "Admin preferences and configuration options are in progress."
+    "settingsDesc": "Shared settings stay read-only until native hosts and the management bridge own each control."
   },
   "about": {
     "description": "Host diagnostics, route gates, and platform capability state for this desktop build.",

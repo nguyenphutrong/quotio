@@ -2,6 +2,10 @@
 
 This map keeps shared settings UI from storing platform-only state or secrets.
 
+The shared Settings route should remain a placeholder/read-only surface until
+each visible control has an owner in this map and an implemented capability gate
+from the native host or management bridge.
+
 ## Shared UI Read Model
 
 - `operatingMode`: host-provided mode (`local`, `remote`, or future `quota-only`).

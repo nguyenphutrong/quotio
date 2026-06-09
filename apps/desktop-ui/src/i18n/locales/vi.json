@@ -596,7 +596,7 @@
     "logsDesc": "Nhật ký yêu cầu và lịch sử gửi đang được phát triển.",
     "modelsDesc": "Cấu hình mô hình và quản lý định tuyến sắp có.",
     "quotaDesc": "Giới hạn sử dụng và kiểm soát chi phí sẽ có tại đây.",
-    "settingsDesc": "Tùy chỉnh và cấu hình quản trị đang được phát triển."
+    "settingsDesc": "Settings dùng chung vẫn read-only cho đến khi native host và management bridge sở hữu từng control."
   },
   "about": {
     "description": "Chẩn đoán host, route gate và trạng thái capability của bản desktop này.",
