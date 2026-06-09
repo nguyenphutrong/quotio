@@ -153,13 +153,31 @@ struct ProvidersScreen: View {
             allowedContentTypes: [.json],
             allowsMultipleSelection: false
         ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                Task { await viewModel.importVertexServiceAccount(url: url) }
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    Task { await viewModel.importVertexServiceAccount(url: url) }
+                }
+            case .failure(let error):
+                if let cocoaError = error as? CocoaError, cocoaError.code == .userCancelled {
+                    return
+                }
+                viewModel.errorMessage = "Import failed: \(error.localizedDescription)"
             }
-            // Failure case is silently ignored - user can retry via UI
         }
         .task {
             await viewModel.loadDirectAuthFiles()
+        }
+        .alert(
+            "Error",
+            isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
+            )
+        ) {
+            Button("OK") { viewModel.errorMessage = nil }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
         }
         .alert("providers.proxyRequired.title".localized(), isPresented: $showProxyRequiredAlert) {
             Button("action.startProxy".localized()) {
