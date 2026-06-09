@@ -45,7 +45,7 @@ public sealed class WindowSettingsStore
         }
     }
 
-    public void Save(PointInt32 position, SizeInt32 size)
+    public void Save(PointInt32 position, SizeInt32 size, string? monitorDeviceName)
     {
         try
         {
@@ -53,7 +53,8 @@ public sealed class WindowSettingsStore
                 position.X,
                 position.Y,
                 size.Width,
-                size.Height
+                size.Height,
+                monitorDeviceName
             );
             File.WriteAllText(
                 settingsPath,
@@ -67,4 +68,10 @@ public sealed class WindowSettingsStore
     }
 }
 
-public sealed record WindowPlacement(int X, int Y, int Width, int Height);
+public sealed record WindowPlacement(
+    int X,
+    int Y,
+    int Width,
+    int Height,
+    string? MonitorDeviceName
+);
