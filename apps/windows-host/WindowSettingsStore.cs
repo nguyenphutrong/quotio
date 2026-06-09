@@ -67,11 +67,3 @@ public sealed class WindowSettingsStore
         }
     }
 }
-
-public sealed record WindowPlacement(
-    int X,
-    int Y,
-    int Width,
-    int Height,
-    string? MonitorDeviceName
-);

@@ -13,6 +13,7 @@ try
 {
     RunConfigSmoke();
     RunBootstrapSmoke();
+    RunWindowPlacementSmoke();
     RunAgentAdapterSmoke();
 }
 finally
@@ -77,6 +78,36 @@ static void RunBootstrapSmoke()
     Assert(!bootstrap.Capabilities["supportsModelSettings"], "Windows bootstrap should keep model settings read-only");
     Assert(!bootstrap.Capabilities["supportsApiKeyManagement"], "Windows bootstrap should keep API key management read-only");
     Assert(!bootstrap.Capabilities["supportsVirtualModelManagement"], "Windows bootstrap should keep virtual model management read-only");
+}
+
+static void RunWindowPlacementSmoke()
+{
+    DisplayWorkArea[] displays =
+    [
+        new("DISPLAY1", 0, 0, 1920, 1040),
+        new("DISPLAY2", 1920, 0, 3840, 1040)
+    ];
+
+    var savedMonitor = WindowPlacementService.RestoreBounds(
+        new WindowPlacement(3700, 900, 500, 400, "DISPLAY2"),
+        displays
+    );
+    Assert(savedMonitor.Width == 900, "Window restore should enforce minimum width");
+    Assert(savedMonitor.Height == 600, "Window restore should enforce minimum height");
+    Assert(savedMonitor.X == 2940, "Window restore should clamp to saved monitor right edge");
+    Assert(savedMonitor.Y == 440, "Window restore should clamp to saved monitor bottom edge");
+
+    var missingMonitor = WindowPlacementService.RestoreBounds(
+        new WindowPlacement(2100, 100, 1000, 700, "REMOVED"),
+        displays
+    );
+    Assert(missingMonitor.X == 2100, "Window restore should use containing monitor when saved monitor is gone");
+
+    var noDisplays = WindowPlacementService.RestoreBounds(
+        new WindowPlacement(-300, -200, 1000, 700, null),
+        []
+    );
+    Assert(noDisplays.X == -300 && noDisplays.Y == -200, "Window restore should preserve placement when display data is unavailable");
 }
 
 static void RunAgentAdapterSmoke()

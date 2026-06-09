@@ -54,7 +54,10 @@ public sealed partial class MainWindow : Window
 
         if (settingsStore.TryLoad(out var placement))
         {
-            appWindow.MoveAndResize(RestoreWindowBounds(placement));
+            appWindow.MoveAndResize(ToRect(WindowPlacementService.RestoreBounds(
+                placement,
+                GetDisplayWorkAreas()
+            )));
         }
         else
         {
@@ -142,42 +145,20 @@ public sealed partial class MainWindow : Window
 #endif
     }
 
-    private static RectInt32 RestoreWindowBounds(WindowPlacement placement)
+    private static RectInt32 ToRect(WindowBounds bounds)
     {
-        var width = Math.Max(placement.Width, 900);
-        var height = Math.Max(placement.Height, 600);
-        var screen = ResolveScreen(placement);
-        if (screen is null)
-        {
-            return new RectInt32(placement.X, placement.Y, width, height);
-        }
-
-        var area = screen.WorkingArea;
-        var x = Clamp(placement.X, area.Left, Math.Max(area.Left, area.Right - width));
-        var y = Clamp(placement.Y, area.Top, Math.Max(area.Top, area.Bottom - height));
-
-        return new RectInt32(x, y, width, height);
+        return new RectInt32(bounds.X, bounds.Y, bounds.Width, bounds.Height);
     }
 
-    private static Forms.Screen? ResolveScreen(WindowPlacement placement)
+    private static IReadOnlyList<DisplayWorkArea> GetDisplayWorkAreas()
     {
-        if (!string.IsNullOrEmpty(placement.MonitorDeviceName))
-        {
-            var savedScreen = Forms.Screen.AllScreens.FirstOrDefault(
-                screen => screen.DeviceName == placement.MonitorDeviceName
-            );
-            if (savedScreen is not null)
-            {
-                return savedScreen;
-            }
-        }
-
-        return Forms.Screen.FromRectangle(ToDrawingRectangle(
-            placement.X,
-            placement.Y,
-            Math.Max(placement.Width, 1),
-            Math.Max(placement.Height, 1)
-        ));
+        return Forms.Screen.AllScreens.Select(screen => new DisplayWorkArea(
+            screen.DeviceName,
+            screen.WorkingArea.Left,
+            screen.WorkingArea.Top,
+            screen.WorkingArea.Right,
+            screen.WorkingArea.Bottom
+        )).ToArray();
     }
 
     private static string? ResolveMonitorDeviceName(PointInt32 position, SizeInt32 size)
@@ -200,8 +181,4 @@ public sealed partial class MainWindow : Window
         return new System.Drawing.Rectangle(x, y, width, height);
     }
 
-    private static int Clamp(int value, int min, int max)
-    {
-        return Math.Min(Math.Max(value, min), max);
-    }
 }
