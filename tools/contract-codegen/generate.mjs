@@ -12,6 +12,10 @@ const checkOnly = process.argv.includes('--check');
 
 const schema = JSON.parse(readFileSync(schemaPath, 'utf8'));
 
+function normalizeLineEndings(content) {
+  return content.replace(/\r\n/g, '\n');
+}
+
 function pascal(value) {
   return value
     .split(/[^a-zA-Z0-9]+/)
@@ -193,7 +197,7 @@ for (const [relativePath, content] of outputs) {
   if (checkOnly) {
     let current = '';
     try {
-      current = readFileSync(outputPath, 'utf8');
+      current = normalizeLineEndings(readFileSync(outputPath, 'utf8'));
     } catch {
       stale = true;
       console.error(`${relativePath} is missing`);
