@@ -12,8 +12,8 @@ through Sparkle, notarization scripts, appcast generation, and GitHub release
 automation. The Windows host is still a preview scaffold: it builds a native
 WinUI/WebView2 shell and bridge with Credential Manager-backed bootstrap
 configuration and a read-only agent adapter, but it does not yet have
-installer, signing, updater, crash reporting, shared credential editing, or
-agent write/rollback parity.
+installer, signing, updater, uploaded crash reporting, shared credential
+editing, or agent write/rollback parity.
 
 The cutover must preserve native feel without claiming production parity before
 the Windows host can actually install, update, and preserve data correctly.
@@ -32,7 +32,7 @@ and production write paths are implemented and verified on Windows CI.
 | --- | --- | --- | --- |
 | App shell | Production SwiftUI menu bar app | Preview WinUI shell | Windows tray, lifecycle, single-instance, window restore, and native dialogs verified |
 | Shared UI host | Embedded WKWebView host with environment and defaults-based runtime route flags | WebView2 host with feature flags | Both hosts pass the same contract version and route gate matrix |
-| Runtime process | Existing CLIProxyAPI lifecycle plus shared Rust foundation | Preview host can start, stop, restart, health-gate startup, and report crashed child exits; shared Rust foundation is not packaged into a production installer | No-zombie-process and recovery checks pass in CI and manual OS smoke tests before production packaging |
+| Runtime process | Existing CLIProxyAPI lifecycle plus shared Rust foundation | Preview host can start, stop, restart, health-gate startup, report crashed child exits, and write local diagnostics; shared Rust foundation is not packaged into a production installer | No-zombie-process and recovery checks pass in CI and manual OS smoke tests before production packaging |
 | Management API | Existing Swift management client plus shared bridge | Bridge can proxy management requests | Endpoint parity approved per screen before enabling routes |
 | Settings | Native Swift settings remain authoritative | Credential Manager-backed bootstrap config; shared settings placeholder enabled, shared settings controls hidden | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
 | Agents | Native macOS SwiftUI write path remains authoritative | Codex adapter supports descriptor, detection, diff preview, install, backup, and rollback; other agents remain read-only | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |

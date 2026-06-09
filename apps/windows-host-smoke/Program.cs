@@ -29,6 +29,7 @@ var savedEnvironment = new Dictionary<string, string?>
     ["QUOTIO_PROXY_ENDPOINT"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT"),
     ["QUOTIO_PROXY_BINARY"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_BINARY"),
     ["QUOTIO_PROXY_ARGS"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ARGS"),
+    ["QUOTIO_WINDOWS_LOG_DIR"] = Environment.GetEnvironmentVariable("QUOTIO_WINDOWS_LOG_DIR"),
     ["USERPROFILE"] = Environment.GetEnvironmentVariable("USERPROFILE"),
     ["LOCALAPPDATA"] = Environment.GetEnvironmentVariable("LOCALAPPDATA")
 };
@@ -40,6 +41,7 @@ try
     RunBootstrapSmoke();
     RunSingleInstanceSmoke();
     RunWindowPlacementSmoke();
+    RunDiagnosticLogSmoke();
     RunRuntimeControllerSmoke();
     RunAgentAdapterSmoke();
 }
@@ -176,6 +178,21 @@ static void RunWindowPlacementSmoke()
         []
     );
     Assert(noDisplays.X == -300 && noDisplays.Y == -200, "Window restore should preserve placement when display data is unavailable");
+}
+
+static void RunDiagnosticLogSmoke()
+{
+    var logDir = Path.Combine(Path.GetTempPath(), $"quotio-windows-log-{Guid.NewGuid():N}");
+    Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_LOG_DIR", logDir);
+
+    DiagnosticLog.Info("smoke info");
+    DiagnosticLog.Error("smoke error", new InvalidOperationException("expected smoke exception"));
+
+    Assert(File.Exists(DiagnosticLog.LogFilePath), "Diagnostic log should create a log file");
+    var contents = File.ReadAllText(DiagnosticLog.LogFilePath);
+    Assert(contents.Contains("[INFO] smoke info", StringComparison.Ordinal), "Diagnostic log should write info entries");
+    Assert(contents.Contains("[ERROR] smoke error", StringComparison.Ordinal), "Diagnostic log should write error entries");
+    Assert(contents.Contains("expected smoke exception", StringComparison.Ordinal), "Diagnostic log should include exception details");
 }
 
 static void RunSingleInstanceSmoke()

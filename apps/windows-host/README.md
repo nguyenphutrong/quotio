@@ -38,6 +38,12 @@ split on spaces, and `QUOTIO_PROXY_ENDPOINT` defaults to
 unexpected child exits are reported once as a crashed runtime status before the
 bridge returns to stopped.
 
+The host writes local diagnostics to
+`%LOCALAPPDATA%\Quotio\logs\windows-host.log` and records unhandled application
+exceptions plus bridge/runtime errors. Set `QUOTIO_WINDOWS_LOG_DIR` to redirect
+the log during smoke testing. This is a local support log, not production
+telemetry or crash upload.
+
 The management bridge keeps credentials out of the shared UI. In this
 foundation phase it reads configuration from environment variables first, then
 falls back to generic Windows Credential Manager entries:

@@ -10,6 +10,8 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        DiagnosticLog.RegisterUnhandledExceptionHandlers();
+
         using var singleInstance = new SingleInstanceGuard(InstanceName);
         if (!singleInstance.IsPrimary)
         {
