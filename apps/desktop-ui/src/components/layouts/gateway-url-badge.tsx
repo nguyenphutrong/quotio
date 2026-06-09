@@ -1,29 +1,8 @@
 import { RiLinksLine } from '@remixicon/react';
 import { useTranslation } from 'react-i18next';
 import { CopyButton } from '@/components/admin/copy-button';
+import { buildGatewayUrl } from '@/lib/admin/gateway-url';
 import { useAdminRuntime } from '@/lib/admin/runtime';
-
-const WILDCARD_HOSTS = ['', '0.0.0.0', '[::]', '[::0]'];
-
-/**
- * Build the OpenAI-compatible gateway URL from Go's `server.listen` spec
- * (e.g. `:8387`, `127.0.0.1:8387`, `[::1]:8387`). Host falls back to the
- * current page when the config binds a wildcard or we can't parse it, so the
- * URL stays correct under the Vite dev server too.
- */
-function buildGatewayUrl(serverListen: string): string {
-  const match = serverListen.trim().match(/^(\[[^\]]+\]|[^:]*):(\d+)$/);
-  const cfgHost = match?.[1] ?? '';
-  const cfgPort = match?.[2] ?? '';
-
-  const host = WILDCARD_HOSTS.includes(cfgHost)
-    ? window.location.hostname
-    : cfgHost;
-  const port = cfgPort || window.location.port;
-  const authority = port ? `${host}:${port}` : host;
-
-  return `${window.location.protocol}//${authority}/v1`;
-}
 
 export function GatewayUrlBadge() {
   const { t } = useTranslation();

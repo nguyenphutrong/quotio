@@ -32,7 +32,8 @@ struct SharedDesktopUIScreen: View {
             bootstrap: WebViewBootstrap(
                 locale: languageManager.currentLanguage.rawValue,
                 appearance: appearanceManager.appearanceMode.rawValue,
-                operatingMode: modeManager.currentMode
+                operatingMode: modeManager.currentMode,
+                serverListen: "127.0.0.1:" + String(viewModel.proxyManager.port)
             ),
             viewModel: viewModel
         )
@@ -49,6 +50,7 @@ struct WebViewBootstrap {
     let locale: String
     let appearance: String
     let operatingMode: OperatingMode
+    let serverListen: String
 }
 
 enum WebViewSource {
@@ -243,7 +245,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             "uiEnabled": true,
             "basePath": "/",
             "bridgeVersion": DesktopBridgeContract.version,
-            "serverListen": "localhost:8386",
+            "serverListen": bootstrap.serverListen,
             "platform": "macos",
             "operatingMode": bootstrap.operatingMode.rawValue,
             "locale": bootstrap.locale,
@@ -286,7 +288,8 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
     func update(bootstrap: WebViewBootstrap) {
         guard self.bootstrap.locale != bootstrap.locale
             || self.bootstrap.appearance != bootstrap.appearance
-            || self.bootstrap.operatingMode != bootstrap.operatingMode else {
+            || self.bootstrap.operatingMode != bootstrap.operatingMode
+            || self.bootstrap.serverListen != bootstrap.serverListen else {
             return
         }
         self.bootstrap = bootstrap

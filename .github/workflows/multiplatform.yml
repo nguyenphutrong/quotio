@@ -35,6 +35,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run contracts:check
       - run: bun run windows:gates:check
+      - run: bun run desktop-ui:gateway-url:check
       - run: bun run typecheck
       - run: bun run build
       - run: bun run format-and-lint

@@ -7,6 +7,7 @@
     "contracts:check": "node tools/contract-codegen/generate.mjs --check",
     "contracts:generate": "node tools/contract-codegen/generate.mjs",
     "dev": "turbo dev",
+    "desktop-ui:gateway-url:check": "bun apps/desktop-ui/src/lib/admin/gateway-url.test.ts",
     "format-and-lint": "biome check apps packages tools schema generated package.json tsconfig.json tsconfig.base.json turbo.json",
     "format-and-lint:fix": "biome check apps packages tools schema generated package.json tsconfig.json tsconfig.base.json turbo.json --write",
     "smoke:agents": "./scripts/run-codex-patcher-smoke.sh && ./scripts/run-agent-config-smoke.sh",
