@@ -1,10 +1,13 @@
 namespace Quotio.Windows;
 
 using System.Diagnostics;
+using System.Net.Sockets;
 using Quotio.Contract;
 
 public sealed class RuntimeProcessController : IDisposable
 {
+    private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan ProbeInterval = TimeSpan.FromMilliseconds(100);
     private readonly WindowsHostConfig config;
     private Process? child;
 
@@ -55,6 +58,12 @@ public sealed class RuntimeProcessController : IDisposable
 
         child = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start Windows runtime process");
+
+        if (!WaitForEndpoint())
+        {
+            Stop();
+            throw new InvalidOperationException("Windows runtime process started but did not become reachable");
+        }
 
         return ManagedStatus();
     }
@@ -124,6 +133,54 @@ public sealed class RuntimeProcessController : IDisposable
             State = "managed",
             Endpoint = config.ProxyEndpoint
         };
+    }
+
+    private bool WaitForEndpoint()
+    {
+        if (!Uri.TryCreate(config.ProxyEndpoint, UriKind.Absolute, out var endpoint) || endpoint.Port <= 0)
+        {
+            return false;
+        }
+
+        var deadline = DateTimeOffset.UtcNow + StartupTimeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (!ChildIsRunning())
+            {
+                return false;
+            }
+
+            if (CanConnect(endpoint.Host, endpoint.Port))
+            {
+                return true;
+            }
+
+            Thread.Sleep(ProbeInterval);
+        }
+
+        return false;
+    }
+
+    private static bool CanConnect(string host, int port)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            var connect = client.ConnectAsync(host, port);
+            return connect.Wait(ProbeInterval) && client.Connected;
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+        catch (AggregateException)
+        {
+            return false;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
     }
 
     private IReadOnlyList<string> ReadArguments()

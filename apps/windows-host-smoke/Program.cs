@@ -1,9 +1,20 @@
 using System.Text.Json;
+using System.Net;
+using System.Net.Sockets;
 using Quotio.Windows;
 
 if (args.Contains("--runtime-child", StringComparer.Ordinal))
 {
     Thread.Sleep(TimeSpan.FromSeconds(2));
+    return;
+}
+
+var runtimeServerIndex = Array.IndexOf(args, "--runtime-child-server");
+if (runtimeServerIndex >= 0)
+{
+    var host = args.ElementAtOrDefault(runtimeServerIndex + 1) ?? "127.0.0.1";
+    var port = int.Parse(args.ElementAtOrDefault(runtimeServerIndex + 2) ?? "8686");
+    RunRuntimeChildServer(host, port);
     return;
 }
 
@@ -123,8 +134,8 @@ static void RunRuntimeControllerSmoke()
 {
     ClearEnvironment();
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_BINARY", Environment.ProcessPath);
-    Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", "--runtime-child");
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", "http://127.0.0.1:8686");
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", "--runtime-child-server 127.0.0.1 8686");
 
     using var runtime = new RuntimeProcessController(new WindowsHostConfig(_ => null));
     var stopped = runtime.Status();
@@ -142,6 +153,21 @@ static void RunRuntimeControllerSmoke()
     var stoppedAgain = runtime.Stop();
     Assert(stoppedAgain.State == "stopped", "Runtime stop should return stopped status");
     Assert(stoppedAgain.Endpoint is null, "Runtime stop should clear endpoint");
+
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", "http://127.0.0.1:8699");
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", "--runtime-child");
+    using var unhealthyRuntime = new RuntimeProcessController(new WindowsHostConfig(_ => null));
+    try
+    {
+        unhealthyRuntime.Start();
+        throw new InvalidOperationException("Runtime start should reject an unreachable endpoint");
+    }
+    catch (InvalidOperationException error) when (error.Message.Contains("did not become reachable", StringComparison.OrdinalIgnoreCase))
+    {
+        var afterFailure = unhealthyRuntime.Status();
+        Assert(afterFailure.State == "stopped", "Runtime start failure should clean up the child process");
+        Assert(afterFailure.Endpoint is null, "Failed runtime should not expose an endpoint");
+    }
 }
 
 static void RunAgentAdapterSmoke()
@@ -198,4 +224,12 @@ static void Assert(bool condition, string message)
     {
         throw new InvalidOperationException(message);
     }
+}
+
+static void RunRuntimeChildServer(string host, int port)
+{
+    var listener = new TcpListener(IPAddress.Parse(host), port);
+    listener.Start();
+    Thread.Sleep(TimeSpan.FromSeconds(5));
+    listener.Stop();
 }
