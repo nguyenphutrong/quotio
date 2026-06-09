@@ -26,7 +26,9 @@ var savedEnvironment = new Dictionary<string, string?>
     ["QUOTIO_MANAGEMENT_KEY"] = Environment.GetEnvironmentVariable("QUOTIO_MANAGEMENT_KEY"),
     ["QUOTIO_PROXY_ENDPOINT"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT"),
     ["QUOTIO_PROXY_BINARY"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_BINARY"),
-    ["QUOTIO_PROXY_ARGS"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ARGS")
+    ["QUOTIO_PROXY_ARGS"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ARGS"),
+    ["USERPROFILE"] = Environment.GetEnvironmentVariable("USERPROFILE"),
+    ["LOCALAPPDATA"] = Environment.GetEnvironmentVariable("LOCALAPPDATA")
 };
 
 try
@@ -185,15 +187,34 @@ static void RunRuntimeControllerSmoke()
 
 static void RunAgentAdapterSmoke()
 {
-    var adapter = new WindowsAgentAdapter();
+    ClearEnvironment();
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", "http://127.0.0.1:8787");
+    Environment.SetEnvironmentVariable("QUOTIO_MANAGEMENT_KEY", "smoke-management-key");
+
+    var smokeRoot = Path.Combine(Path.GetTempPath(), $"quotio-windows-agents-{Guid.NewGuid():N}");
+    var home = Path.Combine(smokeRoot, "home");
+    var localAppData = Path.Combine(smokeRoot, "local-app-data");
+    Directory.CreateDirectory(Path.Combine(home, ".codex"));
+    Directory.CreateDirectory(localAppData);
+    Environment.SetEnvironmentVariable("USERPROFILE", home);
+    Environment.SetEnvironmentVariable("LOCALAPPDATA", localAppData);
+
+    var configPath = Path.Combine(home, ".codex", "config.toml");
+    const string originalCodexConfig = "model = \"gpt-4.1\"\nmodel_provider = \"openai\"\n\n[model_providers.openai]\nname = \"OpenAI\"\n";
+    File.WriteAllText(configPath, originalCodexConfig);
+
+    var adapter = new WindowsAgentAdapter(
+        new WindowsHostConfig(_ => null),
+        new WindowsCodexConfigPatcher(home, Path.Combine(localAppData, "Quotio", "Codex"))
+    );
     using var list = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var agents = list.RootElement.GetProperty("agents");
     Assert(agents.GetArrayLength() >= 6, "Windows agents endpoint should return descriptors");
 
     var codex = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "codex");
     Assert(codex.GetProperty("platform_support").GetString() == "supported", "Codex descriptor should expose read-only Windows support");
-    Assert(codex.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), "Windows file-backed descriptors should expose read-only diff");
-    Assert(!codex.GetProperty("rollback_available").GetBoolean(), "Windows descriptors should not claim rollback");
+    Assert(codex.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Codex descriptor should expose install after Windows backup validation");
+    Assert(!codex.GetProperty("rollback_available").GetBoolean(), "Codex should not claim rollback before a backup exists");
 
     var gemini = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "gemini-cli");
     Assert(gemini.GetProperty("platform_support").GetString() == "guide-only", "Gemini descriptor should remain guide-only");
@@ -206,21 +227,36 @@ static void RunAgentAdapterSmoke()
 
     using var guide = ToJsonDocument(adapter.Handle("/agents/codex/guide", "GET"));
     Assert(guide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "codex", "Guide endpoint should return the requested agent");
-    Assert(guide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), "Guide endpoint should mirror read-only capabilities");
+    Assert(guide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Guide endpoint should mirror Codex write capabilities");
 
     using var ampGuide = ToJsonDocument(adapter.Handle("/agents/amp/guide", "GET"));
     Assert(ampGuide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "amp", "Amp guide endpoint should return Amp");
 
     using var diff = ToJsonDocument(adapter.Handle("/agents/codex/diff", "POST"));
-    Assert(diff.RootElement.GetProperty("plan").GetProperty("files").GetArrayLength() == 0, "Diff preview should be read-only");
+    var diffFile = diff.RootElement.GetProperty("plan").GetProperty("files")[0];
+    Assert(diffFile.GetProperty("has_changes").GetBoolean(), "Codex diff preview should report the pending config change");
+    Assert(!diffFile.GetProperty("after").GetString()!.Contains("smoke-management-key", StringComparison.Ordinal), "Codex diff preview should redact management keys");
     Assert(diff.RootElement.GetProperty("status").GetProperty("platform_support").GetString() == "supported", "Diff status should expose read-only Windows support");
 
     using var install = ToJsonDocument(adapter.Handle("/agents/codex/install", "POST"));
-    Assert(install.RootElement.GetProperty("summary").GetString()?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true, "Install should stay disabled");
-    Assert(!install.RootElement.GetProperty("status").GetProperty("rollback_available").GetBoolean(), "Install response should not claim rollback");
+    Assert(install.RootElement.GetProperty("summary").GetString()?.Contains("installed", StringComparison.OrdinalIgnoreCase) == true, "Codex install should succeed");
+    Assert(install.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "Codex install should mark the adapter configured");
+    Assert(install.RootElement.GetProperty("status").GetProperty("rollback_available").GetBoolean(), "Codex install should create a rollback backup");
+    var installedConfig = File.ReadAllText(configPath);
+    Assert(installedConfig.Contains("model_provider = \"quotio\"", StringComparison.Ordinal), "Codex install should point Codex at Quotio");
+    Assert(installedConfig.Contains("base_url = \"http://127.0.0.1:8787/v1\"", StringComparison.Ordinal), "Codex install should normalize the proxy endpoint");
+    Assert(installedConfig.Contains("experimental_bearer_token = \"smoke-management-key\"", StringComparison.Ordinal), "Codex install should write the configured key to disk");
 
     using var rollback = ToJsonDocument(adapter.Handle("/agents/codex/rollback", "POST"));
-    Assert(rollback.RootElement.GetProperty("summary").GetString()?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true, "Rollback should stay disabled");
+    Assert(rollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "Codex rollback should restore the latest backup");
+    Assert(File.ReadAllText(configPath) == originalCodexConfig, "Codex rollback should restore the pre-install config");
+
+    using var afterRollbackList = ToJsonDocument(adapter.Handle("/agents", "GET"));
+    var afterRollbackCodex = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "codex");
+    Assert(afterRollbackCodex.GetProperty("rollback_available").GetBoolean(), "Codex should keep rollback available after creating a pre-restore backup");
+
+    using var ampInstall = ToJsonDocument(adapter.Handle("/agents/amp/install", "POST"));
+    Assert(ampInstall.RootElement.GetProperty("summary").GetString()?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true, "Amp install should stay disabled");
 }
 
 static JsonDocument ToJsonDocument(object value)

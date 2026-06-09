@@ -51,7 +51,7 @@ The bootstrap still does not advertise remote connection, credential editing, or
 native onboarding capabilities. Later plans should add verified write/update
 flows before enabling those shared UI controls.
 
-The shared Agents route is enabled with a read-only Windows adapter. It lists
-agent descriptors, detects binaries/config files, and serves manual guides.
-Automatic install and rollback actions remain disabled until backup and rollback
-behavior is verified on Windows.
+The shared Agents route is enabled with a Windows adapter. It lists agent
+descriptors, detects binaries/config files, serves manual guides, and supports
+Codex CLI install/rollback with timestamped backups. Other agents remain
+read-only until their backup and rollback behavior is verified on Windows.

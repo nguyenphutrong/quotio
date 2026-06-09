@@ -11,7 +11,7 @@ using Forms = System.Windows.Forms;
 public sealed partial class MainWindow : Window
 {
     private readonly WindowsHostConfig config = new();
-    private readonly WindowsAgentAdapter agents = new();
+    private readonly WindowsAgentAdapter agents;
     private readonly WindowSettingsStore settingsStore = new();
     private readonly RuntimeProcessController runtime;
     private readonly DesktopBridge bridge;
@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
+        agents = new WindowsAgentAdapter(config);
         runtime = new RuntimeProcessController(config);
         bridge = new DesktopBridge(DesktopWebView, runtime, config, agents);
         trayIcon = CreateTrayIcon();

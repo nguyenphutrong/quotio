@@ -2,6 +2,20 @@ namespace Quotio.Windows;
 
 public sealed class WindowsAgentAdapter
 {
+    private readonly WindowsHostConfig config;
+    private readonly WindowsCodexConfigPatcher codexPatcher;
+
+    public WindowsAgentAdapter()
+        : this(new WindowsHostConfig())
+    {
+    }
+
+    public WindowsAgentAdapter(WindowsHostConfig config, WindowsCodexConfigPatcher? codexPatcher = null)
+    {
+        this.config = config;
+        this.codexPatcher = codexPatcher ?? new WindowsCodexConfigPatcher();
+    }
+
     private static readonly AgentDefinition[] Agents =
     [
         new(
@@ -88,8 +102,12 @@ public sealed class WindowsAgentAdapter
         {
             "guide" when normalizedMethod == "GET" => Guide(agent),
             "diff" when normalizedMethod == "POST" => Diff(agent),
-            "install" when normalizedMethod == "POST" => UnsupportedWrite(agent, "install"),
-            "rollback" when normalizedMethod == "POST" => UnsupportedWrite(agent, "rollback"),
+            "install" when normalizedMethod == "POST" => agent.Id == "codex"
+                ? InstallCodex(agent)
+                : UnsupportedWrite(agent, "install"),
+            "rollback" when normalizedMethod == "POST" => agent.Id == "codex"
+                ? RollbackCodex(agent)
+                : UnsupportedWrite(agent, "rollback"),
             _ => throw new InvalidOperationException("Unsupported Windows agents endpoint")
         };
     }
@@ -100,7 +118,7 @@ public sealed class WindowsAgentAdapter
             ?? throw new InvalidOperationException("Unknown Windows agent");
     }
 
-    private static Dictionary<string, object?> Descriptor(AgentDefinition agent)
+    private Dictionary<string, object?> Descriptor(AgentDefinition agent)
     {
         return new Dictionary<string, object?>
         {
@@ -110,7 +128,7 @@ public sealed class WindowsAgentAdapter
             ["config_mode"] = agent.ConfigMode,
             ["platform_support"] = agent.PlatformSupport,
             ["support_message"] = agent.Message,
-            ["rollback_available"] = false,
+            ["rollback_available"] = RollbackAvailable(agent),
             ["target_paths"] = agent.TargetPaths,
             ["docs_url"] = agent.DocsUrl,
             ["capabilities"] = Capabilities(agent),
@@ -118,7 +136,7 @@ public sealed class WindowsAgentAdapter
         };
     }
 
-    private static Dictionary<string, object?> Guide(AgentDefinition agent)
+    private Dictionary<string, object?> Guide(AgentDefinition agent)
     {
         return new Dictionary<string, object?>
         {
@@ -138,9 +156,26 @@ public sealed class WindowsAgentAdapter
         };
     }
 
-    private static Dictionary<string, object?> Diff(AgentDefinition agent)
+    private Dictionary<string, object?> Diff(AgentDefinition agent)
     {
         var status = Status(agent);
+        var files = Array.Empty<object>();
+        if (agent.Id == "codex")
+        {
+            var plan = codexPatcher.BuildPlan(config.ProxyEndpoint, RequiredManagementKey());
+            files =
+            [
+                new Dictionary<string, object?>
+                {
+                    ["target_path"] = plan.TargetPath,
+                    ["existed"] = plan.Existed,
+                    ["has_changes"] = plan.HasChanges,
+                    ["before"] = plan.Before,
+                    ["after"] = plan.After
+                }
+            ];
+        }
+
         return new Dictionary<string, object?>
         {
             ["status"] = status,
@@ -149,13 +184,15 @@ public sealed class WindowsAgentAdapter
                 ["tool"] = agent.Id,
                 ["home_dir"] = HomeDirectory(),
                 ["target_paths"] = agent.TargetPaths,
-                ["files"] = Array.Empty<object>()
+                ["files"] = files
             },
-            ["summary"] = "Windows automatic agent configuration is not available in this preview build."
+            ["summary"] = agent.Id == "codex"
+                ? "Windows Codex install is available with backup-before-write."
+                : "Windows automatic agent configuration is not available for this agent in this preview build."
         };
     }
 
-    private static Dictionary<string, object?> UnsupportedWrite(AgentDefinition agent, string action)
+    private Dictionary<string, object?> UnsupportedWrite(AgentDefinition agent, string action)
     {
         return new Dictionary<string, object?>
         {
@@ -175,7 +212,62 @@ public sealed class WindowsAgentAdapter
         };
     }
 
-    private static Dictionary<string, object?> Status(AgentDefinition agent)
+    private Dictionary<string, object?> InstallCodex(AgentDefinition agent)
+    {
+        var result = codexPatcher.Install(config.ProxyEndpoint, RequiredManagementKey());
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["plan"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["target_paths"] = agent.TargetPaths,
+                ["files"] = new object[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["target_path"] = result.Plan.TargetPath,
+                        ["existed"] = result.Plan.Existed,
+                        ["has_changes"] = result.Plan.HasChanges,
+                        ["before"] = result.Plan.Before,
+                        ["after"] = result.Plan.After
+                    }
+                }
+            },
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["backup_path"] = result.BackupPath,
+                ["config_path"] = codexPatcher.ConfigPath,
+                ["catalog_path"] = codexPatcher.CatalogPath
+            },
+            ["summary"] = "Windows Codex configuration installed with backup-before-write."
+        };
+    }
+
+    private Dictionary<string, object?> RollbackCodex(AgentDefinition agent)
+    {
+        var result = codexPatcher.Rollback();
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["restored_backup_path"] = result.RestoredBackupPath,
+                ["pre_restore_backup_path"] = result.PreRestoreBackupPath,
+                ["config_path"] = codexPatcher.ConfigPath
+            },
+            ["summary"] = result.RestoredBackupPath is null
+                ? "No Windows Codex backup is available to restore."
+                : "Windows Codex configuration restored from backup."
+        };
+    }
+
+    private Dictionary<string, object?> Status(AgentDefinition agent)
     {
         var binaryPath = FindBinary(agent);
         return new Dictionary<string, object?>
@@ -184,9 +276,11 @@ public sealed class WindowsAgentAdapter
             ["home_dir"] = HomeDirectory(),
             ["target_paths"] = agent.TargetPaths,
             ["installed"] = binaryPath is not null,
-            ["configured"] = agent.TargetPaths.Any(path => File.Exists(ExpandPath(path))),
+            ["configured"] = agent.Id == "codex"
+                ? codexPatcher.IsConfigured()
+                : agent.TargetPaths.Any(path => File.Exists(ExpandPath(path))),
             ["platform_support"] = agent.PlatformSupport,
-            ["rollback_available"] = false,
+            ["rollback_available"] = RollbackAvailable(agent),
             ["binary_path"] = binaryPath,
             ["message"] = agent.Message
         };
@@ -219,11 +313,33 @@ public sealed class WindowsAgentAdapter
             : ["Automatic writes are disabled until backup and rollback behavior is validated on Windows."];
     }
 
-    private static string[] Capabilities(AgentDefinition agent)
+    private string[] Capabilities(AgentDefinition agent)
     {
-        return agent.PlatformSupport == "guide-only"
-            ? ["guide"]
-            : ["guide", "diff"];
+        if (agent.PlatformSupport == "guide-only")
+        {
+            return ["guide"];
+        }
+
+        if (agent.Id != "codex")
+        {
+            return ["guide", "diff"];
+        }
+
+        return RollbackAvailable(agent)
+            ? ["guide", "diff", "install", "rollback"]
+            : ["guide", "diff", "install"];
+    }
+
+    private bool RollbackAvailable(AgentDefinition agent)
+    {
+        return agent.Id == "codex" && codexPatcher.LatestBackupPath() is not null;
+    }
+
+    private string RequiredManagementKey()
+    {
+        return !string.IsNullOrWhiteSpace(config.ManagementKey)
+            ? config.ManagementKey
+            : throw new InvalidOperationException("Windows Codex install requires a configured management key.");
     }
 
     private static string? FindBinary(AgentDefinition agent)
