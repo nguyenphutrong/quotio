@@ -23,6 +23,20 @@ export const FEATURE_ROUTE_MAP = {
 export type ScreenFeatureKey = keyof typeof FEATURE_ROUTE_MAP;
 export type AdminFeatureFlags = Record<ScreenFeatureKey, boolean>;
 
+export type OperatingMode = 'local' | 'remote' | 'quota-only';
+
+export type HostCapabilities = {
+  supportsLocalProxy: boolean;
+  supportsProxyControl: boolean;
+  supportsPortConfig: boolean;
+  supportsCliOAuth: boolean;
+  supportsAgentConfig: boolean;
+  supportsRemoteConnections: boolean;
+  supportsCredentialStorage: boolean;
+  supportsNativeOnboarding: boolean;
+  supportsAppearanceSync: boolean;
+};
+
 export const DEFAULT_FEATURE_FLAGS: AdminFeatureFlags = {
   overview: true,
   providers: true,
@@ -37,19 +51,34 @@ export const DEFAULT_FEATURE_FLAGS: AdminFeatureFlags = {
   about: false,
 };
 
+export const DEFAULT_HOST_CAPABILITIES: HostCapabilities = {
+  supportsLocalProxy: false,
+  supportsProxyControl: false,
+  supportsPortConfig: false,
+  supportsCliOAuth: false,
+  supportsAgentConfig: false,
+  supportsRemoteConnections: false,
+  supportsCredentialStorage: false,
+  supportsNativeOnboarding: false,
+  supportsAppearanceSync: false,
+};
+
 export type AdminBootstrap = {
   uiEnabled: boolean;
   basePath: string;
   bridgeVersion: number;
   serverListen: string;
   platform: 'macos' | 'windows' | 'unknown';
+  operatingMode: OperatingMode;
   locale: string;
   appearance: 'light' | 'dark' | 'system';
   features: AdminFeatureFlags;
+  capabilities: HostCapabilities;
 };
 
 type DesktopBootstrapPayload = Omit<Partial<AdminBootstrap>, 'features'> & {
   features?: Partial<AdminFeatureFlags>;
+  capabilities?: Partial<HostCapabilities>;
 };
 
 function normalizeBasePath(value?: string | null) {
@@ -77,6 +106,24 @@ function normalizeFeatureFlags(features?: Partial<AdminFeatureFlags>) {
   } as AdminFeatureFlags;
 }
 
+function normalizeOperatingMode(value?: string | null): OperatingMode {
+  if (value === 'local' || value === 'remote' || value === 'quota-only') {
+    return value;
+  }
+  return 'local';
+}
+
+function normalizeCapabilities(capabilities?: Partial<HostCapabilities>) {
+  return {
+    ...DEFAULT_HOST_CAPABILITIES,
+    ...Object.fromEntries(
+      Object.entries(capabilities ?? {}).filter(
+        ([, value]) => typeof value === 'boolean',
+      ),
+    ),
+  } as HostCapabilities;
+}
+
 export function getDesktopBootstrap(): AdminBootstrap {
   const payload = window.__QUOTIO_DESKTOP_BOOTSTRAP__;
 
@@ -90,9 +137,11 @@ export function getDesktopBootstrap(): AdminBootstrap {
     bridgeVersion: payload?.bridgeVersion ?? 1,
     serverListen: payload?.serverListen?.trim() ?? 'localhost:8386',
     platform: payload?.platform ?? 'unknown',
+    operatingMode: normalizeOperatingMode(payload?.operatingMode),
     locale: payload?.locale ?? navigator.language,
     appearance: payload?.appearance ?? 'system',
     features: normalizeFeatureFlags(payload?.features),
+    capabilities: normalizeCapabilities(payload?.capabilities),
   };
 }
 

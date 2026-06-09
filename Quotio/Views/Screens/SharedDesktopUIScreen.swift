@@ -23,24 +23,31 @@ struct SharedDesktopUIScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var languageManager = LanguageManager.shared
     @State private var appearanceManager = AppearanceManager.shared
+    @State private var modeManager = OperatingModeManager.shared
 
     var body: some View {
         WebViewHost(
             source: WebViewSource.resolve(),
             bootstrap: WebViewBootstrap(
                 locale: languageManager.currentLanguage.rawValue,
-                appearance: appearanceManager.appearanceMode.rawValue
+                appearance: appearanceManager.appearanceMode.rawValue,
+                operatingMode: modeManager.currentMode
             ),
             viewModel: viewModel
         )
         .navigationTitle("nav.sharedUI".localized())
-        .id(languageManager.currentLanguage.rawValue + appearanceManager.appearanceMode.rawValue)
+        .id(
+            languageManager.currentLanguage.rawValue
+                + appearanceManager.appearanceMode.rawValue
+                + modeManager.currentMode.rawValue
+        )
     }
 }
 
 struct WebViewBootstrap {
     let locale: String
     let appearance: String
+    let operatingMode: OperatingMode
 }
 
 enum WebViewSource {
@@ -205,6 +212,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             "bridgeVersion": 1,
             "serverListen": "localhost:8386",
             "platform": "macos",
+            "operatingMode": bootstrap.operatingMode.rawValue,
             "locale": bootstrap.locale,
             "appearance": bootstrap.appearance,
             "features": [
@@ -219,6 +227,17 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 "logs": false,
                 "settings": false,
                 "about": false
+            ],
+            "capabilities": [
+                "supportsLocalProxy": true,
+                "supportsProxyControl": bootstrap.operatingMode.supportsProxyControl,
+                "supportsPortConfig": bootstrap.operatingMode.supportsPortConfig,
+                "supportsCliOAuth": bootstrap.operatingMode.supportsCLIBasedOAuth,
+                "supportsAgentConfig": bootstrap.operatingMode.supportsAgentConfig,
+                "supportsRemoteConnections": true,
+                "supportsCredentialStorage": true,
+                "supportsNativeOnboarding": true,
+                "supportsAppearanceSync": true
             ]
         ]
     }
@@ -229,7 +248,8 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
 
     func update(bootstrap: WebViewBootstrap) {
         guard self.bootstrap.locale != bootstrap.locale
-            || self.bootstrap.appearance != bootstrap.appearance else {
+            || self.bootstrap.appearance != bootstrap.appearance
+            || self.bootstrap.operatingMode != bootstrap.operatingMode else {
             return
         }
         self.bootstrap = bootstrap

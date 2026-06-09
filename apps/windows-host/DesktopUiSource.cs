@@ -27,6 +27,7 @@ public static class DesktopUiSource
             BridgeVersion: Quotio.Contract.QuotioContract.Version,
             ServerListen: "localhost:8386",
             Platform: "windows",
+            OperatingMode: "local",
             Locale: Thread.CurrentThread.CurrentUICulture.Name,
             Appearance: "system",
             Features: new Dictionary<string, bool>
@@ -42,6 +43,18 @@ public static class DesktopUiSource
                 ["logs"] = false,
                 ["settings"] = false,
                 ["about"] = false
+            },
+            Capabilities: new Dictionary<string, bool>
+            {
+                ["supportsLocalProxy"] = true,
+                ["supportsProxyControl"] = true,
+                ["supportsPortConfig"] = true,
+                ["supportsCliOAuth"] = true,
+                ["supportsAgentConfig"] = true,
+                ["supportsRemoteConnections"] = true,
+                ["supportsCredentialStorage"] = true,
+                ["supportsNativeOnboarding"] = true,
+                ["supportsAppearanceSync"] = true
             }
         );
     }
@@ -53,7 +66,9 @@ public sealed record DesktopBootstrap(
     int BridgeVersion,
     string ServerListen,
     string Platform,
+    string OperatingMode,
     string Locale,
     string Appearance,
-    IReadOnlyDictionary<string, bool> Features
+    IReadOnlyDictionary<string, bool> Features,
+    IReadOnlyDictionary<string, bool> Capabilities
 );
