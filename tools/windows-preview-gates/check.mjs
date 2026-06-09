@@ -15,7 +15,7 @@ const expectedFeatures = {
   models: false,
   agents: true,
   apiKeys: false,
-  logs: false,
+  logs: true,
   settings: true,
   about: true,
 };

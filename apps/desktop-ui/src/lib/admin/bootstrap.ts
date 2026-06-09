@@ -46,7 +46,7 @@ export const DEFAULT_FEATURE_FLAGS: AdminFeatureFlags = {
   models: false,
   agents: false,
   apiKeys: false,
-  logs: false,
+  logs: true,
   settings: true,
   about: true,
 };

@@ -257,7 +257,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 "models": false,
                 "agents": false,
                 "apiKeys": false,
-                "logs": false,
+                "logs": true,
                 "settings": true,
                 "about": true
             ],
