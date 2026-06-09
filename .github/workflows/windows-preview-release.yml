@@ -95,7 +95,8 @@ jobs:
 
           - Not a production Windows release.
           - No installer, signing, or updater is included yet.
-          - Includes the bundled shared desktop UI and the read-only Windows agent adapter.
+          - Includes the bundled shared desktop UI, Windows runtime bridge, read-only agent detection, and Codex CLI install/rollback with timestamped backups.
+          - Other agent write paths remain disabled until their Windows backup and rollback behavior is verified.
           - Built from commit `${{ github.sha }}`.
           "@ | Set-Content -Path artifacts/windows-preview-notes.md -Encoding utf8
 
