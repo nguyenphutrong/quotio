@@ -41,7 +41,7 @@ public static class DesktopUiSource
                 ["agents"] = true,
                 ["apiKeys"] = false,
                 ["logs"] = false,
-                ["settings"] = false,
+                ["settings"] = true,
                 ["about"] = false
             },
             Capabilities: new Dictionary<string, bool>

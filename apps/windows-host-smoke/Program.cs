@@ -65,7 +65,7 @@ static void RunBootstrapSmoke()
     Assert(bootstrap.Platform == "windows", "Windows bootstrap should identify the platform");
     Assert(bootstrap.ServerListen == "127.0.0.1:8585", "Windows bootstrap should expose server listen authority");
     Assert(bootstrap.Features["agents"], "Windows bootstrap should expose read-only agents");
-    Assert(!bootstrap.Features["settings"], "Windows bootstrap should keep shared settings disabled");
+    Assert(bootstrap.Features["settings"], "Windows bootstrap should expose shared settings placeholder");
     Assert(!bootstrap.Capabilities["supportsAgentConfig"], "Windows bootstrap should not claim agent write support");
     Assert(!bootstrap.Capabilities["supportsCredentialStorage"], "Windows bootstrap should not claim credential editing support");
 }

@@ -16,7 +16,7 @@ const expectedFeatures = {
   agents: true,
   apiKeys: false,
   logs: false,
-  settings: false,
+  settings: true,
   about: false,
 };
 
