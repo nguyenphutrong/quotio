@@ -74,17 +74,35 @@ actor AgentDetectionService {
     }
     
     func detectAgent(_ agent: CLIAgent) async -> AgentStatus {
+        let platformSupport = agent.currentPlatformSupport
+        guard platformSupport == .supported else {
+            return AgentStatus(
+                agent: agent,
+                platformSupport: platformSupport,
+                installed: false,
+                configured: false,
+                rollbackAvailable: false,
+                binaryPath: nil,
+                version: nil,
+                lastConfigured: nil,
+                message: agent.supportMessage(on: .current)
+            )
+        }
+
         let (installed, binaryPath) = await findBinary(names: agent.binaryNames)
         let version = installed ? await getVersion(binaryPath: binaryPath!) : nil
         let configured = installed ? await checkConfiguration(agent: agent) : false
         
         return AgentStatus(
             agent: agent,
+            platformSupport: platformSupport,
             installed: installed,
             configured: configured,
+            rollbackAvailable: false,
             binaryPath: binaryPath,
             version: version,
-            lastConfigured: configured ? getLastConfiguredDate(agent: agent) : nil
+            lastConfigured: configured ? getLastConfiguredDate(agent: agent) : nil,
+            message: nil
         )
     }
     

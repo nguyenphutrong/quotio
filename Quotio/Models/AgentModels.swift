@@ -73,6 +73,59 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         }
     }
 
+    var macOSConfigPaths: [String] {
+        configPaths
+    }
+
+    var windowsConfigPaths: [String] {
+        []
+    }
+
+    var macOSSupport: AgentPlatformSupport {
+        .supported
+    }
+
+    var windowsSupport: AgentPlatformSupport {
+        switch self {
+        case .geminiCLI:
+            return .guideOnly
+        case .claudeCode, .codexCLI, .ampCLI, .openCode, .factoryDroid:
+            return .unknown
+        }
+    }
+
+    var currentPlatformSupport: AgentPlatformSupport {
+        support(on: .current)
+    }
+
+    var backupPolicy: String {
+        "timestamped-copy-before-write"
+    }
+
+    func support(on platform: AgentPlatform) -> AgentPlatformSupport {
+        switch platform {
+        case .macOS:
+            return macOSSupport
+        case .windows:
+            return windowsSupport
+        case .unknown:
+            return .unknown
+        }
+    }
+
+    func supportMessage(on platform: AgentPlatform) -> String? {
+        switch support(on: platform) {
+        case .supported:
+            return nil
+        case .guideOnly:
+            return "Automatic configuration is not available on this platform yet. Use the manual guide."
+        case .unsupported:
+            return "This agent is not supported on this platform."
+        case .unknown:
+            return "Support for this agent has not been validated on this platform yet."
+        }
+    }
+
     var docsURL: URL? {
         switch self {
         case .claudeCode: return URL(string: "https://docs.anthropic.com/en/docs/claude-code")
@@ -113,6 +166,29 @@ nonisolated enum AgentConfigType: String, Codable, Sendable {
     case environment = "env"
     case file = "file"
     case both = "both"
+}
+
+nonisolated enum AgentPlatform: String, Codable, Sendable {
+    case macOS = "macos"
+    case windows
+    case unknown
+
+    static var current: AgentPlatform {
+        #if os(macOS)
+        .macOS
+        #elseif os(Windows)
+        .windows
+        #else
+        .unknown
+        #endif
+    }
+}
+
+nonisolated enum AgentPlatformSupport: String, Codable, Sendable {
+    case supported
+    case guideOnly = "guide-only"
+    case unsupported
+    case unknown
 }
 
 // MARK: - Configuration Setup Mode
@@ -262,16 +338,21 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
 
 nonisolated struct AgentStatus: Identifiable, Sendable {
     let agent: CLIAgent
+    var platformSupport: AgentPlatformSupport = .supported
     var installed: Bool
     var configured: Bool
+    var rollbackAvailable: Bool = false
     var binaryPath: String?
     var version: String?
     var lastConfigured: Date?
+    var message: String?
 
     var id: String { agent.id }
 
     var statusText: String {
-        if !installed {
+        if platformSupport == .unsupported || platformSupport == .unknown {
+            return platformSupport.rawValue
+        } else if !installed {
             return "Not Installed"
         } else if configured {
             return "Configured"
@@ -281,7 +362,9 @@ nonisolated struct AgentStatus: Identifiable, Sendable {
     }
 
     var statusColor: Color {
-        if !installed {
+        if platformSupport == .unsupported || platformSupport == .unknown {
+            return .secondary
+        } else if !installed {
             return .secondary
         } else if configured {
             return .green
