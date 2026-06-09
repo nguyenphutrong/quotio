@@ -62,28 +62,7 @@ jobs:
 
       - name: Package and verify Windows preview
         shell: pwsh
-        run: |
-          $output = "apps/windows-host/bin/Debug/net8.0-windows10.0.19041.0"
-          if (!(Test-Path $output)) {
-            throw "Windows host output not found: $output"
-          }
-          if (!(Test-Path "$output/desktop-ui/index.html")) {
-            throw "Windows host output is missing bundled desktop UI: $output/desktop-ui/index.html"
-          }
-
-          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-          $zip = "artifacts/$env:ARTIFACT_NAME"
-          Compress-Archive -Path "$output/*" -DestinationPath $zip -Force
-
-          $verify = "artifacts/quotio-windows-preview-verify"
-          Remove-Item -Recurse -Force $verify -ErrorAction SilentlyContinue
-          Expand-Archive -Path $zip -DestinationPath $verify -Force
-          if (!(Test-Path "$verify/desktop-ui/index.html")) {
-            throw "Windows preview zip is missing bundled desktop UI: desktop-ui/index.html"
-          }
-          if (!(Get-ChildItem -Path $verify -Filter "Quotio.Windows.exe" -Recurse | Select-Object -First 1)) {
-            throw "Windows preview zip is missing Quotio.Windows.exe"
-          }
+        run: ./scripts/package-windows-preview.ps1 -ArtifactName "$env:ARTIFACT_NAME" -CommitSha "${{ github.sha }}"
 
       - name: Write release notes
         shell: pwsh
@@ -106,4 +85,7 @@ jobs:
           name: ${{ env.PREVIEW_TITLE }}
           body_path: artifacts/windows-preview-notes.md
           prerelease: true
-          files: artifacts/${{ env.ARTIFACT_NAME }}
+          files: |
+            artifacts/${{ env.ARTIFACT_NAME }}
+            artifacts/${{ env.ARTIFACT_NAME }}.sha256
+            artifacts/${{ env.ARTIFACT_NAME }}.manifest.json

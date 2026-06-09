@@ -59,29 +59,12 @@ jobs:
       - run: dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release
       - name: Package Windows preview artifact
         shell: pwsh
-        run: |
-          $output = "apps/windows-host/bin/Debug/net8.0-windows10.0.19041.0"
-          if (!(Test-Path $output)) {
-            throw "Windows host output not found: $output"
-          }
-          if (!(Test-Path "$output/desktop-ui/index.html")) {
-            throw "Windows host output is missing bundled desktop UI: $output/desktop-ui/index.html"
-          }
-
-          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-          Compress-Archive -Path "$output/*" -DestinationPath "artifacts/quotio-windows-preview.zip" -Force
-
-          $verify = "artifacts/quotio-windows-preview-verify"
-          Remove-Item -Recurse -Force $verify -ErrorAction SilentlyContinue
-          Expand-Archive -Path "artifacts/quotio-windows-preview.zip" -DestinationPath $verify -Force
-          if (!(Test-Path "$verify/desktop-ui/index.html")) {
-            throw "Windows preview zip is missing bundled desktop UI: desktop-ui/index.html"
-          }
-          if (!(Get-ChildItem -Path $verify -Filter "Quotio.Windows.exe" -Recurse | Select-Object -First 1)) {
-            throw "Windows preview zip is missing Quotio.Windows.exe"
-          }
+        run: ./scripts/package-windows-preview.ps1 -CommitSha "${{ github.sha }}"
       - uses: actions/upload-artifact@v4
         with:
           name: quotio-windows-preview
-          path: artifacts/quotio-windows-preview.zip
+          path: |
+            artifacts/quotio-windows-preview.zip
+            artifacts/quotio-windows-preview.zip.sha256
+            artifacts/quotio-windows-preview.zip.manifest.json
           if-no-files-found: error
