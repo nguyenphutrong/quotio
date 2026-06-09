@@ -27,17 +27,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const supportItems = [
     {
       title: t('nav.docs'),
-      url: 'https://github.com/nguyenphutrong/quotio-go-demo',
+      url: 'https://github.com/nguyenphutrong/quotio#readme',
       icon: <RiBookOpenLine />,
     },
     {
       title: t('nav.github'),
-      url: 'https://github.com/nguyenphutrong/quotio-go-demo',
+      url: 'https://github.com/nguyenphutrong/quotio',
       icon: <RiGithubLine />,
     },
     {
       title: t('nav.support'),
-      url: 'https://linear.app/phutrong',
+      url: 'https://github.com/nguyenphutrong/quotio/issues',
       icon: <RiQuestionLine />,
     },
   ];
