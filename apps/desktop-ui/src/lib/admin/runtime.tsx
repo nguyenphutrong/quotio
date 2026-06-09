@@ -32,6 +32,8 @@ export type NativeConfirmRequest = {
 type DesktopBridge = {
   request: <T>(request: DesktopBridgeRequest) => Promise<T>;
   runtimeStatus?: () => Promise<RuntimeStatus>;
+  runtimeStart?: () => Promise<RuntimeStatus>;
+  runtimeStop?: () => Promise<RuntimeStatus>;
   confirm?: (request: NativeConfirmRequest) => Promise<boolean>;
 };
 

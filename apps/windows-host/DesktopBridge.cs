@@ -12,11 +12,13 @@ public sealed class DesktopBridge
 {
     private const string BridgeReceiveFunction = "window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__";
     private readonly WebView2 webView;
+    private readonly RuntimeProcessController runtime;
     private readonly HttpClient httpClient = new();
 
-    public DesktopBridge(WebView2 webView)
+    public DesktopBridge(WebView2 webView, RuntimeProcessController runtime)
     {
         this.webView = webView;
+        this.runtime = runtime;
     }
 
     public string CreateBootstrapScript(DesktopBootstrap bootstrap)
@@ -47,6 +49,18 @@ public sealed class DesktopBridge
               window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
               window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
               chrome.webview.postMessage({ id, kind: 'runtime.status' });
+            }),
+            runtimeStart: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({ id, kind: 'runtime.start' });
+            }),
+            runtimeStop: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({ id, kind: 'runtime.stop' });
             }),
             confirm: (request) => new Promise((resolve, reject) => {
               const id = crypto.randomUUID();
@@ -96,11 +110,9 @@ public sealed class DesktopBridge
 
             object value = requestKind switch
             {
-                "runtime.status" => new RuntimeStatus
-                {
-                    State = "stopped",
-                    Endpoint = null
-                },
+                "runtime.status" => runtime.Status(),
+                "runtime.start" => runtime.Start(),
+                "runtime.stop" => runtime.Stop(),
                 "management.request" => await HandleManagementRequestAsync(root),
                 "native.confirm" => await HandleNativeConfirmAsync(root),
                 _ => throw new InvalidOperationException("Unsupported bridge request")

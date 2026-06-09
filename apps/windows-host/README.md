@@ -19,6 +19,10 @@ dotnet build apps/windows-host/Quotio.Windows.csproj
 The host loads `apps/desktop-ui/dist` when bundled by MSBuild. For live UI
 development, set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL.
 
+The preview runtime bridge can start and stop a process owned by the Windows
+host when `QUOTIO_PROXY_BINARY` is set. Optional `QUOTIO_PROXY_ARGS` are split on
+spaces, and `QUOTIO_PROXY_ENDPOINT` defaults to `http://127.0.0.1:8386`.
+
 The management bridge keeps credentials out of the shared UI. In this
 foundation phase it reads `QUOTIO_MANAGEMENT_BASE_URL` and
 `QUOTIO_MANAGEMENT_KEY` from the Windows process environment, so the bootstrap

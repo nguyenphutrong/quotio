@@ -11,6 +11,7 @@ using Forms = System.Windows.Forms;
 public sealed partial class MainWindow : Window
 {
     private readonly WindowSettingsStore settingsStore = new();
+    private readonly RuntimeProcessController runtime = new();
     private readonly DesktopBridge bridge;
     private readonly Forms.NotifyIcon trayIcon;
     private AppWindow? appWindow;
@@ -19,7 +20,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
-        bridge = new DesktopBridge(DesktopWebView);
+        bridge = new DesktopBridge(DesktopWebView, runtime);
         trayIcon = CreateTrayIcon();
 
         Title = "Quotio";
@@ -125,6 +126,7 @@ public sealed partial class MainWindow : Window
 
         trayIcon.Visible = false;
         trayIcon.Dispose();
+        runtime.Dispose();
         DesktopWebView.CoreWebView2?.Stop();
     }
 
