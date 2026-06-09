@@ -603,6 +603,71 @@
     "quotaDesc": "Usage limits and spending controls will be available here.",
     "settingsDesc": "Admin preferences and configuration options are in progress."
   },
+  "about": {
+    "description": "Host diagnostics, route gates, and platform capability state for this desktop build.",
+    "sections": {
+      "host": "Host",
+      "routes": "Shared routes",
+      "routesDesc": "Routes currently advertised by the native host bootstrap.",
+      "capabilities": "Host capabilities",
+      "capabilitiesDesc": "Native features available to shared screens on this platform."
+    },
+    "fields": {
+      "platform": "Platform",
+      "operatingMode": "Operating mode",
+      "bridgeVersion": "Bridge version",
+      "serverListen": "Proxy listen",
+      "locale": "Locale",
+      "appearance": "Appearance"
+    },
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "platform": {
+      "macos": "macOS",
+      "windows": "Windows",
+      "unknown": "Unknown"
+    },
+    "operatingMode": {
+      "local": "Local",
+      "remote": "Remote",
+      "quota-only": "Quota only"
+    },
+    "appearance": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "features": {
+      "overview": "Overview",
+      "providers": "Providers",
+      "quota": "Quota",
+      "usage": "Usage",
+      "virtualModels": "Virtual models",
+      "models": "Models",
+      "agents": "Agents",
+      "apiKeys": "API keys",
+      "logs": "Logs",
+      "settings": "Settings",
+      "about": "About"
+    },
+    "capabilities": {
+      "supportsLocalProxy": "Local proxy",
+      "supportsProxyControl": "Proxy controls",
+      "supportsPortConfig": "Port configuration",
+      "supportsCliOAuth": "CLI OAuth",
+      "supportsAgentConfig": "Agent configuration",
+      "supportsRemoteConnections": "Remote connections",
+      "supportsCredentialStorage": "Credential storage",
+      "supportsNativeOnboarding": "Native onboarding",
+      "supportsAppearanceSync": "Appearance sync",
+      "supportsRequestLogSettings": "Request log settings",
+      "supportsModelSettings": "Model settings",
+      "supportsApiKeyManagement": "API key management",
+      "supportsVirtualModelManagement": "Virtual model management"
+    }
+  },
   "bootstrap": {
     "failedLabel": "Startup error",
     "failedTitle": "Quotio Admin couldn't start",

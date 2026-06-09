@@ -599,6 +599,71 @@
     "quotaDesc": "使用限额和支出控制将在此提供。",
     "settingsDesc": "管理偏好和配置选项正在开发中。"
   },
+  "about": {
+    "description": "此桌面构建的主机诊断、路由开关和平台能力状态。",
+    "sections": {
+      "host": "主机",
+      "routes": "共享路由",
+      "routesDesc": "当前由原生主机 bootstrap 暴露的路由。",
+      "capabilities": "主机能力",
+      "capabilitiesDesc": "此平台上的共享页面可使用的原生能力。"
+    },
+    "fields": {
+      "platform": "平台",
+      "operatingMode": "运行模式",
+      "bridgeVersion": "Bridge 版本",
+      "serverListen": "Proxy 监听",
+      "locale": "语言",
+      "appearance": "外观"
+    },
+    "status": {
+      "enabled": "已启用",
+      "disabled": "已禁用"
+    },
+    "platform": {
+      "macos": "macOS",
+      "windows": "Windows",
+      "unknown": "未知"
+    },
+    "operatingMode": {
+      "local": "本地",
+      "remote": "远程",
+      "quota-only": "仅配额"
+    },
+    "appearance": {
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    },
+    "features": {
+      "overview": "概览",
+      "providers": "服务商",
+      "quota": "配额",
+      "usage": "使用统计",
+      "virtualModels": "Virtual models",
+      "models": "模型",
+      "agents": "Agents",
+      "apiKeys": "API keys",
+      "logs": "日志",
+      "settings": "设置",
+      "about": "关于"
+    },
+    "capabilities": {
+      "supportsLocalProxy": "本地 proxy",
+      "supportsProxyControl": "Proxy 控制",
+      "supportsPortConfig": "端口配置",
+      "supportsCliOAuth": "CLI OAuth",
+      "supportsAgentConfig": "Agent 配置",
+      "supportsRemoteConnections": "远程连接",
+      "supportsCredentialStorage": "凭证存储",
+      "supportsNativeOnboarding": "原生 onboarding",
+      "supportsAppearanceSync": "外观同步",
+      "supportsRequestLogSettings": "请求日志设置",
+      "supportsModelSettings": "模型设置",
+      "supportsApiKeyManagement": "API key 管理",
+      "supportsVirtualModelManagement": "Virtual model 管理"
+    }
+  },
   "bootstrap": {
     "failedLabel": "启动错误",
     "failedTitle": "Quotio 管理面板无法启动",

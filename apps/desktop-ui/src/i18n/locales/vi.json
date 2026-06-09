@@ -598,6 +598,71 @@
     "quotaDesc": "Giới hạn sử dụng và kiểm soát chi phí sẽ có tại đây.",
     "settingsDesc": "Tùy chỉnh và cấu hình quản trị đang được phát triển."
   },
+  "about": {
+    "description": "Chẩn đoán host, route gate và trạng thái capability của bản desktop này.",
+    "sections": {
+      "host": "Host",
+      "routes": "Route dùng chung",
+      "routesDesc": "Các route hiện được native host bootstrap quảng bá.",
+      "capabilities": "Khả năng của host",
+      "capabilitiesDesc": "Các tính năng native mà màn hình dùng chung có thể dùng trên platform này."
+    },
+    "fields": {
+      "platform": "Platform",
+      "operatingMode": "Chế độ hoạt động",
+      "bridgeVersion": "Phiên bản bridge",
+      "serverListen": "Proxy listen",
+      "locale": "Ngôn ngữ",
+      "appearance": "Giao diện"
+    },
+    "status": {
+      "enabled": "Bật",
+      "disabled": "Tắt"
+    },
+    "platform": {
+      "macos": "macOS",
+      "windows": "Windows",
+      "unknown": "Không xác định"
+    },
+    "operatingMode": {
+      "local": "Local",
+      "remote": "Remote",
+      "quota-only": "Chỉ hạn mức"
+    },
+    "appearance": {
+      "light": "Sáng",
+      "dark": "Tối",
+      "system": "Theo hệ thống"
+    },
+    "features": {
+      "overview": "Tổng quan",
+      "providers": "Nhà cung cấp",
+      "quota": "Hạn mức",
+      "usage": "Thống kê sử dụng",
+      "virtualModels": "Virtual models",
+      "models": "Mô hình",
+      "agents": "Agents",
+      "apiKeys": "API keys",
+      "logs": "Nhật ký",
+      "settings": "Cài đặt",
+      "about": "Giới thiệu"
+    },
+    "capabilities": {
+      "supportsLocalProxy": "Local proxy",
+      "supportsProxyControl": "Điều khiển proxy",
+      "supportsPortConfig": "Cấu hình port",
+      "supportsCliOAuth": "CLI OAuth",
+      "supportsAgentConfig": "Cấu hình agent",
+      "supportsRemoteConnections": "Kết nối remote",
+      "supportsCredentialStorage": "Lưu trữ credential",
+      "supportsNativeOnboarding": "Onboarding native",
+      "supportsAppearanceSync": "Đồng bộ giao diện",
+      "supportsRequestLogSettings": "Cài đặt request log",
+      "supportsModelSettings": "Cài đặt model",
+      "supportsApiKeyManagement": "Quản lý API key",
+      "supportsVirtualModelManagement": "Quản lý virtual model"
+    }
+  },
   "bootstrap": {
     "failedLabel": "Lỗi khởi động",
     "failedTitle": "Quotio Admin không thể khởi động",

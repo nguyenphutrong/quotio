@@ -52,7 +52,8 @@ Current shared route scope:
   virtual models, models, API keys, logs, agents, settings, about.
 - Implemented with Windows read-only capability gates: virtual models, models,
   API keys, logs.
-- Placeholder only: settings, about.
+- Diagnostics only: about.
+- Placeholder only: settings.
 
 ## ADRs
 

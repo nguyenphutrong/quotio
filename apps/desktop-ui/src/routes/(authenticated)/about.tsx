@@ -1,15 +1,179 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { PlaceholderPage } from '@/components/shared/-placeholder-page';
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { CopyButton } from '@/components/admin/copy-button';
+import { Panel } from '@/components/admin/panel';
+import { StatusBadge } from '@/components/admin/status-badge';
 import { requireScreenFeature } from '@/lib/admin/auth-guard';
+import type {
+  AdminFeatureFlags,
+  HostCapabilities,
+} from '@/lib/admin/bootstrap';
+import { useAdminRuntime } from '@/lib/admin/runtime';
+
+const FEATURE_KEYS = [
+  'overview',
+  'providers',
+  'quota',
+  'usage',
+  'virtualModels',
+  'models',
+  'agents',
+  'apiKeys',
+  'logs',
+  'settings',
+  'about',
+] satisfies (keyof AdminFeatureFlags)[];
+
+const CAPABILITY_KEYS = [
+  'supportsLocalProxy',
+  'supportsProxyControl',
+  'supportsPortConfig',
+  'supportsCliOAuth',
+  'supportsAgentConfig',
+  'supportsRemoteConnections',
+  'supportsCredentialStorage',
+  'supportsNativeOnboarding',
+  'supportsAppearanceSync',
+  'supportsRequestLogSettings',
+  'supportsModelSettings',
+  'supportsApiKeyManagement',
+  'supportsVirtualModelManagement',
+] satisfies (keyof HostCapabilities)[];
+
+function DiagnosticsRow({
+  label,
+  value,
+  copyValue,
+}: {
+  label: string;
+  value: string;
+  copyValue?: string;
+}) {
+  return (
+    <div className="flex min-h-10 items-center justify-between gap-4 border-border border-b py-2 last:border-b-0">
+      <dt className="text-muted-foreground text-sm">{label}</dt>
+      <dd className="flex min-w-0 items-center gap-2 text-right">
+        <code className="truncate font-mono text-sm text-foreground">
+          {value}
+        </code>
+        {copyValue ? (
+          <CopyButton
+            value={copyValue}
+            variant="ghost"
+            size="icon-xs"
+            aria-label={label}
+            title={label}
+          />
+        ) : null}
+      </dd>
+    </div>
+  );
+}
+
+function FlagList({
+  values,
+  labelsPrefix,
+}: {
+  values: Record<string, boolean>;
+  labelsPrefix: string;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="grid gap-2 md:grid-cols-2">
+      {Object.entries(values).map(([key, enabled]) => (
+        <div
+          className="flex min-h-9 items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2"
+          key={key}
+        >
+          <span className="min-w-0 truncate text-sm">
+            {t(`${labelsPrefix}.${key}`)}
+          </span>
+          <StatusBadge tone={enabled ? 'success' : 'neutral'}>
+            {enabled ? t('about.status.enabled') : t('about.status.disabled')}
+          </StatusBadge>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function AboutPage() {
   const { t } = useTranslation();
+  const { bootstrap } = useAdminRuntime();
+
+  const featureValues = Object.fromEntries(
+    FEATURE_KEYS.map((key) => [key, bootstrap.features[key]]),
+  );
+  const capabilityValues = Object.fromEntries(
+    CAPABILITY_KEYS.map((key) => [key, bootstrap.capabilities[key]]),
+  );
+
   return (
-    <PlaceholderPage
-      title={t('nav.about')}
-      description={t('placeholder.aboutDesc')}
-    />
+    <div className="space-y-6">
+      <AdminPageHeader
+        title={t('nav.about')}
+        description={t('about.description')}
+      />
+
+      <Panel>
+        <h2 className="font-medium text-foreground text-sm">
+          {t('about.sections.host')}
+        </h2>
+        <dl className="mt-3">
+          <DiagnosticsRow
+            label={t('about.fields.platform')}
+            value={t(`about.platform.${bootstrap.platform}`)}
+          />
+          <DiagnosticsRow
+            label={t('about.fields.operatingMode')}
+            value={t(`about.operatingMode.${bootstrap.operatingMode}`)}
+          />
+          <DiagnosticsRow
+            label={t('about.fields.bridgeVersion')}
+            value={String(bootstrap.bridgeVersion)}
+          />
+          <DiagnosticsRow
+            label={t('about.fields.serverListen')}
+            value={bootstrap.serverListen}
+            copyValue={bootstrap.serverListen}
+          />
+          <DiagnosticsRow
+            label={t('about.fields.locale')}
+            value={bootstrap.locale}
+          />
+          <DiagnosticsRow
+            label={t('about.fields.appearance')}
+            value={t(`about.appearance.${bootstrap.appearance}`)}
+          />
+        </dl>
+      </Panel>
+
+      <Panel>
+        <div className="mb-3">
+          <h2 className="font-medium text-foreground text-sm">
+            {t('about.sections.routes')}
+          </h2>
+          <p className="mt-1 text-muted-foreground text-sm">
+            {t('about.sections.routesDesc')}
+          </p>
+        </div>
+        <FlagList labelsPrefix="about.features" values={featureValues} />
+      </Panel>
+
+      <Panel>
+        <div className="mb-3">
+          <h2 className="font-medium text-foreground text-sm">
+            {t('about.sections.capabilities')}
+          </h2>
+          <p className="mt-1 text-muted-foreground text-sm">
+            {t('about.sections.capabilitiesDesc')}
+          </p>
+        </div>
+        <FlagList labelsPrefix="about.capabilities" values={capabilityValues} />
+      </Panel>
+    </div>
   );
 }
 
