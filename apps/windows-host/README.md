@@ -19,7 +19,10 @@ dotnet build apps/windows-host/Quotio.Windows.csproj
 The host loads `apps/desktop-ui/dist` when bundled by MSBuild. For live UI
 development, set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL.
 
-The management bridge keeps credentials on the native side. In this foundation
-phase it reads `QUOTIO_MANAGEMENT_BASE_URL` and `QUOTIO_MANAGEMENT_KEY` from the
-Windows process environment; later plans should replace that with the shared
-runtime/core configuration store.
+The management bridge keeps credentials out of the shared UI. In this
+foundation phase it reads `QUOTIO_MANAGEMENT_BASE_URL` and
+`QUOTIO_MANAGEMENT_KEY` from the Windows process environment, so the bootstrap
+does not advertise remote connection, credential storage, or native onboarding
+capabilities yet. Later plans should replace the environment bootstrap with
+Credential Manager-backed runtime configuration before enabling those shared UI
+flows.

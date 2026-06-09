@@ -51,9 +51,9 @@ public static class DesktopUiSource
                 ["supportsPortConfig"] = true,
                 ["supportsCliOAuth"] = true,
                 ["supportsAgentConfig"] = false,
-                ["supportsRemoteConnections"] = true,
-                ["supportsCredentialStorage"] = true,
-                ["supportsNativeOnboarding"] = true,
+                ["supportsRemoteConnections"] = false,
+                ["supportsCredentialStorage"] = false,
+                ["supportsNativeOnboarding"] = false,
                 ["supportsAppearanceSync"] = true
             }
         );
