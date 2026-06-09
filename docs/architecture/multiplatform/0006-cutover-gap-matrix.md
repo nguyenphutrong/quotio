@@ -65,7 +65,8 @@ Before production cutover:
 - Run `xcodebuild -project Quotio.xcodeproj -scheme "Quotio Beta" -configuration Beta build`.
 - Run the `macOS Preview Artifact` workflow and verify it uploads unsigned
   ZIP/DMG artifacts without appcast or notarization steps.
-- Run `dotnet build apps/windows-host/Quotio.Windows.csproj` on Windows CI.
+- Run `dotnet build apps/windows-host/Quotio.Windows.csproj --configuration
+  Release` on Windows CI.
 - Run `dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj
   --configuration Release` on Windows CI.
 - Verify the Windows preview artifact is uploaded from CI, and verify the zip
