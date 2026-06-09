@@ -30,6 +30,7 @@ const expectedCapabilities = {
   supportsCredentialStorage: false,
   supportsNativeOnboarding: false,
   supportsAppearanceSync: true,
+  supportsRequestLogSettings: false,
 };
 
 function readBoolDictionary(name) {

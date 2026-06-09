@@ -45,6 +45,7 @@ import { ErrorState } from '@/components/admin/error-state';
 import { LoadingState } from '@/components/admin/loading-state';
 import { MetricCard } from '@/components/admin/metric-card';
 import { Panel } from '@/components/admin/panel';
+import { useAdminRuntime } from '@/lib/admin/runtime';
 import {
   useLoggingSettingsMutation,
   useLoggingSettingsQuery,
@@ -196,6 +197,7 @@ function formatNumber(value: number, locale: string) {
 
 export function LogsPage() {
   const { t, i18n } = useTranslation();
+  const { bootstrap } = useAdminRuntime();
   const summaryQuery = useLogsSummaryQuery();
   const settingsQuery = useLoggingSettingsQuery();
   const [cursor, setCursor] = useQueryState(
@@ -424,7 +426,10 @@ export function LogsPage() {
           </div>
           <Switch
             checked={settings.capture_bodies}
-            disabled={settingsMutation.isPending}
+            disabled={
+              settingsMutation.isPending ||
+              !bootstrap.capabilities.supportsRequestLogSettings
+            }
             onCheckedChange={toggleCaptureBodies}
           />
         </div>

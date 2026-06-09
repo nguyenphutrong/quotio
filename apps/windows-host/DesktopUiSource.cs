@@ -54,7 +54,8 @@ public static class DesktopUiSource
                 ["supportsRemoteConnections"] = false,
                 ["supportsCredentialStorage"] = false,
                 ["supportsNativeOnboarding"] = false,
-                ["supportsAppearanceSync"] = true
+                ["supportsAppearanceSync"] = true,
+                ["supportsRequestLogSettings"] = false
             }
         );
     }

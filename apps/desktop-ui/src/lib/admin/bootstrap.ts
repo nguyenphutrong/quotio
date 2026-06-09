@@ -35,6 +35,7 @@ export type HostCapabilities = {
   supportsCredentialStorage: boolean;
   supportsNativeOnboarding: boolean;
   supportsAppearanceSync: boolean;
+  supportsRequestLogSettings: boolean;
 };
 
 export const DEFAULT_FEATURE_FLAGS: AdminFeatureFlags = {
@@ -61,6 +62,7 @@ export const DEFAULT_HOST_CAPABILITIES: HostCapabilities = {
   supportsCredentialStorage: false,
   supportsNativeOnboarding: false,
   supportsAppearanceSync: false,
+  supportsRequestLogSettings: false,
 };
 
 export type AdminBootstrap = {

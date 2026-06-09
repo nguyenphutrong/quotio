@@ -270,7 +270,8 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 "supportsRemoteConnections": true,
                 "supportsCredentialStorage": true,
                 "supportsNativeOnboarding": true,
-                "supportsAppearanceSync": true
+                "supportsAppearanceSync": true,
+                "supportsRequestLogSettings": true
             ]
         ]
     }

@@ -70,6 +70,7 @@ static void RunBootstrapSmoke()
     Assert(bootstrap.Features["about"], "Windows bootstrap should expose shared about placeholder");
     Assert(!bootstrap.Capabilities["supportsAgentConfig"], "Windows bootstrap should not claim agent write support");
     Assert(!bootstrap.Capabilities["supportsCredentialStorage"], "Windows bootstrap should not claim credential editing support");
+    Assert(!bootstrap.Capabilities["supportsRequestLogSettings"], "Windows bootstrap should keep request log settings read-only");
 }
 
 static void RunAgentAdapterSmoke()
