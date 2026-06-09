@@ -41,11 +41,31 @@ jobs:
       - run: cargo test
 
   windows:
-    name: Windows preview build (no installer/signing)
+    name: Windows preview artifact (no installer/signing)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.3
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet build apps/windows-host/Quotio.Windows.csproj
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: dotnet build apps/windows-host/Quotio.Windows.csproj --configuration Debug
+      - name: Package Windows preview artifact
+        shell: pwsh
+        run: |
+          $output = "apps/windows-host/bin/Debug/net8.0-windows10.0.19041.0"
+          if (!(Test-Path $output)) {
+            throw "Windows host output not found: $output"
+          }
+
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Compress-Archive -Path "$output/*" -DestinationPath "artifacts/quotio-windows-preview.zip" -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quotio-windows-preview
+          path: artifacts/quotio-windows-preview.zip
+          if-no-files-found: error

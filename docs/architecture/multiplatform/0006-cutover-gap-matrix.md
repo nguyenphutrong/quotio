@@ -21,8 +21,8 @@ the Windows host can actually install, update, and preserve data correctly.
 Shared desktop screens remain feature-flagged until each surface has native host
 parity and a rollback path. macOS can continue shipping through the existing
 SwiftUI implementation while shared screens are adopted screen by screen.
-Windows builds are preview artifacts until installer, signing, updater, and
-credential storage are implemented and verified on Windows CI.
+Windows builds are zipped preview artifacts until installer, signing, updater,
+and credential storage are implemented and verified on Windows CI.
 
 ## Gap Matrix
 
@@ -35,7 +35,7 @@ credential storage are implemented and verified on Windows CI.
 | Settings | Native Swift settings remain authoritative | Preview bootstrap only | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
 | Agents | Native macOS SwiftUI write path remains authoritative | No validated Windows adapter yet | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
 | Updates | Sparkle/appcast release path exists | No updater yet | Windows updater strategy chosen and tested before production release |
-| Packaging | Existing build, package, notarize, appcast scripts | Build-only CI job | Installer, signing, uninstall, upgrade, and user-data preservation tested |
+| Packaging | Existing build, package, notarize, appcast scripts | Zipped preview artifact from CI | Installer, signing, uninstall, upgrade, and user-data preservation tested |
 | Rollback | Keep old Swift screens behind route flags | Keep shared route flags disabled by default | One release window with runtime flag rollback before removing superseded code |
 
 ## Rollback Window
@@ -60,6 +60,8 @@ Before production cutover:
 - Run `xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug build`.
 - Run `xcodebuild -project Quotio.xcodeproj -scheme "Quotio Beta" -configuration Beta build`.
 - Run `dotnet build apps/windows-host/Quotio.Windows.csproj` on Windows CI.
+- Verify the Windows preview artifact is uploaded from CI and contains the
+  bundled shared desktop UI output.
 - Manually verify light/dark mode, keyboard navigation, multiple monitors,
   sleep/restart recovery, offline behavior, and no stuck child processes on
   both operating systems before enabling route flags by default.

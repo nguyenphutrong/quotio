@@ -16,6 +16,10 @@ Build from Windows with the .NET 8 SDK and Windows App SDK workloads:
 dotnet build apps/windows-host/Quotio.Windows.csproj
 ```
 
+CI uploads `quotio-windows-preview.zip` from the Windows job. The artifact is a
+preview build output for smoke testing only; it is not an installer, is not
+signed, and does not include an updater.
+
 The host loads `apps/desktop-ui/dist` when bundled by MSBuild. For live UI
 development, set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL.
 

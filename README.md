@@ -111,8 +111,9 @@ Download the latest `.dmg` from the [Releases](https://github.com/nguyenphutrong
 ### Windows Preview
 
 The repository includes a preview Windows native host for the multiplatform
-migration. It is build-only today and is not a shipped Windows release until
-installer, signing, updater, and credential-storage parity are complete.
+migration. CI uploads a zipped preview build artifact for smoke testing, but it
+is not a shipped Windows release until installer, signing, updater, and
+credential-storage parity are complete.
 
 ## 📖 Usage
 
