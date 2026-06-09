@@ -258,6 +258,11 @@ static void RunAgentAdapterSmoke()
     Assert(amp.GetProperty("target_paths").GetArrayLength() == 2, "Amp descriptor should expose settings and secrets paths");
     Assert(amp.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), "Amp descriptor should expose read-only diff");
 
+    foreach (var readOnlyAgent in new[] { "claude-code", "opencode", "factory-droid" })
+    {
+        AssertReadOnlyAgent(adapter, agents, readOnlyAgent);
+    }
+
     using var guide = ToJsonDocument(adapter.Handle("/agents/codex/guide", "GET"));
     Assert(guide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "codex", "Guide endpoint should return the requested agent");
     Assert(guide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Guide endpoint should mirror Codex write capabilities");
@@ -290,6 +295,17 @@ static void RunAgentAdapterSmoke()
 
     using var ampInstall = ToJsonDocument(adapter.Handle("/agents/amp/install", "POST"));
     Assert(ampInstall.RootElement.GetProperty("summary").GetString()?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true, "Amp install should stay disabled");
+}
+
+static void AssertReadOnlyAgent(WindowsAgentAdapter adapter, JsonElement agents, string agentId)
+{
+    var agent = agents.EnumerateArray().First(value => value.GetProperty("id").GetString() == agentId);
+    Assert(agent.GetProperty("platform_support").GetString() == "supported", $"{agentId} descriptor should expose Windows preview support");
+    Assert(agent.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), $"{agentId} descriptor should expose read-only diff");
+
+    using var guide = ToJsonDocument(adapter.Handle($"/agents/{agentId}/guide", "GET"));
+    Assert(guide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == agentId, $"{agentId} guide endpoint should return the requested agent");
+    Assert(guide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), $"{agentId} guide endpoint should mirror read-only capabilities");
 }
 
 static JsonDocument ToJsonDocument(object value)
