@@ -111,7 +111,7 @@ public sealed class RuntimeProcessController : IDisposable
         }
     }
 
-    private static RuntimeStatus ManagedStatus()
+    private RuntimeStatus ManagedStatus()
     {
         return new RuntimeStatus
         {
