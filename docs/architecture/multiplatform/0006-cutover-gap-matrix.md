@@ -37,7 +37,7 @@ and production write paths are implemented and verified on Windows CI.
 | Settings | Native Swift settings remain authoritative | Credential Manager-backed bootstrap config; shared settings controls hidden | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
 | Agents | Native macOS SwiftUI write path remains authoritative | Read-only adapter for descriptor, detection, diff preview, and guides | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
 | Updates | Sparkle/appcast release path exists | No updater yet | Windows updater strategy chosen and tested before production release |
-| Packaging | Existing build, package, notarize, appcast scripts | Zipped preview artifact from CI and manual prerelease workflow | Installer, signing, uninstall, upgrade, and user-data preservation tested |
+| Packaging | Existing release path plus unsigned preview artifact workflow | Zipped preview artifact from CI and manual prerelease workflow | Installer, signing, uninstall, upgrade, and user-data preservation tested |
 | Rollback | Keep old Swift screens behind route flags | Keep shared route flags disabled by default | One release window with runtime flag rollback before removing superseded code |
 
 ## Rollback Window
@@ -63,6 +63,8 @@ Before production cutover:
 - Run `cargo test`.
 - Run `xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug build`.
 - Run `xcodebuild -project Quotio.xcodeproj -scheme "Quotio Beta" -configuration Beta build`.
+- Run the `macOS Preview Artifact` workflow and verify it uploads unsigned
+  ZIP/DMG artifacts without appcast or notarization steps.
 - Run `dotnet build apps/windows-host/Quotio.Windows.csproj` on Windows CI.
 - Run `dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj
   --configuration Release` on Windows CI.

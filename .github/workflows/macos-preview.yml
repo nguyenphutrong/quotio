@@ -1,0 +1,53 @@
+name: macOS Preview Artifact
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'macos-preview-*'
+
+jobs:
+  build:
+    name: Build unsigned macOS preview
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.1'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.3
+
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: ./scripts/build.sh
+
+      - name: Package unsigned macOS preview
+        run: |
+          VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/Quotio.app/Contents/Info.plist)"
+          mkdir -p build/release
+          ditto -c -k --keepParent build/Quotio.app "build/release/Quotio-${VERSION}.zip"
+          hdiutil create \
+            -volname "Quotio" \
+            -srcfolder build/Quotio.app \
+            -ov \
+            -format UDZO \
+            "build/release/Quotio-${VERSION}.dmg"
+
+      - name: Verify macOS preview artifacts
+        run: |
+          test -d "build/Quotio.app"
+          test -f "build/Quotio.app/Contents/Resources/CPAPlusPlusBundle.json" \
+            || test -f "build/Quotio.app/Contents/Resources/Proxy/CPAPlusPlusBundle.json"
+          test -n "$(find build/release -maxdepth 1 -name 'Quotio-*.zip' -type f -print -quit)"
+          test -n "$(find build/release -maxdepth 1 -name 'Quotio-*.dmg' -type f -print -quit)"
+          ./scripts/verify-bundled-proxy.sh build/Quotio.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quotio-macos-preview
+          path: |
+            build/release/Quotio-*.zip
+            build/release/Quotio-*.dmg
+          if-no-files-found: error

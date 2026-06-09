@@ -119,6 +119,12 @@ Maintainers can publish an unsigned Windows preview prerelease with the
 `Windows Preview Release` workflow. Preview tags must use the
 `windows-preview-*` prefix.
 
+### macOS Preview
+
+Maintainers can build unsigned macOS preview ZIP/DMG artifacts with the
+`macOS Preview Artifact` workflow. This workflow is for smoke testing only and
+does not notarize, sign Sparkle updates, or create a GitHub release.
+
 ## 📖 Usage
 
 ### 1. Start the Server
