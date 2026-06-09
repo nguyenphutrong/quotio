@@ -35,6 +35,7 @@ type DesktopBridge = {
   runtimeStart?: () => Promise<RuntimeStatus>;
   runtimeStop?: () => Promise<RuntimeStatus>;
   confirm?: (request: NativeConfirmRequest) => Promise<boolean>;
+  openExternal?: (url: string) => Promise<boolean>;
 };
 
 declare global {
@@ -53,6 +54,7 @@ type AdminRuntimeValue = {
   clearToken: () => void;
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
   confirm: (request: NativeConfirmRequest) => Promise<boolean>;
+  openExternal: (url: string) => Promise<boolean>;
 };
 
 const AdminRuntimeContext = createContext<AdminRuntimeValue | null>(null);
@@ -92,6 +94,16 @@ export function AdminRuntimeProvider({
     return window.confirm(request.message);
   }, []);
 
+  const openExternal = useCallback(async (url: string) => {
+    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+    if (bridge?.openExternal) {
+      return bridge.openExternal(url);
+    }
+
+    return window.open(url, '_blank', 'noopener,noreferrer') !== null;
+  }, []);
+
   const value = useMemo<AdminRuntimeValue>(
     () => ({
       bootstrap,
@@ -103,8 +115,9 @@ export function AdminRuntimeProvider({
       clearToken: () => {},
       request,
       confirm,
+      openExternal,
     }),
-    [bootstrap, confirm, request],
+    [bootstrap, confirm, openExternal, request],
   );
 
   return (

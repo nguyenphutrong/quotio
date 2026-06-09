@@ -12,7 +12,7 @@ import { Label } from '@quotio/ui/components/label';
 import { Switch } from '@quotio/ui/components/switch';
 import { Textarea } from '@quotio/ui/components/textarea';
 import { RiExternalLinkLine, RiLoader4Line } from '@remixicon/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CopyButton } from '@/components/admin/copy-button';
 import { Panel } from '@/components/admin/panel';
 import { ProviderIcon } from '@/components/admin/provider-icon';
@@ -130,7 +130,7 @@ export function ProviderFormPanel({
   hideHeader?: boolean;
   initialProviderKey?: string;
 }) {
-  const { request } = useAdminRuntime();
+  const { request, openExternal } = useAdminRuntime();
   const [step, setStep] = useState<1 | 2>(
     mode === 'create' && !initialProviderKey ? 1 : 2,
   );
@@ -183,8 +183,6 @@ export function ProviderFormPanel({
     | 'failed'
     | 'expired'
   >('idle');
-  const popupRef = useRef<Window | null>(null);
-
   const resetCreateForm = (nextProvider: string) => {
     const normalizedProvider = normalizeProviderId(nextProvider);
     setProvider(normalizedProvider);
@@ -249,12 +247,6 @@ export function ProviderFormPanel({
       : (providerCatalog[provider]?.onboarding ?? 'api_key');
 
   const handleProviderSelect = (key: string) => {
-    if (
-      providerCatalog[key]?.onboarding === 'oauth' &&
-      typeof window !== 'undefined'
-    ) {
-      popupRef.current = window.open('', '_blank');
-    }
     resetCreateForm(key);
     setStep(2);
   };
@@ -308,11 +300,7 @@ export function ProviderFormPanel({
         setOAuthStatus(session.status);
 
         if (session.auth_url) {
-          if (popupRef.current && !popupRef.current.closed) {
-            popupRef.current.location.href = session.auth_url;
-          } else {
-            window.open(session.auth_url, '_blank');
-          }
+          await openExternal(session.auth_url);
         }
       } catch (error) {
         if (cancelled) {
@@ -322,16 +310,21 @@ export function ProviderFormPanel({
         setLocalError(
           error instanceof Error ? error.message : 'OAuth start failed',
         );
-        if (popupRef.current && !popupRef.current.closed) {
-          popupRef.current.close();
-        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [mode, oauthSession, provider, request, step, usesSessionFlow]);
+  }, [
+    mode,
+    oauthSession,
+    openExternal,
+    provider,
+    request,
+    step,
+    usesSessionFlow,
+  ]);
 
   useEffect(() => {
     if (!oauthSession?.session_id) {
@@ -359,9 +352,6 @@ export function ProviderFormPanel({
         setOAuthStatus(nextSession.status);
         if (nextSession.status === 'completed' && nextSession.credential) {
           await onOAuthCreated?.(nextSession.credential);
-          if (popupRef.current && !popupRef.current.closed) {
-            popupRef.current.close();
-          }
         } else if (
           nextSession.status === 'failed' ||
           nextSession.status === 'expired'
@@ -541,7 +531,7 @@ export function ProviderFormPanel({
               disabled={!oauthLink}
               onClick={() => {
                 if (oauthLink) {
-                  window.open(oauthLink, '_blank');
+                  void openExternal(oauthLink);
                 }
               }}
             >
@@ -594,7 +584,7 @@ export function ProviderFormPanel({
               disabled={!oauthLink}
               onClick={() => {
                 if (oauthLink) {
-                  window.open(oauthLink, '_blank');
+                  void openExternal(oauthLink);
                 }
               }}
             >

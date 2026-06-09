@@ -79,6 +79,12 @@ public sealed class DesktopBridge
                 cancelLabel: request?.cancelLabel,
                 destructive: request?.destructive === true
               });
+            }),
+            openExternal: (url) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({ id, kind: 'native.openExternal', url });
             })
           };
           window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__ = (message) => {
@@ -119,6 +125,7 @@ public sealed class DesktopBridge
                 "runtime.stop" => runtime.Stop(),
                 "management.request" => await HandleManagementRequestAsync(root),
                 "native.confirm" => await HandleNativeConfirmAsync(root),
+                "native.openExternal" => HandleNativeOpenExternal(root),
                 _ => throw new InvalidOperationException("Unsupported bridge request")
             };
 
@@ -210,6 +217,22 @@ public sealed class DesktopBridge
 
         var result = await dialog.ShowAsync();
         return result == ContentDialogResult.Primary;
+    }
+
+    private static bool HandleNativeOpenExternal(JsonElement root)
+    {
+        var rawUrl = root.TryGetProperty("url", out var urlElement)
+            && urlElement.ValueKind == JsonValueKind.String
+            ? urlElement.GetString()
+            : null;
+        if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var url)
+            || (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new InvalidOperationException("Invalid external URL");
+        }
+
+        Process.Start(new ProcessStartInfo(url.ToString()) { UseShellExecute = true });
+        return true;
     }
 
     private Task SendResponseAsync(string id, bool ok, object? value, string? error)

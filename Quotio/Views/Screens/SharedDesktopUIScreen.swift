@@ -78,6 +78,7 @@ private enum DesktopBridgeContract {
     enum RequestKind {
         static let managementRequest = "management.request"
         static let nativeConfirm = "native.confirm"
+        static let nativeOpenExternal = "native.openExternal"
     }
 }
 
@@ -197,6 +198,16 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 cancelLabel: request?.cancelLabel,
                 destructive: request?.destructive === true
               });
+            }),
+            openExternal: (url) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.nativeOpenExternal)',
+                url
+              });
             })
           };
           window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__ = (message) => {
@@ -306,6 +317,8 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                     value = try await handleManagementRequest(body)
                 case DesktopBridgeContract.RequestKind.nativeConfirm:
                     value = handleNativeConfirm(body)
+                case DesktopBridgeContract.RequestKind.nativeOpenExternal:
+                    value = try handleNativeOpenExternal(body)
                 default:
                     throw APIError.invalidURL
                 }
@@ -357,6 +370,16 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
         alert.addButton(withTitle: body["cancelLabel"] as? String ?? "Cancel")
 
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func handleNativeOpenExternal(_ body: [String: Any]) throws -> Bool {
+        guard let rawURL = body["url"] as? String,
+              let url = URL(string: rawURL),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
+            throw APIError.invalidURL
+        }
+
+        return NSWorkspace.shared.open(url)
     }
 
     private func sendResponse(id: String, ok: Bool, value: Any, error: String?) {
