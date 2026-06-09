@@ -55,7 +55,11 @@ actor ShellProfileManager {
         """
         
         content.append(newConfig)
-        
+
+        if fileManager.fileExists(atPath: profilePath) {
+            _ = try createBackup(shell: shell)
+        }
+
         try content.write(toFile: profilePath, atomically: true, encoding: .utf8)
     }
     
@@ -90,6 +94,7 @@ actor ShellProfileManager {
             }
             
             content.removeSubrange(startIndex..<endIndex)
+            _ = try createBackup(shell: shell)
             try content.write(toFile: profilePath, atomically: true, encoding: .utf8)
         }
     }
@@ -110,12 +115,19 @@ actor ShellProfileManager {
     
     func createBackup(shell: ShellType) throws -> String {
         let profilePath = getProfilePath(for: shell)
-        let backupPath = "\(profilePath).backup.\(Int(Date().timeIntervalSince1970))"
-        
+        let baseBackupPath = "\(profilePath).backup.\(Int(Date().timeIntervalSince1970))"
+
+        var backupPath = baseBackupPath
+        var suffix = 1
+        while fileManager.fileExists(atPath: backupPath) {
+            backupPath = "\(baseBackupPath).\(suffix)"
+            suffix += 1
+        }
+
         if fileManager.fileExists(atPath: profilePath) {
             try fileManager.copyItem(atPath: profilePath, toPath: backupPath)
         }
-        
+
         return backupPath
     }
 }
