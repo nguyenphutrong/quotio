@@ -40,15 +40,18 @@ QUOTIO_ENABLE_SHARED_UI=1 open Quotio.xcodeproj
 
 For Windows preview development, build `apps/desktop-ui` before the host build,
 or set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL. The Windows host
-currently advertises only preview-safe capabilities; remote credential storage,
-native onboarding, and agent configuration stay disabled until Credential
-Manager-backed adapters are implemented and verified on Windows CI.
+currently advertises only preview-safe capabilities. Credential Manager-backed
+bootstrap config and read-only agent detection are available, while remote
+credential editing, native onboarding, and automatic agent configuration stay
+disabled until write/rollback adapters are implemented and verified on Windows
+CI.
 
 Current shared route scope:
 
-- Enabled by default in host bootstrap: overview, providers, quota, usage.
+- Enabled by default in host bootstrap: overview, providers, quota, usage,
+  agents.
 - Implemented but still gated until adapter/parity approval: virtual models,
-  models, agents, API keys, logs.
+  models, API keys, logs.
 - Placeholder only: settings, about.
 
 ## ADRs

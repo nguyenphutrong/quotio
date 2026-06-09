@@ -4,9 +4,10 @@ Native Windows shell for the shared desktop UI. Plan 05 owns the WinUI 3,
 WebView2, tray, single-instance, and Rust bridge implementation.
 
 The Windows host is currently a preview artifact. It is expected to build and
-exercise the shared UI bridge, but it is not production parity with macOS until
-installer, signing, updater, credential storage, agent adapters, and cutover
-checks in `docs/architecture/multiplatform/0006-cutover-gap-matrix.md` are done.
+exercise the shared UI bridge, Credential Manager-backed bootstrap config, and
+read-only agent adapter, but it is not production parity with macOS until
+installer, signing, updater, agent write/rollback adapters, and cutover checks
+in `docs/architecture/multiplatform/0006-cutover-gap-matrix.md` are done.
 
 ## Development
 

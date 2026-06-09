@@ -61,6 +61,9 @@ jobs:
           if (!(Test-Path $output)) {
             throw "Windows host output not found: $output"
           }
+          if (!(Test-Path "$output/desktop-ui/index.html")) {
+            throw "Windows host output is missing bundled desktop UI: $output/desktop-ui/index.html"
+          }
 
           New-Item -ItemType Directory -Force -Path artifacts | Out-Null
           Compress-Archive -Path "$output/*" -DestinationPath "artifacts/quotio-windows-preview.zip" -Force

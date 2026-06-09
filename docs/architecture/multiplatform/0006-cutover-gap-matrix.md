@@ -22,7 +22,7 @@ Shared desktop screens remain feature-flagged until each surface has native host
 parity and a rollback path. macOS can continue shipping through the existing
 SwiftUI implementation while shared screens are adopted screen by screen.
 Windows builds are zipped preview artifacts until installer, signing, updater,
-and credential storage are implemented and verified on Windows CI.
+and production write paths are implemented and verified on Windows CI.
 
 ## Gap Matrix
 
@@ -32,8 +32,8 @@ and credential storage are implemented and verified on Windows CI.
 | Shared UI host | Embedded WKWebView host with feature flags | WebView2 host with feature flags | Both hosts pass the same contract version and route gate matrix |
 | Runtime process | Existing CLIProxyAPI lifecycle plus shared Rust foundation | Shared Rust foundation not packaged into a production installer | Start, stop, restart, crash recovery, and no-zombie-process checks pass on both OSes |
 | Management API | Existing Swift management client plus shared bridge | Bridge can proxy management requests | Endpoint parity approved per screen before enabling routes |
-| Settings | Native Swift settings remain authoritative | Preview bootstrap only | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
-| Agents | Native macOS SwiftUI write path remains authoritative | No validated Windows adapter yet | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
+| Settings | Native Swift settings remain authoritative | Credential Manager-backed bootstrap config; shared settings controls hidden | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
+| Agents | Native macOS SwiftUI write path remains authoritative | Read-only adapter for descriptor, detection, diff preview, and guides | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
 | Updates | Sparkle/appcast release path exists | No updater yet | Windows updater strategy chosen and tested before production release |
 | Packaging | Existing build, package, notarize, appcast scripts | Zipped preview artifact from CI | Installer, signing, uninstall, upgrade, and user-data preservation tested |
 | Rollback | Keep old Swift screens behind route flags | Keep shared route flags disabled by default | One release window with runtime flag rollback before removing superseded code |
@@ -60,8 +60,8 @@ Before production cutover:
 - Run `xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug build`.
 - Run `xcodebuild -project Quotio.xcodeproj -scheme "Quotio Beta" -configuration Beta build`.
 - Run `dotnet build apps/windows-host/Quotio.Windows.csproj` on Windows CI.
-- Verify the Windows preview artifact is uploaded from CI and contains the
-  bundled shared desktop UI output.
+- Verify the Windows preview artifact is uploaded from CI and contains
+  `desktop-ui/index.html` from the bundled shared desktop UI output.
 - Manually verify light/dark mode, keyboard navigation, multiple monitors,
   sleep/restart recovery, offline behavior, and no stuck child processes on
   both operating systems before enabling route flags by default.
