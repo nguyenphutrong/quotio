@@ -41,6 +41,7 @@ jobs:
       - run: cargo test
 
   windows:
+    name: Windows preview build (no installer/signing)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

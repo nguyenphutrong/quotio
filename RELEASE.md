@@ -1,5 +1,10 @@
 # Quotio Release Guide
 
+This guide covers the current macOS release pipeline. It produces macOS DMG,
+ZIP, and Sparkle appcast assets only. Windows builds in the multiplatform
+workflow are preview/build-only until installer, signing, updater, and
+credential-storage parity are implemented and verified.
+
 ## Quick Start (Recommended)
 
 ### Option 1: Push Tag (Automated via GitHub Actions)
@@ -15,7 +20,8 @@ GitHub Actions will automatically:
 2. Create DMG and ZIP
 3. Sign appcast with Sparkle
 4. Create GitHub Release
-5. Commit version bump back to master
+5. Commit version bump back to the active development branch (`dev`, then
+   `main` if needed)
 
 ### Option 2: Use Quick Release Script
 ```bash
@@ -90,7 +96,8 @@ git push origin v0.5.0
 5. Creates ZIP and DMG packages
 6. Signs appcast with Sparkle
 7. Creates GitHub Release with assets
-8. Commits version changes back to master
+8. Commits version changes back to the active development branch (`dev`, then
+   `main` if needed)
 
 ### Local Release (Fallback)
 
@@ -175,7 +182,8 @@ Follow [Semantic Versioning](https://semver.org/):
 - [ ] GitHub Actions workflow started
 - [ ] Build succeeded
 - [ ] GitHub Release created with DMG, ZIP, appcast.xml
-- [ ] Version bump committed to master
+- [ ] Version bump committed to the active development branch
+- [ ] No Windows production assets are expected from this pipeline
 
 **Verify:**
 - [ ] Download and test the DMG
