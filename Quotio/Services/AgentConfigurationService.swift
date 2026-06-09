@@ -76,8 +76,13 @@ actor AgentConfigurationService {
             for file in contents {
                 if file.hasPrefix(filename + ".backup.") {
                     let fullPath = "\(directory)/\(file)"
-                    // Extract timestamp from filename (e.g., settings.json.backup.1736840000)
-                    if let timestampStr = file.components(separatedBy: ".backup.").last,
+                    // Extract timestamp from filename (e.g., settings.json.backup.1736840000 or .backup.1736840000.1)
+                    let timestampStr = file
+                        .components(separatedBy: ".backup.")
+                        .last?
+                        .components(separatedBy: ".")
+                        .first
+                    if let timestampStr,
                        let timestamp = Double(timestampStr) {
                         let date = Date(timeIntervalSince1970: timestamp)
                         backups.append(BackupFile(path: fullPath, timestamp: date, agent: agent))
@@ -92,20 +97,40 @@ actor AgentConfigurationService {
     
     /// Restore configuration from a backup file
     func restoreFromBackup(_ backup: BackupFile) throws {
-        // Determine the original config path from the backup path
-        // e.g., ~/.claude/settings.json.backup.123 -> ~/.claude/settings.json
-        let originalPath = backup.path
-            .replacingOccurrences(of: ".backup.\(Int(backup.timestamp.timeIntervalSince1970))", with: "")
+        let originalPath = originalPath(forBackupPath: backup.path)
         
         // Create a backup of current config before restoring
         if fileManager.fileExists(atPath: originalPath) {
-            let currentBackupPath = "\(originalPath).backup.\(Int(Date().timeIntervalSince1970))"
-            try? fileManager.copyItem(atPath: originalPath, toPath: currentBackupPath)
+            _ = try createBackupIfExists(atPath: originalPath)
             try fileManager.removeItem(atPath: originalPath)
         }
         
         // Copy backup to original location
         try fileManager.copyItem(atPath: backup.path, toPath: originalPath)
+    }
+
+    private func originalPath(forBackupPath backupPath: String) -> String {
+        guard let range = backupPath.range(of: ".backup.") else {
+            return backupPath
+        }
+        return String(backupPath[..<range.lowerBound])
+    }
+
+    @discardableResult
+    private func createBackupIfExists(atPath path: String) throws -> String? {
+        guard fileManager.fileExists(atPath: path) else { return nil }
+
+        let baseBackupPath = "\(path).backup.\(Int(Date().timeIntervalSince1970))"
+        var backupPath = baseBackupPath
+        var suffix = 1
+
+        while fileManager.fileExists(atPath: backupPath) {
+            backupPath = "\(baseBackupPath).\(suffix)"
+            suffix += 1
+        }
+
+        try fileManager.copyItem(atPath: path, toPath: backupPath)
+        return backupPath
     }
     
     // MARK: - Agent-Specific Read Implementations
@@ -385,9 +410,7 @@ actor AgentConfigurationService {
                 let data = try Data(contentsOf: URL(fileURLWithPath: configPath))
                 var existingSettings = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
                 
-                // Create backup
-                let backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
-                try fileManager.copyItem(atPath: configPath, toPath: backupPath)
+                _ = try createBackupIfExists(atPath: configPath)
                 
                 // Remove Quotio env keys
                 if var env = existingSettings["env"] as? [String: String] {
@@ -533,9 +556,7 @@ actor AgentConfigurationService {
                 let data = try Data(contentsOf: URL(fileURLWithPath: settingsPath))
                 var settings = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
                 
-                // Create backup
-                let backupPath = "\(settingsPath).backup.\(Int(Date().timeIntervalSince1970))"
-                try fileManager.copyItem(atPath: settingsPath, toPath: backupPath)
+                _ = try createBackupIfExists(atPath: settingsPath)
                 
                 // Remove amp.url
                 settings.removeValue(forKey: "amp.url")
@@ -579,9 +600,7 @@ actor AgentConfigurationService {
                 let data = try Data(contentsOf: URL(fileURLWithPath: configPath))
                 var config = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
                 
-                // Create backup
-                let backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
-                try fileManager.copyItem(atPath: configPath, toPath: backupPath)
+                _ = try createBackupIfExists(atPath: configPath)
                 
                 // Remove quotio provider
                 if var providers = config["provider"] as? [String: Any] {
@@ -628,9 +647,7 @@ actor AgentConfigurationService {
                 let data = try Data(contentsOf: URL(fileURLWithPath: configPath))
                 var config = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
                 
-                // Create backup
-                let backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
-                try fileManager.copyItem(atPath: configPath, toPath: backupPath)
+                _ = try createBackupIfExists(atPath: configPath)
                 
                 // Remove custom_models that point to localhost
                 if var customModels = config["custom_models"] as? [[String: Any]] {
@@ -762,10 +779,7 @@ actor AgentConfigurationService {
                 if shouldWriteJson {
                     try fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
                     
-                    if fileManager.fileExists(atPath: configPath) {
-                        backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
-                        try? fileManager.copyItem(atPath: configPath, toPath: backupPath!)
-                    }
+                    backupPath = try createBackupIfExists(atPath: configPath)
                     
                     try jsonData.write(to: URL(fileURLWithPath: configPath))
                 }
@@ -953,7 +967,10 @@ actor AgentConfigurationService {
         if mode == .automatic {
             try fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
             try fileManager.createDirectory(atPath: dataDir, withIntermediateDirectories: true)
-            
+
+            let backupPath = try createBackupIfExists(atPath: settingsPath)
+            _ = try createBackupIfExists(atPath: secretsPath)
+
             try settingsJSON.write(toFile: settingsPath, atomically: true, encoding: .utf8)
             try secretsJSON.write(toFile: secretsPath, atomically: true, encoding: .utf8)
             
@@ -967,7 +984,8 @@ actor AgentConfigurationService {
                 shellConfig: envExports,
                 rawConfigs: rawConfigs,
                 instructions: "Configuration files created. Amp CLI is now configured to use CLIProxyAPI.",
-                modelsConfigured: 1
+                modelsConfigured: 1,
+                backupPath: backupPath
             )
         } else {
             return .success(
@@ -1042,10 +1060,7 @@ actor AgentConfigurationService {
                 try fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
 
                 var backupPath: String? = nil
-                if fileManager.fileExists(atPath: configPath) {
-                    backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
-                    try? fileManager.copyItem(atPath: configPath, toPath: backupPath!)
-                }
+                backupPath = try createBackupIfExists(atPath: configPath)
 
                 try jsonData.write(to: URL(fileURLWithPath: configPath))
 
@@ -1166,10 +1181,7 @@ actor AgentConfigurationService {
                 try fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
 
                 var backupPath: String? = nil
-                if fileManager.fileExists(atPath: configPath) {
-                    backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
-                    try? fileManager.copyItem(atPath: configPath, toPath: backupPath!)
-                }
+                backupPath = try createBackupIfExists(atPath: configPath)
 
                 try jsonData.write(to: URL(fileURLWithPath: configPath))
 
