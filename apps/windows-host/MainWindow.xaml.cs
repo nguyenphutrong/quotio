@@ -104,7 +104,7 @@ public sealed partial class MainWindow : Window
         var icon = new Forms.NotifyIcon
         {
             Text = "Quotio",
-            Icon = Forms.SystemIcons.Application,
+            Icon = System.Drawing.SystemIcons.Application,
             ContextMenuStrip = menu,
             Visible = true
         };

@@ -19,7 +19,7 @@ public sealed class WindowSettingsStore
 
     public bool TryLoad(out WindowPlacement placement)
     {
-        placement = default;
+        placement = default!;
         try
         {
             if (!File.Exists(settingsPath))

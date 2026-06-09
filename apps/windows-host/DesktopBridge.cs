@@ -197,7 +197,7 @@ public sealed class DesktopBridge
             new BridgeResponse(id, ok, value, error),
             JsonOptions.CamelCase
         );
-        return webView.CoreWebView2.ExecuteScriptAsync($"{BridgeReceiveFunction}({payload});");
+        return webView.CoreWebView2.ExecuteScriptAsync($"{BridgeReceiveFunction}({payload});").AsTask();
     }
 
     private static string NormalizeManagementBaseUrl(string rawUrl)
