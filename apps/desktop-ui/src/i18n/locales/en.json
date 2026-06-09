@@ -53,6 +53,8 @@
     "virtualModelsDesc": "Manage virtual model chains.",
     "quota": "Quota",
     "quotaDesc": "Monitor usage limits and spending across providers.",
+    "usage": "Usage",
+    "usageDesc": "Inspect request usage events, tokens, cost, and model pricing state.",
     "apiKeys": "API Keys",
     "apiKeysDesc": "Manage client credentials and usage analytics.",
     "logs": "Logs",
@@ -533,6 +535,63 @@
       "exportCopyFailed": "Failed to copy export JSON.",
       "resetComplete": "Reset virtual models to the default empty configuration.",
       "resetFailed": "Failed to reset virtual-model configuration."
+    }
+  },
+  "usageStats": {
+    "title": "Usage Statistics",
+    "description": "Inspect request usage events, token volume, latency, and estimated cost from the gateway usage database.",
+    "failedToLoad": "Usage statistics unavailable",
+    "disabledTitle": "Usage statistics are disabled",
+    "disabledDescription": "Enable the usage statistics service in the gateway before using this screen.",
+    "priceCount": "{{count}} model prices tracked",
+    "loadingEvents": "Loading usage events…",
+    "limit": "{{count}} rows",
+    "actions": {
+      "syncPrices": "Sync prices"
+    },
+    "status": {
+      "ready": "Ready",
+      "disabled": "Disabled"
+    },
+    "filters": {
+      "account": "Account",
+      "model": "Model",
+      "channel": "Channel",
+      "authIndex": "Auth index"
+    },
+    "summary": {
+      "requests": "Requests",
+      "requestsHint": "Matching filter",
+      "success": "Success",
+      "failures": "{{count}} failures",
+      "tokens": "Tokens",
+      "tokensHint": "Prompt {{prompt}} · Completion {{completion}}",
+      "reasoning": "Reasoning",
+      "cache": "Cache {{count}}",
+      "cost": "Cost",
+      "latency": "Avg latency {{value}} ms",
+      "offset": "Offset",
+      "offsetHint": "Current page"
+    },
+    "events": {
+      "title": "Usage events",
+      "description": "Recent normalized request usage rows.",
+      "emptyTitle": "No usage events",
+      "emptyDescription": "Run requests through the gateway or adjust filters."
+    },
+    "columns": {
+      "time": "Time",
+      "account": "Account",
+      "model": "Model",
+      "channel": "Channel",
+      "status": "Status",
+      "tokens": "Tokens",
+      "latency": "Latency",
+      "cost": "Cost"
+    },
+    "messages": {
+      "pricesSynced": "Synced model prices: {{imported}} imported, {{skipped}} skipped.",
+      "pricesSyncFailed": "Failed to sync model prices."
     }
   },
   "placeholder": {

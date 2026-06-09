@@ -53,6 +53,8 @@
     "virtualModelsDesc": "Quản lý các chuỗi virtual model.",
     "quota": "Hạn mức",
     "quotaDesc": "Theo dõi giới hạn sử dụng và chi phí.",
+    "usage": "Thống kê sử dụng",
+    "usageDesc": "Xem request usage, token, chi phí và trạng thái pricing model.",
     "apiKeys": "API Keys",
     "apiKeysDesc": "Quản lý khóa client và thống kê sử dụng.",
     "logs": "Nhật ký",
@@ -528,6 +530,63 @@
       "exportCopyFailed": "Không thể copy JSON export.",
       "resetComplete": "Đã reset virtual models về cấu hình rỗng mặc định.",
       "resetFailed": "Không thể reset cấu hình virtual models."
+    }
+  },
+  "usageStats": {
+    "title": "Thống kê sử dụng",
+    "description": "Xem request usage, token, độ trễ và chi phí ước tính từ usage database của gateway.",
+    "failedToLoad": "Không thể tải thống kê sử dụng",
+    "disabledTitle": "Thống kê sử dụng đang tắt",
+    "disabledDescription": "Bật usage statistics service trong gateway trước khi dùng màn này.",
+    "priceCount": "{{count}} model price được theo dõi",
+    "loadingEvents": "Đang tải usage events…",
+    "limit": "{{count}} dòng",
+    "actions": {
+      "syncPrices": "Đồng bộ giá"
+    },
+    "status": {
+      "ready": "Sẵn sàng",
+      "disabled": "Đã tắt"
+    },
+    "filters": {
+      "account": "Tài khoản",
+      "model": "Model",
+      "channel": "Channel",
+      "authIndex": "Auth index"
+    },
+    "summary": {
+      "requests": "Yêu cầu",
+      "requestsHint": "Theo bộ lọc",
+      "success": "Thành công",
+      "failures": "{{count}} lỗi",
+      "tokens": "Token",
+      "tokensHint": "Prompt {{prompt}} · Completion {{completion}}",
+      "reasoning": "Reasoning",
+      "cache": "Cache {{count}}",
+      "cost": "Chi phí",
+      "latency": "Độ trễ TB {{value}} ms",
+      "offset": "Offset",
+      "offsetHint": "Trang hiện tại"
+    },
+    "events": {
+      "title": "Usage events",
+      "description": "Các dòng request usage đã normalize gần đây.",
+      "emptyTitle": "Chưa có usage event",
+      "emptyDescription": "Gửi request qua gateway hoặc điều chỉnh bộ lọc."
+    },
+    "columns": {
+      "time": "Thời gian",
+      "account": "Tài khoản",
+      "model": "Model",
+      "channel": "Channel",
+      "status": "Trạng thái",
+      "tokens": "Token",
+      "latency": "Độ trễ",
+      "cost": "Chi phí"
+    },
+    "messages": {
+      "pricesSynced": "Đã đồng bộ model prices: {{imported}} import, {{skipped}} bỏ qua.",
+      "pricesSyncFailed": "Không thể đồng bộ model prices."
     }
   },
   "placeholder": {

@@ -34,6 +34,7 @@ public static class DesktopUiSource
                 ["overview"] = true,
                 ["providers"] = true,
                 ["quota"] = true,
+                ["usage"] = true,
                 ["virtualModels"] = false,
                 ["models"] = false,
                 ["agents"] = false,

@@ -53,6 +53,8 @@
     "virtualModelsDesc": "管理 virtual model 链。",
     "quota": "配额",
     "quotaDesc": "监控各服务商的使用限额和支出。",
+    "usage": "使用统计",
+    "usageDesc": "查看请求使用事件、Token、成本和模型价格状态。",
     "apiKeys": "API Keys",
     "apiKeysDesc": "管理客户端凭证和使用分析。",
     "logs": "日志",
@@ -529,6 +531,63 @@
       "exportCopyFailed": "Failed to copy export JSON.",
       "resetComplete": "Reset virtual models to the default empty configuration.",
       "resetFailed": "Failed to reset virtual-model configuration."
+    }
+  },
+  "usageStats": {
+    "title": "使用统计",
+    "description": "从网关 usage 数据库查看请求事件、Token 用量、延迟和预估成本。",
+    "failedToLoad": "使用统计不可用",
+    "disabledTitle": "使用统计已禁用",
+    "disabledDescription": "请先在网关中启用 usage statistics service。",
+    "priceCount": "已跟踪 {{count}} 个模型价格",
+    "loadingEvents": "正在加载使用事件…",
+    "limit": "{{count}} 行",
+    "actions": {
+      "syncPrices": "同步价格"
+    },
+    "status": {
+      "ready": "就绪",
+      "disabled": "已禁用"
+    },
+    "filters": {
+      "account": "账户",
+      "model": "模型",
+      "channel": "Channel",
+      "authIndex": "Auth index"
+    },
+    "summary": {
+      "requests": "请求数",
+      "requestsHint": "匹配当前筛选",
+      "success": "成功",
+      "failures": "{{count}} 次失败",
+      "tokens": "Token",
+      "tokensHint": "提示 {{prompt}} · 补全 {{completion}}",
+      "reasoning": "Reasoning",
+      "cache": "Cache {{count}}",
+      "cost": "成本",
+      "latency": "平均延迟 {{value}} ms",
+      "offset": "Offset",
+      "offsetHint": "当前页"
+    },
+    "events": {
+      "title": "使用事件",
+      "description": "最近的标准化请求使用记录。",
+      "emptyTitle": "暂无使用事件",
+      "emptyDescription": "通过网关发起请求，或调整筛选条件。"
+    },
+    "columns": {
+      "time": "时间",
+      "account": "账户",
+      "model": "模型",
+      "channel": "Channel",
+      "status": "状态",
+      "tokens": "Token",
+      "latency": "延迟",
+      "cost": "成本"
+    },
+    "messages": {
+      "pricesSynced": "模型价格已同步：导入 {{imported}}，跳过 {{skipped}}。",
+      "pricesSyncFailed": "同步模型价格失败。"
     }
   },
   "placeholder": {

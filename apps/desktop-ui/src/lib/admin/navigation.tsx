@@ -5,6 +5,7 @@ import {
   RiFileList3Line,
   RiInformationLine,
   RiKey2Line,
+  RiLineChartLine,
   RiListCheck,
   RiPuzzle2Line,
   RiSettings3Line,
@@ -69,6 +70,13 @@ export function useAdminNavItems(): AdminNavItem[] {
       icon: <RiExchangeFundsLine />,
       description: t('nav.quotaDesc'),
       feature: 'quota',
+    },
+    {
+      title: t('nav.usage'),
+      url: '/usage',
+      icon: <RiLineChartLine />,
+      description: t('nav.usageDesc'),
+      feature: 'usage',
     },
     {
       title: t('nav.apiKeys'),
