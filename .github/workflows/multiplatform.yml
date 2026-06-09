@@ -53,6 +53,7 @@ jobs:
         with:
           dotnet-version: 8.0.x
       - run: bun install --frozen-lockfile
+      - run: bun run windows:gates:check
       - run: bun run build
       - run: dotnet build apps/windows-host/Quotio.Windows.csproj --configuration Debug
       - run: dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release
