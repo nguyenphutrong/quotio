@@ -233,6 +233,12 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
     var headers: [CustomHeader]  // Only used for Gemini-compatible
     var limitToSelectedModels: Bool
     var isEnabled: Bool
+
+    /// Whether HTTPS requests should use normal certificate and trust-chain validation.
+    var verifySSL: Bool
+
+    /// Whether this provider may use plain HTTP for setup and connection-test requests.
+    var allowInsecureHTTP: Bool
     var createdAt: Date
     var updatedAt: Date
 
@@ -247,6 +253,8 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         headers: [CustomHeader] = [],
         limitToSelectedModels: Bool = true,
         isEnabled: Bool = true,
+        verifySSL: Bool = true,
+        allowInsecureHTTP: Bool = false,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -260,6 +268,8 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         self.headers = headers
         self.limitToSelectedModels = limitToSelectedModels
         self.isEnabled = isEnabled
+        self.verifySSL = verifySSL
+        self.allowInsecureHTTP = allowInsecureHTTP
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -271,6 +281,8 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         case models, headers
         case limitToSelectedModels = "limit-to-selected-models"
         case isEnabled = "is-enabled"
+        case verifySSL = "verify-ssl"
+        case allowInsecureHTTP = "allow-insecure-http"
         case createdAt = "created-at"
         case updatedAt = "updated-at"
     }
@@ -287,6 +299,8 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         headers = try container.decodeIfPresent([CustomHeader].self, forKey: .headers) ?? []
         limitToSelectedModels = try container.decodeIfPresent(Bool.self, forKey: .limitToSelectedModels) ?? true
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        verifySSL = try container.decodeIfPresent(Bool.self, forKey: .verifySSL) ?? true
+        allowInsecureHTTP = try container.decodeIfPresent(Bool.self, forKey: .allowInsecureHTTP) ?? false
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
     }
@@ -303,6 +317,8 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         try container.encode(headers, forKey: .headers)
         try container.encode(limitToSelectedModels, forKey: .limitToSelectedModels)
         try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(verifySSL, forKey: .verifySSL)
+        try container.encode(allowInsecureHTTP, forKey: .allowInsecureHTTP)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
     }
