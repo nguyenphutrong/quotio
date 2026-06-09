@@ -2,7 +2,7 @@
 
 export const contractVersion = 1 as const;
 
-export type RequestKind = 'runtime.status' | 'runtime.start' | 'runtime.stop' | 'management.request';
+export type RequestKind = 'runtime.status' | 'runtime.start' | 'runtime.stop' | 'runtime.restart' | 'management.request';
 
 export type EventKind = 'runtime.statusChanged';
 

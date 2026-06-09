@@ -39,6 +39,7 @@ type DesktopBridge = {
   runtimeStatus?: () => Promise<RuntimeStatus>;
   runtimeStart?: () => Promise<RuntimeStatus>;
   runtimeStop?: () => Promise<RuntimeStatus>;
+  runtimeRestart?: () => Promise<RuntimeStatus>;
   confirm?: (request: NativeConfirmRequest) => Promise<boolean>;
   openExternal?: (url: string) => Promise<boolean>;
   openTextFile?: (request: NativeOpenTextFileRequest) => Promise<string | null>;

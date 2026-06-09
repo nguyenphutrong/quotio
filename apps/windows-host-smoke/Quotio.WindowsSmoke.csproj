@@ -10,6 +10,7 @@
     <Compile Include="..\..\generated\csharp\Quotio.Contract\Generated.cs" Link="Contract\Generated.cs" />
     <Compile Include="..\windows-host\DesktopUiSource.cs" Link="DesktopUiSource.cs" />
     <Compile Include="..\windows-host\DiagnosticLog.cs" Link="DiagnosticLog.cs" />
+    <Compile Include="..\windows-host\RuntimeProcessController.cs" Link="RuntimeProcessController.cs" />
     <Compile Include="..\windows-host\WindowsAgentAdapter.cs" Link="WindowsAgentAdapter.cs" />
     <Compile Include="..\windows-host\WindowsCredentialStore.cs" Link="WindowsCredentialStore.cs" />
     <Compile Include="..\windows-host\WindowsHostConfig.cs" Link="WindowsHostConfig.cs" />

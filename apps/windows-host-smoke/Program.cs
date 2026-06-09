@@ -1,12 +1,20 @@
 using System.Text.Json;
 using Quotio.Windows;
 
+if (args.Contains("--runtime-child", StringComparer.Ordinal))
+{
+    Thread.Sleep(TimeSpan.FromSeconds(2));
+    return;
+}
+
 var savedEnvironment = new Dictionary<string, string?>
 {
     ["QUOTIO_DESKTOP_UI_DEV_SERVER"] = Environment.GetEnvironmentVariable("QUOTIO_DESKTOP_UI_DEV_SERVER"),
     ["QUOTIO_MANAGEMENT_BASE_URL"] = Environment.GetEnvironmentVariable("QUOTIO_MANAGEMENT_BASE_URL"),
     ["QUOTIO_MANAGEMENT_KEY"] = Environment.GetEnvironmentVariable("QUOTIO_MANAGEMENT_KEY"),
-    ["QUOTIO_PROXY_ENDPOINT"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT")
+    ["QUOTIO_PROXY_ENDPOINT"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT"),
+    ["QUOTIO_PROXY_BINARY"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_BINARY"),
+    ["QUOTIO_PROXY_ARGS"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ARGS")
 };
 
 try
@@ -14,6 +22,7 @@ try
     RunConfigSmoke();
     RunBootstrapSmoke();
     RunWindowPlacementSmoke();
+    RunRuntimeControllerSmoke();
     RunAgentAdapterSmoke();
 }
 finally
@@ -110,6 +119,31 @@ static void RunWindowPlacementSmoke()
     Assert(noDisplays.X == -300 && noDisplays.Y == -200, "Window restore should preserve placement when display data is unavailable");
 }
 
+static void RunRuntimeControllerSmoke()
+{
+    ClearEnvironment();
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_BINARY", Environment.ProcessPath);
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", "--runtime-child");
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", "http://127.0.0.1:8686");
+
+    using var runtime = new RuntimeProcessController(new WindowsHostConfig(_ => null));
+    var stopped = runtime.Status();
+    Assert(stopped.State == "stopped", "Runtime should start stopped");
+    Assert(stopped.Endpoint is null, "Stopped runtime should not expose an endpoint");
+
+    var started = runtime.Start();
+    Assert(started.State == "managed", "Runtime start should return managed status");
+    Assert(started.Endpoint == "http://127.0.0.1:8686", "Runtime start should expose configured endpoint");
+
+    var restarted = runtime.Restart();
+    Assert(restarted.State == "managed", "Runtime restart should return managed status");
+    Assert(restarted.Endpoint == "http://127.0.0.1:8686", "Runtime restart should preserve configured endpoint");
+
+    var stoppedAgain = runtime.Stop();
+    Assert(stoppedAgain.State == "stopped", "Runtime stop should return stopped status");
+    Assert(stoppedAgain.Endpoint is null, "Runtime stop should clear endpoint");
+}
+
 static void RunAgentAdapterSmoke()
 {
     var adapter = new WindowsAgentAdapter();
@@ -146,6 +180,8 @@ static void ClearEnvironment()
     Environment.SetEnvironmentVariable("QUOTIO_MANAGEMENT_BASE_URL", null);
     Environment.SetEnvironmentVariable("QUOTIO_MANAGEMENT_KEY", null);
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", null);
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_BINARY", null);
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", null);
 }
 
 static void Assert(bool condition, string message)

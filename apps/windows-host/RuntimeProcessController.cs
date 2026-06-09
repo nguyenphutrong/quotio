@@ -94,6 +94,12 @@ public sealed class RuntimeProcessController : IDisposable
         };
     }
 
+    public RuntimeStatus Restart()
+    {
+        Stop();
+        return Start();
+    }
+
     public void Dispose()
     {
         Stop();

@@ -12,6 +12,7 @@ public enum QuotioRequestKind
     RuntimeStatus,
     RuntimeStart,
     RuntimeStop,
+    RuntimeRestart,
     ManagementRequest,
 }
 

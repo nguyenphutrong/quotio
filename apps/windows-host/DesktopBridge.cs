@@ -67,6 +67,12 @@ public sealed class DesktopBridge
               window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
               chrome.webview.postMessage({ id, kind: 'runtime.stop' });
             }),
+            runtimeRestart: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({ id, kind: 'runtime.restart' });
+            }),
             confirm: (request) => new Promise((resolve, reject) => {
               const id = crypto.randomUUID();
               window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
@@ -135,6 +141,7 @@ public sealed class DesktopBridge
                 "runtime.status" => runtime.Status(),
                 "runtime.start" => runtime.Start(),
                 "runtime.stop" => runtime.Stop(),
+                "runtime.restart" => runtime.Restart(),
                 "management.request" => await HandleManagementRequestAsync(root),
                 "native.confirm" => await HandleNativeConfirmAsync(root),
                 "native.openExternal" => HandleNativeOpenExternal(root),

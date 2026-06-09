@@ -6,6 +6,7 @@ public enum QuotioRequestKind: String, Sendable {
     case RuntimeStatus = "runtime.status"
     case RuntimeStart = "runtime.start"
     case RuntimeStop = "runtime.stop"
+    case RuntimeRestart = "runtime.restart"
     case ManagementRequest = "management.request"
 }
 
