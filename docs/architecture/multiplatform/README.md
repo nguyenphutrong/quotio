@@ -49,8 +49,9 @@ CI.
 Current shared route scope:
 
 - Enabled by default in host bootstrap: overview, providers, quota, usage,
-  models, API keys, logs, agents, settings, about.
-- Implemented but still gated until adapter/parity approval: virtual models.
+  virtual models, models, API keys, logs, agents, settings, about.
+- Implemented with Windows read-only capability gates: virtual models, models,
+  API keys, logs.
 - Placeholder only: settings, about.
 
 ## ADRs

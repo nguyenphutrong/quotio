@@ -253,7 +253,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 "providers": true,
                 "quota": true,
                 "usage": true,
-                "virtualModels": false,
+                "virtualModels": true,
                 "models": true,
                 "agents": false,
                 "apiKeys": true,
@@ -273,7 +273,8 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 "supportsAppearanceSync": true,
                 "supportsRequestLogSettings": true,
                 "supportsModelSettings": true,
-                "supportsApiKeyManagement": true
+                "supportsApiKeyManagement": true,
+                "supportsVirtualModelManagement": true
             ]
         ]
     }

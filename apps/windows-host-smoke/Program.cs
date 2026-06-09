@@ -64,6 +64,7 @@ static void RunBootstrapSmoke()
     Assert(bootstrap.UiEnabled, "Windows bootstrap should enable shared UI");
     Assert(bootstrap.Platform == "windows", "Windows bootstrap should identify the platform");
     Assert(bootstrap.ServerListen == "127.0.0.1:8585", "Windows bootstrap should expose server listen authority");
+    Assert(bootstrap.Features["virtualModels"], "Windows bootstrap should expose virtual models read-only");
     Assert(bootstrap.Features["agents"], "Windows bootstrap should expose read-only agents");
     Assert(bootstrap.Features["models"], "Windows bootstrap should expose shared model catalog");
     Assert(bootstrap.Features["apiKeys"], "Windows bootstrap should expose API key list");
@@ -75,6 +76,7 @@ static void RunBootstrapSmoke()
     Assert(!bootstrap.Capabilities["supportsRequestLogSettings"], "Windows bootstrap should keep request log settings read-only");
     Assert(!bootstrap.Capabilities["supportsModelSettings"], "Windows bootstrap should keep model settings read-only");
     Assert(!bootstrap.Capabilities["supportsApiKeyManagement"], "Windows bootstrap should keep API key management read-only");
+    Assert(!bootstrap.Capabilities["supportsVirtualModelManagement"], "Windows bootstrap should keep virtual model management read-only");
 }
 
 static void RunAgentAdapterSmoke()

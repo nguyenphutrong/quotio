@@ -38,6 +38,7 @@ export type HostCapabilities = {
   supportsRequestLogSettings: boolean;
   supportsModelSettings: boolean;
   supportsApiKeyManagement: boolean;
+  supportsVirtualModelManagement: boolean;
 };
 
 export const DEFAULT_FEATURE_FLAGS: AdminFeatureFlags = {
@@ -45,7 +46,7 @@ export const DEFAULT_FEATURE_FLAGS: AdminFeatureFlags = {
   providers: true,
   quota: true,
   usage: false,
-  virtualModels: false,
+  virtualModels: true,
   models: true,
   agents: false,
   apiKeys: true,
@@ -67,6 +68,7 @@ export const DEFAULT_HOST_CAPABILITIES: HostCapabilities = {
   supportsRequestLogSettings: false,
   supportsModelSettings: false,
   supportsApiKeyManagement: false,
+  supportsVirtualModelManagement: false,
 };
 
 export type AdminBootstrap = {

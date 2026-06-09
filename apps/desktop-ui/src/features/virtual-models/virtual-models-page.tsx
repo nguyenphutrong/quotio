@@ -46,6 +46,7 @@ import { LoadingState } from '@/components/admin/loading-state';
 import { Panel } from '@/components/admin/panel';
 import { ProviderIcon } from '@/components/admin/provider-icon';
 import { useToast } from '@/components/admin/toast-provider';
+import { useAdminRuntime } from '@/lib/admin/runtime';
 import {
   useAvailableTargetsQuery,
   useVirtualModelMutations,
@@ -198,6 +199,7 @@ type DeleteEntryDialogState = {
 export function VirtualModelsPage() {
   const { t } = useTranslation();
   const toast = useToast();
+  const { bootstrap } = useAdminRuntime();
   const stateQuery = useVirtualModelsStateQuery();
   const mutations = useVirtualModelMutations();
   const [modelDialog, setModelDialog] = useState<ModelDialogState>(null);
@@ -211,6 +213,8 @@ export function VirtualModelsPage() {
 
   const enabled = stateQuery.data?.enabled ?? false;
   const models = stateQuery.data?.models ?? [];
+  const canManageVirtualModels =
+    bootstrap.capabilities.supportsVirtualModelManagement;
   const targetsQuery = useAvailableTargetsQuery(entryDialog?.model.id ?? null);
 
   const exportJson = useMemo(() => {
@@ -257,6 +261,7 @@ export function VirtualModelsPage() {
               variant="outline"
               size="sm"
               onClick={() => setImportOpen(true)}
+              disabled={!canManageVirtualModels}
             >
               <RiFileUploadLine />
               {t('virtualModels.actions.import')}
@@ -276,7 +281,9 @@ export function VirtualModelsPage() {
                   );
                 }
               }}
-              disabled={mutations.exportMutation.isPending}
+              disabled={
+                mutations.exportMutation.isPending || !canManageVirtualModels
+              }
             >
               <RiDownloadLine />
               {t('virtualModels.actions.export')}
@@ -284,7 +291,7 @@ export function VirtualModelsPage() {
             <Button
               size="sm"
               onClick={() => setModelDialog({ mode: 'create' })}
-              disabled={!enabled}
+              disabled={!enabled || !canManageVirtualModels}
             >
               <RiAddLine />
               {t('virtualModels.actions.create')}
@@ -323,7 +330,9 @@ export function VirtualModelsPage() {
                 );
               }
             }}
-            disabled={mutations.setEnabledMutation.isPending}
+            disabled={
+              mutations.setEnabledMutation.isPending || !canManageVirtualModels
+            }
           />
         </div>
       </Panel>
@@ -358,6 +367,7 @@ export function VirtualModelsPage() {
                 key={model.id}
                 model={model}
                 globalEnabled={enabled}
+                canManage={canManageVirtualModels}
                 onRename={() => setModelDialog({ mode: 'rename', model })}
                 onAddEntry={() => setEntryDialog({ model })}
                 onToggle={async () => {
@@ -457,6 +467,7 @@ export function VirtualModelsPage() {
           mutations.createModelMutation.isPending ||
           mutations.updateModelMutation.isPending
         }
+        disabled={!canManageVirtualModels}
         onOpenChange={(open) => {
           if (!open) {
             setModelDialog(null);
@@ -498,6 +509,7 @@ export function VirtualModelsPage() {
         model={entryDialog?.model ?? null}
         targets={targetsQuery.data?.models ?? []}
         busy={mutations.addEntryMutation.isPending || targetsQuery.isLoading}
+        disabled={!canManageVirtualModels}
         onOpenChange={(open) => {
           if (!open) {
             setEntryDialog(null);
@@ -533,6 +545,7 @@ export function VirtualModelsPage() {
       <ImportDialog
         open={importOpen}
         busy={mutations.importMutation.isPending}
+        disabled={!canManageVirtualModels}
         onOpenChange={setImportOpen}
         onSubmit={async (payload) => {
           try {
@@ -563,6 +576,7 @@ export function VirtualModelsPage() {
         })}
         confirmLabel={t('virtualModels.actions.delete')}
         busy={mutations.deleteModelMutation.isPending}
+        disabled={!canManageVirtualModels}
         onOpenChange={(open) => {
           if (!open) {
             setDeleteModelDialog(null);
@@ -602,6 +616,7 @@ export function VirtualModelsPage() {
         })}
         confirmLabel={t('virtualModels.actions.delete')}
         busy={mutations.deleteEntryMutation.isPending}
+        disabled={!canManageVirtualModels}
         onOpenChange={(open) => {
           if (!open) {
             setDeleteEntryDialog(null);
@@ -639,6 +654,7 @@ export function VirtualModelsPage() {
 function VirtualModelPanel({
   model,
   globalEnabled,
+  canManage,
   onRename,
   onAddEntry,
   onToggle,
@@ -648,6 +664,7 @@ function VirtualModelPanel({
 }: {
   model: VirtualModelRow;
   globalEnabled: boolean;
+  canManage: boolean;
   onRename: () => void;
   onAddEntry: () => void;
   onToggle: () => void;
@@ -662,7 +679,9 @@ function VirtualModelPanel({
   );
   const sortedEntries = orderedEntries;
   const canReorder =
-    globalEnabled && sortedEntries.every((entry) => entry.hasStableId);
+    globalEnabled &&
+    canManage &&
+    sortedEntries.every((entry) => entry.hasStableId);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -743,11 +762,21 @@ function VirtualModelPanel({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button variant="outline" size="xs" onClick={onRename}>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={onRename}
+            disabled={!canManage}
+          >
             <RiEditLine />
             {t('virtualModels.actions.rename')}
           </Button>
-          <Button variant="outline" size="xs" onClick={onDelete}>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={onDelete}
+            disabled={!canManage}
+          >
             <RiDeleteBinLine />
             {t('virtualModels.actions.delete')}
           </Button>
@@ -755,13 +784,17 @@ function VirtualModelPanel({
             variant="outline"
             size="xs"
             onClick={onToggle}
-            disabled={!globalEnabled}
+            disabled={!globalEnabled || !canManage}
           >
             {model.disabled
               ? t('virtualModels.actions.enableModel')
               : t('virtualModels.actions.disableModel')}
           </Button>
-          <Button size="xs" onClick={onAddEntry} disabled={!globalEnabled}>
+          <Button
+            size="xs"
+            onClick={onAddEntry}
+            disabled={!globalEnabled || !canManage}
+          >
             <RiAddLine />
             {t('virtualModels.actions.addEntry')}
           </Button>
@@ -790,6 +823,7 @@ function VirtualModelPanel({
                     key={entry.id}
                     entry={entry}
                     dragEnabled={canReorder}
+                    canManage={canManage}
                     onDelete={() => onDeleteEntry(entry.id)}
                   />
                 ))}
@@ -805,10 +839,12 @@ function VirtualModelPanel({
 function VirtualModelEntryRow({
   entry,
   dragEnabled,
+  canManage,
   onDelete,
 }: {
   entry: VirtualModelEntry;
   dragEnabled: boolean;
+  canManage: boolean;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
@@ -873,7 +909,7 @@ function VirtualModelEntryRow({
             event.stopPropagation();
             onDelete();
           }}
-          disabled={!canMutateEntry}
+          disabled={!canMutateEntry || !canManage}
           title={t('virtualModels.actions.deleteEntry')}
         >
           <RiDeleteBinLine />
@@ -890,6 +926,7 @@ function VirtualModelDialog({
   initialValue,
   confirmLabel,
   busy,
+  disabled,
   onOpenChange,
   onSubmit,
 }: {
@@ -899,6 +936,7 @@ function VirtualModelDialog({
   initialValue: string;
   confirmLabel: string;
   busy: boolean;
+  disabled: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (value: string) => Promise<void>;
 }) {
@@ -960,7 +998,7 @@ function VirtualModelDialog({
               }
               await onSubmit(normalized);
             }}
-            disabled={busy}
+            disabled={busy || disabled}
           >
             {confirmLabel}
           </Button>
@@ -975,6 +1013,7 @@ function AddEntryDialog({
   model,
   targets,
   busy,
+  disabled,
   onOpenChange,
   onSubmit,
 }: {
@@ -982,6 +1021,7 @@ function AddEntryDialog({
   model: VirtualModelRow | null;
   targets: AvailableTarget[];
   busy: boolean;
+  disabled: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (targets: string[]) => Promise<void>;
 }) {
@@ -1129,7 +1169,7 @@ function AddEntryDialog({
                 .map((target) => target.target);
               await onSubmit(orderedTargets);
             }}
-            disabled={busy || availableTargets.length === 0}
+            disabled={busy || disabled || availableTargets.length === 0}
           >
             {t('virtualModels.actions.addSelected', {
               count: selectedCount,
@@ -1144,11 +1184,13 @@ function AddEntryDialog({
 function ImportDialog({
   open,
   busy,
+  disabled,
   onOpenChange,
   onSubmit,
 }: {
   open: boolean;
   busy: boolean;
+  disabled: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (payload: RawVirtualModelExportPayload) => Promise<void>;
 }) {
@@ -1203,7 +1245,7 @@ function ImportDialog({
 
               await onSubmit(parsed);
             }}
-            disabled={busy}
+            disabled={busy || disabled}
           >
             {t('virtualModels.actions.import')}
           </Button>
@@ -1267,6 +1309,7 @@ function ConfirmDeleteDialog({
   description,
   confirmLabel,
   busy,
+  disabled,
   onOpenChange,
   onConfirm,
 }: {
@@ -1275,6 +1318,7 @@ function ConfirmDeleteDialog({
   description: string;
   confirmLabel: string;
   busy: boolean;
+  disabled: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => Promise<void>;
 }) {
@@ -1294,7 +1338,7 @@ function ConfirmDeleteDialog({
           <Button
             variant="destructive"
             onClick={() => void onConfirm()}
-            disabled={busy}
+            disabled={busy || disabled}
           >
             {confirmLabel}
           </Button>

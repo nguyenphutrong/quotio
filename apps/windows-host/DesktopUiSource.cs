@@ -36,7 +36,7 @@ public static class DesktopUiSource
                 ["providers"] = true,
                 ["quota"] = true,
                 ["usage"] = true,
-                ["virtualModels"] = false,
+                ["virtualModels"] = true,
                 ["models"] = true,
                 ["agents"] = true,
                 ["apiKeys"] = true,
@@ -57,7 +57,8 @@ public static class DesktopUiSource
                 ["supportsAppearanceSync"] = true,
                 ["supportsRequestLogSettings"] = false,
                 ["supportsModelSettings"] = false,
-                ["supportsApiKeyManagement"] = false
+                ["supportsApiKeyManagement"] = false,
+                ["supportsVirtualModelManagement"] = false
             }
         );
     }
