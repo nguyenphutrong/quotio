@@ -48,7 +48,7 @@ export const DEFAULT_FEATURE_FLAGS: AdminFeatureFlags = {
   apiKeys: false,
   logs: false,
   settings: true,
-  about: false,
+  about: true,
 };
 
 export const DEFAULT_HOST_CAPABILITIES: HostCapabilities = {

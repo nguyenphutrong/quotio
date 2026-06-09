@@ -17,7 +17,7 @@ const expectedFeatures = {
   apiKeys: false,
   logs: false,
   settings: true,
-  about: false,
+  about: true,
 };
 
 const expectedCapabilities = {

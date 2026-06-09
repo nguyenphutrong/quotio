@@ -42,7 +42,7 @@ public static class DesktopUiSource
                 ["apiKeys"] = false,
                 ["logs"] = false,
                 ["settings"] = true,
-                ["about"] = false
+                ["about"] = true
             },
             Capabilities: new Dictionary<string, bool>
             {
