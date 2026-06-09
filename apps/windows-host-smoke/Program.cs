@@ -36,6 +36,7 @@ var savedEnvironment = new Dictionary<string, string?>
 try
 {
     RunConfigSmoke();
+    RunDesktopUiSourceSmoke();
     RunBootstrapSmoke();
     RunWindowPlacementSmoke();
     RunRuntimeControllerSmoke();
@@ -80,6 +81,29 @@ static void RunConfigSmoke()
     Assert(envConfig.ManagementKey == "env-management-key", "Environment management key should win over credentials");
     Assert(envConfig.ProxyEndpoint == "http://127.0.0.1:8484", "Environment proxy endpoint should win over credentials");
     Assert(envConfig.ServerListen == "127.0.0.1:8484", "ServerListen should use environment proxy endpoint");
+}
+
+static void RunDesktopUiSourceSmoke()
+{
+    ClearEnvironment();
+    Environment.SetEnvironmentVariable("QUOTIO_DESKTOP_UI_DEV_SERVER", " http://localhost:5173 ");
+    var devServerSource = DesktopUiSource.Resolve(new WindowsHostConfig(_ => null));
+    Assert(devServerSource?.AbsoluteUri == "http://localhost:5173/", "Desktop UI resolver should prefer a valid dev server");
+
+    var bundledDirectory = Path.Combine(AppContext.BaseDirectory, "desktop-ui");
+    var bundledIndex = Path.Combine(bundledDirectory, "index.html");
+    Directory.CreateDirectory(bundledDirectory);
+    File.WriteAllText(bundledIndex, "<!doctype html><title>Quotio smoke</title>");
+
+    Environment.SetEnvironmentVariable("QUOTIO_DESKTOP_UI_DEV_SERVER", "not a uri");
+    var invalidDevFallback = DesktopUiSource.Resolve(new WindowsHostConfig(_ => null));
+    Assert(invalidDevFallback?.IsFile == true, "Desktop UI resolver should fall back to bundled UI when dev server is invalid");
+    var fallbackPath = invalidDevFallback?.LocalPath ?? "";
+    Assert(Path.GetFullPath(fallbackPath) == Path.GetFullPath(bundledIndex), "Desktop UI resolver should point at bundled index.html");
+
+    Environment.SetEnvironmentVariable("QUOTIO_DESKTOP_UI_DEV_SERVER", null);
+    var bundledSource = DesktopUiSource.Resolve(new WindowsHostConfig(_ => null));
+    Assert(Path.GetFullPath(bundledSource!.LocalPath) == Path.GetFullPath(bundledIndex), "Desktop UI resolver should use bundled index.html without dev server");
 }
 
 static void RunBootstrapSmoke()
