@@ -18,9 +18,11 @@ dotnet build apps/windows-host/Quotio.Windows.csproj --configuration Release
 dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release
 ```
 
-CI uploads `quotio-windows-preview.zip` from the Windows job. The artifact is a
-preview build output for smoke testing only; it is not an installer, is not
-signed, and does not include an updater.
+CI uploads `quotio-windows-preview.zip`, a `.sha256` checksum, and a
+`.manifest.json` file from the Windows job. The manifest records the source
+commit, build configuration, required bundled files, and per-file size/hash
+metadata. The artifact is a preview build output for smoke testing only; it is
+not an installer, is not signed, and does not include an updater.
 
 Maintainers can publish the same unsigned ZIP as a GitHub prerelease through the
 `Windows Preview Release` workflow. Preview release tags must start with
