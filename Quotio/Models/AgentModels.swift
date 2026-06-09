@@ -118,11 +118,11 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         case .supported:
             return nil
         case .guideOnly:
-            return "Automatic configuration is not available on this platform yet. Use the manual guide."
+            return "agents.support.message.guideOnly".localizedStatic()
         case .unsupported:
-            return "This agent is not supported on this platform."
+            return "agents.support.message.unsupported".localizedStatic()
         case .unknown:
-            return "Support for this agent has not been validated on this platform yet."
+            return "agents.support.message.unknown".localizedStatic()
         }
     }
 
@@ -350,14 +350,18 @@ nonisolated struct AgentStatus: Identifiable, Sendable {
     var id: String { agent.id }
 
     var statusText: String {
-        if platformSupport == .unsupported || platformSupport == .unknown {
-            return platformSupport.rawValue
+        if platformSupport == .guideOnly {
+            return "agents.support.guideOnly".localizedStatic()
+        } else if platformSupport == .unsupported {
+            return "agents.support.unsupported".localizedStatic()
+        } else if platformSupport == .unknown {
+            return "agents.support.unknown".localizedStatic()
         } else if !installed {
-            return "Not Installed"
+            return "agents.notInstalled".localizedStatic()
         } else if configured {
-            return "Configured"
+            return "agents.configured".localizedStatic()
         } else {
-            return "Installed"
+            return "agents.installed".localizedStatic()
         }
     }
 
