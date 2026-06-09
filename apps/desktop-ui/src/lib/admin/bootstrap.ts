@@ -24,6 +24,7 @@ export type ScreenFeatureKey = keyof typeof FEATURE_ROUTE_MAP;
 export type AdminFeatureFlags = Record<ScreenFeatureKey, boolean>;
 
 export type OperatingMode = 'local' | 'remote' | 'quota-only';
+export type HostAppearance = 'light' | 'dark' | 'system';
 
 export type HostCapabilities = {
   supportsLocalProxy: boolean;
@@ -79,7 +80,7 @@ export type AdminBootstrap = {
   platform: 'macos' | 'windows' | 'unknown';
   operatingMode: OperatingMode;
   locale: string;
-  appearance: 'light' | 'dark' | 'system';
+  appearance: HostAppearance;
   features: AdminFeatureFlags;
   capabilities: HostCapabilities;
 };
@@ -121,6 +122,13 @@ function normalizeOperatingMode(value?: string | null): OperatingMode {
   return 'local';
 }
 
+function normalizeAppearance(value?: string | null): HostAppearance {
+  if (value === 'light' || value === 'dark' || value === 'system') {
+    return value;
+  }
+  return 'system';
+}
+
 function normalizeCapabilities(capabilities?: Partial<HostCapabilities>) {
   return {
     ...DEFAULT_HOST_CAPABILITIES,
@@ -147,7 +155,7 @@ export function getDesktopBootstrap(): AdminBootstrap {
     platform: payload?.platform ?? 'unknown',
     operatingMode: normalizeOperatingMode(payload?.operatingMode),
     locale: payload?.locale ?? navigator.language,
-    appearance: payload?.appearance ?? 'system',
+    appearance: normalizeAppearance(payload?.appearance),
     features: normalizeFeatureFlags(payload?.features),
     capabilities: normalizeCapabilities(payload?.capabilities),
   };

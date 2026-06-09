@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from 'react';
+import type { HostAppearance } from '@/lib/admin/bootstrap';
 
-type Theme = 'dark' | 'light' | 'system';
+type Theme = HostAppearance;
 type ResolvedTheme = 'dark' | 'light';
 
 type ThemeProviderProps = {
