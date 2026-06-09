@@ -159,7 +159,7 @@ export function ProvidersTable({
                 <React.Fragment key={group.providerKey}>
                   {/* Group Row */}
                   <TableRow
-                    className="group cursor-pointer hover:bg-muted/50 data-[state=selected]:bg-muted [&>td]:py-2"
+                    className="group hover:bg-muted/50 data-[state=selected]:bg-muted [&>td]:py-2"
                     onClick={() => toggleGroup(group.providerKey)}
                   >
                     <TableCell className="font-medium">

@@ -1070,7 +1070,7 @@ function AddEntryDialog({
                   return (
                     <label
                       key={target.target}
-                      className="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent px-3 py-2 hover:border-border/60 hover:bg-muted/40"
+                      className="flex items-start gap-3 rounded-lg border border-transparent px-3 py-2 hover:border-border/60 hover:bg-muted/40"
                     >
                       <Checkbox
                         checked={isChecked}

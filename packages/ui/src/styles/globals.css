@@ -316,7 +316,6 @@ input::-webkit-search-cancel-button {
   width: 16px;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='hsl(215.4 16.3%25 46.9%25)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='18' y1='6' x2='6' y2='18'></line><line x1='6' y1='6' x2='18' y2='18'></line></svg>");
   background-size: 16px 16px;
-  cursor: pointer;
 }
 
 .dark input::-webkit-search-cancel-button {
