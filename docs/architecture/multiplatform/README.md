@@ -22,3 +22,4 @@ copy files from the pinned commit, not from the live working tree.
 - [ADR 0003: IPC and host bridge](0003-ipc-and-host-bridge.md)
 - [ADR 0004: Schema versioning](0004-schema-versioning.md)
 - [ADR 0005: Demo frontend adoption](0005-demo-frontend-adoption.md)
+- [ADR 0006: Cutover gap matrix](0006-cutover-gap-matrix.md)

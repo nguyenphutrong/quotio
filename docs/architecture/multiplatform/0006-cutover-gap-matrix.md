@@ -1,0 +1,65 @@
+# ADR 0006: Cutover Gap Matrix
+
+## Status
+
+Accepted for staged migration.
+
+## Context
+
+Plan 10 requires native integration, release, and cutover readiness across
+macOS and Windows. The current macOS app already has production release plumbing
+through Sparkle, notarization scripts, appcast generation, and GitHub release
+automation. The Windows host is still a preview scaffold: it builds a native
+WinUI/WebView2 shell and bridge, but it does not yet have installer, signing,
+updater, crash reporting, or credential-store-backed settings parity.
+
+The cutover must preserve native feel without claiming production parity before
+the Windows host can actually install, update, and preserve data correctly.
+
+## Decision
+
+Shared desktop screens remain feature-flagged until each surface has native host
+parity and a rollback path. macOS can continue shipping through the existing
+SwiftUI implementation while shared screens are adopted screen by screen.
+Windows builds are preview artifacts until installer, signing, updater, and
+credential storage are implemented and verified on Windows CI.
+
+## Gap Matrix
+
+| Area | macOS status | Windows status | Cutover gate |
+| --- | --- | --- | --- |
+| App shell | Production SwiftUI menu bar app | Preview WinUI shell | Windows tray, lifecycle, single-instance, window restore, and native dialogs verified |
+| Shared UI host | Embedded WKWebView host with feature flags | WebView2 host with feature flags | Both hosts pass the same contract version and route gate matrix |
+| Runtime process | Existing CLIProxyAPI lifecycle plus shared Rust foundation | Shared Rust foundation not packaged into a production installer | Start, stop, restart, crash recovery, and no-zombie-process checks pass on both OSes |
+| Management API | Existing Swift management client plus shared bridge | Bridge can proxy management requests | Endpoint parity approved per screen before enabling routes |
+| Settings | Native Swift settings remain authoritative | Preview bootstrap only | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
+| Agents | Native macOS SwiftUI write path remains authoritative | No validated Windows adapter yet | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
+| Updates | Sparkle/appcast release path exists | No updater yet | Windows updater strategy chosen and tested before production release |
+| Packaging | Existing build, package, notarize, appcast scripts | Build-only CI job | Installer, signing, uninstall, upgrade, and user-data preservation tested |
+| Rollback | Keep old Swift screens behind route flags | Keep shared route flags disabled by default | One release window with runtime flag rollback before removing superseded code |
+
+## Rollback Window
+
+For the first production release that enables a shared screen by default:
+
+- Keep the native Swift implementation available behind a host feature flag.
+- Keep the route disabled by default on Windows unless the Windows adapter has
+  passed the same acceptance checks.
+- Do not remove superseded Swift services until one release cycle after the
+  shared screen has shipped without launch-blocking regressions.
+- Treat raw i18n keys, web-only dialogs, missing keyboard flow, and platform
+  styling regressions as rollback blockers.
+
+## Release Verification
+
+Before production cutover:
+
+- Run `bun run contracts:check`, `bun run typecheck`, `bun run build`, and
+  `bun run format-and-lint`.
+- Run `cargo test`.
+- Run `xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug build`.
+- Run `xcodebuild -project Quotio.xcodeproj -scheme "Quotio Beta" -configuration Beta build`.
+- Run `dotnet build apps/windows-host/Quotio.Windows.csproj` on Windows CI.
+- Manually verify light/dark mode, keyboard navigation, multiple monitors,
+  sleep/restart recovery, offline behavior, and no stuck child processes on
+  both operating systems before enabling route flags by default.

@@ -50,7 +50,7 @@ public static class DesktopUiSource
                 ["supportsProxyControl"] = true,
                 ["supportsPortConfig"] = true,
                 ["supportsCliOAuth"] = true,
-                ["supportsAgentConfig"] = true,
+                ["supportsAgentConfig"] = false,
                 ["supportsRemoteConnections"] = true,
                 ["supportsCredentialStorage"] = true,
                 ["supportsNativeOnboarding"] = true,
