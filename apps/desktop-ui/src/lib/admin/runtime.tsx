@@ -1,3 +1,7 @@
+import type {
+  RequestKind,
+  RuntimeStatus,
+} from '@quotio/desktop-contract/generated';
 import {
   createContext,
   type ReactNode,
@@ -9,6 +13,7 @@ import type { AdminBootstrap } from '@/lib/admin/bootstrap';
 
 type DesktopBridgeRequest = {
   id: string;
+  kind?: Extract<RequestKind, 'management.request'>;
   path: string;
   init?: {
     method?: string;
@@ -26,6 +31,7 @@ export type NativeConfirmRequest = {
 
 type DesktopBridge = {
   request: <T>(request: DesktopBridgeRequest) => Promise<T>;
+  runtimeStatus?: () => Promise<RuntimeStatus>;
   confirm?: (request: NativeConfirmRequest) => Promise<boolean>;
 };
 
@@ -65,6 +71,7 @@ export function AdminRuntimeProvider({
 
     return bridge.request<T>({
       id: crypto.randomUUID(),
+      kind: 'management.request',
       path,
       init: {
         method: init?.method,

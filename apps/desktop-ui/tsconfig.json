@@ -8,6 +8,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
+      "@quotio/desktop-contract/*": ["../../packages/desktop-contract/src/*"],
       "@quotio/ui/*": ["../../packages/ui/src/*"]
     }
   }

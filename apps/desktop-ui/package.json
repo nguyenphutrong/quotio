@@ -16,6 +16,7 @@
     "@tanstack/react-form": "^1.28.6",
     "@tanstack/react-query": "^5.90.3",
     "@tanstack/react-router": "^1.168.10",
+    "@quotio/desktop-contract": "workspace:*",
     "@quotio/ui": "workspace:*",
     "i18next": "^26.0.4",
     "jotai": "^2.19.1",
