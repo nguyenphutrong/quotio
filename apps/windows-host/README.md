@@ -24,9 +24,16 @@ host when `QUOTIO_PROXY_BINARY` is set. Optional `QUOTIO_PROXY_ARGS` are split o
 spaces, and `QUOTIO_PROXY_ENDPOINT` defaults to `http://127.0.0.1:8386`.
 
 The management bridge keeps credentials out of the shared UI. In this
-foundation phase it reads `QUOTIO_MANAGEMENT_BASE_URL` and
-`QUOTIO_MANAGEMENT_KEY` from the Windows process environment, so the bootstrap
-does not advertise remote connection, credential storage, or native onboarding
-capabilities yet. Later plans should replace the environment bootstrap with
-Credential Manager-backed runtime configuration before enabling those shared UI
-flows.
+foundation phase it reads configuration from environment variables first, then
+falls back to generic Windows Credential Manager entries:
+
+- `QUOTIO_DESKTOP_UI_DEV_SERVER` or `Quotio/DesktopUiDevServer`
+- `QUOTIO_MANAGEMENT_BASE_URL` or `Quotio/ManagementBaseUrl`
+- `QUOTIO_MANAGEMENT_KEY` or `Quotio/ManagementKey`
+- `QUOTIO_PROXY_BINARY` or `Quotio/ProxyBinary`
+- `QUOTIO_PROXY_ARGS` or `Quotio/ProxyArgs`
+- `QUOTIO_PROXY_ENDPOINT` or `Quotio/ProxyEndpoint`
+
+The bootstrap still does not advertise remote connection, credential storage, or
+native onboarding capabilities. Later plans should add verified write/update
+flows before enabling those shared UI controls.

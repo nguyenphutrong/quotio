@@ -10,8 +10,9 @@ using Forms = System.Windows.Forms;
 
 public sealed partial class MainWindow : Window
 {
+    private readonly WindowsHostConfig config = new();
     private readonly WindowSettingsStore settingsStore = new();
-    private readonly RuntimeProcessController runtime = new();
+    private readonly RuntimeProcessController runtime;
     private readonly DesktopBridge bridge;
     private readonly Forms.NotifyIcon trayIcon;
     private AppWindow? appWindow;
@@ -20,7 +21,8 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
-        bridge = new DesktopBridge(DesktopWebView, runtime);
+        runtime = new RuntimeProcessController(config);
+        bridge = new DesktopBridge(DesktopWebView, runtime, config);
         trayIcon = CreateTrayIcon();
 
         Title = "Quotio";
@@ -71,10 +73,10 @@ public sealed partial class MainWindow : Window
             core.WebMessageReceived += bridge.OnWebMessageReceived;
 
             await core.AddScriptToExecuteOnDocumentCreatedAsync(
-                bridge.CreateBootstrapScript(DesktopUiSource.Bootstrap())
+                bridge.CreateBootstrapScript(DesktopUiSource.Bootstrap(config))
             );
 
-            var source = DesktopUiSource.Resolve();
+            var source = DesktopUiSource.Resolve(config);
             if (source is null)
             {
                 ShowError("Run the desktop UI build or set QUOTIO_DESKTOP_UI_DEV_SERVER.");

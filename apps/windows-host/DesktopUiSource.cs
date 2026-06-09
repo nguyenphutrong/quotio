@@ -2,9 +2,9 @@ namespace Quotio.Windows;
 
 public static class DesktopUiSource
 {
-    public static Uri? Resolve()
+    public static Uri? Resolve(WindowsHostConfig config)
     {
-        var devServer = Environment.GetEnvironmentVariable("QUOTIO_DESKTOP_UI_DEV_SERVER")?.Trim();
+        var devServer = config.DesktopUiDevServer;
         if (!string.IsNullOrEmpty(devServer) && Uri.TryCreate(devServer, UriKind.Absolute, out var devUri))
         {
             return devUri;
@@ -19,13 +19,13 @@ public static class DesktopUiSource
         return null;
     }
 
-    public static DesktopBootstrap Bootstrap()
+    public static DesktopBootstrap Bootstrap(WindowsHostConfig config)
     {
         return new DesktopBootstrap(
             UiEnabled: true,
             BasePath: "/",
             BridgeVersion: Quotio.Contract.QuotioContract.Version,
-            ServerListen: "localhost:8386",
+            ServerListen: config.ServerListen,
             Platform: "windows",
             OperatingMode: "local",
             Locale: Thread.CurrentThread.CurrentUICulture.Name,

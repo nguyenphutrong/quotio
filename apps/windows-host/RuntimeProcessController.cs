@@ -5,8 +5,13 @@ using Quotio.Contract;
 
 public sealed class RuntimeProcessController : IDisposable
 {
-    private const string DefaultEndpoint = "http://127.0.0.1:8386";
+    private readonly WindowsHostConfig config;
     private Process? child;
+
+    public RuntimeProcessController(WindowsHostConfig config)
+    {
+        this.config = config;
+    }
 
     public RuntimeStatus Status()
     {
@@ -30,7 +35,7 @@ public sealed class RuntimeProcessController : IDisposable
             return ManagedStatus();
         }
 
-        var binaryPath = Environment.GetEnvironmentVariable("QUOTIO_PROXY_BINARY")?.Trim();
+        var binaryPath = config.ProxyBinary;
         if (string.IsNullOrEmpty(binaryPath))
         {
             throw new InvalidOperationException("Windows runtime binary is not configured");
@@ -111,19 +116,13 @@ public sealed class RuntimeProcessController : IDisposable
         return new RuntimeStatus
         {
             State = "managed",
-            Endpoint = RuntimeEndpoint()
+            Endpoint = config.ProxyEndpoint
         };
     }
 
-    private static string RuntimeEndpoint()
+    private IReadOnlyList<string> ReadArguments()
     {
-        var endpoint = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT")?.Trim();
-        return string.IsNullOrEmpty(endpoint) ? DefaultEndpoint : endpoint;
-    }
-
-    private static IReadOnlyList<string> ReadArguments()
-    {
-        var rawArgs = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ARGS");
+        var rawArgs = config.ProxyArgs;
         if (string.IsNullOrWhiteSpace(rawArgs))
         {
             return [];

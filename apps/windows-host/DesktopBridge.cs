@@ -13,12 +13,14 @@ public sealed class DesktopBridge
     private const string BridgeReceiveFunction = "window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__";
     private readonly WebView2 webView;
     private readonly RuntimeProcessController runtime;
+    private readonly WindowsHostConfig config;
     private readonly HttpClient httpClient = new();
 
-    public DesktopBridge(WebView2 webView, RuntimeProcessController runtime)
+    public DesktopBridge(WebView2 webView, RuntimeProcessController runtime, WindowsHostConfig config)
     {
         this.webView = webView;
         this.runtime = runtime;
+        this.config = config;
     }
 
     public string CreateBootstrapScript(DesktopBootstrap bootstrap)
@@ -146,8 +148,8 @@ public sealed class DesktopBridge
             ? bodyElement.GetString()
             : null;
 
-        var baseUrl = Environment.GetEnvironmentVariable("QUOTIO_MANAGEMENT_BASE_URL")?.Trim();
-        var managementKey = Environment.GetEnvironmentVariable("QUOTIO_MANAGEMENT_KEY")?.Trim();
+        var baseUrl = config.ManagementBaseUrl;
+        var managementKey = config.ManagementKey;
         if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(managementKey))
         {
             throw new InvalidOperationException("Windows management bridge is not configured");
