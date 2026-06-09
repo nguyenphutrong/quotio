@@ -89,20 +89,38 @@ static void RunBootstrapSmoke()
 
     Assert(bootstrap.UiEnabled, "Windows bootstrap should enable shared UI");
     Assert(bootstrap.Platform == "windows", "Windows bootstrap should identify the platform");
+    Assert(bootstrap.BridgeVersion == Quotio.Contract.QuotioContract.Version, "Windows bootstrap should expose the generated contract version");
     Assert(bootstrap.ServerListen == "127.0.0.1:8585", "Windows bootstrap should expose server listen authority");
-    Assert(bootstrap.Features["virtualModels"], "Windows bootstrap should expose virtual models read-only");
-    Assert(bootstrap.Features["agents"], "Windows bootstrap should expose read-only agents");
-    Assert(bootstrap.Features["models"], "Windows bootstrap should expose shared model catalog");
-    Assert(bootstrap.Features["apiKeys"], "Windows bootstrap should expose API key list");
-    Assert(bootstrap.Features["logs"], "Windows bootstrap should expose request logs");
-    Assert(bootstrap.Features["settings"], "Windows bootstrap should expose shared settings placeholder");
-    Assert(bootstrap.Features["about"], "Windows bootstrap should expose shared about placeholder");
-    Assert(!bootstrap.Capabilities["supportsAgentConfig"], "Windows bootstrap should not claim agent write support");
-    Assert(!bootstrap.Capabilities["supportsCredentialStorage"], "Windows bootstrap should not claim credential editing support");
-    Assert(!bootstrap.Capabilities["supportsRequestLogSettings"], "Windows bootstrap should keep request log settings read-only");
-    Assert(!bootstrap.Capabilities["supportsModelSettings"], "Windows bootstrap should keep model settings read-only");
-    Assert(!bootstrap.Capabilities["supportsApiKeyManagement"], "Windows bootstrap should keep API key management read-only");
-    Assert(!bootstrap.Capabilities["supportsVirtualModelManagement"], "Windows bootstrap should keep virtual model management read-only");
+    AssertExactBoolDictionary(bootstrap.Features, new Dictionary<string, bool>
+    {
+        ["overview"] = true,
+        ["providers"] = true,
+        ["quota"] = true,
+        ["usage"] = true,
+        ["virtualModels"] = true,
+        ["models"] = true,
+        ["agents"] = true,
+        ["apiKeys"] = true,
+        ["logs"] = true,
+        ["settings"] = true,
+        ["about"] = true
+    }, "Windows bootstrap features");
+    AssertExactBoolDictionary(bootstrap.Capabilities, new Dictionary<string, bool>
+    {
+        ["supportsLocalProxy"] = true,
+        ["supportsProxyControl"] = true,
+        ["supportsPortConfig"] = true,
+        ["supportsCliOAuth"] = true,
+        ["supportsAgentConfig"] = false,
+        ["supportsRemoteConnections"] = false,
+        ["supportsCredentialStorage"] = false,
+        ["supportsNativeOnboarding"] = false,
+        ["supportsAppearanceSync"] = true,
+        ["supportsRequestLogSettings"] = false,
+        ["supportsModelSettings"] = false,
+        ["supportsApiKeyManagement"] = false,
+        ["supportsVirtualModelManagement"] = false
+    }, "Windows bootstrap capabilities");
 }
 
 static void RunWindowPlacementSmoke()
@@ -294,6 +312,18 @@ static void Assert(bool condition, string message)
     if (!condition)
     {
         throw new InvalidOperationException(message);
+    }
+}
+
+static void AssertExactBoolDictionary(IReadOnlyDictionary<string, bool> actual, IReadOnlyDictionary<string, bool> expected, string label)
+{
+    var actualKeys = actual.Keys.OrderBy(key => key, StringComparer.Ordinal).ToArray();
+    var expectedKeys = expected.Keys.OrderBy(key => key, StringComparer.Ordinal).ToArray();
+    Assert(actualKeys.SequenceEqual(expectedKeys), $"{label} should expose exactly the approved keys");
+
+    foreach (var (key, expectedValue) in expected)
+    {
+        Assert(actual[key] == expectedValue, $"{label} should expose {key}={expectedValue}");
     }
 }
 
