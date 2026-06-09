@@ -1,0 +1,11 @@
+[package]
+name = "quotio-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+quotio-contract = { path = "../quotio-contract" }
+
+[lib]
+path = "src/lib.rs"

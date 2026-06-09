@@ -1,0 +1,628 @@
+{
+  "common": {
+    "appName": "Quotio",
+    "adminPanel": "Quotio Admin",
+    "tagline": "AI Gateway",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "cancel": "Cancel",
+    "save": "Save",
+    "confirm": "Confirm",
+    "unknownError": "Something went wrong. Please try again."
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "welcomeBack": "Welcome back",
+    "title": "Sign in to Quotio Admin",
+    "description": "Enter your admin API key to access the dashboard and manage your AI gateway.",
+    "tokenLabel": "API key",
+    "tokenPlaceholder": "Paste your admin API key",
+    "submitting": "Signing in…",
+    "submit": "Sign in",
+    "tokenRequired": "API key is required",
+    "verificationFailed": "Verification failed. Please check your API key.",
+    "connected": "Connected",
+    "sessionExpired": "Session expired"
+  },
+  "shell": {
+    "adminConnected": "Connected",
+    "authRequired": "Not connected",
+    "reloadAdmin": "Reload",
+    "sessionLabel": "Admin session",
+    "sessionDetail": "API key",
+    "gatewayUrl": "Gateway URL",
+    "gatewayUrlHint": "OpenAI-compatible base URL for your AI clients.",
+    "copyGatewayUrl": "Copy gateway URL",
+    "gatewayUrlCopied": "Copied gateway URL."
+  },
+  "nav": {
+    "console": "Console",
+    "resources": "Resources",
+    "docs": "Docs",
+    "github": "GitHub",
+    "support": "Support",
+    "overview": "Overview",
+    "overviewDesc": "System health, usage, and real-time diagnostics.",
+    "credentials": "Credentials",
+    "credentialsDesc": "Manage API keys and provider connections.",
+    "models": "Models",
+    "modelsDesc": "Configure models and routing rules.",
+    "virtualModels": "Virtual Models",
+    "virtualModelsDesc": "Manage virtual model chains.",
+    "quota": "Quota",
+    "quotaDesc": "Monitor usage limits and spending across providers.",
+    "apiKeys": "API Keys",
+    "apiKeysDesc": "Manage client credentials and usage analytics.",
+    "logs": "Logs",
+    "logsDesc": "Browse request history and delivery status.",
+    "settings": "Settings",
+    "settingsDesc": "Manage admin preferences and configuration.",
+    "about": "About",
+    "aboutDesc": "Version, build info, and support details.",
+    "defaultTitle": "Quotio Admin",
+    "defaultDesc": "AI Gateway control panel.",
+    "providers": "Providers",
+    "providersDesc": "Manage API keys and provider connections.",
+    "agents": "Agents",
+    "agentsDesc": "Manage setup and guidance for popular AI agents."
+  },
+  "overview": {
+    "title": "Overview",
+    "description": "A real-time snapshot of your gateway's health, traffic, and costs.",
+    "refreshSnapshot": "Refresh",
+    "loadingData": "Loading dashboard…",
+    "failedToLoad": "Dashboard unavailable",
+    "incompleteData": "Incomplete data",
+    "incompleteDataDesc": "Some data sources did not respond. Please refresh to try again.",
+    "staleBanner": "{{count}} data source may be outdated. Metrics shown are approximate.",
+    "staleBanner_other": "{{count}} data sources may be outdated. Metrics shown are approximate.",
+    "gatewayStatus": "Gateway status",
+    "healthy": "Healthy",
+    "unknown": "Unknown",
+    "providerGroupsHint": "{{count}} active provider",
+    "providerGroupsHint_other": "{{count}} active providers",
+    "totalRequests": "Total requests",
+    "streamingHint": "{{count}} streaming",
+    "totalTokens": "Total tokens",
+    "tokensHint": "Prompt {{prompt}} · Completion {{completion}}",
+    "estimatedCost": "Estimated cost",
+    "savingsHint": "Saved {{amount}}",
+    "providerHealth": "Provider health",
+    "providerHealthDesc": "Connection status and credential count by provider.",
+    "snapshot": "Live",
+    "provider": "Provider",
+    "credentialEntries": "Credentials",
+    "operationalCounters": "System counters",
+    "affinityBindings": "Affinity bindings",
+    "concurrencyRecords": "Concurrency",
+    "virtualRoutes": "Virtual routes",
+    "providerCooldowns": "Cooldowns",
+    "quotaSnapshot": "Quota usage",
+    "quotaSnapshotDesc": "Current usage and limits by provider.",
+    "providerCount": "{{count}} provider",
+    "providerCount_other": "{{count}} providers",
+    "freshness": "Status",
+    "requests": "Requests",
+    "cost": "Cost",
+    "reset": "Resets in",
+    "runtimeCapabilities": "Runtime features",
+    "flagCount": "{{count}} flag",
+    "flagCount_other": "{{count}} flags"
+  },
+  "logs": {
+    "title": "Logs",
+    "description": "Review aggregated request traffic, token usage, and cost trends from gateway logs.",
+    "filters": {
+      "apiKeys": "API keys",
+      "apiKeysPlaceholder": "Filter by API key",
+      "allApiKeys": "All API keys"
+    },
+    "refreshSnapshot": "Refresh",
+    "loadingData": "Loading log metrics…",
+    "failedToLoad": "Log metrics unavailable",
+    "incompleteData": "Incomplete log data",
+    "incompleteDataDesc": "Log metrics did not return a complete payload. Refresh and try again.",
+    "totalRequests": "Total requests",
+    "streamRequests": "Streaming requests",
+    "streamingHint": "{{count}} streaming",
+    "streamRequestsHint": "{{count}} stream requests",
+    "streamingRatio": "Streaming ratio",
+    "totalTokens": "Total tokens",
+    "tokensHint": "Prompt {{prompt}} · Completion {{completion}}",
+    "promptTokens": "Prompt tokens",
+    "completionTokens": "Completion tokens",
+    "estimatedCost": "Estimated cost",
+    "estimatedSavings": "Estimated savings",
+    "savingsHint": "Saved {{amount}}",
+    "emptyTitle": "No request logs yet",
+    "emptyDescription": "Run requests through the gateway to start seeing log metrics and delivery trends.",
+    "breakdownTitle": "Log metrics breakdown",
+    "tableTitle": "Request logs",
+    "captureBodiesTitle": "Input & Output Logging",
+    "captureBodiesDesc": "When enabled, Quotio stores request and response bodies for new log entries to support troubleshooting.",
+    "viewDetails": "View details",
+    "loadMore": "Load more",
+    "detailsTitle": "Log entry details",
+    "copy": "Copy",
+    "noRequestBody": "No request body data was captured for this entry.",
+    "noResponseBody": "No response body data was captured for this entry.",
+    "noErrorData": "No error payload was recorded for this entry.",
+    "details": {
+      "overview": "Overview",
+      "request": "Request body",
+      "response": "Response body",
+      "error": "Error"
+    },
+    "badges": {
+      "upstreamValidationError": "Upstream validation error"
+    },
+    "columns": {
+      "timestamp": "Timestamp",
+      "endpoint": "Endpoint",
+      "providerModel": "Provider / Model",
+      "app": "App",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "speed": "Speed",
+      "finish": "Finish",
+      "actions": "Actions"
+    },
+    "columnsHelp": {
+      "timestamp": "When the gateway recorded this request log entry.",
+      "endpoint": "Gateway endpoint and transport method used for the request, such as POST /v1/messages or WS stream traffic.",
+      "providerModel": "Resolved upstream target in slug format. If a virtual model was requested, a mapping line shows requested model to resolved target.",
+      "app": "Client app identifier inferred from headers (X-Title, HTTP-Referer host, Originator, or User-Agent fallback).",
+      "tokens": "Token usage split into Input, Output, and Cache. Input = request input tokens, Output = generated tokens, Cache = cached input tokens reported by the upstream provider.",
+      "cost": "Estimated retail cost for this request based on known model pricing and parsed token usage.",
+      "speed": "Approximate generation throughput in tokens per second, computed from total tokens and request duration.",
+      "finish": "Finish signal extracted from upstream response payload, such as stop/completed/length."
+    },
+    "tokenLabels": {
+      "input": "Input",
+      "output": "Output",
+      "cache": "Cache"
+    },
+    "metric": "Metric",
+    "value": "Value"
+  },
+  "models": {
+    "title": "Models",
+    "description": "Manage discovered provider models, enablement, and sync state from one place.",
+    "loading": "Loading models…",
+    "failedToLoad": "Models unavailable",
+    "warningBadge": "Has warning",
+    "searchPlaceholder": "Search models or providers",
+    "emptyTitle": "No models available",
+    "emptyDescription": "Sync a provider to populate the model catalog.",
+    "noMatches": "No models matched the current search or filter.",
+    "copy": "Copy",
+    "columns": {
+      "provider": "Provider",
+      "model": "Model",
+      "capabilities": "Capabilities",
+      "status": "Status"
+    },
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "messages": {
+      "filtersUpdated": "Updated enabled models for {{provider}}.",
+      "saveFailed": "Failed to save model filters.",
+      "copied": "Copied {{model}}.",
+      "copyFailed": "Failed to copy model identifier."
+    }
+  },
+  "apiKeys": {
+    "title": "API Keys",
+    "description": "Create and manage client keys, revoke instantly, and inspect usage.",
+    "loadingData": "Loading API keys…",
+    "failedToLoad": "API keys failed to load",
+    "searchPlaceholder": "Search key names",
+    "emptyTitle": "No API keys yet",
+    "emptyDescription": "Create your first client key to start issuing bearer tokens.",
+    "never": "Never",
+    "noTrafficYet": "No traffic yet",
+    "usageSummary": "{{requests}} req · {{tokens}} tok · {{cost}}",
+    "filters": {
+      "status": "Status",
+      "sort": "Sort"
+    },
+    "status": {
+      "all": "All statuses",
+      "active": "Active",
+      "disabled": "Disabled",
+      "deleted": "Deleted"
+    },
+    "sort": {
+      "newestFirst": "Newest first",
+      "oldestFirst": "Oldest first",
+      "recentlyUsed": "Recently used",
+      "nameAZ": "Name A-Z",
+      "mostActive": "Most active"
+    },
+    "columns": {
+      "name": "Name",
+      "maskedKey": "Masked key",
+      "created": "Created",
+      "lastUsed": "Last used",
+      "status": "Status",
+      "usage30d": "30d usage",
+      "actions": "Actions"
+    },
+    "actions": {
+      "createKey": "Create key",
+      "copyKey": "Copy key",
+      "viewUsage": "View usage",
+      "rename": "Rename",
+      "disable": "Disable",
+      "enable": "Enable",
+      "delete": "Delete",
+      "saveName": "Save name"
+    },
+    "fields": {
+      "name": "Name",
+      "namePlaceholder": "Production gateway"
+    },
+    "dialogs": {
+      "create": {
+        "title": "Create API key",
+        "description": "Set a label for this key. The plaintext token is shown only once."
+      },
+      "created": {
+        "title": "API key created",
+        "description": "This plaintext token is only shown once.",
+        "helper": "Store it in your client now. It will not be returned by list, usage, or update requests."
+      },
+      "rename": {
+        "title": "Rename API key",
+        "description": "Update display name without changing the secret."
+      }
+    },
+    "usage": {
+      "title": "Usage details",
+      "description": "Inspect request volume, token consumption, and cost over time.",
+      "modelFilter": "Model filter",
+      "endpointFilter": "Endpoint filter",
+      "hourly": "Hourly",
+      "daily": "Daily",
+      "loading": "Loading usage…",
+      "failedToLoad": "Usage failed to load",
+      "timeSeries": "Time series",
+      "models": "Models",
+      "endpoints": "Endpoints",
+      "noUsage": "No usage matched this filter window.",
+      "noData": "No data available.",
+      "unknown": "unknown",
+      "metrics": {
+        "requests": "Requests",
+        "inputTokens": "Input tokens",
+        "outputTokens": "Output tokens",
+        "estimatedCost": "Estimated cost"
+      },
+      "columns": {
+        "bucket": "Bucket",
+        "value": "Value",
+        "requests": "Requests",
+        "totalTokens": "Total tokens",
+        "cost": "Cost"
+      }
+    },
+    "messages": {
+      "created": "Created {{name}}",
+      "renamed": "Renamed {{name}}",
+      "enabled": "Enabled {{name}}",
+      "disabled": "Disabled {{name}}",
+      "deleted": "Deleted {{name}}",
+      "deleteConfirm": "Delete {{name}}? This revokes the key immediately.",
+      "createFailed": "Failed to create API key",
+      "renameFailed": "Failed to rename API key",
+      "statusFailed": "Failed to update API key status",
+      "deleteFailed": "Failed to delete API key"
+    }
+  },
+  "ampcode": {
+    "title": "AmpCode",
+    "description": "Configure Amp model mappings and management access control.",
+    "loading": "Loading AmpCode settings…",
+    "failedToLoad": "AmpCode settings unavailable",
+    "sections": {
+      "cliSetup": "Amp CLI setup",
+      "cliSetupDesc": "Apply or rollback Amp CLI local settings on the Quotio server host, and view manual setup instructions.",
+      "upstreamAccess": "Amp upstream access",
+      "upstreamAccessDesc": "Configure Amp upstream API key and route priority mode. Providers remains the source of truth for execution credentials.",
+      "modelMappings": "Model mappings",
+      "modelMappingsDesc": "Define exact mappings for predefined Amp slots and optional custom mappings.",
+      "customMappings": "Custom model mappings",
+      "customMappingsDesc": "Use this for non-predefined Amp model identifiers. Custom mappings only change model translation, not provider credentials.",
+      "security": "Security",
+      "securityDesc": "Configure access policy for Amp management routes."
+    },
+    "fields": {
+      "slot": "Slot",
+      "from": "From",
+      "to": "To",
+      "customFromPlaceholder": "Enter Amp model identifier",
+      "regex": "Regex",
+      "targetFilter": "Filter targets",
+      "targetFilterPlaceholder": "Search by provider, model, or virtual target",
+      "upstreamApiKey": "Amp Upstream API Key",
+      "upstreamApiKeyPlaceholder": "Enter a new upstream key to replace current one",
+      "upstreamApiKeyHelp": "Used by Quotio when proxying to ampcode.com for upstream fallback or Amp-first routing. This is not a Provider credential.",
+      "clientBearerHelp": "AMP_URL and AMP_API_KEY in Amp CLI authenticate the client to Quotio. That bearer token must be accepted by the current management auth policy.",
+      "clientApiKeys": "Client API Keys",
+      "clientApiKeysPlaceholder": "One API key per line",
+      "clientApiKeysHelp": "Top-level api_keys are the only configured client bearer tokens for Amp management auth and Amp CLI defaults. admin.api_key is admin-only.",
+      "routingMode": "Routing mode",
+      "routingModeHelp": "Controls route preference only. Provider credentials are still managed in the Providers screen.",
+      "restrictLocalhost": "Restrict management routes to localhost",
+      "restrictLocalhostHelp": "Use the remote socket IP only. Requests from non-loopback addresses are denied.",
+      "managementAuthPolicy": "Management auth policy",
+      "managementAuthPolicyHelp": "Controls authentication for Amp management proxy routes. This does not change provider authentication."
+    },
+    "options": {
+      "preferLocalThenAmp": "Prefer Quotio models first, then Amp fallback",
+      "preferAmpUntilQuotaExhausted": "Prefer Amp first, then fallback to Quotio on quota/rate/unavailable",
+      "validateKnownClient": "Validate known client",
+      "allowAnyBearer": "Allow any bearer"
+    },
+    "actions": {
+      "applySettings": "Apply settings",
+      "applyingSettings": "Applying…",
+      "rollbackSettings": "Rollback",
+      "rollingBackSettings": "Rolling back…",
+      "previewDiff": "Preview diff",
+      "previewingDiff": "Previewing…",
+      "showManualSetup": "Show manual setup",
+      "addCustomMapping": "Add Custom Mapping",
+      "removeCustomMapping": "Remove custom mapping",
+      "clearUpstreamApiKey": "Clear upstream key",
+      "saveChanges": "Save Changes"
+    },
+    "labels": {
+      "loadingCLISetupStatus": "Loading Amp CLI setup status…",
+      "serverMachineScope": "Applies on server host machine",
+      "setupState": "Setup state",
+      "installedByQuotio": "Quotio-managed Amp CLI settings are currently installed.",
+      "notInstalledByQuotio": "Amp CLI settings differ from Quotio-managed values.",
+      "rollbackManifest": "Latest rollback manifest",
+      "serverHomeDirectory": "Server home directory",
+      "quotioBaseURL": "Quotio base URL",
+      "effectiveUpstreamURL": "Effective Amp upstream URL",
+      "effectiveUpstreamURLHelp": "If no custom upstream URL override is saved, Quotio defaults Amp management and upstream fallback traffic to https://ampcode.com.",
+      "targetFiles": "Target Amp files",
+      "latestDiffPreview": "Latest diff preview",
+      "diffDialogDescription": "Review proposed changes before applying Amp CLI setup on the server host machine.",
+      "diffBefore": "Before",
+      "diffAfter": "After",
+      "emptyFile": "(empty)",
+      "diffPreviewTruncated": "Preview is truncated for performance. Full diff rendering will be restored in a later fix.",
+      "noDiffChanges": "No pending changes in Amp CLI config files.",
+      "rollbackUnavailable": "Rollback is unavailable because there is no saved manifest yet.",
+      "manualFileSetup": "Manual file setup",
+      "manualEnvSetup": "Manual environment variable setup",
+      "ampLoginNotRequired": "After file-based config or env vars are set, amp login is not required.",
+      "loadingTargets": "Loading available targets…",
+      "selectTarget": "Select a target model",
+      "none": "None",
+      "currentUpstreamKey": "Current key: {{key}}",
+      "selectedTarget": "Selected target: {{target}}",
+      "virtualModelsGroup": "Virtual models",
+      "availableTargetsCount": "{{count}} targets",
+      "noTargetsFound": "No matching targets"
+    },
+    "validation": {
+      "customFromRequired": "Custom mapping From is required.",
+      "customToRequired": "Custom mapping To is required.",
+      "invalidRegex": "Invalid regex pattern.",
+      "duplicateWithPredefined": "This From value collides with a predefined slot mapping.",
+      "duplicateCustomFrom": "Duplicate From value in custom mappings."
+    },
+    "messages": {
+      "saved": "AmpCode settings saved."
+    }
+  },
+  "virtualModels": {
+    "title": "Virtual Models",
+    "description": "Configure named virtual model chains that automatically route requests across provider/model targets.",
+    "loading": "Loading virtual models…",
+    "failedToLoad": "Virtual models unavailable",
+    "global": {
+      "title": "Global routing",
+      "description": "Enable or disable virtual model routing across the gateway."
+    },
+    "list": {
+      "title": "Configured models",
+      "description": "Create, rename, enable, and reorder virtual model fallback chains.",
+      "disabled": "Disabled",
+      "entryCount": "{{count}} entry",
+      "entryCount_other": "{{count}} entries"
+    },
+    "entries": {
+      "emptyTitle": "No entries configured",
+      "emptyDescription": "Add a provider/model target to start building this chain.",
+      "invalidTarget": "Invalid target",
+      "noSearchResults": "No targets matched the current search.",
+      "noAvailableTargetsTitle": "No targets available",
+      "noAvailableTargetsDescription": "All available provider/model targets are already part of this chain."
+    },
+    "empty": {
+      "title": "No virtual models yet",
+      "description": "Create a virtual model to define an ordered chain of concrete provider/model targets.",
+      "disabledTitle": "Enable routing to create virtual models",
+      "disabledDescription": "Turn on virtual model routing first, then create your first chain."
+    },
+    "fields": {
+      "name": "Virtual model name",
+      "namePlaceholder": "quotio-smart-router",
+      "nameHint": "Use this model name in client requests to activate the chain.",
+      "target": "Target",
+      "searchPlaceholder": "Search models, providers, or virtual targets",
+      "virtualBadge": "Virtual",
+      "virtualDescription": "Nested virtual model",
+      "targetPlaceholder": "Select a provider/model target",
+      "importPlaceholder": "{\n  \"enabled\": true,\n  \"virtual_models\": {}\n}"
+    },
+    "dialogs": {
+      "createTitle": "Create virtual model",
+      "renameTitle": "Rename virtual model",
+      "modelDescription": "Virtual models give one stable name to an ordered set of concrete routing targets.",
+      "addEntryTitle": "Add entry",
+      "addEntryDescription": "Choose a provider/model target to append to {{name}}.",
+      "deleteModelTitle": "Delete virtual model",
+      "deleteModelDescription": "Delete {{name}} and all of its configured entries? This action cannot be undone.",
+      "deleteEntryTitle": "Delete entry",
+      "deleteEntryDescription": "Delete {{target}} from {{name}}?",
+      "importTitle": "Import virtual models",
+      "importDescription": "Paste an exported virtual-model configuration JSON payload.",
+      "exportTitle": "Export virtual models",
+      "exportDescription": "Copy the current virtual-model configuration payload."
+    },
+    "actions": {
+      "create": "Create virtual model",
+      "rename": "Rename",
+      "delete": "Delete",
+      "reset": "Reset all",
+      "import": "Import",
+      "export": "Export",
+      "copyExport": "Copy JSON",
+      "copyModelName": "Copy model name",
+      "clearRoutes": "Clear routes",
+      "addEntry": "Add entry",
+      "addSelected": "Add selected ({{count}})",
+      "deleteEntry": "Delete entry",
+      "dragToReorder": "Drag to reorder",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "enableModel": "Enable model",
+      "disableModel": "Disable model"
+    },
+    "validation": {
+      "nameRequired": "Virtual model name is required.",
+      "targetRequired": "Select a target before saving.",
+      "invalidJson": "The import payload must be valid JSON."
+    },
+    "messages": {
+      "enabled": "Virtual model routing enabled.",
+      "disabled": "Virtual model routing disabled.",
+      "toggleFailed": "Failed to update virtual model routing.",
+      "modelCreated": "Created {{name}}.",
+      "modelRenamed": "Renamed model to {{name}}.",
+      "modelDeleted": "Deleted {{name}}.",
+      "modelEnabled": "Enabled {{name}}.",
+      "modelDisabled": "Disabled {{name}}.",
+      "modelSaveFailed": "Failed to save virtual model.",
+      "modelUpdateFailed": "Failed to update virtual model.",
+      "modelDeleteFailed": "Failed to delete virtual model.",
+      "entryAdded": "Added {{count}} entry to {{name}}.",
+      "entryAdded_other": "Added {{count}} entries to {{name}}.",
+      "entryDeleted": "Deleted an entry from {{name}}.",
+      "entryAddFailed": "Failed to add entry.",
+      "entryDeleteFailed": "Failed to delete entry.",
+      "reorderSaved": "Saved new order for {{name}}.",
+      "reorderFailed": "Failed to reorder entries.",
+      "reorderUnavailable": "Cannot reorder entries until all visible entries have stable IDs.",
+      "routesCleared": "Cleared all cached routes.",
+      "clearRoutesFailed": "Failed to clear active routes.",
+      "importComplete": "Imported virtual-model configuration.",
+      "importFailed": "Failed to import virtual-model configuration.",
+      "exportFailed": "Failed to export virtual-model configuration.",
+      "exportCopied": "Copied export JSON.",
+      "exportCopyFailed": "Failed to copy export JSON.",
+      "resetComplete": "Reset virtual models to the default empty configuration.",
+      "resetFailed": "Failed to reset virtual-model configuration."
+    }
+  },
+  "placeholder": {
+    "comingSoon": "This feature is coming soon. We're actively working on it.",
+    "aboutDesc": "Version info and system details will appear here.",
+    "credentialsDesc": "API key and provider credential management is next.",
+    "logsDesc": "Request logs and delivery history are on the way.",
+    "modelsDesc": "Model configuration and routing management is coming up.",
+    "quotaDesc": "Usage limits and spending controls will be available here.",
+    "settingsDesc": "Admin preferences and configuration options are in progress."
+  },
+  "bootstrap": {
+    "failedLabel": "Startup error",
+    "failedTitle": "Quotio Admin couldn't start",
+    "unknownError": "An unexpected error occurred during startup."
+  },
+  "agents": {
+    "title": "Agents",
+    "description": "Unified setup and guidance for Claude, Codex, OpenCode, Factory, and guide-only agents.",
+    "loading": "Loading agents…",
+    "failedToLoad": "Failed to load agents",
+    "ampcodeTab": "AmpCode",
+    "savedTitle": "Action succeeded",
+    "failedTitle": "Action failed",
+    "unknownError": "Unknown error",
+    "actions": {
+      "guide": "Guide",
+      "diff": "Diff",
+      "install": "Install",
+      "rollback": "Rollback",
+      "viewGuide": "Guide",
+      "runDiff": "Diff",
+      "copy": "Copy",
+      "copied": "Copied",
+      "retry": "Retry"
+    },
+    "fields": {
+      "binaries": "Binaries",
+      "targets": "Target files",
+      "caveats": "Caveats"
+    },
+    "empty": {
+      "title": "No agents available",
+      "description": "Check your server installation and try again."
+    },
+    "badges": {
+      "guideOnly": "Guide-only",
+      "installed": "Installed",
+      "notInstalled": "Not installed",
+      "rollbackAvailable": "Backup available",
+      "noBackup": "No backup"
+    },
+    "actionState": {
+      "running": "Running",
+      "success": "Success",
+      "error": "Error"
+    },
+    "sections": {
+      "overview": "Overview",
+      "targets": "Target files",
+      "binaries": "Binaries",
+      "caveats": "Caveats",
+      "capabilities": "Capabilities",
+      "lastResult": "Last result",
+      "docs": "Docs"
+    },
+    "guide": {
+      "title": "Guide",
+      "stepLabel": "Step {{index}}",
+      "verify": "Verify",
+      "configSnippet": "Config snippet",
+      "envSnippet": "Environment snippet",
+      "caveats": "Caveats",
+      "close": "Close"
+    },
+    "diff": {
+      "fileChanged": "Changed",
+      "fileUnchanged": "Unchanged",
+      "fileNew": "New",
+      "before": "Before",
+      "after": "After",
+      "truncated": "Preview truncated"
+    },
+    "payload": {
+      "show": "Show raw payload",
+      "hide": "Hide raw payload"
+    },
+    "errors": {
+      "actionFailed": "Action failed",
+      "noManifest": "No rollback manifest is available."
+    }
+  }
+}

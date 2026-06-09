@@ -37,3 +37,17 @@ plans/
 
 .lattice/
 .codex/
+
+# Frontend workspace
+node_modules/
+.pnp
+.pnp.js
+.turbo/
+dist/
+**/dist/
+coverage/
+bun.lockb
+npm-debug.log*
+
+# TanStack Router generated output
+routeTree.gen.ts

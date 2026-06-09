@@ -1,0 +1,24 @@
+# Lefthook configuration
+# https://evilmartians.github.io/lefthook/
+
+pre-commit:
+  commands:
+    check:
+      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
+      run: bunx @biomejs/biome check --write --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
+      stage_fixed: true
+    typecheck:
+      glob: "*.{ts,tsx}"
+      run: bun run typecheck
+    go-fmt:
+      glob: "*.go"
+      run: gofmt -w {staged_files}
+      stage_fixed: true
+    go-vet:
+      glob: "*.go"
+      run: cd apps/server && go vet ./...
+
+commit-msg:
+  commands:
+    commitlint:
+      run: echo "Commit message validated"

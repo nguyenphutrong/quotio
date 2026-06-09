@@ -1,0 +1,29 @@
+{
+  "name": "quotio",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "contracts:check": "node tools/contract-codegen/generate.mjs --check",
+    "contracts:generate": "node tools/contract-codegen/generate.mjs",
+    "dev": "turbo dev",
+    "format-and-lint": "biome check apps packages tools schema generated package.json tsconfig.json tsconfig.base.json turbo.json",
+    "format-and-lint:fix": "biome check apps packages tools schema generated package.json tsconfig.json tsconfig.base.json turbo.json --write",
+    "typecheck": "turbo typecheck",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.10",
+    "lefthook": "^1.11.13",
+    "turbo": "^2.8.17",
+    "typescript": "5.9.3"
+  },
+  "packageManager": "bun@1.3.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

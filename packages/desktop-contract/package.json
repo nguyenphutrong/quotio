@@ -1,0 +1,15 @@
+{
+  "name": "@quotio/desktop-contract",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false"
+  },
+  "exports": {
+    "./generated": "./src/generated.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

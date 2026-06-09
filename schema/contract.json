@@ -1,0 +1,57 @@
+{
+  "contractVersion": 1,
+  "requests": [
+    {
+      "kind": "runtime.status",
+      "response": "RuntimeStatus"
+    },
+    {
+      "kind": "runtime.start",
+      "response": "RuntimeStatus"
+    },
+    {
+      "kind": "runtime.stop",
+      "response": "RuntimeStatus"
+    },
+    {
+      "kind": "management.request",
+      "response": "ManagementResponse"
+    }
+  ],
+  "events": [
+    {
+      "kind": "runtime.statusChanged",
+      "payload": "RuntimeStatus"
+    }
+  ],
+  "models": [
+    {
+      "name": "RuntimeStatus",
+      "fields": [
+        {
+          "name": "state",
+          "type": "string"
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "ManagementResponse",
+      "fields": [
+        {
+          "name": "status",
+          "type": "number"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "optional": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,624 @@
+{
+  "common": {
+    "appName": "Quotio",
+    "adminPanel": "Quotio 管理面板",
+    "tagline": "AI 网关",
+    "loading": "加载中…",
+    "retry": "重试",
+    "refresh": "刷新",
+    "cancel": "取消",
+    "save": "保存",
+    "confirm": "确认",
+    "unknownError": "出了点问题，请重试。"
+  },
+  "auth": {
+    "signIn": "登录",
+    "signOut": "退出登录",
+    "welcomeBack": "欢迎回来",
+    "title": "登录 Quotio 管理面板",
+    "description": "输入管理员 API 密钥以访问控制台并管理您的 AI 网关。",
+    "tokenLabel": "API 密钥",
+    "tokenPlaceholder": "粘贴您的管理员 API 密钥",
+    "submitting": "登录中…",
+    "submit": "登录",
+    "tokenRequired": "需要输入 API 密钥",
+    "verificationFailed": "验证失败，请检查您的 API 密钥。",
+    "connected": "已连接",
+    "sessionExpired": "会话已过期"
+  },
+  "shell": {
+    "adminConnected": "已连接",
+    "authRequired": "未连接",
+    "reloadAdmin": "重新加载",
+    "sessionLabel": "管理会话",
+    "sessionDetail": "API 密钥",
+    "gatewayUrl": "网关 URL",
+    "gatewayUrlHint": "供 AI 客户端使用的 OpenAI 兼容基础 URL。",
+    "copyGatewayUrl": "复制网关 URL",
+    "gatewayUrlCopied": "已复制网关 URL。"
+  },
+  "nav": {
+    "console": "控制台",
+    "resources": "资源",
+    "docs": "文档",
+    "github": "GitHub",
+    "support": "支持",
+    "overview": "概览",
+    "overviewDesc": "系统健康状况、使用量和实时诊断。",
+    "credentials": "凭证",
+    "credentialsDesc": "管理 API 密钥和服务商连接。",
+    "models": "模型",
+    "modelsDesc": "配置模型和路由规则。",
+    "virtualModels": "Virtual Models",
+    "virtualModelsDesc": "管理 virtual model 链。",
+    "quota": "配额",
+    "quotaDesc": "监控各服务商的使用限额和支出。",
+    "apiKeys": "API Keys",
+    "apiKeysDesc": "管理客户端凭证和使用分析。",
+    "logs": "日志",
+    "logsDesc": "浏览请求历史和送达状态。",
+    "settings": "设置",
+    "settingsDesc": "管理偏好和系统配置。",
+    "about": "关于",
+    "aboutDesc": "版本、构建信息和支持详情。",
+    "defaultTitle": "Quotio 管理面板",
+    "defaultDesc": "AI 网关控制面板。",
+    "providers": "服务商",
+    "providersDesc": "管理 API 密钥和服务商连接。",
+    "agents": "Agents",
+    "agentsDesc": "管理常见 AI Agent 的配置与接入指南。"
+  },
+  "overview": {
+    "title": "概览",
+    "description": "网关健康状况、流量和成本的实时快照。",
+    "refreshSnapshot": "刷新",
+    "loadingData": "正在加载控制台…",
+    "failedToLoad": "控制台不可用",
+    "incompleteData": "数据不完整",
+    "incompleteDataDesc": "部分数据源未响应，请刷新重试。",
+    "staleBanner": "{{count}} 个数据源可能已过时。显示的指标为近似值。",
+    "gatewayStatus": "网关状态",
+    "healthy": "运行正常",
+    "unknown": "未知",
+    "providerGroupsHint": "{{count}} 个活跃服务商",
+    "totalRequests": "总请求数",
+    "streamingHint": "{{count}} 个流式请求",
+    "totalTokens": "总 Token 数",
+    "tokensHint": "提示 {{prompt}} · 补全 {{completion}}",
+    "estimatedCost": "预估成本",
+    "savingsHint": "已节省 {{amount}}",
+    "providerHealth": "服务商状态",
+    "providerHealthDesc": "各服务商的连接状态和凭证数量。",
+    "snapshot": "实时",
+    "provider": "服务商",
+    "credentialEntries": "凭证",
+    "operationalCounters": "系统计数器",
+    "affinityBindings": "亲和绑定",
+    "concurrencyRecords": "并发",
+    "virtualRoutes": "虚拟路由",
+    "providerCooldowns": "冷却中",
+    "quotaSnapshot": "配额使用",
+    "quotaSnapshotDesc": "各服务商的当前使用量和限额。",
+    "providerCount": "{{count}} 个服务商",
+    "freshness": "状态",
+    "requests": "请求数",
+    "cost": "成本",
+    "reset": "重置倒计时",
+    "runtimeCapabilities": "运行时特性",
+    "flagCount": "{{count}} 个标志"
+  },
+  "logs": {
+    "title": "日志",
+    "description": "查看来自网关日志的聚合请求流量、Token 使用量和成本趋势。",
+    "filters": {
+      "apiKeys": "API Keys",
+      "apiKeysPlaceholder": "按 API Key 筛选",
+      "allApiKeys": "全部 API Keys"
+    },
+    "refreshSnapshot": "刷新",
+    "loadingData": "正在加载日志指标…",
+    "failedToLoad": "日志指标不可用",
+    "incompleteData": "日志数据不完整",
+    "incompleteDataDesc": "日志指标返回的数据不完整，请刷新后重试。",
+    "totalRequests": "总请求数",
+    "streamRequests": "流式请求数",
+    "streamingHint": "{{count}} 个流式请求",
+    "streamRequestsHint": "{{count}} 个流式请求",
+    "streamingRatio": "流式占比",
+    "totalTokens": "总 Token 数",
+    "tokensHint": "提示 {{prompt}} · 补全 {{completion}}",
+    "promptTokens": "提示 Token",
+    "completionTokens": "补全 Token",
+    "estimatedCost": "预估成本",
+    "estimatedSavings": "预估节省",
+    "savingsHint": "已节省 {{amount}}",
+    "emptyTitle": "暂无请求日志",
+    "emptyDescription": "先通过网关发起请求，即可查看日志指标和投递趋势。",
+    "breakdownTitle": "日志指标明细",
+    "tableTitle": "请求日志",
+    "captureBodiesTitle": "Input & Output Logging",
+    "captureBodiesDesc": "启用后，Quotio 会为新日志条目保存请求与响应体，便于排障。",
+    "viewDetails": "查看详情",
+    "loadMore": "加载更多",
+    "detailsTitle": "日志条目详情",
+    "copy": "复制",
+    "noRequestBody": "该条目未捕获请求体数据。",
+    "noResponseBody": "该条目未捕获响应体数据。",
+    "noErrorData": "该条目未记录错误载荷。",
+    "details": {
+      "overview": "概览",
+      "request": "请求体",
+      "response": "响应体",
+      "error": "错误"
+    },
+    "badges": {
+      "upstreamValidationError": "上游校验错误"
+    },
+    "columns": {
+      "timestamp": "时间",
+      "endpoint": "端点",
+      "providerModel": "服务商 / 模型",
+      "app": "应用",
+      "tokens": "Token",
+      "cost": "成本",
+      "speed": "速度",
+      "finish": "结束原因",
+      "actions": "操作"
+    },
+    "columnsHelp": {
+      "timestamp": "网关记录该请求日志条目的时间。",
+      "endpoint": "请求使用的网关端点与传输方式，例如 POST /v1/messages 或 WS 流式传输。",
+      "providerModel": "已解析的上游目标（slug 形式）。若请求使用虚拟模型，会显示“请求模型 -> 实际目标”的映射行。",
+      "app": "从请求头推断的客户端应用标识（X-Title、HTTP-Referer 主机、Originator，或 User-Agent 回退）。",
+      "tokens": "Token 用量拆分为 Input、Output、Cache。Input = 请求输入 token，Output = 模型输出 token，Cache = 上游返回的缓存输入 token。",
+      "cost": "基于已知模型定价与解析到的 token 用量估算的单请求零售成本。",
+      "speed": "近似生成速度（tokens/秒），由总 token 与请求耗时计算。",
+      "finish": "从上游响应 payload 提取的结束信号，例如 stop/completed/length。"
+    },
+    "tokenLabels": {
+      "input": "Input",
+      "output": "Output",
+      "cache": "Cache"
+    },
+    "metric": "指标",
+    "value": "数值"
+  },
+  "models": {
+    "title": "模型",
+    "description": "在一个页面里管理服务商模型发现结果、启用状态和同步状态。",
+    "loading": "正在加载模型…",
+    "failedToLoad": "模型页面不可用",
+    "warningBadge": "有警告",
+    "searchPlaceholder": "搜索模型或服务商",
+    "emptyTitle": "暂无模型",
+    "emptyDescription": "先同步一个服务商以填充模型目录。",
+    "noMatches": "没有模型匹配当前搜索或筛选条件。",
+    "copy": "复制",
+    "columns": {
+      "provider": "服务商",
+      "model": "模型",
+      "capabilities": "能力",
+      "status": "状态"
+    },
+    "status": {
+      "enabled": "已启用",
+      "disabled": "已禁用"
+    },
+    "messages": {
+      "filtersUpdated": "已更新 {{provider}} 的模型启用规则。",
+      "saveFailed": "保存模型过滤规则失败。",
+      "copied": "已复制 {{model}}。",
+      "copyFailed": "复制模型标识失败。"
+    }
+  },
+  "apiKeys": {
+    "title": "API Keys",
+    "description": "创建并管理客户端 API key，支持即时吊销和 usage 查看。",
+    "loadingData": "正在加载 API keys…",
+    "failedToLoad": "API keys 加载失败",
+    "searchPlaceholder": "按 key 名称搜索",
+    "emptyTitle": "还没有 API key",
+    "emptyDescription": "创建第一个 client key 以签发 bearer token。",
+    "never": "从未",
+    "noTrafficYet": "暂无流量",
+    "usageSummary": "{{requests}} req · {{tokens}} tok · {{cost}}",
+    "filters": {
+      "status": "状态",
+      "sort": "排序"
+    },
+    "status": {
+      "all": "全部状态",
+      "active": "启用",
+      "disabled": "禁用",
+      "deleted": "已删除"
+    },
+    "sort": {
+      "newestFirst": "最新优先",
+      "oldestFirst": "最旧优先",
+      "recentlyUsed": "最近使用",
+      "nameAZ": "名称 A-Z",
+      "mostActive": "最活跃"
+    },
+    "columns": {
+      "name": "名称",
+      "maskedKey": "脱敏 key",
+      "created": "创建时间",
+      "lastUsed": "最近使用",
+      "status": "状态",
+      "usage30d": "30 天使用量",
+      "actions": "操作"
+    },
+    "actions": {
+      "createKey": "创建 key",
+      "copyKey": "复制 key",
+      "viewUsage": "查看 usage",
+      "rename": "重命名",
+      "disable": "禁用",
+      "enable": "启用",
+      "delete": "删除",
+      "saveName": "保存名称"
+    },
+    "fields": {
+      "name": "名称",
+      "namePlaceholder": "Production gateway"
+    },
+    "dialogs": {
+      "create": {
+        "title": "创建 API key",
+        "description": "为该 key 设置标签。明文 token 只会显示一次。"
+      },
+      "created": {
+        "title": "API key 已创建",
+        "description": "该明文 token 只显示一次。",
+        "helper": "请立即保存到客户端。后续 list、usage、update 接口都不会返回该 token。"
+      },
+      "rename": {
+        "title": "重命名 API key",
+        "description": "仅更新显示名称，不改变底层密钥。"
+      }
+    },
+    "usage": {
+      "title": "Usage 详情",
+      "description": "查看请求量、token 消耗和成本趋势。",
+      "modelFilter": "按 model 过滤",
+      "endpointFilter": "按 endpoint 过滤",
+      "hourly": "按小时",
+      "daily": "按天",
+      "loading": "正在加载 usage…",
+      "failedToLoad": "usage 加载失败",
+      "timeSeries": "时间序列",
+      "models": "Models",
+      "endpoints": "Endpoints",
+      "noUsage": "当前筛选窗口没有匹配的 usage。",
+      "noData": "暂无数据。",
+      "unknown": "未知",
+      "metrics": {
+        "requests": "请求数",
+        "inputTokens": "输入 tokens",
+        "outputTokens": "输出 tokens",
+        "estimatedCost": "预估成本"
+      },
+      "columns": {
+        "bucket": "时间桶",
+        "value": "值",
+        "requests": "请求数",
+        "totalTokens": "总 tokens",
+        "cost": "成本"
+      }
+    },
+    "messages": {
+      "created": "已创建 {{name}}",
+      "renamed": "已重命名 {{name}}",
+      "enabled": "已启用 {{name}}",
+      "disabled": "已禁用 {{name}}",
+      "deleted": "已删除 {{name}}",
+      "deleteConfirm": "确认删除 {{name}}？该 key 会立即失效。",
+      "createFailed": "创建 API key 失败",
+      "renameFailed": "重命名 API key 失败",
+      "statusFailed": "更新 API key 状态失败",
+      "deleteFailed": "删除 API key 失败"
+    }
+  },
+  "ampcode": {
+    "title": "AmpCode",
+    "description": "配置 Amp 模型映射和管理访问控制。",
+    "loading": "正在加载 AmpCode 配置…",
+    "failedToLoad": "AmpCode 配置不可用",
+    "sections": {
+      "cliSetup": "Amp CLI 设置",
+      "cliSetupDesc": "在 Quotio 服务器主机上应用或回滚 Amp CLI 本地配置，并查看手动配置说明。",
+      "upstreamAccess": "Amp 上游访问",
+      "upstreamAccessDesc": "配置 Amp 上游 API Key 与路由优先模式。Providers 仍是执行凭证的唯一来源。",
+      "modelMappings": "模型映射",
+      "modelMappingsDesc": "为固定 Amp 槽位配置精确映射，并可添加自定义映射。",
+      "customMappings": "自定义模型映射",
+      "customMappingsDesc": "用于固定槽位之外的 Amp 模型标识。自定义映射只影响模型翻译，不管理 provider 凭证。",
+      "security": "安全",
+      "securityDesc": "配置 Amp 管理路由的访问策略。"
+    },
+    "fields": {
+      "slot": "槽位",
+      "from": "From",
+      "to": "To",
+      "customFromPlaceholder": "输入 Amp 模型标识",
+      "regex": "Regex",
+      "targetFilter": "筛选目标",
+      "targetFilterPlaceholder": "按 provider、model 或 virtual target 搜索",
+      "upstreamApiKey": "Amp 上游 API Key",
+      "upstreamApiKeyPlaceholder": "输入新的上游 key 以替换当前 key",
+      "upstreamApiKeyHelp": "Quotio 在代理到 ampcode.com 做上游回退或 Amp 优先路由时使用此 key。它不是 Provider 凭证。",
+      "clientBearerHelp": "Amp CLI 中的 AMP_URL 与 AMP_API_KEY 用于让客户端向 Quotio 认证。该 bearer token 必须被当前管理认证策略接受。",
+      "clientApiKeys": "客户端 API Keys",
+      "clientApiKeysPlaceholder": "每行一个 API key",
+      "clientApiKeysHelp": "顶层 api_keys 是 Amp 管理认证和 Amp CLI 默认值唯一使用的客户端 bearer token。admin.api_key 仅用于管理员。",
+      "routingMode": "路由模式",
+      "routingModeHelp": "仅控制路由优先级。Provider 凭证仍在 Providers 页面管理。",
+      "restrictLocalhost": "仅允许 localhost 访问管理路由",
+      "restrictLocalhostHelp": "仅依据真实 socket IP 判断，非 loopback 地址会被拒绝。",
+      "managementAuthPolicy": "管理认证策略",
+      "managementAuthPolicyHelp": "控制 Amp 管理代理路由的认证策略，不影响 provider 认证。"
+    },
+    "options": {
+      "preferLocalThenAmp": "优先 Quotio 模型，再回退 Amp",
+      "preferAmpUntilQuotaExhausted": "优先 Amp，配额/限流/不可用时回退 Quotio",
+      "validateKnownClient": "验证已知客户端",
+      "allowAnyBearer": "允许任意 bearer"
+    },
+    "actions": {
+      "applySettings": "应用配置",
+      "applyingSettings": "应用中…",
+      "rollbackSettings": "回滚",
+      "rollingBackSettings": "回滚中…",
+      "previewDiff": "预览差异",
+      "previewingDiff": "正在生成差异…",
+      "showManualSetup": "显示手动配置",
+      "addCustomMapping": "添加自定义映射",
+      "removeCustomMapping": "删除自定义映射",
+      "clearUpstreamApiKey": "清除上游 key",
+      "saveChanges": "保存更改"
+    },
+    "labels": {
+      "loadingCLISetupStatus": "正在加载 Amp CLI 设置状态…",
+      "serverMachineScope": "作用于服务器主机",
+      "setupState": "设置状态",
+      "installedByQuotio": "当前已应用 Quotio 管理的 Amp CLI 配置。",
+      "notInstalledByQuotio": "当前 Amp CLI 配置与 Quotio 管理值不一致。",
+      "rollbackManifest": "最新回滚清单",
+      "serverHomeDirectory": "服务器 home 目录",
+      "quotioBaseURL": "Quotio 基础 URL",
+      "effectiveUpstreamURL": "实际 Amp 上游 URL",
+      "effectiveUpstreamURLHelp": "如果没有保存自定义 upstream URL override，Quotio 会默认把 Amp 管理流量和上游回退流量发往 https://ampcode.com。",
+      "targetFiles": "Amp 目标文件",
+      "latestDiffPreview": "最新差异预览",
+      "diffDialogDescription": "在服务器主机上应用 Amp CLI 配置前，请先检查这些变更。",
+      "diffBefore": "变更前",
+      "diffAfter": "变更后",
+      "emptyFile": "（空）",
+      "diffPreviewTruncated": "为避免界面卡顿，预览已截断。完整 diff 将在后续修复中恢复。",
+      "noDiffChanges": "Amp CLI 配置文件当前没有待应用变更。",
+      "rollbackUnavailable": "当前无法回滚，因为还没有已保存的 manifest。",
+      "manualFileSetup": "手动文件配置",
+      "manualEnvSetup": "手动环境变量配置",
+      "ampLoginNotRequired": "完成文件配置或环境变量后，不需要执行 amp login。",
+      "loadingTargets": "正在加载可用目标…",
+      "selectTarget": "选择目标模型",
+      "none": "无",
+      "currentUpstreamKey": "当前 key：{{key}}",
+      "selectedTarget": "已选目标：{{target}}",
+      "virtualModelsGroup": "Virtual models",
+      "availableTargetsCount": "{{count}} 个目标",
+      "noTargetsFound": "没有匹配的目标"
+    },
+    "validation": {
+      "customFromRequired": "自定义映射的 From 不能为空。",
+      "customToRequired": "自定义映射的 To 不能为空。",
+      "invalidRegex": "Regex 模式无效。",
+      "duplicateWithPredefined": "该 From 与固定槽位映射冲突。",
+      "duplicateCustomFrom": "自定义映射中存在重复的 From。"
+    },
+    "messages": {
+      "saved": "AmpCode 配置已保存。"
+    }
+  },
+  "virtualModels": {
+    "title": "Virtual Models",
+    "description": "Manage named virtual model chains that route requests across concrete provider/model targets.",
+    "loading": "Loading virtual models…",
+    "failedToLoad": "Virtual models unavailable",
+    "global": {
+      "title": "Global routing",
+      "description": "Enable or disable virtual model routing across the gateway."
+    },
+    "list": {
+      "title": "Configured models",
+      "description": "Create, rename, enable, and reorder virtual model chains.",
+      "disabled": "Disabled",
+      "entryCount": "{{count}} entry",
+      "entryCount_other": "{{count}} entries"
+    },
+    "entries": {
+      "emptyTitle": "No entries configured",
+      "emptyDescription": "Add a provider/model target to start building this chain.",
+      "invalidTarget": "Invalid target",
+      "noSearchResults": "No targets matched the current search.",
+      "noAvailableTargetsTitle": "No targets available",
+      "noAvailableTargetsDescription": "All available provider/model targets are already part of this chain."
+    },
+    "empty": {
+      "title": "No virtual models yet",
+      "description": "Create a virtual model to define an ordered chain of concrete provider/model targets.",
+      "disabledTitle": "Enable routing to create virtual models",
+      "disabledDescription": "Turn on virtual model routing first, then create your first chain."
+    },
+    "fields": {
+      "name": "Virtual model name",
+      "namePlaceholder": "quotio-smart-router",
+      "nameHint": "Use this model name in client requests to activate the chain.",
+      "target": "Target",
+      "searchPlaceholder": "Search models, providers, or virtual targets",
+      "virtualBadge": "Virtual",
+      "virtualDescription": "Nested virtual model",
+      "targetPlaceholder": "Select a provider/model target",
+      "importPlaceholder": "{\n  \"enabled\": true,\n  \"virtual_models\": {}\n}"
+    },
+    "dialogs": {
+      "createTitle": "Create virtual model",
+      "renameTitle": "Rename virtual model",
+      "modelDescription": "Virtual models give one stable name to an ordered set of concrete routing targets.",
+      "addEntryTitle": "Add entry",
+      "addEntryDescription": "Choose a provider/model target to append to {{name}}.",
+      "deleteModelTitle": "Delete virtual model",
+      "deleteModelDescription": "Delete {{name}} and all of its configured entries? This action cannot be undone.",
+      "deleteEntryTitle": "Delete entry",
+      "deleteEntryDescription": "Delete {{target}} from {{name}}?",
+      "importTitle": "Import virtual models",
+      "importDescription": "Paste an exported virtual-model configuration JSON payload.",
+      "exportTitle": "Export virtual models",
+      "exportDescription": "Copy the current virtual-model configuration payload."
+    },
+    "actions": {
+      "create": "Create virtual model",
+      "rename": "Rename",
+      "delete": "Delete",
+      "reset": "Reset all",
+      "import": "Import",
+      "export": "Export",
+      "copyExport": "Copy JSON",
+      "copyModelName": "Copy model name",
+      "clearRoutes": "Clear routes",
+      "addEntry": "Add entry",
+      "addSelected": "Add selected ({{count}})",
+      "deleteEntry": "Delete entry",
+      "dragToReorder": "Drag to reorder",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "enableModel": "Enable model",
+      "disableModel": "Disable model"
+    },
+    "validation": {
+      "nameRequired": "Virtual model name is required.",
+      "targetRequired": "Select a target before saving.",
+      "invalidJson": "The import payload must be valid JSON."
+    },
+    "messages": {
+      "enabled": "Virtual model routing enabled.",
+      "disabled": "Virtual model routing disabled.",
+      "toggleFailed": "Failed to update virtual model routing.",
+      "modelCreated": "Created {{name}}.",
+      "modelRenamed": "Renamed model to {{name}}.",
+      "modelDeleted": "Deleted {{name}}.",
+      "modelEnabled": "Enabled {{name}}.",
+      "modelDisabled": "Disabled {{name}}.",
+      "modelSaveFailed": "Failed to save virtual model.",
+      "modelUpdateFailed": "Failed to update virtual model.",
+      "modelDeleteFailed": "Failed to delete virtual model.",
+      "entryAdded": "Added {{count}} entry to {{name}}.",
+      "entryAdded_other": "Added {{count}} entries to {{name}}.",
+      "entryDeleted": "Deleted an entry from {{name}}.",
+      "entryAddFailed": "Failed to add entry.",
+      "entryDeleteFailed": "Failed to delete entry.",
+      "reorderSaved": "Saved new order for {{name}}.",
+      "reorderFailed": "Failed to reorder entries.",
+      "reorderUnavailable": "Cannot reorder entries until all visible entries have stable IDs.",
+      "routesCleared": "Cleared all cached routes.",
+      "clearRoutesFailed": "Failed to clear active routes.",
+      "importComplete": "Imported virtual-model configuration.",
+      "importFailed": "Failed to import virtual-model configuration.",
+      "exportFailed": "Failed to export virtual-model configuration.",
+      "exportCopied": "Copied export JSON.",
+      "exportCopyFailed": "Failed to copy export JSON.",
+      "resetComplete": "Reset virtual models to the default empty configuration.",
+      "resetFailed": "Failed to reset virtual-model configuration."
+    }
+  },
+  "placeholder": {
+    "comingSoon": "此功能即将上线，我们正在开发中。",
+    "aboutDesc": "版本信息和系统详情将在此显示。",
+    "credentialsDesc": "API 密钥和凭证管理即将上线。",
+    "logsDesc": "请求日志和送达历史正在开发中。",
+    "modelsDesc": "模型配置和路由管理即将推出。",
+    "quotaDesc": "使用限额和支出控制将在此提供。",
+    "settingsDesc": "管理偏好和配置选项正在开发中。"
+  },
+  "bootstrap": {
+    "failedLabel": "启动错误",
+    "failedTitle": "Quotio 管理面板无法启动",
+    "unknownError": "启动过程中发生意外错误。"
+  },
+  "agents": {
+    "title": "Agents",
+    "description": "为 Claude、Codex、OpenCode、Factory 以及仅指南代理提供统一配置与说明。",
+    "loading": "正在加载 agents…",
+    "failedToLoad": "无法加载 agents",
+    "ampcodeTab": "AmpCode",
+    "savedTitle": "操作成功",
+    "failedTitle": "操作失败",
+    "unknownError": "未知错误",
+    "actions": {
+      "guide": "Guide",
+      "diff": "Diff",
+      "install": "Install",
+      "rollback": "Rollback",
+      "viewGuide": "Guide",
+      "runDiff": "Diff",
+      "copy": "Copy",
+      "copied": "Copied",
+      "retry": "Retry"
+    },
+    "fields": {
+      "binaries": "二进制命令",
+      "targets": "目标文件",
+      "caveats": "注意事项"
+    },
+    "empty": {
+      "title": "No agents available",
+      "description": "Check your server installation and try again."
+    },
+    "badges": {
+      "guideOnly": "Guide-only",
+      "installed": "Installed",
+      "notInstalled": "Not installed",
+      "rollbackAvailable": "Backup available",
+      "noBackup": "No backup"
+    },
+    "actionState": {
+      "running": "Running",
+      "success": "Success",
+      "error": "Error"
+    },
+    "sections": {
+      "overview": "Overview",
+      "targets": "Target files",
+      "binaries": "Binaries",
+      "caveats": "Caveats",
+      "capabilities": "Capabilities",
+      "lastResult": "Last result",
+      "docs": "Docs"
+    },
+    "guide": {
+      "title": "Guide",
+      "stepLabel": "Step {{index}}",
+      "verify": "Verify",
+      "configSnippet": "Config snippet",
+      "envSnippet": "Environment snippet",
+      "caveats": "Caveats",
+      "close": "Close"
+    },
+    "diff": {
+      "fileChanged": "Changed",
+      "fileUnchanged": "Unchanged",
+      "fileNew": "New",
+      "before": "Before",
+      "after": "After",
+      "truncated": "Preview truncated"
+    },
+    "payload": {
+      "show": "Show raw payload",
+      "hide": "Hide raw payload"
+    },
+    "errors": {
+      "actionFailed": "Action failed",
+      "noManifest": "No rollback manifest is available."
+    }
+  }
+}

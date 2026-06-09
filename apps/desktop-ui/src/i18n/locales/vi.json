@@ -1,0 +1,623 @@
+{
+  "common": {
+    "appName": "Quotio",
+    "adminPanel": "Quotio Admin",
+    "tagline": "AI Gateway",
+    "loading": "Đang tải…",
+    "retry": "Thử lại",
+    "refresh": "Làm mới",
+    "cancel": "Hủy",
+    "save": "Lưu",
+    "confirm": "Xác nhận",
+    "unknownError": "Đã xảy ra lỗi. Vui lòng thử lại."
+  },
+  "auth": {
+    "signIn": "Đăng nhập",
+    "signOut": "Đăng xuất",
+    "welcomeBack": "Chào mừng trở lại",
+    "title": "Đăng nhập Quotio Admin",
+    "description": "Nhập API key quản trị để truy cập bảng điều khiển và quản lý AI gateway.",
+    "tokenLabel": "API key",
+    "tokenPlaceholder": "Dán API key quản trị của bạn",
+    "submitting": "Đang đăng nhập…",
+    "submit": "Đăng nhập",
+    "tokenRequired": "Cần nhập API key",
+    "verificationFailed": "Xác minh thất bại. Vui lòng kiểm tra lại API key.",
+    "connected": "Đã kết nối",
+    "sessionExpired": "Phiên đã hết hạn"
+  },
+  "shell": {
+    "adminConnected": "Đã kết nối",
+    "authRequired": "Chưa kết nối",
+    "reloadAdmin": "Tải lại",
+    "sessionLabel": "Phiên quản trị",
+    "sessionDetail": "API key",
+    "gatewayUrl": "Gateway URL",
+    "gatewayUrlHint": "Base URL tương thích OpenAI cho client AI của bạn.",
+    "copyGatewayUrl": "Sao chép gateway URL",
+    "gatewayUrlCopied": "Đã sao chép gateway URL."
+  },
+  "nav": {
+    "console": "Bảng điều khiển",
+    "resources": "Tài nguyên",
+    "docs": "Tài liệu",
+    "github": "GitHub",
+    "support": "Hỗ trợ",
+    "overview": "Tổng quan",
+    "overviewDesc": "Tình trạng hệ thống, lượng sử dụng và chẩn đoán.",
+    "credentials": "Thông tin xác thực",
+    "credentialsDesc": "Quản lý API key và kết nối nhà cung cấp.",
+    "models": "Mô hình",
+    "modelsDesc": "Cấu hình mô hình và quy tắc định tuyến.",
+    "virtualModels": "Virtual Models",
+    "virtualModelsDesc": "Quản lý các chuỗi virtual model.",
+    "quota": "Hạn mức",
+    "quotaDesc": "Theo dõi giới hạn sử dụng và chi phí.",
+    "apiKeys": "API Keys",
+    "apiKeysDesc": "Quản lý khóa client và thống kê sử dụng.",
+    "logs": "Nhật ký",
+    "logsDesc": "Xem lịch sử yêu cầu và trạng thái gửi.",
+    "settings": "Cài đặt",
+    "settingsDesc": "Quản lý tùy chỉnh và cấu hình.",
+    "about": "Giới thiệu",
+    "aboutDesc": "Phiên bản, thông tin bản dựng và hỗ trợ.",
+    "defaultTitle": "Quotio Admin",
+    "defaultDesc": "Bảng điều khiển AI Gateway.",
+    "providers": "Nhà cung cấp",
+    "providersDesc": "Quản lý API key và kết nối nhà cung cấp.",
+    "agents": "Agents",
+    "agentsDesc": "Quản lý hướng dẫn và cấu hình các AI Agent phổ biến."
+  },
+  "overview": {
+    "title": "Tổng quan",
+    "description": "Ảnh chụp nhanh tình trạng, lưu lượng và chi phí gateway.",
+    "refreshSnapshot": "Làm mới",
+    "loadingData": "Đang tải bảng điều khiển…",
+    "failedToLoad": "Không thể tải bảng điều khiển",
+    "incompleteData": "Dữ liệu không đầy đủ",
+    "incompleteDataDesc": "Một số nguồn dữ liệu không phản hồi. Vui lòng làm mới.",
+    "staleBanner": "{{count}} nguồn dữ liệu có thể đã cũ. Số liệu hiển thị là ước tính.",
+    "gatewayStatus": "Trạng thái gateway",
+    "healthy": "Hoạt động tốt",
+    "unknown": "Không xác định",
+    "providerGroupsHint": "{{count}} nhà cung cấp đang hoạt động",
+    "totalRequests": "Tổng yêu cầu",
+    "streamingHint": "{{count}} streaming",
+    "totalTokens": "Tổng token",
+    "tokensHint": "Prompt {{prompt}} · Completion {{completion}}",
+    "estimatedCost": "Chi phí ước tính",
+    "savingsHint": "Tiết kiệm {{amount}}",
+    "providerHealth": "Tình trạng nhà cung cấp",
+    "providerHealthDesc": "Trạng thái kết nối và số lượng xác thực theo nhà cung cấp.",
+    "snapshot": "Trực tiếp",
+    "provider": "Nhà cung cấp",
+    "credentialEntries": "Xác thực",
+    "operationalCounters": "Bộ đếm hệ thống",
+    "affinityBindings": "Liên kết ưu tiên",
+    "concurrencyRecords": "Đồng thời",
+    "virtualRoutes": "Định tuyến ảo",
+    "providerCooldowns": "Thời gian chờ",
+    "quotaSnapshot": "Sử dụng hạn mức",
+    "quotaSnapshotDesc": "Mức sử dụng và giới hạn hiện tại theo nhà cung cấp.",
+    "providerCount": "{{count}} nhà cung cấp",
+    "freshness": "Trạng thái",
+    "requests": "Yêu cầu",
+    "cost": "Chi phí",
+    "reset": "Đặt lại sau",
+    "runtimeCapabilities": "Tính năng runtime",
+    "flagCount": "{{count}} cờ"
+  },
+  "logs": {
+    "title": "Nhật ký",
+    "description": "Theo dõi tổng hợp lưu lượng request, mức dùng token và xu hướng chi phí từ gateway logs.",
+    "filters": {
+      "apiKeys": "API keys",
+      "apiKeysPlaceholder": "Lọc theo API key",
+      "allApiKeys": "Tất cả API keys"
+    },
+    "refreshSnapshot": "Làm mới",
+    "loadingData": "Đang tải chỉ số nhật ký…",
+    "failedToLoad": "Không thể tải chỉ số nhật ký",
+    "incompleteData": "Dữ liệu nhật ký không đầy đủ",
+    "incompleteDataDesc": "Không thể lấy đầy đủ payload chỉ số nhật ký. Hãy làm mới và thử lại.",
+    "totalRequests": "Tổng yêu cầu",
+    "streamRequests": "Yêu cầu streaming",
+    "streamingHint": "{{count}} streaming",
+    "streamRequestsHint": "{{count}} yêu cầu stream",
+    "streamingRatio": "Tỷ lệ streaming",
+    "totalTokens": "Tổng token",
+    "tokensHint": "Prompt {{prompt}} · Completion {{completion}}",
+    "promptTokens": "Prompt token",
+    "completionTokens": "Completion token",
+    "estimatedCost": "Chi phí ước tính",
+    "estimatedSavings": "Tiết kiệm ước tính",
+    "savingsHint": "Tiết kiệm {{amount}}",
+    "emptyTitle": "Chưa có nhật ký request",
+    "emptyDescription": "Hãy gửi request qua gateway để bắt đầu thấy các chỉ số nhật ký và xu hướng gửi.",
+    "breakdownTitle": "Chi tiết chỉ số nhật ký",
+    "tableTitle": "Nhật ký request",
+    "captureBodiesTitle": "Input & Output Logging",
+    "captureBodiesDesc": "Khi bật, Quotio sẽ lưu request/response body cho các log mới để hỗ trợ troubleshooting.",
+    "viewDetails": "Xem chi tiết",
+    "loadMore": "Tải thêm",
+    "detailsTitle": "Chi tiết log entry",
+    "copy": "Sao chép",
+    "noRequestBody": "Entry này không có dữ liệu request body được lưu.",
+    "noResponseBody": "Entry này không có dữ liệu response body được lưu.",
+    "noErrorData": "Entry này không có payload lỗi được ghi nhận.",
+    "details": {
+      "overview": "Tổng quan",
+      "request": "Request body",
+      "response": "Response body",
+      "error": "Lỗi"
+    },
+    "badges": {
+      "upstreamValidationError": "Lỗi validate từ upstream"
+    },
+    "columns": {
+      "timestamp": "Thời gian",
+      "endpoint": "Endpoint",
+      "providerModel": "Provider / Model",
+      "app": "App",
+      "tokens": "Token",
+      "cost": "Chi phí",
+      "speed": "Tốc độ",
+      "finish": "Finish",
+      "actions": "Thao tác"
+    },
+    "columnsHelp": {
+      "timestamp": "Thời điểm gateway ghi nhận log entry của request.",
+      "endpoint": "Endpoint và phương thức vận chuyển được dùng cho request, ví dụ POST /v1/messages hoặc luồng WS stream.",
+      "providerModel": "Target upstream đã resolve ở dạng slug. Nếu request dùng virtual model, dòng phụ sẽ hiển thị mapping từ model yêu cầu sang target thực tế.",
+      "app": "Định danh app client suy ra từ header (X-Title, host của HTTP-Referer, Originator, hoặc User-Agent fallback).",
+      "tokens": "Lượng token được tách theo Input, Output và Cache. Input = token đầu vào của request, Output = token model sinh ra, Cache = token đầu vào lấy từ cache theo báo cáo upstream.",
+      "cost": "Chi phí retail ước tính cho request này dựa trên pricing model đã biết và token usage parse được.",
+      "speed": "Tốc độ sinh token xấp xỉ theo token/giây, tính từ tổng token và thời gian request.",
+      "finish": "Tín hiệu kết thúc trích từ payload upstream, ví dụ stop/completed/length."
+    },
+    "tokenLabels": {
+      "input": "Input",
+      "output": "Output",
+      "cache": "Cache"
+    },
+    "metric": "Chỉ số",
+    "value": "Giá trị"
+  },
+  "models": {
+    "title": "Mô hình",
+    "description": "Quản lý mô hình đã khám phá từ nhà cung cấp, trạng thái bật tắt và lần đồng bộ ở một nơi.",
+    "loading": "Đang tải mô hình…",
+    "failedToLoad": "Không thể tải mô hình",
+    "warningBadge": "Có cảnh báo",
+    "searchPlaceholder": "Tìm mô hình hoặc nhà cung cấp",
+    "emptyTitle": "Chưa có mô hình nào",
+    "emptyDescription": "Hãy đồng bộ một nhà cung cấp để nạp danh mục mô hình.",
+    "noMatches": "Không có mô hình nào khớp với tìm kiếm hoặc bộ lọc hiện tại.",
+    "copy": "Sao chép",
+    "columns": {
+      "provider": "Nhà cung cấp",
+      "model": "Mô hình",
+      "capabilities": "Khả năng",
+      "status": "Trạng thái"
+    },
+    "status": {
+      "enabled": "Đã bật",
+      "disabled": "Đã tắt"
+    },
+    "messages": {
+      "filtersUpdated": "Đã cập nhật bộ lọc mô hình cho {{provider}}.",
+      "saveFailed": "Không thể lưu bộ lọc mô hình.",
+      "copied": "Đã sao chép {{model}}.",
+      "copyFailed": "Không thể sao chép mã mô hình."
+    }
+  },
+  "apiKeys": {
+    "title": "API Keys",
+    "description": "Tạo và quản lý API key client, thu hồi tức thì, và xem usage.",
+    "loadingData": "Đang tải API keys…",
+    "failedToLoad": "Không thể tải API keys",
+    "searchPlaceholder": "Tìm theo tên key",
+    "emptyTitle": "Chưa có API key",
+    "emptyDescription": "Tạo key đầu tiên để cấp bearer token cho client.",
+    "never": "Chưa bao giờ",
+    "noTrafficYet": "Chưa có traffic",
+    "usageSummary": "{{requests}} req · {{tokens}} tok · {{cost}}",
+    "filters": {
+      "status": "Trạng thái",
+      "sort": "Sắp xếp"
+    },
+    "status": {
+      "all": "Tất cả trạng thái",
+      "active": "Đang hoạt động",
+      "disabled": "Đã tắt",
+      "deleted": "Đã xóa"
+    },
+    "sort": {
+      "newestFirst": "Mới nhất trước",
+      "oldestFirst": "Cũ nhất trước",
+      "recentlyUsed": "Dùng gần đây",
+      "nameAZ": "Tên A-Z",
+      "mostActive": "Hoạt động nhiều nhất"
+    },
+    "columns": {
+      "name": "Tên",
+      "maskedKey": "Key che một phần",
+      "created": "Tạo lúc",
+      "lastUsed": "Dùng lần cuối",
+      "status": "Trạng thái",
+      "usage30d": "Usage 30 ngày",
+      "actions": "Thao tác"
+    },
+    "actions": {
+      "createKey": "Tạo key",
+      "copyKey": "Sao chép key",
+      "viewUsage": "Xem usage",
+      "rename": "Đổi tên",
+      "disable": "Tắt",
+      "enable": "Bật",
+      "delete": "Xóa",
+      "saveName": "Lưu tên"
+    },
+    "fields": {
+      "name": "Tên",
+      "namePlaceholder": "Production gateway"
+    },
+    "dialogs": {
+      "create": {
+        "title": "Tạo API key",
+        "description": "Đặt nhãn cho key này. Plaintext token chỉ hiển thị một lần."
+      },
+      "created": {
+        "title": "Đã tạo API key",
+        "description": "Plaintext token này chỉ hiển thị một lần.",
+        "helper": "Lưu token vào client ngay. API sẽ không trả lại token qua list, usage hoặc update."
+      },
+      "rename": {
+        "title": "Đổi tên API key",
+        "description": "Cập nhật tên hiển thị mà không đổi secret."
+      }
+    },
+    "usage": {
+      "title": "Chi tiết usage",
+      "description": "Theo dõi số request, token và chi phí theo thời gian.",
+      "modelFilter": "Lọc theo model",
+      "endpointFilter": "Lọc theo endpoint",
+      "hourly": "Theo giờ",
+      "daily": "Theo ngày",
+      "loading": "Đang tải usage…",
+      "failedToLoad": "Không thể tải usage",
+      "timeSeries": "Chuỗi thời gian",
+      "models": "Models",
+      "endpoints": "Endpoints",
+      "noUsage": "Không có usage nào khớp bộ lọc.",
+      "noData": "Không có dữ liệu.",
+      "unknown": "không xác định",
+      "metrics": {
+        "requests": "Requests",
+        "inputTokens": "Input tokens",
+        "outputTokens": "Output tokens",
+        "estimatedCost": "Chi phí ước tính"
+      },
+      "columns": {
+        "bucket": "Mốc thời gian",
+        "value": "Giá trị",
+        "requests": "Requests",
+        "totalTokens": "Tổng token",
+        "cost": "Chi phí"
+      }
+    },
+    "messages": {
+      "created": "Đã tạo {{name}}",
+      "renamed": "Đã đổi tên {{name}}",
+      "enabled": "Đã bật {{name}}",
+      "disabled": "Đã tắt {{name}}",
+      "deleted": "Đã xóa {{name}}",
+      "deleteConfirm": "Xóa {{name}}? Key sẽ bị thu hồi ngay lập tức.",
+      "createFailed": "Không thể tạo API key",
+      "renameFailed": "Không thể đổi tên API key",
+      "statusFailed": "Không thể cập nhật trạng thái API key",
+      "deleteFailed": "Không thể xóa API key"
+    }
+  },
+  "ampcode": {
+    "title": "AmpCode",
+    "description": "Cấu hình model mappings và kiểm soát truy cập management cho Amp.",
+    "loading": "Đang tải cấu hình AmpCode…",
+    "failedToLoad": "Không thể tải cấu hình AmpCode",
+    "sections": {
+      "cliSetup": "Thiết lập Amp CLI",
+      "cliSetupDesc": "Áp dụng hoặc rollback cấu hình Amp CLI cục bộ trên máy chạy Quotio server, và xem hướng dẫn cấu hình thủ công.",
+      "upstreamAccess": "Truy cập Amp upstream",
+      "upstreamAccessDesc": "Cấu hình Amp upstream API key và chế độ ưu tiên route. Providers vẫn là nguồn duy nhất cho execution credentials.",
+      "modelMappings": "Model mappings",
+      "modelMappingsDesc": "Định nghĩa exact mappings cho các Amp slot cố định và custom mappings tùy chọn.",
+      "customMappings": "Custom model mappings",
+      "customMappingsDesc": "Dùng cho các model identifier Amp ngoài danh sách cố định. Custom mappings chỉ đổi dịch model, không quản lý provider credentials.",
+      "security": "Bảo mật",
+      "securityDesc": "Cấu hình chính sách truy cập cho Amp management routes."
+    },
+    "fields": {
+      "slot": "Slot",
+      "from": "From",
+      "to": "To",
+      "customFromPlaceholder": "Nhập model identifier của Amp",
+      "regex": "Regex",
+      "targetFilter": "Lọc target",
+      "targetFilterPlaceholder": "Tìm theo provider, model hoặc virtual target",
+      "upstreamApiKey": "Amp Upstream API Key",
+      "upstreamApiKeyPlaceholder": "Nhập key upstream mới để thay key hiện tại",
+      "upstreamApiKeyHelp": "Quotio dùng key này khi proxy tới ampcode.com cho upstream fallback hoặc chế độ ưu tiên Amp. Đây không phải Provider credential.",
+      "clientBearerHelp": "AMP_URL và AMP_API_KEY trong Amp CLI dùng để xác thực client với Quotio. Bearer token đó phải được chấp nhận bởi management auth policy hiện tại.",
+      "clientApiKeys": "Client API Keys",
+      "clientApiKeysPlaceholder": "Mỗi dòng một API key",
+      "clientApiKeysHelp": "api_keys cấp cao nhất là các client bearer token duy nhất cho Amp management auth và mặc định Amp CLI. admin.api_key chỉ dành cho admin.",
+      "routingMode": "Chế độ routing",
+      "routingModeHelp": "Chỉ điều khiển thứ tự ưu tiên route. Provider credentials vẫn quản lý ở màn Providers.",
+      "restrictLocalhost": "Giới hạn management routes cho localhost",
+      "restrictLocalhostHelp": "Chỉ dùng IP socket thực tế. Các yêu cầu không phải loopback sẽ bị từ chối.",
+      "managementAuthPolicy": "Chính sách xác thực management",
+      "managementAuthPolicyHelp": "Điều khiển xác thực cho Amp management proxy routes. Không ảnh hưởng xác thực provider."
+    },
+    "options": {
+      "preferLocalThenAmp": "Ưu tiên Quotio models trước, rồi fallback Amp",
+      "preferAmpUntilQuotaExhausted": "Ưu tiên Amp trước, fallback Quotio khi quota/rate/unavailable",
+      "validateKnownClient": "Xác thực client đã biết",
+      "allowAnyBearer": "Cho phép mọi bearer"
+    },
+    "actions": {
+      "applySettings": "Áp dụng cấu hình",
+      "applyingSettings": "Đang áp dụng…",
+      "rollbackSettings": "Rollback",
+      "rollingBackSettings": "Đang rollback…",
+      "previewDiff": "Xem trước diff",
+      "previewingDiff": "Đang tạo diff…",
+      "showManualSetup": "Hiện hướng dẫn thủ công",
+      "addCustomMapping": "Thêm Custom Mapping",
+      "removeCustomMapping": "Xóa custom mapping",
+      "clearUpstreamApiKey": "Xóa upstream key",
+      "saveChanges": "Lưu thay đổi"
+    },
+    "labels": {
+      "loadingCLISetupStatus": "Đang tải trạng thái thiết lập Amp CLI…",
+      "serverMachineScope": "Áp dụng trên máy chạy server",
+      "setupState": "Trạng thái thiết lập",
+      "installedByQuotio": "Cấu hình Amp CLI do Quotio quản lý hiện đang được áp dụng.",
+      "notInstalledByQuotio": "Cấu hình Amp CLI hiện tại khác với giá trị do Quotio quản lý.",
+      "rollbackManifest": "Rollback manifest mới nhất",
+      "serverHomeDirectory": "Thư mục home của server",
+      "quotioBaseURL": "Quotio base URL",
+      "effectiveUpstreamURL": "Amp upstream URL thực tế",
+      "effectiveUpstreamURLHelp": "Nếu chưa lưu custom upstream URL override, Quotio sẽ mặc định gửi Amp management và upstream fallback traffic tới https://ampcode.com.",
+      "targetFiles": "Các file Amp mục tiêu",
+      "latestDiffPreview": "Xem trước diff mới nhất",
+      "diffDialogDescription": "Xem lại thay đổi trước khi áp dụng cấu hình Amp CLI trên máy chạy server.",
+      "diffBefore": "Trước",
+      "diffAfter": "Sau",
+      "emptyFile": "(rỗng)",
+      "diffPreviewTruncated": "Bản xem trước đã được rút gọn để tránh đơ UI. Bản diff đầy đủ sẽ được khôi phục ở bản fix sau.",
+      "noDiffChanges": "Không có thay đổi chờ áp dụng trong các file Amp CLI.",
+      "rollbackUnavailable": "Rollback chưa khả dụng vì chưa có manifest đã lưu.",
+      "manualFileSetup": "Thiết lập file thủ công",
+      "manualEnvSetup": "Thiết lập biến môi trường thủ công",
+      "ampLoginNotRequired": "Sau khi thiết lập file hoặc env vars, không cần chạy amp login.",
+      "loadingTargets": "Đang tải danh sách target…",
+      "selectTarget": "Chọn model đích",
+      "none": "Không chọn",
+      "currentUpstreamKey": "Key hiện tại: {{key}}",
+      "selectedTarget": "Target đã chọn: {{target}}",
+      "virtualModelsGroup": "Virtual models",
+      "availableTargetsCount": "{{count}} target",
+      "noTargetsFound": "Không có target phù hợp"
+    },
+    "validation": {
+      "customFromRequired": "Trường From của custom mapping là bắt buộc.",
+      "customToRequired": "Trường To của custom mapping là bắt buộc.",
+      "invalidRegex": "Regex không hợp lệ.",
+      "duplicateWithPredefined": "Giá trị From này bị trùng với predefined slot mapping.",
+      "duplicateCustomFrom": "Giá trị From bị trùng trong custom mappings."
+    },
+    "messages": {
+      "saved": "Đã lưu cấu hình AmpCode."
+    }
+  },
+  "virtualModels": {
+    "title": "Virtual Models",
+    "description": "Cấu hình các chuỗi virtual model để tự động định tuyến request qua nhiều provider/model.",
+    "loading": "Đang tải virtual models…",
+    "failedToLoad": "Không thể tải virtual models",
+    "global": {
+      "title": "Định tuyến toàn cục",
+      "description": "Bật hoặc tắt virtual model routing cho toàn bộ gateway."
+    },
+    "list": {
+      "title": "Danh sách đã cấu hình",
+      "description": "Tạo, đổi tên, bật/tắt và sắp xếp lại các fallback chain của virtual model.",
+      "disabled": "Đã tắt",
+      "entryCount": "{{count}} mục",
+      "entryCount_other": "{{count}} mục"
+    },
+    "entries": {
+      "emptyTitle": "Chưa có entry nào",
+      "emptyDescription": "Thêm một target provider/model để bắt đầu xây chuỗi này.",
+      "invalidTarget": "Target không hợp lệ",
+      "noSearchResults": "Không có target nào khớp với tìm kiếm hiện tại.",
+      "noAvailableTargetsTitle": "Không còn target khả dụng",
+      "noAvailableTargetsDescription": "Tất cả target hiện có đã nằm trong chuỗi này."
+    },
+    "empty": {
+      "title": "Chưa có virtual model",
+      "description": "Tạo virtual model để định nghĩa chuỗi target provider/model theo thứ tự ưu tiên.",
+      "disabledTitle": "Hãy bật routing trước",
+      "disabledDescription": "Bật virtual model routing trước, rồi tạo chain đầu tiên."
+    },
+    "fields": {
+      "name": "Tên virtual model",
+      "namePlaceholder": "quotio-smart-router",
+      "nameHint": "Dùng tên model này trong request của client để kích hoạt chain.",
+      "target": "Target",
+      "searchPlaceholder": "Tìm model, provider hoặc virtual target",
+      "virtualBadge": "Virtual",
+      "virtualDescription": "Virtual model lồng nhau",
+      "targetPlaceholder": "Chọn target provider/model",
+      "importPlaceholder": "{\n  \"enabled\": true,\n  \"virtual_models\": {}\n}"
+    },
+    "dialogs": {
+      "createTitle": "Tạo virtual model",
+      "renameTitle": "Đổi tên virtual model",
+      "modelDescription": "Virtual model gom nhiều target định tuyến cụ thể dưới cùng một tên ổn định.",
+      "addEntryTitle": "Thêm entry",
+      "addEntryDescription": "Chọn target provider/model để thêm vào cuối chuỗi của {{name}}.",
+      "deleteModelTitle": "Xóa virtual model",
+      "deleteModelDescription": "Xóa {{name}} và toàn bộ entry đã cấu hình của nó? Hành động này không thể hoàn tác.",
+      "deleteEntryTitle": "Xóa entry",
+      "deleteEntryDescription": "Xóa {{target}} khỏi {{name}}?",
+      "importTitle": "Import virtual models",
+      "importDescription": "Dán payload JSON đã export của virtual models.",
+      "exportTitle": "Export virtual models",
+      "exportDescription": "Sao chép payload cấu hình virtual models hiện tại."
+    },
+    "actions": {
+      "create": "Tạo virtual model",
+      "rename": "Đổi tên",
+      "delete": "Xóa",
+      "reset": "Reset tất cả",
+      "import": "Import",
+      "export": "Export",
+      "copyExport": "Copy JSON",
+      "copyModelName": "Sao chép tên model",
+      "clearRoutes": "Xóa route cache",
+      "addEntry": "Thêm entry",
+      "addSelected": "Thêm mục đã chọn ({{count}})",
+      "deleteEntry": "Xóa entry",
+      "dragToReorder": "Kéo để sắp xếp lại",
+      "moveUp": "Đưa lên",
+      "moveDown": "Đưa xuống",
+      "enableModel": "Bật model",
+      "disableModel": "Tắt model"
+    },
+    "validation": {
+      "nameRequired": "Tên virtual model là bắt buộc.",
+      "targetRequired": "Hãy chọn target trước khi lưu.",
+      "invalidJson": "Payload import phải là JSON hợp lệ."
+    },
+    "messages": {
+      "enabled": "Đã bật virtual model routing.",
+      "disabled": "Đã tắt virtual model routing.",
+      "toggleFailed": "Không thể cập nhật virtual model routing.",
+      "modelCreated": "Đã tạo {{name}}.",
+      "modelRenamed": "Đã đổi tên model thành {{name}}.",
+      "modelDeleted": "Đã xóa {{name}}.",
+      "modelEnabled": "Đã bật {{name}}.",
+      "modelDisabled": "Đã tắt {{name}}.",
+      "modelSaveFailed": "Không thể lưu virtual model.",
+      "modelUpdateFailed": "Không thể cập nhật virtual model.",
+      "modelDeleteFailed": "Không thể xóa virtual model.",
+      "entryAdded": "Đã thêm {{count}} entry vào {{name}}.",
+      "entryDeleted": "Đã xóa một entry khỏi {{name}}.",
+      "entryAddFailed": "Không thể thêm entry.",
+      "entryDeleteFailed": "Không thể xóa entry.",
+      "reorderSaved": "Đã lưu thứ tự mới cho {{name}}.",
+      "reorderFailed": "Không thể sắp xếp lại entry.",
+      "reorderUnavailable": "Không thể sắp xếp lại cho đến khi mọi entry hiển thị đều có ID ổn định.",
+      "routesCleared": "Đã xóa toàn bộ route cache.",
+      "clearRoutesFailed": "Không thể xóa route đang hoạt động.",
+      "importComplete": "Đã import cấu hình virtual models.",
+      "importFailed": "Không thể import cấu hình virtual models.",
+      "exportFailed": "Không thể export cấu hình virtual models.",
+      "exportCopied": "Đã copy JSON export.",
+      "exportCopyFailed": "Không thể copy JSON export.",
+      "resetComplete": "Đã reset virtual models về cấu hình rỗng mặc định.",
+      "resetFailed": "Không thể reset cấu hình virtual models."
+    }
+  },
+  "placeholder": {
+    "comingSoon": "Tính năng này sắp ra mắt. Chúng tôi đang phát triển.",
+    "aboutDesc": "Thông tin phiên bản và chi tiết hệ thống sẽ hiển thị tại đây.",
+    "credentialsDesc": "Quản lý API key và xác thực nhà cung cấp sắp ra mắt.",
+    "logsDesc": "Nhật ký yêu cầu và lịch sử gửi đang được phát triển.",
+    "modelsDesc": "Cấu hình mô hình và quản lý định tuyến sắp có.",
+    "quotaDesc": "Giới hạn sử dụng và kiểm soát chi phí sẽ có tại đây.",
+    "settingsDesc": "Tùy chỉnh và cấu hình quản trị đang được phát triển."
+  },
+  "bootstrap": {
+    "failedLabel": "Lỗi khởi động",
+    "failedTitle": "Quotio Admin không thể khởi động",
+    "unknownError": "Đã xảy ra lỗi không mong muốn khi khởi động."
+  },
+  "agents": {
+    "title": "Agents",
+    "description": "Cấu hình và hướng dẫn tích hợp cho Claude, Codex, OpenCode, Factory và các agent guide-only.",
+    "loading": "Đang tải danh sách agents…",
+    "failedToLoad": "Không thể tải agents",
+    "ampcodeTab": "AmpCode",
+    "savedTitle": "Thao tác thành công",
+    "failedTitle": "Thao tác thất bại",
+    "unknownError": "Lỗi không xác định",
+    "actions": {
+      "guide": "Guide",
+      "diff": "Diff",
+      "install": "Install",
+      "rollback": "Rollback",
+      "viewGuide": "Guide",
+      "runDiff": "Diff",
+      "copy": "Copy",
+      "copied": "Copied",
+      "retry": "Retry"
+    },
+    "fields": {
+      "binaries": "Binary",
+      "targets": "File mục tiêu",
+      "caveats": "Lưu ý"
+    },
+    "empty": {
+      "title": "No agents available",
+      "description": "Check your server installation and try again."
+    },
+    "badges": {
+      "guideOnly": "Guide-only",
+      "installed": "Installed",
+      "notInstalled": "Not installed",
+      "rollbackAvailable": "Backup available",
+      "noBackup": "No backup"
+    },
+    "actionState": {
+      "running": "Running",
+      "success": "Success",
+      "error": "Error"
+    },
+    "sections": {
+      "overview": "Overview",
+      "targets": "Target files",
+      "binaries": "Binaries",
+      "caveats": "Caveats",
+      "capabilities": "Capabilities",
+      "lastResult": "Last result",
+      "docs": "Docs"
+    },
+    "guide": {
+      "title": "Guide",
+      "stepLabel": "Step {{index}}",
+      "verify": "Verify",
+      "configSnippet": "Config snippet",
+      "envSnippet": "Environment snippet",
+      "caveats": "Caveats",
+      "close": "Close"
+    },
+    "diff": {
+      "fileChanged": "Changed",
+      "fileUnchanged": "Unchanged",
+      "fileNew": "New",
+      "before": "Before",
+      "after": "After",
+      "truncated": "Preview truncated"
+    },
+    "payload": {
+      "show": "Show raw payload",
+      "hide": "Hide raw payload"
+    },
+    "errors": {
+      "actionFailed": "Action failed",
+      "noManifest": "No rollback manifest is available."
+    }
+  }
+}
