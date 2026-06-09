@@ -66,6 +66,7 @@ static void RunBootstrapSmoke()
     Assert(bootstrap.ServerListen == "127.0.0.1:8585", "Windows bootstrap should expose server listen authority");
     Assert(bootstrap.Features["agents"], "Windows bootstrap should expose read-only agents");
     Assert(bootstrap.Features["models"], "Windows bootstrap should expose shared model catalog");
+    Assert(bootstrap.Features["apiKeys"], "Windows bootstrap should expose API key list");
     Assert(bootstrap.Features["logs"], "Windows bootstrap should expose request logs");
     Assert(bootstrap.Features["settings"], "Windows bootstrap should expose shared settings placeholder");
     Assert(bootstrap.Features["about"], "Windows bootstrap should expose shared about placeholder");
@@ -73,6 +74,7 @@ static void RunBootstrapSmoke()
     Assert(!bootstrap.Capabilities["supportsCredentialStorage"], "Windows bootstrap should not claim credential editing support");
     Assert(!bootstrap.Capabilities["supportsRequestLogSettings"], "Windows bootstrap should keep request log settings read-only");
     Assert(!bootstrap.Capabilities["supportsModelSettings"], "Windows bootstrap should keep model settings read-only");
+    Assert(!bootstrap.Capabilities["supportsApiKeyManagement"], "Windows bootstrap should keep API key management read-only");
 }
 
 static void RunAgentAdapterSmoke()

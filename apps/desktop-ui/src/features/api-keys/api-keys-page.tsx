@@ -87,7 +87,7 @@ function formatTimestamp(value?: string | null) {
 export function APIKeysPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { confirm } = useAdminRuntime();
+  const { bootstrap, confirm } = useAdminRuntime();
   const toast = useToast();
   const [filters, setFilters] = useState<APIKeyListFilters>({
     status: '',
@@ -106,6 +106,7 @@ export function APIKeysPage() {
   const mutations = useClientKeyMutations();
 
   const keys = listQuery.data?.keys ?? [];
+  const canManageKeys = bootstrap.capabilities.supportsApiKeyManagement;
 
   const loading = listQuery.isLoading;
   const error = listQuery.error;
@@ -223,7 +224,10 @@ export function APIKeysPage() {
               <RiRefreshLine />
               {t('common.refresh')}
             </Button>
-            <Button onClick={() => setCreateOpen(true)}>
+            <Button
+              onClick={() => setCreateOpen(true)}
+              disabled={!canManageKeys}
+            >
               <RiAddLine />
               {t('apiKeys.actions.createKey')}
             </Button>
@@ -407,6 +411,7 @@ export function APIKeysPage() {
                             {t('apiKeys.actions.viewUsage')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            disabled={!canManageKeys}
                             onClick={() => {
                               setRenameTarget(record);
                               setRenameValue(record.name);
@@ -417,6 +422,7 @@ export function APIKeysPage() {
                           </DropdownMenuItem>
                           {record.status === 'active' ? (
                             <DropdownMenuItem
+                              disabled={!canManageKeys}
                               onClick={() =>
                                 handleStatusChange(record, 'disabled')
                               }
@@ -426,6 +432,7 @@ export function APIKeysPage() {
                             </DropdownMenuItem>
                           ) : record.status === 'disabled' ? (
                             <DropdownMenuItem
+                              disabled={!canManageKeys}
                               onClick={() =>
                                 handleStatusChange(record, 'active')
                               }
@@ -436,6 +443,7 @@ export function APIKeysPage() {
                           ) : null}
                           <DropdownMenuItem
                             className="text-destructive"
+                            disabled={!canManageKeys}
                             onClick={() => handleDelete(record)}
                           >
                             <RiDeleteBinLine className="mr-2 size-4" />
@@ -477,7 +485,7 @@ export function APIKeysPage() {
             </Button>
             <Button
               onClick={() => void handleCreate()}
-              disabled={mutations.createMutation.isPending}
+              disabled={mutations.createMutation.isPending || !canManageKeys}
             >
               {t('apiKeys.actions.createKey')}
             </Button>
@@ -551,7 +559,7 @@ export function APIKeysPage() {
             </Button>
             <Button
               onClick={() => void handleRename()}
-              disabled={mutations.updateMutation.isPending}
+              disabled={mutations.updateMutation.isPending || !canManageKeys}
             >
               {t('apiKeys.actions.saveName')}
             </Button>

@@ -14,7 +14,7 @@ const expectedFeatures = {
   virtualModels: false,
   models: true,
   agents: true,
-  apiKeys: false,
+  apiKeys: true,
   logs: true,
   settings: true,
   about: true,
@@ -32,6 +32,7 @@ const expectedCapabilities = {
   supportsAppearanceSync: true,
   supportsRequestLogSettings: false,
   supportsModelSettings: false,
+  supportsApiKeyManagement: false,
 };
 
 function readBoolDictionary(name) {
