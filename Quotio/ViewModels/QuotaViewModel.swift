@@ -41,6 +41,7 @@ final class QuotaViewModel {
     // Quota-Only Mode Fetchers (CLI-based)
     @ObservationIgnored private let claudeCodeFetcher = ClaudeCodeQuotaFetcher()
     @ObservationIgnored private let cursorFetcher = CursorQuotaFetcher()
+    @ObservationIgnored private let cursorOAuthService = CursorOAuthService()
     @ObservationIgnored private let codexCLIFetcher = CodexCLIQuotaFetcher()
     @ObservationIgnored private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
@@ -214,6 +215,7 @@ final class QuotaViewModel {
         await glmFetcher.updateProxyConfiguration()
         await claudeCodeFetcher.updateProxyConfiguration()
         await cursorFetcher.updateProxyConfiguration()
+        await cursorOAuthService.updateProxyConfiguration()
         await codexCLIFetcher.updateProxyConfiguration()
         await geminiCLIFetcher.updateProxyConfiguration()
         await warpFetcher.updateProxyConfiguration()
@@ -439,8 +441,12 @@ final class QuotaViewModel {
         }
     }
     
-    /// Refresh Cursor quota using browser cookies
+    /// Refresh Cursor quota using browser cookies. Also opportunistically
+    /// resolves real emails for accounts whose stored key is a JWT `sub`
+    /// placeholder (older saves done before /api/auth/me was wired in).
     private func refreshCursorQuotasInternal() async {
+        await backfillCursorAccountEmails()
+
         let quotas = await cursorFetcher.fetchAsProviderQuota()
         if quotas.isEmpty {
             // No Cursor auth found - remove from providerQuotas
@@ -448,6 +454,29 @@ final class QuotaViewModel {
         } else {
             providerQuotas[.cursor] = quotas
         }
+    }
+
+    /// Calls cursor.com/api/auth/me for every saved Cursor account whose
+    /// stored email still looks like a placeholder (e.g. `user_01XX...` or
+    /// `google-oauth2|user_...`). If a real email comes back, the store is
+    /// renamed in place.
+    private func backfillCursorAccountEmails() async {
+        let store = CursorAccountStore.shared
+        for account in store.accounts where Self.isPlaceholderCursorEmail(account.email) {
+            guard let tokens = CursorAccountStore.tokens(for: account.email) else { continue }
+            guard let profile = await cursorOAuthService.fetchProfile(
+                accessToken: tokens.accessToken
+            ) else { continue }
+            guard let realEmail = profile.email, !realEmail.isEmpty,
+                  realEmail != account.email else { continue }
+            store.rename(from: account.email, to: realEmail)
+        }
+    }
+
+    nonisolated private static func isPlaceholderCursorEmail(_ value: String) -> Bool {
+        // Real emails always contain "@"; Cursor sub claims look like
+        // "user_01XXX" or "google-oauth2|user_01XXX".
+        !value.contains("@")
     }
     
     /// Refresh Codex quota using CLI auth file (~/.codex/auth.json)
