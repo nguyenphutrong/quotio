@@ -130,7 +130,7 @@ public sealed class DesktopBridge
             requestId = root.GetProperty("id").GetString() ?? "";
             requestKind = root.GetProperty("kind").GetString() ?? "";
 
-            object value = requestKind switch
+            object? value = requestKind switch
             {
                 "runtime.status" => runtime.Status(),
                 "runtime.start" => runtime.Start(),
