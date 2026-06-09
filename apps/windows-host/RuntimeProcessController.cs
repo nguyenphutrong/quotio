@@ -23,7 +23,16 @@ public sealed class RuntimeProcessController : IDisposable
             return ManagedStatus();
         }
 
-        child = null;
+        if (child is not null)
+        {
+            DisposeExitedChild();
+            return new RuntimeStatus
+            {
+                State = "crashed",
+                Endpoint = null
+            };
+        }
+
         return new RuntimeStatus
         {
             State = "stopped",
@@ -123,6 +132,29 @@ public sealed class RuntimeProcessController : IDisposable
         catch (InvalidOperationException)
         {
             return false;
+        }
+    }
+
+    private void DisposeExitedChild()
+    {
+        var process = child;
+        child = null;
+
+        if (process is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (process.HasExited)
+            {
+                process.WaitForExit();
+            }
+        }
+        finally
+        {
+            process.Dispose();
         }
     }
 

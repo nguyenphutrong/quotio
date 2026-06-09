@@ -14,7 +14,8 @@ if (runtimeServerIndex >= 0)
 {
     var host = args.ElementAtOrDefault(runtimeServerIndex + 1) ?? "127.0.0.1";
     var port = int.Parse(args.ElementAtOrDefault(runtimeServerIndex + 2) ?? "8686");
-    RunRuntimeChildServer(host, port);
+    var lifetimeSeconds = int.Parse(args.ElementAtOrDefault(runtimeServerIndex + 3) ?? "5");
+    RunRuntimeChildServer(host, port, lifetimeSeconds);
     return;
 }
 
@@ -168,6 +169,18 @@ static void RunRuntimeControllerSmoke()
         Assert(afterFailure.State == "stopped", "Runtime start failure should clean up the child process");
         Assert(afterFailure.Endpoint is null, "Failed runtime should not expose an endpoint");
     }
+
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", "http://127.0.0.1:8687");
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", "--runtime-child-server 127.0.0.1 8687 1");
+    using var crashRuntime = new RuntimeProcessController(new WindowsHostConfig(_ => null));
+    var crashStarted = crashRuntime.Start();
+    Assert(crashStarted.State == "managed", "Short-lived runtime should start as managed");
+    Thread.Sleep(TimeSpan.FromMilliseconds(1500));
+    var crashed = crashRuntime.Status();
+    Assert(crashed.State == "crashed", "Unexpected runtime exit should be reported as crashed");
+    Assert(crashed.Endpoint is null, "Crashed runtime should not expose an endpoint");
+    var afterCrash = crashRuntime.Status();
+    Assert(afterCrash.State == "stopped", "Crash status should be reported once before stopped");
 }
 
 static void RunAgentAdapterSmoke()
@@ -226,10 +239,10 @@ static void Assert(bool condition, string message)
     }
 }
 
-static void RunRuntimeChildServer(string host, int port)
+static void RunRuntimeChildServer(string host, int port, int lifetimeSeconds)
 {
     var listener = new TcpListener(IPAddress.Parse(host), port);
     listener.Start();
-    Thread.Sleep(TimeSpan.FromSeconds(5));
+    Thread.Sleep(TimeSpan.FromSeconds(lifetimeSeconds));
     listener.Stop();
 }
