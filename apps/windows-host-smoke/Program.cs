@@ -191,22 +191,29 @@ static void RunAgentAdapterSmoke()
     Assert(agents.GetArrayLength() >= 6, "Windows agents endpoint should return descriptors");
 
     var codex = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "codex");
-    Assert(codex.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide"]), "Windows descriptors should be guide-only");
+    Assert(codex.GetProperty("platform_support").GetString() == "supported", "Codex descriptor should expose read-only Windows support");
+    Assert(codex.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), "Windows file-backed descriptors should expose read-only diff");
     Assert(!codex.GetProperty("rollback_available").GetBoolean(), "Windows descriptors should not claim rollback");
+
+    var gemini = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "gemini-cli");
+    Assert(gemini.GetProperty("platform_support").GetString() == "guide-only", "Gemini descriptor should remain guide-only");
+    Assert(gemini.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide"]), "Gemini descriptor should not expose diff until PowerShell writes are validated");
 
     var amp = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "amp");
     Assert(amp.GetProperty("binaries").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["amp"]), "Amp descriptor should expose the amp binary");
     Assert(amp.GetProperty("target_paths").GetArrayLength() == 2, "Amp descriptor should expose settings and secrets paths");
-    Assert(amp.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide"]), "Amp descriptor should stay guide-only");
+    Assert(amp.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), "Amp descriptor should expose read-only diff");
 
     using var guide = ToJsonDocument(adapter.Handle("/agents/codex/guide", "GET"));
     Assert(guide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "codex", "Guide endpoint should return the requested agent");
+    Assert(guide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), "Guide endpoint should mirror read-only capabilities");
 
     using var ampGuide = ToJsonDocument(adapter.Handle("/agents/amp/guide", "GET"));
     Assert(ampGuide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "amp", "Amp guide endpoint should return Amp");
 
     using var diff = ToJsonDocument(adapter.Handle("/agents/codex/diff", "POST"));
     Assert(diff.RootElement.GetProperty("plan").GetProperty("files").GetArrayLength() == 0, "Diff preview should be read-only");
+    Assert(diff.RootElement.GetProperty("status").GetProperty("platform_support").GetString() == "supported", "Diff status should expose read-only Windows support");
 
     using var install = ToJsonDocument(adapter.Handle("/agents/codex/install", "POST"));
     Assert(install.RootElement.GetProperty("summary").GetString()?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true, "Install should stay disabled");

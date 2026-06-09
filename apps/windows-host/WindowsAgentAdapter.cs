@@ -10,8 +10,8 @@ public sealed class WindowsAgentAdapter
             "both",
             ["claude"],
             ["%USERPROFILE%\\.claude\\settings.json"],
-            "unknown",
-            "Support for Claude Code has not been validated on Windows yet.",
+            "supported",
+            "Windows preview supports read-only detection, guide, and diff preview for Claude Code.",
             "https://docs.anthropic.com/en/docs/claude-code"
         ),
         new(
@@ -20,8 +20,8 @@ public sealed class WindowsAgentAdapter
             "file",
             ["codex"],
             ["%USERPROFILE%\\.codex\\config.toml"],
-            "unknown",
-            "Support for Codex CLI has not been validated on Windows yet.",
+            "supported",
+            "Windows preview supports read-only detection, guide, and diff preview for Codex CLI.",
             "https://github.com/openai/codex"
         ),
         new(
@@ -40,8 +40,8 @@ public sealed class WindowsAgentAdapter
             "file",
             ["opencode", "oc"],
             ["%LOCALAPPDATA%\\opencode\\opencode.json"],
-            "unknown",
-            "Support for OpenCode has not been validated on Windows yet.",
+            "supported",
+            "Windows preview supports read-only detection, guide, and diff preview for OpenCode.",
             "https://github.com/sst/opencode"
         ),
         new(
@@ -50,8 +50,8 @@ public sealed class WindowsAgentAdapter
             "file",
             ["droid", "factory-droid"],
             ["%USERPROFILE%\\.factory\\config.json"],
-            "unknown",
-            "Support for Factory Droid has not been validated on Windows yet.",
+            "supported",
+            "Windows preview supports read-only detection, guide, and diff preview for Factory Droid.",
             "https://docs.factory.ai/welcome"
         ),
         new(
@@ -60,8 +60,8 @@ public sealed class WindowsAgentAdapter
             "both",
             ["amp"],
             ["%USERPROFILE%\\.config\\amp\\settings.json", "%USERPROFILE%\\.local\\share\\amp\\secrets.json"],
-            "unknown",
-            "Support for Amp CLI has not been validated on Windows yet.",
+            "supported",
+            "Windows preview supports read-only detection, guide, and diff preview for Amp CLI.",
             "https://ampcode.com/manual"
         )
     ];
@@ -113,7 +113,7 @@ public sealed class WindowsAgentAdapter
             ["rollback_available"] = false,
             ["target_paths"] = agent.TargetPaths,
             ["docs_url"] = agent.DocsUrl,
-            ["capabilities"] = new[] { "guide" },
+            ["capabilities"] = Capabilities(agent),
             ["caveats"] = Caveats(agent)
         };
     }
@@ -130,7 +130,7 @@ public sealed class WindowsAgentAdapter
                 ["docs_url"] = agent.DocsUrl,
                 ["target_paths"] = agent.TargetPaths,
                 ["binaries"] = agent.Binaries,
-                ["capabilities"] = new[] { "guide" },
+                ["capabilities"] = Capabilities(agent),
                 ["steps"] = GuideSteps(agent),
                 ["verify"] = agent.Binaries.Select(binary => $"{binary} --version").ToArray(),
                 ["caveats"] = Caveats(agent)
@@ -216,7 +216,14 @@ public sealed class WindowsAgentAdapter
     {
         return agent.PlatformSupport == "guide-only"
             ? ["PowerShell profile writes are not implemented yet."]
-            : ["Automatic writes are disabled until this adapter is validated on Windows."];
+            : ["Automatic writes are disabled until backup and rollback behavior is validated on Windows."];
+    }
+
+    private static string[] Capabilities(AgentDefinition agent)
+    {
+        return agent.PlatformSupport == "guide-only"
+            ? ["guide"]
+            : ["guide", "diff"];
     }
 
     private static string? FindBinary(AgentDefinition agent)
