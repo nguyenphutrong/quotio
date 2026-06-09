@@ -138,7 +138,11 @@ impl ManagedRuntime {
             return Ok(RuntimeSnapshot::stopped());
         };
 
-        if child.try_wait().map_err(|error| error.to_string())?.is_none() {
+        if child
+            .try_wait()
+            .map_err(|error| error.to_string())?
+            .is_none()
+        {
             child.kill().map_err(|error| error.to_string())?;
         }
         child.wait().map_err(|error| error.to_string())?;
@@ -244,7 +248,10 @@ mod tests {
         std::thread::sleep(Duration::from_millis(20));
 
         let event = runtime.observe_exit();
-        assert!(matches!(event, Some(RuntimeEvent::Crashed { code: Some(0) })));
+        assert!(matches!(
+            event,
+            Some(RuntimeEvent::Crashed { code: Some(0) })
+        ));
     }
 
     fn test_config() -> RuntimeConfig {
@@ -263,11 +270,7 @@ mod tests {
     }
 
     fn test_binary() -> &'static str {
-        if cfg!(windows) {
-            "cmd"
-        } else {
-            "/bin/sh"
-        }
+        if cfg!(windows) { "cmd" } else { "/bin/sh" }
     }
 
     fn test_args(command: &str) -> Vec<String> {
