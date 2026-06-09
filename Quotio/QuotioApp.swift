@@ -613,6 +613,11 @@ struct ContentView: View {
                         
                         Label("nav.about".localized(), systemImage: "info.circle")
                             .tag(NavigationPage.about)
+
+                        if SharedDesktopUIFeature.isEnabled {
+                            Label("nav.sharedUI".localized(), systemImage: "rectangle.connected.to.line.below")
+                                .tag(NavigationPage.sharedUI)
+                        }
                     }
                 }
                 
@@ -690,6 +695,8 @@ struct ContentView: View {
                 SettingsScreen()
             case .about:
                 AboutScreen()
+            case .sharedUI:
+                SharedDesktopUIScreen()
             }
         }
     }

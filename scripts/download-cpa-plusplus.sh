@@ -6,8 +6,22 @@ MANIFEST_PATH="${CPA_PLUSPLUS_BUNDLE_MANIFEST:-"$ROOT_DIR/Config/CPAPlusPlusBund
 RESOURCE_DIR="${TARGET_BUILD_DIR:?TARGET_BUILD_DIR is required}/${UNLOCALIZED_RESOURCES_FOLDER_PATH:?UNLOCALIZED_RESOURCES_FOLDER_PATH is required}"
 OUTPUT_PATH="$RESOURCE_DIR/cpa-plusplus"
 OUTPUT_MANIFEST_PATH="$RESOURCE_DIR/CPAPlusPlusBundle.json"
+DESKTOP_UI_SOURCE_DIR="$ROOT_DIR/apps/desktop-ui/dist"
+DESKTOP_UI_OUTPUT_DIR="$RESOURCE_DIR/desktop-ui"
 
 mkdir -p "$RESOURCE_DIR"
+
+bundle_desktop_ui() {
+  if [[ -d "$DESKTOP_UI_SOURCE_DIR" ]]; then
+    rm -rf "$DESKTOP_UI_OUTPUT_DIR"
+    mkdir -p "$DESKTOP_UI_OUTPUT_DIR"
+    /usr/bin/ditto "$DESKTOP_UI_SOURCE_DIR" "$DESKTOP_UI_OUTPUT_DIR"
+    echo "Bundled desktop UI from $DESKTOP_UI_SOURCE_DIR"
+  else
+    rm -rf "$DESKTOP_UI_OUTPUT_DIR"
+    echo "warning: desktop UI bundle not found at $DESKTOP_UI_SOURCE_DIR; run bun run build before packaging" >&2
+  fi
+}
 
 copy_executable() {
   local source_path="$1"
@@ -20,6 +34,7 @@ copy_executable() {
   if [[ -f "$MANIFEST_PATH" ]]; then
     cp "$MANIFEST_PATH" "$OUTPUT_MANIFEST_PATH"
   fi
+  bundle_desktop_ui
   echo "Bundled cpa-plusplus from $source_path"
 }
 

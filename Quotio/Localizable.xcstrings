@@ -12222,6 +12222,82 @@
         }
       }
     },
+    "nav.sharedUI" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Shared UI"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Interface partagée"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Giao diện chung"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "共享界面"
+          }
+        }
+      }
+    },
+    "sharedUI.error.bundleMissing" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "The bundled proxy binary is missing." } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Le binaire proxy intégré est manquant." } },
+        "vi" : { "stringUnit" : { "state" : "new", "value" : "Thiếu binary proxy được bundle." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "缺少内置代理二进制文件。" } }
+      }
+    },
+    "sharedUI.error.connect" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Connect to a management server before using the shared UI." } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Connectez-vous à un serveur de gestion avant d’utiliser l’interface partagée." } },
+        "vi" : { "stringUnit" : { "state" : "new", "value" : "Hãy kết nối management server trước khi dùng giao diện chung." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "使用共享界面前请先连接管理服务器。" } }
+      }
+    },
+    "sharedUI.error.remoteDisconnected" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "The remote management server is disconnected." } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Le serveur de gestion distant est déconnecté." } },
+        "vi" : { "stringUnit" : { "state" : "new", "value" : "Management server từ xa đang mất kết nối." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "远程管理服务器已断开连接。" } }
+      }
+    },
+    "sharedUI.error.startLocal" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Start the local proxy before using the shared UI." } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Démarrez le proxy local avant d’utiliser l’interface partagée." } },
+        "vi" : { "stringUnit" : { "state" : "new", "value" : "Hãy khởi động local proxy trước khi dùng giao diện chung." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "使用共享界面前请先启动本地代理。" } }
+      }
+    },
+    "sharedUI.unavailable.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Run the desktop UI build or set QUOTIO_DESKTOP_UI_DEV_SERVER for development." } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Générez l’interface desktop ou définissez QUOTIO_DESKTOP_UI_DEV_SERVER pour le développement." } },
+        "vi" : { "stringUnit" : { "state" : "new", "value" : "Hãy build desktop UI hoặc đặt QUOTIO_DESKTOP_UI_DEV_SERVER khi phát triển." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "请构建桌面 UI，或在开发时设置 QUOTIO_DESKTOP_UI_DEV_SERVER。" } }
+      }
+    },
+    "sharedUI.unavailable.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Shared UI is unavailable" } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Interface partagée indisponible" } },
+        "vi" : { "stringUnit" : { "state" : "new", "value" : "Chưa có giao diện chung" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "共享界面不可用" } }
+      }
+    },
     "nav.accounts" : {
       "extractionState" : "stale",
       "localizations" : {

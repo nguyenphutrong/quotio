@@ -175,6 +175,21 @@ actor ManagementAPIClient {
         return data
     }
 
+    func bridgeRequest(endpoint: String, method: String, body: Data?) async throws -> Data {
+        let trimmedEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedEndpoint.hasPrefix("/"), !trimmedEndpoint.hasPrefix("//") else {
+            throw APIError.invalidURL
+        }
+
+        let normalizedMethod = method.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let allowedMethods: Set<String> = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+        guard allowedMethods.contains(normalizedMethod) else {
+            throw APIError.invalidURL
+        }
+
+        return try await makeRequest(trimmedEndpoint, method: normalizedMethod, body: body)
+    }
+
     private func jsonBody(_ object: [String: Any]) throws -> Data {
         try JSONSerialization.data(withJSONObject: object)
     }
