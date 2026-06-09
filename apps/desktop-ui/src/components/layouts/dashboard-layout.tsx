@@ -26,7 +26,10 @@ export function DashboardLayout() {
           <GatewayUrlBadge />
         </header>
 
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+        <div
+          className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
+          data-scroll-restoration-id="dashboard-main"
+        >
           <Outlet />
         </div>
 

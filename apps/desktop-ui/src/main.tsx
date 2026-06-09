@@ -47,6 +47,8 @@ async function start() {
     const router = createRouter({
       routeTree,
       basepath: bootstrap.basePath,
+      scrollRestoration: true,
+      scrollToTopSelectors: ['[data-scroll-restoration-id="dashboard-main"]'],
       context: {
         queryClient,
       },
