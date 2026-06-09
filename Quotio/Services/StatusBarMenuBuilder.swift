@@ -519,7 +519,7 @@ private struct MenuNetworkInfoView: View {
 
     private let tunnelManager = TunnelManager.shared
     private var tunnelStatus: CloudflareTunnelStatus { tunnelManager.tunnelState.status }
-    private var tunnelURL: String? { tunnelManager.tunnelState.publicURL }
+    private var tunnelURL: String? { tunnelManager.effectivePublicURL }
     private var proxyURL: String { "http://127.0.0.1:" + port }
 
     @State private var didCopyProxy = false

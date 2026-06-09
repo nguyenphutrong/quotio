@@ -173,7 +173,7 @@ struct TunnelSheet: View {
                 .foregroundStyle(.primary)
             
             HStack(spacing: 12) {
-                Text(tunnelManager.tunnelState.publicURL ?? "—")
+                Text(tunnelManager.effectivePublicURL ?? "—")
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
