@@ -200,6 +200,7 @@ nonisolated struct CodexConfigPatcher {
         guard fileManager.fileExists(atPath: configURL.path) else { return }
         let content = try String(contentsOf: configURL, encoding: .utf8)
         let updated = rewriteManagedModel(content, model: model)
+        _ = try backupConfigIfNeeded()
         try updated.write(to: configURL, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configURL.path)
     }
@@ -207,8 +208,16 @@ nonisolated struct CodexConfigPatcher {
     private func backupConfigIfNeeded() throws -> String? {
         guard fileManager.fileExists(atPath: configURL.path) else { return nil }
 
-        let backupURL = configURL.deletingLastPathComponent()
+        let baseBackupURL = configURL.deletingLastPathComponent()
             .appendingPathComponent("config.toml.backup.\(Int(Date().timeIntervalSince1970))")
+        var backupURL = baseBackupURL
+        var suffix = 1
+
+        while fileManager.fileExists(atPath: backupURL.path) {
+            backupURL = configURL.deletingLastPathComponent()
+                .appendingPathComponent("\(baseBackupURL.lastPathComponent).\(suffix)")
+            suffix += 1
+        }
 
         do {
             try fileManager.copyItem(at: configURL, to: backupURL)
