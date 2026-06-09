@@ -21,9 +21,15 @@ struct CustomProviderSheet: View {
     @State private var models: [ModelMapping] = []
     @State private var headers: [CustomHeader] = []
     @State private var isEnabled: Bool = true
+    @State private var verifySSL: Bool = true
+    @State private var allowInsecureHTTP: Bool = false
     
     @State private var validationErrors: [String] = []
     @State private var showValidationAlert = false
+    @State private var showSSLWarning = false
+    @State private var showInsecureHTTPWarning = false
+    @State private var pendingSSLValue = true
+    @State private var pendingInsecureHTTPValue = false
     @State private var isTestingConnection = false
     @State private var testError: String?
     
@@ -63,7 +69,10 @@ struct CustomProviderSheet: View {
                         customHeadersSection
                     }
                     
-                    // Step 5: Enable toggle
+                    // Step 5: TLS verification
+                    securitySection
+
+                    // Step 6: Enable toggle
                     enabledSection
                 }
                 .padding(20)
@@ -87,6 +96,26 @@ struct CustomProviderSheet: View {
             } else {
                 Text(validationErrors.joined(separator: "\n"))
             }
+        }
+        .alert("customProviders.sslWarning.title".localized(), isPresented: $showSSLWarning) {
+            Button("action.cancel".localized(), role: .cancel) {
+                pendingSSLValue = verifySSL
+            }
+            Button("customProviders.sslWarning.confirm".localized(), role: .destructive) {
+                verifySSL = pendingSSLValue
+            }
+        } message: {
+            Text("customProviders.sslWarning.message".localized())
+        }
+        .alert("customProviders.insecureHTTPWarning.title".localized(), isPresented: $showInsecureHTTPWarning) {
+            Button("action.cancel".localized(), role: .cancel) {
+                pendingInsecureHTTPValue = allowInsecureHTTP
+            }
+            Button("customProviders.insecureHTTPWarning.confirm".localized(), role: .destructive) {
+                allowInsecureHTTP = pendingInsecureHTTPValue
+            }
+        } message: {
+            Text("customProviders.insecureHTTPWarning.message".localized())
         }
     }
     
@@ -641,6 +670,51 @@ struct CustomProviderSheet: View {
         }
     }
     
+    // MARK: - Security Section
+
+    private var securitySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Toggle("customProviders.verifySSL".localized(), isOn: Binding(
+                get: { verifySSL },
+                set: { newValue in
+                    if !newValue {
+                        pendingSSLValue = newValue
+                        showSSLWarning = true
+                    } else {
+                        verifySSL = newValue
+                    }
+                }
+            ))
+
+            if !verifySSL {
+                Label("customProviders.verifySSL.warning".localized(), systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            Toggle("customProviders.allowInsecureHTTP".localized(), isOn: Binding(
+                get: { allowInsecureHTTP },
+                set: { newValue in
+                    if newValue {
+                        pendingInsecureHTTPValue = newValue
+                        showInsecureHTTPWarning = true
+                    } else {
+                        allowInsecureHTTP = newValue
+                    }
+                }
+            ))
+
+            if allowInsecureHTTP {
+                Label("customProviders.allowInsecureHTTP.warning".localized(), systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding(16)
+        .background(Color(.controlBackgroundColor).opacity(0.5))
+        .cornerRadius(8)
+    }
+
     // MARK: - Enabled Section
     
     private var enabledSection: some View {
@@ -706,6 +780,8 @@ struct CustomProviderSheet: View {
         headers = provider.headers
         limitToSelectedModels = provider.limitToSelectedModels
         isEnabled = provider.isEnabled
+        verifySSL = provider.verifySSL
+        allowInsecureHTTP = provider.allowInsecureHTTP
         
         // Set selected models from existing provider
         selectedModelIds = Set(provider.models.map { $0.name })
@@ -803,25 +879,21 @@ struct CustomProviderSheet: View {
         
         Task {
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
-                
-                guard let httpResponse = response as? HTTPURLResponse else {
+                let response = try await CustomProviderHTTPClient.data(
+                    for: request,
+                    allowInsecureHTTP: allowInsecureHTTP,
+                    verifySSL: verifySSL
+                )
+
+                guard response.statusCode == 200 else {
                     await MainActor.run {
                         isLoadingModels = false
-                        modelFetchError = "Invalid response"
+                        modelFetchError = "Failed to fetch models: HTTP \(response.statusCode)"
                     }
                     return
                 }
                 
-                guard httpResponse.statusCode == 200 else {
-                    await MainActor.run {
-                        isLoadingModels = false
-                        modelFetchError = "Failed to fetch models: HTTP \(httpResponse.statusCode)"
-                    }
-                    return
-                }
-                
-                let modelsResponse = try JSONDecoder().decode(ModelsListResponse.self, from: data)
+                let modelsResponse = try JSONDecoder().decode(ModelsListResponse.self, from: response.data)
                 let fetchedModels = modelsResponse.allModels.map { $0.toAvailableModel() }
                 
                 await MainActor.run {
@@ -869,6 +941,8 @@ struct CustomProviderSheet: View {
             headers: headers.filter { !$0.key.trimmingCharacters(in: .whitespaces).isEmpty },
             limitToSelectedModels: limitToSelectedModels,
             isEnabled: isEnabled,
+            verifySSL: verifySSL,
+            allowInsecureHTTP: allowInsecureHTTP,
             createdAt: provider?.createdAt ?? Date(),
             updatedAt: Date()
         )
@@ -944,13 +1018,13 @@ struct CustomProviderSheet: View {
             request.setValue(header.value, forHTTPHeaderField: header.key)
         }
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let response = try await CustomProviderHTTPClient.data(
+            for: request,
+            allowInsecureHTTP: provider.allowInsecureHTTP,
+            verifySSL: provider.verifySSL
+        )
         
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw CustomProviderTestError.invalidResponse
-        }
-        
-        switch httpResponse.statusCode {
+        switch response.statusCode {
         case 200..<300:
             return true
         case 401, 403:
@@ -958,10 +1032,10 @@ struct CustomProviderSheet: View {
         case 404:
             throw CustomProviderTestError.endpointNotFound
         default:
-            if let errorMessage = String(data: data, encoding: .utf8) {
-                throw CustomProviderTestError.serverError(httpResponse.statusCode, errorMessage)
+            if let errorMessage = String(data: response.data, encoding: .utf8) {
+                throw CustomProviderTestError.serverError(response.statusCode, errorMessage)
             }
-            throw CustomProviderTestError.serverError(httpResponse.statusCode, "Unknown error")
+            throw CustomProviderTestError.serverError(response.statusCode, "Unknown error")
         }
     }
 }

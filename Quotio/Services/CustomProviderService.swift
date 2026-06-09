@@ -44,6 +44,8 @@ final class CustomProviderService {
             headers: provider.headers,
             limitToSelectedModels: provider.limitToSelectedModels,
             isEnabled: provider.isEnabled,
+            verifySSL: provider.verifySSL,
+            allowInsecureHTTP: provider.allowInsecureHTTP,
             createdAt: Date(),
             updatedAt: Date()
         )
@@ -70,6 +72,8 @@ final class CustomProviderService {
             headers: provider.headers,
             limitToSelectedModels: provider.limitToSelectedModels,
             isEnabled: provider.isEnabled,
+            verifySSL: provider.verifySSL,
+            allowInsecureHTTP: provider.allowInsecureHTTP,
             createdAt: providers[index].createdAt,
             updatedAt: Date()
         )
@@ -99,6 +103,8 @@ final class CustomProviderService {
             headers: provider.headers,
             limitToSelectedModels: provider.limitToSelectedModels,
             isEnabled: !provider.isEnabled,
+            verifySSL: provider.verifySSL,
+            allowInsecureHTTP: provider.allowInsecureHTTP,
             createdAt: provider.createdAt,
             updatedAt: Date()
         )

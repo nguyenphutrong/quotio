@@ -4071,6 +4071,296 @@
         }
       }
     },
+    "customProviders.allowInsecureHTTP" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow Insecure HTTP"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser HTTP non sécurisé"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cho phép HTTP không an toàn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许不安全的HTTP"
+          }
+        }
+      }
+    },
+    "customProviders.allowInsecureHTTP.warning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP is unencrypted. Requests to this provider may expose API keys and responses."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP n'est pas chiffré. Les requêtes vers ce fournisseur peuvent exposer les clés API et les réponses."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP không được mã hóa. Yêu cầu tới nhà cung cấp này có thể làm lộ API key và phản hồi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP未加密。发送到此提供商的请求可能暴露API密钥和响应。"
+          }
+        }
+      }
+    },
+    "customProviders.insecureHTTPWarning.confirm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow Insecure HTTP"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser HTTP non sécurisé"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cho phép HTTP không an toàn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许不安全的HTTP"
+          }
+        }
+      }
+    },
+    "customProviders.insecureHTTPWarning.message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP does not encrypt traffic. Anyone on the network may read this provider's API key, model requests, and responses. Only allow HTTP for trusted local or internal endpoints."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP ne chiffre pas le trafic. Toute personne sur le réseau peut lire la clé API, les requêtes de modèle et les réponses de ce fournisseur. N'autorisez HTTP que pour les points de terminaison locaux ou internes de confiance."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP không mã hóa lưu lượng. Bất kỳ ai trên mạng cũng có thể đọc API key, yêu cầu mô hình và phản hồi của nhà cung cấp này. Chỉ cho phép HTTP với endpoint cục bộ hoặc nội bộ đáng tin cậy."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP不会加密流量。同一网络中的任何人都可能读取此提供商的API密钥、模型请求和响应。仅对可信的本地或内部端点允许HTTP。"
+          }
+        }
+      }
+    },
+    "customProviders.insecureHTTPWarning.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow Insecure HTTP?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser HTTP non sécurisé ?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cho phép HTTP không an toàn?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许不安全的HTTP？"
+          }
+        }
+      }
+    },
+    "customProviders.sslWarning.confirm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disable SSL Verification"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactiver la vérification SSL"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tắt xác minh SSL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "禁用SSL验证"
+          }
+        }
+      }
+    },
+    "customProviders.sslWarning.message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabling SSL verification allows attackers to intercept this provider's API key and responses. Only disable it for trusted networks or development endpoints."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactiver la vérification SSL permet aux attaquants d'intercepter la clé API et les réponses de ce fournisseur. Ne désactivez cette option que pour les réseaux de confiance ou les points de terminaison de développement."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tắt xác minh SSL cho phép kẻ tấn công chặn API key và phản hồi của nhà cung cấp này. Chỉ tắt tùy chọn này cho mạng tin cậy hoặc endpoint phát triển."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "禁用SSL验证会让攻击者拦截此提供商的API密钥和响应。仅在可信网络或开发端点中禁用此选项。"
+          }
+        }
+      }
+    },
+    "customProviders.sslWarning.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disable SSL Verification?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactiver la vérification SSL ?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tắt xác minh SSL?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "禁用SSL验证？"
+          }
+        }
+      }
+    },
+    "customProviders.verifySSL" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verify SSL Certificate"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifier le certificat SSL"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xác minh chứng chỉ SSL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证SSL证书"
+          }
+        }
+      }
+    },
+    "customProviders.verifySSL.warning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSL verification is disabled. Requests to this provider may be vulnerable to interception."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La vérification SSL est désactivée. Les requêtes vers ce fournisseur peuvent être vulnérables à l'interception."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xác minh SSL đã bị tắt. Yêu cầu tới nhà cung cấp này có thể bị chặn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSL验证已禁用。发送到此提供商的请求可能容易被拦截。"
+          }
+        }
+      }
+    },
     "customProviders.footer" : {
       "extractionState" : "stale",
       "localizations" : {
