@@ -15,6 +15,42 @@ Pinned tracked commit:
 The demo worktree was dirty when the pin was recorded, so migration work must
 copy files from the pinned commit, not from the live working tree.
 
+## Shared UI Development
+
+The shared React desktop UI lives in `apps/desktop-ui` and is embedded by the
+macOS `SharedDesktopUIScreen` or the Windows preview WebView2 host. The current
+production macOS SwiftUI screens remain authoritative unless the host enables a
+shared route flag.
+
+For macOS development:
+
+```bash
+bun --cwd apps/desktop-ui dev
+QUOTIO_DESKTOP_UI_DEV_SERVER=http://localhost:5173 open Quotio.xcodeproj
+```
+
+`QUOTIO_DESKTOP_UI_DEV_SERVER` automatically exposes the shared UI entry in
+Debug builds. To test the bundled web assets instead, run the normal desktop UI
+build first and launch the app with:
+
+```bash
+bun --cwd apps/desktop-ui build
+QUOTIO_ENABLE_SHARED_UI=1 open Quotio.xcodeproj
+```
+
+For Windows preview development, build `apps/desktop-ui` before the host build,
+or set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL. The Windows host
+currently advertises only preview-safe capabilities; remote credential storage,
+native onboarding, and agent configuration stay disabled until Credential
+Manager-backed adapters are implemented and verified on Windows CI.
+
+Current shared route scope:
+
+- Enabled by default in host bootstrap: overview, providers, quota, usage.
+- Implemented but still gated until adapter/parity approval: virtual models,
+  models, agents, API keys, logs.
+- Placeholder only: settings, about.
+
 ## ADRs
 
 - [ADR 0001: Layer ownership](0001-layer-ownership.md)
