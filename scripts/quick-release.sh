@@ -24,16 +24,16 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-IS_BETA=false
-if [[ "$VERSION" == *"-beta"* ]] || [[ "$BETA_FLAG" == "--beta" ]]; then
-    IS_BETA=true
+IS_PRERELEASE=false
+if [[ "$VERSION" =~ -(alpha|beta|rc)- ]] || [[ "$BETA_FLAG" == "--beta" ]]; then
+    IS_PRERELEASE=true
 fi
 
 log_info "==========================================="
 log_info "Quick Release for ${PROJECT_NAME}"
 log_info "==========================================="
 log_info "Version: ${VERSION}"
-log_info "Beta: ${IS_BETA}"
+log_info "Prerelease: ${IS_PRERELEASE}"
 
 read -p "Continue? (y/n) " -n 1 -r
 echo

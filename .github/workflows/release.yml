@@ -124,6 +124,31 @@ jobs:
           chmod +x ./scripts/generate-appcast-ci.sh
           ./scripts/generate-appcast-ci.sh
 
+      - name: Prepare release notes
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          NOTES_FILE="build/release/release-notes.md"
+          CHANGELOG_SECTION=$(awk -v version="$VERSION" '
+            index($0, "## [" version "] - ") == 1 { flag=1; next }
+            /^## \[/ && flag { flag=0 }
+            flag { print }
+          ' CHANGELOG.md)
+
+          {
+            if [ -n "$CHANGELOG_SECTION" ]; then
+              echo "$CHANGELOG_SECTION"
+              echo
+            fi
+            echo "## Installation"
+            echo
+            echo "Download the DMG or ZIP below."
+            echo
+            echo "> ⚠️ **Note**: The app is not signed with an Apple Developer certificate. If macOS blocks the app, run:"
+            echo "> \`\`\`bash"
+            echo "> xattr -cr \"/Applications/${{ env.APP_NAME }}.app\""
+            echo "> \`\`\`"
+          } > "$NOTES_FILE"
+
       # ===========================================
       # 10. Create tag (for workflow_dispatch)
       # ===========================================
@@ -150,16 +175,7 @@ jobs:
             build/release/*.xml
           generate_release_notes: true
           append_body: true
-          body: |
-            
-            ## Installation
-
-            Download the DMG or ZIP below.
-
-            > ⚠️ **Note**: The app is not signed with an Apple Developer certificate. If macOS blocks the app, run:
-            > ```bash
-            > xattr -cr "/Applications/${{ env.APP_NAME }}.app"
-            > ```
+          body_path: build/release/release-notes.md
           prerelease: ${{ steps.version.outputs.IS_PRERELEASE == 'true' }}
 
       # ===========================================

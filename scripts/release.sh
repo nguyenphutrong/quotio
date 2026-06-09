@@ -7,9 +7,9 @@ source "${SCRIPT_DIR}/config.sh"
 VERSION_ARG="${1:-}"
 BETA_FLAG="${2:-}"
 
-IS_BETA=false
-if [[ "$VERSION_ARG" == *"-beta-"* ]] || [[ "$BETA_FLAG" == "--beta" ]]; then
-    IS_BETA=true
+IS_PRERELEASE=false
+if [[ "$VERSION_ARG" =~ -(alpha|beta|rc)- ]] || [[ "$BETA_FLAG" == "--beta" ]]; then
+    IS_PRERELEASE=true
 fi
 
 check_command xcodebuild
@@ -30,8 +30,8 @@ fi
 
 TOTAL_STEPS=5
 RELEASE_TYPE="Release"
-if [[ "$IS_BETA" == true ]]; then
-    RELEASE_TYPE="Beta Release"
+if [[ "$IS_PRERELEASE" == true ]]; then
+    RELEASE_TYPE="Prerelease"
     export SCHEME="Quotio Beta"
     export BUILD_CONFIGURATION="Beta"
     export APP_NAME="Quotio Beta"
@@ -113,7 +113,7 @@ RELEASE_FILES=""
 [ -f "$APPCAST_PATH" ] && RELEASE_FILES="$RELEASE_FILES $APPCAST_PATH"
 
 RELEASE_FLAGS=""
-[[ "$IS_BETA" == true ]] && RELEASE_FLAGS="--prerelease"
+[[ "$IS_PRERELEASE" == true ]] && RELEASE_FLAGS="--prerelease"
 
 gh release create "$TAG_NAME" \
     --title "${PROJECT_NAME} ${NEW_VERSION}" \
