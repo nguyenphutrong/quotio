@@ -72,6 +72,15 @@ enum WebViewSource {
     }
 }
 
+private enum DesktopBridgeContract {
+    static let version = 1
+
+    enum RequestKind {
+        static let managementRequest = "management.request"
+        static let nativeConfirm = "native.confirm"
+    }
+}
+
 struct WebViewHost: NSViewRepresentable {
     let source: WebViewSource?
     let bootstrap: WebViewBootstrap
@@ -170,7 +179,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
               window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
               window.webkit.messageHandlers.\(Self.messageName).postMessage({
                 id,
-                kind: 'management.request',
+                kind: '\(DesktopBridgeContract.RequestKind.managementRequest)',
                 path: request?.path,
                 init: request?.init || {}
               });
@@ -181,7 +190,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
               window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
               window.webkit.messageHandlers.\(Self.messageName).postMessage({
                 id,
-                kind: 'native.confirm',
+                kind: '\(DesktopBridgeContract.RequestKind.nativeConfirm)',
                 title: request?.title,
                 message: request?.message,
                 confirmLabel: request?.confirmLabel,
@@ -209,7 +218,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
         [
             "uiEnabled": true,
             "basePath": "/",
-            "bridgeVersion": 1,
+            "bridgeVersion": DesktopBridgeContract.version,
             "serverListen": "localhost:8386",
             "platform": "macos",
             "operatingMode": bootstrap.operatingMode.rawValue,
@@ -293,9 +302,9 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             do {
                 let value: Any
                 switch kind {
-                case "management.request":
+                case DesktopBridgeContract.RequestKind.managementRequest:
                     value = try await handleManagementRequest(body)
-                case "native.confirm":
+                case DesktopBridgeContract.RequestKind.nativeConfirm:
                     value = handleNativeConfirm(body)
                 default:
                     throw APIError.invalidURL
