@@ -38,6 +38,7 @@ try
     RunConfigSmoke();
     RunDesktopUiSourceSmoke();
     RunBootstrapSmoke();
+    RunSingleInstanceSmoke();
     RunWindowPlacementSmoke();
     RunRuntimeControllerSmoke();
     RunAgentAdapterSmoke();
@@ -175,6 +176,34 @@ static void RunWindowPlacementSmoke()
         []
     );
     Assert(noDisplays.X == -300 && noDisplays.Y == -200, "Window restore should preserve placement when display data is unavailable");
+}
+
+static void RunSingleInstanceSmoke()
+{
+    if (!OperatingSystem.IsWindows())
+    {
+        return;
+    }
+
+    var instanceName = $"dev.quotio.desktop.windows.smoke.{Guid.NewGuid():N}";
+    using var activationReceived = new ManualResetEventSlim(false);
+
+    using (var primary = new SingleInstanceGuard(instanceName))
+    {
+        Assert(primary.IsPrimary, "First Windows instance should become primary");
+        primary.ActivationRequested += (_, _) => activationReceived.Set();
+        primary.StartListening();
+
+        using (var secondary = new SingleInstanceGuard(instanceName))
+        {
+            Assert(!secondary.IsPrimary, "Second Windows instance should not become primary");
+            secondary.SignalPrimary();
+            Assert(activationReceived.Wait(TimeSpan.FromSeconds(2)), "Second Windows instance should signal the primary instance");
+        }
+    }
+
+    using var afterPrimaryExit = new SingleInstanceGuard(instanceName);
+    Assert(afterPrimaryExit.IsPrimary, "Windows instance ownership should be released after primary exit");
 }
 
 static void RunRuntimeControllerSmoke()
