@@ -1,11 +1,13 @@
 using System.Text.Json;
 using System.Net;
 using System.Net.Sockets;
+using System.Diagnostics;
 using Quotio.Windows;
 
 if (args.Contains("--runtime-child", StringComparer.Ordinal))
 {
-    Thread.Sleep(TimeSpan.FromSeconds(2));
+    WriteRuntimeChildPidFile();
+    Thread.Sleep(TimeSpan.FromSeconds(10));
     return;
 }
 
@@ -139,6 +141,8 @@ static void RunRuntimeControllerSmoke()
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_BINARY", Environment.ProcessPath);
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", "http://127.0.0.1:8686");
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", "--runtime-child-server 127.0.0.1 8686");
+    var runtimePidFile = Path.Combine(Path.GetTempPath(), $"quotio-runtime-{Guid.NewGuid():N}.pid");
+    Environment.SetEnvironmentVariable("QUOTIO_RUNTIME_CHILD_PID_FILE", runtimePidFile);
 
     using var runtime = new RuntimeProcessController(new WindowsHostConfig(_ => null));
     var stopped = runtime.Status();
@@ -148,17 +152,25 @@ static void RunRuntimeControllerSmoke()
     var started = runtime.Start();
     Assert(started.State == "managed", "Runtime start should return managed status");
     Assert(started.Endpoint == "http://127.0.0.1:8686", "Runtime start should expose configured endpoint");
+    var firstRuntimePid = WaitForPidFile(runtimePidFile);
+    Assert(ProcessIsRunning(firstRuntimePid), "Runtime child should be alive after start");
 
     var restarted = runtime.Restart();
     Assert(restarted.State == "managed", "Runtime restart should return managed status");
     Assert(restarted.Endpoint == "http://127.0.0.1:8686", "Runtime restart should preserve configured endpoint");
+    Assert(WaitForProcess(firstRuntimePid, running: false), "Runtime restart should kill the previous child process");
+    var secondRuntimePid = WaitForPidFile(runtimePidFile, firstRuntimePid);
+    Assert(ProcessIsRunning(secondRuntimePid), "Runtime child should be alive after restart");
 
     var stoppedAgain = runtime.Stop();
     Assert(stoppedAgain.State == "stopped", "Runtime stop should return stopped status");
     Assert(stoppedAgain.Endpoint is null, "Runtime stop should clear endpoint");
+    Assert(WaitForProcess(secondRuntimePid, running: false), "Runtime stop should kill the child process");
 
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", "http://127.0.0.1:8699");
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", "--runtime-child");
+    var unhealthyPidFile = Path.Combine(Path.GetTempPath(), $"quotio-runtime-unhealthy-{Guid.NewGuid():N}.pid");
+    Environment.SetEnvironmentVariable("QUOTIO_RUNTIME_CHILD_PID_FILE", unhealthyPidFile);
     using var unhealthyRuntime = new RuntimeProcessController(new WindowsHostConfig(_ => null));
     try
     {
@@ -170,10 +182,13 @@ static void RunRuntimeControllerSmoke()
         var afterFailure = unhealthyRuntime.Status();
         Assert(afterFailure.State == "stopped", "Runtime start failure should clean up the child process");
         Assert(afterFailure.Endpoint is null, "Failed runtime should not expose an endpoint");
+        var unhealthyPid = WaitForPidFile(unhealthyPidFile);
+        Assert(WaitForProcess(unhealthyPid, running: false), "Runtime start failure should kill the unreachable child process");
     }
 
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", "http://127.0.0.1:8687");
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", "--runtime-child-server 127.0.0.1 8687 1");
+    Environment.SetEnvironmentVariable("QUOTIO_RUNTIME_CHILD_PID_FILE", null);
     using var crashRuntime = new RuntimeProcessController(new WindowsHostConfig(_ => null));
     var crashStarted = crashRuntime.Start();
     Assert(crashStarted.State == "managed", "Short-lived runtime should start as managed");
@@ -284,8 +299,67 @@ static void Assert(bool condition, string message)
 
 static void RunRuntimeChildServer(string host, int port, int lifetimeSeconds)
 {
+    WriteRuntimeChildPidFile();
     var listener = new TcpListener(IPAddress.Parse(host), port);
     listener.Start();
     Thread.Sleep(TimeSpan.FromSeconds(lifetimeSeconds));
     listener.Stop();
+}
+
+static void WriteRuntimeChildPidFile()
+{
+    var path = Environment.GetEnvironmentVariable("QUOTIO_RUNTIME_CHILD_PID_FILE");
+    if (!string.IsNullOrWhiteSpace(path))
+    {
+        File.WriteAllText(path, Environment.ProcessId.ToString());
+    }
+}
+
+static int WaitForPidFile(string path, int? previousPid = null)
+{
+    var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(2);
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        if (File.Exists(path) && int.TryParse(File.ReadAllText(path), out var pid) && pid != previousPid)
+        {
+            return pid;
+        }
+
+        Thread.Sleep(TimeSpan.FromMilliseconds(50));
+    }
+
+    throw new InvalidOperationException($"Runtime child PID file was not written: {path}");
+}
+
+static bool WaitForProcess(int pid, bool running)
+{
+    var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(2);
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        if (ProcessIsRunning(pid) == running)
+        {
+            return true;
+        }
+
+        Thread.Sleep(TimeSpan.FromMilliseconds(50));
+    }
+
+    return false;
+}
+
+static bool ProcessIsRunning(int pid)
+{
+    try
+    {
+        using var process = Process.GetProcessById(pid);
+        return !process.HasExited;
+    }
+    catch (ArgumentException)
+    {
+        return false;
+    }
+    catch (InvalidOperationException)
+    {
+        return false;
+    }
 }
