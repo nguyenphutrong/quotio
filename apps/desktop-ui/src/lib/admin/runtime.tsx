@@ -16,8 +16,17 @@ type DesktopBridgeRequest = {
   };
 };
 
+export type NativeConfirmRequest = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  destructive?: boolean;
+};
+
 type DesktopBridge = {
   request: <T>(request: DesktopBridgeRequest) => Promise<T>;
+  confirm?: (request: NativeConfirmRequest) => Promise<boolean>;
 };
 
 declare global {
@@ -35,6 +44,7 @@ type AdminRuntimeValue = {
   verifyToken: () => Promise<boolean>;
   clearToken: () => void;
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
+  confirm: (request: NativeConfirmRequest) => Promise<boolean>;
 };
 
 const AdminRuntimeContext = createContext<AdminRuntimeValue | null>(null);
@@ -63,6 +73,16 @@ export function AdminRuntimeProvider({
     });
   }, []);
 
+  const confirm = useCallback(async (request: NativeConfirmRequest) => {
+    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+    if (bridge?.confirm) {
+      return bridge.confirm(request);
+    }
+
+    return window.confirm(request.message);
+  }, []);
+
   const value = useMemo<AdminRuntimeValue>(
     () => ({
       bootstrap,
@@ -73,8 +93,9 @@ export function AdminRuntimeProvider({
       verifyToken: async () => true,
       clearToken: () => {},
       request,
+      confirm,
     }),
-    [bootstrap, request],
+    [bootstrap, confirm, request],
   );
 
   return (

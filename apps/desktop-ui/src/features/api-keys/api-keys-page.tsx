@@ -50,6 +50,7 @@ import { ErrorState } from '@/components/admin/error-state';
 import { LoadingState } from '@/components/admin/loading-state';
 import { Panel } from '@/components/admin/panel';
 import { useToast } from '@/components/admin/toast-provider';
+import { useAdminRuntime } from '@/lib/admin/runtime';
 import {
   type APIKeyListFilters,
   useClientKeyMutations,
@@ -86,6 +87,7 @@ function formatTimestamp(value?: string | null) {
 export function APIKeysPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { confirm } = useAdminRuntime();
   const toast = useToast();
   const [filters, setFilters] = useState<APIKeyListFilters>({
     status: '',
@@ -187,11 +189,15 @@ export function APIKeysPage() {
   };
 
   const handleDelete = async (record: APIKeyRecord) => {
-    if (
-      !window.confirm(
-        t('apiKeys.messages.deleteConfirm', { name: record.name }),
-      )
-    ) {
+    const confirmed = await confirm({
+      title: t('apiKeys.actions.delete'),
+      message: t('apiKeys.messages.deleteConfirm', { name: record.name }),
+      confirmLabel: t('apiKeys.actions.delete'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+
+    if (!confirmed) {
       return;
     }
     try {

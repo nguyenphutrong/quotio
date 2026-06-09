@@ -167,6 +167,20 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 path: request?.path,
                 init: request?.init || {}
               });
+            }),
+            confirm: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: 'native.confirm',
+                title: request?.title,
+                message: request?.message,
+                confirmLabel: request?.confirmLabel,
+                cancelLabel: request?.cancelLabel,
+                destructive: request?.destructive === true
+              });
             })
           };
           window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__ = (message) => {
@@ -260,6 +274,8 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 switch kind {
                 case "management.request":
                     value = try await handleManagementRequest(body)
+                case "native.confirm":
+                    value = handleNativeConfirm(body)
                 default:
                     throw APIError.invalidURL
                 }
@@ -300,6 +316,17 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
         let data = try await client.bridgeRequest(endpoint: path, method: method, body: bodyData)
         guard !data.isEmpty else { return NSNull() }
         return try JSONSerialization.jsonObject(with: data)
+    }
+
+    private func handleNativeConfirm(_ body: [String: Any]) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = body["title"] as? String ?? "Quotio"
+        alert.informativeText = body["message"] as? String ?? ""
+        alert.alertStyle = (body["destructive"] as? Bool) == true ? .warning : .informational
+        alert.addButton(withTitle: body["confirmLabel"] as? String ?? "OK")
+        alert.addButton(withTitle: body["cancelLabel"] as? String ?? "Cancel")
+
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     private func sendResponse(id: String, ok: Bool, value: Any, error: String?) {

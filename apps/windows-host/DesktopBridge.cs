@@ -47,6 +47,20 @@ public sealed class DesktopBridge
               window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
               window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
               chrome.webview.postMessage({ id, kind: 'runtime.status' });
+            }),
+            confirm: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({
+                id,
+                kind: 'native.confirm',
+                title: request?.title,
+                message: request?.message,
+                confirmLabel: request?.confirmLabel,
+                cancelLabel: request?.cancelLabel,
+                destructive: request?.destructive === true
+              });
             })
           };
           window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__ = (message) => {
@@ -88,6 +102,7 @@ public sealed class DesktopBridge
                     Endpoint = null
                 },
                 "management.request" => await HandleManagementRequestAsync(root),
+                "native.confirm" => await HandleNativeConfirmAsync(root),
                 _ => throw new InvalidOperationException("Unsupported bridge request")
             };
 
@@ -150,6 +165,30 @@ public sealed class DesktopBridge
         }
 
         return JsonSerializer.Deserialize<JsonElement>(responseBody);
+    }
+
+    private async Task<bool> HandleNativeConfirmAsync(JsonElement root)
+    {
+        static string ReadString(JsonElement element, string propertyName, string fallback)
+        {
+            return element.TryGetProperty(propertyName, out var property)
+                && property.ValueKind == JsonValueKind.String
+                ? property.GetString() ?? fallback
+                : fallback;
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = ReadString(root, "title", "Quotio"),
+            Content = ReadString(root, "message", ""),
+            PrimaryButtonText = ReadString(root, "confirmLabel", "OK"),
+            CloseButtonText = ReadString(root, "cancelLabel", "Cancel"),
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = webView.XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+        return result == ContentDialogResult.Primary;
     }
 
     private Task SendResponseAsync(string id, bool ok, object? value, string? error)
