@@ -56,6 +56,8 @@ Before production cutover:
 
 - Run `bun run contracts:check`, `bun run typecheck`, `bun run build`, and
   `bun run format-and-lint`.
+- Run `bun run windows:gates:check` before changing Windows preview route or
+  capability defaults.
 - Run `cargo test`.
 - Run `xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug build`.
 - Run `xcodebuild -project Quotio.xcodeproj -scheme "Quotio Beta" -configuration Beta build`.

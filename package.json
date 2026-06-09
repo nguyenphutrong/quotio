@@ -11,6 +11,7 @@
     "format-and-lint:fix": "biome check apps packages tools schema generated package.json tsconfig.json tsconfig.base.json turbo.json --write",
     "smoke:agents": "./scripts/run-codex-patcher-smoke.sh && ./scripts/run-agent-config-smoke.sh",
     "typecheck": "turbo typecheck",
+    "windows:gates:check": "node tools/windows-preview-gates/check.mjs",
     "prepare": "lefthook install"
   },
   "devDependencies": {
