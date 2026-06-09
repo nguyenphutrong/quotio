@@ -64,7 +64,9 @@ jobs:
       - run: bun run contracts:check
       - run: bun run windows:gates:check
       - run: bun run desktop-ui:gateway-url:check
+      - run: bun run typecheck
       - run: bun run build
+      - run: bun run format-and-lint
       - run: dotnet build apps/windows-host/Quotio.Windows.csproj --configuration Release
       - run: dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release
 
