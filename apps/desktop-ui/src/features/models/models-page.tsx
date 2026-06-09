@@ -24,6 +24,7 @@ import { LoadingState } from '@/components/admin/loading-state';
 import { ProviderIcon } from '@/components/admin/provider-icon';
 import { useToast } from '@/components/admin/toast-provider';
 import { getProviderDisplayName } from '@/features/providers/types';
+import { useAdminRuntime } from '@/lib/admin/runtime';
 import { useModelCatalogQuery, useModelMutations } from './api';
 import type { ModelCatalogItem, ModelCatalogProvider, ModelRow } from './types';
 
@@ -174,6 +175,7 @@ function CapabilityBadges({ item }: { item: ModelCatalogItem }) {
 
 export function ModelsPage() {
   const { t } = useTranslation();
+  const { bootstrap } = useAdminRuntime();
   const toast = useToast();
   const catalogQuery = useModelCatalogQuery();
   const mutations = useModelMutations();
@@ -450,7 +452,10 @@ export function ModelsPage() {
                       <Button
                         variant={isEnabled ? 'secondary' : 'outline'}
                         size="xs"
-                        disabled={isBusy}
+                        disabled={
+                          isBusy ||
+                          !bootstrap.capabilities.supportsModelSettings
+                        }
                         onClick={() => void toggleRow(row)}
                         className={
                           isEnabled

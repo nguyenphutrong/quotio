@@ -12,7 +12,7 @@ const expectedFeatures = {
   quota: true,
   usage: true,
   virtualModels: false,
-  models: false,
+  models: true,
   agents: true,
   apiKeys: false,
   logs: true,
@@ -31,6 +31,7 @@ const expectedCapabilities = {
   supportsNativeOnboarding: false,
   supportsAppearanceSync: true,
   supportsRequestLogSettings: false,
+  supportsModelSettings: false,
 };
 
 function readBoolDictionary(name) {

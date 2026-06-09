@@ -37,7 +37,7 @@ public static class DesktopUiSource
                 ["quota"] = true,
                 ["usage"] = true,
                 ["virtualModels"] = false,
-                ["models"] = false,
+                ["models"] = true,
                 ["agents"] = true,
                 ["apiKeys"] = false,
                 ["logs"] = true,
@@ -55,7 +55,8 @@ public static class DesktopUiSource
                 ["supportsCredentialStorage"] = false,
                 ["supportsNativeOnboarding"] = false,
                 ["supportsAppearanceSync"] = true,
-                ["supportsRequestLogSettings"] = false
+                ["supportsRequestLogSettings"] = false,
+                ["supportsModelSettings"] = false
             }
         );
     }

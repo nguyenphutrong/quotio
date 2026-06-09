@@ -36,6 +36,7 @@ export type HostCapabilities = {
   supportsNativeOnboarding: boolean;
   supportsAppearanceSync: boolean;
   supportsRequestLogSettings: boolean;
+  supportsModelSettings: boolean;
 };
 
 export const DEFAULT_FEATURE_FLAGS: AdminFeatureFlags = {
@@ -44,7 +45,7 @@ export const DEFAULT_FEATURE_FLAGS: AdminFeatureFlags = {
   quota: true,
   usage: false,
   virtualModels: false,
-  models: false,
+  models: true,
   agents: false,
   apiKeys: false,
   logs: true,
@@ -63,6 +64,7 @@ export const DEFAULT_HOST_CAPABILITIES: HostCapabilities = {
   supportsNativeOnboarding: false,
   supportsAppearanceSync: false,
   supportsRequestLogSettings: false,
+  supportsModelSettings: false,
 };
 
 export type AdminBootstrap = {
