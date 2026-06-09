@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0-beta-2] - 2026-06-08
 
+### Added
+
+- Active IDE account switching for Antigravity accounts.
+- Helper script for updating the bundled cpa-plusplus manifest.
+
+### Changed
+
+- Updated the bundled cpa-plusplus manifest.
+- Added concise release notes for `1.0.0-beta-1`.
+
+### Fixed
+
+- Release automation now pushes version-bump commits back to `dev`.
+- Hardened changelog generation for empty `[Unreleased]` sections, stable releases after beta tags, and `alpha` / `rc` prerelease handling.
+
+**Full Changelog**: https://github.com/nguyenphutrong/quotio/compare/v1.0.0-beta-1...v1.0.0-beta-2
+
 ## [1.0.0-beta-1] - 2026-06-03
 
 ### Added
