@@ -52,6 +52,92 @@
           "optional": true
         }
       ]
+    },
+    {
+      "name": "AgentDescriptor",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "displayName",
+          "type": "string"
+        },
+        {
+          "name": "configType",
+          "type": "string"
+        },
+        {
+          "name": "binaryNames",
+          "type": "string[]"
+        },
+        {
+          "name": "macosConfigPaths",
+          "type": "string[]"
+        },
+        {
+          "name": "windowsConfigPaths",
+          "type": "string[]"
+        },
+        {
+          "name": "macosSupport",
+          "type": "string"
+        },
+        {
+          "name": "windowsSupport",
+          "type": "string"
+        },
+        {
+          "name": "backupPolicy",
+          "type": "string"
+        },
+        {
+          "name": "docsUrl",
+          "type": "string",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "AgentDetectionStatus",
+      "fields": [
+        {
+          "name": "agentId",
+          "type": "string"
+        },
+        {
+          "name": "platformSupport",
+          "type": "string"
+        },
+        {
+          "name": "installed",
+          "type": "boolean"
+        },
+        {
+          "name": "configured",
+          "type": "boolean"
+        },
+        {
+          "name": "rollbackAvailable",
+          "type": "boolean"
+        },
+        {
+          "name": "binaryPath",
+          "type": "string",
+          "optional": true
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "optional": true
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "optional": true
+        }
+      ]
     }
   ]
 }

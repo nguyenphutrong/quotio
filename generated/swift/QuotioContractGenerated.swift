@@ -22,3 +22,27 @@ public struct ManagementResponse: Codable, Sendable, Equatable {
     public let status: Int
     public let body: String?
 }
+
+public struct AgentDescriptor: Codable, Sendable, Equatable {
+    public let id: String
+    public let displayName: String
+    public let configType: String
+    public let binaryNames: [String]
+    public let macosConfigPaths: [String]
+    public let windowsConfigPaths: [String]
+    public let macosSupport: String
+    public let windowsSupport: String
+    public let backupPolicy: String
+    public let docsUrl: String?
+}
+
+public struct AgentDetectionStatus: Codable, Sendable, Equatable {
+    public let agentId: String
+    public let platformSupport: String
+    public let installed: Bool
+    public let configured: Bool
+    public let rollbackAvailable: Bool
+    public let binaryPath: String?
+    public let version: String?
+    public let message: String?
+}

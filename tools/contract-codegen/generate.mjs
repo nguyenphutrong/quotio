@@ -20,22 +20,78 @@ function pascal(value) {
     .join('');
 }
 
+function snake(value) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+}
+
 function tsType(type) {
+  if (type.endsWith('[]')) {
+    return `${tsType(type.slice(0, -2))}[]`;
+  }
+  if (type === 'boolean') {
+    return 'boolean';
+  }
   return type === 'number' ? 'number' : 'string';
 }
 
 function rustType(field) {
-  const base = field.type === 'number' ? 'u16' : 'String';
+  if (field.type.endsWith('[]')) {
+    const inner = rustType({
+      ...field,
+      type: field.type.slice(0, -2),
+      optional: false,
+    });
+    const base = `Vec<${inner}>`;
+    return field.optional ? `Option<${base}>` : base;
+  }
+  const base =
+    field.type === 'number'
+      ? 'u16'
+      : field.type === 'boolean'
+        ? 'bool'
+        : 'String';
   return field.optional ? `Option<${base}>` : base;
 }
 
 function csharpType(field) {
-  const base = field.type === 'number' ? 'int' : 'string';
+  if (field.type.endsWith('[]')) {
+    const inner = csharpType({
+      ...field,
+      type: field.type.slice(0, -2),
+      optional: false,
+    });
+    const base = `IReadOnlyList<${inner}>`;
+    return field.optional ? `${base}?` : base;
+  }
+  const base =
+    field.type === 'number'
+      ? 'int'
+      : field.type === 'boolean'
+        ? 'bool'
+        : 'string';
   return field.optional ? `${base}?` : base;
 }
 
 function swiftType(field) {
-  const base = field.type === 'number' ? 'Int' : 'String';
+  if (field.type.endsWith('[]')) {
+    const inner = swiftType({
+      ...field,
+      type: field.type.slice(0, -2),
+      optional: false,
+    });
+    const base = `[${inner}]`;
+    return field.optional ? `${base}?` : base;
+  }
+  const base =
+    field.type === 'number'
+      ? 'Int'
+      : field.type === 'boolean'
+        ? 'Bool'
+        : 'String';
   return field.optional ? `${base}?` : base;
 }
 
@@ -73,7 +129,7 @@ function renderRust() {
   const models = schema.models
     .map((model) => {
       const fields = model.fields
-        .map((field) => `    pub ${field.name}: ${rustType(field)},`)
+        .map((field) => `    pub ${snake(field.name)}: ${rustType(field)},`)
         .join('\n');
       return `#[derive(Clone, Debug, PartialEq, Eq)]\npub struct ${model.name} {\n${fields}\n}`;
     })

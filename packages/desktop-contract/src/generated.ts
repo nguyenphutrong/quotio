@@ -15,3 +15,27 @@ export type ManagementResponse = {
   status: number;
   body?: string;
 };
+
+export type AgentDescriptor = {
+  id: string;
+  displayName: string;
+  configType: string;
+  binaryNames: string[];
+  macosConfigPaths: string[];
+  windowsConfigPaths: string[];
+  macosSupport: string;
+  windowsSupport: string;
+  backupPolicy: string;
+  docsUrl?: string;
+};
+
+export type AgentDetectionStatus = {
+  agentId: string;
+  platformSupport: string;
+  installed: boolean;
+  configured: boolean;
+  rollbackAvailable: boolean;
+  binaryPath?: string;
+  version?: string;
+  message?: string;
+};
