@@ -53,6 +53,16 @@ public sealed class WindowsAgentAdapter
             "unknown",
             "Support for Factory Droid has not been validated on Windows yet.",
             "https://docs.factory.ai/welcome"
+        ),
+        new(
+            "amp",
+            "Amp CLI",
+            "both",
+            ["amp"],
+            ["%USERPROFILE%\\.config\\amp\\settings.json", "%USERPROFILE%\\.local\\share\\amp\\secrets.json"],
+            "unknown",
+            "Support for Amp CLI has not been validated on Windows yet.",
+            "https://ampcode.com/manual"
         )
     ];
 

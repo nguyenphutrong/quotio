@@ -149,14 +149,22 @@ static void RunAgentAdapterSmoke()
     var adapter = new WindowsAgentAdapter();
     using var list = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var agents = list.RootElement.GetProperty("agents");
-    Assert(agents.GetArrayLength() >= 5, "Windows agents endpoint should return descriptors");
+    Assert(agents.GetArrayLength() >= 6, "Windows agents endpoint should return descriptors");
 
     var codex = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "codex");
     Assert(codex.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide"]), "Windows descriptors should be guide-only");
     Assert(!codex.GetProperty("rollback_available").GetBoolean(), "Windows descriptors should not claim rollback");
 
+    var amp = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "amp");
+    Assert(amp.GetProperty("binaries").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["amp"]), "Amp descriptor should expose the amp binary");
+    Assert(amp.GetProperty("target_paths").GetArrayLength() == 2, "Amp descriptor should expose settings and secrets paths");
+    Assert(amp.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide"]), "Amp descriptor should stay guide-only");
+
     using var guide = ToJsonDocument(adapter.Handle("/agents/codex/guide", "GET"));
     Assert(guide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "codex", "Guide endpoint should return the requested agent");
+
+    using var ampGuide = ToJsonDocument(adapter.Handle("/agents/amp/guide", "GET"));
+    Assert(ampGuide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "amp", "Amp guide endpoint should return Amp");
 
     using var diff = ToJsonDocument(adapter.Handle("/agents/codex/diff", "POST"));
     Assert(diff.RootElement.GetProperty("plan").GetProperty("files").GetArrayLength() == 0, "Diff preview should be read-only");
