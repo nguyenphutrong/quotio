@@ -6,8 +6,19 @@
 import Foundation
 
 actor AgentConfigurationService {
-    private let fileManager = FileManager.default
-    private let codexPatcher = CodexConfigPatcher()
+    private let fileManager: FileManager
+    private let homeDirectory: URL
+    private let codexPatcher: CodexConfigPatcher
+
+    init(
+        fileManager: FileManager = .default,
+        homeDirectory: URL? = nil,
+        codexPatcher: CodexConfigPatcher = CodexConfigPatcher()
+    ) {
+        self.fileManager = fileManager
+        self.homeDirectory = homeDirectory ?? fileManager.homeDirectoryForCurrentUser
+        self.codexPatcher = codexPatcher
+    }
     
     // MARK: - Saved Configuration Models
     
@@ -63,7 +74,7 @@ actor AgentConfigurationService {
     
     /// List available backup files for an agent
     func listBackups(agent: CLIAgent) -> [BackupFile] {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         var backups: [BackupFile] = []
         
         for configPath in agent.configPaths {
@@ -136,7 +147,7 @@ actor AgentConfigurationService {
     // MARK: - Agent-Specific Read Implementations
     
     private func readClaudeCodeConfig() -> SavedAgentConfig? {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let configPath = "\(home)/.claude/settings.json"
         
         guard fileManager.fileExists(atPath: configPath),
@@ -227,7 +238,7 @@ actor AgentConfigurationService {
     }
     
     private func readAmpConfig() -> SavedAgentConfig? {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let settingsPath = "\(home)/.config/amp/settings.json"
         
         guard fileManager.fileExists(atPath: settingsPath),
@@ -250,7 +261,7 @@ actor AgentConfigurationService {
     }
     
     private func readOpenCodeConfig() -> SavedAgentConfig? {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let configPath = "\(home)/.config/opencode/opencode.json"
         
         guard fileManager.fileExists(atPath: configPath),
@@ -287,7 +298,7 @@ actor AgentConfigurationService {
     }
     
     private func readFactoryDroidConfig() -> SavedAgentConfig? {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let configPath = "\(home)/.factory/config.json"
         
         guard fileManager.fileExists(atPath: configPath),
@@ -391,7 +402,7 @@ actor AgentConfigurationService {
     }
     
     private func generateClaudeCodeDefaultConfig(mode: ConfigurationMode) -> AgentConfigResult {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let configDir = "\(home)/.claude"
         let configPath = "\(configDir)/settings.json"
         
@@ -548,7 +559,7 @@ actor AgentConfigurationService {
     }
     
     private func generateAmpDefaultConfig(mode: ConfigurationMode) -> AgentConfigResult {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let settingsPath = "\(home)/.config/amp/settings.json"
         
         if mode == .automatic && fileManager.fileExists(atPath: settingsPath) {
@@ -592,7 +603,7 @@ actor AgentConfigurationService {
     }
     
     private func generateOpenCodeDefaultConfig(mode: ConfigurationMode) -> AgentConfigResult {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let configPath = "\(home)/.config/opencode/opencode.json"
         
         if mode == .automatic && fileManager.fileExists(atPath: configPath) {
@@ -639,7 +650,7 @@ actor AgentConfigurationService {
     }
     
     private func generateFactoryDroidDefaultConfig(mode: ConfigurationMode) -> AgentConfigResult {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let configPath = "\(home)/.factory/config.json"
         
         if mode == .automatic && fileManager.fileExists(atPath: configPath) {
@@ -701,7 +712,7 @@ actor AgentConfigurationService {
     /// - Each backup is unique and never overwritten
     /// - All previous backups are preserved
     private func generateClaudeCodeConfig(config: AgentConfiguration, mode: ConfigurationMode, storageOption: ConfigStorageOption) -> AgentConfigResult {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let configDir = "\(home)/.claude"
         let configPath = "\(configDir)/settings.json"
 
@@ -915,7 +926,7 @@ actor AgentConfigurationService {
     }
     
     private func generateAmpConfig(config: AgentConfiguration, mode: ConfigurationMode) async throws -> AgentConfigResult {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let configDir = "\(home)/.config/amp"
         let dataDir = "\(home)/.local/share/amp"
         let settingsPath = "\(configDir)/settings.json"
@@ -1002,7 +1013,7 @@ actor AgentConfigurationService {
     }
     
     private func generateOpenCodeConfig(config: AgentConfiguration, mode: ConfigurationMode, availableModels: [AvailableModel]) -> AgentConfigResult {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let configDir = "\(home)/.config/opencode"
         let configPath = "\(configDir)/opencode.json"
         let baseURL = config.proxyURL.replacingOccurrences(of: "/v1", with: "")
@@ -1143,7 +1154,7 @@ actor AgentConfigurationService {
     }
     
     private func generateFactoryDroidConfig(config: AgentConfiguration, mode: ConfigurationMode, availableModels: [AvailableModel]) -> AgentConfigResult {
-        let home = fileManager.homeDirectoryForCurrentUser.path
+        let home = homeDirectory.path
         let configDir = "\(home)/.factory"
         let configPath = "\(configDir)/config.json"
 

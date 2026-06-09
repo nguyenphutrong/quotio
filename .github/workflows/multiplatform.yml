@@ -18,7 +18,7 @@ jobs:
       - name: Build Quotio
         run: xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug build
       - name: Run agent config smoke tests
-        run: ./scripts/run-codex-patcher-smoke.sh
+        run: bun run smoke:agents
 
   frontend:
     runs-on: ubuntu-latest
