@@ -170,6 +170,7 @@ static void RunBootstrapSmoke()
         ["supportsRemoteConnections"] = true,
         ["supportsCredentialStorage"] = true,
         ["supportsNativeOnboarding"] = false,
+        ["supportsNativePreferences"] = false,
         ["supportsAppearanceSync"] = true,
         ["supportsRequestLogSettings"] = false,
         ["supportsModelSettings"] = false,

@@ -95,6 +95,8 @@ private enum DesktopBridgeContract {
         static let runtimeStop = QuotioRequestKind.RuntimeStop.rawValue
         static let runtimeRestart = QuotioRequestKind.RuntimeRestart.rawValue
         static let managementRequest = QuotioRequestKind.ManagementRequest.rawValue
+        static let nativePreferencesRead = "native.preferencesRead"
+        static let nativePreferencesWrite = "native.preferencesWrite"
         static let nativeConfirm = QuotioRequestKind.NativeConfirm.rawValue
         static let nativeOpenExternal = QuotioRequestKind.NativeOpenExternal.rawValue
         static let nativeOpenTextFile = QuotioRequestKind.NativeOpenTextFile.rawValue
@@ -233,6 +235,25 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 kind: '\(DesktopBridgeContract.RequestKind.runtimeRestart)'
               });
             }),
+            preferencesRead: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.nativePreferencesRead)'
+              });
+            }),
+            preferencesWrite: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.nativePreferencesWrite)',
+                preferences: request?.preferences || {}
+              });
+            }),
             request: (request) => new Promise((resolve, reject) => {
               const id = request?.id || crypto.randomUUID();
               window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
@@ -358,6 +379,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 "supportsRemoteConnections": true,
                 "supportsCredentialStorage": true,
                 "supportsNativeOnboarding": true,
+                "supportsNativePreferences": true,
                 "supportsAppearanceSync": true,
                 "supportsRequestLogSettings": true,
                 "supportsModelSettings": true,
@@ -427,6 +449,10 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                     value = try handleRuntimeStop()
                 case DesktopBridgeContract.RequestKind.runtimeRestart:
                     value = try await handleRuntimeRestart()
+                case DesktopBridgeContract.RequestKind.nativePreferencesRead:
+                    value = handleNativePreferencesRead()
+                case DesktopBridgeContract.RequestKind.nativePreferencesWrite:
+                    value = try handleNativePreferencesWrite(body)
                 case DesktopBridgeContract.RequestKind.managementRequest:
                     value = try await handleManagementRequest(body)
                 case DesktopBridgeContract.RequestKind.nativeConfirm:
@@ -501,6 +527,77 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
         return [
             "state": "stopped",
             "endpoint": NSNull()
+        ]
+    }
+
+    private func handleNativePreferencesRead() -> [String: Any] {
+        LaunchAtLoginManager.shared.refreshStatus()
+        return nativePreferencesPayload()
+    }
+
+    private func handleNativePreferencesWrite(_ body: [String: Any]) throws -> [String: Any] {
+        guard let preferences = body["preferences"] as? [String: Any] else {
+            throw APIError.connectionError("Preferences payload is required")
+        }
+
+        if let rawMode = preferences["operatingMode"] as? String,
+           let mode = OperatingMode(rawValue: rawMode),
+           mode != bootstrap.operatingMode {
+            guard mode != .remoteProxy || OperatingModeManager.shared.remoteConfig != nil else {
+                throw APIError.connectionError("Remote connection must be configured before switching to remote mode")
+            }
+            OperatingModeManager.shared.switchMode(to: mode) {
+                self.viewModel?.stopProxy()
+            }
+            bootstrap = WebViewBootstrap(
+                locale: bootstrap.locale,
+                appearance: bootstrap.appearance,
+                operatingMode: mode,
+                serverListen: bootstrap.serverListen
+            )
+            Task {
+                await viewModel?.initialize()
+            }
+        }
+
+        if let rawLanguage = preferences["language"] as? String,
+           let language = AppLanguage(rawValue: rawLanguage) {
+            LanguageManager.shared.setLanguage(language)
+            bootstrap = WebViewBootstrap(
+                locale: language.rawValue,
+                appearance: bootstrap.appearance,
+                operatingMode: bootstrap.operatingMode,
+                serverListen: bootstrap.serverListen
+            )
+        }
+
+        if let rawAppearance = preferences["appearance"] as? String,
+           let appearance = AppearanceMode(rawValue: rawAppearance) {
+            AppearanceManager.shared.appearanceMode = appearance
+            bootstrap = WebViewBootstrap(
+                locale: bootstrap.locale,
+                appearance: appearance.rawValue,
+                operatingMode: bootstrap.operatingMode,
+                serverListen: bootstrap.serverListen
+            )
+        }
+
+        if let launchAtLogin = preferences["launchAtLogin"] as? Bool {
+            try LaunchAtLoginManager.shared.setEnabled(launchAtLogin)
+        }
+
+        evaluate(script: "window.__QUOTIO_DESKTOP_BOOTSTRAP__ = \(Self.javascriptObjectLiteral(bootstrapPayload));")
+        return nativePreferencesPayload()
+    }
+
+    private func nativePreferencesPayload() -> [String: Any] {
+        [
+            "operatingMode": OperatingModeManager.shared.currentMode.rawValue,
+            "remoteConfigured": OperatingModeManager.shared.remoteConfig != nil,
+            "language": LanguageManager.shared.currentLanguage.rawValue,
+            "appearance": AppearanceManager.shared.appearanceMode.rawValue,
+            "launchAtLogin": LaunchAtLoginManager.shared.isEnabled,
+            "launchAtLoginCanOpenSystemSettings": true
         ]
     }
 

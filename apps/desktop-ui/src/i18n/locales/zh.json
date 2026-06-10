@@ -617,6 +617,31 @@
   },
   "settings": {
     "description": "此桌面构建由原生主机开放的共享设置。",
+    "native": {
+      "title": "应用偏好",
+      "description": "控制由原生桌面主机拥有的偏好设置。",
+      "unsupported": "此主机构建暂不支持原生应用偏好。",
+      "status": {
+        "loading": "加载中",
+        "ready": "就绪"
+      },
+      "fields": {
+        "operatingMode": "运行模式",
+        "language": "语言",
+        "appearance": "外观",
+        "launchAtLogin": "登录时启动"
+      },
+      "hints": {
+        "operatingMode": "在本地代理和已保存的远程连接之间切换。",
+        "remoteNotConfigured": "请先配置远程连接，然后再切换到远程模式。",
+        "language": "更改桌面 shell 使用的语言。",
+        "appearance": "立即应用原生 macOS 外观。",
+        "launchAtLogin": "使用系统 Login Items 服务。"
+      },
+      "messages": {
+        "saved": "偏好已保存。"
+      }
+    },
     "remote": {
       "title": "远程管理连接",
       "description": "将 management endpoint 和 admin key 存入原生凭证存储。",
@@ -704,6 +729,7 @@
       "supportsRemoteConnections": "远程连接",
       "supportsCredentialStorage": "凭证存储",
       "supportsNativeOnboarding": "原生 onboarding",
+      "supportsNativePreferences": "原生偏好",
       "supportsAppearanceSync": "外观同步",
       "supportsRequestLogSettings": "请求日志设置",
       "supportsModelSettings": "模型设置",

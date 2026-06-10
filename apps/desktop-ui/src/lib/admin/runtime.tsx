@@ -40,6 +40,22 @@ export type NativeCredentialRequest = {
   value?: string;
 };
 
+export type NativePreferences = {
+  operatingMode: 'local' | 'remote';
+  remoteConfigured: boolean;
+  language: 'en' | 'vi' | 'zh-Hans' | 'fr';
+  appearance: 'system' | 'light' | 'dark';
+  launchAtLogin: boolean;
+  launchAtLoginCanOpenSystemSettings?: boolean;
+};
+
+export type NativePreferencesPatch = Partial<
+  Pick<
+    NativePreferences,
+    'appearance' | 'language' | 'launchAtLogin' | 'operatingMode'
+  >
+>;
+
 type DesktopBridge = {
   request: <T>(request: DesktopBridgeRequest) => Promise<T>;
   runtimeStatus?: () => Promise<RuntimeStatus>;
@@ -58,6 +74,10 @@ type DesktopBridge = {
   credentialDelete?: (
     request: Pick<NativeCredentialRequest, 'targetName'>,
   ) => Promise<boolean>;
+  preferencesRead?: () => Promise<NativePreferences>;
+  preferencesWrite?: (request: {
+    preferences: NativePreferencesPatch;
+  }) => Promise<NativePreferences>;
 };
 
 declare global {
@@ -91,6 +111,10 @@ type AdminRuntimeValue = {
   credentialDelete: (
     request: Pick<NativeCredentialRequest, 'targetName'>,
   ) => Promise<boolean>;
+  preferencesRead: () => Promise<NativePreferences>;
+  preferencesWrite: (
+    preferences: NativePreferencesPatch,
+  ) => Promise<NativePreferences>;
 };
 
 const AdminRuntimeContext = createContext<AdminRuntimeValue | null>(null);
@@ -250,6 +274,29 @@ export function AdminRuntimeProvider({
     [],
   );
 
+  const preferencesRead = useCallback(async () => {
+    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+    if (!bridge?.preferencesRead) {
+      throw new Error('Desktop preferences bridge is unavailable');
+    }
+
+    return bridge.preferencesRead();
+  }, []);
+
+  const preferencesWrite = useCallback(
+    async (preferences: NativePreferencesPatch) => {
+      const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+      if (!bridge?.preferencesWrite) {
+        throw new Error('Desktop preferences bridge is unavailable');
+      }
+
+      return bridge.preferencesWrite({ preferences });
+    },
+    [],
+  );
+
   const value = useMemo<AdminRuntimeValue>(
     () => ({
       bootstrap,
@@ -270,6 +317,8 @@ export function AdminRuntimeProvider({
       credentialRead,
       credentialWrite,
       credentialDelete,
+      preferencesRead,
+      preferencesWrite,
     }),
     [
       bootstrap,
@@ -279,6 +328,8 @@ export function AdminRuntimeProvider({
       credentialWrite,
       openExternal,
       openTextFile,
+      preferencesRead,
+      preferencesWrite,
       request,
       runtimeRestart,
       runtimeStart,

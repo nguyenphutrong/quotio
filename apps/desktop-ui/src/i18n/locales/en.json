@@ -621,6 +621,31 @@
   },
   "settings": {
     "description": "Shared settings exposed by the native host for this desktop build.",
+    "native": {
+      "title": "App preferences",
+      "description": "Control preferences owned by the native desktop host.",
+      "unsupported": "Native app preferences are not available in this host build.",
+      "status": {
+        "loading": "Loading",
+        "ready": "Ready"
+      },
+      "fields": {
+        "operatingMode": "Operating mode",
+        "language": "Language",
+        "appearance": "Appearance",
+        "launchAtLogin": "Launch at login"
+      },
+      "hints": {
+        "operatingMode": "Switch between the local proxy and a saved remote connection.",
+        "remoteNotConfigured": "Configure a remote connection before switching to remote mode.",
+        "language": "Changes the language used by the desktop shell.",
+        "appearance": "Applies the native macOS appearance immediately.",
+        "launchAtLogin": "Uses the system Login Items service."
+      },
+      "messages": {
+        "saved": "Preference saved."
+      }
+    },
     "remote": {
       "title": "Remote management connection",
       "description": "Store the management endpoint and admin key in the native credential store.",
@@ -708,6 +733,7 @@
       "supportsRemoteConnections": "Remote connections",
       "supportsCredentialStorage": "Credential storage",
       "supportsNativeOnboarding": "Native onboarding",
+      "supportsNativePreferences": "Native preferences",
       "supportsAppearanceSync": "Appearance sync",
       "supportsRequestLogSettings": "Request log settings",
       "supportsModelSettings": "Model settings",

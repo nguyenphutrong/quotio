@@ -616,6 +616,31 @@
   },
   "settings": {
     "description": "Các cài đặt dùng chung do native host mở cho bản desktop này.",
+    "native": {
+      "title": "Tùy chọn ứng dụng",
+      "description": "Điều chỉnh các preference thuộc native desktop host.",
+      "unsupported": "Host build này chưa hỗ trợ tùy chọn native app.",
+      "status": {
+        "loading": "Đang tải",
+        "ready": "Sẵn sàng"
+      },
+      "fields": {
+        "operatingMode": "Chế độ hoạt động",
+        "language": "Ngôn ngữ",
+        "appearance": "Giao diện",
+        "launchAtLogin": "Mở khi đăng nhập"
+      },
+      "hints": {
+        "operatingMode": "Chuyển giữa local proxy và kết nối remote đã lưu.",
+        "remoteNotConfigured": "Cấu hình kết nối remote trước khi chuyển sang remote mode.",
+        "language": "Thay đổi ngôn ngữ dùng trong desktop shell.",
+        "appearance": "Áp dụng giao diện native macOS ngay lập tức.",
+        "launchAtLogin": "Dùng dịch vụ Login Items của hệ thống."
+      },
+      "messages": {
+        "saved": "Đã lưu tùy chọn."
+      }
+    },
     "remote": {
       "title": "Kết nối quản trị remote",
       "description": "Lưu management endpoint và admin key trong credential store native.",
@@ -703,6 +728,7 @@
       "supportsRemoteConnections": "Kết nối remote",
       "supportsCredentialStorage": "Lưu trữ credential",
       "supportsNativeOnboarding": "Onboarding native",
+      "supportsNativePreferences": "Tùy chọn native",
       "supportsAppearanceSync": "Đồng bộ giao diện",
       "supportsRequestLogSettings": "Cài đặt request log",
       "supportsModelSettings": "Cài đặt model",
