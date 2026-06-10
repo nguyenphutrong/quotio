@@ -19,17 +19,19 @@ public static class DesktopUiSource
         return null;
     }
 
-    public static DesktopBootstrap Bootstrap(WindowsHostConfig config)
+    public static DesktopBootstrap Bootstrap(WindowsHostConfig config, WindowsNativePreferencesStore? preferencesStore = null)
     {
+        var preferences = (preferencesStore ?? new WindowsNativePreferencesStore()).Load();
+
         return new DesktopBootstrap(
             UiEnabled: true,
             BasePath: "/",
             BridgeVersion: Quotio.Contract.QuotioContract.Version,
             ServerListen: config.ServerListen,
             Platform: "windows",
-            OperatingMode: "local",
-            Locale: Thread.CurrentThread.CurrentUICulture.Name,
-            Appearance: "system",
+            OperatingMode: preferences.OperatingMode,
+            Locale: preferences.Language,
+            Appearance: preferences.Appearance,
             Features: new Dictionary<string, bool>
             {
                 ["overview"] = true,
@@ -54,7 +56,7 @@ public static class DesktopUiSource
                 ["supportsRemoteConnections"] = true,
                 ["supportsCredentialStorage"] = true,
                 ["supportsNativeOnboarding"] = false,
-                ["supportsNativePreferences"] = false,
+                ["supportsNativePreferences"] = true,
                 ["supportsAppearanceSync"] = true,
                 ["supportsRequestLogSettings"] = false,
                 ["supportsModelSettings"] = false,

@@ -13,6 +13,7 @@ public sealed partial class MainWindow : Window
     private readonly WindowsHostConfig config = new();
     private readonly WindowsAgentAdapter agents;
     private readonly WindowSettingsStore settingsStore = new();
+    private readonly WindowsNativePreferencesStore preferencesStore = new();
     private readonly RuntimeProcessController runtime;
     private readonly DesktopBridge bridge;
     private readonly Forms.NotifyIcon trayIcon;
@@ -24,7 +25,7 @@ public sealed partial class MainWindow : Window
 
         agents = new WindowsAgentAdapter(config);
         runtime = new RuntimeProcessController(config);
-        bridge = new DesktopBridge(DesktopWebView, runtime, config, agents);
+        bridge = new DesktopBridge(DesktopWebView, runtime, config, agents, preferencesStore);
         trayIcon = CreateTrayIcon();
 
         Title = "Quotio";
@@ -78,7 +79,7 @@ public sealed partial class MainWindow : Window
             core.WebMessageReceived += bridge.OnWebMessageReceived;
 
             await core.AddScriptToExecuteOnDocumentCreatedAsync(
-                bridge.CreateBootstrapScript(DesktopUiSource.Bootstrap(config))
+                bridge.CreateBootstrapScript(DesktopUiSource.Bootstrap(config, preferencesStore))
             );
 
             var source = DesktopUiSource.Resolve(config);

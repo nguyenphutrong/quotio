@@ -337,6 +337,7 @@ function NativePreferencesPanel() {
   const [proxyPortDraft, setProxyPortDraft] = useState('');
 
   const enabled = bootstrap.capabilities.supportsNativePreferences;
+  const isMacHost = bootstrap.platform === 'macos';
 
   useEffect(() => {
     let cancelled = false;
@@ -603,25 +604,27 @@ function NativePreferencesPanel() {
           </Select>
         </PreferenceField>
 
-        <PreferenceField
-          label={t('settings.native.fields.launchAtLogin')}
-          hint={t('settings.native.hints.launchAtLogin')}
-        >
-          <div className="flex h-9 items-center justify-between gap-4 rounded-md border border-border px-3">
-            <span className="text-muted-foreground text-sm">
-              {preferences?.launchAtLogin
-                ? t('about.status.enabled')
-                : t('about.status.disabled')}
-            </span>
-            <Switch
-              checked={preferences?.launchAtLogin ?? false}
-              disabled={disabled}
-              onCheckedChange={(checked) =>
-                void savePreference('launchAtLogin', checked)
-              }
-            />
-          </div>
-        </PreferenceField>
+        {isMacHost ? (
+          <PreferenceField
+            label={t('settings.native.fields.launchAtLogin')}
+            hint={t('settings.native.hints.launchAtLogin')}
+          >
+            <div className="flex h-9 items-center justify-between gap-4 rounded-md border border-border px-3">
+              <span className="text-muted-foreground text-sm">
+                {preferences?.launchAtLogin
+                  ? t('about.status.enabled')
+                  : t('about.status.disabled')}
+              </span>
+              <Switch
+                checked={preferences?.launchAtLogin ?? false}
+                disabled={disabled}
+                onCheckedChange={(checked) =>
+                  void savePreference('launchAtLogin', checked)
+                }
+              />
+            </div>
+          </PreferenceField>
+        ) : null}
       </div>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
@@ -701,354 +704,365 @@ function NativePreferencesPanel() {
             </div>
           </PreferenceField>
 
-          <SwitchField
-            checked={preferences?.allowNetworkAccess ?? false}
-            disabled={disabled}
-            label={t('settings.native.fields.allowNetworkAccess')}
-            onCheckedChange={(checked) =>
-              void savePreference('allowNetworkAccess', checked)
-            }
-          />
-
-          {preferences?.allowNetworkAccess ? (
-            <p className="text-danger text-xs">
-              {t('settings.native.hints.allowNetworkAccessWarning')}
-            </p>
-          ) : null}
-
-          <SwitchField
-            checked={preferences?.autoStartTunnel ?? false}
-            disabled={disabled || !preferences?.tunnelInstalled}
-            label={t('settings.native.fields.autoStartTunnel')}
-            onCheckedChange={(checked) =>
-              void savePreference('autoStartTunnel', checked)
-            }
-          />
-          <SwitchField
-            checked={preferences?.autoRestartTunnel ?? false}
-            disabled={disabled || !preferences?.tunnelInstalled}
-            label={t('settings.native.fields.autoRestartTunnel')}
-            onCheckedChange={(checked) =>
-              void savePreference('autoRestartTunnel', checked)
-            }
-          />
-
-          <PreferenceField
-            hint={t('settings.native.hints.authDir')}
-            label={t('settings.native.fields.authDir')}
-          >
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                className="font-mono text-xs"
-                value={authDirDraft}
+          {isMacHost ? (
+            <>
+              <SwitchField
+                checked={preferences?.allowNetworkAccess ?? false}
                 disabled={disabled}
-                onChange={(event) => {
-                  setAuthDirDraft(event.target.value);
-                  setState((current) => ({ ...current, error: null }));
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    void saveAuthDir();
-                  }
-                }}
+                label={t('settings.native.fields.allowNetworkAccess')}
+                onCheckedChange={(checked) =>
+                  void savePreference('allowNetworkAccess', checked)
+                }
               />
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => void saveAuthDir()}
-                >
-                  {t('common.save')}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={disabled || !preferences?.defaultAuthDir}
-                  onClick={() => {
-                    const defaultAuthDir = preferences?.defaultAuthDir ?? '';
-                    setAuthDirDraft(defaultAuthDir);
-                    void saveAuthDir(defaultAuthDir);
-                  }}
-                >
-                  {t('settings.native.actions.reset')}
-                </Button>
-              </div>
-            </div>
-          </PreferenceField>
 
-          <PreferenceStat
-            label={t('settings.native.fields.proxyConfigPath')}
-            value={preferences?.proxyConfigPath ?? ''}
-          />
+              {preferences?.allowNetworkAccess ? (
+                <p className="text-danger text-xs">
+                  {t('settings.native.hints.allowNetworkAccessWarning')}
+                </p>
+              ) : null}
+
+              <SwitchField
+                checked={preferences?.autoStartTunnel ?? false}
+                disabled={disabled || !preferences?.tunnelInstalled}
+                label={t('settings.native.fields.autoStartTunnel')}
+                onCheckedChange={(checked) =>
+                  void savePreference('autoStartTunnel', checked)
+                }
+              />
+              <SwitchField
+                checked={preferences?.autoRestartTunnel ?? false}
+                disabled={disabled || !preferences?.tunnelInstalled}
+                label={t('settings.native.fields.autoRestartTunnel')}
+                onCheckedChange={(checked) =>
+                  void savePreference('autoRestartTunnel', checked)
+                }
+              />
+
+              <PreferenceField
+                hint={t('settings.native.hints.authDir')}
+                label={t('settings.native.fields.authDir')}
+              >
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    className="font-mono text-xs"
+                    value={authDirDraft}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      setAuthDirDraft(event.target.value);
+                      setState((current) => ({ ...current, error: null }));
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        void saveAuthDir();
+                      }
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => void saveAuthDir()}
+                    >
+                      {t('common.save')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={disabled || !preferences?.defaultAuthDir}
+                      onClick={() => {
+                        const defaultAuthDir =
+                          preferences?.defaultAuthDir ?? '';
+                        setAuthDirDraft(defaultAuthDir);
+                        void saveAuthDir(defaultAuthDir);
+                      }}
+                    >
+                      {t('settings.native.actions.reset')}
+                    </Button>
+                  </div>
+                </div>
+              </PreferenceField>
+
+              <PreferenceStat
+                label={t('settings.native.fields.proxyConfigPath')}
+                value={preferences?.proxyConfigPath ?? ''}
+              />
+            </>
+          ) : null}
         </PreferenceGroup>
 
-        <PreferenceGroup
-          description={t('settings.native.groups.notifications.description')}
-          title={t('settings.native.groups.notifications.title')}
-        >
-          <SwitchField
-            checked={preferences?.notificationsEnabled ?? false}
-            disabled={disabled}
-            label={t('settings.native.fields.notificationsEnabled')}
-            onCheckedChange={(checked) =>
-              void savePreference('notificationsEnabled', checked)
-            }
-          />
-          <SwitchField
-            checked={preferences?.notifyOnQuotaLow ?? false}
-            disabled={disabled || !preferences?.notificationsEnabled}
-            label={t('settings.native.fields.notifyOnQuotaLow')}
-            onCheckedChange={(checked) =>
-              void savePreference('notifyOnQuotaLow', checked)
-            }
-          />
-          <SwitchField
-            checked={preferences?.notifyOnCooling ?? false}
-            disabled={disabled || !preferences?.notificationsEnabled}
-            label={t('settings.native.fields.notifyOnCooling')}
-            onCheckedChange={(checked) =>
-              void savePreference('notifyOnCooling', checked)
-            }
-          />
-          <SwitchField
-            checked={preferences?.notifyOnProxyCrash ?? false}
-            disabled={disabled || !preferences?.notificationsEnabled}
-            label={t('settings.native.fields.notifyOnProxyCrash')}
-            onCheckedChange={(checked) =>
-              void savePreference('notifyOnProxyCrash', checked)
-            }
-          />
-          <PreferenceField
-            hint={t('settings.native.hints.quotaAlertThreshold')}
-            label={t('settings.native.fields.quotaAlertThreshold')}
+        {isMacHost ? (
+          <PreferenceGroup
+            description={t('settings.native.groups.notifications.description')}
+            title={t('settings.native.groups.notifications.title')}
           >
-            <Select
-              value={String(preferences?.quotaAlertThreshold ?? 20)}
-              disabled={disabled || !preferences?.notificationsEnabled}
-              onValueChange={(value) =>
-                void savePreference(
-                  'quotaAlertThreshold',
-                  Number(value) as NativePreferences['quotaAlertThreshold'],
-                )
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10%</SelectItem>
-                <SelectItem value="20">20%</SelectItem>
-                <SelectItem value="30">30%</SelectItem>
-                <SelectItem value="50">50%</SelectItem>
-              </SelectContent>
-            </Select>
-          </PreferenceField>
-        </PreferenceGroup>
-
-        <PreferenceGroup
-          description={t('settings.native.groups.quota.description')}
-          title={t('settings.native.groups.quota.title')}
-        >
-          <PreferenceField
-            hint={t('settings.native.hints.quotaDisplayMode')}
-            label={t('settings.native.fields.quotaDisplayMode')}
-          >
-            <Select
-              value={preferences?.quotaDisplayMode ?? 'used'}
+            <SwitchField
+              checked={preferences?.notificationsEnabled ?? false}
               disabled={disabled}
-              onValueChange={(value) =>
-                void savePreference(
-                  'quotaDisplayMode',
-                  value as NativePreferences['quotaDisplayMode'],
-                )
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="used">
-                  {t('settings.native.options.quotaUsed')}
-                </SelectItem>
-                <SelectItem value="remaining">
-                  {t('settings.native.options.quotaRemaining')}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </PreferenceField>
-
-          <PreferenceField
-            hint={t('settings.native.hints.quotaDisplayStyle')}
-            label={t('settings.native.fields.quotaDisplayStyle')}
-          >
-            <Select
-              value={preferences?.quotaDisplayStyle ?? 'card'}
-              disabled={disabled}
-              onValueChange={(value) =>
-                void savePreference(
-                  'quotaDisplayStyle',
-                  value as NativePreferences['quotaDisplayStyle'],
-                )
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="card">
-                  {t('settings.native.options.quotaStyleCard')}
-                </SelectItem>
-                <SelectItem value="lowestBar">
-                  {t('settings.native.options.quotaStyleLowestBar')}
-                </SelectItem>
-                <SelectItem value="ring">
-                  {t('settings.native.options.quotaStyleRing')}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </PreferenceField>
-
-          <PreferenceField
-            hint={t('settings.native.hints.resetTimeDisplayMode')}
-            label={t('settings.native.fields.resetTimeDisplayMode')}
-          >
-            <Select
-              value={preferences?.resetTimeDisplayMode ?? 'relative'}
-              disabled={disabled}
-              onValueChange={(value) =>
-                void savePreference(
-                  'resetTimeDisplayMode',
-                  value as NativePreferences['resetTimeDisplayMode'],
-                )
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="relative">
-                  {t('settings.native.options.relative')}
-                </SelectItem>
-                <SelectItem value="absolute">
-                  {t('settings.native.options.absolute')}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </PreferenceField>
-
-          <PreferenceField
-            hint={t('settings.native.hints.refreshCadence')}
-            label={t('settings.native.fields.refreshCadence')}
-          >
-            <Select
-              value={preferences?.refreshCadence ?? '10min'}
-              disabled={disabled}
-              onValueChange={(value) =>
-                void savePreference(
-                  'refreshCadence',
-                  value as NativePreferences['refreshCadence'],
-                )
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">
-                  {t('settings.native.options.manual')}
-                </SelectItem>
-                <SelectItem value="1min">1 min</SelectItem>
-                <SelectItem value="2min">2 min</SelectItem>
-                <SelectItem value="5min">5 min</SelectItem>
-                <SelectItem value="10min">10 min</SelectItem>
-                <SelectItem value="15min">15 min</SelectItem>
-              </SelectContent>
-            </Select>
-          </PreferenceField>
-        </PreferenceGroup>
-
-        <PreferenceGroup
-          description={t('settings.native.groups.menuBar.description')}
-          title={t('settings.native.groups.menuBar.title')}
-        >
-          <SwitchField
-            checked={preferences?.showInDock ?? true}
-            disabled={disabled}
-            label={t('settings.native.fields.showInDock')}
-            onCheckedChange={(checked) =>
-              void savePreference('showInDock', checked)
-            }
-          />
-          <SwitchField
-            checked={preferences?.showMenuBarIcon ?? true}
-            disabled={disabled}
-            label={t('settings.native.fields.showMenuBarIcon')}
-            onCheckedChange={(checked) =>
-              void savePreference('showMenuBarIcon', checked)
-            }
-          />
-          <SwitchField
-            checked={preferences?.showQuotaInMenuBar ?? true}
-            disabled={disabled || !preferences?.showMenuBarIcon}
-            label={t('settings.native.fields.showQuotaInMenuBar')}
-            onCheckedChange={(checked) =>
-              void savePreference('showQuotaInMenuBar', checked)
-            }
-          />
-          <PreferenceField
-            hint={t('settings.native.hints.menuBarMaxItems')}
-            label={t('settings.native.fields.menuBarMaxItems')}
-          >
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              value={preferences?.menuBarMaxItems ?? 3}
-              disabled={
-                disabled ||
-                !preferences?.showMenuBarIcon ||
-                !preferences?.showQuotaInMenuBar
-              }
-              onChange={(event) =>
-                void savePreference(
-                  'menuBarMaxItems',
-                  Number(event.target.value),
-                )
+              label={t('settings.native.fields.notificationsEnabled')}
+              onCheckedChange={(checked) =>
+                void savePreference('notificationsEnabled', checked)
               }
             />
-          </PreferenceField>
-          <PreferenceField
-            hint={t('settings.native.hints.menuBarColorMode')}
-            label={t('settings.native.fields.menuBarColorMode')}
-          >
-            <Select
-              value={preferences?.menuBarColorMode ?? 'colored'}
-              disabled={
-                disabled ||
-                !preferences?.showMenuBarIcon ||
-                !preferences?.showQuotaInMenuBar
+            <SwitchField
+              checked={preferences?.notifyOnQuotaLow ?? false}
+              disabled={disabled || !preferences?.notificationsEnabled}
+              label={t('settings.native.fields.notifyOnQuotaLow')}
+              onCheckedChange={(checked) =>
+                void savePreference('notifyOnQuotaLow', checked)
               }
-              onValueChange={(value) =>
-                void savePreference(
-                  'menuBarColorMode',
-                  value as NativePreferences['menuBarColorMode'],
-                )
+            />
+            <SwitchField
+              checked={preferences?.notifyOnCooling ?? false}
+              disabled={disabled || !preferences?.notificationsEnabled}
+              label={t('settings.native.fields.notifyOnCooling')}
+              onCheckedChange={(checked) =>
+                void savePreference('notifyOnCooling', checked)
               }
+            />
+            <SwitchField
+              checked={preferences?.notifyOnProxyCrash ?? false}
+              disabled={disabled || !preferences?.notificationsEnabled}
+              label={t('settings.native.fields.notifyOnProxyCrash')}
+              onCheckedChange={(checked) =>
+                void savePreference('notifyOnProxyCrash', checked)
+              }
+            />
+            <PreferenceField
+              hint={t('settings.native.hints.quotaAlertThreshold')}
+              label={t('settings.native.fields.quotaAlertThreshold')}
             >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="colored">
-                  {t('settings.native.options.colored')}
-                </SelectItem>
-                <SelectItem value="monochrome">
-                  {t('settings.native.options.monochrome')}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </PreferenceField>
-        </PreferenceGroup>
+              <Select
+                value={String(preferences?.quotaAlertThreshold ?? 20)}
+                disabled={disabled || !preferences?.notificationsEnabled}
+                onValueChange={(value) =>
+                  void savePreference(
+                    'quotaAlertThreshold',
+                    Number(value) as NativePreferences['quotaAlertThreshold'],
+                  )
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10%</SelectItem>
+                  <SelectItem value="20">20%</SelectItem>
+                  <SelectItem value="30">30%</SelectItem>
+                  <SelectItem value="50">50%</SelectItem>
+                </SelectContent>
+              </Select>
+            </PreferenceField>
+          </PreferenceGroup>
+        ) : null}
+
+        {isMacHost ? (
+          <PreferenceGroup
+            description={t('settings.native.groups.quota.description')}
+            title={t('settings.native.groups.quota.title')}
+          >
+            <PreferenceField
+              hint={t('settings.native.hints.quotaDisplayMode')}
+              label={t('settings.native.fields.quotaDisplayMode')}
+            >
+              <Select
+                value={preferences?.quotaDisplayMode ?? 'used'}
+                disabled={disabled}
+                onValueChange={(value) =>
+                  void savePreference(
+                    'quotaDisplayMode',
+                    value as NativePreferences['quotaDisplayMode'],
+                  )
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="used">
+                    {t('settings.native.options.quotaUsed')}
+                  </SelectItem>
+                  <SelectItem value="remaining">
+                    {t('settings.native.options.quotaRemaining')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </PreferenceField>
+
+            <PreferenceField
+              hint={t('settings.native.hints.quotaDisplayStyle')}
+              label={t('settings.native.fields.quotaDisplayStyle')}
+            >
+              <Select
+                value={preferences?.quotaDisplayStyle ?? 'card'}
+                disabled={disabled}
+                onValueChange={(value) =>
+                  void savePreference(
+                    'quotaDisplayStyle',
+                    value as NativePreferences['quotaDisplayStyle'],
+                  )
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="card">
+                    {t('settings.native.options.quotaStyleCard')}
+                  </SelectItem>
+                  <SelectItem value="lowestBar">
+                    {t('settings.native.options.quotaStyleLowestBar')}
+                  </SelectItem>
+                  <SelectItem value="ring">
+                    {t('settings.native.options.quotaStyleRing')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </PreferenceField>
+
+            <PreferenceField
+              hint={t('settings.native.hints.resetTimeDisplayMode')}
+              label={t('settings.native.fields.resetTimeDisplayMode')}
+            >
+              <Select
+                value={preferences?.resetTimeDisplayMode ?? 'relative'}
+                disabled={disabled}
+                onValueChange={(value) =>
+                  void savePreference(
+                    'resetTimeDisplayMode',
+                    value as NativePreferences['resetTimeDisplayMode'],
+                  )
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="relative">
+                    {t('settings.native.options.relative')}
+                  </SelectItem>
+                  <SelectItem value="absolute">
+                    {t('settings.native.options.absolute')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </PreferenceField>
+
+            <PreferenceField
+              hint={t('settings.native.hints.refreshCadence')}
+              label={t('settings.native.fields.refreshCadence')}
+            >
+              <Select
+                value={preferences?.refreshCadence ?? '10min'}
+                disabled={disabled}
+                onValueChange={(value) =>
+                  void savePreference(
+                    'refreshCadence',
+                    value as NativePreferences['refreshCadence'],
+                  )
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">
+                    {t('settings.native.options.manual')}
+                  </SelectItem>
+                  <SelectItem value="1min">1 min</SelectItem>
+                  <SelectItem value="2min">2 min</SelectItem>
+                  <SelectItem value="5min">5 min</SelectItem>
+                  <SelectItem value="10min">10 min</SelectItem>
+                  <SelectItem value="15min">15 min</SelectItem>
+                </SelectContent>
+              </Select>
+            </PreferenceField>
+          </PreferenceGroup>
+        ) : null}
+
+        {isMacHost ? (
+          <PreferenceGroup
+            description={t('settings.native.groups.menuBar.description')}
+            title={t('settings.native.groups.menuBar.title')}
+          >
+            <SwitchField
+              checked={preferences?.showInDock ?? true}
+              disabled={disabled}
+              label={t('settings.native.fields.showInDock')}
+              onCheckedChange={(checked) =>
+                void savePreference('showInDock', checked)
+              }
+            />
+            <SwitchField
+              checked={preferences?.showMenuBarIcon ?? true}
+              disabled={disabled}
+              label={t('settings.native.fields.showMenuBarIcon')}
+              onCheckedChange={(checked) =>
+                void savePreference('showMenuBarIcon', checked)
+              }
+            />
+            <SwitchField
+              checked={preferences?.showQuotaInMenuBar ?? true}
+              disabled={disabled || !preferences?.showMenuBarIcon}
+              label={t('settings.native.fields.showQuotaInMenuBar')}
+              onCheckedChange={(checked) =>
+                void savePreference('showQuotaInMenuBar', checked)
+              }
+            />
+            <PreferenceField
+              hint={t('settings.native.hints.menuBarMaxItems')}
+              label={t('settings.native.fields.menuBarMaxItems')}
+            >
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={preferences?.menuBarMaxItems ?? 3}
+                disabled={
+                  disabled ||
+                  !preferences?.showMenuBarIcon ||
+                  !preferences?.showQuotaInMenuBar
+                }
+                onChange={(event) =>
+                  void savePreference(
+                    'menuBarMaxItems',
+                    Number(event.target.value),
+                  )
+                }
+              />
+            </PreferenceField>
+            <PreferenceField
+              hint={t('settings.native.hints.menuBarColorMode')}
+              label={t('settings.native.fields.menuBarColorMode')}
+            >
+              <Select
+                value={preferences?.menuBarColorMode ?? 'colored'}
+                disabled={
+                  disabled ||
+                  !preferences?.showMenuBarIcon ||
+                  !preferences?.showQuotaInMenuBar
+                }
+                onValueChange={(value) =>
+                  void savePreference(
+                    'menuBarColorMode',
+                    value as NativePreferences['menuBarColorMode'],
+                  )
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="colored">
+                    {t('settings.native.options.colored')}
+                  </SelectItem>
+                  <SelectItem value="monochrome">
+                    {t('settings.native.options.monochrome')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </PreferenceField>
+          </PreferenceGroup>
+        ) : null}
 
         <PreferenceGroup
           description={t('settings.native.groups.privacyUsage.description')}

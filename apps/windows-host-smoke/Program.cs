@@ -41,6 +41,7 @@ try
 {
     RunConfigSmoke();
     RunCredentialStoreSmoke();
+    RunNativePreferencesSmoke();
     RunDesktopUiSourceSmoke();
     RunBootstrapSmoke();
     RunSingleInstanceSmoke();
@@ -170,7 +171,7 @@ static void RunBootstrapSmoke()
         ["supportsRemoteConnections"] = true,
         ["supportsCredentialStorage"] = true,
         ["supportsNativeOnboarding"] = false,
-        ["supportsNativePreferences"] = false,
+        ["supportsNativePreferences"] = true,
         ["supportsAppearanceSync"] = true,
         ["supportsRequestLogSettings"] = false,
         ["supportsModelSettings"] = false,
@@ -178,6 +179,49 @@ static void RunBootstrapSmoke()
         ["supportsVirtualModelManagement"] = false,
         ["supportsUpdates"] = false
     }, "Windows bootstrap capabilities");
+}
+
+static void RunNativePreferencesSmoke()
+{
+    var preferencesPath = Path.Combine(Path.GetTempPath(), $"quotio-windows-preferences-{Guid.NewGuid():N}.json");
+    var store = new WindowsNativePreferencesStore(preferencesPath);
+    var config = new WindowsHostConfig(target => target == "Quotio/ProxyEndpoint"
+        ? "http://127.0.0.1:9393"
+        : null);
+
+    using var update = JsonDocument.Parse(
+        """
+        {
+          "language": "vi",
+          "appearance": "dark",
+          "operatingMode": "remote",
+          "hideSensitiveInfo": true,
+          "totalUsageMode": "combined",
+          "modelAggregationMode": "average",
+          "proxyPort": 9494
+        }
+        """
+    );
+
+    var state = store.Update(update.RootElement, config);
+    Assert(state.Language == "vi", "Windows preferences should persist language");
+    Assert(state.Appearance == "dark", "Windows preferences should persist appearance");
+    Assert(state.OperatingMode == "remote", "Windows preferences should persist operating mode");
+    Assert(state.HideSensitiveInfo, "Windows preferences should persist privacy settings");
+    Assert(state.TotalUsageMode == "combined", "Windows preferences should persist usage mode");
+    Assert(state.ModelAggregationMode == "average", "Windows preferences should persist model aggregation mode");
+
+    var reloaded = store.Load();
+    Assert(reloaded.Language == "vi", "Windows preferences should reload from disk");
+
+    if (OperatingSystem.IsWindows())
+    {
+        Assert(
+            WindowsCredentialStore.TryReadGenericCredential("Quotio/ProxyEndpoint") == "http://127.0.0.1:9494",
+            "Windows preferences should persist proxy port to Credential Manager"
+        );
+        WindowsCredentialStore.DeleteGenericCredential("Quotio/ProxyEndpoint");
+    }
 }
 
 static void RunWindowPlacementSmoke()

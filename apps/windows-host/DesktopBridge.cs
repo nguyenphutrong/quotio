@@ -16,14 +16,22 @@ public sealed class DesktopBridge
     private readonly RuntimeProcessController runtime;
     private readonly WindowsHostConfig config;
     private readonly WindowsAgentAdapter agents;
+    private readonly WindowsNativePreferencesStore preferencesStore;
     private readonly HttpClient httpClient = new();
 
-    public DesktopBridge(WebView2 webView, RuntimeProcessController runtime, WindowsHostConfig config, WindowsAgentAdapter agents)
+    public DesktopBridge(
+        WebView2 webView,
+        RuntimeProcessController runtime,
+        WindowsHostConfig config,
+        WindowsAgentAdapter agents,
+        WindowsNativePreferencesStore preferencesStore
+    )
     {
         this.webView = webView;
         this.runtime = runtime;
         this.config = config;
         this.agents = agents;
+        this.preferencesStore = preferencesStore;
     }
 
     public string CreateBootstrapScript(DesktopBootstrap bootstrap)
@@ -134,6 +142,28 @@ public sealed class DesktopBridge
                 kind: 'native.credentialDelete',
                 targetName: request?.targetName
               });
+            }),
+            preferencesRead: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({ id, kind: 'native.preferencesRead' });
+            }),
+            preferencesWrite: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({
+                id,
+                kind: 'native.preferencesWrite',
+                preferences: request?.preferences || {}
+              });
+            }),
+            updatesCheck: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({ id, kind: 'native.updatesCheck' });
             })
           };
           window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__ = (message) => {
@@ -180,6 +210,9 @@ public sealed class DesktopBridge
                 "native.credentialRead" => HandleNativeCredentialRead(root),
                 "native.credentialWrite" => HandleNativeCredentialWrite(root),
                 "native.credentialDelete" => HandleNativeCredentialDelete(root),
+                "native.preferencesRead" => HandleNativePreferencesRead(),
+                "native.preferencesWrite" => HandleNativePreferencesWrite(root),
+                "native.updatesCheck" => HandleNativePreferencesRead(),
                 _ => throw new InvalidOperationException("Unsupported bridge request")
             };
 
@@ -333,6 +366,81 @@ public sealed class DesktopBridge
     {
         WindowsCredentialStore.DeleteGenericCredential(ReadRequiredCredentialTargetName(root));
         return true;
+    }
+
+    private object HandleNativePreferencesRead()
+    {
+        return BuildNativePreferencesPayload();
+    }
+
+    private object HandleNativePreferencesWrite(JsonElement root)
+    {
+        var preferences = root.TryGetProperty("preferences", out var preferencesElement)
+            && preferencesElement.ValueKind == JsonValueKind.Object
+            ? preferencesElement
+            : throw new InvalidOperationException("Preferences payload is required");
+
+        preferencesStore.Update(preferences, config);
+        return BuildNativePreferencesPayload();
+    }
+
+    private object BuildNativePreferencesPayload()
+    {
+        var preferences = preferencesStore.Load();
+        var status = runtime.Status();
+        var proxyEndpoint = config.ProxyEndpoint;
+        var proxyPort = Uri.TryCreate(proxyEndpoint, UriKind.Absolute, out var proxyUri)
+            ? proxyUri.Port
+            : 8386;
+
+        return new Dictionary<string, object?>
+        {
+            ["operatingMode"] = preferences.OperatingMode,
+            ["remoteConfigured"] = !string.IsNullOrWhiteSpace(config.ManagementBaseUrl)
+                && !string.IsNullOrWhiteSpace(config.ManagementKey),
+            ["language"] = preferences.Language,
+            ["appearance"] = preferences.Appearance,
+            ["launchAtLogin"] = false,
+            ["launchAtLoginCanOpenSystemSettings"] = false,
+            ["proxyPort"] = proxyPort,
+            ["proxyEndpoint"] = status.Endpoint ?? proxyEndpoint,
+            ["proxyRunning"] = status.State == "managed",
+            ["proxyServerKind"] = "cpa-plusplus",
+            ["proxyServerVersion"] = null,
+            ["proxyInstallStatus"] = string.IsNullOrWhiteSpace(config.ProxyBinary) ? "not-installed" : "dev-override",
+            ["proxyActiveBinaryPath"] = config.ProxyBinary ?? "",
+            ["proxyConfigPath"] = "",
+            ["allowNetworkAccess"] = false,
+            ["autoStartTunnel"] = false,
+            ["autoRestartTunnel"] = false,
+            ["tunnelInstalled"] = false,
+            ["authDir"] = "",
+            ["defaultAuthDir"] = "",
+            ["notificationsEnabled"] = false,
+            ["notifyOnQuotaLow"] = false,
+            ["notifyOnCooling"] = false,
+            ["notifyOnProxyCrash"] = false,
+            ["quotaAlertThreshold"] = 20,
+            ["quotaDisplayMode"] = "used",
+            ["quotaDisplayStyle"] = "card",
+            ["resetTimeDisplayMode"] = "relative",
+            ["refreshCadence"] = "10min",
+            ["showInDock"] = true,
+            ["showMenuBarIcon"] = true,
+            ["showQuotaInMenuBar"] = false,
+            ["menuBarMaxItems"] = 3,
+            ["menuBarColorMode"] = "colored",
+            ["hideSensitiveInfo"] = preferences.HideSensitiveInfo,
+            ["totalUsageMode"] = preferences.TotalUsageMode,
+            ["modelAggregationMode"] = preferences.ModelAggregationMode,
+            ["updatesSupported"] = false,
+            ["autoCheckUpdates"] = false,
+            ["updateChannel"] = "stable",
+            ["updateChannelLocked"] = true,
+            ["canCheckForUpdates"] = false,
+            ["isCheckingForUpdates"] = false,
+            ["lastUpdateCheckAt"] = null
+        };
     }
 
     private static string ReadRequiredCredentialTargetName(JsonElement root)

@@ -29,7 +29,7 @@ const expectedCapabilities = {
   supportsRemoteConnections: true,
   supportsCredentialStorage: true,
   supportsNativeOnboarding: false,
-  supportsNativePreferences: false,
+  supportsNativePreferences: true,
   supportsAppearanceSync: true,
   supportsRequestLogSettings: false,
   supportsModelSettings: false,
