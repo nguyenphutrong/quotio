@@ -1,8 +1,10 @@
 import { Badge } from '@quotio/ui/components/badge';
 import { Button } from '@quotio/ui/components/button';
+import { RiExternalLinkLine } from '@remixicon/react';
 import { useTranslation } from 'react-i18next';
 import { CopyButton } from '@/components/admin/copy-button';
 import { Panel } from '@/components/admin/panel';
+import { useAdminRuntime } from '@/lib/admin/runtime';
 import type { AgentGuideResponse } from '../types';
 import { safeArray, safeStr } from '../utils';
 
@@ -20,10 +22,12 @@ export function AgentGuideSheet({
   guide,
 }: AgentGuideSheetProps) {
   const { t } = useTranslation();
+  const { openExternal } = useAdminRuntime();
 
   const steps = safeArray<string>(guide?.steps);
   const verify = safeArray<string>(guide?.verify);
   const caveats = safeArray<string>(guide?.caveats);
+  const docsUrl = safeStr(guide?.docs_url);
   const configSnippet = safeStr(guide?.config_snippet);
   const envSnippet = safeStr(guide?.env_snippet);
 
@@ -38,9 +42,27 @@ export function AgentGuideSheet({
           <h2 className="text-sm font-semibold text-foreground">
             {label} · {t('agents.guide.title')}
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {safeStr(guide?.docs_url)}
-          </p>
+          {docsUrl ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => void openExternal(docsUrl)}
+              >
+                <RiExternalLinkLine />
+                {t('agents.actions.openDocs')}
+              </Button>
+              <CopyButton
+                value={docsUrl}
+                variant="ghost"
+                size="xs"
+                successMessage={t('agents.actions.copied')}
+              >
+                {t('agents.actions.copy')}
+              </CopyButton>
+            </div>
+          ) : null}
         </div>
         <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
           {t('common.close')}

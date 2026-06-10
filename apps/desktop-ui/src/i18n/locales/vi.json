@@ -1027,6 +1027,7 @@
       "rollback": "Rollback",
       "viewGuide": "Guide",
       "runDiff": "Diff",
+      "openDocs": "Mở docs",
       "copy": "Copy",
       "copied": "Copied",
       "retry": "Retry"

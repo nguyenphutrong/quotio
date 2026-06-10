@@ -1028,6 +1028,7 @@
       "rollback": "Rollback",
       "viewGuide": "Guide",
       "runDiff": "Diff",
+      "openDocs": "打开文档",
       "copy": "Copy",
       "copied": "Copied",
       "retry": "Retry"
