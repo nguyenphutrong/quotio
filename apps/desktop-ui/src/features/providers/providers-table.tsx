@@ -234,11 +234,9 @@ export function ProvidersTable({
                       return (
                         <TableRow
                           key={connection.id}
-                          className={`bg-muted/30 hover:bg-muted/60 [&>td]:py-2 ${
+                          className={`cursor-default bg-muted/30 hover:bg-muted/60 [&>td]:py-2 ${
                             isSelected ? 'bg-muted/60' : ''
-                          } ${connection.disabled ? 'opacity-50' : ''} ${
-                            canEdit ? 'cursor-pointer' : 'cursor-default'
-                          }`}
+                          } ${connection.disabled ? 'opacity-50' : ''}`}
                           onClick={() => {
                             if (canEdit) {
                               onSelect(connection);
