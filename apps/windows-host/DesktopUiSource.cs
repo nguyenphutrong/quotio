@@ -60,7 +60,7 @@ public static class DesktopUiSource
                 ["supportsAppearanceSync"] = true,
                 ["supportsRequestLogSettings"] = true,
                 ["supportsModelSettings"] = false,
-                ["supportsApiKeyManagement"] = false,
+                ["supportsApiKeyManagement"] = true,
                 ["supportsVirtualModelManagement"] = false,
                 ["supportsUpdates"] = true
             }

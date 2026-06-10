@@ -10,6 +10,8 @@ import type {
 const clientKeysQueryKey = ['client-keys'] as const;
 const clientKeyUsageQueryKey = ['client-key-usage'] as const;
 
+type APIKeysRequest = <T>(path: string, init?: RequestInit) => Promise<T>;
+
 export type APIKeyListFilters = {
   status: string;
   q: string;
@@ -25,19 +27,53 @@ export type APIKeyUsageFilters = {
   granularity: 'hour' | 'day';
 };
 
-export function useClientKeysQuery(filters: APIKeyListFilters) {
-  const { request } = useAdminRuntime();
+export function buildClientKeysPath(filters: APIKeyListFilters) {
   const params = new URLSearchParams();
   if (filters.status) params.set('status', filters.status);
   if (filters.q) params.set('q', filters.q);
   if (filters.sort) params.set('sort', filters.sort);
   if (filters.order) params.set('order', filters.order);
   const query = params.toString();
+  return `/client-keys${query ? `?${query}` : ''}`;
+}
+
+export function fetchClientKeys(
+  request: APIKeysRequest,
+  filters: APIKeyListFilters,
+) {
+  return request<APIKeysListResponse>(buildClientKeysPath(filters));
+}
+
+export function createClientKey(request: APIKeysRequest, name: string) {
+  return request<APIKeyCreateResponse>('/client-keys', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function updateClientKey(
+  request: APIKeysRequest,
+  id: string,
+  payload: { name?: string; status?: string },
+) {
+  return request<APIKeyMutationResponse>(`/client-keys/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteClientKey(request: APIKeysRequest, id: string) {
+  return request<APIKeyMutationResponse>(`/client-keys/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export function useClientKeysQuery(filters: APIKeyListFilters) {
+  const { request } = useAdminRuntime();
 
   return useQuery({
     queryKey: [...clientKeysQueryKey, filters],
-    queryFn: () =>
-      request<APIKeysListResponse>(`/client-keys${query ? `?${query}` : ''}`),
+    queryFn: () => fetchClientKeys(request, filters),
   });
 }
 
@@ -74,11 +110,7 @@ export function useClientKeyMutations() {
 
   return {
     createMutation: useMutation({
-      mutationFn: (name: string) =>
-        request<APIKeyCreateResponse>('/client-keys', {
-          method: 'POST',
-          body: JSON.stringify({ name }),
-        }),
+      mutationFn: (name: string) => createClientKey(request, name),
       onSuccess: invalidate,
     }),
     updateMutation: useMutation({
@@ -88,18 +120,11 @@ export function useClientKeyMutations() {
       }: {
         id: string;
         payload: { name?: string; status?: string };
-      }) =>
-        request<APIKeyMutationResponse>(`/client-keys/${id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(payload),
-        }),
+      }) => updateClientKey(request, id, payload),
       onSuccess: invalidate,
     }),
     deleteMutation: useMutation({
-      mutationFn: (id: string) =>
-        request<APIKeyMutationResponse>(`/client-keys/${id}`, {
-          method: 'DELETE',
-        }),
+      mutationFn: (id: string) => deleteClientKey(request, id),
       onSuccess: invalidate,
     }),
   };

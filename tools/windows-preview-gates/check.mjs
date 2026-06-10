@@ -33,7 +33,7 @@ const expectedCapabilities = {
   supportsAppearanceSync: true,
   supportsRequestLogSettings: true,
   supportsModelSettings: false,
-  supportsApiKeyManagement: false,
+  supportsApiKeyManagement: true,
   supportsVirtualModelManagement: false,
   supportsUpdates: true,
 };
