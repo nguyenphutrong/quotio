@@ -662,7 +662,11 @@
         "menuBarColorMode": "Menu bar color",
         "hideSensitiveInfo": "Hide sensitive account info",
         "totalUsageMode": "Total usage",
-        "modelAggregationMode": "Model aggregation"
+        "modelAggregationMode": "Model aggregation",
+        "updateSupport": "Updates",
+        "lastUpdateCheck": "Last checked",
+        "autoCheckUpdates": "Check automatically",
+        "updateChannel": "Update channel"
       },
       "hints": {
         "operatingMode": "Switch between the local proxy and a saved remote connection.",
@@ -681,7 +685,8 @@
         "menuBarMaxItems": "Clamped between 1 and 10 items.",
         "menuBarColorMode": "Controls color in compact menu bar quota items.",
         "totalUsageMode": "Choose session-only or combined session plus extra usage.",
-        "modelAggregationMode": "Controls how multi-model provider quota is summarized."
+        "modelAggregationMode": "Controls how multi-model provider quota is summarized.",
+        "updateChannel": "Stable receives public releases; beta receives preview builds when available."
       },
       "groups": {
         "localProxy": {
@@ -703,6 +708,10 @@
         "privacyUsage": {
           "title": "Privacy and usage",
           "description": "Sensitive account display and multi-model usage calculation."
+        },
+        "updates": {
+          "title": "Updates",
+          "description": "Sparkle update checks and release channel settings owned by the native host."
         }
       },
       "options": {
@@ -719,9 +728,12 @@
         "sessionOnly": "Session only",
         "combined": "Combined",
         "lowest": "Lowest",
-        "average": "Average"
+        "average": "Average",
+        "stable": "Stable",
+        "beta": "Beta"
       },
       "values": {
+        "never": "Never",
         "notDetected": "Not detected",
         "notInstalled": "Not installed",
         "proxyInstallDevOverride": "Using local dev binary",
@@ -729,14 +741,17 @@
         "proxyInstallLegacyCompatible": "Legacy compatible install found"
       },
       "actions": {
-        "reset": "Reset"
+        "reset": "Reset",
+        "checkForUpdates": "Check for updates",
+        "checkingUpdates": "Checking…"
       },
       "errors": {
         "proxyPortInvalid": "Proxy port must be between 1 and 65535.",
         "authDirRequired": "Auth directory is required."
       },
       "messages": {
-        "saved": "Preference saved."
+        "saved": "Preference saved.",
+        "updateCheckStarted": "Update check started."
       }
     },
     "advancedProxy": {
@@ -889,7 +904,8 @@
       "supportsRequestLogSettings": "Request log settings",
       "supportsModelSettings": "Model settings",
       "supportsApiKeyManagement": "API key management",
-      "supportsVirtualModelManagement": "Virtual model management"
+      "supportsVirtualModelManagement": "Virtual model management",
+      "supportsUpdates": "App updates"
     }
   },
   "bootstrap": {

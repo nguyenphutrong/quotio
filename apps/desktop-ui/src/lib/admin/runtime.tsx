@@ -78,6 +78,13 @@ export type NativePreferences = {
   hideSensitiveInfo: boolean;
   totalUsageMode: 'sessionOnly' | 'combined';
   modelAggregationMode: 'lowest' | 'average';
+  updatesSupported: boolean;
+  autoCheckUpdates: boolean;
+  updateChannel: 'stable' | 'beta';
+  updateChannelLocked: boolean;
+  canCheckForUpdates: boolean;
+  isCheckingForUpdates: boolean;
+  lastUpdateCheckAt: string | null;
 };
 
 export type NativePreferencesPatch = Partial<
@@ -109,6 +116,8 @@ export type NativePreferencesPatch = Partial<
     | 'showMenuBarIcon'
     | 'showQuotaInMenuBar'
     | 'totalUsageMode'
+    | 'autoCheckUpdates'
+    | 'updateChannel'
   >
 >;
 
@@ -134,6 +143,7 @@ type DesktopBridge = {
   preferencesWrite?: (request: {
     preferences: NativePreferencesPatch;
   }) => Promise<NativePreferences>;
+  updatesCheck?: () => Promise<NativePreferences>;
 };
 
 declare global {
@@ -171,6 +181,7 @@ type AdminRuntimeValue = {
   preferencesWrite: (
     preferences: NativePreferencesPatch,
   ) => Promise<NativePreferences>;
+  updatesCheck: () => Promise<NativePreferences>;
 };
 
 const AdminRuntimeContext = createContext<AdminRuntimeValue | null>(null);
@@ -353,6 +364,16 @@ export function AdminRuntimeProvider({
     [],
   );
 
+  const updatesCheck = useCallback(async () => {
+    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+    if (!bridge?.updatesCheck) {
+      throw new Error('Desktop updates bridge is unavailable');
+    }
+
+    return bridge.updatesCheck();
+  }, []);
+
   const value = useMemo<AdminRuntimeValue>(
     () => ({
       bootstrap,
@@ -375,6 +396,7 @@ export function AdminRuntimeProvider({
       credentialDelete,
       preferencesRead,
       preferencesWrite,
+      updatesCheck,
     }),
     [
       bootstrap,
@@ -391,6 +413,7 @@ export function AdminRuntimeProvider({
       runtimeStart,
       runtimeStatus,
       runtimeStop,
+      updatesCheck,
     ],
   );
 

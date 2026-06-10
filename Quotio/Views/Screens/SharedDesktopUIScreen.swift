@@ -97,6 +97,7 @@ private enum DesktopBridgeContract {
         static let managementRequest = QuotioRequestKind.ManagementRequest.rawValue
         static let nativePreferencesRead = "native.preferencesRead"
         static let nativePreferencesWrite = "native.preferencesWrite"
+        static let nativeUpdatesCheck = "native.updatesCheck"
         static let nativeConfirm = QuotioRequestKind.NativeConfirm.rawValue
         static let nativeOpenExternal = QuotioRequestKind.NativeOpenExternal.rawValue
         static let nativeOpenTextFile = QuotioRequestKind.NativeOpenTextFile.rawValue
@@ -254,6 +255,15 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 preferences: request?.preferences || {}
               });
             }),
+            updatesCheck: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.nativeUpdatesCheck)'
+              });
+            }),
             request: (request) => new Promise((resolve, reject) => {
               const id = request?.id || crypto.randomUUID();
               window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
@@ -384,7 +394,8 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 "supportsRequestLogSettings": true,
                 "supportsModelSettings": true,
                 "supportsApiKeyManagement": true,
-                "supportsVirtualModelManagement": true
+                "supportsVirtualModelManagement": true,
+                "supportsUpdates": AppRuntimeIdentity.updatesEnabled
             ]
         ]
     }
@@ -453,6 +464,8 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                     value = handleNativePreferencesRead()
                 case DesktopBridgeContract.RequestKind.nativePreferencesWrite:
                     value = try handleNativePreferencesWrite(body)
+                case DesktopBridgeContract.RequestKind.nativeUpdatesCheck:
+                    value = handleNativeUpdatesCheck()
                 case DesktopBridgeContract.RequestKind.managementRequest:
                     value = try await handleManagementRequest(body)
                 case DesktopBridgeContract.RequestKind.nativeConfirm:
@@ -693,6 +706,16 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             menuBarSettings.modelAggregationMode = modelAggregationMode
         }
 
+        if let autoCheckUpdates = preferences["autoCheckUpdates"] as? Bool {
+            UserDefaults.standard.set(autoCheckUpdates, forKey: "autoCheckUpdates")
+            UpdaterService.shared.initializeIfNeeded()
+            UpdaterService.shared.automaticallyChecksForUpdates = autoCheckUpdates
+        }
+        if let rawUpdateChannel = preferences["updateChannel"] as? String,
+           let updateChannel = UpdateChannel(rawValue: rawUpdateChannel) {
+            UpdaterService.shared.updateChannel = AppRuntimeIdentity.isBeta ? .beta : updateChannel
+        }
+
         evaluate(script: "window.__QUOTIO_DESKTOP_BOOTSTRAP__ = \(Self.javascriptObjectLiteral(bootstrapPayload));")
         return nativePreferencesPayload()
     }
@@ -702,6 +725,15 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
         let menuBarSettings = MenuBarSettingsManager.shared
         let showInDock = UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? true
         let proxyManager = viewModel?.proxyManager
+        let updaterService = UpdaterService.shared
+        let autoCheckUpdates = UserDefaults.standard.object(forKey: "autoCheckUpdates") as? Bool
+            ?? updaterService.automaticallyChecksForUpdates
+        let lastUpdateCheckAt: Any
+        if let lastUpdateCheckDate = updaterService.lastUpdateCheckDate {
+            lastUpdateCheckAt = ISO8601DateFormatter().string(from: lastUpdateCheckDate)
+        } else {
+            lastUpdateCheckAt = NSNull()
+        }
 
         return [
             "operatingMode": OperatingModeManager.shared.currentMode.rawValue,
@@ -740,8 +772,24 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             "menuBarColorMode": menuBarSettings.colorMode.rawValue,
             "hideSensitiveInfo": menuBarSettings.hideSensitiveInfo,
             "totalUsageMode": menuBarSettings.totalUsageMode.rawValue,
-            "modelAggregationMode": menuBarSettings.modelAggregationMode.rawValue
+            "modelAggregationMode": menuBarSettings.modelAggregationMode.rawValue,
+            "updatesSupported": AppRuntimeIdentity.updatesEnabled,
+            "autoCheckUpdates": autoCheckUpdates,
+            "updateChannel": AppRuntimeIdentity.isBeta ? UpdateChannel.beta.rawValue : updaterService.updateChannel.rawValue,
+            "updateChannelLocked": AppRuntimeIdentity.isBeta,
+            "canCheckForUpdates": updaterService.canCheckForUpdates,
+            "isCheckingForUpdates": updaterService.isCheckingForUpdates,
+            "lastUpdateCheckAt": lastUpdateCheckAt
         ]
+    }
+
+    private func handleNativeUpdatesCheck() -> [String: Any] {
+        guard AppRuntimeIdentity.updatesEnabled else {
+            return nativePreferencesPayload()
+        }
+
+        UpdaterService.shared.checkForUpdates()
+        return nativePreferencesPayload()
     }
 
     private static func clampedMenuBarMaxItems(_ value: Int) -> Int {

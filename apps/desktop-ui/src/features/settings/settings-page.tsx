@@ -54,6 +54,7 @@ type NativePreferencesState = {
   preferences: NativePreferences | null;
   loading: boolean;
   savingKey: keyof NativePreferencesPatch | null;
+  checkingUpdates: boolean;
   error: string | null;
 };
 
@@ -61,6 +62,7 @@ const initialPreferencesState: NativePreferencesState = {
   preferences: null,
   loading: true,
   savingKey: null,
+  checkingUpdates: false,
   error: null,
 };
 
@@ -328,7 +330,8 @@ function RemoteConnectionPanel() {
 function NativePreferencesPanel() {
   const { i18n, t } = useTranslation();
   const toast = useToast();
-  const { bootstrap, preferencesRead, preferencesWrite } = useAdminRuntime();
+  const { bootstrap, preferencesRead, preferencesWrite, updatesCheck } =
+    useAdminRuntime();
   const [state, setState] = useState(initialPreferencesState);
   const [authDirDraft, setAuthDirDraft] = useState('');
   const [proxyPortDraft, setProxyPortDraft] = useState('');
@@ -355,6 +358,7 @@ function NativePreferencesPanel() {
           preferences,
           loading: false,
           savingKey: null,
+          checkingUpdates: false,
           error: null,
         });
       } catch (error) {
@@ -400,6 +404,7 @@ function NativePreferencesPanel() {
         preferences,
         loading: false,
         savingKey: null,
+        checkingUpdates: false,
         error: null,
       });
       if (key === 'language') {
@@ -410,6 +415,33 @@ function NativePreferencesPanel() {
       setState((current) => ({
         ...current,
         savingKey: null,
+        error:
+          error instanceof Error ? error.message : t('common.unknownError'),
+      }));
+    }
+  };
+
+  const checkForUpdates = async () => {
+    setState((current) => ({
+      ...current,
+      checkingUpdates: true,
+      error: null,
+    }));
+
+    try {
+      const preferences = await updatesCheck();
+      setState({
+        preferences,
+        loading: false,
+        savingKey: null,
+        checkingUpdates: preferences.isCheckingForUpdates,
+        error: null,
+      });
+      toast.success(t('settings.native.messages.updateCheckStarted'));
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        checkingUpdates: false,
         error:
           error instanceof Error ? error.message : t('common.unknownError'),
       }));
@@ -1085,6 +1117,83 @@ function NativePreferencesPanel() {
             </Select>
           </PreferenceField>
         </PreferenceGroup>
+
+        <PreferenceGroup
+          description={t('settings.native.groups.updates.description')}
+          title={t('settings.native.groups.updates.title')}
+        >
+          <PreferenceStat
+            label={t('settings.native.fields.updateSupport')}
+            value={
+              preferences?.updatesSupported
+                ? t('about.status.enabled')
+                : t('about.status.disabled')
+            }
+          />
+          <PreferenceStat
+            label={t('settings.native.fields.lastUpdateCheck')}
+            value={formatUpdateCheckDate(
+              preferences?.lastUpdateCheckAt,
+              i18n.language,
+              t('settings.native.values.never'),
+            )}
+          />
+          <SwitchField
+            checked={preferences?.autoCheckUpdates ?? true}
+            disabled={disabled || !preferences?.updatesSupported}
+            label={t('settings.native.fields.autoCheckUpdates')}
+            onCheckedChange={(checked) =>
+              void savePreference('autoCheckUpdates', checked)
+            }
+          />
+          <PreferenceField
+            hint={t('settings.native.hints.updateChannel')}
+            label={t('settings.native.fields.updateChannel')}
+          >
+            <Select
+              value={preferences?.updateChannel ?? 'stable'}
+              disabled={
+                disabled ||
+                !preferences?.updatesSupported ||
+                preferences?.updateChannelLocked
+              }
+              onValueChange={(value) =>
+                void savePreference(
+                  'updateChannel',
+                  value as NativePreferences['updateChannel'],
+                )
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="stable">
+                  {t('settings.native.options.stable')}
+                </SelectItem>
+                <SelectItem value="beta">
+                  {t('settings.native.options.beta')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PreferenceField>
+          <Button
+            className="w-fit"
+            type="button"
+            variant="outline"
+            disabled={
+              disabled ||
+              !preferences?.updatesSupported ||
+              !preferences?.canCheckForUpdates ||
+              state.checkingUpdates
+            }
+            onClick={() => void checkForUpdates()}
+          >
+            {state.checkingUpdates || preferences?.isCheckingForUpdates
+              ? t('settings.native.actions.checkingUpdates')
+              : t('settings.native.actions.checkForUpdates')}
+          </Button>
+        </PreferenceGroup>
       </div>
 
       {state.error ? (
@@ -1092,6 +1201,26 @@ function NativePreferencesPanel() {
       ) : null}
     </Panel>
   );
+}
+
+function formatUpdateCheckDate(
+  value: string | null | undefined,
+  locale: string,
+  fallback: string,
+) {
+  if (!value) {
+    return fallback;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
 }
 
 function AdvancedProxySettingsPanel() {

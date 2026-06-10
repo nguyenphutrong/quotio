@@ -175,7 +175,8 @@ static void RunBootstrapSmoke()
         ["supportsRequestLogSettings"] = false,
         ["supportsModelSettings"] = false,
         ["supportsApiKeyManagement"] = false,
-        ["supportsVirtualModelManagement"] = false
+        ["supportsVirtualModelManagement"] = false,
+        ["supportsUpdates"] = false
     }, "Windows bootstrap capabilities");
 }
 

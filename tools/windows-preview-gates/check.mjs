@@ -35,6 +35,7 @@ const expectedCapabilities = {
   supportsModelSettings: false,
   supportsApiKeyManagement: false,
   supportsVirtualModelManagement: false,
+  supportsUpdates: false,
 };
 
 function readBoolDictionary(name) {

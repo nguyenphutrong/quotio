@@ -39,6 +39,7 @@ const CAPABILITY_KEYS = [
   'supportsModelSettings',
   'supportsApiKeyManagement',
   'supportsVirtualModelManagement',
+  'supportsUpdates',
 ] satisfies (keyof HostCapabilities)[];
 
 function DiagnosticsRow({

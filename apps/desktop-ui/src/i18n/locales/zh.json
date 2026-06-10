@@ -658,7 +658,11 @@
         "menuBarColorMode": "菜单栏颜色",
         "hideSensitiveInfo": "隐藏敏感账号信息",
         "totalUsageMode": "总用量",
-        "modelAggregationMode": "模型聚合"
+        "modelAggregationMode": "模型聚合",
+        "updateSupport": "更新",
+        "lastUpdateCheck": "上次检查",
+        "autoCheckUpdates": "自动检查更新",
+        "updateChannel": "更新通道"
       },
       "hints": {
         "operatingMode": "在本地代理和已保存的远程连接之间切换。",
@@ -677,7 +681,8 @@
         "menuBarMaxItems": "限制在 1 到 10 个项目之间。",
         "menuBarColorMode": "控制紧凑菜单栏配额项目的颜色。",
         "totalUsageMode": "选择仅 session 或合并 session 与 extra usage。",
-        "modelAggregationMode": "控制多模型 provider 配额的汇总方式。"
+        "modelAggregationMode": "控制多模型 provider 配额的汇总方式。",
+        "updateChannel": "Stable 接收正式版本；Beta 在可用时接收预览版本。"
       },
       "groups": {
         "localProxy": {
@@ -699,6 +704,10 @@
         "privacyUsage": {
           "title": "隐私和用量",
           "description": "敏感账号显示和多模型用量计算。"
+        },
+        "updates": {
+          "title": "更新",
+          "description": "由 native host 管理的 Sparkle 更新检查和发布通道设置。"
         }
       },
       "options": {
@@ -715,9 +724,12 @@
         "sessionOnly": "仅 session",
         "combined": "合并",
         "lowest": "最低",
-        "average": "平均"
+        "average": "平均",
+        "stable": "Stable",
+        "beta": "Beta"
       },
       "values": {
+        "never": "从未",
         "notDetected": "未检测到",
         "notInstalled": "未安装",
         "proxyInstallDevOverride": "正在使用本地 dev binary",
@@ -725,14 +737,17 @@
         "proxyInstallLegacyCompatible": "发现旧版兼容安装"
       },
       "actions": {
-        "reset": "重置"
+        "reset": "重置",
+        "checkForUpdates": "检查更新",
+        "checkingUpdates": "检查中…"
       },
       "errors": {
         "proxyPortInvalid": "代理端口必须在 1 到 65535 之间。",
         "authDirRequired": "需要填写 auth 目录。"
       },
       "messages": {
-        "saved": "偏好已保存。"
+        "saved": "偏好已保存。",
+        "updateCheckStarted": "已开始检查更新。"
       }
     },
     "advancedProxy": {
@@ -885,7 +900,8 @@
       "supportsRequestLogSettings": "请求日志设置",
       "supportsModelSettings": "模型设置",
       "supportsApiKeyManagement": "API key 管理",
-      "supportsVirtualModelManagement": "Virtual model 管理"
+      "supportsVirtualModelManagement": "Virtual model 管理",
+      "supportsUpdates": "应用更新"
     }
   },
   "bootstrap": {

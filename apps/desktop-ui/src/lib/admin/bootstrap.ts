@@ -41,6 +41,7 @@ export type HostCapabilities = {
   supportsModelSettings: boolean;
   supportsApiKeyManagement: boolean;
   supportsVirtualModelManagement: boolean;
+  supportsUpdates: boolean;
 };
 
 export const DEFAULT_FEATURE_FLAGS: AdminFeatureFlags = {
@@ -72,6 +73,7 @@ export const DEFAULT_HOST_CAPABILITIES: HostCapabilities = {
   supportsModelSettings: false,
   supportsApiKeyManagement: false,
   supportsVirtualModelManagement: false,
+  supportsUpdates: false,
 };
 
 export type AdminBootstrap = {

@@ -657,7 +657,11 @@
         "menuBarColorMode": "Màu menu bar",
         "hideSensitiveInfo": "Ẩn thông tin tài khoản nhạy cảm",
         "totalUsageMode": "Tổng usage",
-        "modelAggregationMode": "Gộp model"
+        "modelAggregationMode": "Gộp model",
+        "updateSupport": "Cập nhật",
+        "lastUpdateCheck": "Lần kiểm tra gần nhất",
+        "autoCheckUpdates": "Tự kiểm tra cập nhật",
+        "updateChannel": "Kênh cập nhật"
       },
       "hints": {
         "operatingMode": "Chuyển giữa local proxy và kết nối remote đã lưu.",
@@ -676,7 +680,8 @@
         "menuBarMaxItems": "Được giới hạn từ 1 đến 10 item.",
         "menuBarColorMode": "Điều khiển màu của item hạn mức gọn trên menu bar.",
         "totalUsageMode": "Chọn chỉ session hoặc gộp session với extra usage.",
-        "modelAggregationMode": "Điều khiển cách tóm tắt hạn mức khi provider có nhiều model."
+        "modelAggregationMode": "Điều khiển cách tóm tắt hạn mức khi provider có nhiều model.",
+        "updateChannel": "Stable nhận bản phát hành chính thức; beta nhận bản preview khi có."
       },
       "groups": {
         "localProxy": {
@@ -698,6 +703,10 @@
         "privacyUsage": {
           "title": "Riêng tư và usage",
           "description": "Ẩn thông tin tài khoản và cách tính usage nhiều model."
+        },
+        "updates": {
+          "title": "Cập nhật",
+          "description": "Kiểm tra cập nhật Sparkle và kênh phát hành do native host quản lý."
         }
       },
       "options": {
@@ -714,9 +723,12 @@
         "sessionOnly": "Chỉ session",
         "combined": "Gộp",
         "lowest": "Thấp nhất",
-        "average": "Trung bình"
+        "average": "Trung bình",
+        "stable": "Stable",
+        "beta": "Beta"
       },
       "values": {
+        "never": "Chưa bao giờ",
         "notDetected": "Chưa phát hiện",
         "notInstalled": "Chưa cài đặt",
         "proxyInstallDevOverride": "Đang dùng binary dev local",
@@ -724,14 +736,17 @@
         "proxyInstallLegacyCompatible": "Đã tìm thấy bản cài tương thích cũ"
       },
       "actions": {
-        "reset": "Đặt lại"
+        "reset": "Đặt lại",
+        "checkForUpdates": "Kiểm tra cập nhật",
+        "checkingUpdates": "Đang kiểm tra…"
       },
       "errors": {
         "proxyPortInvalid": "Cổng proxy phải nằm trong khoảng 1 đến 65535.",
         "authDirRequired": "Cần nhập thư mục auth."
       },
       "messages": {
-        "saved": "Đã lưu tùy chọn."
+        "saved": "Đã lưu tùy chọn.",
+        "updateCheckStarted": "Đã bắt đầu kiểm tra cập nhật."
       }
     },
     "advancedProxy": {
@@ -884,7 +899,8 @@
       "supportsRequestLogSettings": "Cài đặt request log",
       "supportsModelSettings": "Cài đặt model",
       "supportsApiKeyManagement": "Quản lý API key",
-      "supportsVirtualModelManagement": "Quản lý virtual model"
+      "supportsVirtualModelManagement": "Quản lý virtual model",
+      "supportsUpdates": "Cập nhật app"
     }
   },
   "bootstrap": {
