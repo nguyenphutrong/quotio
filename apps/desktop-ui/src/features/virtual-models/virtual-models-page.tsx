@@ -829,7 +829,7 @@ function VirtualModelEntryRow({
         isDragging
           ? 'border-primary/50 bg-background shadow-lg ring-1 ring-primary/20'
           : 'border-border/60 bg-muted/20'
-      } ${dragEnabled && canMutateEntry ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      }`}
       title={
         dragEnabled && canMutateEntry
           ? t('virtualModels.actions.dragToReorder')
