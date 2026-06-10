@@ -971,7 +971,19 @@
       "saveChanges": "保存更改",
       "delete": "删除",
       "chooseFile": "选择文件",
-      "import": "导入"
+      "import": "导入",
+      "importCookieJson": "导入 Cookie JSON",
+      "clear": "清除"
+    },
+    "placeholders": {
+      "apiKey": "粘贴 API 密钥",
+      "customProvider": "例如：my-internal-api",
+      "displayName": "可选显示名称",
+      "secret": "粘贴 API 密钥或运行时密钥",
+      "excludedModels": "gpt-4.1, claude-3-5-sonnet",
+      "cookieJson": "{\"url\":\"https://opencode.ai\",\"cookies\":[...]}",
+      "workspaceId": "wrk_...",
+      "authCookie": "auth=..."
     },
     "empty": {
       "noMatchTitle": "没有匹配的服务商",

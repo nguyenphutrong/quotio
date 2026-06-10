@@ -975,7 +975,19 @@
       "saveChanges": "Save changes",
       "delete": "Delete",
       "chooseFile": "Choose File",
-      "import": "Import"
+      "import": "Import",
+      "importCookieJson": "Import Cookie JSON",
+      "clear": "Clear"
+    },
+    "placeholders": {
+      "apiKey": "Paste API key",
+      "customProvider": "e.g., my-internal-api",
+      "displayName": "Optional display name",
+      "secret": "Paste API key or runtime secret",
+      "excludedModels": "gpt-4.1, claude-3-5-sonnet",
+      "cookieJson": "{\"url\":\"https://opencode.ai\",\"cookies\":[...]}",
+      "workspaceId": "wrk_...",
+      "authCookie": "auth=..."
     },
     "empty": {
       "noMatchTitle": "No providers matched",

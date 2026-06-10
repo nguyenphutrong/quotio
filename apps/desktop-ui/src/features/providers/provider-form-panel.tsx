@@ -622,7 +622,7 @@ export function ProviderFormPanel({
               type="password"
               value={secret}
               onChange={(event) => setSecret(event.target.value)}
-              placeholder="Paste API key"
+              placeholder={t('providers.placeholders.apiKey')}
             />
           </Field>
           {showsOpencodeGoQuotaMetadata
@@ -643,7 +643,7 @@ export function ProviderFormPanel({
                     setLabel(event.target.value);
                     setProvider(event.target.value);
                   }}
-                  placeholder="e.g., my-internal-api"
+                  placeholder={t('providers.placeholders.customProvider')}
                 />
               </Field>
             )}
@@ -651,7 +651,7 @@ export function ProviderFormPanel({
               <Input
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
-                placeholder="Optional display name"
+                placeholder={t('providers.placeholders.displayName')}
               />
             </Field>
             <Field label="Disabled">
@@ -714,7 +714,7 @@ export function ProviderFormPanel({
                   placeholder={
                     mode === 'edit'
                       ? (providerProp?.secret ?? '')
-                      : 'Paste API key or runtime secret'
+                      : t('providers.placeholders.secret')
                   }
                 />
               </Field>
@@ -732,7 +732,7 @@ export function ProviderFormPanel({
                     value={excludedModels}
                     onChange={(event) => setExcludedModels(event.target.value)}
                     disabled={mode === 'edit'}
-                    placeholder="gpt-4.1, claude-3-5-sonnet"
+                    placeholder={t('providers.placeholders.excludedModels')}
                   />
                 </Field>
               </div>
@@ -844,7 +844,7 @@ export function ProviderFormPanel({
               value={cookieImportText}
               onChange={(event) => setCookieImportText(event.target.value)}
               className="min-h-48 w-full max-w-full overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs"
-              placeholder='{"url":"https://opencode.ai","cookies":[...]}'
+              placeholder={t('providers.placeholders.cookieJson')}
             />
             {cookieImportError ? (
               <p className="text-sm text-destructive">{cookieImportError}</p>
@@ -1001,7 +1001,7 @@ export function ProviderFormPanel({
                 onChange={(event) =>
                   setOpencodeGoWorkspaceId(event.target.value)
                 }
-                placeholder="wrk_..."
+                placeholder={t('providers.placeholders.workspaceId')}
               />
             </div>
             <div className="space-y-2">
@@ -1016,7 +1016,7 @@ export function ProviderFormPanel({
                     setOpencodeGoAuthCookie(event.target.value)
                   }
                   className="font-mono text-xs"
-                  placeholder="auth=..."
+                  placeholder={t('providers.placeholders.authCookie')}
                 />
                 <div className="flex gap-2">
                   <Button
@@ -1025,7 +1025,7 @@ export function ProviderFormPanel({
                     size="sm"
                     onClick={handleImportOpencodeGoCookieFile}
                   >
-                    Import Cookie JSON
+                    {t('providers.actions.importCookieJson')}
                   </Button>
                   {opencodeGoAuthCookie ? (
                     <Button
@@ -1034,7 +1034,7 @@ export function ProviderFormPanel({
                       size="sm"
                       onClick={() => setOpencodeGoAuthCookie('')}
                     >
-                      Clear
+                      {t('providers.actions.clear')}
                     </Button>
                   ) : null}
                 </div>

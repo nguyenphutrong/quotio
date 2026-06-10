@@ -970,7 +970,19 @@
       "saveChanges": "Lưu thay đổi",
       "delete": "Xóa",
       "chooseFile": "Chọn file",
-      "import": "Nhập"
+      "import": "Nhập",
+      "importCookieJson": "Nhập Cookie JSON",
+      "clear": "Xóa"
+    },
+    "placeholders": {
+      "apiKey": "Dán API key",
+      "customProvider": "vd: my-internal-api",
+      "displayName": "Tên hiển thị tùy chọn",
+      "secret": "Dán API key hoặc runtime secret",
+      "excludedModels": "gpt-4.1, claude-3-5-sonnet",
+      "cookieJson": "{\"url\":\"https://opencode.ai\",\"cookies\":[...]}",
+      "workspaceId": "wrk_...",
+      "authCookie": "auth=..."
     },
     "empty": {
       "noMatchTitle": "Không có nhà cung cấp phù hợp",
