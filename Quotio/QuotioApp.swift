@@ -567,139 +567,134 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct ContentView: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var modeManager = OperatingModeManager.shared
-    
+
     var body: some View {
         @Bindable var vm = viewModel
         let sharedUIEnabled = SharedDesktopUIFeature.isEnabled
-        
-        NavigationSplitView {
-            VStack(spacing: 0) {
-                List(selection: $vm.currentPage) {
-                    Section {
-                        // Always visible
-                        Label("nav.dashboard".localized(), systemImage: "gauge.with.dots.needle.33percent")
-                            .tag(NavigationPage.dashboard)
-                        
-                        Label("nav.quota".localized(), systemImage: "chart.bar.fill")
-                            .tag(NavigationPage.quota)
-                        
-                        Label("nav.providers".localized(), systemImage: "person.2.badge.key")
-                            .tag(NavigationPage.providers)
-                        
-                        // Proxy mode only (local or remote)
-                        if modeManager.isProxyMode {
-                            Label("nav.models".localized(), systemImage: "list.bullet.rectangle")
-                                .tag(NavigationPage.models)
 
-                            Label("nav.fallback".localized(), systemImage: "point.3.connected.trianglepath.dotted")
-                            .tag(NavigationPage.fallback)
-
-                            if modeManager.currentMode.supportsAgentConfig {
-                                Label("nav.agents".localized(), systemImage: "terminal")
-                                    .tag(NavigationPage.agents)
-                            }
-                            
-                            Label("nav.apiKeys".localized(), systemImage: "key.horizontal")
-                                .tag(NavigationPage.apiKeys)
-                            
-                            Label("nav.logs".localized(), systemImage: "doc.text")
-                                .tag(NavigationPage.logs)
-
-                            Label("nav.usageStatistics".localized(), systemImage: "chart.xyaxis.line")
-                                .tag(NavigationPage.usageStatistics)
-                        }
-                        
-                        Label("nav.settings".localized(), systemImage: "gearshape")
-                            .tag(NavigationPage.settings)
-                        
-                        Label("nav.about".localized(), systemImage: "info.circle")
-                            .tag(NavigationPage.about)
-
-                        if sharedUIEnabled {
-                            Label("nav.sharedUI".localized(), systemImage: "rectangle.connected.to.line.below")
-                                .tag(NavigationPage.sharedUI)
-                        }
-                    }
-                }
-                
-                // Control section at bottom - current mode badge + status
+        if sharedUIEnabled {
+            SharedDesktopUIScreen()
+        } else {
+            NavigationSplitView {
                 VStack(spacing: 0) {
-                    Divider()
-                    
-                    // Current Mode Badge (replaces ModeSwitcherRow)
-                    CurrentModeBadge()
-                        .padding(.horizontal, 16)
-                        .padding(.top, 10)
-                        .padding(.bottom, 6)
-                    
-                    // Status row - different per mode
-                    Group {
-                        if modeManager.isLocalProxyMode {
-                            ProxyStatusRow(viewModel: viewModel)
-                        } else {
-                            RemoteStatusRow()
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 10)
-                }
-                .background(.regularMaterial)
-            }
-            .navigationTitle(AppRuntimeIdentity.displayName)
-            .toolbar {
-                ToolbarItem {
-                    if modeManager.isLocalProxyMode {
-                        // Local proxy mode: start/restart control
-                        if viewModel.proxyManager.isStarting {
-                            SmallProgressView()
-                        } else {
-                            Button {
-                                Task { await viewModel.ensureProxyRunning(forceRestart: true) }
-                            } label: {
-                                Image(systemName: viewModel.proxyManager.proxyStatus.running ? "arrow.clockwise" : "play.fill")
+                    List(selection: $vm.currentPage) {
+                        Section {
+                            // Always visible
+                            Label("nav.dashboard".localized(), systemImage: "gauge.with.dots.needle.33percent")
+                                .tag(NavigationPage.dashboard)
+
+                            Label("nav.quota".localized(), systemImage: "chart.bar.fill")
+                                .tag(NavigationPage.quota)
+
+                            Label("nav.providers".localized(), systemImage: "person.2.badge.key")
+                                .tag(NavigationPage.providers)
+
+                            // Proxy mode only (local or remote)
+                            if modeManager.isProxyMode {
+                                Label("nav.models".localized(), systemImage: "list.bullet.rectangle")
+                                    .tag(NavigationPage.models)
+
+                                Label("nav.fallback".localized(), systemImage: "point.3.connected.trianglepath.dotted")
+                                    .tag(NavigationPage.fallback)
+
+                                if modeManager.currentMode.supportsAgentConfig {
+                                    Label("nav.agents".localized(), systemImage: "terminal")
+                                        .tag(NavigationPage.agents)
+                                }
+
+                                Label("nav.apiKeys".localized(), systemImage: "key.horizontal")
+                                    .tag(NavigationPage.apiKeys)
+
+                                Label("nav.logs".localized(), systemImage: "doc.text")
+                                    .tag(NavigationPage.logs)
+
+                                Label("nav.usageStatistics".localized(), systemImage: "chart.xyaxis.line")
+                                    .tag(NavigationPage.usageStatistics)
                             }
-                            .help(viewModel.proxyManager.proxyStatus.running ? "action.restartProxy".localized() : "action.startProxy".localized())
+
+                            Label("nav.settings".localized(), systemImage: "gearshape")
+                                .tag(NavigationPage.settings)
+
+                            Label("nav.about".localized(), systemImage: "info.circle")
+                                .tag(NavigationPage.about)
                         }
-                    } else {
-                        // Remote mode: refresh button
-                        Button {
-                            Task { await viewModel.manualRefresh() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
+                    }
+
+                    // Control section at bottom - current mode badge + status
+                    VStack(spacing: 0) {
+                        Divider()
+
+                        // Current Mode Badge (replaces ModeSwitcherRow)
+                        CurrentModeBadge()
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
+                            .padding(.bottom, 6)
+
+                        // Status row - different per mode
+                        Group {
+                            if modeManager.isLocalProxyMode {
+                                ProxyStatusRow(viewModel: viewModel)
+                            } else {
+                                RemoteStatusRow()
+                            }
                         }
-                        .help("action.refreshQuota".localized())
-                        .disabled(viewModel.isLoadingQuotas)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 10)
+                    }
+                    .background(.regularMaterial)
+                }
+                .navigationTitle(AppRuntimeIdentity.displayName)
+                .toolbar {
+                    ToolbarItem {
+                        if modeManager.isLocalProxyMode {
+                            // Local proxy mode: start/restart control
+                            if viewModel.proxyManager.isStarting {
+                                SmallProgressView()
+                            } else {
+                                Button {
+                                    Task { await viewModel.ensureProxyRunning(forceRestart: true) }
+                                } label: {
+                                    Image(systemName: viewModel.proxyManager.proxyStatus.running ? "arrow.clockwise" : "play.fill")
+                                }
+                                .help(viewModel.proxyManager.proxyStatus.running ? "action.restartProxy".localized() : "action.startProxy".localized())
+                            }
+                        } else {
+                            // Remote mode: refresh button
+                            Button {
+                                Task { await viewModel.manualRefresh() }
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .help("action.refreshQuota".localized())
+                            .disabled(viewModel.isLoadingQuotas)
+                        }
                     }
                 }
-            }
-        } detail: {
-            switch viewModel.currentPage {
-            case .dashboard:
-                DashboardScreen()
-            case .quota:
-                QuotaScreen()
-            case .providers:
-                ProvidersScreen()
-            case .models:
-                ModelsScreen()
-            case .fallback:
-                FallbackScreen()
-            case .agents:
-                AgentSetupScreen()
-            case .apiKeys:
-                APIKeysScreen()
-            case .logs:
-                LogsScreen()
-            case .usageStatistics:
-                UsageStatisticsScreen()
-            case .settings:
-                SettingsScreen()
-            case .about:
-                AboutScreen()
-            case .sharedUI:
-                if sharedUIEnabled {
-                    SharedDesktopUIScreen()
-                } else {
+            } detail: {
+                switch viewModel.currentPage {
+                case .dashboard:
+                    DashboardScreen()
+                case .quota:
+                    QuotaScreen()
+                case .providers:
+                    ProvidersScreen()
+                case .models:
+                    ModelsScreen()
+                case .fallback:
+                    FallbackScreen()
+                case .agents:
+                    AgentSetupScreen()
+                case .apiKeys:
+                    APIKeysScreen()
+                case .logs:
+                    LogsScreen()
+                case .usageStatistics:
+                    UsageStatisticsScreen()
+                case .settings:
+                    SettingsScreen()
+                case .about:
+                    AboutScreen()
+                case .sharedUI:
                     DashboardScreen()
                 }
             }
