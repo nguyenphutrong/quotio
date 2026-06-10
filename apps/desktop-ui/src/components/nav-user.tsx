@@ -29,6 +29,7 @@ import {
 } from '@remixicon/react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/components/theme-provider';
+import { useIsNativeDesktopRuntime } from '@/lib/admin/runtime';
 
 const themeOptions = [
   { value: 'light', icon: RiSunLine, label: 'Light' },
@@ -50,6 +51,7 @@ export function NavUser({
   const { t } = useTranslation();
   const { isMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
+  const isNativeDesktop = useIsNativeDesktopRuntime();
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -114,13 +116,17 @@ export function NavUser({
                 ))}
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => window.location.reload()}>
-                <RiRefreshLine />
-                {t('shell.reloadAdmin')}
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
+            {isNativeDesktop ? null : (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => window.location.reload()}>
+                    <RiRefreshLine />
+                    {t('shell.reloadAdmin')}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onClearToken}>
               <RiLogoutBoxLine />

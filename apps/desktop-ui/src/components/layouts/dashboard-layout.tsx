@@ -34,9 +34,11 @@ export function DashboardLayout() {
           <Outlet />
         </div>
 
-        <Suspense fallback={null}>
-          <CommandPalette />
-        </Suspense>
+        {isNativeDesktop ? null : (
+          <Suspense fallback={null}>
+            <CommandPalette />
+          </Suspense>
+        )}
       </SidebarInset>
     </SidebarProvider>
   );
