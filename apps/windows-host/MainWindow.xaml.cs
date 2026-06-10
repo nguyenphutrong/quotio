@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ConfigureWebViewStartupBackground();
 
         agents = new WindowsAgentAdapter(config);
         runtime = new RuntimeProcessController(config);
@@ -90,6 +91,7 @@ public sealed partial class MainWindow : Window
         try
         {
             await DesktopWebView.EnsureCoreWebView2Async();
+            DesktopWebView.DefaultBackgroundColor = Colors.Transparent;
 
             var core = DesktopWebView.CoreWebView2;
             core.Settings.AreDefaultContextMenusEnabled = true;
@@ -203,6 +205,14 @@ public sealed partial class MainWindow : Window
 #else
         return false;
 #endif
+    }
+
+    private static void ConfigureWebViewStartupBackground()
+    {
+        Environment.SetEnvironmentVariable(
+            "WEBVIEW2_DEFAULT_BACKGROUND_COLOR",
+            "0x00000000"
+        );
     }
 
     private static RectInt32 ToRect(WindowBounds bounds)

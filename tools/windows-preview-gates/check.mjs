@@ -125,6 +125,10 @@ assertAllContain('Windows desktop bootstrap source', source, [
 ]);
 assertAllContain('Windows WebView2 host chrome', mainWindowSource, [
   'SystemBackdrop = new MicaBackdrop();',
+  'ConfigureWebViewStartupBackground();',
+  '"WEBVIEW2_DEFAULT_BACKGROUND_COLOR"',
+  '"0x00000000"',
+  'DesktopWebView.DefaultBackgroundColor = Colors.Transparent;',
   'core.Settings.AreDefaultContextMenusEnabled = true;',
   'core.Settings.AreDevToolsEnabled = IsDebugHost();',
   'core.WebMessageReceived += bridge.OnWebMessageReceived;',
