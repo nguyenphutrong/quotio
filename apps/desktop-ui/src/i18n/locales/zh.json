@@ -630,6 +630,18 @@
         "language": "语言",
         "appearance": "外观",
         "launchAtLogin": "登录时启动",
+        "proxyStatus": "代理状态",
+        "proxyEndpoint": "Endpoint",
+        "proxyServerKind": "服务器类型",
+        "proxyServerVersion": "服务器版本",
+        "proxyInstallStatus": "安装状态",
+        "proxyActiveBinaryPath": "当前 binary",
+        "proxyConfigPath": "配置路径",
+        "proxyPort": "代理端口",
+        "allowNetworkAccess": "允许网络访问",
+        "autoStartTunnel": "自动启动 tunnel",
+        "autoRestartTunnel": "自动重启 tunnel",
+        "authDir": "Auth 目录",
         "notificationsEnabled": "启用通知",
         "notifyOnQuotaLow": "低配额提醒",
         "notifyOnCooling": "冷却提醒",
@@ -654,6 +666,9 @@
         "language": "更改桌面 shell 使用的语言。",
         "appearance": "立即应用原生 macOS 外观。",
         "launchAtLogin": "使用系统 Login Items 服务。",
+        "proxyPort": "如果本地代理正在运行，会自动重启。",
+        "allowNetworkAccessWarning": "代理将绑定到 0.0.0.0，可能被同一网络中的其他设备访问。",
+        "authDir": "存储 provider auth 文件。目录不存在时会创建。",
         "quotaAlertThreshold": "当剩余配额低于此值时通知。",
         "quotaDisplayMode": "选择百分比显示已用或剩余配额。",
         "quotaDisplayStyle": "控制原生配额视图使用的布局。",
@@ -665,6 +680,10 @@
         "modelAggregationMode": "控制多模型 provider 配额的汇总方式。"
       },
       "groups": {
+        "localProxy": {
+          "title": "本地代理",
+          "description": "由原生主机拥有的 runtime 设置、路径和 tunnel 启动行为。"
+        },
         "notifications": {
           "title": "通知",
           "description": "由原生主机发送的配额和代理提醒。"
@@ -697,6 +716,20 @@
         "combined": "合并",
         "lowest": "最低",
         "average": "平均"
+      },
+      "values": {
+        "notDetected": "未检测到",
+        "notInstalled": "未安装",
+        "proxyInstallDevOverride": "正在使用本地 dev binary",
+        "proxyInstallBundled": "随 Quotio 打包",
+        "proxyInstallLegacyCompatible": "发现旧版兼容安装"
+      },
+      "actions": {
+        "reset": "重置"
+      },
+      "errors": {
+        "proxyPortInvalid": "代理端口必须在 1 到 65535 之间。",
+        "authDirRequired": "需要填写 auth 目录。"
       },
       "messages": {
         "saved": "偏好已保存。"

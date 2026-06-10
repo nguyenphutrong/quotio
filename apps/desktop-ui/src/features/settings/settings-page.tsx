@@ -319,6 +319,8 @@ function NativePreferencesPanel() {
   const toast = useToast();
   const { bootstrap, preferencesRead, preferencesWrite } = useAdminRuntime();
   const [state, setState] = useState(initialPreferencesState);
+  const [authDirDraft, setAuthDirDraft] = useState('');
+  const [proxyPortDraft, setProxyPortDraft] = useState('');
 
   const enabled = bootstrap.capabilities.supportsNativePreferences;
 
@@ -364,6 +366,13 @@ function NativePreferencesPanel() {
     };
   }, [enabled, preferencesRead, t]);
 
+  useEffect(() => {
+    setAuthDirDraft(state.preferences?.authDir ?? '');
+    setProxyPortDraft(
+      state.preferences?.proxyPort ? String(state.preferences.proxyPort) : '',
+    );
+  }, [state.preferences?.authDir, state.preferences?.proxyPort]);
+
   const savePreference = async <Key extends keyof NativePreferencesPatch>(
     key: Key,
     value: NonNullable<NativePreferencesPatch[Key]>,
@@ -394,6 +403,32 @@ function NativePreferencesPanel() {
           error instanceof Error ? error.message : t('common.unknownError'),
       }));
     }
+  };
+
+  const saveProxyPort = async () => {
+    const port = Number(proxyPortDraft);
+    if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+      setState((current) => ({
+        ...current,
+        error: t('settings.native.errors.proxyPortInvalid'),
+      }));
+      return;
+    }
+
+    await savePreference('proxyPort', port);
+  };
+
+  const saveAuthDir = async (value = authDirDraft) => {
+    const path = value.trim();
+    if (!path) {
+      setState((current) => ({
+        ...current,
+        error: t('settings.native.errors.authDirRequired'),
+      }));
+      return;
+    }
+
+    await savePreference('authDir', path);
   };
 
   if (!enabled) {
@@ -547,6 +582,163 @@ function NativePreferencesPanel() {
       </div>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
+        <PreferenceGroup
+          description={t('settings.native.groups.localProxy.description')}
+          title={t('settings.native.groups.localProxy.title')}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PreferenceStat
+              label={t('settings.native.fields.proxyStatus')}
+              value={
+                preferences?.proxyRunning
+                  ? t('overview.proxyRuntime.status.running')
+                  : t('overview.proxyRuntime.status.stopped')
+              }
+            />
+            <PreferenceStat
+              label={t('settings.native.fields.proxyEndpoint')}
+              value={
+                preferences?.proxyEndpoint ||
+                t('overview.proxyRuntime.noEndpoint')
+              }
+            />
+            <PreferenceStat
+              label={t('settings.native.fields.proxyServerKind')}
+              value={preferences?.proxyServerKind ?? 'cpa-plusplus'}
+            />
+            <PreferenceStat
+              label={t('settings.native.fields.proxyServerVersion')}
+              value={
+                preferences?.proxyServerVersion ??
+                t('settings.native.values.notDetected')
+              }
+            />
+            <PreferenceStat
+              label={t('settings.native.fields.proxyInstallStatus')}
+              value={proxyInstallStatusLabel(
+                preferences?.proxyInstallStatus,
+                t,
+              )}
+            />
+            <PreferenceStat
+              label={t('settings.native.fields.proxyActiveBinaryPath')}
+              value={preferences?.proxyActiveBinaryPath ?? ''}
+            />
+          </div>
+
+          <PreferenceField
+            hint={t('settings.native.hints.proxyPort')}
+            label={t('settings.native.fields.proxyPort')}
+          >
+            <div className="flex gap-2">
+              <Input
+                inputMode="numeric"
+                min={1}
+                max={65_535}
+                type="number"
+                value={proxyPortDraft}
+                disabled={disabled}
+                onChange={(event) => {
+                  setProxyPortDraft(event.target.value);
+                  setState((current) => ({ ...current, error: null }));
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void saveProxyPort();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                disabled={disabled}
+                onClick={() => void saveProxyPort()}
+              >
+                {t('common.save')}
+              </Button>
+            </div>
+          </PreferenceField>
+
+          <SwitchField
+            checked={preferences?.allowNetworkAccess ?? false}
+            disabled={disabled}
+            label={t('settings.native.fields.allowNetworkAccess')}
+            onCheckedChange={(checked) =>
+              void savePreference('allowNetworkAccess', checked)
+            }
+          />
+
+          {preferences?.allowNetworkAccess ? (
+            <p className="text-danger text-xs">
+              {t('settings.native.hints.allowNetworkAccessWarning')}
+            </p>
+          ) : null}
+
+          <SwitchField
+            checked={preferences?.autoStartTunnel ?? false}
+            disabled={disabled || !preferences?.tunnelInstalled}
+            label={t('settings.native.fields.autoStartTunnel')}
+            onCheckedChange={(checked) =>
+              void savePreference('autoStartTunnel', checked)
+            }
+          />
+          <SwitchField
+            checked={preferences?.autoRestartTunnel ?? false}
+            disabled={disabled || !preferences?.tunnelInstalled}
+            label={t('settings.native.fields.autoRestartTunnel')}
+            onCheckedChange={(checked) =>
+              void savePreference('autoRestartTunnel', checked)
+            }
+          />
+
+          <PreferenceField
+            hint={t('settings.native.hints.authDir')}
+            label={t('settings.native.fields.authDir')}
+          >
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                className="font-mono text-xs"
+                value={authDirDraft}
+                disabled={disabled}
+                onChange={(event) => {
+                  setAuthDirDraft(event.target.value);
+                  setState((current) => ({ ...current, error: null }));
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void saveAuthDir();
+                  }
+                }}
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => void saveAuthDir()}
+                >
+                  {t('common.save')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={disabled || !preferences?.defaultAuthDir}
+                  onClick={() => {
+                    const defaultAuthDir = preferences?.defaultAuthDir ?? '';
+                    setAuthDirDraft(defaultAuthDir);
+                    void saveAuthDir(defaultAuthDir);
+                  }}
+                >
+                  {t('settings.native.actions.reset')}
+                </Button>
+              </div>
+            </div>
+          </PreferenceField>
+
+          <PreferenceStat
+            label={t('settings.native.fields.proxyConfigPath')}
+            value={preferences?.proxyConfigPath ?? ''}
+          />
+        </PreferenceGroup>
+
         <PreferenceGroup
           description={t('settings.native.groups.notifications.description')}
           title={t('settings.native.groups.notifications.title')}
@@ -923,6 +1115,40 @@ function PreferenceGroup({
       <h3 className="font-medium text-foreground text-sm">{title}</h3>
       <p className="mt-1 text-muted-foreground text-xs">{description}</p>
       <div className="mt-4 space-y-4">{children}</div>
+    </div>
+  );
+}
+
+function proxyInstallStatusLabel(
+  status: string | undefined,
+  t: ReturnType<typeof useTranslation>['t'],
+) {
+  switch (status) {
+    case 'dev-override':
+      return t('settings.native.values.proxyInstallDevOverride');
+    case 'bundled':
+      return t('settings.native.values.proxyInstallBundled');
+    case 'legacy-compatible':
+      return t('settings.native.values.proxyInstallLegacyCompatible');
+    case 'not-installed':
+    case undefined:
+    case '':
+      return t('settings.native.values.notInstalled');
+    default:
+      return status;
+  }
+}
+
+function PreferenceStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-md border border-border px-3 py-2">
+      <p className="text-muted-foreground text-xs">{label}</p>
+      <p
+        className="mt-1 truncate font-mono text-foreground text-xs"
+        title={value}
+      >
+        {value || '-'}
+      </p>
     </div>
   );
 }

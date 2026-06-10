@@ -586,6 +586,35 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             try LaunchAtLoginManager.shared.setEnabled(launchAtLogin)
         }
 
+        if let proxyPort = preferences["proxyPort"] as? Int {
+            guard proxyPort > 0 && proxyPort < 65536 else {
+                throw APIError.connectionError("Proxy port must be between 1 and 65535")
+            }
+            viewModel?.proxyManager.port = UInt16(proxyPort)
+        } else if let proxyPort = preferences["proxyPort"] as? Double {
+            let port = Int(proxyPort)
+            guard port > 0 && port < 65536 else {
+                throw APIError.connectionError("Proxy port must be between 1 and 65535")
+            }
+            viewModel?.proxyManager.port = UInt16(port)
+        }
+
+        if let allowNetworkAccess = preferences["allowNetworkAccess"] as? Bool {
+            viewModel?.proxyManager.allowNetworkAccess = allowNetworkAccess
+        }
+
+        if let autoStartTunnel = preferences["autoStartTunnel"] as? Bool {
+            UserDefaults.standard.set(autoStartTunnel, forKey: "autoStartTunnel")
+        }
+
+        if let autoRestartTunnel = preferences["autoRestartTunnel"] as? Bool {
+            UserDefaults.standard.set(autoRestartTunnel, forKey: "autoRestartTunnel")
+        }
+
+        if let authDir = preferences["authDir"] as? String {
+            try viewModel?.proxyManager.setAuthDir(authDir)
+        }
+
         let notificationManager = NotificationManager.shared
         if let notificationsEnabled = preferences["notificationsEnabled"] as? Bool {
             notificationManager.notificationsEnabled = notificationsEnabled
@@ -672,6 +701,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
         let notificationManager = NotificationManager.shared
         let menuBarSettings = MenuBarSettingsManager.shared
         let showInDock = UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? true
+        let proxyManager = viewModel?.proxyManager
 
         return [
             "operatingMode": OperatingModeManager.shared.currentMode.rawValue,
@@ -680,6 +710,20 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             "appearance": AppearanceManager.shared.appearanceMode.rawValue,
             "launchAtLogin": LaunchAtLoginManager.shared.isEnabled,
             "launchAtLoginCanOpenSystemSettings": true,
+            "proxyPort": Int(proxyManager?.port ?? 0),
+            "proxyEndpoint": proxyManager?.proxyStatus.endpoint ?? "",
+            "proxyRunning": proxyManager?.proxyStatus.running ?? false,
+            "proxyServerKind": OperatingModeManager.shared.serverInfo?.kind.rawValue ?? "cpa-plusplus",
+            "proxyServerVersion": OperatingModeManager.shared.serverInfo?.version ?? proxyManager?.currentVersion ?? NSNull(),
+            "proxyInstallStatus": Self.proxyInstallStatus(proxyManager),
+            "proxyActiveBinaryPath": proxyManager?.activeBinaryPathDescription ?? "",
+            "proxyConfigPath": proxyManager?.configPath ?? "",
+            "allowNetworkAccess": proxyManager?.allowNetworkAccess ?? false,
+            "autoStartTunnel": UserDefaults.standard.bool(forKey: "autoStartTunnel"),
+            "autoRestartTunnel": UserDefaults.standard.bool(forKey: "autoRestartTunnel"),
+            "tunnelInstalled": viewModel?.tunnelManager.installation.isInstalled ?? false,
+            "authDir": proxyManager?.authDir ?? "",
+            "defaultAuthDir": proxyManager?.defaultAuthDir ?? "",
             "notificationsEnabled": notificationManager.notificationsEnabled,
             "notifyOnQuotaLow": notificationManager.notifyOnQuotaLow,
             "notifyOnCooling": notificationManager.notifyOnCooling,
@@ -702,6 +746,18 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
 
     private static func clampedMenuBarMaxItems(_ value: Int) -> Int {
         min(max(value, MenuBarSettingsManager.minMenuBarItems), MenuBarSettingsManager.maxMenuBarItems)
+    }
+
+    private static func proxyInstallStatus(_ proxyManager: CLIProxyManager?) -> String {
+        guard let proxyManager else { return "not-installed" }
+
+        let source = proxyManager.activeBinarySourceDescription
+        if source == "Dev override" { return "dev-override" }
+        if source == "Bundled" { return "bundled" }
+        if proxyManager.hasLegacyCLIProxyAPIInstall {
+            return "legacy-compatible"
+        }
+        return "not-installed"
     }
 
     private func handleManagementRequest(_ body: [String: Any]) async throws -> Any {

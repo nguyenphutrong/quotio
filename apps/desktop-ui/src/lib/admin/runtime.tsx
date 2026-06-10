@@ -47,6 +47,20 @@ export type NativePreferences = {
   appearance: 'system' | 'light' | 'dark';
   launchAtLogin: boolean;
   launchAtLoginCanOpenSystemSettings?: boolean;
+  proxyPort: number;
+  proxyEndpoint: string;
+  proxyRunning: boolean;
+  proxyServerKind: string;
+  proxyServerVersion: string | null;
+  proxyInstallStatus: string;
+  proxyActiveBinaryPath: string;
+  proxyConfigPath: string;
+  allowNetworkAccess: boolean;
+  autoStartTunnel: boolean;
+  autoRestartTunnel: boolean;
+  tunnelInstalled: boolean;
+  authDir: string;
+  defaultAuthDir: string;
   notificationsEnabled: boolean;
   notifyOnQuotaLow: boolean;
   notifyOnCooling: boolean;
@@ -70,6 +84,10 @@ export type NativePreferencesPatch = Partial<
   Pick<
     NativePreferences,
     | 'appearance'
+    | 'allowNetworkAccess'
+    | 'authDir'
+    | 'autoRestartTunnel'
+    | 'autoStartTunnel'
     | 'hideSensitiveInfo'
     | 'language'
     | 'launchAtLogin'
@@ -81,6 +99,7 @@ export type NativePreferencesPatch = Partial<
     | 'notifyOnProxyCrash'
     | 'notifyOnQuotaLow'
     | 'operatingMode'
+    | 'proxyPort'
     | 'quotaAlertThreshold'
     | 'quotaDisplayMode'
     | 'quotaDisplayStyle'

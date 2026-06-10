@@ -634,6 +634,18 @@
         "language": "Language",
         "appearance": "Appearance",
         "launchAtLogin": "Launch at login",
+        "proxyStatus": "Proxy status",
+        "proxyEndpoint": "Endpoint",
+        "proxyServerKind": "Server kind",
+        "proxyServerVersion": "Server version",
+        "proxyInstallStatus": "Install status",
+        "proxyActiveBinaryPath": "Active binary",
+        "proxyConfigPath": "Config path",
+        "proxyPort": "Proxy port",
+        "allowNetworkAccess": "Allow network access",
+        "autoStartTunnel": "Auto-start tunnel",
+        "autoRestartTunnel": "Auto-restart tunnel",
+        "authDir": "Auth directory",
         "notificationsEnabled": "Enable notifications",
         "notifyOnQuotaLow": "Low quota alerts",
         "notifyOnCooling": "Cooling alerts",
@@ -658,6 +670,9 @@
         "language": "Changes the language used by the desktop shell.",
         "appearance": "Applies the native macOS appearance immediately.",
         "launchAtLogin": "Uses the system Login Items service.",
+        "proxyPort": "Restarts the local proxy if it is running.",
+        "allowNetworkAccessWarning": "The proxy will bind to 0.0.0.0 and may be reachable from other devices on your network.",
+        "authDir": "Stores provider auth files. The folder is created if it does not exist.",
         "quotaAlertThreshold": "Notify when remaining quota drops below this value.",
         "quotaDisplayMode": "Choose whether percentages show used or remaining quota.",
         "quotaDisplayStyle": "Controls the quota layout used by native quota views.",
@@ -669,6 +684,10 @@
         "modelAggregationMode": "Controls how multi-model provider quota is summarized."
       },
       "groups": {
+        "localProxy": {
+          "title": "Local proxy",
+          "description": "Host-owned runtime settings, paths, and tunnel startup behavior."
+        },
         "notifications": {
           "title": "Notifications",
           "description": "Quota and proxy alerts delivered by the native host."
@@ -701,6 +720,20 @@
         "combined": "Combined",
         "lowest": "Lowest",
         "average": "Average"
+      },
+      "values": {
+        "notDetected": "Not detected",
+        "notInstalled": "Not installed",
+        "proxyInstallDevOverride": "Using local dev binary",
+        "proxyInstallBundled": "Bundled with Quotio",
+        "proxyInstallLegacyCompatible": "Legacy compatible install found"
+      },
+      "actions": {
+        "reset": "Reset"
+      },
+      "errors": {
+        "proxyPortInvalid": "Proxy port must be between 1 and 65535.",
+        "authDirRequired": "Auth directory is required."
       },
       "messages": {
         "saved": "Preference saved."
