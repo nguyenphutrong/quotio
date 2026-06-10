@@ -177,6 +177,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
     private weak var webView: WKWebView?
     private weak var viewModel: QuotaViewModel?
     private var bootstrap: WebViewBootstrap
+    private let macAgentAdapter = MacAgentBridgeAdapter()
 
     init(viewModel: QuotaViewModel, bootstrap: WebViewBootstrap) {
         self.viewModel = viewModel
@@ -268,7 +269,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 "usage": true,
                 "virtualModels": true,
                 "models": true,
-                "agents": false,
+                "agents": bootstrap.operatingMode.supportsAgentConfig,
                 "apiKeys": true,
                 "logs": true,
                 "settings": true,
@@ -379,6 +380,15 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
         let bodyString = initPayload["body"] as? String
         let bodyData = bodyString?.data(using: .utf8)
 
+        if path == "/agents" || path.hasPrefix("/agents/") {
+            return try await macAgentAdapter.handle(
+                path: path,
+                method: method,
+                proxyURL: viewModel.proxyManager.clientEndpoint + "/v1",
+                apiKey: viewModel.proxyManager.managementKey
+            )
+        }
+
         let (client, errorMessage) = await viewModel.managementAPIClientForAction(
             bundleMissingMessage: "sharedUI.error.bundleMissing".localized(),
             startLocalMessage: "sharedUI.error.startLocal".localized(),
@@ -464,5 +474,253 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             return "null"
         }
         return string
+    }
+}
+
+private final class MacAgentBridgeAdapter {
+    private let detectionService = AgentDetectionService()
+    private let configurationService = AgentConfigurationService()
+    private let fileManager = FileManager.default
+
+    func handle(path: String, method: String, proxyURL: String, apiKey: String) async throws -> Any {
+        let normalizedMethod = method.uppercased()
+        let parts = path.split(separator: "/").map(String.init)
+
+        if parts == ["agents"], normalizedMethod == "GET" {
+            let statuses = await detectionService.detectAllAgents(forceRefresh: true)
+            var agents: [[String: Any]] = []
+            for status in statuses {
+                agents.append(await descriptor(for: status))
+            }
+            return ["agents": agents]
+        }
+
+        guard parts.count == 3, parts[0] == "agents" else {
+            throw APIError.connectionError("Unsupported macOS agents endpoint")
+        }
+        guard let agent = CLIAgent(rawValue: parts[1]) else {
+            throw APIError.connectionError("Unsupported macOS agent")
+        }
+
+        switch (parts[2], normalizedMethod) {
+        case ("guide", "GET"):
+            return await guide(for: agent)
+        case ("diff", "POST"):
+            return await diff(for: agent, proxyURL: proxyURL, apiKey: apiKey)
+        case ("install", "POST"):
+            return try await install(agent: agent, proxyURL: proxyURL, apiKey: apiKey)
+        case ("rollback", "POST"):
+            return try await rollback(agent: agent, proxyURL: proxyURL, apiKey: apiKey)
+        default:
+            throw APIError.connectionError("Unsupported macOS agents endpoint")
+        }
+    }
+
+    private func descriptor(for status: AgentStatus) async -> [String: Any] {
+        let agent = status.agent
+        return jsonObject([
+            ("id", agent.id),
+            ("label", agent.displayName),
+            ("binaries", agent.binaryNames),
+            ("config_mode", agent.configType.rawValue),
+            ("platform_support", status.platformSupport.rawValue),
+            ("support_message", status.message),
+            ("rollback_available", await rollbackAvailable(for: agent)),
+            ("target_paths", expandedConfigPaths(for: agent)),
+            ("docs_url", agent.docsURL?.absoluteString),
+            ("capabilities", await capabilities(for: agent)),
+            ("caveats", caveats(for: agent))
+        ])
+    }
+
+    private func guide(for agent: CLIAgent) async -> [String: Any] {
+        [
+            "guide": jsonObject([
+                ("tool", agent.id),
+                ("label", agent.displayName),
+                ("config_mode", agent.configType.rawValue),
+                ("docs_url", agent.docsURL?.absoluteString),
+                ("target_paths", expandedConfigPaths(for: agent)),
+                ("binaries", agent.binaryNames),
+                ("capabilities", await capabilities(for: agent)),
+                ("steps", [
+                    "Install and verify \(agent.displayName) on macOS.",
+                    "Review the generated configuration diff before applying automatic configuration.",
+                    "Restart the agent terminal session after install so it uses the Quotio endpoint."
+                ]),
+                ("verify", agent.binaryNames.map { "\($0) --version" }),
+                ("caveats", caveats(for: agent))
+            ])
+        ]
+    }
+
+    private func diff(for agent: CLIAgent, proxyURL: String, apiKey: String) async -> [String: Any] {
+        let status = await statusPayload(for: agent)
+        let plan = await planPayload(for: agent, proxyURL: proxyURL, apiKey: apiKey, mode: .manual)
+        return [
+            "status": status,
+            "plan": plan,
+            "summary": "Review the macOS \(agent.displayName) configuration before applying changes."
+        ]
+    }
+
+    private func install(agent: CLIAgent, proxyURL: String, apiKey: String) async throws -> [String: Any] {
+        guard agent != .geminiCLI else {
+            throw APIError.connectionError("Gemini CLI shell profile writes are still handled by the native macOS setup flow.")
+        }
+
+        let result = try await configurationResult(for: agent, proxyURL: proxyURL, apiKey: apiKey, mode: .automatic)
+        if !result.success {
+            throw APIError.connectionError(result.error ?? "Agent install failed")
+        }
+
+        await detectionService.markAsConfigured(agent)
+        await detectionService.invalidateCache()
+
+        return [
+            "status": await statusPayload(for: agent),
+            "plan": jsonObject([
+                ("tool", agent.id),
+                ("home_dir", fileManager.homeDirectoryForCurrentUser.path),
+                ("base_url", proxyURL),
+                ("backup_dir", backupDirectory(for: agent)),
+                ("auth_token", redacted(apiKey))
+            ]),
+            "manifest": manifest(for: agent, proxyURL: proxyURL, apiKey: apiKey, backupPath: result.backupPath),
+            "summary": result.instructions
+        ]
+    }
+
+    private func rollback(agent: CLIAgent, proxyURL: String, apiKey: String) async throws -> [String: Any] {
+        guard let backup = await configurationService.listBackups(agent: agent).first else {
+            throw APIError.connectionError("No macOS backup is available for \(agent.displayName)")
+        }
+
+        try await configurationService.restoreFromBackup(backup)
+        await detectionService.invalidateCache()
+
+        return [
+            "status": await statusPayload(for: agent),
+            "manifest": manifest(for: agent, proxyURL: proxyURL, apiKey: apiKey, backupPath: backup.path),
+            "summary": "Restored \(agent.displayName) from \(backup.displayName)."
+        ]
+    }
+
+    private func statusPayload(for agent: CLIAgent) async -> [String: Any] {
+        let status = await detectionService.detectAgent(agent)
+        return jsonObject([
+            ("tool", agent.id),
+            ("home_dir", fileManager.homeDirectoryForCurrentUser.path),
+            ("target_paths", expandedConfigPaths(for: agent)),
+            ("installed", status.installed),
+            ("configured", status.configured),
+            ("platform_support", status.platformSupport.rawValue),
+            ("rollback_available", await rollbackAvailable(for: agent)),
+            ("binary_path", status.binaryPath),
+            ("message", status.message)
+        ])
+    }
+
+    private func planPayload(
+        for agent: CLIAgent,
+        proxyURL: String,
+        apiKey: String,
+        mode: ConfigurationMode
+    ) async -> [String: Any] {
+        let result = try? await configurationResult(for: agent, proxyURL: proxyURL, apiKey: apiKey, mode: mode)
+        let files = (result?.rawConfigs ?? []).map { rawConfig in
+            jsonObject([
+                ("target_path", rawConfig.targetPath ?? rawConfig.filename ?? agent.id),
+                ("existed", rawConfig.targetPath.map { fileManager.fileExists(atPath: $0) } ?? false),
+                ("has_changes", true),
+                ("before", rawConfig.targetPath.flatMap { try? String(contentsOfFile: $0, encoding: .utf8) }),
+                ("after", rawConfig.content)
+            ])
+        }
+
+        return jsonObject([
+            ("tool", agent.id),
+            ("home_dir", fileManager.homeDirectoryForCurrentUser.path),
+            ("base_url", proxyURL),
+            ("backup_dir", backupDirectory(for: agent)),
+            ("files", files)
+        ])
+    }
+
+    private func configurationResult(
+        for agent: CLIAgent,
+        proxyURL: String,
+        apiKey: String,
+        mode: ConfigurationMode
+    ) async throws -> AgentConfigResult {
+        let config = AgentConfiguration(agent: agent, proxyURL: proxyURL, apiKey: apiKey)
+        return try await configurationService.generateConfiguration(
+            agent: agent,
+            config: config,
+            mode: mode,
+            storageOption: .jsonOnly,
+            detectionService: detectionService,
+            availableModels: AvailableModel.allModels
+        )
+    }
+
+    private func manifest(for agent: CLIAgent, proxyURL: String, apiKey: String, backupPath: String?) -> [String: Any] {
+        jsonObject([
+            ("tool", agent.id),
+            ("home_dir", fileManager.homeDirectoryForCurrentUser.path),
+            ("backup_dir", backupDirectory(for: agent)),
+            ("manifest", backupPath),
+            ("created_at", ISO8601DateFormatter().string(from: Date())),
+            ("base_url", proxyURL),
+            ("auth_token", redacted(apiKey))
+        ])
+    }
+
+    private func expandedConfigPaths(for agent: CLIAgent) -> [String] {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        return agent.configPaths.map { $0.replacingOccurrences(of: "~", with: home) }
+    }
+
+    private func capabilities(for agent: CLIAgent) async -> [String] {
+        guard agent != .geminiCLI else {
+            return ["guide", "diff"]
+        }
+
+        return await rollbackAvailable(for: agent)
+            ? ["guide", "diff", "install", "rollback"]
+            : ["guide", "diff", "install"]
+    }
+
+    private func caveats(for agent: CLIAgent) -> [String] {
+        switch agent {
+        case .geminiCLI:
+            return ["Shell profile writes remain in the native macOS setup flow; shared UI provides guide and diff preview."]
+        case .claudeCode, .ampCLI:
+            return ["Automatic writes update app settings files; shell profile writes remain manual in the shared UI."]
+        case .codexCLI, .openCode, .factoryDroid:
+            return ["Automatic writes create timestamped backups before install and rollback."]
+        }
+    }
+
+    private func rollbackAvailable(for agent: CLIAgent) async -> Bool {
+        await !configurationService.listBackups(agent: agent).isEmpty
+    }
+
+    private func backupDirectory(for agent: CLIAgent) -> String? {
+        expandedConfigPaths(for: agent).first.map { ($0 as NSString).deletingLastPathComponent }
+    }
+
+    private func redacted(_ value: String) -> String {
+        value.isEmpty ? "" : "••••"
+    }
+
+    private func jsonObject(_ entries: [(String, Any?)]) -> [String: Any] {
+        var object: [String: Any] = [:]
+        for (key, value) in entries {
+            if let value {
+                object[key] = value
+            }
+        }
+        return object
     }
 }
