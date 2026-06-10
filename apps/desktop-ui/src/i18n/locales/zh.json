@@ -599,6 +599,37 @@
     "quotaDesc": "使用限额和支出控制将在此提供。",
     "settingsDesc": "共享设置会保持只读，直到原生主机和 management bridge 明确拥有每个控件。"
   },
+  "settings": {
+    "description": "此桌面构建由原生主机开放的共享设置。",
+    "remote": {
+      "title": "远程管理连接",
+      "description": "将 management endpoint 和 admin key 存入原生凭证存储。",
+      "unsupported": "此主机构建暂不支持编辑远程连接。",
+      "baseUrlLabel": "Management base URL",
+      "keyLabel": "Management key",
+      "keyPlaceholder": "粘贴 management key",
+      "keyStoredPlaceholder": "已存储的 key 会保留，除非替换",
+      "clearConfirmTitle": "清除远程连接",
+      "clearConfirmMessage": "这会从原生凭证存储中移除已保存的 management endpoint 和 key。",
+      "status": {
+        "configured": "已配置",
+        "notConfigured": "未配置"
+      },
+      "actions": {
+        "save": "保存连接",
+        "saving": "正在保存…",
+        "clear": "清除",
+        "clearing": "正在清除…"
+      },
+      "messages": {
+        "saved": "远程连接已保存。",
+        "cleared": "远程连接已清除。"
+      },
+      "errors": {
+        "baseUrlRequired": "需要填写 Management base URL。"
+      }
+    }
+  },
   "about": {
     "description": "此桌面构建的主机诊断、路由开关和平台能力状态。",
     "sections": {

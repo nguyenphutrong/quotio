@@ -26,7 +26,7 @@ const expectedCapabilities = {
   supportsPortConfig: true,
   supportsCliOAuth: true,
   supportsAgentConfig: false,
-  supportsRemoteConnections: false,
+  supportsRemoteConnections: true,
   supportsCredentialStorage: true,
   supportsNativeOnboarding: false,
   supportsAppearanceSync: true,

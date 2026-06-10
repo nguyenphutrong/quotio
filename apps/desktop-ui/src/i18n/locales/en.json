@@ -603,6 +603,37 @@
     "quotaDesc": "Usage limits and spending controls will be available here.",
     "settingsDesc": "Shared settings stay read-only until native hosts and the management bridge own each control."
   },
+  "settings": {
+    "description": "Shared settings exposed by the native host for this desktop build.",
+    "remote": {
+      "title": "Remote management connection",
+      "description": "Store the management endpoint and admin key in the native credential store.",
+      "unsupported": "Remote connection editing is not available in this host build.",
+      "baseUrlLabel": "Management base URL",
+      "keyLabel": "Management key",
+      "keyPlaceholder": "Paste a management key",
+      "keyStoredPlaceholder": "Stored key will be kept unless replaced",
+      "clearConfirmTitle": "Clear remote connection",
+      "clearConfirmMessage": "This removes the stored management endpoint and key from the native credential store.",
+      "status": {
+        "configured": "Configured",
+        "notConfigured": "Not configured"
+      },
+      "actions": {
+        "save": "Save connection",
+        "saving": "Saving…",
+        "clear": "Clear",
+        "clearing": "Clearing…"
+      },
+      "messages": {
+        "saved": "Remote connection saved.",
+        "cleared": "Remote connection cleared."
+      },
+      "errors": {
+        "baseUrlRequired": "Management base URL is required."
+      }
+    }
+  },
   "about": {
     "description": "Host diagnostics, route gates, and platform capability state for this desktop build.",
     "sections": {

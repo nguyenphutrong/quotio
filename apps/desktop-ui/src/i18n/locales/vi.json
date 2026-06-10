@@ -598,6 +598,37 @@
     "quotaDesc": "Giới hạn sử dụng và kiểm soát chi phí sẽ có tại đây.",
     "settingsDesc": "Settings dùng chung vẫn read-only cho đến khi native host và management bridge sở hữu từng control."
   },
+  "settings": {
+    "description": "Các cài đặt dùng chung do native host mở cho bản desktop này.",
+    "remote": {
+      "title": "Kết nối quản trị remote",
+      "description": "Lưu management endpoint và admin key trong credential store native.",
+      "unsupported": "Host build này chưa hỗ trợ chỉnh kết nối remote.",
+      "baseUrlLabel": "Management base URL",
+      "keyLabel": "Management key",
+      "keyPlaceholder": "Dán management key",
+      "keyStoredPlaceholder": "Key đã lưu sẽ được giữ nếu không thay mới",
+      "clearConfirmTitle": "Xóa kết nối remote",
+      "clearConfirmMessage": "Thao tác này xóa management endpoint và key đã lưu khỏi credential store native.",
+      "status": {
+        "configured": "Đã cấu hình",
+        "notConfigured": "Chưa cấu hình"
+      },
+      "actions": {
+        "save": "Lưu kết nối",
+        "saving": "Đang lưu…",
+        "clear": "Xóa",
+        "clearing": "Đang xóa…"
+      },
+      "messages": {
+        "saved": "Đã lưu kết nối remote.",
+        "cleared": "Đã xóa kết nối remote."
+      },
+      "errors": {
+        "baseUrlRequired": "Cần nhập Management base URL."
+      }
+    }
+  },
   "about": {
     "description": "Chẩn đoán host, route gate và trạng thái capability của bản desktop này.",
     "sections": {

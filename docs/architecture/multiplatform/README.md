@@ -58,11 +58,10 @@ defaults delete dev.quotio.desktop.beta sharedDesktopUIEnabled
 For Windows preview development, build `apps/desktop-ui` before the host build,
 or set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL. The Windows host
 currently advertises only preview-safe capabilities. Credential Manager-backed
-bootstrap config, read-only agent detection, and Codex CLI install/rollback are
-available. Native `Quotio/*` Credential Manager read/write/delete primitives are
-available for future settings forms, while remote connection editing, native
-onboarding, and automatic configuration for other agents stay disabled until
-their adapters are implemented and verified on Windows CI.
+bootstrap config, shared remote management credential editing, read-only agent
+detection, and Codex CLI install/rollback are available. Native onboarding and
+automatic configuration for other agents stay disabled until their adapters are
+implemented and verified on Windows CI.
 
 Current shared route scope:
 
@@ -71,7 +70,8 @@ Current shared route scope:
 - Implemented with Windows read-only capability gates: virtual models, models,
   API keys, logs.
 - Diagnostics only: about.
-- Placeholder only: settings.
+- Partial: settings exposes native remote management credentials only; other
+  settings controls remain hidden until their owners are implemented.
 
 ## ADRs
 
