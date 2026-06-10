@@ -1,5 +1,12 @@
 import { readFileSync } from 'node:fs';
 
+function readProjectFile(relativePath) {
+  return readFileSync(
+    new URL(`../../${relativePath}`, import.meta.url),
+    'utf8',
+  );
+}
+
 const sourcePath = new URL(
   '../../apps/windows-host/DesktopUiSource.cs',
   import.meta.url,
@@ -81,6 +88,18 @@ function assertExact(name, actual, expected) {
   }
 }
 
+function assertContains(sourceName, sourceText, requiredText) {
+  if (!sourceText.includes(requiredText)) {
+    throw new Error(`${sourceName} is missing required text: ${requiredText}`);
+  }
+}
+
+function assertAllContain(sourceName, sourceText, requiredTexts) {
+  for (const requiredText of requiredTexts) {
+    assertContains(sourceName, sourceText, requiredText);
+  }
+}
+
 assertExact(
   'Windows preview features',
   readBoolDictionary('Features'),
@@ -92,6 +111,72 @@ assertExact(
   expectedCapabilities,
 );
 
+const previewPackageScript = readProjectFile(
+  'scripts/package-windows-preview.ps1',
+);
+const installerPackageScript = readProjectFile(
+  'scripts/package-windows-installer.ps1',
+);
+const multiplatformWorkflow = readProjectFile(
+  '.github/workflows/multiplatform.yml',
+);
+const previewReleaseWorkflow = readProjectFile(
+  '.github/workflows/windows-preview-release.yml',
+);
+const installerReleaseWorkflow = readProjectFile(
+  '.github/workflows/windows-installer-release.yml',
+);
+
+assertAllContain('Windows preview package script', previewPackageScript, [
+  'desktop-ui/index.html',
+  'Quotio.Windows.exe',
+  'Expand-Archive',
+  'requiredFileDetails',
+  '$manifestPath = "$zipPath.manifest.json"',
+  'crashUploadConfigured = $false',
+]);
+
+assertAllContain('Windows installer package script', installerPackageScript, [
+  'dotnet publish',
+  'desktop-ui/index.html',
+  'Quotio.Windows.exe',
+  'releases.$Channel.json',
+  'setup executable',
+  'quotio-windows-installer.manifest.json',
+  'signing = ![string]::IsNullOrWhiteSpace($SignTemplate)',
+]);
+
+assertAllContain('Multiplatform workflow', multiplatformWorkflow, [
+  './scripts/package-windows-preview.ps1',
+  './scripts/package-windows-installer.ps1',
+  'artifacts/quotio-windows-preview.zip',
+  'artifacts/quotio-windows-preview.zip.sha256',
+  'artifacts/quotio-windows-preview.zip.manifest.json',
+  'artifacts/windows-installer/**',
+  'dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release',
+]);
+
+assertAllContain('Windows preview release workflow', previewReleaseWorkflow, [
+  'windows-preview-*',
+  './scripts/package-windows-preview.ps1',
+  'artifacts/$' + '{{ env.ARTIFACT_NAME }}',
+  'artifacts/$' + '{{ env.ARTIFACT_NAME }}.sha256',
+  'artifacts/$' + '{{ env.ARTIFACT_NAME }}.manifest.json',
+  'This is an unsigned preview build',
+]);
+
+assertAllContain(
+  'Windows installer release workflow',
+  installerReleaseWorkflow,
+  [
+    'windows-v*',
+    './scripts/package-windows-installer.ps1',
+    'artifacts/windows-installer/**',
+    'Velopack',
+    'Signing is not enabled unless',
+  ],
+);
+
 console.log(
-  'Windows preview route and capability gates match the approved matrix',
+  'Windows preview route, capability, and packaging gates match the approved matrix',
 );
