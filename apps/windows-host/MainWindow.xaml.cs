@@ -39,11 +39,13 @@ public sealed partial class MainWindow : Window
             agents,
             preferencesStore,
             updates,
-            ShowNativeNotification
+            ShowNativeNotification,
+            ApplyAppearance
         );
 
         Title = "Quotio";
         SystemBackdrop = new MicaBackdrop();
+        ApplyAppearance(preferencesStore.Load().Appearance);
 
         ConfigureWindow();
         _ = InitializeWebViewAsync();
@@ -154,6 +156,21 @@ public sealed partial class MainWindow : Window
             })();
             """
         );
+    }
+
+    private void ApplyAppearance(string appearance)
+    {
+        if (Content is not FrameworkElement root)
+        {
+            return;
+        }
+
+        root.RequestedTheme = appearance switch
+        {
+            "light" => ElementTheme.Light,
+            "dark" => ElementTheme.Dark,
+            _ => ElementTheme.Default
+        };
     }
 
     private bool ShowNativeNotification(string title, string message, string tone)

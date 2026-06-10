@@ -19,6 +19,7 @@ public sealed class DesktopBridge
     private readonly WindowsNativePreferencesStore preferencesStore;
     private readonly WindowsUpdateService updates;
     private readonly Func<string, string, string, bool> notify;
+    private readonly Action<string> applyAppearance;
     private readonly HttpClient httpClient = new();
 
     public DesktopBridge(
@@ -28,7 +29,8 @@ public sealed class DesktopBridge
         WindowsAgentAdapter agents,
         WindowsNativePreferencesStore preferencesStore,
         WindowsUpdateService updates,
-        Func<string, string, string, bool> notify
+        Func<string, string, string, bool> notify,
+        Action<string>? applyAppearance = null
     )
     {
         this.webView = webView;
@@ -38,6 +40,7 @@ public sealed class DesktopBridge
         this.preferencesStore = preferencesStore;
         this.updates = updates;
         this.notify = notify;
+        this.applyAppearance = applyAppearance ?? (_ => { });
     }
 
     public string CreateBootstrapScript(DesktopBootstrap bootstrap)
@@ -416,7 +419,8 @@ public sealed class DesktopBridge
             ? preferencesElement
             : throw new InvalidOperationException("Preferences payload is required");
 
-        preferencesStore.Update(preferences, config);
+        var updatedPreferences = preferencesStore.Update(preferences, config);
+        applyAppearance(updatedPreferences.Appearance);
         return BuildNativePreferencesPayload();
     }
 

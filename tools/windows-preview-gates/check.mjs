@@ -126,6 +126,7 @@ assertAllContain('Windows desktop bootstrap source', source, [
 ]);
 assertAllContain('Windows WebView2 host chrome', mainWindowSource, [
   'SystemBackdrop = new MicaBackdrop();',
+  'ApplyAppearance(preferencesStore.Load().Appearance);',
   'ExtendsContentIntoTitleBar = true;',
   'SetTitleBar(TitleBarDragRegion);',
   'ConfigureWebViewStartupBackground();',
@@ -141,7 +142,22 @@ assertAllContain('Windows WebView2 host chrome', mainWindowSource, [
   'DesktopWebView.CoreWebView2?.CanGoBack == true',
   'DesktopWebView.CoreWebView2?.Reload();',
   "history.pushState({}, '', '/settings');",
+  'root.RequestedTheme = appearance switch',
+  '"light" => ElementTheme.Light',
+  '"dark" => ElementTheme.Dark',
+  '_ => ElementTheme.Default',
+  'ApplyAppearance',
 ]);
+assertAllContain(
+  'Windows bridge appearance sync',
+  readProjectFile('apps/windows-host/DesktopBridge.cs'),
+  [
+    'Action<string>? applyAppearance = null',
+    'this.applyAppearance = applyAppearance ?? (_ => { });',
+    'var updatedPreferences = preferencesStore.Update(preferences, config);',
+    'applyAppearance(updatedPreferences.Appearance);',
+  ],
+);
 assertAllContain('Windows native command strip', mainWindowXaml, [
   'x:Name="NativeTitleBar"',
   'x:Name="TitleBarDragRegion"',
