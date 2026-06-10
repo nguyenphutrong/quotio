@@ -34,6 +34,7 @@ export type HostCapabilities = {
   supportsAgentConfig: boolean;
   supportsRemoteConnections: boolean;
   supportsCredentialStorage: boolean;
+  supportsManagementBridge: boolean;
   supportsNativeOnboarding: boolean;
   supportsNativePreferences: boolean;
   supportsAppearanceSync: boolean;
@@ -66,6 +67,7 @@ export const DEFAULT_HOST_CAPABILITIES: HostCapabilities = {
   supportsAgentConfig: false,
   supportsRemoteConnections: false,
   supportsCredentialStorage: false,
+  supportsManagementBridge: false,
   supportsNativeOnboarding: false,
   supportsNativePreferences: false,
   supportsAppearanceSync: false,

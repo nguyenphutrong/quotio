@@ -924,6 +924,7 @@
       "supportsAgentConfig": "Cấu hình agent",
       "supportsRemoteConnections": "Kết nối remote",
       "supportsCredentialStorage": "Lưu trữ credential",
+      "supportsManagementBridge": "Management bridge",
       "supportsNativeOnboarding": "Onboarding native",
       "supportsNativePreferences": "Tùy chọn native",
       "supportsAppearanceSync": "Đồng bộ giao diện",

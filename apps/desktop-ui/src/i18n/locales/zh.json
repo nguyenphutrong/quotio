@@ -925,6 +925,7 @@
       "supportsAgentConfig": "Agent 配置",
       "supportsRemoteConnections": "远程连接",
       "supportsCredentialStorage": "凭证存储",
+      "supportsManagementBridge": "Management bridge",
       "supportsNativeOnboarding": "原生 onboarding",
       "supportsNativePreferences": "原生偏好",
       "supportsAppearanceSync": "外观同步",

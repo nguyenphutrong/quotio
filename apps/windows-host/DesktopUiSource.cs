@@ -25,6 +25,7 @@ public static class DesktopUiSource
         var localProxyAvailable = config.LocalProxyAvailable;
         var localModeEnabled = localProxyAvailable && preferences.OperatingMode == "local";
         var operatingMode = localModeEnabled ? "local" : "remote";
+        var managementBridgeReady = localModeEnabled || !string.IsNullOrWhiteSpace(config.ManagementBaseUrl);
 
         return new DesktopBootstrap(
             UiEnabled: true,
@@ -37,15 +38,15 @@ public static class DesktopUiSource
             Appearance: preferences.Appearance,
             Features: new Dictionary<string, bool>
             {
-                ["overview"] = true,
-                ["providers"] = true,
-                ["quota"] = true,
-                ["usage"] = true,
-                ["virtualModels"] = true,
-                ["models"] = true,
+                ["overview"] = managementBridgeReady,
+                ["providers"] = managementBridgeReady,
+                ["quota"] = managementBridgeReady,
+                ["usage"] = managementBridgeReady,
+                ["virtualModels"] = managementBridgeReady,
+                ["models"] = managementBridgeReady,
                 ["agents"] = localModeEnabled,
-                ["apiKeys"] = true,
-                ["logs"] = true,
+                ["apiKeys"] = managementBridgeReady,
+                ["logs"] = managementBridgeReady,
                 ["settings"] = true,
                 ["about"] = true
             },
@@ -58,6 +59,7 @@ public static class DesktopUiSource
                 ["supportsAgentConfig"] = localModeEnabled,
                 ["supportsRemoteConnections"] = true,
                 ["supportsCredentialStorage"] = true,
+                ["supportsManagementBridge"] = managementBridgeReady,
                 ["supportsNativeOnboarding"] = false,
                 ["supportsNativePreferences"] = true,
                 ["supportsAppearanceSync"] = true,

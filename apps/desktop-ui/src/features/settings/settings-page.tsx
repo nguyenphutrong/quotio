@@ -1663,6 +1663,7 @@ function SwitchField({
 
 export function SettingsPage() {
   const { t } = useTranslation();
+  const { bootstrap } = useAdminRuntime();
 
   return (
     <div className="space-y-6">
@@ -1671,7 +1672,9 @@ export function SettingsPage() {
         description={t('settings.description')}
       />
       <NativePreferencesPanel />
-      <AdvancedProxySettingsPanel />
+      {bootstrap.capabilities.supportsManagementBridge ? (
+        <AdvancedProxySettingsPanel />
+      ) : null}
       <RemoteConnectionPanel />
     </div>
   );

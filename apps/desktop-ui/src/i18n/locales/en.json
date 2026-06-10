@@ -929,6 +929,7 @@
       "supportsAgentConfig": "Agent configuration",
       "supportsRemoteConnections": "Remote connections",
       "supportsCredentialStorage": "Credential storage",
+      "supportsManagementBridge": "Management bridge",
       "supportsNativeOnboarding": "Native onboarding",
       "supportsNativePreferences": "Native preferences",
       "supportsAppearanceSync": "Appearance sync",

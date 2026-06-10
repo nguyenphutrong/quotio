@@ -162,15 +162,15 @@ static void RunBootstrapSmoke()
     Assert(remoteBootstrap.OperatingMode == "remote", "Windows bootstrap should default to remote mode without a local runtime");
     AssertExactBoolDictionary(remoteBootstrap.Features, new Dictionary<string, bool>
     {
-        ["overview"] = true,
-        ["providers"] = true,
-        ["quota"] = true,
-        ["usage"] = true,
-        ["virtualModels"] = true,
-        ["models"] = true,
+        ["overview"] = false,
+        ["providers"] = false,
+        ["quota"] = false,
+        ["usage"] = false,
+        ["virtualModels"] = false,
+        ["models"] = false,
         ["agents"] = false,
-        ["apiKeys"] = true,
-        ["logs"] = true,
+        ["apiKeys"] = false,
+        ["logs"] = false,
         ["settings"] = true,
         ["about"] = true
     }, "Windows bootstrap features");
@@ -183,6 +183,7 @@ static void RunBootstrapSmoke()
         ["supportsAgentConfig"] = false,
         ["supportsRemoteConnections"] = true,
         ["supportsCredentialStorage"] = true,
+        ["supportsManagementBridge"] = false,
         ["supportsNativeOnboarding"] = false,
         ["supportsNativePreferences"] = true,
         ["supportsAppearanceSync"] = true,
@@ -205,6 +206,7 @@ static void RunBootstrapSmoke()
     Assert(localBootstrap.Capabilities["supportsPortConfig"], "Windows bootstrap should expose port config only with a runtime binary");
     Assert(localBootstrap.Capabilities["supportsCliOAuth"], "Windows bootstrap should expose CLI OAuth only with a runtime binary");
     Assert(localBootstrap.Capabilities["supportsAgentConfig"], "Windows bootstrap should expose agent config only with a runtime binary");
+    Assert(localBootstrap.Capabilities["supportsManagementBridge"], "Windows bootstrap should expose management routes in local runtime mode");
 
     var remotePreferencesPath = Path.Combine(Path.GetTempPath(), $"quotio-windows-remote-bootstrap-{Guid.NewGuid():N}.json");
     var remotePreferencesStore = new WindowsNativePreferencesStore(remotePreferencesPath);
@@ -213,6 +215,14 @@ static void RunBootstrapSmoke()
     Assert(remoteRuntimeBootstrap.OperatingMode == "remote", "Windows bootstrap should preserve remote mode when a runtime binary exists");
     Assert(remoteRuntimeBootstrap.Capabilities["supportsLocalProxy"], "Windows bootstrap should still allow switching back to local mode when a runtime binary exists");
     Assert(!remoteRuntimeBootstrap.Capabilities["supportsProxyControl"], "Windows bootstrap should hide proxy controls in remote mode");
+    Assert(!remoteRuntimeBootstrap.Capabilities["supportsManagementBridge"], "Windows bootstrap should hide management routes in remote mode before remote configuration");
+
+    var configuredRemoteBootstrap = DesktopUiSource.Bootstrap(new WindowsHostConfig(target => target == "Quotio/ManagementBaseUrl"
+        ? "http://127.0.0.1:8787"
+        : null), remotePreferencesStore);
+    Assert(configuredRemoteBootstrap.OperatingMode == "remote", "Windows bootstrap should stay in remote mode when only remote management URL is configured");
+    Assert(configuredRemoteBootstrap.Features["overview"], "Windows bootstrap should expose management routes when remote management URL is configured");
+    Assert(configuredRemoteBootstrap.Capabilities["supportsManagementBridge"], "Windows bootstrap should treat remote management URL as bridge-ready without requiring a key");
 }
 
 static void RunNativePreferencesSmoke()

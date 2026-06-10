@@ -401,6 +401,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 "supportsAgentConfig": bootstrap.operatingMode.supportsAgentConfig,
                 "supportsRemoteConnections": true,
                 "supportsCredentialStorage": true,
+                "supportsManagementBridge": true,
                 "supportsNativeOnboarding": true,
                 "supportsNativePreferences": true,
                 "supportsAppearanceSync": true,

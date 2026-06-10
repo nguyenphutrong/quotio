@@ -268,9 +268,14 @@ public sealed class DesktopBridge
             return agents.Handle(path, method);
         }
 
-        var baseUrl = config.ManagementBaseUrl;
+        var preferences = preferencesStore.Load();
+        var baseUrl = !string.IsNullOrWhiteSpace(config.ManagementBaseUrl)
+            ? config.ManagementBaseUrl
+            : config.LocalProxyAvailable && preferences.OperatingMode == "local"
+                ? config.ProxyEndpoint
+                : null;
         var managementKey = config.ManagementKey;
-        if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(managementKey))
+        if (string.IsNullOrWhiteSpace(baseUrl))
         {
             throw new InvalidOperationException("Windows management bridge is not configured");
         }
@@ -279,7 +284,10 @@ public sealed class DesktopBridge
             new HttpMethod(method.ToUpperInvariant()),
             new Uri(new Uri($"{NormalizeManagementBaseUrl(baseUrl)}/"), path.TrimStart('/'))
         );
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", managementKey);
+        if (!string.IsNullOrWhiteSpace(managementKey))
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", managementKey);
+        }
         request.Headers.ConnectionClose = true;
         if (!string.IsNullOrEmpty(body))
         {
@@ -433,8 +441,7 @@ public sealed class DesktopBridge
         return new Dictionary<string, object?>
         {
             ["operatingMode"] = operatingMode,
-            ["remoteConfigured"] = !string.IsNullOrWhiteSpace(config.ManagementBaseUrl)
-                && !string.IsNullOrWhiteSpace(config.ManagementKey),
+            ["remoteConfigured"] = !string.IsNullOrWhiteSpace(config.ManagementBaseUrl),
             ["language"] = preferences.Language,
             ["appearance"] = preferences.Appearance,
             ["launchAtLogin"] = WindowsStartupService.IsEnabled(),
