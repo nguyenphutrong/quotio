@@ -5,14 +5,15 @@ import vi from '@/i18n/locales/vi.json';
 import zh from '@/i18n/locales/zh.json';
 
 const STORAGE_KEY = 'quotio-language';
+const SUPPORTED_LANGUAGES = ['en', 'vi', 'zh', 'zh-Hans'];
 
 function getInitialLanguage(): string {
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored && ['en', 'vi', 'zh'].includes(stored)) {
+  if (stored && SUPPORTED_LANGUAGES.includes(stored)) {
     return stored;
   }
   const browserLang = navigator.language.split('-')[0];
-  if (browserLang && ['en', 'vi', 'zh'].includes(browserLang)) {
+  if (browserLang && SUPPORTED_LANGUAGES.includes(browserLang)) {
     return browserLang;
   }
   return 'en';
@@ -23,6 +24,7 @@ void i18n.use(initReactI18next).init({
     en: { translation: en },
     vi: { translation: vi },
     zh: { translation: zh },
+    'zh-Hans': { translation: zh },
   },
   lng: getInitialLanguage(),
   fallbackLng: 'en',

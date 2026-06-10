@@ -43,16 +43,53 @@ export type NativeCredentialRequest = {
 export type NativePreferences = {
   operatingMode: 'local' | 'remote';
   remoteConfigured: boolean;
-  language: 'en' | 'vi' | 'zh-Hans' | 'fr';
+  language: 'en' | 'vi' | 'zh-Hans';
   appearance: 'system' | 'light' | 'dark';
   launchAtLogin: boolean;
   launchAtLoginCanOpenSystemSettings?: boolean;
+  notificationsEnabled: boolean;
+  notifyOnQuotaLow: boolean;
+  notifyOnCooling: boolean;
+  notifyOnProxyCrash: boolean;
+  quotaAlertThreshold: 10 | 20 | 30 | 50;
+  quotaDisplayMode: 'used' | 'remaining';
+  quotaDisplayStyle: 'card' | 'lowestBar' | 'ring';
+  resetTimeDisplayMode: 'relative' | 'absolute';
+  refreshCadence: 'manual' | '1min' | '2min' | '5min' | '10min' | '15min';
+  showInDock: boolean;
+  showMenuBarIcon: boolean;
+  showQuotaInMenuBar: boolean;
+  menuBarMaxItems: number;
+  menuBarColorMode: 'colored' | 'monochrome';
+  hideSensitiveInfo: boolean;
+  totalUsageMode: 'sessionOnly' | 'combined';
+  modelAggregationMode: 'lowest' | 'average';
 };
 
 export type NativePreferencesPatch = Partial<
   Pick<
     NativePreferences,
-    'appearance' | 'language' | 'launchAtLogin' | 'operatingMode'
+    | 'appearance'
+    | 'hideSensitiveInfo'
+    | 'language'
+    | 'launchAtLogin'
+    | 'menuBarColorMode'
+    | 'menuBarMaxItems'
+    | 'modelAggregationMode'
+    | 'notificationsEnabled'
+    | 'notifyOnCooling'
+    | 'notifyOnProxyCrash'
+    | 'notifyOnQuotaLow'
+    | 'operatingMode'
+    | 'quotaAlertThreshold'
+    | 'quotaDisplayMode'
+    | 'quotaDisplayStyle'
+    | 'refreshCadence'
+    | 'resetTimeDisplayMode'
+    | 'showInDock'
+    | 'showMenuBarIcon'
+    | 'showQuotaInMenuBar'
+    | 'totalUsageMode'
   >
 >;
 

@@ -348,7 +348,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
     }
 
     private var bootstrapPayload: [String: Any] {
-        [
+        return [
             "uiEnabled": true,
             "basePath": "/",
             "bridgeVersion": DesktopBridgeContract.version,
@@ -586,19 +586,122 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             try LaunchAtLoginManager.shared.setEnabled(launchAtLogin)
         }
 
+        let notificationManager = NotificationManager.shared
+        if let notificationsEnabled = preferences["notificationsEnabled"] as? Bool {
+            notificationManager.notificationsEnabled = notificationsEnabled
+        }
+        if let notifyOnQuotaLow = preferences["notifyOnQuotaLow"] as? Bool {
+            notificationManager.notifyOnQuotaLow = notifyOnQuotaLow
+        }
+        if let notifyOnCooling = preferences["notifyOnCooling"] as? Bool {
+            notificationManager.notifyOnCooling = notifyOnCooling
+        }
+        if let notifyOnProxyCrash = preferences["notifyOnProxyCrash"] as? Bool {
+            notificationManager.notifyOnProxyCrash = notifyOnProxyCrash
+        }
+        if let quotaAlertThreshold = preferences["quotaAlertThreshold"] as? Double {
+            notificationManager.quotaAlertThreshold = quotaAlertThreshold
+        } else if let quotaAlertThreshold = preferences["quotaAlertThreshold"] as? Int {
+            notificationManager.quotaAlertThreshold = Double(quotaAlertThreshold)
+        }
+
+        let menuBarSettings = MenuBarSettingsManager.shared
+        if let rawQuotaDisplayMode = preferences["quotaDisplayMode"] as? String,
+           let quotaDisplayMode = QuotaDisplayMode(rawValue: rawQuotaDisplayMode) {
+            menuBarSettings.quotaDisplayMode = quotaDisplayMode
+        }
+        if let rawQuotaDisplayStyle = preferences["quotaDisplayStyle"] as? String,
+           let quotaDisplayStyle = QuotaDisplayStyle(rawValue: rawQuotaDisplayStyle) {
+            menuBarSettings.quotaDisplayStyle = quotaDisplayStyle
+        }
+        if let rawResetTimeDisplayMode = preferences["resetTimeDisplayMode"] as? String,
+           let resetTimeDisplayMode = ResetTimeDisplayMode(rawValue: rawResetTimeDisplayMode) {
+            menuBarSettings.resetTimeDisplayMode = resetTimeDisplayMode
+        }
+        if let rawRefreshCadence = preferences["refreshCadence"] as? String,
+           let refreshCadence = RefreshCadence(rawValue: rawRefreshCadence) {
+            RefreshSettingsManager.shared.refreshCadence = refreshCadence
+        }
+
+        var showInDock = UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? true
+        if let incomingShowInDock = preferences["showInDock"] as? Bool {
+            showInDock = incomingShowInDock
+        }
+        var showMenuBarIcon = menuBarSettings.showMenuBarIcon
+        if let incomingShowMenuBarIcon = preferences["showMenuBarIcon"] as? Bool {
+            showMenuBarIcon = incomingShowMenuBarIcon
+        }
+        if !showInDock && !showMenuBarIcon {
+            showMenuBarIcon = true
+        }
+        UserDefaults.standard.set(showInDock, forKey: "showInDock")
+        NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
+        menuBarSettings.showMenuBarIcon = showMenuBarIcon
+
+        if let showQuotaInMenuBar = preferences["showQuotaInMenuBar"] as? Bool {
+            menuBarSettings.showQuotaInMenuBar = showQuotaInMenuBar
+        }
+        if let menuBarMaxItems = preferences["menuBarMaxItems"] as? Int {
+            menuBarSettings.menuBarMaxItems = Self.clampedMenuBarMaxItems(menuBarMaxItems)
+            viewModel?.syncMenuBarSelection()
+        } else if let menuBarMaxItems = preferences["menuBarMaxItems"] as? Double {
+            menuBarSettings.menuBarMaxItems = Self.clampedMenuBarMaxItems(Int(menuBarMaxItems))
+            viewModel?.syncMenuBarSelection()
+        }
+        if let rawColorMode = preferences["menuBarColorMode"] as? String,
+           let colorMode = MenuBarColorMode(rawValue: rawColorMode) {
+            menuBarSettings.colorMode = colorMode
+        }
+        if let hideSensitiveInfo = preferences["hideSensitiveInfo"] as? Bool {
+            menuBarSettings.hideSensitiveInfo = hideSensitiveInfo
+        }
+        if let rawTotalUsageMode = preferences["totalUsageMode"] as? String,
+           let totalUsageMode = TotalUsageMode(rawValue: rawTotalUsageMode) {
+            menuBarSettings.totalUsageMode = totalUsageMode
+        }
+        if let rawModelAggregationMode = preferences["modelAggregationMode"] as? String,
+           let modelAggregationMode = ModelAggregationMode(rawValue: rawModelAggregationMode) {
+            menuBarSettings.modelAggregationMode = modelAggregationMode
+        }
+
         evaluate(script: "window.__QUOTIO_DESKTOP_BOOTSTRAP__ = \(Self.javascriptObjectLiteral(bootstrapPayload));")
         return nativePreferencesPayload()
     }
 
     private func nativePreferencesPayload() -> [String: Any] {
-        [
+        let notificationManager = NotificationManager.shared
+        let menuBarSettings = MenuBarSettingsManager.shared
+        let showInDock = UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? true
+
+        return [
             "operatingMode": OperatingModeManager.shared.currentMode.rawValue,
             "remoteConfigured": OperatingModeManager.shared.remoteConfig != nil,
             "language": LanguageManager.shared.currentLanguage.rawValue,
             "appearance": AppearanceManager.shared.appearanceMode.rawValue,
             "launchAtLogin": LaunchAtLoginManager.shared.isEnabled,
-            "launchAtLoginCanOpenSystemSettings": true
+            "launchAtLoginCanOpenSystemSettings": true,
+            "notificationsEnabled": notificationManager.notificationsEnabled,
+            "notifyOnQuotaLow": notificationManager.notifyOnQuotaLow,
+            "notifyOnCooling": notificationManager.notifyOnCooling,
+            "notifyOnProxyCrash": notificationManager.notifyOnProxyCrash,
+            "quotaAlertThreshold": Int(notificationManager.quotaAlertThreshold),
+            "quotaDisplayMode": menuBarSettings.quotaDisplayMode.rawValue,
+            "quotaDisplayStyle": menuBarSettings.quotaDisplayStyle.rawValue,
+            "resetTimeDisplayMode": menuBarSettings.resetTimeDisplayMode.rawValue,
+            "refreshCadence": RefreshSettingsManager.shared.refreshCadence.rawValue,
+            "showInDock": showInDock,
+            "showMenuBarIcon": menuBarSettings.showMenuBarIcon,
+            "showQuotaInMenuBar": menuBarSettings.showQuotaInMenuBar,
+            "menuBarMaxItems": menuBarSettings.menuBarMaxItems,
+            "menuBarColorMode": menuBarSettings.colorMode.rawValue,
+            "hideSensitiveInfo": menuBarSettings.hideSensitiveInfo,
+            "totalUsageMode": menuBarSettings.totalUsageMode.rawValue,
+            "modelAggregationMode": menuBarSettings.modelAggregationMode.rawValue
         ]
+    }
+
+    private static func clampedMenuBarMaxItems(_ value: Int) -> Int {
+        min(max(value, MenuBarSettingsManager.minMenuBarItems), MenuBarSettingsManager.maxMenuBarItems)
     }
 
     private func handleManagementRequest(_ body: [String: Any]) async throws -> Any {

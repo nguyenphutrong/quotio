@@ -633,14 +633,74 @@
         "operatingMode": "Operating mode",
         "language": "Language",
         "appearance": "Appearance",
-        "launchAtLogin": "Launch at login"
+        "launchAtLogin": "Launch at login",
+        "notificationsEnabled": "Enable notifications",
+        "notifyOnQuotaLow": "Low quota alerts",
+        "notifyOnCooling": "Cooling alerts",
+        "notifyOnProxyCrash": "Proxy crash alerts",
+        "quotaAlertThreshold": "Alert threshold",
+        "quotaDisplayMode": "Quota percentage",
+        "quotaDisplayStyle": "Quota layout",
+        "resetTimeDisplayMode": "Reset time",
+        "refreshCadence": "Refresh cadence",
+        "showInDock": "Show in Dock",
+        "showMenuBarIcon": "Show menu bar icon",
+        "showQuotaInMenuBar": "Show quota in menu bar",
+        "menuBarMaxItems": "Menu bar items",
+        "menuBarColorMode": "Menu bar color",
+        "hideSensitiveInfo": "Hide sensitive account info",
+        "totalUsageMode": "Total usage",
+        "modelAggregationMode": "Model aggregation"
       },
       "hints": {
         "operatingMode": "Switch between the local proxy and a saved remote connection.",
         "remoteNotConfigured": "Configure a remote connection before switching to remote mode.",
         "language": "Changes the language used by the desktop shell.",
         "appearance": "Applies the native macOS appearance immediately.",
-        "launchAtLogin": "Uses the system Login Items service."
+        "launchAtLogin": "Uses the system Login Items service.",
+        "quotaAlertThreshold": "Notify when remaining quota drops below this value.",
+        "quotaDisplayMode": "Choose whether percentages show used or remaining quota.",
+        "quotaDisplayStyle": "Controls the quota layout used by native quota views.",
+        "resetTimeDisplayMode": "Choose relative or absolute reset times.",
+        "refreshCadence": "Controls automatic quota refresh timing.",
+        "menuBarMaxItems": "Clamped between 1 and 10 items.",
+        "menuBarColorMode": "Controls color in compact menu bar quota items.",
+        "totalUsageMode": "Choose session-only or combined session plus extra usage.",
+        "modelAggregationMode": "Controls how multi-model provider quota is summarized."
+      },
+      "groups": {
+        "notifications": {
+          "title": "Notifications",
+          "description": "Quota and proxy alerts delivered by the native host."
+        },
+        "quota": {
+          "title": "Quota display",
+          "description": "How quota percentages, reset times, and refresh cadence are shown."
+        },
+        "menuBar": {
+          "title": "Menu bar",
+          "description": "Dock visibility and compact menu bar quota behavior."
+        },
+        "privacyUsage": {
+          "title": "Privacy and usage",
+          "description": "Sensitive account display and multi-model usage calculation."
+        }
+      },
+      "options": {
+        "quotaUsed": "Used",
+        "quotaRemaining": "Remaining",
+        "quotaStyleCard": "Cards",
+        "quotaStyleLowestBar": "Lowest bar",
+        "quotaStyleRing": "Rings",
+        "relative": "Relative",
+        "absolute": "Absolute",
+        "manual": "Manual",
+        "colored": "Colored",
+        "monochrome": "Monochrome",
+        "sessionOnly": "Session only",
+        "combined": "Combined",
+        "lowest": "Lowest",
+        "average": "Average"
       },
       "messages": {
         "saved": "Preference saved."

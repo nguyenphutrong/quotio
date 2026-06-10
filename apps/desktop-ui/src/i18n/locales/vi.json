@@ -628,14 +628,74 @@
         "operatingMode": "Chế độ hoạt động",
         "language": "Ngôn ngữ",
         "appearance": "Giao diện",
-        "launchAtLogin": "Mở khi đăng nhập"
+        "launchAtLogin": "Mở khi đăng nhập",
+        "notificationsEnabled": "Bật thông báo",
+        "notifyOnQuotaLow": "Cảnh báo hạn mức thấp",
+        "notifyOnCooling": "Cảnh báo cooling",
+        "notifyOnProxyCrash": "Cảnh báo proxy crash",
+        "quotaAlertThreshold": "Ngưỡng cảnh báo",
+        "quotaDisplayMode": "Phần trăm hạn mức",
+        "quotaDisplayStyle": "Bố cục hạn mức",
+        "resetTimeDisplayMode": "Thời gian reset",
+        "refreshCadence": "Chu kỳ làm mới",
+        "showInDock": "Hiển thị trong Dock",
+        "showMenuBarIcon": "Hiển thị icon menu bar",
+        "showQuotaInMenuBar": "Hiển thị hạn mức trên menu bar",
+        "menuBarMaxItems": "Số item trên menu bar",
+        "menuBarColorMode": "Màu menu bar",
+        "hideSensitiveInfo": "Ẩn thông tin tài khoản nhạy cảm",
+        "totalUsageMode": "Tổng usage",
+        "modelAggregationMode": "Gộp model"
       },
       "hints": {
         "operatingMode": "Chuyển giữa local proxy và kết nối remote đã lưu.",
         "remoteNotConfigured": "Cấu hình kết nối remote trước khi chuyển sang remote mode.",
         "language": "Thay đổi ngôn ngữ dùng trong desktop shell.",
         "appearance": "Áp dụng giao diện native macOS ngay lập tức.",
-        "launchAtLogin": "Dùng dịch vụ Login Items của hệ thống."
+        "launchAtLogin": "Dùng dịch vụ Login Items của hệ thống.",
+        "quotaAlertThreshold": "Thông báo khi hạn mức còn lại thấp hơn giá trị này.",
+        "quotaDisplayMode": "Chọn phần trăm hiển thị là đã dùng hay còn lại.",
+        "quotaDisplayStyle": "Điều khiển bố cục hạn mức trong các màn native.",
+        "resetTimeDisplayMode": "Chọn thời gian reset dạng tương đối hoặc tuyệt đối.",
+        "refreshCadence": "Điều khiển chu kỳ tự động làm mới hạn mức.",
+        "menuBarMaxItems": "Được giới hạn từ 1 đến 10 item.",
+        "menuBarColorMode": "Điều khiển màu của item hạn mức gọn trên menu bar.",
+        "totalUsageMode": "Chọn chỉ session hoặc gộp session với extra usage.",
+        "modelAggregationMode": "Điều khiển cách tóm tắt hạn mức khi provider có nhiều model."
+      },
+      "groups": {
+        "notifications": {
+          "title": "Thông báo",
+          "description": "Cảnh báo hạn mức và proxy do native host gửi."
+        },
+        "quota": {
+          "title": "Hiển thị hạn mức",
+          "description": "Cách hiển thị phần trăm hạn mức, thời gian reset và chu kỳ làm mới."
+        },
+        "menuBar": {
+          "title": "Menu bar",
+          "description": "Hiển thị Dock và hành vi hạn mức gọn trên menu bar."
+        },
+        "privacyUsage": {
+          "title": "Riêng tư và usage",
+          "description": "Ẩn thông tin tài khoản và cách tính usage nhiều model."
+        }
+      },
+      "options": {
+        "quotaUsed": "Đã dùng",
+        "quotaRemaining": "Còn lại",
+        "quotaStyleCard": "Card",
+        "quotaStyleLowestBar": "Thanh thấp nhất",
+        "quotaStyleRing": "Vòng tròn",
+        "relative": "Tương đối",
+        "absolute": "Tuyệt đối",
+        "manual": "Thủ công",
+        "colored": "Có màu",
+        "monochrome": "Đơn sắc",
+        "sessionOnly": "Chỉ session",
+        "combined": "Gộp",
+        "lowest": "Thấp nhất",
+        "average": "Trung bình"
       },
       "messages": {
         "saved": "Đã lưu tùy chọn."

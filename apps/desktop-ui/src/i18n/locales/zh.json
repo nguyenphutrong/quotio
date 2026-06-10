@@ -629,14 +629,74 @@
         "operatingMode": "运行模式",
         "language": "语言",
         "appearance": "外观",
-        "launchAtLogin": "登录时启动"
+        "launchAtLogin": "登录时启动",
+        "notificationsEnabled": "启用通知",
+        "notifyOnQuotaLow": "低配额提醒",
+        "notifyOnCooling": "冷却提醒",
+        "notifyOnProxyCrash": "代理崩溃提醒",
+        "quotaAlertThreshold": "提醒阈值",
+        "quotaDisplayMode": "配额百分比",
+        "quotaDisplayStyle": "配额布局",
+        "resetTimeDisplayMode": "重置时间",
+        "refreshCadence": "刷新频率",
+        "showInDock": "在 Dock 中显示",
+        "showMenuBarIcon": "显示菜单栏图标",
+        "showQuotaInMenuBar": "在菜单栏显示配额",
+        "menuBarMaxItems": "菜单栏项目数",
+        "menuBarColorMode": "菜单栏颜色",
+        "hideSensitiveInfo": "隐藏敏感账号信息",
+        "totalUsageMode": "总用量",
+        "modelAggregationMode": "模型聚合"
       },
       "hints": {
         "operatingMode": "在本地代理和已保存的远程连接之间切换。",
         "remoteNotConfigured": "请先配置远程连接，然后再切换到远程模式。",
         "language": "更改桌面 shell 使用的语言。",
         "appearance": "立即应用原生 macOS 外观。",
-        "launchAtLogin": "使用系统 Login Items 服务。"
+        "launchAtLogin": "使用系统 Login Items 服务。",
+        "quotaAlertThreshold": "当剩余配额低于此值时通知。",
+        "quotaDisplayMode": "选择百分比显示已用或剩余配额。",
+        "quotaDisplayStyle": "控制原生配额视图使用的布局。",
+        "resetTimeDisplayMode": "选择相对或绝对重置时间。",
+        "refreshCadence": "控制自动刷新配额的频率。",
+        "menuBarMaxItems": "限制在 1 到 10 个项目之间。",
+        "menuBarColorMode": "控制紧凑菜单栏配额项目的颜色。",
+        "totalUsageMode": "选择仅 session 或合并 session 与 extra usage。",
+        "modelAggregationMode": "控制多模型 provider 配额的汇总方式。"
+      },
+      "groups": {
+        "notifications": {
+          "title": "通知",
+          "description": "由原生主机发送的配额和代理提醒。"
+        },
+        "quota": {
+          "title": "配额显示",
+          "description": "配额百分比、重置时间和刷新频率的显示方式。"
+        },
+        "menuBar": {
+          "title": "菜单栏",
+          "description": "Dock 可见性和紧凑菜单栏配额行为。"
+        },
+        "privacyUsage": {
+          "title": "隐私和用量",
+          "description": "敏感账号显示和多模型用量计算。"
+        }
+      },
+      "options": {
+        "quotaUsed": "已用",
+        "quotaRemaining": "剩余",
+        "quotaStyleCard": "卡片",
+        "quotaStyleLowestBar": "最低条",
+        "quotaStyleRing": "圆环",
+        "relative": "相对",
+        "absolute": "绝对",
+        "manual": "手动",
+        "colored": "彩色",
+        "monochrome": "单色",
+        "sessionOnly": "仅 session",
+        "combined": "合并",
+        "lowest": "最低",
+        "average": "平均"
       },
       "messages": {
         "saved": "偏好已保存。"

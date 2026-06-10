@@ -315,7 +315,7 @@ function RemoteConnectionPanel() {
 }
 
 function NativePreferencesPanel() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const toast = useToast();
   const { bootstrap, preferencesRead, preferencesWrite } = useAdminRuntime();
   const [state, setState] = useState(initialPreferencesState);
@@ -382,6 +382,9 @@ function NativePreferencesPanel() {
         savingKey: null,
         error: null,
       });
+      if (key === 'language') {
+        await i18n.changeLanguage(String(value));
+      }
       toast.success(t('settings.native.messages.saved'));
     } catch (error) {
       setState((current) => ({
@@ -489,7 +492,6 @@ function NativePreferencesPanel() {
               <SelectItem value="en">English</SelectItem>
               <SelectItem value="vi">Tiếng Việt</SelectItem>
               <SelectItem value="zh-Hans">简体中文</SelectItem>
-              <SelectItem value="fr">Français</SelectItem>
             </SelectContent>
           </Select>
         </PreferenceField>
@@ -544,6 +546,344 @@ function NativePreferencesPanel() {
         </PreferenceField>
       </div>
 
+      <div className="mt-6 grid gap-5 xl:grid-cols-2">
+        <PreferenceGroup
+          description={t('settings.native.groups.notifications.description')}
+          title={t('settings.native.groups.notifications.title')}
+        >
+          <SwitchField
+            checked={preferences?.notificationsEnabled ?? false}
+            disabled={disabled}
+            label={t('settings.native.fields.notificationsEnabled')}
+            onCheckedChange={(checked) =>
+              void savePreference('notificationsEnabled', checked)
+            }
+          />
+          <SwitchField
+            checked={preferences?.notifyOnQuotaLow ?? false}
+            disabled={disabled || !preferences?.notificationsEnabled}
+            label={t('settings.native.fields.notifyOnQuotaLow')}
+            onCheckedChange={(checked) =>
+              void savePreference('notifyOnQuotaLow', checked)
+            }
+          />
+          <SwitchField
+            checked={preferences?.notifyOnCooling ?? false}
+            disabled={disabled || !preferences?.notificationsEnabled}
+            label={t('settings.native.fields.notifyOnCooling')}
+            onCheckedChange={(checked) =>
+              void savePreference('notifyOnCooling', checked)
+            }
+          />
+          <SwitchField
+            checked={preferences?.notifyOnProxyCrash ?? false}
+            disabled={disabled || !preferences?.notificationsEnabled}
+            label={t('settings.native.fields.notifyOnProxyCrash')}
+            onCheckedChange={(checked) =>
+              void savePreference('notifyOnProxyCrash', checked)
+            }
+          />
+          <PreferenceField
+            hint={t('settings.native.hints.quotaAlertThreshold')}
+            label={t('settings.native.fields.quotaAlertThreshold')}
+          >
+            <Select
+              value={String(preferences?.quotaAlertThreshold ?? 20)}
+              disabled={disabled || !preferences?.notificationsEnabled}
+              onValueChange={(value) =>
+                void savePreference(
+                  'quotaAlertThreshold',
+                  Number(value) as NativePreferences['quotaAlertThreshold'],
+                )
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10%</SelectItem>
+                <SelectItem value="20">20%</SelectItem>
+                <SelectItem value="30">30%</SelectItem>
+                <SelectItem value="50">50%</SelectItem>
+              </SelectContent>
+            </Select>
+          </PreferenceField>
+        </PreferenceGroup>
+
+        <PreferenceGroup
+          description={t('settings.native.groups.quota.description')}
+          title={t('settings.native.groups.quota.title')}
+        >
+          <PreferenceField
+            hint={t('settings.native.hints.quotaDisplayMode')}
+            label={t('settings.native.fields.quotaDisplayMode')}
+          >
+            <Select
+              value={preferences?.quotaDisplayMode ?? 'used'}
+              disabled={disabled}
+              onValueChange={(value) =>
+                void savePreference(
+                  'quotaDisplayMode',
+                  value as NativePreferences['quotaDisplayMode'],
+                )
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="used">
+                  {t('settings.native.options.quotaUsed')}
+                </SelectItem>
+                <SelectItem value="remaining">
+                  {t('settings.native.options.quotaRemaining')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PreferenceField>
+
+          <PreferenceField
+            hint={t('settings.native.hints.quotaDisplayStyle')}
+            label={t('settings.native.fields.quotaDisplayStyle')}
+          >
+            <Select
+              value={preferences?.quotaDisplayStyle ?? 'card'}
+              disabled={disabled}
+              onValueChange={(value) =>
+                void savePreference(
+                  'quotaDisplayStyle',
+                  value as NativePreferences['quotaDisplayStyle'],
+                )
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="card">
+                  {t('settings.native.options.quotaStyleCard')}
+                </SelectItem>
+                <SelectItem value="lowestBar">
+                  {t('settings.native.options.quotaStyleLowestBar')}
+                </SelectItem>
+                <SelectItem value="ring">
+                  {t('settings.native.options.quotaStyleRing')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PreferenceField>
+
+          <PreferenceField
+            hint={t('settings.native.hints.resetTimeDisplayMode')}
+            label={t('settings.native.fields.resetTimeDisplayMode')}
+          >
+            <Select
+              value={preferences?.resetTimeDisplayMode ?? 'relative'}
+              disabled={disabled}
+              onValueChange={(value) =>
+                void savePreference(
+                  'resetTimeDisplayMode',
+                  value as NativePreferences['resetTimeDisplayMode'],
+                )
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="relative">
+                  {t('settings.native.options.relative')}
+                </SelectItem>
+                <SelectItem value="absolute">
+                  {t('settings.native.options.absolute')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PreferenceField>
+
+          <PreferenceField
+            hint={t('settings.native.hints.refreshCadence')}
+            label={t('settings.native.fields.refreshCadence')}
+          >
+            <Select
+              value={preferences?.refreshCadence ?? '10min'}
+              disabled={disabled}
+              onValueChange={(value) =>
+                void savePreference(
+                  'refreshCadence',
+                  value as NativePreferences['refreshCadence'],
+                )
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">
+                  {t('settings.native.options.manual')}
+                </SelectItem>
+                <SelectItem value="1min">1 min</SelectItem>
+                <SelectItem value="2min">2 min</SelectItem>
+                <SelectItem value="5min">5 min</SelectItem>
+                <SelectItem value="10min">10 min</SelectItem>
+                <SelectItem value="15min">15 min</SelectItem>
+              </SelectContent>
+            </Select>
+          </PreferenceField>
+        </PreferenceGroup>
+
+        <PreferenceGroup
+          description={t('settings.native.groups.menuBar.description')}
+          title={t('settings.native.groups.menuBar.title')}
+        >
+          <SwitchField
+            checked={preferences?.showInDock ?? true}
+            disabled={disabled}
+            label={t('settings.native.fields.showInDock')}
+            onCheckedChange={(checked) =>
+              void savePreference('showInDock', checked)
+            }
+          />
+          <SwitchField
+            checked={preferences?.showMenuBarIcon ?? true}
+            disabled={disabled}
+            label={t('settings.native.fields.showMenuBarIcon')}
+            onCheckedChange={(checked) =>
+              void savePreference('showMenuBarIcon', checked)
+            }
+          />
+          <SwitchField
+            checked={preferences?.showQuotaInMenuBar ?? true}
+            disabled={disabled || !preferences?.showMenuBarIcon}
+            label={t('settings.native.fields.showQuotaInMenuBar')}
+            onCheckedChange={(checked) =>
+              void savePreference('showQuotaInMenuBar', checked)
+            }
+          />
+          <PreferenceField
+            hint={t('settings.native.hints.menuBarMaxItems')}
+            label={t('settings.native.fields.menuBarMaxItems')}
+          >
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              value={preferences?.menuBarMaxItems ?? 3}
+              disabled={
+                disabled ||
+                !preferences?.showMenuBarIcon ||
+                !preferences?.showQuotaInMenuBar
+              }
+              onChange={(event) =>
+                void savePreference(
+                  'menuBarMaxItems',
+                  Number(event.target.value),
+                )
+              }
+            />
+          </PreferenceField>
+          <PreferenceField
+            hint={t('settings.native.hints.menuBarColorMode')}
+            label={t('settings.native.fields.menuBarColorMode')}
+          >
+            <Select
+              value={preferences?.menuBarColorMode ?? 'colored'}
+              disabled={
+                disabled ||
+                !preferences?.showMenuBarIcon ||
+                !preferences?.showQuotaInMenuBar
+              }
+              onValueChange={(value) =>
+                void savePreference(
+                  'menuBarColorMode',
+                  value as NativePreferences['menuBarColorMode'],
+                )
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="colored">
+                  {t('settings.native.options.colored')}
+                </SelectItem>
+                <SelectItem value="monochrome">
+                  {t('settings.native.options.monochrome')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PreferenceField>
+        </PreferenceGroup>
+
+        <PreferenceGroup
+          description={t('settings.native.groups.privacyUsage.description')}
+          title={t('settings.native.groups.privacyUsage.title')}
+        >
+          <SwitchField
+            checked={preferences?.hideSensitiveInfo ?? false}
+            disabled={disabled}
+            label={t('settings.native.fields.hideSensitiveInfo')}
+            onCheckedChange={(checked) =>
+              void savePreference('hideSensitiveInfo', checked)
+            }
+          />
+          <PreferenceField
+            hint={t('settings.native.hints.totalUsageMode')}
+            label={t('settings.native.fields.totalUsageMode')}
+          >
+            <Select
+              value={preferences?.totalUsageMode ?? 'sessionOnly'}
+              disabled={disabled}
+              onValueChange={(value) =>
+                void savePreference(
+                  'totalUsageMode',
+                  value as NativePreferences['totalUsageMode'],
+                )
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sessionOnly">
+                  {t('settings.native.options.sessionOnly')}
+                </SelectItem>
+                <SelectItem value="combined">
+                  {t('settings.native.options.combined')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PreferenceField>
+          <PreferenceField
+            hint={t('settings.native.hints.modelAggregationMode')}
+            label={t('settings.native.fields.modelAggregationMode')}
+          >
+            <Select
+              value={preferences?.modelAggregationMode ?? 'lowest'}
+              disabled={disabled}
+              onValueChange={(value) =>
+                void savePreference(
+                  'modelAggregationMode',
+                  value as NativePreferences['modelAggregationMode'],
+                )
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="lowest">
+                  {t('settings.native.options.lowest')}
+                </SelectItem>
+                <SelectItem value="average">
+                  {t('settings.native.options.average')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PreferenceField>
+        </PreferenceGroup>
+      </div>
+
       {state.error ? (
         <p className="mt-3 text-danger text-sm">{state.error}</p>
       ) : null}
@@ -565,6 +905,47 @@ function PreferenceField({
       <Label>{label}</Label>
       {children}
       <p className="text-muted-foreground text-xs">{hint}</p>
+    </div>
+  );
+}
+
+function PreferenceGroup({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  description: string;
+  title: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <h3 className="font-medium text-foreground text-sm">{title}</h3>
+      <p className="mt-1 text-muted-foreground text-xs">{description}</p>
+      <div className="mt-4 space-y-4">{children}</div>
+    </div>
+  );
+}
+
+function SwitchField({
+  checked,
+  disabled,
+  label,
+  onCheckedChange,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  label: string;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex min-h-9 items-center justify-between gap-4 rounded-md border border-border px-3">
+      <Label className="text-sm">{label}</Label>
+      <Switch
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+      />
     </div>
   );
 }
