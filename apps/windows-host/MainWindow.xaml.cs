@@ -16,6 +16,7 @@ public sealed partial class MainWindow : Window
     private readonly WindowSettingsStore settingsStore = new();
     private readonly WindowsNativePreferencesStore preferencesStore = new();
     private readonly RuntimeProcessController runtime;
+    private readonly WindowsUpdateService updates;
     private readonly DesktopBridge bridge;
     private readonly Forms.NotifyIcon trayIcon;
     private AppWindow? appWindow;
@@ -28,6 +29,7 @@ public sealed partial class MainWindow : Window
 
         agents = new WindowsAgentAdapter(config);
         runtime = new RuntimeProcessController(config);
+        updates = new WindowsUpdateService(config, preferencesStore);
         trayIcon = CreateTrayIcon();
         bridge = new DesktopBridge(
             DesktopWebView,
@@ -35,6 +37,7 @@ public sealed partial class MainWindow : Window
             config,
             agents,
             preferencesStore,
+            updates,
             ShowNativeNotification
         );
 

@@ -3,12 +3,13 @@
 Native Windows shell for the shared desktop UI. Plan 05 owns the WinUI 3,
 WebView2, tray, single-instance, and Rust bridge implementation.
 
-The Windows host is currently a preview artifact. It is expected to build and
-exercise the shared UI bridge, Credential Manager-backed bootstrap config,
-shared remote credential editing, local crash-report capture, optional crash
-upload, and native agent write/rollback adapters, but it is not production
-parity with macOS until installer, signing, updater, and cutover
-checks in `docs/architecture/multiplatform/0006-cutover-gap-matrix.md` are done.
+The Windows host has a preview ZIP path and a Velopack installer package path.
+It is expected to build and exercise the shared UI bridge, Credential
+Manager-backed bootstrap config, shared remote credential editing, local
+crash-report capture, optional crash upload, native agent write/rollback
+adapters, and installer/update metadata, but it is not production parity with
+macOS until signing and cutover checks in
+`docs/architecture/multiplatform/0006-cutover-gap-matrix.md` are done.
 
 ## Development
 
@@ -25,9 +26,27 @@ commit, build configuration, required bundled files, and per-file size/hash
 metadata. The artifact is a preview build output for smoke testing only; it is
 not an installer, is not signed, and does not include an updater.
 
+CI also builds a Velopack installer artifact from the same bundled host output:
+
+```powershell
+./scripts/package-windows-installer.ps1 -Version "0.1.0" -Channel stable
+```
+
+The installer artifact contains the setup executable, `releases.<channel>.json`
+update metadata, a checksum, and `quotio-windows-installer.manifest.json`.
+Signing is enabled only when the script receives `-SignTemplate`; unsigned
+installer artifacts are suitable for CI smoke testing but not final production
+distribution.
+
 Maintainers can publish the same unsigned ZIP as a GitHub prerelease through the
 `Windows Preview Release` workflow. Preview release tags must start with
 `windows-preview-`.
+
+Maintainers can publish a Velopack installer release through the
+`Windows Installer Release` workflow. Installer release tags must start with
+`windows-v`. The native Settings route checks for updates through Velopack when
+the app was installed by the Velopack setup executable. Raw ZIP, local build,
+and dev-server launches report update support but cannot check/apply updates.
 
 The host loads `apps/desktop-ui/dist` when bundled by MSBuild. For live UI
 development, set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL.
@@ -62,6 +81,8 @@ Windows Credential Manager entries:
 - `QUOTIO_PROXY_BINARY` or `Quotio/ProxyBinary`
 - `QUOTIO_PROXY_ARGS` or `Quotio/ProxyArgs`
 - `QUOTIO_PROXY_ENDPOINT` or `Quotio/ProxyEndpoint`
+- `QUOTIO_WINDOWS_UPDATE_REPOSITORY_URL` or `Quotio/WindowsUpdateRepositoryUrl`
+- `QUOTIO_WINDOWS_UPDATE_CHANNEL` or `Quotio/WindowsUpdateChannel`
 
 The native bridge can read, write, and delete `Quotio/*` Credential Manager
 entries. The shared Settings route exposes remote management connection editing

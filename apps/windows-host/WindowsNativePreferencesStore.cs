@@ -79,6 +79,17 @@ public sealed class WindowsNativePreferencesStore
             state.ModelAggregationMode = modelAggregationMode;
         }
 
+        if (TryReadBool(preferences, "autoCheckUpdates", out var autoCheckUpdates))
+        {
+            state.AutoCheckUpdates = autoCheckUpdates;
+        }
+
+        if (TryReadString(preferences, "updateChannel", out var updateChannel)
+            && (updateChannel == "stable" || updateChannel == "beta"))
+        {
+            state.UpdateChannel = updateChannel;
+        }
+
         if (TryReadInt(preferences, "proxyPort", out var proxyPort))
         {
             if (proxyPort is < 1 or > 65535)
@@ -183,6 +194,8 @@ public sealed record WindowsNativePreferencesState
     public bool HideSensitiveInfo { get; set; }
     public string TotalUsageMode { get; set; } = "sessionOnly";
     public string ModelAggregationMode { get; set; } = "lowest";
+    public bool AutoCheckUpdates { get; set; } = true;
+    public string UpdateChannel { get; set; } = "stable";
 }
 
 public static partial class JsonOptions

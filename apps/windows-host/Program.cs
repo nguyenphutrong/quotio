@@ -2,6 +2,7 @@ namespace Quotio.Windows;
 
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Velopack;
 
 internal static class Program
 {
@@ -10,6 +11,7 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        VelopackApp.Build().Run();
         DiagnosticLog.RegisterUnhandledExceptionHandlers();
 
         using var singleInstance = new SingleInstanceGuard(InstanceName);

@@ -1,0 +1,120 @@
+name: Windows Installer Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish, e.g. windows-v0.1.0'
+        required: true
+        type: string
+      version:
+        description: 'Installer version, e.g. 0.1.0'
+        required: true
+        type: string
+      channel:
+        description: 'Velopack update channel'
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - beta
+      title:
+        description: 'Release title'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'windows-v*'
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  publish:
+    name: Build and publish Windows installer
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.3
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Resolve release metadata
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ github.event.inputs.tag }}"
+            $version = "${{ github.event.inputs.version }}"
+            $channel = "${{ github.event.inputs.channel }}"
+            $title = "${{ github.event.inputs.title }}"
+          } else {
+            $tag = "${{ github.ref_name }}"
+            $version = $tag -replace '^windows-v', ''
+            $channel = "stable"
+            $title = ""
+          }
+
+          if ([string]::IsNullOrWhiteSpace($tag) -or -not $tag.StartsWith("windows-v")) {
+            throw "Windows installer releases must use a windows-v* tag."
+          }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Windows installer version is required."
+          }
+          if ($channel -ne "stable" -and $channel -ne "beta") {
+            throw "Windows installer channel must be stable or beta."
+          }
+          if ([string]::IsNullOrWhiteSpace($title)) {
+            $title = "Quotio Windows $version"
+          }
+          $commit = git rev-parse HEAD
+
+          "WINDOWS_TAG=$tag" >> $env:GITHUB_ENV
+          "WINDOWS_VERSION=$version" >> $env:GITHUB_ENV
+          "WINDOWS_CHANNEL=$channel" >> $env:GITHUB_ENV
+          "WINDOWS_TITLE=$title" >> $env:GITHUB_ENV
+          "WINDOWS_COMMIT=$commit" >> $env:GITHUB_ENV
+
+      - run: bun install --frozen-lockfile
+      - run: bun run contracts:check
+      - run: bun run windows:gates:check
+      - run: bun run desktop-ui:bootstrap:check
+      - run: bun run desktop-ui:gateway-url:check
+      - run: bun run typecheck
+      - run: bun run build
+      - run: bun run format-and-lint
+      - run: dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release
+
+      - name: Package Windows installer
+        shell: pwsh
+        run: ./scripts/package-windows-installer.ps1 -Version "$env:WINDOWS_VERSION" -Channel "$env:WINDOWS_CHANNEL" -CommitSha "$env:WINDOWS_COMMIT"
+
+      - name: Write release notes
+        shell: pwsh
+        run: |
+          @"
+          ## Windows Installer
+
+          This release includes the native Windows host packaged with Velopack.
+
+          - Installer and update metadata are included for the `$env:WINDOWS_CHANNEL` channel.
+          - Signing is not enabled unless the packaging step is passed a signing template.
+          - Built from commit `$env:WINDOWS_COMMIT`.
+          "@ | Set-Content -Path artifacts/windows-installer-notes.md -Encoding utf8
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.WINDOWS_TAG }}
+          name: ${{ env.WINDOWS_TITLE }}
+          body_path: artifacts/windows-installer-notes.md
+          prerelease: ${{ env.WINDOWS_CHANNEL != 'stable' }}
+          files: |
+            artifacts/windows-installer/**

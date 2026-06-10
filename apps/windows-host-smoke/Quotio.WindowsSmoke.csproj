@@ -24,6 +24,11 @@
     <Compile Include="..\windows-host\WindowsGeminiConfigPatcher.cs" Link="WindowsGeminiConfigPatcher.cs" />
     <Compile Include="..\windows-host\WindowsHostConfig.cs" Link="WindowsHostConfig.cs" />
     <Compile Include="..\windows-host\WindowsOpenCodeConfigPatcher.cs" Link="WindowsOpenCodeConfigPatcher.cs" />
+    <Compile Include="..\windows-host\WindowsUpdateService.cs" Link="WindowsUpdateService.cs" />
     <Compile Include="..\windows-host\WindowPlacementService.cs" Link="WindowPlacementService.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 </Project>

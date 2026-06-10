@@ -4,6 +4,7 @@ public sealed class WindowsHostConfig
 {
     private const string DefaultEndpoint = "http://127.0.0.1:8386";
     private const string DefaultAuthority = "127.0.0.1:8386";
+    private const string DefaultWindowsUpdateRepositoryUrl = "https://github.com/nguyenphutrong/quotio";
     private readonly Func<string, string?> credentialReader;
 
     public WindowsHostConfig()
@@ -49,6 +50,21 @@ public sealed class WindowsHostConfig
     public string ServerListen => Uri.TryCreate(ProxyEndpoint, UriKind.Absolute, out var endpoint)
         ? endpoint.Authority
         : DefaultAuthority;
+
+    public string? WindowsUpdateRepositoryUrl => ReadValue(
+        "QUOTIO_WINDOWS_UPDATE_REPOSITORY_URL",
+        "Quotio/WindowsUpdateRepositoryUrl"
+    ) ?? DefaultWindowsUpdateRepositoryUrl;
+
+    public string WindowsUpdateChannel => NormalizeUpdateChannel(ReadValue(
+        "QUOTIO_WINDOWS_UPDATE_CHANNEL",
+        "Quotio/WindowsUpdateChannel"
+    ));
+
+    private static string NormalizeUpdateChannel(string? channel)
+    {
+        return channel?.Trim().ToLowerInvariant() == "beta" ? "beta" : "stable";
+    }
 
     private string? ReadValue(string environmentVariable, string credentialTargetName)
     {

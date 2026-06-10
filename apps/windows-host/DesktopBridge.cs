@@ -17,6 +17,7 @@ public sealed class DesktopBridge
     private readonly WindowsHostConfig config;
     private readonly WindowsAgentAdapter agents;
     private readonly WindowsNativePreferencesStore preferencesStore;
+    private readonly WindowsUpdateService updates;
     private readonly Func<string, string, string, bool> notify;
     private readonly HttpClient httpClient = new();
 
@@ -26,6 +27,7 @@ public sealed class DesktopBridge
         WindowsHostConfig config,
         WindowsAgentAdapter agents,
         WindowsNativePreferencesStore preferencesStore,
+        WindowsUpdateService updates,
         Func<string, string, string, bool> notify
     )
     {
@@ -34,6 +36,7 @@ public sealed class DesktopBridge
         this.config = config;
         this.agents = agents;
         this.preferencesStore = preferencesStore;
+        this.updates = updates;
         this.notify = notify;
     }
 
@@ -228,7 +231,7 @@ public sealed class DesktopBridge
                 "native.credentialDelete" => HandleNativeCredentialDelete(root),
                 "native.preferencesRead" => HandleNativePreferencesRead(),
                 "native.preferencesWrite" => HandleNativePreferencesWrite(root),
-                "native.updatesCheck" => HandleNativePreferencesRead(),
+                "native.updatesCheck" => await HandleNativeUpdatesCheckAsync(),
                 _ => throw new InvalidOperationException("Unsupported bridge request")
             };
 
@@ -409,10 +412,17 @@ public sealed class DesktopBridge
         return BuildNativePreferencesPayload();
     }
 
+    private async Task<object> HandleNativeUpdatesCheckAsync()
+    {
+        await updates.CheckForUpdatesAsync();
+        return BuildNativePreferencesPayload();
+    }
+
     private object BuildNativePreferencesPayload()
     {
         var preferences = preferencesStore.Load();
         var status = runtime.Status();
+        var updateSnapshot = updates.Snapshot();
         var proxyEndpoint = config.ProxyEndpoint;
         var proxyPort = Uri.TryCreate(proxyEndpoint, UriKind.Absolute, out var proxyUri)
             ? proxyUri.Port
@@ -458,13 +468,13 @@ public sealed class DesktopBridge
             ["hideSensitiveInfo"] = preferences.HideSensitiveInfo,
             ["totalUsageMode"] = preferences.TotalUsageMode,
             ["modelAggregationMode"] = preferences.ModelAggregationMode,
-            ["updatesSupported"] = false,
-            ["autoCheckUpdates"] = false,
-            ["updateChannel"] = "stable",
-            ["updateChannelLocked"] = true,
-            ["canCheckForUpdates"] = false,
-            ["isCheckingForUpdates"] = false,
-            ["lastUpdateCheckAt"] = null
+            ["updatesSupported"] = updateSnapshot.UpdatesSupported,
+            ["autoCheckUpdates"] = updateSnapshot.AutoCheckUpdates,
+            ["updateChannel"] = updateSnapshot.UpdateChannel,
+            ["updateChannelLocked"] = updateSnapshot.UpdateChannelLocked,
+            ["canCheckForUpdates"] = updateSnapshot.CanCheckForUpdates,
+            ["isCheckingForUpdates"] = updateSnapshot.IsCheckingForUpdates,
+            ["lastUpdateCheckAt"] = updateSnapshot.LastUpdateCheckAt
         };
     }
 

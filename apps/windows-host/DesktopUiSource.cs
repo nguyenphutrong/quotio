@@ -62,7 +62,7 @@ public static class DesktopUiSource
                 ["supportsModelSettings"] = false,
                 ["supportsApiKeyManagement"] = false,
                 ["supportsVirtualModelManagement"] = false,
-                ["supportsUpdates"] = false
+                ["supportsUpdates"] = true
             }
         );
     }

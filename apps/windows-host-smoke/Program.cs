@@ -33,6 +33,8 @@ var savedEnvironment = new Dictionary<string, string?>
     ["QUOTIO_WINDOWS_LOG_DIR"] = Environment.GetEnvironmentVariable("QUOTIO_WINDOWS_LOG_DIR"),
     ["QUOTIO_WINDOWS_CRASH_REPORT_DIR"] = Environment.GetEnvironmentVariable("QUOTIO_WINDOWS_CRASH_REPORT_DIR"),
     ["QUOTIO_WINDOWS_CRASH_UPLOAD_URL"] = Environment.GetEnvironmentVariable("QUOTIO_WINDOWS_CRASH_UPLOAD_URL"),
+    ["QUOTIO_WINDOWS_UPDATE_REPOSITORY_URL"] = Environment.GetEnvironmentVariable("QUOTIO_WINDOWS_UPDATE_REPOSITORY_URL"),
+    ["QUOTIO_WINDOWS_UPDATE_CHANNEL"] = Environment.GetEnvironmentVariable("QUOTIO_WINDOWS_UPDATE_CHANNEL"),
     ["USERPROFILE"] = Environment.GetEnvironmentVariable("USERPROFILE"),
     ["LOCALAPPDATA"] = Environment.GetEnvironmentVariable("LOCALAPPDATA")
 };
@@ -70,6 +72,8 @@ static void RunConfigSmoke()
         "Quotio/ManagementBaseUrl" => " http://credential-management.example ",
         "Quotio/ManagementKey" => " credential-management-key ",
         "Quotio/ProxyEndpoint" => " http://127.0.0.1:9393 ",
+        "Quotio/WindowsUpdateRepositoryUrl" => " https://github.com/example/quotio ",
+        "Quotio/WindowsUpdateChannel" => " beta ",
         _ => null
     });
 
@@ -78,11 +82,15 @@ static void RunConfigSmoke()
     Assert(fallbackConfig.ManagementKey == "credential-management-key", "Credential fallback should trim management key");
     Assert(fallbackConfig.ProxyEndpoint == "http://127.0.0.1:9393", "Credential fallback should provide proxy endpoint");
     Assert(fallbackConfig.ServerListen == "127.0.0.1:9393", "ServerListen should derive from proxy endpoint authority");
+    Assert(fallbackConfig.WindowsUpdateRepositoryUrl == "https://github.com/example/quotio", "Credential fallback should trim update repository URL");
+    Assert(fallbackConfig.WindowsUpdateChannel == "beta", "Credential fallback should normalize update channel");
 
     Environment.SetEnvironmentVariable("QUOTIO_DESKTOP_UI_DEV_SERVER", " http://localhost:5173 ");
     Environment.SetEnvironmentVariable("QUOTIO_MANAGEMENT_BASE_URL", " http://localhost:8386 ");
     Environment.SetEnvironmentVariable("QUOTIO_MANAGEMENT_KEY", " env-management-key ");
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", " http://127.0.0.1:8484 ");
+    Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_UPDATE_REPOSITORY_URL", " https://github.com/env/quotio ");
+    Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_UPDATE_CHANNEL", " stable ");
 
     var envConfig = new WindowsHostConfig(_ => "credential-value");
     Assert(envConfig.DesktopUiDevServer == "http://localhost:5173", "Environment dev server should win over credentials");
@@ -90,6 +98,8 @@ static void RunConfigSmoke()
     Assert(envConfig.ManagementKey == "env-management-key", "Environment management key should win over credentials");
     Assert(envConfig.ProxyEndpoint == "http://127.0.0.1:8484", "Environment proxy endpoint should win over credentials");
     Assert(envConfig.ServerListen == "127.0.0.1:8484", "ServerListen should use environment proxy endpoint");
+    Assert(envConfig.WindowsUpdateRepositoryUrl == "https://github.com/env/quotio", "Environment update repository should win over credentials");
+    Assert(envConfig.WindowsUpdateChannel == "stable", "Environment update channel should win over credentials");
 }
 
 static void RunCredentialStoreSmoke()
@@ -177,7 +187,7 @@ static void RunBootstrapSmoke()
         ["supportsModelSettings"] = false,
         ["supportsApiKeyManagement"] = false,
         ["supportsVirtualModelManagement"] = false,
-        ["supportsUpdates"] = false
+        ["supportsUpdates"] = true
     }, "Windows bootstrap capabilities");
 }
 
@@ -198,6 +208,8 @@ static void RunNativePreferencesSmoke()
           "hideSensitiveInfo": true,
           "totalUsageMode": "combined",
           "modelAggregationMode": "average",
+          "autoCheckUpdates": false,
+          "updateChannel": "beta",
           "proxyPort": 9494
         }
         """
@@ -210,9 +222,18 @@ static void RunNativePreferencesSmoke()
     Assert(state.HideSensitiveInfo, "Windows preferences should persist privacy settings");
     Assert(state.TotalUsageMode == "combined", "Windows preferences should persist usage mode");
     Assert(state.ModelAggregationMode == "average", "Windows preferences should persist model aggregation mode");
+    Assert(!state.AutoCheckUpdates, "Windows preferences should persist update check settings");
+    Assert(state.UpdateChannel == "beta", "Windows preferences should persist update channel");
 
     var reloaded = store.Load();
     Assert(reloaded.Language == "vi", "Windows preferences should reload from disk");
+    Assert(reloaded.UpdateChannel == "beta", "Windows preferences should reload update channel from disk");
+
+    var updates = new WindowsUpdateService(config, store);
+    var updateSnapshot = updates.Snapshot();
+    Assert(updateSnapshot.UpdatesSupported, "Windows updater should be configured by default");
+    Assert(updateSnapshot.UpdateChannel == "beta", "Windows updater should use persisted channel");
+    Assert(!updateSnapshot.CanCheckForUpdates, "Windows updater should not check outside a Velopack-installed build");
 
     if (OperatingSystem.IsWindows())
     {
@@ -699,6 +720,8 @@ static void ClearEnvironment()
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", null);
     Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_CRASH_REPORT_DIR", null);
     Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_CRASH_UPLOAD_URL", null);
+    Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_UPDATE_REPOSITORY_URL", null);
+    Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_UPDATE_CHANNEL", null);
 }
 
 static void Assert(bool condition, string message)

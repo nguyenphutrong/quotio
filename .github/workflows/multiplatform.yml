@@ -49,7 +49,7 @@ jobs:
       - run: cargo test
 
   windows:
-    name: Windows preview artifact (no installer/signing)
+    name: Windows artifact and installer package
     runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v5
@@ -67,6 +67,9 @@ jobs:
       - name: Package Windows preview artifact
         shell: pwsh
         run: ./scripts/package-windows-preview.ps1 -CommitSha "${{ github.sha }}"
+      - name: Package Windows installer artifact
+        shell: pwsh
+        run: ./scripts/package-windows-installer.ps1 -Version "0.1.${{ github.run_number }}" -Channel stable -CommitSha "${{ github.sha }}"
       - uses: actions/upload-artifact@v6
         with:
           name: quotio-windows-preview
@@ -74,4 +77,10 @@ jobs:
             artifacts/quotio-windows-preview.zip
             artifacts/quotio-windows-preview.zip.sha256
             artifacts/quotio-windows-preview.zip.manifest.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v6
+        with:
+          name: quotio-windows-installer
+          path: |
+            artifacts/windows-installer/**
           if-no-files-found: error
