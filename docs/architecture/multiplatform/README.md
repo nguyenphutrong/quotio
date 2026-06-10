@@ -18,8 +18,8 @@ copy files from the pinned commit, not from the live working tree.
 ## Shared UI Development
 
 The shared React desktop UI lives in `apps/desktop-ui` and is embedded by the
-macOS `SharedDesktopUIScreen` or the Windows preview WebView2 host. On macOS,
-the shared UI is now the default app surface; the legacy SwiftUI screens remain
+macOS `SharedDesktopUIScreen` or the Windows WebView2 host. On macOS, the
+shared UI is now the default app surface; the legacy SwiftUI screens remain
 available only as an explicit fallback.
 
 For macOS development:
@@ -59,9 +59,9 @@ defaults delete dev.quotio.desktop sharedDesktopUIEnabled
 defaults delete dev.quotio.desktop.beta sharedDesktopUIEnabled
 ```
 
-For Windows preview development, build `apps/desktop-ui` before the host build,
-or set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL. The Windows host
-currently advertises only preview-safe capabilities. Credential Manager-backed
+For Windows host development, build `apps/desktop-ui` before the host build, or
+set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL. The Windows host
+advertises the capabilities backed by native adapters. Credential Manager-backed
 bootstrap config, shared remote management credential editing, local redacted
 crash-report capture with optional upload, Claude Code settings.json, and
 Codex/Amp/Gemini/OpenCode/Factory Droid install/rollback are available. Native

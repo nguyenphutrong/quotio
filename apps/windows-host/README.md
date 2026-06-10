@@ -3,8 +3,8 @@
 Native Windows shell for the shared desktop UI. This host owns the WinUI 3,
 WebView2, tray, single-instance, and Rust bridge implementation.
 
-The Windows host has an unsigned ZIP path and a Velopack installer package path.
-It is expected to build and exercise the shared UI bridge, Credential
+The Windows host has an unsigned ZIP smoke path and a Velopack installer package
+path. It is expected to build and exercise the shared UI bridge, Credential
 Manager-backed bootstrap config, shared remote credential editing, local
 crash-report capture, optional crash upload, native agent write/rollback
 adapters, and installer/update metadata, but it is not production parity with
