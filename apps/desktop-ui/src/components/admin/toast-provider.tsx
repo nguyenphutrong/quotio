@@ -8,7 +8,10 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { useAdminRuntime } from '@/lib/admin/runtime';
+import {
+  useAdminRuntime,
+  useIsNativeDesktopRuntime,
+} from '@/lib/admin/runtime';
 
 type ToastTone = 'success' | 'error';
 
@@ -73,6 +76,7 @@ function ToastViewport({
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const { notify } = useAdminRuntime();
+  const isNativeDesktop = useIsNativeDesktopRuntime();
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
 
   const dismiss = useCallback((id: string) => {
@@ -92,14 +96,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           return;
         }
       } catch {
-        // Fall back to the in-window toast for browser previews or denied OS notifications.
+        // Browser previews have no native notification bridge.
+      }
+
+      if (isNativeDesktop) {
+        return;
       }
 
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       setToasts((current) => [...current, { id, title, tone }]);
       window.setTimeout(() => dismiss(id), 2400);
     },
-    [dismiss, notify],
+    [dismiss, isNativeDesktop, notify],
   );
 
   const value = useMemo<ToastContextValue>(
@@ -113,7 +121,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <ToastViewport toasts={toasts} dismiss={dismiss} />
+      {isNativeDesktop ? null : (
+        <ToastViewport toasts={toasts} dismiss={dismiss} />
+      )}
     </ToastContext.Provider>
   );
 }
