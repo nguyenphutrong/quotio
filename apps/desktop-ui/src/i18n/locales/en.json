@@ -883,16 +883,16 @@
     }
   },
   "about": {
-    "description": "Version details, support links, and troubleshooting information.",
+    "description": "Version details, support links, and app compatibility.",
     "sections": {
       "host": "App details",
       "routes": "Available screens",
       "routesDesc": "Screens enabled for this app session.",
-      "capabilities": "Troubleshooting capabilities",
-      "capabilitiesDesc": "Platform features reported by this desktop build.",
+      "capabilities": "Supported actions",
+      "capabilitiesDesc": "Actions available in this app session.",
       "resources": "Resources",
       "resourcesDesc": "Project links and support resources.",
-      "troubleshooting": "Troubleshooting details"
+      "troubleshooting": "App compatibility"
     },
     "fields": {
       "platform": "Platform",

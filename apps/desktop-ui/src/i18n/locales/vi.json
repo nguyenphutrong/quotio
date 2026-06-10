@@ -878,19 +878,19 @@
     }
   },
   "about": {
-    "description": "Thông tin phiên bản, liên kết hỗ trợ và dữ liệu xử lý sự cố.",
+    "description": "Thông tin phiên bản, liên kết hỗ trợ và khả năng tương thích của app.",
     "sections": {
       "host": "Thông tin ứng dụng",
       "routes": "Màn hình khả dụng",
       "routesDesc": "Các màn hình đang bật cho phiên làm việc này.",
-      "capabilities": "Khả năng xử lý sự cố",
-      "capabilitiesDesc": "Các tính năng platform được bản desktop này báo cáo.",
+      "capabilities": "Thao tác được hỗ trợ",
+      "capabilitiesDesc": "Các thao tác khả dụng trong phiên app này.",
       "resources": "Tài nguyên",
       "resourcesDesc": "Liên kết dự án và kênh hỗ trợ.",
-      "troubleshooting": "Chi tiết xử lý sự cố"
+      "troubleshooting": "Tương thích ứng dụng"
     },
     "fields": {
-      "platform": "Platform",
+      "platform": "Nền tảng",
       "operatingMode": "Chế độ hoạt động",
       "bridgeVersion": "Phiên bản tương thích",
       "serverListen": "Gateway local",
@@ -907,8 +907,8 @@
       "unknown": "Không xác định"
     },
     "operatingMode": {
-      "local": "Local",
-      "remote": "Remote",
+      "local": "Cục bộ",
+      "remote": "Từ xa",
       "quota-only": "Chỉ hạn mức"
     },
     "appearance": {
@@ -921,10 +921,10 @@
       "providers": "Nhà cung cấp",
       "quota": "Hạn mức",
       "usage": "Thống kê sử dụng",
-      "virtualModels": "Virtual models",
+      "virtualModels": "Mô hình ảo",
       "models": "Mô hình",
       "agents": "Agents",
-      "apiKeys": "API keys",
+      "apiKeys": "API key",
       "logs": "Nhật ký",
       "settings": "Cài đặt",
       "about": "Giới thiệu"
