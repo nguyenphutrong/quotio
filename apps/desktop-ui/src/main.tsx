@@ -24,7 +24,7 @@ function renderFatalError(message: string) {
   root.render(
     <StrictMode>
       <div className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
-        <div className="max-w-lg rounded-3xl border border-border bg-card/80 p-6 shadow-sm">
+        <div className="max-w-lg rounded-lg border border-border bg-card/80 p-6">
           <p className="text-sm font-medium text-destructive">
             {i18n.t('bootstrap.failedLabel')}
           </p>

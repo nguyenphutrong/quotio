@@ -403,7 +403,7 @@ export function ProviderFormPanel({
                 provider === key ? 'border-primary bg-muted' : ''
               }`}
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-background shadow-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-background">
                 <ProviderIcon provider={key} className="h-6 w-6" />
               </div>
               <div>
@@ -427,7 +427,7 @@ export function ProviderFormPanel({
               provider === 'custom' ? 'border-primary bg-muted' : ''
             }`}
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-background shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-background">
               <ProviderIcon provider="custom" className="h-6 w-6" />
             </div>
             <div>
@@ -471,7 +471,7 @@ export function ProviderFormPanel({
       {mode === 'create' && (
         <div className="flex items-center justify-between border-b pb-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-background shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-background">
               <ProviderIcon provider={provider} className="h-6 w-6" />
             </div>
             <div>

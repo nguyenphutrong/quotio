@@ -42,7 +42,7 @@ export function AccountCard({
   });
 
   return (
-    <div className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+    <div className="rounded-lg border border-border/70 bg-card p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
