@@ -30,10 +30,16 @@ const macosSharedUIScreen = readFileSync(
   ),
   'utf8',
 );
+const macosBundleScript = readFileSync(
+  new URL('../../scripts/download-cpa-plusplus.sh', import.meta.url),
+  'utf8',
+);
 
 const allowedWindowOpenFiles = new Set([
   'apps/desktop-ui/src/lib/admin/runtime.tsx',
 ]);
+const macosDebugBundleGuard =
+  'if [[ "$' + '{CONFIGURATION:-}" == "Debug" ]]; then';
 
 const violations = [];
 
@@ -57,6 +63,19 @@ if (!macosSharedUIScreen.includes('return true')) {
   violations.push(
     'Quotio/Views/Screens/SharedDesktopUIScreen.swift: shared UI must remain the default macOS app surface',
   );
+}
+
+for (const requiredText of [
+  'DESKTOP_UI_SOURCE_DIR="$ROOT_DIR/apps/desktop-ui/dist"',
+  'if [[ -f "$DESKTOP_UI_SOURCE_DIR/index.html" ]]; then',
+  macosDebugBundleGuard,
+  'error: desktop UI bundle not found',
+]) {
+  if (!macosBundleScript.includes(requiredText)) {
+    violations.push(
+      `scripts/download-cpa-plusplus.sh: missing macOS desktop UI bundle guard: ${requiredText}`,
+    );
+  }
 }
 
 if (violations.length > 0) {

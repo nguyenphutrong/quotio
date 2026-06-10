@@ -12,14 +12,19 @@ DESKTOP_UI_OUTPUT_DIR="$RESOURCE_DIR/desktop-ui"
 mkdir -p "$RESOURCE_DIR"
 
 bundle_desktop_ui() {
-  if [[ -d "$DESKTOP_UI_SOURCE_DIR" ]]; then
+  if [[ -f "$DESKTOP_UI_SOURCE_DIR/index.html" ]]; then
     rm -rf "$DESKTOP_UI_OUTPUT_DIR"
     mkdir -p "$DESKTOP_UI_OUTPUT_DIR"
     /usr/bin/ditto "$DESKTOP_UI_SOURCE_DIR" "$DESKTOP_UI_OUTPUT_DIR"
     echo "Bundled desktop UI from $DESKTOP_UI_SOURCE_DIR"
   else
     rm -rf "$DESKTOP_UI_OUTPUT_DIR"
-    echo "warning: desktop UI bundle not found at $DESKTOP_UI_SOURCE_DIR; run bun run build before packaging" >&2
+    if [[ "${CONFIGURATION:-}" == "Debug" ]]; then
+      echo "warning: desktop UI bundle not found at $DESKTOP_UI_SOURCE_DIR; run bun run build or use QUOTIO_DESKTOP_UI_DEV_SERVER" >&2
+      return
+    fi
+    echo "error: desktop UI bundle not found at $DESKTOP_UI_SOURCE_DIR; run bun run build before packaging" >&2
+    exit 1
   fi
 }
 
