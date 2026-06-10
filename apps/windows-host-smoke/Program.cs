@@ -355,6 +355,7 @@ static void RunAgentAdapterSmoke()
     var home = Path.Combine(smokeRoot, "home");
     var localAppData = Path.Combine(smokeRoot, "local-app-data");
     Directory.CreateDirectory(Path.Combine(home, ".codex"));
+    Directory.CreateDirectory(Path.Combine(localAppData, "opencode"));
     Directory.CreateDirectory(localAppData);
     Environment.SetEnvironmentVariable("USERPROFILE", home);
     Environment.SetEnvironmentVariable("LOCALAPPDATA", localAppData);
@@ -363,9 +364,24 @@ static void RunAgentAdapterSmoke()
     const string originalCodexConfig = "model = \"gpt-4.1\"\nmodel_provider = \"openai\"\n\n[model_providers.openai]\nname = \"OpenAI\"\n";
     File.WriteAllText(configPath, originalCodexConfig);
 
+    var openCodeConfigPath = Path.Combine(localAppData, "opencode", "opencode.json");
+    const string originalOpenCodeConfig = """
+    {
+      "$schema": "https://opencode.ai/config.json",
+      "provider": {
+        "anthropic": {
+          "name": "Anthropic"
+        }
+      },
+      "theme": "system"
+    }
+    """;
+    File.WriteAllText(openCodeConfigPath, originalOpenCodeConfig);
+
     var adapter = new WindowsAgentAdapter(
         new WindowsHostConfig(_ => null),
-        new WindowsCodexConfigPatcher(home, Path.Combine(localAppData, "Quotio", "Codex"))
+        new WindowsCodexConfigPatcher(home, Path.Combine(localAppData, "Quotio", "Codex")),
+        new WindowsOpenCodeConfigPatcher(localAppData)
     );
     using var list = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var agents = list.RootElement.GetProperty("agents");
@@ -385,10 +401,13 @@ static void RunAgentAdapterSmoke()
     Assert(amp.GetProperty("target_paths").GetArrayLength() == 2, "Amp descriptor should expose settings and secrets paths");
     Assert(amp.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), "Amp descriptor should expose read-only diff");
 
-    foreach (var readOnlyAgent in new[] { "claude-code", "opencode", "factory-droid" })
+    foreach (var readOnlyAgent in new[] { "claude-code", "factory-droid" })
     {
         AssertReadOnlyAgent(adapter, agents, readOnlyAgent);
     }
+
+    var openCode = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "opencode");
+    Assert(openCode.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "OpenCode descriptor should expose install after Windows backup validation");
 
     using var guide = ToJsonDocument(adapter.Handle("/agents/codex/guide", "GET"));
     Assert(guide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "codex", "Guide endpoint should return the requested agent");
@@ -396,6 +415,9 @@ static void RunAgentAdapterSmoke()
 
     using var ampGuide = ToJsonDocument(adapter.Handle("/agents/amp/guide", "GET"));
     Assert(ampGuide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "amp", "Amp guide endpoint should return Amp");
+
+    using var openCodeGuide = ToJsonDocument(adapter.Handle("/agents/opencode/guide", "GET"));
+    Assert(openCodeGuide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "OpenCode guide endpoint should mirror write capabilities");
 
     using var diff = ToJsonDocument(adapter.Handle("/agents/codex/diff", "POST"));
     var diffFile = diff.RootElement.GetProperty("plan").GetProperty("files")[0];
@@ -416,9 +438,32 @@ static void RunAgentAdapterSmoke()
     Assert(rollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "Codex rollback should restore the latest backup");
     Assert(File.ReadAllText(configPath) == originalCodexConfig, "Codex rollback should restore the pre-install config");
 
+    using var openCodeDiff = ToJsonDocument(adapter.Handle("/agents/opencode/diff", "POST"));
+    var openCodeDiffFile = openCodeDiff.RootElement.GetProperty("plan").GetProperty("files")[0];
+    Assert(openCodeDiffFile.GetProperty("has_changes").GetBoolean(), "OpenCode diff preview should report the pending config change");
+    Assert(!openCodeDiffFile.GetProperty("after").GetString()!.Contains("smoke-management-key", StringComparison.Ordinal), "OpenCode diff preview should redact management keys");
+    Assert(openCodeDiffFile.GetProperty("after").GetString()!.Contains("\"quotio\"", StringComparison.Ordinal), "OpenCode diff preview should include provider.quotio");
+
+    using var openCodeInstall = ToJsonDocument(adapter.Handle("/agents/opencode/install", "POST"));
+    Assert(openCodeInstall.RootElement.GetProperty("summary").GetString()?.Contains("installed", StringComparison.OrdinalIgnoreCase) == true, "OpenCode install should succeed");
+    Assert(openCodeInstall.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "OpenCode install should mark the adapter configured");
+    Assert(openCodeInstall.RootElement.GetProperty("status").GetProperty("rollback_available").GetBoolean(), "OpenCode install should create a rollback backup");
+    var installedOpenCodeConfig = File.ReadAllText(openCodeConfigPath);
+    Assert(installedOpenCodeConfig.Contains("\"quotio\"", StringComparison.Ordinal), "OpenCode install should merge provider.quotio");
+    Assert(installedOpenCodeConfig.Contains("\"anthropic\"", StringComparison.Ordinal), "OpenCode install should preserve existing providers");
+    Assert(installedOpenCodeConfig.Contains("\"theme\": \"system\"", StringComparison.Ordinal), "OpenCode install should preserve top-level settings");
+    Assert(installedOpenCodeConfig.Contains("\"baseURL\": \"http://127.0.0.1:8787/v1\"", StringComparison.Ordinal), "OpenCode install should normalize the proxy endpoint");
+    Assert(installedOpenCodeConfig.Contains("\"apiKey\": \"smoke-management-key\"", StringComparison.Ordinal), "OpenCode install should write the configured key to disk");
+
+    using var openCodeRollback = ToJsonDocument(adapter.Handle("/agents/opencode/rollback", "POST"));
+    Assert(openCodeRollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "OpenCode rollback should restore the latest backup");
+    Assert(JsonEquivalent(File.ReadAllText(openCodeConfigPath), originalOpenCodeConfig), "OpenCode rollback should restore the pre-install config");
+
     using var afterRollbackList = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var afterRollbackCodex = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "codex");
     Assert(afterRollbackCodex.GetProperty("rollback_available").GetBoolean(), "Codex should keep rollback available after creating a pre-restore backup");
+    var afterRollbackOpenCode = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "opencode");
+    Assert(afterRollbackOpenCode.GetProperty("rollback_available").GetBoolean(), "OpenCode should keep rollback available after creating a pre-restore backup");
 
     using var ampInstall = ToJsonDocument(adapter.Handle("/agents/amp/install", "POST"));
     Assert(ampInstall.RootElement.GetProperty("summary").GetString()?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true, "Amp install should stay disabled");
@@ -438,6 +483,13 @@ static void AssertReadOnlyAgent(WindowsAgentAdapter adapter, JsonElement agents,
 static JsonDocument ToJsonDocument(object value)
 {
     return JsonDocument.Parse(JsonSerializer.Serialize(value));
+}
+
+static bool JsonEquivalent(string left, string right)
+{
+    using var leftDocument = JsonDocument.Parse(left);
+    using var rightDocument = JsonDocument.Parse(right);
+    return JsonSerializer.Serialize(leftDocument.RootElement) == JsonSerializer.Serialize(rightDocument.RootElement);
 }
 
 static void ClearEnvironment()

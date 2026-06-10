@@ -12,9 +12,9 @@ through Sparkle, notarization scripts, appcast generation, and GitHub release
 automation. The Windows host is still a preview scaffold: it builds a native
 WinUI/WebView2 shell and bridge with Credential Manager-backed bootstrap
 configuration, shared remote credential editing, local crash-report capture with
-an optional upload endpoint, and a read-only agent adapter, but it does not yet
-have installer, signing, updater, production crash ingestion, or agent
-write/rollback parity.
+an optional upload endpoint, and partial native agent write adapters, but it does
+not yet have installer, signing, updater, production crash ingestion, or full
+agent write/rollback parity.
 
 The cutover must preserve native feel without claiming production parity before
 the Windows host can actually install, update, and preserve data correctly.
@@ -36,7 +36,7 @@ and production write paths are implemented and verified on Windows CI.
 | Runtime process | Existing CLIProxyAPI lifecycle plus shared Rust foundation | Preview host can start, stop, restart, health-gate startup, report crashed child exits, write local diagnostics, and capture/upload redacted crash reports when an upload endpoint is configured; shared Rust foundation is not packaged into a production installer | No-zombie-process and recovery checks pass in CI and manual OS smoke tests before production packaging |
 | Management API | Existing Swift management client plus shared bridge | Bridge can proxy management requests | Endpoint parity approved per screen before enabling routes |
 | Settings | Native Swift settings remain authoritative | Credential Manager-backed bootstrap config plus shared remote management connection form for native `Quotio/ManagementBaseUrl` and `Quotio/ManagementKey` credentials; unsupported settings controls hidden | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
-| Agents | Native macOS SwiftUI write path remains authoritative | Codex adapter supports descriptor, detection, diff preview, install, backup, and rollback; other agents remain read-only | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
+| Agents | Native macOS SwiftUI write path remains authoritative | Codex and OpenCode adapters support descriptor, detection, diff preview, install, backup, and rollback; other agents remain read-only or guide-only | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
 | Updates | Sparkle/appcast release path exists | No updater yet | Windows updater strategy chosen and tested before production release |
 | Packaging | Existing release path plus unsigned preview artifact workflow | Zipped preview artifact from CI and manual prerelease workflow | Installer, signing, uninstall, upgrade, and user-data preservation tested |
 | Rollback | Keep old Swift screens behind `sharedDesktopUIEnabled` and `QUOTIO_DISABLE_SHARED_UI` route flags | Keep shared route flags disabled by default | One release window with runtime flag rollback before removing superseded code |

@@ -4,16 +4,22 @@ public sealed class WindowsAgentAdapter
 {
     private readonly WindowsHostConfig config;
     private readonly WindowsCodexConfigPatcher codexPatcher;
+    private readonly WindowsOpenCodeConfigPatcher openCodePatcher;
 
     public WindowsAgentAdapter()
         : this(new WindowsHostConfig())
     {
     }
 
-    public WindowsAgentAdapter(WindowsHostConfig config, WindowsCodexConfigPatcher? codexPatcher = null)
+    public WindowsAgentAdapter(
+        WindowsHostConfig config,
+        WindowsCodexConfigPatcher? codexPatcher = null,
+        WindowsOpenCodeConfigPatcher? openCodePatcher = null
+    )
     {
         this.config = config;
         this.codexPatcher = codexPatcher ?? new WindowsCodexConfigPatcher();
+        this.openCodePatcher = openCodePatcher ?? new WindowsOpenCodeConfigPatcher();
     }
 
     private static readonly AgentDefinition[] Agents =
@@ -104,9 +110,13 @@ public sealed class WindowsAgentAdapter
             "diff" when normalizedMethod == "POST" => Diff(agent),
             "install" when normalizedMethod == "POST" => agent.Id == "codex"
                 ? InstallCodex(agent)
+                : agent.Id == "opencode"
+                    ? InstallOpenCode(agent)
                 : UnsupportedWrite(agent, "install"),
             "rollback" when normalizedMethod == "POST" => agent.Id == "codex"
                 ? RollbackCodex(agent)
+                : agent.Id == "opencode"
+                    ? RollbackOpenCode(agent)
                 : UnsupportedWrite(agent, "rollback"),
             _ => throw new InvalidOperationException("Unsupported Windows agents endpoint")
         };
@@ -175,6 +185,21 @@ public sealed class WindowsAgentAdapter
                 }
             ];
         }
+        else if (agent.Id == "opencode")
+        {
+            var plan = openCodePatcher.BuildPlan(config.ProxyEndpoint, RequiredManagementKey());
+            files =
+            [
+                new Dictionary<string, object?>
+                {
+                    ["target_path"] = plan.TargetPath,
+                    ["existed"] = plan.Existed,
+                    ["has_changes"] = plan.HasChanges,
+                    ["before"] = plan.Before,
+                    ["after"] = plan.After
+                }
+            ];
+        }
 
         return new Dictionary<string, object?>
         {
@@ -188,7 +213,9 @@ public sealed class WindowsAgentAdapter
             },
             ["summary"] = agent.Id == "codex"
                 ? "Windows Codex install is available with backup-before-write."
-                : "Windows automatic agent configuration is not available for this agent in this preview build."
+                : agent.Id == "opencode"
+                    ? "Windows OpenCode install is available with backup-before-write."
+                    : "Windows automatic agent configuration is not available for this agent in this preview build."
         };
     }
 
@@ -267,6 +294,60 @@ public sealed class WindowsAgentAdapter
         };
     }
 
+    private Dictionary<string, object?> InstallOpenCode(AgentDefinition agent)
+    {
+        var result = openCodePatcher.Install(config.ProxyEndpoint, RequiredManagementKey());
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["plan"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["target_paths"] = agent.TargetPaths,
+                ["files"] = new object[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["target_path"] = result.Plan.TargetPath,
+                        ["existed"] = result.Plan.Existed,
+                        ["has_changes"] = result.Plan.HasChanges,
+                        ["before"] = result.Plan.Before,
+                        ["after"] = result.Plan.After
+                    }
+                }
+            },
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["backup_path"] = result.BackupPath,
+                ["config_path"] = openCodePatcher.ConfigPath
+            },
+            ["summary"] = "Windows OpenCode configuration installed with backup-before-write."
+        };
+    }
+
+    private Dictionary<string, object?> RollbackOpenCode(AgentDefinition agent)
+    {
+        var result = openCodePatcher.Rollback();
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["restored_backup_path"] = result.RestoredBackupPath,
+                ["pre_restore_backup_path"] = result.PreRestoreBackupPath,
+                ["config_path"] = openCodePatcher.ConfigPath
+            },
+            ["summary"] = result.RestoredBackupPath is null
+                ? "No Windows OpenCode backup is available to restore."
+                : "Windows OpenCode configuration restored from backup."
+        };
+    }
+
     private Dictionary<string, object?> Status(AgentDefinition agent)
     {
         var binaryPath = FindBinary(agent);
@@ -278,7 +359,9 @@ public sealed class WindowsAgentAdapter
             ["installed"] = binaryPath is not null,
             ["configured"] = agent.Id == "codex"
                 ? codexPatcher.IsConfigured()
-                : agent.TargetPaths.Any(path => File.Exists(ExpandPath(path))),
+                : agent.Id == "opencode"
+                    ? openCodePatcher.IsConfigured()
+                    : agent.TargetPaths.Any(path => File.Exists(ExpandPath(path))),
             ["platform_support"] = agent.PlatformSupport,
             ["rollback_available"] = RollbackAvailable(agent),
             ["binary_path"] = binaryPath,
@@ -308,6 +391,11 @@ public sealed class WindowsAgentAdapter
 
     private static string[] Caveats(AgentDefinition agent)
     {
+        if (agent.Id == "codex" || agent.Id == "opencode")
+        {
+            return ["Automatic writes create timestamped backups before install and rollback."];
+        }
+
         return agent.PlatformSupport == "guide-only"
             ? ["PowerShell profile writes are not implemented yet."]
             : ["Automatic writes are disabled until backup and rollback behavior is validated on Windows."];
@@ -322,7 +410,11 @@ public sealed class WindowsAgentAdapter
 
         if (agent.Id != "codex")
         {
-            return ["guide", "diff"];
+            return agent.Id == "opencode"
+                ? RollbackAvailable(agent)
+                    ? ["guide", "diff", "install", "rollback"]
+                    : ["guide", "diff", "install"]
+                : ["guide", "diff"];
         }
 
         return RollbackAvailable(agent)
@@ -332,14 +424,24 @@ public sealed class WindowsAgentAdapter
 
     private bool RollbackAvailable(AgentDefinition agent)
     {
-        return agent.Id == "codex" && codexPatcher.LatestBackupPath() is not null;
+        if (agent.Id == "codex")
+        {
+            return codexPatcher.LatestBackupPath() is not null;
+        }
+
+        if (agent.Id == "opencode")
+        {
+            return openCodePatcher.LatestBackupPath() is not null;
+        }
+
+        return false;
     }
 
     private string RequiredManagementKey()
     {
         return !string.IsNullOrWhiteSpace(config.ManagementKey)
             ? config.ManagementKey
-            : throw new InvalidOperationException("Windows Codex install requires a configured management key.");
+            : throw new InvalidOperationException("Windows agent install requires a configured management key.");
     }
 
     private static string? FindBinary(AgentDefinition agent)
