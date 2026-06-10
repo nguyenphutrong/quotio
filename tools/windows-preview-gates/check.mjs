@@ -125,7 +125,7 @@ assertAllContain('Windows desktop bootstrap source', source, [
 ]);
 assertAllContain('Windows WebView2 host chrome', mainWindowSource, [
   'SystemBackdrop = new MicaBackdrop();',
-  'core.Settings.AreDefaultContextMenusEnabled = false;',
+  'core.Settings.AreDefaultContextMenusEnabled = true;',
   'core.Settings.AreDevToolsEnabled = IsDebugHost();',
   'core.WebMessageReceived += bridge.OnWebMessageReceived;',
   'await core.AddScriptToExecuteOnDocumentCreatedAsync(',

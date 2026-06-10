@@ -130,7 +130,7 @@ struct WebViewHost: NSViewRepresentable {
             )
         )
 
-        let webView = NativeDesktopWebView(frame: .zero, configuration: configuration)
+        let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
@@ -168,12 +168,6 @@ struct SharedDesktopUIUnavailableView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
-    }
-}
-
-final class NativeDesktopWebView: WKWebView {
-    override func menu(for event: NSEvent) -> NSMenu? {
-        nil
     }
 }
 

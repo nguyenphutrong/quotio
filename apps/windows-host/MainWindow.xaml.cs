@@ -92,7 +92,7 @@ public sealed partial class MainWindow : Window
             await DesktopWebView.EnsureCoreWebView2Async();
 
             var core = DesktopWebView.CoreWebView2;
-            core.Settings.AreDefaultContextMenusEnabled = false;
+            core.Settings.AreDefaultContextMenusEnabled = true;
             core.Settings.AreDevToolsEnabled = IsDebugHost();
             core.WebMessageReceived += bridge.OnWebMessageReceived;
 

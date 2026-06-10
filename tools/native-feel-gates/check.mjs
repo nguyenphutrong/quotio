@@ -76,6 +76,16 @@ if (!macosSharedUIScreen.includes('return true')) {
   );
 }
 
+if (
+  /override\s+func\s+menu\s*\(\s*for\s+event:\s*NSEvent\s*\)\s*->\s*NSMenu\?\s*\{\s*nil\s*\}/.test(
+    macosSharedUIScreen,
+  )
+) {
+  violations.push(
+    'Quotio/Views/Screens/SharedDesktopUIScreen.swift: shared UI must preserve native edit context menus',
+  );
+}
+
 for (const requiredText of [
   'authStatus: bootstrap.authStatus',
   "isAuthenticated: bootstrap.authStatus === 'authenticated'",
