@@ -71,6 +71,10 @@
     "agents": "Agents",
     "agentsDesc": "管理常见 AI Agent 的配置与接入指南。"
   },
+  "commandPalette": {
+    "placeholder": "搜索页面和操作",
+    "empty": "没有匹配的操作"
+  },
   "overview": {
     "title": "概览",
     "description": "网关健康状况、流量和成本的实时快照。",

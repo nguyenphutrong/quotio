@@ -71,6 +71,10 @@
     "agents": "Agents",
     "agentsDesc": "Quản lý hướng dẫn và cấu hình các AI Agent phổ biến."
   },
+  "commandPalette": {
+    "placeholder": "Tìm màn hình và thao tác",
+    "empty": "Không có thao tác phù hợp"
+  },
   "overview": {
     "title": "Tổng quan",
     "description": "Ảnh chụp nhanh tình trạng, lưu lượng và chi phí gateway.",

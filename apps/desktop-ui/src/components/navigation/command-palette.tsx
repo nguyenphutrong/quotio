@@ -39,9 +39,9 @@ export function CommandPalette() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder={t('common.loading')} />
+      <CommandInput placeholder={t('commandPalette.placeholder')} />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>{t('commandPalette.empty')}</CommandEmpty>
         <CommandGroup heading={t('nav.console')}>
           {navItems.map((item) => (
             <CommandItem
