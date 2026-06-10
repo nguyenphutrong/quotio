@@ -45,7 +45,7 @@
     "github": "GitHub",
     "support": "支持",
     "overview": "概览",
-    "overviewDesc": "系统健康状况、使用量和实时诊断。",
+    "overviewDesc": "网关健康状况、使用量和成本概览。",
     "credentials": "凭证",
     "credentialsDesc": "管理 API 密钥和服务商连接。",
     "models": "模型",
@@ -99,7 +99,7 @@
     "snapshot": "实时",
     "provider": "服务商",
     "credentialEntries": "凭证",
-    "operationalCounters": "系统计数器",
+    "operationalCounters": "服务计数器",
     "affinityBindings": "亲和绑定",
     "concurrencyRecords": "并发",
     "virtualRoutes": "虚拟路由",
@@ -129,8 +129,8 @@
         "restarting": "正在重启…"
       }
     },
-    "runtimeCapabilities": "运行时特性",
-    "flagCount": "{{count}} 个标志"
+    "runtimeCapabilities": "应用能力",
+    "flagCount": "{{count}} 项"
   },
   "logs": {
     "title": "日志",

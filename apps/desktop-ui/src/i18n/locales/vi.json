@@ -45,7 +45,7 @@
     "github": "GitHub",
     "support": "Hỗ trợ",
     "overview": "Tổng quan",
-    "overviewDesc": "Tình trạng hệ thống, lượng sử dụng và chẩn đoán.",
+    "overviewDesc": "Tình trạng gateway, mức sử dụng và chi phí.",
     "credentials": "Thông tin xác thực",
     "credentialsDesc": "Quản lý API key và kết nối nhà cung cấp.",
     "models": "Mô hình",
@@ -99,7 +99,7 @@
     "snapshot": "Trực tiếp",
     "provider": "Nhà cung cấp",
     "credentialEntries": "Xác thực",
-    "operationalCounters": "Bộ đếm hệ thống",
+    "operationalCounters": "Chỉ số dịch vụ",
     "affinityBindings": "Liên kết ưu tiên",
     "concurrencyRecords": "Đồng thời",
     "virtualRoutes": "Định tuyến ảo",
@@ -129,8 +129,8 @@
         "restarting": "Đang khởi động lại…"
       }
     },
-    "runtimeCapabilities": "Tính năng runtime",
-    "flagCount": "{{count}} cờ"
+    "runtimeCapabilities": "Khả năng của app",
+    "flagCount": "{{count}} mục"
   },
   "logs": {
     "title": "Nhật ký",

@@ -45,7 +45,7 @@
     "github": "GitHub",
     "support": "Support",
     "overview": "Overview",
-    "overviewDesc": "System health, usage, and real-time diagnostics.",
+    "overviewDesc": "Gateway health, usage, and costs at a glance.",
     "credentials": "Credentials",
     "credentialsDesc": "Manage API keys and provider connections.",
     "models": "Models",
@@ -101,7 +101,7 @@
     "snapshot": "Live",
     "provider": "Provider",
     "credentialEntries": "Credentials",
-    "operationalCounters": "System counters",
+    "operationalCounters": "Service counters",
     "affinityBindings": "Affinity bindings",
     "concurrencyRecords": "Concurrency",
     "virtualRoutes": "Virtual routes",
@@ -132,9 +132,9 @@
         "restarting": "Restarting…"
       }
     },
-    "runtimeCapabilities": "Runtime features",
-    "flagCount": "{{count}} flag",
-    "flagCount_other": "{{count}} flags"
+    "runtimeCapabilities": "App capabilities",
+    "flagCount": "{{count}} item",
+    "flagCount_other": "{{count}} items"
   },
   "logs": {
     "title": "Logs",
