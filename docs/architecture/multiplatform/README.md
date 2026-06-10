@@ -59,10 +59,10 @@ For Windows preview development, build `apps/desktop-ui` before the host build,
 or set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL. The Windows host
 currently advertises only preview-safe capabilities. Credential Manager-backed
 bootstrap config, shared remote management credential editing, local redacted
-crash-report capture with optional upload, and Codex/OpenCode/Factory Droid
-install/rollback are available. Native onboarding and automatic configuration
-for remaining agents stay disabled until their adapters are implemented and
-verified on Windows CI.
+crash-report capture with optional upload, and Claude Code settings.json plus
+Codex/OpenCode/Factory Droid install/rollback are available. Native onboarding
+and automatic configuration for remaining agent paths stay disabled until their
+adapters are implemented and verified on Windows CI.
 
 Current shared route scope:
 

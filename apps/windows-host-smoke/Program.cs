@@ -354,6 +354,7 @@ static void RunAgentAdapterSmoke()
     var smokeRoot = Path.Combine(Path.GetTempPath(), $"quotio-windows-agents-{Guid.NewGuid():N}");
     var home = Path.Combine(smokeRoot, "home");
     var localAppData = Path.Combine(smokeRoot, "local-app-data");
+    Directory.CreateDirectory(Path.Combine(home, ".claude"));
     Directory.CreateDirectory(Path.Combine(home, ".codex"));
     Directory.CreateDirectory(Path.Combine(home, ".factory"));
     Directory.CreateDirectory(Path.Combine(localAppData, "opencode"));
@@ -395,11 +396,28 @@ static void RunAgentAdapterSmoke()
     """;
     File.WriteAllText(factoryConfigPath, originalFactoryConfig);
 
+    var claudeConfigPath = Path.Combine(home, ".claude", "settings.json");
+    const string originalClaudeConfig = """
+    {
+      "env": {
+        "MCP_API_KEY": "preserve-me"
+      },
+      "permissions": {
+        "allow": [
+          "Bash(git status:*)"
+        ]
+      },
+      "model": "claude-sonnet-4-5"
+    }
+    """;
+    File.WriteAllText(claudeConfigPath, originalClaudeConfig);
+
     var adapter = new WindowsAgentAdapter(
         new WindowsHostConfig(_ => null),
         new WindowsCodexConfigPatcher(home, Path.Combine(localAppData, "Quotio", "Codex")),
         new WindowsOpenCodeConfigPatcher(localAppData),
-        new WindowsFactoryDroidConfigPatcher(home)
+        new WindowsFactoryDroidConfigPatcher(home),
+        new WindowsClaudeCodeConfigPatcher(home)
     );
     using var list = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var agents = list.RootElement.GetProperty("agents");
@@ -419,16 +437,14 @@ static void RunAgentAdapterSmoke()
     Assert(amp.GetProperty("target_paths").GetArrayLength() == 2, "Amp descriptor should expose settings and secrets paths");
     Assert(amp.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), "Amp descriptor should expose read-only diff");
 
-    foreach (var readOnlyAgent in new[] { "claude-code" })
-    {
-        AssertReadOnlyAgent(adapter, agents, readOnlyAgent);
-    }
-
     var openCode = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "opencode");
     Assert(openCode.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "OpenCode descriptor should expose install after Windows backup validation");
 
     var factoryDroid = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "factory-droid");
     Assert(factoryDroid.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Factory Droid descriptor should expose install after Windows backup validation");
+
+    var claudeCode = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "claude-code");
+    Assert(claudeCode.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Claude Code descriptor should expose install after Windows backup validation");
 
     using var guide = ToJsonDocument(adapter.Handle("/agents/codex/guide", "GET"));
     Assert(guide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "codex", "Guide endpoint should return the requested agent");
@@ -442,6 +458,9 @@ static void RunAgentAdapterSmoke()
 
     using var factoryDroidGuide = ToJsonDocument(adapter.Handle("/agents/factory-droid/guide", "GET"));
     Assert(factoryDroidGuide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Factory Droid guide endpoint should mirror write capabilities");
+
+    using var claudeCodeGuide = ToJsonDocument(adapter.Handle("/agents/claude-code/guide", "GET"));
+    Assert(claudeCodeGuide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Claude Code guide endpoint should mirror write capabilities");
 
     using var diff = ToJsonDocument(adapter.Handle("/agents/codex/diff", "POST"));
     var diffFile = diff.RootElement.GetProperty("plan").GetProperty("files")[0];
@@ -503,6 +522,27 @@ static void RunAgentAdapterSmoke()
     Assert(factoryDroidRollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "Factory Droid rollback should restore the latest backup");
     Assert(JsonEquivalent(File.ReadAllText(factoryConfigPath), originalFactoryConfig), "Factory Droid rollback should restore the pre-install config");
 
+    using var claudeCodeDiff = ToJsonDocument(adapter.Handle("/agents/claude-code/diff", "POST"));
+    var claudeCodeDiffFile = claudeCodeDiff.RootElement.GetProperty("plan").GetProperty("files")[0];
+    Assert(!claudeCodeDiff.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "Claude Code should not treat unrelated settings as Quotio configuration");
+    Assert(claudeCodeDiffFile.GetProperty("has_changes").GetBoolean(), "Claude Code diff preview should report the pending config change");
+    Assert(!claudeCodeDiffFile.GetProperty("after").GetString()!.Contains("smoke-management-key", StringComparison.Ordinal), "Claude Code diff preview should redact management keys");
+    Assert(claudeCodeDiffFile.GetProperty("after").GetString()!.Contains("ANTHROPIC_BASE_URL", StringComparison.Ordinal), "Claude Code diff preview should include Anthropic env settings");
+
+    using var claudeCodeInstall = ToJsonDocument(adapter.Handle("/agents/claude-code/install", "POST"));
+    Assert(claudeCodeInstall.RootElement.GetProperty("summary").GetString()?.Contains("installed", StringComparison.OrdinalIgnoreCase) == true, "Claude Code install should succeed");
+    Assert(claudeCodeInstall.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "Claude Code install should mark the adapter configured");
+    Assert(claudeCodeInstall.RootElement.GetProperty("status").GetProperty("rollback_available").GetBoolean(), "Claude Code install should create a rollback backup");
+    var installedClaudeConfig = File.ReadAllText(claudeConfigPath);
+    Assert(installedClaudeConfig.Contains("\"MCP_API_KEY\": \"preserve-me\"", StringComparison.Ordinal), "Claude Code install should preserve existing env keys");
+    Assert(installedClaudeConfig.Contains("\"permissions\"", StringComparison.Ordinal), "Claude Code install should preserve top-level user settings");
+    Assert(installedClaudeConfig.Contains("\"ANTHROPIC_BASE_URL\": \"http://127.0.0.1:8787\"", StringComparison.Ordinal), "Claude Code install should strip /v1 from the proxy endpoint");
+    Assert(installedClaudeConfig.Contains("\"ANTHROPIC_AUTH_TOKEN\": \"smoke-management-key\"", StringComparison.Ordinal), "Claude Code install should write the configured key to disk");
+
+    using var claudeCodeRollback = ToJsonDocument(adapter.Handle("/agents/claude-code/rollback", "POST"));
+    Assert(claudeCodeRollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "Claude Code rollback should restore the latest backup");
+    Assert(JsonEquivalent(File.ReadAllText(claudeConfigPath), originalClaudeConfig), "Claude Code rollback should restore the pre-install config");
+
     using var afterRollbackList = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var afterRollbackCodex = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "codex");
     Assert(afterRollbackCodex.GetProperty("rollback_available").GetBoolean(), "Codex should keep rollback available after creating a pre-restore backup");
@@ -510,20 +550,11 @@ static void RunAgentAdapterSmoke()
     Assert(afterRollbackOpenCode.GetProperty("rollback_available").GetBoolean(), "OpenCode should keep rollback available after creating a pre-restore backup");
     var afterRollbackFactoryDroid = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "factory-droid");
     Assert(afterRollbackFactoryDroid.GetProperty("rollback_available").GetBoolean(), "Factory Droid should keep rollback available after creating a pre-restore backup");
+    var afterRollbackClaudeCode = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "claude-code");
+    Assert(afterRollbackClaudeCode.GetProperty("rollback_available").GetBoolean(), "Claude Code should keep rollback available after creating a pre-restore backup");
 
     using var ampInstall = ToJsonDocument(adapter.Handle("/agents/amp/install", "POST"));
     Assert(ampInstall.RootElement.GetProperty("summary").GetString()?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true, "Amp install should stay disabled");
-}
-
-static void AssertReadOnlyAgent(WindowsAgentAdapter adapter, JsonElement agents, string agentId)
-{
-    var agent = agents.EnumerateArray().First(value => value.GetProperty("id").GetString() == agentId);
-    Assert(agent.GetProperty("platform_support").GetString() == "supported", $"{agentId} descriptor should expose Windows preview support");
-    Assert(agent.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), $"{agentId} descriptor should expose read-only diff");
-
-    using var guide = ToJsonDocument(adapter.Handle($"/agents/{agentId}/guide", "GET"));
-    Assert(guide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == agentId, $"{agentId} guide endpoint should return the requested agent");
-    Assert(guide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), $"{agentId} guide endpoint should mirror read-only capabilities");
 }
 
 static JsonDocument ToJsonDocument(object value)

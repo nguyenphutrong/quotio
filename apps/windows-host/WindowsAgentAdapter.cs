@@ -6,6 +6,7 @@ public sealed class WindowsAgentAdapter
     private readonly WindowsCodexConfigPatcher codexPatcher;
     private readonly WindowsOpenCodeConfigPatcher openCodePatcher;
     private readonly WindowsFactoryDroidConfigPatcher factoryDroidPatcher;
+    private readonly WindowsClaudeCodeConfigPatcher claudeCodePatcher;
 
     public WindowsAgentAdapter()
         : this(new WindowsHostConfig())
@@ -16,13 +17,15 @@ public sealed class WindowsAgentAdapter
         WindowsHostConfig config,
         WindowsCodexConfigPatcher? codexPatcher = null,
         WindowsOpenCodeConfigPatcher? openCodePatcher = null,
-        WindowsFactoryDroidConfigPatcher? factoryDroidPatcher = null
+        WindowsFactoryDroidConfigPatcher? factoryDroidPatcher = null,
+        WindowsClaudeCodeConfigPatcher? claudeCodePatcher = null
     )
     {
         this.config = config;
         this.codexPatcher = codexPatcher ?? new WindowsCodexConfigPatcher();
         this.openCodePatcher = openCodePatcher ?? new WindowsOpenCodeConfigPatcher();
         this.factoryDroidPatcher = factoryDroidPatcher ?? new WindowsFactoryDroidConfigPatcher();
+        this.claudeCodePatcher = claudeCodePatcher ?? new WindowsClaudeCodeConfigPatcher();
     }
 
     private static readonly AgentDefinition[] Agents =
@@ -115,15 +118,19 @@ public sealed class WindowsAgentAdapter
                 ? InstallCodex(agent)
                 : agent.Id == "opencode"
                     ? InstallOpenCode(agent)
-                    : agent.Id == "factory-droid"
-                        ? InstallFactoryDroid(agent)
+                : agent.Id == "factory-droid"
+                    ? InstallFactoryDroid(agent)
+                    : agent.Id == "claude-code"
+                        ? InstallClaudeCode(agent)
                 : UnsupportedWrite(agent, "install"),
             "rollback" when normalizedMethod == "POST" => agent.Id == "codex"
                 ? RollbackCodex(agent)
                 : agent.Id == "opencode"
                     ? RollbackOpenCode(agent)
-                    : agent.Id == "factory-droid"
-                        ? RollbackFactoryDroid(agent)
+                : agent.Id == "factory-droid"
+                    ? RollbackFactoryDroid(agent)
+                    : agent.Id == "claude-code"
+                        ? RollbackClaudeCode(agent)
                 : UnsupportedWrite(agent, "rollback"),
             _ => throw new InvalidOperationException("Unsupported Windows agents endpoint")
         };
@@ -222,6 +229,21 @@ public sealed class WindowsAgentAdapter
                 }
             ];
         }
+        else if (agent.Id == "claude-code")
+        {
+            var plan = claudeCodePatcher.BuildPlan(config.ProxyEndpoint, RequiredManagementKey());
+            files =
+            [
+                new Dictionary<string, object?>
+                {
+                    ["target_path"] = plan.TargetPath,
+                    ["existed"] = plan.Existed,
+                    ["has_changes"] = plan.HasChanges,
+                    ["before"] = plan.Before,
+                    ["after"] = plan.After
+                }
+            ];
+        }
 
         return new Dictionary<string, object?>
         {
@@ -239,6 +261,8 @@ public sealed class WindowsAgentAdapter
                     ? "Windows OpenCode install is available with backup-before-write."
                     : agent.Id == "factory-droid"
                         ? "Windows Factory Droid install is available with backup-before-write."
+                        : agent.Id == "claude-code"
+                            ? "Windows Claude Code settings install is available with backup-before-write."
                     : "Windows automatic agent configuration is not available for this agent in this preview build."
         };
     }
@@ -426,6 +450,60 @@ public sealed class WindowsAgentAdapter
         };
     }
 
+    private Dictionary<string, object?> InstallClaudeCode(AgentDefinition agent)
+    {
+        var result = claudeCodePatcher.Install(config.ProxyEndpoint, RequiredManagementKey());
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["plan"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["target_paths"] = agent.TargetPaths,
+                ["files"] = new object[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["target_path"] = result.Plan.TargetPath,
+                        ["existed"] = result.Plan.Existed,
+                        ["has_changes"] = result.Plan.HasChanges,
+                        ["before"] = result.Plan.Before,
+                        ["after"] = result.Plan.After
+                    }
+                }
+            },
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["backup_path"] = result.BackupPath,
+                ["config_path"] = claudeCodePatcher.ConfigPath
+            },
+            ["summary"] = "Windows Claude Code settings installed with backup-before-write."
+        };
+    }
+
+    private Dictionary<string, object?> RollbackClaudeCode(AgentDefinition agent)
+    {
+        var result = claudeCodePatcher.Rollback();
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["restored_backup_path"] = result.RestoredBackupPath,
+                ["pre_restore_backup_path"] = result.PreRestoreBackupPath,
+                ["config_path"] = claudeCodePatcher.ConfigPath
+            },
+            ["summary"] = result.RestoredBackupPath is null
+                ? "No Windows Claude Code backup is available to restore."
+                : "Windows Claude Code settings restored from backup."
+        };
+    }
+
     private Dictionary<string, object?> Status(AgentDefinition agent)
     {
         var binaryPath = FindBinary(agent);
@@ -441,6 +519,8 @@ public sealed class WindowsAgentAdapter
                     ? openCodePatcher.IsConfigured()
                     : agent.Id == "factory-droid"
                         ? factoryDroidPatcher.IsConfigured()
+                        : agent.Id == "claude-code"
+                            ? claudeCodePatcher.IsConfigured()
                     : agent.TargetPaths.Any(path => File.Exists(ExpandPath(path))),
             ["platform_support"] = agent.PlatformSupport,
             ["rollback_available"] = RollbackAvailable(agent),
@@ -476,6 +556,11 @@ public sealed class WindowsAgentAdapter
             return ["Automatic writes create timestamped backups before install and rollback."];
         }
 
+        if (agent.Id == "claude-code")
+        {
+            return ["Automatic writes update settings.json with timestamped backups; PowerShell profile writes remain manual."];
+        }
+
         return agent.PlatformSupport == "guide-only"
             ? ["PowerShell profile writes are not implemented yet."]
             : ["Automatic writes are disabled until backup and rollback behavior is validated on Windows."];
@@ -490,7 +575,7 @@ public sealed class WindowsAgentAdapter
 
         if (agent.Id != "codex")
         {
-            return agent.Id == "opencode" || agent.Id == "factory-droid"
+            return agent.Id == "opencode" || agent.Id == "factory-droid" || agent.Id == "claude-code"
                 ? RollbackAvailable(agent)
                     ? ["guide", "diff", "install", "rollback"]
                     : ["guide", "diff", "install"]
@@ -517,6 +602,11 @@ public sealed class WindowsAgentAdapter
         if (agent.Id == "factory-droid")
         {
             return factoryDroidPatcher.LatestBackupPath() is not null;
+        }
+
+        if (agent.Id == "claude-code")
+        {
+            return claudeCodePatcher.LatestBackupPath() is not null;
         }
 
         return false;
