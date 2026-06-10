@@ -251,6 +251,11 @@ static void RunNativePreferencesSmoke()
           "hideSensitiveInfo": true,
           "totalUsageMode": "combined",
           "modelAggregationMode": "average",
+          "quotaAlertThreshold": 30,
+          "quotaDisplayMode": "remaining",
+          "quotaDisplayStyle": "ring",
+          "resetTimeDisplayMode": "absolute",
+          "refreshCadence": "5min",
           "notificationsEnabled": false,
           "notifyOnQuotaLow": false,
           "notifyOnCooling": true,
@@ -269,6 +274,11 @@ static void RunNativePreferencesSmoke()
     Assert(state.HideSensitiveInfo, "Windows preferences should persist privacy settings");
     Assert(state.TotalUsageMode == "combined", "Windows preferences should persist usage mode");
     Assert(state.ModelAggregationMode == "average", "Windows preferences should persist model aggregation mode");
+    Assert(state.QuotaAlertThreshold == 30, "Windows preferences should persist quota alert threshold");
+    Assert(state.QuotaDisplayMode == "remaining", "Windows preferences should persist quota display mode");
+    Assert(state.QuotaDisplayStyle == "ring", "Windows preferences should persist quota display style");
+    Assert(state.ResetTimeDisplayMode == "absolute", "Windows preferences should persist reset time display mode");
+    Assert(state.RefreshCadence == "5min", "Windows preferences should persist refresh cadence");
     Assert(!state.NotificationsEnabled, "Windows preferences should persist notification enablement");
     Assert(!state.NotifyOnQuotaLow, "Windows preferences should persist quota notification settings");
     Assert(state.NotifyOnCooling, "Windows preferences should persist cooling notification settings");
@@ -279,6 +289,7 @@ static void RunNativePreferencesSmoke()
     var reloaded = store.Load();
     Assert(reloaded.Language == "vi", "Windows preferences should reload from disk");
     Assert(reloaded.UpdateChannel == "beta", "Windows preferences should reload update channel from disk");
+    Assert(reloaded.QuotaDisplayStyle == "ring", "Windows preferences should reload quota display settings from disk");
 
     var updates = new WindowsUpdateService(config, store);
     var updateSnapshot = updates.Snapshot();

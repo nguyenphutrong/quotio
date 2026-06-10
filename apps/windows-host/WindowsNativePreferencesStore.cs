@@ -84,6 +84,41 @@ public sealed class WindowsNativePreferencesStore
             state.ModelAggregationMode = modelAggregationMode;
         }
 
+        if (TryReadInt(preferences, "quotaAlertThreshold", out var quotaAlertThreshold)
+            && quotaAlertThreshold is 10 or 20 or 30 or 50)
+        {
+            state.QuotaAlertThreshold = quotaAlertThreshold;
+        }
+
+        if (TryReadString(preferences, "quotaDisplayMode", out var quotaDisplayMode)
+            && (quotaDisplayMode == "used" || quotaDisplayMode == "remaining"))
+        {
+            state.QuotaDisplayMode = quotaDisplayMode;
+        }
+
+        if (TryReadString(preferences, "quotaDisplayStyle", out var quotaDisplayStyle)
+            && (quotaDisplayStyle == "card" || quotaDisplayStyle == "lowestBar" || quotaDisplayStyle == "ring"))
+        {
+            state.QuotaDisplayStyle = quotaDisplayStyle;
+        }
+
+        if (TryReadString(preferences, "resetTimeDisplayMode", out var resetTimeDisplayMode)
+            && (resetTimeDisplayMode == "relative" || resetTimeDisplayMode == "absolute"))
+        {
+            state.ResetTimeDisplayMode = resetTimeDisplayMode;
+        }
+
+        if (TryReadString(preferences, "refreshCadence", out var refreshCadence)
+            && (refreshCadence == "manual"
+                || refreshCadence == "1min"
+                || refreshCadence == "2min"
+                || refreshCadence == "5min"
+                || refreshCadence == "10min"
+                || refreshCadence == "15min"))
+        {
+            state.RefreshCadence = refreshCadence;
+        }
+
         if (TryReadBool(preferences, "notificationsEnabled", out var notificationsEnabled))
         {
             state.NotificationsEnabled = notificationsEnabled;
@@ -219,6 +254,11 @@ public sealed record WindowsNativePreferencesState
     public bool HideSensitiveInfo { get; set; }
     public string TotalUsageMode { get; set; } = "sessionOnly";
     public string ModelAggregationMode { get; set; } = "lowest";
+    public int QuotaAlertThreshold { get; set; } = 20;
+    public string QuotaDisplayMode { get; set; } = "used";
+    public string QuotaDisplayStyle { get; set; } = "card";
+    public string ResetTimeDisplayMode { get; set; } = "relative";
+    public string RefreshCadence { get; set; } = "10min";
     public bool NotificationsEnabled { get; set; } = true;
     public bool NotifyOnQuotaLow { get; set; } = true;
     public bool NotifyOnCooling { get; set; } = true;

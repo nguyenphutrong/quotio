@@ -169,6 +169,27 @@ assertAllContain(
     'IsAllowedExternalUri(url)',
     '"ms-settings:startupapps"',
     '["launchAtLoginCanOpenSystemSettings"] = true',
+    '["quotaAlertThreshold"] = preferences.QuotaAlertThreshold',
+    '["quotaDisplayMode"] = preferences.QuotaDisplayMode',
+    '["quotaDisplayStyle"] = preferences.QuotaDisplayStyle',
+    '["resetTimeDisplayMode"] = preferences.ResetTimeDisplayMode',
+    '["refreshCadence"] = preferences.RefreshCadence',
+  ],
+);
+assertAllContain(
+  'Windows native preferences quota display persistence',
+  readProjectFile('apps/windows-host/WindowsNativePreferencesStore.cs'),
+  [
+    'public int QuotaAlertThreshold { get; set; } = 20;',
+    'public string QuotaDisplayMode { get; set; } = "used";',
+    'public string QuotaDisplayStyle { get; set; } = "card";',
+    'public string ResetTimeDisplayMode { get; set; } = "relative";',
+    'public string RefreshCadence { get; set; } = "10min";',
+    'quotaAlertThreshold is 10 or 20 or 30 or 50',
+    'quotaDisplayMode == "used" || quotaDisplayMode == "remaining"',
+    'quotaDisplayStyle == "card" || quotaDisplayStyle == "lowestBar" || quotaDisplayStyle == "ring"',
+    'resetTimeDisplayMode == "relative" || resetTimeDisplayMode == "absolute"',
+    'refreshCadence == "manual"',
   ],
 );
 assertAllContain(
