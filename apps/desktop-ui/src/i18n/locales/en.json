@@ -739,6 +739,64 @@
         "saved": "Preference saved."
       }
     },
+    "advancedProxy": {
+      "title": "Advanced proxy settings",
+      "description": "Manage cpa++ routing, retry, upstream proxy, and diagnostic behavior through the management API.",
+      "status": {
+        "loading": "Loading",
+        "ready": "Ready",
+        "unavailable": "Unavailable"
+      },
+      "fields": {
+        "proxyUrl": "Upstream proxy URL",
+        "routingStrategy": "Routing strategy",
+        "switchProject": "Switch account on quota exceeded",
+        "switchPreviewModel": "Switch preview model on quota exceeded",
+        "requestRetry": "Max retries",
+        "maxRetryInterval": "Max retry interval",
+        "loggingToFile": "Log to file",
+        "requestLog": "Capture request logs",
+        "debugMode": "Debug mode"
+      },
+      "hints": {
+        "proxyUrl": "Leave empty to clear upstream proxy routing.",
+        "proxyUrlSensitive": "Proxy URLs can contain credentials; the value is only sent to the management API.",
+        "routingStrategy": "Round robin spreads traffic; fill first exhausts one eligible account before moving on.",
+        "requestRetry": "Allowed range is 0 to 10 retries.",
+        "maxRetryInterval": "Allowed range is 5 to 300 seconds in 5 second steps.",
+        "loggingSensitive": "Request logs, file logging, and debug mode can persist sensitive request data."
+      },
+      "groups": {
+        "upstream": {
+          "title": "Upstream routing",
+          "description": "Proxy chaining and account routing strategy."
+        },
+        "quota": {
+          "title": "Quota exceeded",
+          "description": "Fallback behavior when the selected account or model is exhausted."
+        },
+        "retry": {
+          "title": "Retry behavior",
+          "description": "Request retry count and backoff ceiling."
+        },
+        "logging": {
+          "title": "Logging and debug",
+          "description": "Diagnostics that can write sensitive request details."
+        }
+      },
+      "options": {
+        "roundRobin": "Round robin",
+        "fillFirst": "Fill first"
+      },
+      "errors": {
+        "proxyUrlInvalid": "Proxy URL must use http, https, socks5, or socks5h.",
+        "requestRetryInvalid": "Max retries must be an integer from 0 to 10.",
+        "maxRetryIntervalInvalid": "Max retry interval must be 5 to 300 seconds in 5 second steps."
+      },
+      "messages": {
+        "saved": "Advanced proxy setting saved."
+      }
+    },
     "remote": {
       "title": "Remote management connection",
       "description": "Store the management endpoint and admin key in the native credential store.",

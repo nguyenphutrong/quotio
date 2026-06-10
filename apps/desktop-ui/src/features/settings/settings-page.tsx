@@ -16,6 +16,14 @@ import { Panel } from '@/components/admin/panel';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { useToast } from '@/components/admin/toast-provider';
 import {
+  type AdvancedProxySettings,
+  type RoutingStrategy,
+  sanitizeProxyUrl,
+  useAdvancedProxySettingsMutation,
+  useAdvancedProxySettingsQuery,
+  validateProxyUrl,
+} from '@/features/settings/advanced-proxy-api';
+import {
   type NativePreferences,
   type NativePreferencesPatch,
   useAdminRuntime,
@@ -55,6 +63,9 @@ const initialPreferencesState: NativePreferencesState = {
   savingKey: null,
   error: null,
 };
+
+const requestRetryRange = { min: 0, max: 10 };
+const maxRetryIntervalRange = { min: 5, max: 300, step: 5 };
 
 function RemoteConnectionPanel() {
   const { t } = useTranslation();
@@ -1083,6 +1094,323 @@ function NativePreferencesPanel() {
   );
 }
 
+function AdvancedProxySettingsPanel() {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const query = useAdvancedProxySettingsQuery();
+  const mutation = useAdvancedProxySettingsMutation();
+  const [proxyUrlDraft, setProxyUrlDraft] = useState('');
+  const [requestRetryDraft, setRequestRetryDraft] = useState('');
+  const [maxRetryIntervalDraft, setMaxRetryIntervalDraft] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const settings = query.data;
+  const disabled = query.isLoading || mutation.isPending || !settings;
+
+  useEffect(() => {
+    setProxyUrlDraft(settings?.proxyUrl ?? '');
+    setRequestRetryDraft(
+      settings ? String(settings.requestRetry) : String(requestRetryRange.min),
+    );
+    setMaxRetryIntervalDraft(
+      settings
+        ? String(settings.maxRetryInterval)
+        : String(maxRetryIntervalRange.min),
+    );
+  }, [settings]);
+
+  const saveSetting = async <Key extends keyof AdvancedProxySettings>(
+    key: Key,
+    value: AdvancedProxySettings[Key],
+  ) => {
+    setLocalError(null);
+    try {
+      await mutation.mutateAsync({ key, value });
+      toast.success(t('settings.advancedProxy.messages.saved'));
+    } catch (error) {
+      setLocalError(
+        error instanceof Error ? error.message : t('common.unknownError'),
+      );
+    }
+  };
+
+  const saveProxyUrl = async () => {
+    const proxyUrl = sanitizeProxyUrl(proxyUrlDraft);
+    if (!validateProxyUrl(proxyUrl)) {
+      setLocalError(t('settings.advancedProxy.errors.proxyUrlInvalid'));
+      return;
+    }
+
+    await saveSetting('proxyUrl', proxyUrl);
+  };
+
+  const saveRequestRetry = async () => {
+    const requestRetry = Number(requestRetryDraft);
+    if (
+      !Number.isInteger(requestRetry) ||
+      requestRetry < requestRetryRange.min ||
+      requestRetry > requestRetryRange.max
+    ) {
+      setLocalError(t('settings.advancedProxy.errors.requestRetryInvalid'));
+      return;
+    }
+
+    await saveSetting('requestRetry', requestRetry);
+  };
+
+  const saveMaxRetryInterval = async () => {
+    const maxRetryInterval = Number(maxRetryIntervalDraft);
+    if (
+      !Number.isInteger(maxRetryInterval) ||
+      maxRetryInterval < maxRetryIntervalRange.min ||
+      maxRetryInterval > maxRetryIntervalRange.max ||
+      maxRetryInterval % maxRetryIntervalRange.step !== 0
+    ) {
+      setLocalError(t('settings.advancedProxy.errors.maxRetryIntervalInvalid'));
+      return;
+    }
+
+    await saveSetting('maxRetryInterval', maxRetryInterval);
+  };
+
+  return (
+    <Panel>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="font-medium text-foreground text-sm">
+            {t('settings.advancedProxy.title')}
+          </h2>
+          <p className="mt-1 max-w-2xl text-muted-foreground text-sm">
+            {t('settings.advancedProxy.description')}
+          </p>
+        </div>
+        <StatusBadge tone={query.isError ? 'danger' : 'success'}>
+          {query.isLoading
+            ? t('settings.advancedProxy.status.loading')
+            : query.isError
+              ? t('settings.advancedProxy.status.unavailable')
+              : t('settings.advancedProxy.status.ready')}
+        </StatusBadge>
+      </div>
+
+      {query.isError ? (
+        <p className="mt-3 text-danger text-sm">
+          {query.error instanceof Error
+            ? query.error.message
+            : t('common.unknownError')}
+        </p>
+      ) : null}
+
+      <div className="mt-6 grid gap-5 xl:grid-cols-2">
+        <PreferenceGroup
+          description={t('settings.advancedProxy.groups.upstream.description')}
+          title={t('settings.advancedProxy.groups.upstream.title')}
+        >
+          <PreferenceField
+            hint={t('settings.advancedProxy.hints.proxyUrl')}
+            label={t('settings.advancedProxy.fields.proxyUrl')}
+          >
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={proxyUrlDraft}
+                inputMode="url"
+                autoComplete="off"
+                disabled={disabled}
+                placeholder="socks5://127.0.0.1:1080"
+                onChange={(event) => {
+                  setProxyUrlDraft(event.target.value);
+                  setLocalError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void saveProxyUrl();
+                  }
+                }}
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => void saveProxyUrl()}
+                >
+                  {t('common.save')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={disabled || !proxyUrlDraft}
+                  onClick={() => {
+                    setProxyUrlDraft('');
+                    void saveSetting('proxyUrl', '');
+                  }}
+                >
+                  {t('settings.native.actions.reset')}
+                </Button>
+              </div>
+            </div>
+          </PreferenceField>
+
+          <p className="text-muted-foreground text-xs">
+            {t('settings.advancedProxy.hints.proxyUrlSensitive')}
+          </p>
+
+          <PreferenceField
+            hint={t('settings.advancedProxy.hints.routingStrategy')}
+            label={t('settings.advancedProxy.fields.routingStrategy')}
+          >
+            <Select
+              value={settings?.routingStrategy ?? 'round-robin'}
+              disabled={disabled}
+              onValueChange={(value) =>
+                void saveSetting('routingStrategy', value as RoutingStrategy)
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="round-robin">
+                  {t('settings.advancedProxy.options.roundRobin')}
+                </SelectItem>
+                <SelectItem value="fill-first">
+                  {t('settings.advancedProxy.options.fillFirst')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PreferenceField>
+        </PreferenceGroup>
+
+        <PreferenceGroup
+          description={t('settings.advancedProxy.groups.quota.description')}
+          title={t('settings.advancedProxy.groups.quota.title')}
+        >
+          <SwitchField
+            checked={settings?.switchProject ?? true}
+            disabled={disabled}
+            label={t('settings.advancedProxy.fields.switchProject')}
+            onCheckedChange={(checked) =>
+              void saveSetting('switchProject', checked)
+            }
+          />
+          <SwitchField
+            checked={settings?.switchPreviewModel ?? true}
+            disabled={disabled}
+            label={t('settings.advancedProxy.fields.switchPreviewModel')}
+            onCheckedChange={(checked) =>
+              void saveSetting('switchPreviewModel', checked)
+            }
+          />
+        </PreferenceGroup>
+
+        <PreferenceGroup
+          description={t('settings.advancedProxy.groups.retry.description')}
+          title={t('settings.advancedProxy.groups.retry.title')}
+        >
+          <PreferenceField
+            hint={t('settings.advancedProxy.hints.requestRetry')}
+            label={t('settings.advancedProxy.fields.requestRetry')}
+          >
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min={requestRetryRange.min}
+                max={requestRetryRange.max}
+                value={requestRetryDraft}
+                disabled={disabled}
+                onChange={(event) => {
+                  setRequestRetryDraft(event.target.value);
+                  setLocalError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void saveRequestRetry();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                disabled={disabled}
+                onClick={() => void saveRequestRetry()}
+              >
+                {t('common.save')}
+              </Button>
+            </div>
+          </PreferenceField>
+
+          <PreferenceField
+            hint={t('settings.advancedProxy.hints.maxRetryInterval')}
+            label={t('settings.advancedProxy.fields.maxRetryInterval')}
+          >
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min={maxRetryIntervalRange.min}
+                max={maxRetryIntervalRange.max}
+                step={maxRetryIntervalRange.step}
+                value={maxRetryIntervalDraft}
+                disabled={disabled}
+                onChange={(event) => {
+                  setMaxRetryIntervalDraft(event.target.value);
+                  setLocalError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void saveMaxRetryInterval();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                disabled={disabled}
+                onClick={() => void saveMaxRetryInterval()}
+              >
+                {t('common.save')}
+              </Button>
+            </div>
+          </PreferenceField>
+        </PreferenceGroup>
+
+        <PreferenceGroup
+          description={t('settings.advancedProxy.groups.logging.description')}
+          title={t('settings.advancedProxy.groups.logging.title')}
+        >
+          <SwitchField
+            checked={settings?.loggingToFile ?? true}
+            disabled={disabled}
+            label={t('settings.advancedProxy.fields.loggingToFile')}
+            onCheckedChange={(checked) =>
+              void saveSetting('loggingToFile', checked)
+            }
+          />
+          <SwitchField
+            checked={settings?.requestLog ?? false}
+            disabled={disabled}
+            label={t('settings.advancedProxy.fields.requestLog')}
+            onCheckedChange={(checked) =>
+              void saveSetting('requestLog', checked)
+            }
+          />
+          <SwitchField
+            checked={settings?.debugMode ?? false}
+            disabled={disabled}
+            label={t('settings.advancedProxy.fields.debugMode')}
+            onCheckedChange={(checked) =>
+              void saveSetting('debugMode', checked)
+            }
+          />
+          <p className="text-danger text-xs">
+            {t('settings.advancedProxy.hints.loggingSensitive')}
+          </p>
+        </PreferenceGroup>
+      </div>
+
+      {localError ? (
+        <p className="mt-3 text-danger text-sm">{localError}</p>
+      ) : null}
+    </Panel>
+  );
+}
+
 function PreferenceField({
   children,
   hint,
@@ -1186,6 +1514,7 @@ export function SettingsPage() {
         description={t('settings.description')}
       />
       <NativePreferencesPanel />
+      <AdvancedProxySettingsPanel />
       <RemoteConnectionPanel />
     </div>
   );

@@ -735,6 +735,64 @@
         "saved": "偏好已保存。"
       }
     },
+    "advancedProxy": {
+      "title": "高级代理设置",
+      "description": "通过 management API 管理 cpa++ 路由、重试、上游代理和诊断行为。",
+      "status": {
+        "loading": "加载中",
+        "ready": "就绪",
+        "unavailable": "不可用"
+      },
+      "fields": {
+        "proxyUrl": "上游代理 URL",
+        "routingStrategy": "路由策略",
+        "switchProject": "配额耗尽时切换账号",
+        "switchPreviewModel": "配额耗尽时切换 preview model",
+        "requestRetry": "最大重试次数",
+        "maxRetryInterval": "最大重试间隔",
+        "loggingToFile": "写入文件日志",
+        "requestLog": "捕获请求日志",
+        "debugMode": "Debug 模式"
+      },
+      "hints": {
+        "proxyUrl": "留空可清除上游代理路由。",
+        "proxyUrlSensitive": "代理 URL 可能包含凭证；该值只会发送到 management API。",
+        "routingStrategy": "Round robin 分散流量；fill first 会先用尽一个符合条件的账号。",
+        "requestRetry": "允许范围为 0 到 10 次重试。",
+        "maxRetryInterval": "允许范围为 5 到 300 秒，步进 5 秒。",
+        "loggingSensitive": "请求日志、文件日志和 debug 模式可能持久化敏感请求数据。"
+      },
+      "groups": {
+        "upstream": {
+          "title": "上游路由",
+          "description": "代理链路和账号路由策略。"
+        },
+        "quota": {
+          "title": "配额耗尽",
+          "description": "当前账号或模型耗尽时的 fallback 行为。"
+        },
+        "retry": {
+          "title": "重试",
+          "description": "请求重试次数和 backoff 上限。"
+        },
+        "logging": {
+          "title": "日志和 debug",
+          "description": "可能写入敏感请求详情的诊断选项。"
+        }
+      },
+      "options": {
+        "roundRobin": "Round robin",
+        "fillFirst": "Fill first"
+      },
+      "errors": {
+        "proxyUrlInvalid": "代理 URL 必须使用 http、https、socks5 或 socks5h。",
+        "requestRetryInvalid": "最大重试次数必须是 0 到 10 的整数。",
+        "maxRetryIntervalInvalid": "最大重试间隔必须是 5 到 300 秒，步进 5 秒。"
+      },
+      "messages": {
+        "saved": "高级代理设置已保存。"
+      }
+    },
     "remote": {
       "title": "远程管理连接",
       "description": "将 management endpoint 和 admin key 存入原生凭证存储。",

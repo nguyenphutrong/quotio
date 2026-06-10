@@ -734,6 +734,64 @@
         "saved": "Đã lưu tùy chọn."
       }
     },
+    "advancedProxy": {
+      "title": "Cài đặt proxy nâng cao",
+      "description": "Quản lý routing, retry, upstream proxy và diagnostic của cpa++ qua management API.",
+      "status": {
+        "loading": "Đang tải",
+        "ready": "Sẵn sàng",
+        "unavailable": "Không khả dụng"
+      },
+      "fields": {
+        "proxyUrl": "Upstream proxy URL",
+        "routingStrategy": "Chiến lược routing",
+        "switchProject": "Đổi tài khoản khi hết hạn mức",
+        "switchPreviewModel": "Đổi preview model khi hết hạn mức",
+        "requestRetry": "Số lần retry tối đa",
+        "maxRetryInterval": "Khoảng retry tối đa",
+        "loggingToFile": "Ghi log ra file",
+        "requestLog": "Lưu request log",
+        "debugMode": "Debug mode"
+      },
+      "hints": {
+        "proxyUrl": "Để trống để xóa upstream proxy routing.",
+        "proxyUrlSensitive": "Proxy URL có thể chứa credential; giá trị chỉ được gửi tới management API.",
+        "routingStrategy": "Round robin chia đều traffic; fill first dùng cạn một tài khoản phù hợp trước khi chuyển.",
+        "requestRetry": "Khoảng hợp lệ là 0 đến 10 lần retry.",
+        "maxRetryInterval": "Khoảng hợp lệ là 5 đến 300 giây, bước 5 giây.",
+        "loggingSensitive": "Request log, file logging và debug mode có thể lưu dữ liệu request nhạy cảm."
+      },
+      "groups": {
+        "upstream": {
+          "title": "Upstream routing",
+          "description": "Proxy chaining và chiến lược routing tài khoản."
+        },
+        "quota": {
+          "title": "Khi hết hạn mức",
+          "description": "Hành vi fallback khi tài khoản hoặc model đang chọn đã hết hạn mức."
+        },
+        "retry": {
+          "title": "Retry",
+          "description": "Số lần retry và trần backoff của request."
+        },
+        "logging": {
+          "title": "Logging và debug",
+          "description": "Diagnostic có thể ghi chi tiết request nhạy cảm."
+        }
+      },
+      "options": {
+        "roundRobin": "Round robin",
+        "fillFirst": "Fill first"
+      },
+      "errors": {
+        "proxyUrlInvalid": "Proxy URL phải dùng http, https, socks5 hoặc socks5h.",
+        "requestRetryInvalid": "Số lần retry tối đa phải là số nguyên từ 0 đến 10.",
+        "maxRetryIntervalInvalid": "Khoảng retry tối đa phải từ 5 đến 300 giây, bước 5 giây."
+      },
+      "messages": {
+        "saved": "Đã lưu cài đặt proxy nâng cao."
+      }
+    },
     "remote": {
       "title": "Kết nối quản trị remote",
       "description": "Lưu management endpoint và admin key trong credential store native.",
