@@ -15,6 +15,7 @@ public enum QuotioRequestKind
     RuntimeRestart,
     ManagementRequest,
     NativeConfirm,
+    NativeNotify,
     NativeOpenExternal,
     NativeOpenTextFile,
     NativeCredentialRead,

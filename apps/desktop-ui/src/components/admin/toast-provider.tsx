@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { useAdminRuntime } from '@/lib/admin/runtime';
 
 type ToastTone = 'success' | 'error';
 
@@ -71,6 +72,7 @@ function ToastViewport({
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  const { notify } = useAdminRuntime();
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
 
   const dismiss = useCallback((id: string) => {
@@ -78,18 +80,32 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const push = useCallback(
-    (title: string, tone: ToastTone) => {
+    async (title: string, tone: ToastTone) => {
+      try {
+        const delivered = await notify({
+          title: 'Quotio',
+          message: title,
+          tone,
+        });
+
+        if (delivered) {
+          return;
+        }
+      } catch {
+        // Fall back to the in-window toast for browser previews or denied OS notifications.
+      }
+
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       setToasts((current) => [...current, { id, title, tone }]);
       window.setTimeout(() => dismiss(id), 2400);
     },
-    [dismiss],
+    [dismiss, notify],
   );
 
   const value = useMemo<ToastContextValue>(
     () => ({
-      success: (title: string) => push(title, 'success'),
-      error: (title: string) => push(title, 'error'),
+      success: (title: string) => void push(title, 'success'),
+      error: (title: string) => void push(title, 'error'),
     }),
     [push],
   );

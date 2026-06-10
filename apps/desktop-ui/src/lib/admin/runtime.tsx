@@ -30,6 +30,12 @@ export type NativeConfirmRequest = {
   destructive?: boolean;
 };
 
+export type NativeNotifyRequest = {
+  title: string;
+  message: string;
+  tone: 'success' | 'error';
+};
+
 export type NativeOpenTextFileRequest = {
   title: string;
   allowedExtensions?: string[];
@@ -128,6 +134,7 @@ type DesktopBridge = {
   runtimeStop?: () => Promise<RuntimeStatus>;
   runtimeRestart?: () => Promise<RuntimeStatus>;
   confirm?: (request: NativeConfirmRequest) => Promise<boolean>;
+  notify?: (request: NativeNotifyRequest) => Promise<boolean>;
   openExternal?: (url: string) => Promise<boolean>;
   openTextFile?: (request: NativeOpenTextFileRequest) => Promise<string | null>;
   credentialRead?: (
@@ -166,6 +173,7 @@ type AdminRuntimeValue = {
   runtimeStop: () => Promise<RuntimeStatus>;
   runtimeRestart: () => Promise<RuntimeStatus>;
   confirm: (request: NativeConfirmRequest) => Promise<boolean>;
+  notify: (request: NativeNotifyRequest) => Promise<boolean>;
   openExternal: (url: string) => Promise<boolean>;
   openTextFile: (request: NativeOpenTextFileRequest) => Promise<string | null>;
   credentialRead: (
@@ -219,6 +227,16 @@ export function AdminRuntimeProvider({
     }
 
     return window.confirm(request.message);
+  }, []);
+
+  const notify = useCallback(async (request: NativeNotifyRequest) => {
+    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+    if (bridge?.notify) {
+      return bridge.notify(request);
+    }
+
+    return false;
   }, []);
 
   const openExternal = useCallback(async (url: string) => {
@@ -389,6 +407,7 @@ export function AdminRuntimeProvider({
       runtimeStop,
       runtimeRestart,
       confirm,
+      notify,
       openExternal,
       openTextFile,
       credentialRead,
@@ -404,6 +423,7 @@ export function AdminRuntimeProvider({
       credentialDelete,
       credentialRead,
       credentialWrite,
+      notify,
       openExternal,
       openTextFile,
       preferencesRead,

@@ -28,8 +28,15 @@ public sealed partial class MainWindow : Window
 
         agents = new WindowsAgentAdapter(config);
         runtime = new RuntimeProcessController(config);
-        bridge = new DesktopBridge(DesktopWebView, runtime, config, agents, preferencesStore);
         trayIcon = CreateTrayIcon();
+        bridge = new DesktopBridge(
+            DesktopWebView,
+            runtime,
+            config,
+            agents,
+            preferencesStore,
+            ShowNativeNotification
+        );
 
         Title = "Quotio";
         SystemBackdrop = new MicaBackdrop();
@@ -110,6 +117,15 @@ public sealed partial class MainWindow : Window
     {
         ErrorText.Text = message;
         ErrorPanel.Visibility = Visibility.Visible;
+    }
+
+    private bool ShowNativeNotification(string title, string message, string tone)
+    {
+        var icon = tone == "error"
+            ? Forms.ToolTipIcon.Error
+            : Forms.ToolTipIcon.Info;
+        trayIcon.ShowBalloonTip(3000, title, message, icon);
+        return true;
     }
 
     private Forms.NotifyIcon CreateTrayIcon()

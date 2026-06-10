@@ -1,7 +1,7 @@
 // Generated from schema/contract.json. Do not edit manually.
 
 pub const CONTRACT_VERSION: u16 = 1;
-pub const REQUEST_KINDS: &[&str] = &["runtime.status", "runtime.start", "runtime.stop", "runtime.restart", "management.request", "native.confirm", "native.openExternal", "native.openTextFile", "native.credentialRead", "native.credentialWrite", "native.credentialDelete"];
+pub const REQUEST_KINDS: &[&str] = &["runtime.status", "runtime.start", "runtime.stop", "runtime.restart", "management.request", "native.confirm", "native.notify", "native.openExternal", "native.openTextFile", "native.credentialRead", "native.credentialWrite", "native.credentialDelete"];
 pub const EVENT_KINDS: &[&str] = &["runtime.statusChanged"];
 
 #[derive(Clone, Debug, PartialEq, Eq)]

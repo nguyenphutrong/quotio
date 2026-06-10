@@ -193,6 +193,24 @@ final class NotificationManager {
         
         UNUserNotificationCenter.current().add(request)
     }
+
+    func notifyDesktopFeedback(title: String, body: String, tone: String) -> Bool {
+        guard notificationsEnabled && isAuthorized else { return false }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = tone == "error" ? .defaultCritical : .default
+
+        let request = UNNotificationRequest(
+            identifier: "desktop_feedback_\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request)
+        return true
+    }
     
     // MARK: - State Management
     

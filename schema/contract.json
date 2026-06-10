@@ -25,6 +25,9 @@
       "kind": "native.confirm"
     },
     {
+      "kind": "native.notify"
+    },
+    {
       "kind": "native.openExternal"
     },
     {

@@ -17,6 +17,7 @@ public sealed class DesktopBridge
     private readonly WindowsHostConfig config;
     private readonly WindowsAgentAdapter agents;
     private readonly WindowsNativePreferencesStore preferencesStore;
+    private readonly Func<string, string, string, bool> notify;
     private readonly HttpClient httpClient = new();
 
     public DesktopBridge(
@@ -24,7 +25,8 @@ public sealed class DesktopBridge
         RuntimeProcessController runtime,
         WindowsHostConfig config,
         WindowsAgentAdapter agents,
-        WindowsNativePreferencesStore preferencesStore
+        WindowsNativePreferencesStore preferencesStore,
+        Func<string, string, string, bool> notify
     )
     {
         this.webView = webView;
@@ -32,6 +34,7 @@ public sealed class DesktopBridge
         this.config = config;
         this.agents = agents;
         this.preferencesStore = preferencesStore;
+        this.notify = notify;
     }
 
     public string CreateBootstrapScript(DesktopBootstrap bootstrap)
@@ -93,6 +96,18 @@ public sealed class DesktopBridge
                 confirmLabel: request?.confirmLabel,
                 cancelLabel: request?.cancelLabel,
                 destructive: request?.destructive === true
+              });
+            }),
+            notify: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({
+                id,
+                kind: 'native.notify',
+                title: request?.title,
+                message: request?.message,
+                tone: request?.tone
               });
             }),
             openExternal: (url) => new Promise((resolve, reject) => {
@@ -205,6 +220,7 @@ public sealed class DesktopBridge
                 "runtime.restart" => runtime.Restart(),
                 "management.request" => await HandleManagementRequestAsync(root),
                 "native.confirm" => await HandleNativeConfirmAsync(root),
+                "native.notify" => HandleNativeNotify(root),
                 "native.openExternal" => HandleNativeOpenExternal(root),
                 "native.openTextFile" => HandleNativeOpenTextFile(root),
                 "native.credentialRead" => HandleNativeCredentialRead(root),
@@ -304,6 +320,15 @@ public sealed class DesktopBridge
 
         var result = await dialog.ShowAsync();
         return result == ContentDialogResult.Primary;
+    }
+
+    private bool HandleNativeNotify(JsonElement root)
+    {
+        return notify(
+            ReadString(root, "title", "Quotio"),
+            ReadString(root, "message", ""),
+            ReadString(root, "tone", "success")
+        );
     }
 
     private static bool HandleNativeOpenExternal(JsonElement root)

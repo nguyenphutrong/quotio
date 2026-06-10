@@ -99,6 +99,7 @@ private enum DesktopBridgeContract {
         static let nativePreferencesWrite = "native.preferencesWrite"
         static let nativeUpdatesCheck = "native.updatesCheck"
         static let nativeConfirm = QuotioRequestKind.NativeConfirm.rawValue
+        static let nativeNotify = QuotioRequestKind.NativeNotify.rawValue
         static let nativeOpenExternal = QuotioRequestKind.NativeOpenExternal.rawValue
         static let nativeOpenTextFile = QuotioRequestKind.NativeOpenTextFile.rawValue
         static let nativeCredentialRead = QuotioRequestKind.NativeCredentialRead.rawValue
@@ -289,6 +290,18 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 destructive: request?.destructive === true
               });
             }),
+            notify: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.nativeNotify)',
+                title: request?.title,
+                message: request?.message,
+                tone: request?.tone
+              });
+            }),
             openExternal: (url) => new Promise((resolve, reject) => {
               const id = crypto.randomUUID();
               window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
@@ -470,6 +483,8 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                     value = try await handleManagementRequest(body)
                 case DesktopBridgeContract.RequestKind.nativeConfirm:
                     value = handleNativeConfirm(body)
+                case DesktopBridgeContract.RequestKind.nativeNotify:
+                    value = handleNativeNotify(body)
                 case DesktopBridgeContract.RequestKind.nativeOpenExternal:
                     value = try handleNativeOpenExternal(body)
                 case DesktopBridgeContract.RequestKind.nativeOpenTextFile:
@@ -854,6 +869,14 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
         alert.addButton(withTitle: body["cancelLabel"] as? String ?? "Cancel")
 
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func handleNativeNotify(_ body: [String: Any]) -> Bool {
+        NotificationManager.shared.notifyDesktopFeedback(
+            title: body["title"] as? String ?? AppRuntimeIdentity.displayName,
+            body: body["message"] as? String ?? "",
+            tone: body["tone"] as? String ?? "success"
+        )
     }
 
     private func handleNativeOpenExternal(_ body: [String: Any]) throws -> Bool {

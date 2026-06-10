@@ -57,13 +57,13 @@ async function start() {
     root.render(
       <StrictMode>
         <QueryClientProvider client={queryClient}>
-          <ToastProvider>
-            <AdminRuntimeProvider bootstrap={bootstrap}>
+          <AdminRuntimeProvider bootstrap={bootstrap}>
+            <ToastProvider>
               <NuqsAdapter>
                 <RouterProvider router={router} />
               </NuqsAdapter>
-            </AdminRuntimeProvider>
-          </ToastProvider>
+            </ToastProvider>
+          </AdminRuntimeProvider>
         </QueryClientProvider>
       </StrictMode>,
     );
