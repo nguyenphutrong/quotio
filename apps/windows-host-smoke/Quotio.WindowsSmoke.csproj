@@ -19,6 +19,7 @@
     <Compile Include="..\windows-host\WindowsCrashReporter.cs" Link="WindowsCrashReporter.cs" />
     <Compile Include="..\windows-host\WindowsCredentialStore.cs" Link="WindowsCredentialStore.cs" />
     <Compile Include="..\windows-host\WindowsFactoryDroidConfigPatcher.cs" Link="WindowsFactoryDroidConfigPatcher.cs" />
+    <Compile Include="..\windows-host\WindowsGeminiConfigPatcher.cs" Link="WindowsGeminiConfigPatcher.cs" />
     <Compile Include="..\windows-host\WindowsHostConfig.cs" Link="WindowsHostConfig.cs" />
     <Compile Include="..\windows-host\WindowsOpenCodeConfigPatcher.cs" Link="WindowsOpenCodeConfigPatcher.cs" />
     <Compile Include="..\windows-host\WindowPlacementService.cs" Link="WindowPlacementService.cs" />

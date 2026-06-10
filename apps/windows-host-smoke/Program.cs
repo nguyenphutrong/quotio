@@ -358,6 +358,7 @@ static void RunAgentAdapterSmoke()
     Directory.CreateDirectory(Path.Combine(home, ".codex"));
     Directory.CreateDirectory(Path.Combine(home, ".config", "amp"));
     Directory.CreateDirectory(Path.Combine(home, ".factory"));
+    Directory.CreateDirectory(Path.Combine(home, "Documents", "PowerShell"));
     Directory.CreateDirectory(Path.Combine(home, ".local", "share", "amp"));
     Directory.CreateDirectory(Path.Combine(localAppData, "opencode"));
     Directory.CreateDirectory(localAppData);
@@ -429,13 +430,20 @@ static void RunAgentAdapterSmoke()
     File.WriteAllText(ampSettingsPath, originalAmpSettings);
     File.WriteAllText(ampSecretsPath, originalAmpSecrets);
 
+    var geminiProfilePath = Path.Combine(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1");
+    const string originalGeminiProfile = """
+    Set-Alias gs git-status
+    """;
+    File.WriteAllText(geminiProfilePath, originalGeminiProfile);
+
     var adapter = new WindowsAgentAdapter(
         new WindowsHostConfig(_ => null),
         new WindowsCodexConfigPatcher(home, Path.Combine(localAppData, "Quotio", "Codex")),
         new WindowsOpenCodeConfigPatcher(localAppData),
         new WindowsFactoryDroidConfigPatcher(home),
         new WindowsClaudeCodeConfigPatcher(home),
-        new WindowsAmpConfigPatcher(home)
+        new WindowsAmpConfigPatcher(home),
+        new WindowsGeminiConfigPatcher(home)
     );
     using var list = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var agents = list.RootElement.GetProperty("agents");
@@ -447,8 +455,9 @@ static void RunAgentAdapterSmoke()
     Assert(!codex.GetProperty("rollback_available").GetBoolean(), "Codex should not claim rollback before a backup exists");
 
     var gemini = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "gemini-cli");
-    Assert(gemini.GetProperty("platform_support").GetString() == "guide-only", "Gemini descriptor should remain guide-only");
-    Assert(gemini.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide"]), "Gemini descriptor should not expose diff until PowerShell writes are validated");
+    Assert(gemini.GetProperty("platform_support").GetString() == "supported", "Gemini descriptor should expose Windows support");
+    Assert(gemini.GetProperty("target_paths").GetArrayLength() == 1, "Gemini descriptor should expose the PowerShell profile path");
+    Assert(gemini.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Gemini descriptor should expose install after PowerShell backup validation");
 
     var amp = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "amp");
     Assert(amp.GetProperty("binaries").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["amp"]), "Amp descriptor should expose the amp binary");
@@ -480,6 +489,9 @@ static void RunAgentAdapterSmoke()
 
     using var claudeCodeGuide = ToJsonDocument(adapter.Handle("/agents/claude-code/guide", "GET"));
     Assert(claudeCodeGuide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Claude Code guide endpoint should mirror write capabilities");
+
+    using var geminiGuide = ToJsonDocument(adapter.Handle("/agents/gemini-cli/guide", "GET"));
+    Assert(geminiGuide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Gemini guide endpoint should mirror write capabilities");
 
     using var diff = ToJsonDocument(adapter.Handle("/agents/codex/diff", "POST"));
     var diffFile = diff.RootElement.GetProperty("plan").GetProperty("files")[0];
@@ -562,6 +574,28 @@ static void RunAgentAdapterSmoke()
     Assert(claudeCodeRollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "Claude Code rollback should restore the latest backup");
     Assert(JsonEquivalent(File.ReadAllText(claudeConfigPath), originalClaudeConfig), "Claude Code rollback should restore the pre-install config");
 
+    using var geminiDiff = ToJsonDocument(adapter.Handle("/agents/gemini-cli/diff", "POST"));
+    var geminiDiffFile = geminiDiff.RootElement.GetProperty("plan").GetProperty("files")[0];
+    Assert(!geminiDiff.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "Gemini should not treat unrelated PowerShell profile content as Quotio configuration");
+    Assert(geminiDiffFile.GetProperty("has_changes").GetBoolean(), "Gemini diff preview should report the pending profile change");
+    Assert(!geminiDiffFile.GetProperty("after").GetString()!.Contains("smoke-management-key", StringComparison.Ordinal), "Gemini diff preview should redact management keys");
+    Assert(geminiDiffFile.GetProperty("after").GetString()!.Contains("GOOGLE_GEMINI_BASE_URL", StringComparison.Ordinal), "Gemini diff preview should include Gemini env settings");
+
+    using var geminiInstall = ToJsonDocument(adapter.Handle("/agents/gemini-cli/install", "POST"));
+    Assert(geminiInstall.RootElement.GetProperty("summary").GetString()?.Contains("installed", StringComparison.OrdinalIgnoreCase) == true, "Gemini install should succeed");
+    Assert(geminiInstall.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "Gemini install should mark the adapter configured");
+    Assert(geminiInstall.RootElement.GetProperty("status").GetProperty("rollback_available").GetBoolean(), "Gemini install should create a rollback backup");
+    var installedGeminiProfile = File.ReadAllText(geminiProfilePath);
+    Assert(installedGeminiProfile.Contains("Set-Alias gs git-status", StringComparison.Ordinal), "Gemini install should preserve existing PowerShell profile content");
+    Assert(installedGeminiProfile.Contains("GOOGLE_GEMINI_BASE_URL", StringComparison.Ordinal), "Gemini install should write the Gemini base URL");
+    Assert(installedGeminiProfile.Contains("http://127.0.0.1:8787", StringComparison.Ordinal), "Gemini install should strip /v1 from the proxy endpoint");
+    Assert(installedGeminiProfile.Contains("GEMINI_API_KEY", StringComparison.Ordinal), "Gemini install should write the API key env name");
+    Assert(installedGeminiProfile.Contains("smoke-management-key", StringComparison.Ordinal), "Gemini install should write the configured key to disk");
+
+    using var geminiRollback = ToJsonDocument(adapter.Handle("/agents/gemini-cli/rollback", "POST"));
+    Assert(geminiRollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "Gemini rollback should restore the latest backup");
+    Assert(File.ReadAllText(geminiProfilePath) == originalGeminiProfile, "Gemini rollback should restore the pre-install PowerShell profile");
+
     using var ampDiff = ToJsonDocument(adapter.Handle("/agents/amp/diff", "POST"));
     var ampDiffFiles = ampDiff.RootElement.GetProperty("plan").GetProperty("files");
     Assert(!ampDiff.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "Amp should not treat unrelated settings as Quotio configuration");
@@ -593,6 +627,8 @@ static void RunAgentAdapterSmoke()
     Assert(afterRollbackClaudeCode.GetProperty("rollback_available").GetBoolean(), "Claude Code should keep rollback available after creating a pre-restore backup");
     var afterRollbackAmp = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "amp");
     Assert(afterRollbackAmp.GetProperty("rollback_available").GetBoolean(), "Amp should keep rollback available after creating pre-restore backups");
+    var afterRollbackGemini = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "gemini-cli");
+    Assert(afterRollbackGemini.GetProperty("rollback_available").GetBoolean(), "Gemini should keep rollback available after creating a pre-restore backup");
 }
 
 static JsonDocument ToJsonDocument(object value)

@@ -60,8 +60,8 @@ or set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL. The Windows host
 currently advertises only preview-safe capabilities. Credential Manager-backed
 bootstrap config, shared remote management credential editing, local redacted
 crash-report capture with optional upload, Claude Code settings.json, and
-Codex/Amp/OpenCode/Factory Droid install/rollback are available. Native
-onboarding and automatic configuration for remaining agent paths stay disabled
+Codex/Amp/Gemini/OpenCode/Factory Droid install/rollback are available. Native
+onboarding and automatic configuration for future agent paths stay disabled
 until their adapters are implemented and verified on Windows CI.
 
 Current shared route scope:

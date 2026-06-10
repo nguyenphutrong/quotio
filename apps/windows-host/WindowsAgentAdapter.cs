@@ -8,6 +8,7 @@ public sealed class WindowsAgentAdapter
     private readonly WindowsFactoryDroidConfigPatcher factoryDroidPatcher;
     private readonly WindowsClaudeCodeConfigPatcher claudeCodePatcher;
     private readonly WindowsAmpConfigPatcher ampPatcher;
+    private readonly WindowsGeminiConfigPatcher geminiPatcher;
 
     public WindowsAgentAdapter()
         : this(new WindowsHostConfig())
@@ -20,7 +21,8 @@ public sealed class WindowsAgentAdapter
         WindowsOpenCodeConfigPatcher? openCodePatcher = null,
         WindowsFactoryDroidConfigPatcher? factoryDroidPatcher = null,
         WindowsClaudeCodeConfigPatcher? claudeCodePatcher = null,
-        WindowsAmpConfigPatcher? ampPatcher = null
+        WindowsAmpConfigPatcher? ampPatcher = null,
+        WindowsGeminiConfigPatcher? geminiPatcher = null
     )
     {
         this.config = config;
@@ -29,6 +31,7 @@ public sealed class WindowsAgentAdapter
         this.factoryDroidPatcher = factoryDroidPatcher ?? new WindowsFactoryDroidConfigPatcher();
         this.claudeCodePatcher = claudeCodePatcher ?? new WindowsClaudeCodeConfigPatcher();
         this.ampPatcher = ampPatcher ?? new WindowsAmpConfigPatcher();
+        this.geminiPatcher = geminiPatcher ?? new WindowsGeminiConfigPatcher();
     }
 
     private static readonly AgentDefinition[] Agents =
@@ -58,9 +61,9 @@ public sealed class WindowsAgentAdapter
             "Gemini CLI",
             "env",
             ["gemini"],
-            [],
-            "guide-only",
-            "Automatic PowerShell profile configuration is not available on Windows yet. Use the manual guide.",
+            ["%USERPROFILE%\\Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1"],
+            "supported",
+            "Windows preview supports PowerShell profile detection, guide, diff preview, install, and rollback for Gemini CLI.",
             "https://github.com/google-gemini/gemini-cli"
         ),
         new(
@@ -236,6 +239,21 @@ public sealed class WindowsAgentAdapter
             var plan = ampPatcher.BuildPlan(config.ProxyEndpoint, RequiredManagementKey());
             files = plan.Files.Select(FilePlan).ToArray();
         }
+        else if (agent.Id == "gemini-cli")
+        {
+            var plan = geminiPatcher.BuildPlan(config.ProxyEndpoint, RequiredManagementKey());
+            files =
+            [
+                new Dictionary<string, object?>
+                {
+                    ["target_path"] = plan.TargetPath,
+                    ["existed"] = plan.Existed,
+                    ["has_changes"] = plan.HasChanges,
+                    ["before"] = plan.Before,
+                    ["after"] = plan.After
+                }
+            ];
+        }
 
         return new Dictionary<string, object?>
         {
@@ -257,6 +275,8 @@ public sealed class WindowsAgentAdapter
                             ? "Windows Claude Code settings install is available with backup-before-write."
                             : agent.Id == "amp"
                                 ? "Windows Amp CLI install is available with backup-before-write."
+                                : agent.Id == "gemini-cli"
+                                    ? "Windows Gemini CLI PowerShell profile install is available with backup-before-write."
                     : "Windows automatic agent configuration is not available for this agent in this preview build."
         };
     }
@@ -270,6 +290,7 @@ public sealed class WindowsAgentAdapter
             "factory-droid" => InstallFactoryDroid(agent),
             "claude-code" => InstallClaudeCode(agent),
             "amp" => InstallAmp(agent),
+            "gemini-cli" => InstallGemini(agent),
             _ => UnsupportedWrite(agent, "install")
         };
     }
@@ -283,6 +304,7 @@ public sealed class WindowsAgentAdapter
             "factory-droid" => RollbackFactoryDroid(agent),
             "claude-code" => RollbackClaudeCode(agent),
             "amp" => RollbackAmp(agent),
+            "gemini-cli" => RollbackGemini(agent),
             _ => UnsupportedWrite(agent, "rollback")
         };
     }
@@ -585,6 +607,60 @@ public sealed class WindowsAgentAdapter
         };
     }
 
+    private Dictionary<string, object?> InstallGemini(AgentDefinition agent)
+    {
+        var result = geminiPatcher.Install(config.ProxyEndpoint, RequiredManagementKey());
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["plan"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["target_paths"] = agent.TargetPaths,
+                ["files"] = new object[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["target_path"] = result.Plan.TargetPath,
+                        ["existed"] = result.Plan.Existed,
+                        ["has_changes"] = result.Plan.HasChanges,
+                        ["before"] = result.Plan.Before,
+                        ["after"] = result.Plan.After
+                    }
+                }
+            },
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["backup_path"] = result.BackupPath,
+                ["profile_path"] = geminiPatcher.ProfilePath
+            },
+            ["summary"] = "Windows Gemini CLI PowerShell profile installed with backup-before-write."
+        };
+    }
+
+    private Dictionary<string, object?> RollbackGemini(AgentDefinition agent)
+    {
+        var result = geminiPatcher.Rollback();
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["restored_backup_path"] = result.RestoredBackupPath,
+                ["pre_restore_backup_path"] = result.PreRestoreBackupPath,
+                ["profile_path"] = geminiPatcher.ProfilePath
+            },
+            ["summary"] = result.RestoredBackupPath is null
+                ? "No Windows Gemini CLI backup is available to restore."
+                : "Windows Gemini CLI PowerShell profile restored from backup."
+        };
+    }
+
     private Dictionary<string, object?> Status(AgentDefinition agent)
     {
         var binaryPath = FindBinary(agent);
@@ -604,6 +680,8 @@ public sealed class WindowsAgentAdapter
                             ? claudeCodePatcher.IsConfigured()
                             : agent.Id == "amp"
                                 ? ampPatcher.IsConfigured()
+                                : agent.Id == "gemini-cli"
+                                    ? geminiPatcher.IsConfigured()
                     : agent.TargetPaths.Any(path => File.Exists(ExpandPath(path))),
             ["platform_support"] = agent.PlatformSupport,
             ["rollback_available"] = RollbackAvailable(agent),
@@ -619,8 +697,8 @@ public sealed class WindowsAgentAdapter
             return
             [
                 "Install and verify the Gemini CLI on Windows.",
-                "Configure the CLI manually using the official documentation.",
-                "Use the Quotio local endpoint when the proxy runtime is running."
+                "Review the PowerShell profile diff before applying automatic configuration.",
+                "Restart PowerShell after install so Gemini CLI sees the Quotio endpoint."
             ];
         }
 
@@ -649,6 +727,11 @@ public sealed class WindowsAgentAdapter
             return ["Automatic writes update settings.json and secrets.json with timestamped backups; shell environment variables remain manual."];
         }
 
+        if (agent.Id == "gemini-cli")
+        {
+            return ["Automatic writes update the PowerShell 7 user profile with a Quotio-managed marker block and timestamped backups."];
+        }
+
         return agent.PlatformSupport == "guide-only"
             ? ["PowerShell profile writes are not implemented yet."]
             : ["Automatic writes are disabled until backup and rollback behavior is validated on Windows."];
@@ -663,7 +746,7 @@ public sealed class WindowsAgentAdapter
 
         if (agent.Id != "codex")
         {
-            return agent.Id == "opencode" || agent.Id == "factory-droid" || agent.Id == "claude-code" || agent.Id == "amp"
+            return agent.Id == "opencode" || agent.Id == "factory-droid" || agent.Id == "claude-code" || agent.Id == "amp" || agent.Id == "gemini-cli"
                 ? RollbackAvailable(agent)
                     ? ["guide", "diff", "install", "rollback"]
                     : ["guide", "diff", "install"]
@@ -700,6 +783,11 @@ public sealed class WindowsAgentAdapter
         if (agent.Id == "amp")
         {
             return ampPatcher.LatestBackupPath() is not null;
+        }
+
+        if (agent.Id == "gemini-cli")
+        {
+            return geminiPatcher.LatestBackupPath() is not null;
         }
 
         return false;

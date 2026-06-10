@@ -113,7 +113,7 @@ Download the latest `.dmg` from the [Releases](https://github.com/nguyenphutrong
 The repository includes a preview Windows native host for the multiplatform
 migration. CI uploads a zipped preview build artifact for smoke testing, but it
 is not a shipped Windows release until installer, signing, updater, shared
-credential editing, and agent write/rollback parity are complete.
+credential editing, and production cutover checks are complete.
 
 Maintainers can publish an unsigned Windows preview prerelease with the
 `Windows Preview Release` workflow. Preview tags must use the

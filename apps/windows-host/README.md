@@ -6,8 +6,8 @@ WebView2, tray, single-instance, and Rust bridge implementation.
 The Windows host is currently a preview artifact. It is expected to build and
 exercise the shared UI bridge, Credential Manager-backed bootstrap config,
 shared remote credential editing, local crash-report capture, optional crash
-upload, and read-only agent adapter, but it is not production parity with macOS
-until installer, signing, updater, agent write/rollback adapters, and cutover
+upload, and native agent write/rollback adapters, but it is not production
+parity with macOS until installer, signing, updater, and cutover
 checks in `docs/architecture/multiplatform/0006-cutover-gap-matrix.md` are done.
 
 ## Development
@@ -70,5 +70,6 @@ controls stay hidden until their host adapter is implemented.
 
 The shared Agents route is enabled with a Windows adapter. It lists agent
 descriptors, detects binaries/config files, serves manual guides, and supports
-Codex CLI install/rollback with timestamped backups. Other agents remain
+Codex, Claude Code settings.json, Amp, Gemini PowerShell profile, OpenCode, and
+Factory Droid install/rollback with timestamped backups. Future agents remain
 read-only until their backup and rollback behavior is verified on Windows.
