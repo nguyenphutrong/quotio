@@ -698,7 +698,7 @@
         "operatingMode": "Chuyển giữa local proxy và kết nối remote đã lưu.",
         "remoteNotConfigured": "Cấu hình kết nối remote trước khi chuyển sang remote mode.",
         "language": "Thay đổi ngôn ngữ dùng trong desktop shell.",
-        "appearance": "Áp dụng giao diện native macOS ngay lập tức.",
+        "appearance": "Áp dụng giao diện native desktop ngay lập tức.",
         "launchAtLogin": "Tự động mở Quotio sau khi đăng nhập.",
         "proxyPort": "Sẽ restart local proxy nếu proxy đang chạy.",
         "allowNetworkAccessWarning": "Proxy sẽ bind vào 0.0.0.0 và có thể được truy cập từ thiết bị khác trong mạng.",
@@ -769,6 +769,7 @@
       },
       "actions": {
         "reset": "Đặt lại",
+        "openStartupSettings": "Mở Startup Apps",
         "checkForUpdates": "Kiểm tra cập nhật",
         "checkingUpdates": "Đang kiểm tra…"
       },

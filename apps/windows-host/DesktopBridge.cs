@@ -352,13 +352,19 @@ public sealed class DesktopBridge
             ? urlElement.GetString()
             : null;
         if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var url)
-            || (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps))
+            || !IsAllowedExternalUri(url))
         {
             throw new InvalidOperationException("Invalid external URL");
         }
 
         Process.Start(new ProcessStartInfo(url.ToString()) { UseShellExecute = true });
         return true;
+    }
+
+    private static bool IsAllowedExternalUri(Uri url)
+    {
+        return url.Scheme is Uri.UriSchemeHttp or Uri.UriSchemeHttps
+            || string.Equals(url.ToString(), "ms-settings:startupapps", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? HandleNativeOpenTextFile(JsonElement root)
@@ -449,7 +455,7 @@ public sealed class DesktopBridge
             ["language"] = preferences.Language,
             ["appearance"] = preferences.Appearance,
             ["launchAtLogin"] = WindowsStartupService.IsEnabled(),
-            ["launchAtLoginCanOpenSystemSettings"] = false,
+            ["launchAtLoginCanOpenSystemSettings"] = true,
             ["proxyPort"] = proxyPort,
             ["proxyEndpoint"] = status.Endpoint ?? proxyEndpoint,
             ["proxyRunning"] = status.State == "managed",

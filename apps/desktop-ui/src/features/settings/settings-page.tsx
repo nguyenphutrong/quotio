@@ -330,8 +330,13 @@ function RemoteConnectionPanel() {
 function NativePreferencesPanel() {
   const { i18n, t } = useTranslation();
   const toast = useToast();
-  const { bootstrap, preferencesRead, preferencesWrite, updatesCheck } =
-    useAdminRuntime();
+  const {
+    bootstrap,
+    openExternal,
+    preferencesRead,
+    preferencesWrite,
+    updatesCheck,
+  } = useAdminRuntime();
   const [state, setState] = useState(initialPreferencesState);
   const [authDirDraft, setAuthDirDraft] = useState('');
   const [proxyPortDraft, setProxyPortDraft] = useState('');
@@ -445,6 +450,18 @@ function NativePreferencesPanel() {
       setState((current) => ({
         ...current,
         checkingUpdates: false,
+        error:
+          error instanceof Error ? error.message : t('common.unknownError'),
+      }));
+    }
+  };
+
+  const openLaunchAtLoginSettings = async () => {
+    try {
+      await openExternal('ms-settings:startupapps');
+    } catch (error) {
+      setState((current) => ({
+        ...current,
         error:
           error instanceof Error ? error.message : t('common.unknownError'),
       }));
@@ -619,19 +636,31 @@ function NativePreferencesPanel() {
             label={t('settings.native.fields.launchAtLogin')}
             hint={t('settings.native.hints.launchAtLogin')}
           >
-            <div className="flex h-9 items-center justify-between gap-4 rounded-md border border-border px-3">
+            <div className="flex min-h-9 items-center justify-between gap-4 rounded-md border border-border px-3 py-1">
               <span className="text-muted-foreground text-sm">
                 {preferences?.launchAtLogin
                   ? t('about.status.enabled')
                   : t('about.status.disabled')}
               </span>
-              <Switch
-                checked={preferences?.launchAtLogin ?? false}
-                disabled={disabled}
-                onCheckedChange={(checked) =>
-                  void savePreference('launchAtLogin', checked)
-                }
-              />
+              <div className="flex items-center gap-2">
+                {preferences?.launchAtLoginCanOpenSystemSettings ? (
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                    onClick={() => void openLaunchAtLoginSettings()}
+                  >
+                    {t('settings.native.actions.openStartupSettings')}
+                  </Button>
+                ) : null}
+                <Switch
+                  checked={preferences?.launchAtLogin ?? false}
+                  disabled={disabled}
+                  onCheckedChange={(checked) =>
+                    void savePreference('launchAtLogin', checked)
+                  }
+                />
+              </div>
             </div>
           </PreferenceField>
         ) : null}

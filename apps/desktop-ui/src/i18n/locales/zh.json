@@ -699,7 +699,7 @@
         "operatingMode": "在本地代理和已保存的远程连接之间切换。",
         "remoteNotConfigured": "请先配置远程连接，然后再切换到远程模式。",
         "language": "更改桌面 shell 使用的语言。",
-        "appearance": "立即应用原生 macOS 外观。",
+        "appearance": "立即应用原生桌面外观。",
         "launchAtLogin": "登录后自动启动 Quotio。",
         "proxyPort": "如果本地代理正在运行，会自动重启。",
         "allowNetworkAccessWarning": "代理将绑定到 0.0.0.0，可能被同一网络中的其他设备访问。",
@@ -770,6 +770,7 @@
       },
       "actions": {
         "reset": "重置",
+        "openStartupSettings": "打开启动应用",
         "checkForUpdates": "检查更新",
         "checkingUpdates": "检查中…"
       },

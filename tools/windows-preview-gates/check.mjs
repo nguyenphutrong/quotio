@@ -162,6 +162,24 @@ assertAllContain(
     'applyAppearance(updatedPreferences.Appearance);',
   ],
 );
+assertAllContain(
+  'Windows bridge native settings affordances',
+  readProjectFile('apps/windows-host/DesktopBridge.cs'),
+  [
+    'IsAllowedExternalUri(url)',
+    '"ms-settings:startupapps"',
+    '["launchAtLoginCanOpenSystemSettings"] = true',
+  ],
+);
+assertAllContain(
+  'Desktop settings native startup affordance',
+  readProjectFile('apps/desktop-ui/src/features/settings/settings-page.tsx'),
+  [
+    "await openExternal('ms-settings:startupapps');",
+    'preferences?.launchAtLoginCanOpenSystemSettings',
+    "t('settings.native.actions.openStartupSettings')",
+  ],
+);
 assertAllContain('Windows native command strip', mainWindowXaml, [
   'x:Name="NativeTitleBar"',
   'x:Name="TitleBarDragRegion"',
