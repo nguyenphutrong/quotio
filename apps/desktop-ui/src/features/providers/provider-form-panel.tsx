@@ -1,12 +1,4 @@
 import { Button } from '@quotio/ui/components/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@quotio/ui/components/dialog';
 import { Input } from '@quotio/ui/components/input';
 import { Label } from '@quotio/ui/components/label';
 import { Switch } from '@quotio/ui/components/switch';
@@ -837,16 +829,16 @@ export function ProviderFormPanel({
         ) : null}
       </div>
 
-      <Dialog open={cookieImportOpen} onOpenChange={setCookieImportOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>
+      {cookieImportOpen ? (
+        <div className="space-y-4 rounded-lg border border-border/70 bg-muted/30 p-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
               {t('providers.dialogs.cookieImportTitle')}
-            </DialogTitle>
-            <DialogDescription>
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               {t('providers.dialogs.cookieImportDescription')}
-            </DialogDescription>
-          </DialogHeader>
+            </p>
+          </div>
           <div className="space-y-3">
             <Textarea
               value={cookieImportText}
@@ -858,7 +850,7 @@ export function ProviderFormPanel({
               <p className="text-sm text-destructive">{cookieImportError}</p>
             ) : null}
           </div>
-          <DialogFooter>
+          <div className="flex flex-wrap justify-end gap-2">
             <Button
               type="button"
               variant="outline"
@@ -876,9 +868,9 @@ export function ProviderFormPanel({
             <Button type="button" onClick={handleImportOpencodeGoCookieJson}>
               {t('providers.actions.import')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 

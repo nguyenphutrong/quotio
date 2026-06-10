@@ -7,8 +7,9 @@ import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { EmptyState } from '@/components/admin/empty-state';
 import { ErrorState } from '@/components/admin/error-state';
 import { LoadingState } from '@/components/admin/loading-state';
+import { Panel } from '@/components/admin/panel';
 import { useToast } from '@/components/admin/toast-provider';
-import { ProviderDialog } from '@/features/providers/provider-dialog';
+import { ProviderFormPanel } from '@/features/providers/provider-form-panel';
 import { ProvidersTable } from '@/features/providers/providers-table';
 import type {
   ProviderPayload,
@@ -204,87 +205,129 @@ export function ProvidersPage() {
         />
       )}
 
-      <ProviderDialog
-        key={
-          isAddProviderOpen ? 'create-provider-open' : 'create-provider-closed'
-        }
-        open={isAddProviderOpen}
-        onOpenChange={(open) => {
-          setIsAddProviderOpen(open);
-          if (!open) setInitialProviderKey(undefined);
-        }}
-        mode="create"
-        provider={null}
-        validationPreview={validationPreview}
-        initialProviderKey={initialProviderKey}
-        busy={
-          mutations.createMutation.isPending ||
-          mutations.validateMutation.isPending
-        }
-        onValidate={async (payload: ProviderPayload) => {
-          const preview = await mutations.validateMutation.mutateAsync(payload);
-          setValidationPreview(preview);
-          success(
-            t('providers.messages.validated', {
-              provider: preview.provider,
-            }),
-          );
-        }}
-        onCreate={async (payload: ProviderPayload) => {
-          const created = await mutations.createMutation.mutateAsync(payload);
-          setValidationPreview(null);
-          success(
-            t('providers.messages.created', {
-              name: created.label || created.id,
-            }),
-          );
-          setIsAddProviderOpen(false);
-          await providersQuery.refetch();
-        }}
-        onOAuthCreated={async (created) => {
-          setValidationPreview(null);
-          success(
-            t('providers.messages.created', {
-              name: created.label || created.id,
-            }),
-          );
-          setIsAddProviderOpen(false);
-          await providersQuery.refetch();
-        }}
-        onUpdate={async () => {}}
-      />
+      {isAddProviderOpen ? (
+        <Panel className="space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                {t('providers.dialogs.createTitle')}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('providers.dialogs.createDescription')}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsAddProviderOpen(false);
+                setInitialProviderKey(undefined);
+              }}
+            >
+              {t('common.close')}
+            </Button>
+          </div>
+          <ProviderFormPanel
+            key={
+              isAddProviderOpen
+                ? 'create-provider-open'
+                : 'create-provider-closed'
+            }
+            mode="create"
+            provider={null}
+            validationPreview={validationPreview}
+            initialProviderKey={initialProviderKey}
+            busy={
+              mutations.createMutation.isPending ||
+              mutations.validateMutation.isPending
+            }
+            hideHeader
+            onValidate={async (payload: ProviderPayload) => {
+              const preview =
+                await mutations.validateMutation.mutateAsync(payload);
+              setValidationPreview(preview);
+              success(
+                t('providers.messages.validated', {
+                  provider: preview.provider,
+                }),
+              );
+            }}
+            onCreate={async (payload: ProviderPayload) => {
+              const created =
+                await mutations.createMutation.mutateAsync(payload);
+              setValidationPreview(null);
+              success(
+                t('providers.messages.created', {
+                  name: created.label || created.id,
+                }),
+              );
+              setIsAddProviderOpen(false);
+              await providersQuery.refetch();
+            }}
+            onOAuthCreated={async (created) => {
+              setValidationPreview(null);
+              success(
+                t('providers.messages.created', {
+                  name: created.label || created.id,
+                }),
+              );
+              setIsAddProviderOpen(false);
+              await providersQuery.refetch();
+            }}
+            onUpdate={async () => {}}
+          />
+        </Panel>
+      ) : null}
 
-      <ProviderDialog
-        open={!!editingProviderId}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingProviderId(null);
-            setValidationPreview(null);
-          }
-        }}
-        mode="edit"
-        provider={editingProvider}
-        validationPreview={editingProvider}
-        busy={mutations.updateMutation.isPending}
-        onValidate={async () => {}}
-        onCreate={async () => {}}
-        onOAuthCreated={async () => {}}
-        onUpdate={async ({ id, label, disabled, headers }) => {
-          const updated = await mutations.updateMutation.mutateAsync({
-            id,
-            label,
-            disabled,
-            headers,
-          });
-          success(
-            t('providers.messages.updated', {
-              name: updated.label || updated.id,
-            }),
-          );
-          setEditingProviderId(null);
-          await providersQuery.refetch();
-        }}
-      />
+      {editingProviderId ? (
+        <Panel className="space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                {t('providers.dialogs.editTitle')}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('providers.dialogs.editDescription')}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditingProviderId(null);
+                setValidationPreview(null);
+              }}
+            >
+              {t('common.close')}
+            </Button>
+          </div>
+          <ProviderFormPanel
+            mode="edit"
+            provider={editingProvider}
+            validationPreview={editingProvider}
+            busy={mutations.updateMutation.isPending}
+            hideHeader
+            onValidate={async () => {}}
+            onCreate={async () => {}}
+            onOAuthCreated={async () => {}}
+            onUpdate={async ({ id, label, disabled, headers }) => {
+              const updated = await mutations.updateMutation.mutateAsync({
+                id,
+                label,
+                disabled,
+                headers,
+              });
+              success(
+                t('providers.messages.updated', {
+                  name: updated.label || updated.id,
+                }),
+              );
+              setEditingProviderId(null);
+              await providersQuery.refetch();
+            }}
+          />
+        </Panel>
+      ) : null}
     </div>
   );
 }
