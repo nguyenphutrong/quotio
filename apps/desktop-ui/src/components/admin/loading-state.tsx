@@ -10,7 +10,7 @@ export function LoadingState({ label }: { label?: string }) {
         fill="none"
         viewBox="0 0 24 24"
         role="img"
-        aria-label="Loading"
+        aria-label={label ?? t('common.loading')}
       >
         <circle
           className="opacity-25"

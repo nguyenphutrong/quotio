@@ -32,9 +32,13 @@ import { useTheme } from '@/components/theme-provider';
 import { useIsNativeDesktopRuntime } from '@/lib/admin/runtime';
 
 const themeOptions = [
-  { value: 'light', icon: RiSunLine, label: 'Light' },
-  { value: 'dark', icon: RiMoonLine, label: 'Dark' },
-  { value: 'system', icon: RiComputerLine, label: 'System' },
+  { value: 'light', icon: RiSunLine, labelKey: 'about.appearance.light' },
+  { value: 'dark', icon: RiMoonLine, labelKey: 'about.appearance.dark' },
+  {
+    value: 'system',
+    icon: RiComputerLine,
+    labelKey: 'about.appearance.system',
+  },
 ] as const;
 
 export function NavUser({
@@ -94,26 +98,29 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="flex items-center justify-between py-1.5">
               <span className="text-[11px] font-normal uppercase tracking-wider text-muted-foreground">
-                Theme
+                {t('about.fields.appearance')}
               </span>
               <div className="flex items-center gap-0.5 rounded-md border border-border/50 p-0.5">
-                {themeOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setTheme(opt.value)}
-                    className={cn(
-                      'flex size-6 items-center justify-center rounded-sm transition-colors',
-                      theme === opt.value
-                        ? 'bg-surface-1 text-foreground'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                    title={opt.label}
-                    aria-label={opt.label}
-                  >
-                    <opt.icon size={13} />
-                  </button>
-                ))}
+                {themeOptions.map((opt) => {
+                  const label = t(opt.labelKey);
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setTheme(opt.value)}
+                      className={cn(
+                        'flex size-6 items-center justify-center rounded-sm transition-colors',
+                        theme === opt.value
+                          ? 'bg-surface-1 text-foreground'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                      title={label}
+                      aria-label={label}
+                    >
+                      <opt.icon size={13} />
+                    </button>
+                  );
+                })}
               </div>
             </DropdownMenuLabel>
             {isNativeDesktop ? null : (

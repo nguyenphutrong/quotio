@@ -261,8 +261,12 @@ export function OverviewPage() {
                   <th className="px-4 py-3 font-medium">
                     {t('overview.provider')}
                   </th>
-                  <th className="px-4 py-3 font-medium">Accounts</th>
-                  <th className="px-4 py-3 font-medium">Stale / Error</th>
+                  <th className="px-4 py-3 font-medium">
+                    {t('overview.accounts')}
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    {t('overview.staleOrError')}
+                  </th>
                 </tr>
               </thead>
               <tbody>

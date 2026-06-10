@@ -103,6 +103,8 @@
     "quotaSnapshot": "配额使用",
     "quotaSnapshotDesc": "各服务商的当前使用量和限额。",
     "providerCount": "{{count}} 个服务商",
+    "accounts": "账号",
+    "staleOrError": "过期 / 错误",
     "freshness": "状态",
     "requests": "请求数",
     "cost": "成本",

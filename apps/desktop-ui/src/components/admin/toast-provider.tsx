@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAdminRuntime } from '@/lib/admin/runtime';
 
 type ToastTone = 'success' | 'error';
@@ -32,6 +33,8 @@ function ToastViewport({
   toasts: ToastRecord[];
   dismiss: (id: string) => void;
 }) {
+  const { t } = useTranslation();
+
   if (toasts.length === 0) {
     return null;
   }
@@ -61,7 +64,8 @@ function ToastViewport({
             variant="ghost"
             size="icon-xs"
             onClick={() => dismiss(toast.id)}
-            title="Dismiss"
+            title={t('common.close')}
+            aria-label={t('common.close')}
           >
             <RiCloseLine />
           </Button>

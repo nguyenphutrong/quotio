@@ -55,27 +55,27 @@ export function CommandPalette() {
           ))}
         </CommandGroup>
         <CommandSeparator />
-        <CommandGroup heading="Theme">
+        <CommandGroup heading={t('about.fields.appearance')}>
           <CommandItem
             value="light theme"
             onSelect={() => runCommand(() => setTheme('light'))}
           >
             <RiSunLine size={16} />
-            <span>Light</span>
+            <span>{t('about.appearance.light')}</span>
           </CommandItem>
           <CommandItem
             value="dark theme"
             onSelect={() => runCommand(() => setTheme('dark'))}
           >
             <RiMoonLine size={16} />
-            <span>Dark</span>
+            <span>{t('about.appearance.dark')}</span>
           </CommandItem>
           <CommandItem
             value="system theme"
             onSelect={() => runCommand(() => setTheme('system'))}
           >
             <RiComputerLine size={16} />
-            <span>System</span>
+            <span>{t('about.appearance.system')}</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>

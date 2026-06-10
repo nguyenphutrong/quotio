@@ -106,6 +106,8 @@
     "quotaSnapshotDesc": "Current usage and limits by provider.",
     "providerCount": "{{count}} provider",
     "providerCount_other": "{{count}} providers",
+    "accounts": "Accounts",
+    "staleOrError": "Stale / Error",
     "freshness": "Status",
     "requests": "Requests",
     "cost": "Cost",

@@ -103,6 +103,8 @@
     "quotaSnapshot": "Sử dụng hạn mức",
     "quotaSnapshotDesc": "Mức sử dụng và giới hạn hiện tại theo nhà cung cấp.",
     "providerCount": "{{count}} nhà cung cấp",
+    "accounts": "Tài khoản",
+    "staleOrError": "Cũ / Lỗi",
     "freshness": "Trạng thái",
     "requests": "Yêu cầu",
     "cost": "Chi phí",
