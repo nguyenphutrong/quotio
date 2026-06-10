@@ -43,7 +43,7 @@ public sealed class WindowsAgentAdapter
             ["claude"],
             ["%USERPROFILE%\\.claude\\settings.json"],
             "supported",
-            "Windows preview supports detection, guide, diff preview, settings.json install, and rollback for Claude Code.",
+            "Windows host supports detection, guide, diff preview, settings.json install, and rollback for Claude Code.",
             "https://docs.anthropic.com/en/docs/claude-code"
         ),
         new(
@@ -53,7 +53,7 @@ public sealed class WindowsAgentAdapter
             ["codex"],
             ["%USERPROFILE%\\.codex\\config.toml"],
             "supported",
-            "Windows preview supports detection, guide, diff preview, install, and rollback for Codex CLI.",
+            "Windows host supports detection, guide, diff preview, install, and rollback for Codex CLI.",
             "https://github.com/openai/codex"
         ),
         new(
@@ -63,7 +63,7 @@ public sealed class WindowsAgentAdapter
             ["gemini"],
             ["%USERPROFILE%\\Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1"],
             "supported",
-            "Windows preview supports PowerShell profile detection, guide, diff preview, install, and rollback for Gemini CLI.",
+            "Windows host supports PowerShell profile detection, guide, diff preview, install, and rollback for Gemini CLI.",
             "https://github.com/google-gemini/gemini-cli"
         ),
         new(
@@ -73,7 +73,7 @@ public sealed class WindowsAgentAdapter
             ["opencode", "oc"],
             ["%LOCALAPPDATA%\\opencode\\opencode.json"],
             "supported",
-            "Windows preview supports detection, guide, diff preview, install, and rollback for OpenCode.",
+            "Windows host supports detection, guide, diff preview, install, and rollback for OpenCode.",
             "https://github.com/sst/opencode"
         ),
         new(
@@ -83,7 +83,7 @@ public sealed class WindowsAgentAdapter
             ["droid", "factory-droid"],
             ["%USERPROFILE%\\.factory\\config.json"],
             "supported",
-            "Windows preview supports detection, guide, diff preview, install, and rollback for Factory Droid.",
+            "Windows host supports detection, guide, diff preview, install, and rollback for Factory Droid.",
             "https://docs.factory.ai/welcome"
         ),
         new(
@@ -93,7 +93,7 @@ public sealed class WindowsAgentAdapter
             ["amp"],
             ["%USERPROFILE%\\.config\\amp\\settings.json", "%USERPROFILE%\\.local\\share\\amp\\secrets.json"],
             "supported",
-            "Windows preview supports detection, guide, diff preview, settings/secrets install, and rollback for Amp CLI.",
+            "Windows host supports detection, guide, diff preview, settings/secrets install, and rollback for Amp CLI.",
             "https://ampcode.com/manual"
         )
     ];
@@ -277,7 +277,7 @@ public sealed class WindowsAgentAdapter
                                 ? "Windows Amp CLI install is available with backup-before-write."
                                 : agent.Id == "gemini-cli"
                                     ? "Windows Gemini CLI PowerShell profile install is available with backup-before-write."
-                    : "Windows automatic agent configuration is not available for this agent in this preview build."
+                    : "Windows automatic agent configuration is not available for this agent."
         };
     }
 
@@ -733,7 +733,7 @@ public sealed class WindowsAgentAdapter
         }
 
         return agent.PlatformSupport == "guide-only"
-            ? ["PowerShell profile writes are not implemented yet."]
+            ? ["Automatic PowerShell profile writes are not available for this agent on Windows."]
             : ["Automatic writes are disabled until backup and rollback behavior is validated on Windows."];
     }
 

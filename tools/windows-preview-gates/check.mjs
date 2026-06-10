@@ -16,6 +16,9 @@ const mainWindowSource = readProjectFile(
   'apps/windows-host/MainWindow.xaml.cs',
 );
 const mainWindowXaml = readProjectFile('apps/windows-host/MainWindow.xaml');
+const windowsAgentAdapter = readProjectFile(
+  'apps/windows-host/WindowsAgentAdapter.cs',
+);
 const windowsProject = readProjectFile(
   'apps/windows-host/Quotio.Windows.csproj',
 );
@@ -106,6 +109,12 @@ function assertContains(sourceName, sourceText, requiredText) {
 function assertAllContain(sourceName, sourceText, requiredTexts) {
   for (const requiredText of requiredTexts) {
     assertContains(sourceName, sourceText, requiredText);
+  }
+}
+
+function assertNotContains(sourceName, sourceText, rejectedText) {
+  if (sourceText.includes(rejectedText)) {
+    throw new Error(`${sourceName} contains stale text: ${rejectedText}`);
   }
 }
 
@@ -200,6 +209,17 @@ assertAllContain(
     'refreshCadence == "manual"',
   ],
 );
+for (const rejectedText of [
+  'Windows preview supports',
+  'this preview build',
+  'not implemented yet',
+]) {
+  assertNotContains(
+    'Windows agent adapter copy',
+    windowsAgentAdapter,
+    rejectedText,
+  );
+}
 assertAllContain(
   'Desktop settings Windows tray behavior',
   readProjectFile('apps/desktop-ui/src/features/settings/settings-page.tsx'),
