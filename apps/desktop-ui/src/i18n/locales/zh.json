@@ -919,6 +919,7 @@
     "actions": {
       "addProvider": "添加服务商",
       "addConnection": "添加连接",
+      "edit": "编辑",
       "test": "测试",
       "validate": "校验",
       "saveChanges": "保存更改",
@@ -949,6 +950,7 @@
     },
     "tooltips": {
       "addConnection": "添加新连接",
+      "editConnection": "编辑连接",
       "testConnection": "测试此连接",
       "refreshToken": "刷新 Token",
       "enableConnection": "启用连接",

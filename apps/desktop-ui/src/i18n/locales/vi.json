@@ -918,6 +918,7 @@
     "actions": {
       "addProvider": "Thêm nhà cung cấp",
       "addConnection": "Thêm kết nối",
+      "edit": "Sửa",
       "test": "Kiểm tra",
       "validate": "Xác thực",
       "saveChanges": "Lưu thay đổi",
@@ -948,6 +949,7 @@
     },
     "tooltips": {
       "addConnection": "Thêm kết nối mới",
+      "editConnection": "Sửa kết nối",
       "testConnection": "Kiểm tra kết nối này",
       "refreshToken": "Làm mới token",
       "enableConnection": "Bật kết nối",

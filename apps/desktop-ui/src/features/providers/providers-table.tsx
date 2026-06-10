@@ -18,6 +18,7 @@ import {
   RiArrowDownSLine,
   RiArrowRightSLine,
   RiDeleteBinLine,
+  RiEditLine,
   RiFlashlightLine,
   RiPauseCircleLine,
   RiPlayCircleLine,
@@ -156,19 +157,24 @@ export function ProvidersTable({
               return (
                 <React.Fragment key={group.providerKey}>
                   {/* Group Row */}
-                  <TableRow
-                    className="group hover:bg-muted/50 data-[state=selected]:bg-muted [&>td]:py-2"
-                    onClick={() => toggleGroup(group.providerKey)}
-                  >
+                  <TableRow className="data-[state=selected]:bg-muted [&>td]:py-2">
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        <div className="text-muted-foreground w-4 flex justify-center">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground"
+                          onClick={() => toggleGroup(group.providerKey)}
+                          aria-expanded={isExpanded}
+                          aria-label={group.catalog.name}
+                        >
                           {isExpanded ? (
                             <RiArrowDownSLine className="h-4 w-4" />
                           ) : (
                             <RiArrowRightSLine className="h-4 w-4" />
                           )}
-                        </div>
+                        </Button>
                         <div className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-muted">
                           <ProviderIcon
                             provider={group.providerKey}
@@ -199,8 +205,7 @@ export function ProvidersTable({
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                onClick={() => {
                                   onAddConnection?.(group.providerKey);
                                 }}
                               >
@@ -234,14 +239,9 @@ export function ProvidersTable({
                       return (
                         <TableRow
                           key={connection.id}
-                          className={`cursor-default bg-muted/30 hover:bg-muted/60 [&>td]:py-2 ${
+                          className={`bg-muted/30 [&>td]:py-2 ${
                             isSelected ? 'bg-muted/60' : ''
                           } ${connection.disabled ? 'opacity-50' : ''}`}
-                          onClick={() => {
-                            if (canEdit) {
-                              onSelect(connection);
-                            }
-                          }}
                         >
                           <TableCell className="pl-12">
                             <div className="flex items-center gap-2">
@@ -292,6 +292,30 @@ export function ProvidersTable({
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
+                              {canEdit ? (
+                                <Tooltip>
+                                  <TooltipTrigger
+                                    render={
+                                      <Button
+                                        variant={
+                                          isSelected ? 'secondary' : 'ghost'
+                                        }
+                                        size="sm"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => onSelect(connection)}
+                                        disabled={busyId === connection.id}
+                                      >
+                                        <RiEditLine className="mr-1 h-3 w-3" />
+                                        {t('providers.actions.edit')}
+                                      </Button>
+                                    }
+                                  />
+                                  <TooltipContent>
+                                    {t('providers.tooltips.editConnection')}
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : null}
+
                               <Tooltip>
                                 <TooltipTrigger
                                   render={
@@ -299,8 +323,7 @@ export function ProvidersTable({
                                       variant="ghost"
                                       size="sm"
                                       className="h-7 px-2 text-xs"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
+                                      onClick={() => {
                                         onTest(connection);
                                       }}
                                       disabled={busyId === connection.id}
@@ -323,8 +346,7 @@ export function ProvidersTable({
                                         variant="ghost"
                                         size="icon"
                                         className="h-7 w-7"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
+                                        onClick={() => {
                                           onRefresh(connection);
                                         }}
                                         disabled={busyId === connection.id}
@@ -350,8 +372,7 @@ export function ProvidersTable({
                                           ? 'text-success hover:text-success'
                                           : 'text-warning hover:text-warning'
                                       }`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
+                                      onClick={() => {
                                         onToggleDisabled(connection);
                                       }}
                                       disabled={busyId === connection.id}
@@ -378,8 +399,7 @@ export function ProvidersTable({
                                       variant="ghost"
                                       size="icon"
                                       className="h-7 w-7 text-danger hover:text-danger hover:bg-danger/10"
-                                      onClick={async (e) => {
-                                        e.stopPropagation();
+                                      onClick={async () => {
                                         const name =
                                           connection.label || connection.id;
                                         const accepted = await confirm({

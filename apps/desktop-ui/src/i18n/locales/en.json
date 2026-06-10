@@ -923,6 +923,7 @@
     "actions": {
       "addProvider": "Add Provider",
       "addConnection": "Add connection",
+      "edit": "Edit",
       "test": "Test",
       "validate": "Validate",
       "saveChanges": "Save changes",
@@ -953,6 +954,7 @@
     },
     "tooltips": {
       "addConnection": "Add a new connection",
+      "editConnection": "Edit connection",
       "testConnection": "Test this connection",
       "refreshToken": "Refresh token",
       "enableConnection": "Enable connection",
