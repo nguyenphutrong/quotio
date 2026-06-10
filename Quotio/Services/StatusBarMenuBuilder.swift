@@ -561,11 +561,10 @@ private struct MenuNetworkInfoView: View {
                     .foregroundStyle(.secondary)
 
                 if isProxyRunning {
-                    Text(proxyURL)
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    Text("status.running".localized())
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-                        .truncationMode(.middle)
 
                     copyButton(
                         isCopied: didCopyProxy,
@@ -597,12 +596,11 @@ private struct MenuNetworkInfoView: View {
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    if tunnelStatus == .active, let url = tunnelURL {
-                        Text(url.replacingOccurrences(of: "https://", with: ""))
-                            .font(.system(size: 9, design: .monospaced))
+                    if tunnelStatus == .active, tunnelURL != nil {
+                        Text("tunnel.status.active".localized())
+                            .font(.system(size: 9, weight: .medium))
                             .foregroundStyle(.blue)
                             .lineLimit(1)
-                            .truncationMode(.middle)
 
                         copyButton(
                             isCopied: didCopyTunnel,
