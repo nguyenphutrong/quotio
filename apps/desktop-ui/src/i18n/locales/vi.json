@@ -638,15 +638,6 @@
       "used": "Đã dùng"
     }
   },
-  "placeholder": {
-    "comingSoon": "Tính năng này sắp ra mắt. Chúng tôi đang phát triển.",
-    "aboutDesc": "Thông tin phiên bản và chi tiết hệ thống sẽ hiển thị tại đây.",
-    "credentialsDesc": "Quản lý API key và xác thực nhà cung cấp sắp ra mắt.",
-    "logsDesc": "Nhật ký yêu cầu và lịch sử gửi đang được phát triển.",
-    "modelsDesc": "Cấu hình mô hình và quản lý định tuyến sắp có.",
-    "quotaDesc": "Giới hạn sử dụng và kiểm soát chi phí sẽ có tại đây.",
-    "settingsDesc": "Settings dùng chung vẫn read-only cho đến khi native host và management bridge sở hữu từng control."
-  },
   "settings": {
     "description": "Các cài đặt dùng chung do native host mở cho bản desktop này.",
     "native": {

@@ -643,15 +643,6 @@
       "used": "Used"
     }
   },
-  "placeholder": {
-    "comingSoon": "This feature is coming soon. We're actively working on it.",
-    "aboutDesc": "Version info and system details will appear here.",
-    "credentialsDesc": "API key and provider credential management is next.",
-    "logsDesc": "Request logs and delivery history are on the way.",
-    "modelsDesc": "Model configuration and routing management is coming up.",
-    "quotaDesc": "Usage limits and spending controls will be available here.",
-    "settingsDesc": "Shared settings stay read-only until native hosts and the management bridge own each control."
-  },
   "settings": {
     "description": "Shared settings exposed by the native host for this desktop build.",
     "native": {

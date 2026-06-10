@@ -639,15 +639,6 @@
       "used": "已用"
     }
   },
-  "placeholder": {
-    "comingSoon": "此功能即将上线，我们正在开发中。",
-    "aboutDesc": "版本信息和系统详情将在此显示。",
-    "credentialsDesc": "API 密钥和凭证管理即将上线。",
-    "logsDesc": "请求日志和送达历史正在开发中。",
-    "modelsDesc": "模型配置和路由管理即将推出。",
-    "quotaDesc": "使用限额和支出控制将在此提供。",
-    "settingsDesc": "共享设置会保持只读，直到原生主机和 management bridge 明确拥有每个控件。"
-  },
   "settings": {
     "description": "此桌面构建由原生主机开放的共享设置。",
     "native": {
