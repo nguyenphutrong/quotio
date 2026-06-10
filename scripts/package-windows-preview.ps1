@@ -79,6 +79,8 @@ $manifest = [ordered]@{
   requiredFileDetails = $requiredFileDetails
   installer = $false
   signing = $false
+  updater = $false
+  crashUploadConfigured = $false
 }
 
 Write-Utf8LfFile -Path $manifestPath -Content (($manifest | ConvertTo-Json -Depth 4) + "`n")

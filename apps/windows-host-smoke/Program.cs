@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using System.Net;
 using System.Net.Sockets;
 using System.Diagnostics;
@@ -30,6 +31,8 @@ var savedEnvironment = new Dictionary<string, string?>
     ["QUOTIO_PROXY_BINARY"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_BINARY"),
     ["QUOTIO_PROXY_ARGS"] = Environment.GetEnvironmentVariable("QUOTIO_PROXY_ARGS"),
     ["QUOTIO_WINDOWS_LOG_DIR"] = Environment.GetEnvironmentVariable("QUOTIO_WINDOWS_LOG_DIR"),
+    ["QUOTIO_WINDOWS_CRASH_REPORT_DIR"] = Environment.GetEnvironmentVariable("QUOTIO_WINDOWS_CRASH_REPORT_DIR"),
+    ["QUOTIO_WINDOWS_CRASH_UPLOAD_URL"] = Environment.GetEnvironmentVariable("QUOTIO_WINDOWS_CRASH_UPLOAD_URL"),
     ["USERPROFILE"] = Environment.GetEnvironmentVariable("USERPROFILE"),
     ["LOCALAPPDATA"] = Environment.GetEnvironmentVariable("LOCALAPPDATA")
 };
@@ -43,6 +46,7 @@ try
     RunSingleInstanceSmoke();
     RunWindowPlacementSmoke();
     RunDiagnosticLogSmoke();
+    RunCrashReporterSmoke();
     RunRuntimeControllerSmoke();
     RunAgentAdapterSmoke();
 }
@@ -312,6 +316,35 @@ static void RunRuntimeControllerSmoke()
     Assert(afterCrash.State == "stopped", "Crash status should be reported once before stopped");
 }
 
+static void RunCrashReporterSmoke()
+{
+    var reportDirectory = Path.Combine(Path.GetTempPath(), $"quotio-crash-reports-{Guid.NewGuid():N}");
+    using var listener = new TcpListener(IPAddress.Loopback, 0);
+    listener.Start();
+    var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+    var requestTask = Task.Run(() => ReadHttpRequestBody(listener));
+
+    Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_CRASH_REPORT_DIR", reportDirectory);
+    Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_CRASH_UPLOAD_URL", $"http://127.0.0.1:{port}/crashes");
+
+    var result = WindowsCrashReporter.Capture(
+        new InvalidOperationException("management key=smoke-secret should be redacted"),
+        "smoke"
+    );
+
+    Assert(result.UploadAttempted, "Crash reporter should attempt upload when an upload URL is configured");
+    Assert(result.UploadSucceeded, "Crash reporter should upload to the configured endpoint");
+    Assert(File.Exists(result.ReportPath), "Crash reporter should write a local report before upload");
+
+    var payload = File.ReadAllText(result.ReportPath);
+    Assert(payload.Contains("\"source\":\"smoke\"", StringComparison.Ordinal), "Crash report should include source");
+    Assert(!payload.Contains("smoke-secret", StringComparison.Ordinal), "Crash report should redact management keys");
+    Assert(payload.Contains("[redacted]", StringComparison.Ordinal), "Crash report should preserve redaction marker");
+
+    var uploadedPayload = requestTask.GetAwaiter().GetResult();
+    Assert(uploadedPayload == payload.TrimEnd(), "Crash reporter should upload the same JSON payload written to disk");
+}
+
 static void RunAgentAdapterSmoke()
 {
     ClearEnvironment();
@@ -415,6 +448,8 @@ static void ClearEnvironment()
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", null);
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_BINARY", null);
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ARGS", null);
+    Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_CRASH_REPORT_DIR", null);
+    Environment.SetEnvironmentVariable("QUOTIO_WINDOWS_CRASH_UPLOAD_URL", null);
 }
 
 static void Assert(bool condition, string message)
@@ -435,6 +470,42 @@ static void AssertExactBoolDictionary(IReadOnlyDictionary<string, bool> actual, 
     {
         Assert(actual[key] == expectedValue, $"{label} should expose {key}={expectedValue}");
     }
+}
+
+static string ReadHttpRequestBody(TcpListener listener)
+{
+    using var client = listener.AcceptTcpClient();
+    using var stream = client.GetStream();
+    using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
+    var headers = new List<string>();
+    string? line;
+    while (!string.IsNullOrEmpty(line = reader.ReadLine()))
+    {
+        headers.Add(line);
+    }
+
+    var contentLength = headers
+        .Select(header => header.Split(':', 2))
+        .Where(parts => parts.Length == 2)
+        .FirstOrDefault(parts => parts[0].Equals("Content-Length", StringComparison.OrdinalIgnoreCase))?[1]
+        .Trim();
+    var length = int.TryParse(contentLength, out var parsedLength) ? parsedLength : 0;
+    var buffer = new char[length];
+    var offset = 0;
+    while (offset < length)
+    {
+        var read = reader.Read(buffer, offset, length - offset);
+        if (read == 0)
+        {
+            break;
+        }
+        offset += read;
+    }
+
+    var response = Encoding.ASCII.GetBytes("HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n");
+    stream.Write(response);
+    listener.Stop();
+    return new string(buffer, 0, offset);
 }
 
 static void RunRuntimeChildServer(string host, int port, int lifetimeSeconds)

@@ -35,6 +35,7 @@ public static class DiagnosticLog
             {
                 if (args.ExceptionObject is Exception error)
                 {
+                    CaptureCrashReport(error, "app-domain");
                     Error("Unhandled application exception", error);
                     return;
                 }
@@ -43,9 +44,27 @@ public static class DiagnosticLog
             };
             TaskScheduler.UnobservedTaskException += (_, args) =>
             {
+                CaptureCrashReport(args.Exception, "unobserved-task");
                 Error("Unobserved task exception", args.Exception);
             };
             registeredUnhandledHandlers = true;
+        }
+    }
+
+    private static void CaptureCrashReport(Exception error, string source)
+    {
+        try
+        {
+            var result = WindowsCrashReporter.Capture(error, source);
+            if (result.UploadAttempted && !result.UploadSucceeded)
+            {
+                Write("ERROR", $"Crash report upload failed: {result.UploadError}");
+            }
+            Write("INFO", $"Crash report captured: {result.ReportPath}");
+        }
+        catch (Exception reportError)
+        {
+            Trace.TraceError($"Failed to capture Windows crash report: {reportError}");
         }
     }
 

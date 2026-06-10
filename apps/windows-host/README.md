@@ -4,10 +4,11 @@ Native Windows shell for the shared desktop UI. Plan 05 owns the WinUI 3,
 WebView2, tray, single-instance, and Rust bridge implementation.
 
 The Windows host is currently a preview artifact. It is expected to build and
-exercise the shared UI bridge, Credential Manager-backed bootstrap config, and
-read-only agent adapter, but it is not production parity with macOS until
-installer, signing, updater, agent write/rollback adapters, and cutover checks
-in `docs/architecture/multiplatform/0006-cutover-gap-matrix.md` are done.
+exercise the shared UI bridge, Credential Manager-backed bootstrap config,
+shared remote credential editing, local crash-report capture, optional crash
+upload, and read-only agent adapter, but it is not production parity with macOS
+until installer, signing, updater, agent write/rollback adapters, and cutover
+checks in `docs/architecture/multiplatform/0006-cutover-gap-matrix.md` are done.
 
 ## Development
 
@@ -41,8 +42,15 @@ bridge returns to stopped.
 The host writes local diagnostics to
 `%LOCALAPPDATA%\Quotio\logs\windows-host.log` and records unhandled application
 exceptions plus bridge/runtime errors. Set `QUOTIO_WINDOWS_LOG_DIR` to redirect
-the log during smoke testing. This is a local support log, not production
-telemetry or crash upload.
+the log during smoke testing.
+
+Unhandled exceptions also write redacted JSON crash reports to
+`%LOCALAPPDATA%\Quotio\crash-reports`. Set
+`QUOTIO_WINDOWS_CRASH_REPORT_DIR` to redirect crash reports during smoke
+testing. Set `QUOTIO_WINDOWS_CRASH_UPLOAD_URL` to an HTTPS endpoint to upload
+the same redacted JSON payload after it is written locally. Plain HTTP is only
+accepted for loopback smoke tests. The preview build does not configure a
+production upload endpoint by default.
 
 The management bridge keeps credentials in the native host. It reads
 configuration from environment variables first, then falls back to generic
@@ -56,9 +64,9 @@ Windows Credential Manager entries:
 - `QUOTIO_PROXY_ENDPOINT` or `Quotio/ProxyEndpoint`
 
 The native bridge can read, write, and delete `Quotio/*` Credential Manager
-entries for future settings forms. The bootstrap still does not advertise remote
-connection or native onboarding capabilities, and shared credential controls stay
-hidden until the settings form is implemented.
+entries. The shared Settings route exposes remote management connection editing
+for `Quotio/ManagementBaseUrl` and `Quotio/ManagementKey`. Native onboarding
+controls stay hidden until their host adapter is implemented.
 
 The shared Agents route is enabled with a Windows adapter. It lists agent
 descriptors, detects binaries/config files, serves manual guides, and supports
