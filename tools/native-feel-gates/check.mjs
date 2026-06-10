@@ -23,6 +23,13 @@ function collectSourceFiles(directory) {
 const sourceFiles = collectSourceFiles(
   join(repoRoot, 'apps/desktop-ui/src'),
 ).filter((filePath) => filePath !== 'apps/desktop-ui/src/routeTree.gen.ts');
+const macosSharedUIScreen = readFileSync(
+  new URL(
+    '../../Quotio/Views/Screens/SharedDesktopUIScreen.swift',
+    import.meta.url,
+  ),
+  'utf8',
+);
 
 const allowedWindowOpenFiles = new Set([
   'apps/desktop-ui/src/lib/admin/runtime.tsx',
@@ -44,6 +51,12 @@ for (const filePath of sourceFiles) {
   ) {
     violations.push(`${filePath}: route external opens through openExternal`);
   }
+}
+
+if (!macosSharedUIScreen.includes('return true')) {
+  violations.push(
+    'Quotio/Views/Screens/SharedDesktopUIScreen.swift: shared UI must remain the default macOS app surface',
+  );
 }
 
 if (violations.length > 0) {

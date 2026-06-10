@@ -34,14 +34,14 @@ production write paths on Windows CI.
 | Area | macOS status | Windows status | Cutover gate |
 | --- | --- | --- | --- |
 | App shell | Production SwiftUI menu bar app | Preview WinUI shell | Windows tray, lifecycle, single-instance, window restore, and native dialogs verified |
-| Shared UI host | Embedded WKWebView host with environment and defaults-based runtime route flags | WebView2 host with feature flags | Both hosts pass the same contract version and route gate matrix |
+| Shared UI host | Embedded WKWebView host enabled by default with environment and defaults-based rollback flags | WebView2 host with feature flags | Both hosts pass the same contract version and route gate matrix |
 | Runtime process | Existing CLIProxyAPI lifecycle plus shared Rust foundation | Preview host can start, stop, restart, health-gate startup, report crashed child exits, write local diagnostics, and capture/upload redacted crash reports when an upload endpoint is configured; shared Rust foundation is not packaged into a production installer | No-zombie-process and recovery checks pass in CI and manual OS smoke tests before production packaging |
 | Management API | Existing Swift management client plus shared bridge | Bridge can proxy management requests | Endpoint parity approved per screen before enabling routes |
 | Settings | Native Swift settings remain authoritative | Credential Manager-backed bootstrap config plus shared remote management connection form for native `Quotio/ManagementBaseUrl` and `Quotio/ManagementKey` credentials; unsupported settings controls hidden | Credentials live in Keychain/Credential Manager and unsupported controls are hidden |
 | Agents | Native macOS SwiftUI write path remains authoritative | Claude Code settings.json, Codex, Amp CLI settings files, Gemini PowerShell profile, OpenCode, and Factory Droid adapters support descriptor, detection, diff preview, install, backup, and rollback | Descriptor, detection, diff, install, backup, and rollback endpoints exist per OS |
 | Updates | Sparkle/appcast release path exists | Velopack update metadata and native check bridge exist; update checks require a Velopack-installed build | Signed Windows updater path tested before production release |
 | Packaging | Existing release path plus unsigned preview artifact workflow | Zipped preview artifact plus Velopack installer artifacts from CI and manual release workflow | Signing, uninstall, upgrade, and user-data preservation tested |
-| Rollback | Keep old Swift screens behind `sharedDesktopUIEnabled` and `QUOTIO_DISABLE_SHARED_UI` route flags | Keep shared route flags disabled by default | One release window with runtime flag rollback before removing superseded code |
+| Rollback | Keep old Swift screens behind `sharedDesktopUIEnabled=false` and `QUOTIO_DISABLE_SHARED_UI` route flags | Keep shared route flags disabled by default | One release window with runtime flag rollback before removing superseded code |
 
 ## Rollback Window
 

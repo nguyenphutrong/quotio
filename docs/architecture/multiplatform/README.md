@@ -18,9 +18,9 @@ copy files from the pinned commit, not from the live working tree.
 ## Shared UI Development
 
 The shared React desktop UI lives in `apps/desktop-ui` and is embedded by the
-macOS `SharedDesktopUIScreen` or the Windows preview WebView2 host. The current
-production macOS SwiftUI screens remain authoritative unless the host enables a
-shared route flag.
+macOS `SharedDesktopUIScreen` or the Windows preview WebView2 host. On macOS,
+the shared UI is now the default app surface; the legacy SwiftUI screens remain
+available only as an explicit fallback.
 
 For macOS development:
 
@@ -42,17 +42,17 @@ and launch the app with:
 bun run macos:shared-ui:bundled
 ```
 
-For release-candidate cutover testing, the shared UI can also be enabled with a
-persisted macOS defaults flag and rolled back without rebuilding:
+For release-candidate rollback testing, the legacy SwiftUI screens can be
+restored without rebuilding:
 
 ```bash
-defaults write dev.quotio.desktop sharedDesktopUIEnabled -bool true
-defaults write dev.quotio.desktop.beta sharedDesktopUIEnabled -bool true
+defaults write dev.quotio.desktop sharedDesktopUIEnabled -bool false
+defaults write dev.quotio.desktop.beta sharedDesktopUIEnabled -bool false
 ```
 
 Set `QUOTIO_DISABLE_SHARED_UI=1` at launch to force the native Swift screens even
-when the persisted flag is enabled. Delete the defaults key to return to the
-build default:
+when no persisted override is set. Delete the defaults key to return to the
+shared UI default:
 
 ```bash
 defaults delete dev.quotio.desktop sharedDesktopUIEnabled

@@ -19,15 +19,11 @@ enum SharedDesktopUIFeature {
         if environment["QUOTIO_ENABLE_SHARED_UI"] == "1" {
             return true
         }
-        if UserDefaults.standard.bool(forKey: userDefaultsKey) {
-            return true
+        if let persistedOverride = UserDefaults.standard.object(forKey: userDefaultsKey) as? Bool {
+            return persistedOverride
         }
 
-        #if DEBUG
-        return environment["QUOTIO_DESKTOP_UI_DEV_SERVER"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        #else
-        return false
-        #endif
+        return true
     }
 }
 
