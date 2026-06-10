@@ -669,7 +669,7 @@
         "remoteNotConfigured": "请先配置远程连接，然后再切换到远程模式。",
         "language": "更改桌面 shell 使用的语言。",
         "appearance": "立即应用原生 macOS 外观。",
-        "launchAtLogin": "使用系统 Login Items 服务。",
+        "launchAtLogin": "登录后自动启动 Quotio。",
         "proxyPort": "如果本地代理正在运行，会自动重启。",
         "allowNetworkAccessWarning": "代理将绑定到 0.0.0.0，可能被同一网络中的其他设备访问。",
         "authDir": "存储 provider auth 文件。目录不存在时会创建。",

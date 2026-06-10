@@ -338,6 +338,8 @@ function NativePreferencesPanel() {
 
   const enabled = bootstrap.capabilities.supportsNativePreferences;
   const isMacHost = bootstrap.platform === 'macos';
+  const supportsLaunchAtLogin =
+    bootstrap.platform === 'macos' || bootstrap.platform === 'windows';
 
   useEffect(() => {
     let cancelled = false;
@@ -604,7 +606,7 @@ function NativePreferencesPanel() {
           </Select>
         </PreferenceField>
 
-        {isMacHost ? (
+        {supportsLaunchAtLogin ? (
           <PreferenceField
             label={t('settings.native.fields.launchAtLogin')}
             hint={t('settings.native.hints.launchAtLogin')}

@@ -435,7 +435,7 @@ public sealed class DesktopBridge
                 && !string.IsNullOrWhiteSpace(config.ManagementKey),
             ["language"] = preferences.Language,
             ["appearance"] = preferences.Appearance,
-            ["launchAtLogin"] = false,
+            ["launchAtLogin"] = WindowsStartupService.IsEnabled(),
             ["launchAtLoginCanOpenSystemSettings"] = false,
             ["proxyPort"] = proxyPort,
             ["proxyEndpoint"] = status.Endpoint ?? proxyEndpoint,

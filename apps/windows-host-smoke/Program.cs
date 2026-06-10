@@ -44,6 +44,7 @@ try
     RunConfigSmoke();
     RunCredentialStoreSmoke();
     RunNativePreferencesSmoke();
+    RunWindowsStartupServiceSmoke();
     RunDesktopUiSourceSmoke();
     RunBootstrapSmoke();
     RunSingleInstanceSmoke();
@@ -205,6 +206,7 @@ static void RunNativePreferencesSmoke()
           "language": "vi",
           "appearance": "dark",
           "operatingMode": "remote",
+          "launchAtLogin": false,
           "hideSensitiveInfo": true,
           "totalUsageMode": "combined",
           "modelAggregationMode": "average",
@@ -250,6 +252,35 @@ static void RunNativePreferencesSmoke()
             "Windows preferences should persist proxy port to Credential Manager"
         );
         WindowsCredentialStore.DeleteGenericCredential("Quotio/ProxyEndpoint");
+    }
+}
+
+static void RunWindowsStartupServiceSmoke()
+{
+    Assert(
+        WindowsStartupService.BuildStartupCommand(@"C:\Program Files\Quotio\Quotio.exe") == @"""C:\Program Files\Quotio\Quotio.exe""",
+        "Windows startup command should quote executable paths"
+    );
+
+    if (!OperatingSystem.IsWindows())
+    {
+        WindowsStartupService.SetEnabled(false);
+        Assert(!WindowsStartupService.IsEnabled(), "Non-Windows startup registration should stay disabled");
+        return;
+    }
+
+    var originalCommand = WindowsStartupService.ReadRegisteredCommand();
+    try
+    {
+        WindowsStartupService.SetEnabled(true);
+        Assert(WindowsStartupService.IsEnabled(), "Windows startup registration should enable launch at login");
+
+        WindowsStartupService.SetEnabled(false);
+        Assert(!WindowsStartupService.IsEnabled(), "Windows startup registration should disable launch at login");
+    }
+    finally
+    {
+        WindowsStartupService.RestoreRegisteredCommand(originalCommand);
     }
 }
 

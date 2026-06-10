@@ -62,6 +62,11 @@ public sealed class WindowsNativePreferencesStore
             state.Appearance = appearance;
         }
 
+        if (TryReadBool(preferences, "launchAtLogin", out var launchAtLogin))
+        {
+            WindowsStartupService.SetEnabled(launchAtLogin);
+        }
+
         if (TryReadBool(preferences, "hideSensitiveInfo", out var hideSensitiveInfo))
         {
             state.HideSensitiveInfo = hideSensitiveInfo;
