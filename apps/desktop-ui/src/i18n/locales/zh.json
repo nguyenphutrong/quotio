@@ -879,21 +879,22 @@
     }
   },
   "about": {
-    "description": "此桌面构建的主机诊断、路由开关和平台能力状态。",
+    "description": "版本详情、支持链接和故障排查信息。",
     "sections": {
-      "host": "主机",
-      "routes": "共享路由",
-      "routesDesc": "当前由原生主机 bootstrap 暴露的路由。",
-      "capabilities": "主机能力",
-      "capabilitiesDesc": "此平台上的共享页面可使用的原生能力。",
+      "host": "应用详情",
+      "routes": "可用页面",
+      "routesDesc": "当前应用会话中启用的页面。",
+      "capabilities": "故障排查能力",
+      "capabilitiesDesc": "此桌面版本报告的平台功能。",
       "resources": "资源",
-      "resourcesDesc": "项目链接和支持资源。"
+      "resourcesDesc": "项目链接和支持资源。",
+      "troubleshooting": "故障排查详情"
     },
     "fields": {
       "platform": "平台",
       "operatingMode": "运行模式",
-      "bridgeVersion": "Bridge 版本",
-      "serverListen": "Proxy 监听",
+      "bridgeVersion": "兼容版本",
+      "serverListen": "本地网关",
       "locale": "语言",
       "appearance": "外观"
     },
@@ -937,9 +938,9 @@
       "supportsAgentConfig": "Agent 配置",
       "supportsRemoteConnections": "远程连接",
       "supportsCredentialStorage": "凭证存储",
-      "supportsManagementBridge": "Management bridge",
-      "supportsNativeOnboarding": "原生 onboarding",
-      "supportsNativePreferences": "原生偏好",
+      "supportsManagementBridge": "网关请求",
+      "supportsNativeOnboarding": "引导式设置",
+      "supportsNativePreferences": "应用偏好",
       "supportsAppearanceSync": "外观同步",
       "supportsRequestLogSettings": "请求日志设置",
       "supportsModelSettings": "模型设置",

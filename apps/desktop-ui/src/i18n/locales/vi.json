@@ -878,21 +878,22 @@
     }
   },
   "about": {
-    "description": "Chẩn đoán host, route gate và trạng thái capability của bản desktop này.",
+    "description": "Thông tin phiên bản, liên kết hỗ trợ và dữ liệu xử lý sự cố.",
     "sections": {
-      "host": "Host",
-      "routes": "Route dùng chung",
-      "routesDesc": "Các route hiện được native host bootstrap quảng bá.",
-      "capabilities": "Khả năng của host",
-      "capabilitiesDesc": "Các tính năng native mà màn hình dùng chung có thể dùng trên platform này.",
+      "host": "Thông tin ứng dụng",
+      "routes": "Màn hình khả dụng",
+      "routesDesc": "Các màn hình đang bật cho phiên làm việc này.",
+      "capabilities": "Khả năng xử lý sự cố",
+      "capabilitiesDesc": "Các tính năng platform được bản desktop này báo cáo.",
       "resources": "Tài nguyên",
-      "resourcesDesc": "Liên kết dự án và kênh hỗ trợ."
+      "resourcesDesc": "Liên kết dự án và kênh hỗ trợ.",
+      "troubleshooting": "Chi tiết xử lý sự cố"
     },
     "fields": {
       "platform": "Platform",
       "operatingMode": "Chế độ hoạt động",
-      "bridgeVersion": "Phiên bản bridge",
-      "serverListen": "Proxy listen",
+      "bridgeVersion": "Phiên bản tương thích",
+      "serverListen": "Gateway local",
       "locale": "Ngôn ngữ",
       "appearance": "Giao diện"
     },
@@ -936,9 +937,9 @@
       "supportsAgentConfig": "Cấu hình agent",
       "supportsRemoteConnections": "Kết nối remote",
       "supportsCredentialStorage": "Lưu trữ credential",
-      "supportsManagementBridge": "Management bridge",
-      "supportsNativeOnboarding": "Onboarding native",
-      "supportsNativePreferences": "Tùy chọn native",
+      "supportsManagementBridge": "Yêu cầu gateway",
+      "supportsNativeOnboarding": "Thiết lập có hướng dẫn",
+      "supportsNativePreferences": "Tùy chọn ứng dụng",
       "supportsAppearanceSync": "Đồng bộ giao diện",
       "supportsRequestLogSettings": "Cài đặt request log",
       "supportsModelSettings": "Cài đặt model",

@@ -140,63 +140,6 @@ function AboutPage() {
       />
 
       <Panel>
-        <h2 className="font-medium text-foreground text-sm">
-          {t('about.sections.host')}
-        </h2>
-        <dl className="mt-3">
-          <DiagnosticsRow
-            label={t('about.fields.platform')}
-            value={t(`about.platform.${bootstrap.platform}`)}
-          />
-          <DiagnosticsRow
-            label={t('about.fields.operatingMode')}
-            value={t(`about.operatingMode.${bootstrap.operatingMode}`)}
-          />
-          <DiagnosticsRow
-            label={t('about.fields.bridgeVersion')}
-            value={String(bootstrap.bridgeVersion)}
-          />
-          <DiagnosticsRow
-            label={t('about.fields.serverListen')}
-            value={bootstrap.serverListen}
-            copyValue={bootstrap.serverListen}
-          />
-          <DiagnosticsRow
-            label={t('about.fields.locale')}
-            value={bootstrap.locale}
-          />
-          <DiagnosticsRow
-            label={t('about.fields.appearance')}
-            value={t(`about.appearance.${bootstrap.appearance}`)}
-          />
-        </dl>
-      </Panel>
-
-      <Panel>
-        <div className="mb-3">
-          <h2 className="font-medium text-foreground text-sm">
-            {t('about.sections.routes')}
-          </h2>
-          <p className="mt-1 text-muted-foreground text-sm">
-            {t('about.sections.routesDesc')}
-          </p>
-        </div>
-        <FlagList labelsPrefix="about.features" values={featureValues} />
-      </Panel>
-
-      <Panel>
-        <div className="mb-3">
-          <h2 className="font-medium text-foreground text-sm">
-            {t('about.sections.capabilities')}
-          </h2>
-          <p className="mt-1 text-muted-foreground text-sm">
-            {t('about.sections.capabilitiesDesc')}
-          </p>
-        </div>
-        <FlagList labelsPrefix="about.capabilities" values={capabilityValues} />
-      </Panel>
-
-      <Panel>
         <div className="mb-3">
           <h2 className="font-medium text-foreground text-sm">
             {t('about.sections.resources')}
@@ -219,6 +162,76 @@ function AboutPage() {
             </Button>
           ))}
         </div>
+      </Panel>
+
+      <Panel>
+        <h2 className="font-medium text-foreground text-sm">
+          {t('about.sections.host')}
+        </h2>
+        <dl className="mt-3">
+          <DiagnosticsRow
+            label={t('about.fields.platform')}
+            value={t(`about.platform.${bootstrap.platform}`)}
+          />
+          <DiagnosticsRow
+            label={t('about.fields.operatingMode')}
+            value={t(`about.operatingMode.${bootstrap.operatingMode}`)}
+          />
+          <DiagnosticsRow
+            label={t('about.fields.locale')}
+            value={bootstrap.locale}
+          />
+          <DiagnosticsRow
+            label={t('about.fields.appearance')}
+            value={t(`about.appearance.${bootstrap.appearance}`)}
+          />
+        </dl>
+      </Panel>
+
+      <Panel>
+        <details>
+          <summary className="cursor-pointer font-medium text-foreground text-sm">
+            {t('about.sections.troubleshooting')}
+          </summary>
+          <div className="mt-3 space-y-5">
+            <dl>
+              <DiagnosticsRow
+                label={t('about.fields.bridgeVersion')}
+                value={String(bootstrap.bridgeVersion)}
+              />
+              <DiagnosticsRow
+                label={t('about.fields.serverListen')}
+                value={bootstrap.serverListen}
+                copyValue={bootstrap.serverListen}
+              />
+            </dl>
+            <div>
+              <div className="mb-3">
+                <h3 className="font-medium text-foreground text-sm">
+                  {t('about.sections.routes')}
+                </h3>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  {t('about.sections.routesDesc')}
+                </p>
+              </div>
+              <FlagList labelsPrefix="about.features" values={featureValues} />
+            </div>
+            <div>
+              <div className="mb-3">
+                <h3 className="font-medium text-foreground text-sm">
+                  {t('about.sections.capabilities')}
+                </h3>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  {t('about.sections.capabilitiesDesc')}
+                </p>
+              </div>
+              <FlagList
+                labelsPrefix="about.capabilities"
+                values={capabilityValues}
+              />
+            </div>
+          </div>
+        </details>
       </Panel>
     </div>
   );

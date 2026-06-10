@@ -883,21 +883,22 @@
     }
   },
   "about": {
-    "description": "Host diagnostics, route gates, and platform capability state for this desktop build.",
+    "description": "Version details, support links, and troubleshooting information.",
     "sections": {
-      "host": "Host",
-      "routes": "Shared routes",
-      "routesDesc": "Routes currently advertised by the native host bootstrap.",
-      "capabilities": "Host capabilities",
-      "capabilitiesDesc": "Native features available to shared screens on this platform.",
+      "host": "App details",
+      "routes": "Available screens",
+      "routesDesc": "Screens enabled for this app session.",
+      "capabilities": "Troubleshooting capabilities",
+      "capabilitiesDesc": "Platform features reported by this desktop build.",
       "resources": "Resources",
-      "resourcesDesc": "Project links and support resources."
+      "resourcesDesc": "Project links and support resources.",
+      "troubleshooting": "Troubleshooting details"
     },
     "fields": {
       "platform": "Platform",
       "operatingMode": "Operating mode",
-      "bridgeVersion": "Bridge version",
-      "serverListen": "Proxy listen",
+      "bridgeVersion": "Compatibility version",
+      "serverListen": "Local gateway",
       "locale": "Locale",
       "appearance": "Appearance"
     },
@@ -941,9 +942,9 @@
       "supportsAgentConfig": "Agent configuration",
       "supportsRemoteConnections": "Remote connections",
       "supportsCredentialStorage": "Credential storage",
-      "supportsManagementBridge": "Management bridge",
-      "supportsNativeOnboarding": "Native onboarding",
-      "supportsNativePreferences": "Native preferences",
+      "supportsManagementBridge": "Gateway requests",
+      "supportsNativeOnboarding": "Guided setup",
+      "supportsNativePreferences": "App preferences",
       "supportsAppearanceSync": "Appearance sync",
       "supportsRequestLogSettings": "Request log settings",
       "supportsModelSettings": "Model settings",
