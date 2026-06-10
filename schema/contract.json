@@ -29,6 +29,16 @@
     },
     {
       "kind": "native.openTextFile"
+    },
+    {
+      "kind": "native.credentialRead",
+      "response": "NativeCredential"
+    },
+    {
+      "kind": "native.credentialWrite"
+    },
+    {
+      "kind": "native.credentialDelete"
     }
   ],
   "events": [
@@ -147,6 +157,24 @@
         },
         {
           "name": "message",
+          "type": "string",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "NativeCredential",
+      "fields": [
+        {
+          "name": "targetName",
+          "type": "string"
+        },
+        {
+          "name": "exists",
+          "type": "boolean"
+        },
+        {
+          "name": "value",
           "type": "string",
           "optional": true
         }

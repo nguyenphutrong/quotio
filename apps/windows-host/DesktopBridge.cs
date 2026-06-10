@@ -103,6 +103,37 @@ public sealed class DesktopBridge
                 title: request?.title,
                 allowedExtensions: request?.allowedExtensions || []
               });
+            }),
+            credentialRead: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({
+                id,
+                kind: 'native.credentialRead',
+                targetName: request?.targetName
+              });
+            }),
+            credentialWrite: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({
+                id,
+                kind: 'native.credentialWrite',
+                targetName: request?.targetName,
+                value: request?.value
+              });
+            }),
+            credentialDelete: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              chrome.webview.postMessage({
+                id,
+                kind: 'native.credentialDelete',
+                targetName: request?.targetName
+              });
             })
           };
           window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__ = (message) => {
@@ -146,6 +177,9 @@ public sealed class DesktopBridge
                 "native.confirm" => await HandleNativeConfirmAsync(root),
                 "native.openExternal" => HandleNativeOpenExternal(root),
                 "native.openTextFile" => HandleNativeOpenTextFile(root),
+                "native.credentialRead" => HandleNativeCredentialRead(root),
+                "native.credentialWrite" => HandleNativeCredentialWrite(root),
+                "native.credentialDelete" => HandleNativeCredentialDelete(root),
                 _ => throw new InvalidOperationException("Unsupported bridge request")
             };
 
@@ -268,6 +302,48 @@ public sealed class DesktopBridge
         return dialog.ShowDialog() == WinForms.DialogResult.OK
             ? File.ReadAllText(dialog.FileName, Encoding.UTF8)
             : null;
+    }
+
+    private static NativeCredential HandleNativeCredentialRead(JsonElement root)
+    {
+        var targetName = ReadRequiredCredentialTargetName(root);
+        var value = WindowsCredentialStore.TryReadGenericCredential(targetName);
+        return new NativeCredential
+        {
+            TargetName = targetName,
+            Exists = value is not null,
+            Value = value
+        };
+    }
+
+    private static bool HandleNativeCredentialWrite(JsonElement root)
+    {
+        var targetName = ReadRequiredCredentialTargetName(root);
+        var value = ReadString(root, "value", "");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException("Credential value is required");
+        }
+
+        WindowsCredentialStore.WriteGenericCredential(targetName, value);
+        return true;
+    }
+
+    private static bool HandleNativeCredentialDelete(JsonElement root)
+    {
+        WindowsCredentialStore.DeleteGenericCredential(ReadRequiredCredentialTargetName(root));
+        return true;
+    }
+
+    private static string ReadRequiredCredentialTargetName(JsonElement root)
+    {
+        var targetName = ReadString(root, "targetName", "").Trim();
+        if (string.IsNullOrEmpty(targetName) || !targetName.StartsWith("Quotio/", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Invalid credential target");
+        }
+
+        return targetName;
     }
 
     private static string ReadString(JsonElement element, string propertyName, string fallback)

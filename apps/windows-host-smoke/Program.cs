@@ -37,6 +37,7 @@ var savedEnvironment = new Dictionary<string, string?>
 try
 {
     RunConfigSmoke();
+    RunCredentialStoreSmoke();
     RunDesktopUiSourceSmoke();
     RunBootstrapSmoke();
     RunSingleInstanceSmoke();
@@ -84,6 +85,29 @@ static void RunConfigSmoke()
     Assert(envConfig.ManagementKey == "env-management-key", "Environment management key should win over credentials");
     Assert(envConfig.ProxyEndpoint == "http://127.0.0.1:8484", "Environment proxy endpoint should win over credentials");
     Assert(envConfig.ServerListen == "127.0.0.1:8484", "ServerListen should use environment proxy endpoint");
+}
+
+static void RunCredentialStoreSmoke()
+{
+    if (!OperatingSystem.IsWindows())
+    {
+        return;
+    }
+
+    var targetName = $"Quotio/Smoke/{Guid.NewGuid():N}";
+    WindowsCredentialStore.DeleteGenericCredential(targetName);
+
+    WindowsCredentialStore.WriteGenericCredential(targetName, " smoke-secret ");
+    Assert(
+        WindowsCredentialStore.TryReadGenericCredential(targetName) == " smoke-secret ",
+        "Credential store should round-trip generic credentials"
+    );
+
+    WindowsCredentialStore.DeleteGenericCredential(targetName);
+    Assert(
+        WindowsCredentialStore.TryReadGenericCredential(targetName) is null,
+        "Credential store delete should remove generic credentials"
+    );
 }
 
 static void RunDesktopUiSourceSmoke()
@@ -140,7 +164,7 @@ static void RunBootstrapSmoke()
         ["supportsCliOAuth"] = true,
         ["supportsAgentConfig"] = false,
         ["supportsRemoteConnections"] = false,
-        ["supportsCredentialStorage"] = false,
+        ["supportsCredentialStorage"] = true,
         ["supportsNativeOnboarding"] = false,
         ["supportsAppearanceSync"] = true,
         ["supportsRequestLogSettings"] = false,

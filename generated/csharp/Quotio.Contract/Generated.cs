@@ -17,6 +17,9 @@ public enum QuotioRequestKind
     NativeConfirm,
     NativeOpenExternal,
     NativeOpenTextFile,
+    NativeCredentialRead,
+    NativeCredentialWrite,
+    NativeCredentialDelete,
 }
 
 public enum QuotioEventKind
@@ -60,4 +63,11 @@ public sealed record AgentDetectionStatus
     public required string? BinaryPath { get; init; }
     public required string? Version { get; init; }
     public required string? Message { get; init; }
+}
+
+public sealed record NativeCredential
+{
+    public required string TargetName { get; init; }
+    public required bool Exists { get; init; }
+    public required string? Value { get; init; }
 }

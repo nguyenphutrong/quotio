@@ -11,6 +11,9 @@ public enum QuotioRequestKind: String, Sendable {
     case NativeConfirm = "native.confirm"
     case NativeOpenExternal = "native.openExternal"
     case NativeOpenTextFile = "native.openTextFile"
+    case NativeCredentialRead = "native.credentialRead"
+    case NativeCredentialWrite = "native.credentialWrite"
+    case NativeCredentialDelete = "native.credentialDelete"
 }
 
 public enum QuotioEventKind: String, Sendable {
@@ -49,4 +52,10 @@ public struct AgentDetectionStatus: Codable, Sendable, Equatable {
     public let binaryPath: String?
     public let version: String?
     public let message: String?
+}
+
+public struct NativeCredential: Codable, Sendable, Equatable {
+    public let targetName: String
+    public let exists: Bool
+    public let value: String?
 }

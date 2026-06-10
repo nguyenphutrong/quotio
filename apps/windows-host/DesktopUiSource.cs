@@ -52,7 +52,7 @@ public static class DesktopUiSource
                 ["supportsCliOAuth"] = true,
                 ["supportsAgentConfig"] = false,
                 ["supportsRemoteConnections"] = false,
-                ["supportsCredentialStorage"] = false,
+                ["supportsCredentialStorage"] = true,
                 ["supportsNativeOnboarding"] = false,
                 ["supportsAppearanceSync"] = true,
                 ["supportsRequestLogSettings"] = false,

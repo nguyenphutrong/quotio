@@ -44,9 +44,9 @@ exceptions plus bridge/runtime errors. Set `QUOTIO_WINDOWS_LOG_DIR` to redirect
 the log during smoke testing. This is a local support log, not production
 telemetry or crash upload.
 
-The management bridge keeps credentials out of the shared UI. In this
-foundation phase it reads configuration from environment variables first, then
-falls back to generic Windows Credential Manager entries:
+The management bridge keeps credentials in the native host. It reads
+configuration from environment variables first, then falls back to generic
+Windows Credential Manager entries:
 
 - `QUOTIO_DESKTOP_UI_DEV_SERVER` or `Quotio/DesktopUiDevServer`
 - `QUOTIO_MANAGEMENT_BASE_URL` or `Quotio/ManagementBaseUrl`
@@ -55,9 +55,10 @@ falls back to generic Windows Credential Manager entries:
 - `QUOTIO_PROXY_ARGS` or `Quotio/ProxyArgs`
 - `QUOTIO_PROXY_ENDPOINT` or `Quotio/ProxyEndpoint`
 
-The bootstrap still does not advertise remote connection, credential editing, or
-native onboarding capabilities. Later plans should add verified write/update
-flows before enabling those shared UI controls.
+The native bridge can read, write, and delete `Quotio/*` Credential Manager
+entries for future settings forms. The bootstrap still does not advertise remote
+connection or native onboarding capabilities, and shared credential controls stay
+hidden until the settings form is implemented.
 
 The shared Agents route is enabled with a Windows adapter. It lists agent
 descriptors, detects binaries/config files, serves manual guides, and supports

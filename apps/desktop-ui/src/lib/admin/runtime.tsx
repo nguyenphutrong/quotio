@@ -1,4 +1,5 @@
 import type {
+  NativeCredential,
   RequestKind,
   RuntimeStatus,
 } from '@quotio/desktop-contract/generated';
@@ -34,6 +35,11 @@ export type NativeOpenTextFileRequest = {
   allowedExtensions?: string[];
 };
 
+export type NativeCredentialRequest = {
+  targetName: string;
+  value?: string;
+};
+
 type DesktopBridge = {
   request: <T>(request: DesktopBridgeRequest) => Promise<T>;
   runtimeStatus?: () => Promise<RuntimeStatus>;
@@ -43,6 +49,15 @@ type DesktopBridge = {
   confirm?: (request: NativeConfirmRequest) => Promise<boolean>;
   openExternal?: (url: string) => Promise<boolean>;
   openTextFile?: (request: NativeOpenTextFileRequest) => Promise<string | null>;
+  credentialRead?: (
+    request: Pick<NativeCredentialRequest, 'targetName'>,
+  ) => Promise<NativeCredential>;
+  credentialWrite?: (
+    request: Required<NativeCredentialRequest>,
+  ) => Promise<boolean>;
+  credentialDelete?: (
+    request: Pick<NativeCredentialRequest, 'targetName'>,
+  ) => Promise<boolean>;
 };
 
 declare global {
@@ -63,6 +78,15 @@ type AdminRuntimeValue = {
   confirm: (request: NativeConfirmRequest) => Promise<boolean>;
   openExternal: (url: string) => Promise<boolean>;
   openTextFile: (request: NativeOpenTextFileRequest) => Promise<string | null>;
+  credentialRead: (
+    request: Pick<NativeCredentialRequest, 'targetName'>,
+  ) => Promise<NativeCredential>;
+  credentialWrite: (
+    request: Required<NativeCredentialRequest>,
+  ) => Promise<boolean>;
+  credentialDelete: (
+    request: Pick<NativeCredentialRequest, 'targetName'>,
+  ) => Promise<boolean>;
 };
 
 const AdminRuntimeContext = createContext<AdminRuntimeValue | null>(null);
@@ -143,6 +167,45 @@ export function AdminRuntimeProvider({
     [],
   );
 
+  const credentialRead = useCallback(
+    async (request: Pick<NativeCredentialRequest, 'targetName'>) => {
+      const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+      if (!bridge?.credentialRead) {
+        throw new Error('Desktop credential bridge is unavailable');
+      }
+
+      return bridge.credentialRead(request);
+    },
+    [],
+  );
+
+  const credentialWrite = useCallback(
+    async (request: Required<NativeCredentialRequest>) => {
+      const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+      if (!bridge?.credentialWrite) {
+        throw new Error('Desktop credential bridge is unavailable');
+      }
+
+      return bridge.credentialWrite(request);
+    },
+    [],
+  );
+
+  const credentialDelete = useCallback(
+    async (request: Pick<NativeCredentialRequest, 'targetName'>) => {
+      const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+      if (!bridge?.credentialDelete) {
+        throw new Error('Desktop credential bridge is unavailable');
+      }
+
+      return bridge.credentialDelete(request);
+    },
+    [],
+  );
+
   const value = useMemo<AdminRuntimeValue>(
     () => ({
       bootstrap,
@@ -156,8 +219,20 @@ export function AdminRuntimeProvider({
       confirm,
       openExternal,
       openTextFile,
+      credentialRead,
+      credentialWrite,
+      credentialDelete,
     }),
-    [bootstrap, confirm, openExternal, openTextFile, request],
+    [
+      bootstrap,
+      confirm,
+      credentialDelete,
+      credentialRead,
+      credentialWrite,
+      openExternal,
+      openTextFile,
+      request,
+    ],
   );
 
   return (

@@ -2,7 +2,7 @@
 
 export const contractVersion = 1 as const;
 
-export type RequestKind = 'runtime.status' | 'runtime.start' | 'runtime.stop' | 'runtime.restart' | 'management.request' | 'native.confirm' | 'native.openExternal' | 'native.openTextFile';
+export type RequestKind = 'runtime.status' | 'runtime.start' | 'runtime.stop' | 'runtime.restart' | 'management.request' | 'native.confirm' | 'native.openExternal' | 'native.openTextFile' | 'native.credentialRead' | 'native.credentialWrite' | 'native.credentialDelete';
 
 export type EventKind = 'runtime.statusChanged';
 
@@ -38,4 +38,10 @@ export type AgentDetectionStatus = {
   binaryPath?: string;
   version?: string;
   message?: string;
+};
+
+export type NativeCredential = {
+  targetName: string;
+  exists: boolean;
+  value?: string;
 };
