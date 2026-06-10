@@ -694,8 +694,6 @@ struct ContentView: View {
                     SettingsScreen()
                 case .about:
                     AboutScreen()
-                case .sharedUI:
-                    DashboardScreen()
                 }
             }
         }

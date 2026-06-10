@@ -514,7 +514,6 @@ nonisolated enum NavigationPage: String, CaseIterable, Identifiable {
     case usageStatistics = "Usage Statistics"
     case settings = "Settings"
     case about = "About"
-    case sharedUI = "Shared UI"
 
     var id: String { rawValue }
 
@@ -531,7 +530,6 @@ nonisolated enum NavigationPage: String, CaseIterable, Identifiable {
         case .usageStatistics: return "chart.xyaxis.line"
         case .settings: return "gearshape"
         case .about: return "info.circle"
-        case .sharedUI: return "rectangle.connected.to.line.below"
         }
     }
 }
