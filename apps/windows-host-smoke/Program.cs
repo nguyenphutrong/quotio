@@ -208,6 +208,10 @@ static void RunNativePreferencesSmoke()
           "hideSensitiveInfo": true,
           "totalUsageMode": "combined",
           "modelAggregationMode": "average",
+          "notificationsEnabled": false,
+          "notifyOnQuotaLow": false,
+          "notifyOnCooling": true,
+          "notifyOnProxyCrash": false,
           "autoCheckUpdates": false,
           "updateChannel": "beta",
           "proxyPort": 9494
@@ -222,6 +226,10 @@ static void RunNativePreferencesSmoke()
     Assert(state.HideSensitiveInfo, "Windows preferences should persist privacy settings");
     Assert(state.TotalUsageMode == "combined", "Windows preferences should persist usage mode");
     Assert(state.ModelAggregationMode == "average", "Windows preferences should persist model aggregation mode");
+    Assert(!state.NotificationsEnabled, "Windows preferences should persist notification enablement");
+    Assert(!state.NotifyOnQuotaLow, "Windows preferences should persist quota notification settings");
+    Assert(state.NotifyOnCooling, "Windows preferences should persist cooling notification settings");
+    Assert(!state.NotifyOnProxyCrash, "Windows preferences should persist proxy crash notification settings");
     Assert(!state.AutoCheckUpdates, "Windows preferences should persist update check settings");
     Assert(state.UpdateChannel == "beta", "Windows preferences should persist update channel");
 

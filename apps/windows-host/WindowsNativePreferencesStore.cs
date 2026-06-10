@@ -79,6 +79,26 @@ public sealed class WindowsNativePreferencesStore
             state.ModelAggregationMode = modelAggregationMode;
         }
 
+        if (TryReadBool(preferences, "notificationsEnabled", out var notificationsEnabled))
+        {
+            state.NotificationsEnabled = notificationsEnabled;
+        }
+
+        if (TryReadBool(preferences, "notifyOnQuotaLow", out var notifyOnQuotaLow))
+        {
+            state.NotifyOnQuotaLow = notifyOnQuotaLow;
+        }
+
+        if (TryReadBool(preferences, "notifyOnCooling", out var notifyOnCooling))
+        {
+            state.NotifyOnCooling = notifyOnCooling;
+        }
+
+        if (TryReadBool(preferences, "notifyOnProxyCrash", out var notifyOnProxyCrash))
+        {
+            state.NotifyOnProxyCrash = notifyOnProxyCrash;
+        }
+
         if (TryReadBool(preferences, "autoCheckUpdates", out var autoCheckUpdates))
         {
             state.AutoCheckUpdates = autoCheckUpdates;
@@ -194,6 +214,10 @@ public sealed record WindowsNativePreferencesState
     public bool HideSensitiveInfo { get; set; }
     public string TotalUsageMode { get; set; } = "sessionOnly";
     public string ModelAggregationMode { get; set; } = "lowest";
+    public bool NotificationsEnabled { get; set; } = true;
+    public bool NotifyOnQuotaLow { get; set; } = true;
+    public bool NotifyOnCooling { get; set; } = true;
+    public bool NotifyOnProxyCrash { get; set; } = true;
     public bool AutoCheckUpdates { get; set; } = true;
     public string UpdateChannel { get; set; } = "stable";
 }

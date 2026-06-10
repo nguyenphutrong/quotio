@@ -124,6 +124,11 @@ public sealed partial class MainWindow : Window
 
     private bool ShowNativeNotification(string title, string message, string tone)
     {
+        if (!preferencesStore.Load().NotificationsEnabled)
+        {
+            return false;
+        }
+
         var icon = tone == "error"
             ? Forms.ToolTipIcon.Error
             : Forms.ToolTipIcon.Info;
