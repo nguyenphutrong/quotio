@@ -184,7 +184,7 @@ static void RunBootstrapSmoke()
         ["supportsNativeOnboarding"] = false,
         ["supportsNativePreferences"] = true,
         ["supportsAppearanceSync"] = true,
-        ["supportsRequestLogSettings"] = false,
+        ["supportsRequestLogSettings"] = true,
         ["supportsModelSettings"] = false,
         ["supportsApiKeyManagement"] = false,
         ["supportsVirtualModelManagement"] = false,

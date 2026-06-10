@@ -69,7 +69,8 @@ Current shared route scope:
 - Enabled by default in host bootstrap: overview, providers, quota, usage,
   virtual models, models, API keys, logs, agents, settings, about.
 - Implemented with Windows read-only capability gates: virtual models, models,
-  API keys, logs.
+  API keys.
+- Implemented with Windows management-backed settings: request-log capture.
 - Diagnostics only: about.
 - Partial: settings exposes native remote management credentials only; other
   settings controls remain hidden until their owners are implemented.
