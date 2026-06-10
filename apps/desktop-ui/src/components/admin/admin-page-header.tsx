@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useIsNativeDesktopRuntime } from '@/lib/admin/runtime';
 
 export function AdminPageHeader({
   title,
@@ -9,6 +10,12 @@ export function AdminPageHeader({
   description: string;
   actions?: ReactNode;
 }) {
+  const isNativeDesktop = useIsNativeDesktopRuntime();
+
+  if (isNativeDesktop) {
+    return actions ? <div className="flex justify-end">{actions}</div> : null;
+  }
+
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div>

@@ -453,3 +453,8 @@ export function useAdminRuntime() {
 
   return context;
 }
+
+export function useIsNativeDesktopRuntime() {
+  const { bootstrap } = useAdminRuntime();
+  return bootstrap.platform === 'macos' || bootstrap.platform === 'windows';
+}

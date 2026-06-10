@@ -14,11 +14,13 @@ import type * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavMain } from '@/components/nav-main';
 import { useAdminNavItems } from '@/lib/admin/navigation';
+import { useIsNativeDesktopRuntime } from '@/lib/admin/runtime';
 import { NavSecondary } from './nav-secondary';
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation();
   const adminNavItems = useAdminNavItems();
+  const isNativeDesktop = useIsNativeDesktopRuntime();
 
   const supportItems = [
     {
@@ -39,7 +41,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   ];
 
   return (
-    <Sidebar variant="inset" {...props}>
+    <Sidebar
+      collapsible={isNativeDesktop ? 'none' : 'offcanvas'}
+      variant={isNativeDesktop ? 'sidebar' : 'inset'}
+      {...props}
+    >
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
