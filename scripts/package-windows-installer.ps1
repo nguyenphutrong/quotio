@@ -70,6 +70,8 @@ if (!(Test-Path (Join-Path $PublishDirectory "Quotio.Windows.exe"))) {
   throw "Published Windows host is missing Quotio.Windows.exe"
 }
 
+Write-Utf8LfFile -Path (Join-Path $PublishDirectory "windows-update-channel.txt") -Content "$Channel`n"
+
 if (!(Test-Path (Join-Path $PublishDirectory "desktop-ui/index.html"))) {
   throw "Published Windows host is missing bundled desktop-ui/index.html"
 }
@@ -116,6 +118,7 @@ $manifest = [ordered]@{
   signing = ![string]::IsNullOrWhiteSpace($SignTemplate)
   updater = $true
   releaseIndex = "releases.$Channel.json"
+  updateChannelFile = "windows-update-channel.txt"
   setup = $setup.Name
   setupSha256 = $setupHash.Hash.ToLowerInvariant()
 }

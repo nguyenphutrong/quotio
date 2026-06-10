@@ -24,15 +24,16 @@ public sealed class WindowsUpdateService
     {
         var preferences = preferencesStore.Load();
         var configured = !string.IsNullOrWhiteSpace(config.WindowsUpdateRepositoryUrl);
-        var manager = TryCreateUpdateManager(preferences);
+        var updateChannel = EffectiveUpdateChannel(preferences);
+        var manager = TryCreateUpdateManager(updateChannel);
         var installed = manager?.IsInstalled ?? false;
         var supported = configured && installed;
 
         return new WindowsUpdateSnapshot(
             UpdatesSupported: supported,
             AutoCheckUpdates: preferences.AutoCheckUpdates,
-            UpdateChannel: preferences.UpdateChannel,
-            UpdateChannelLocked: false,
+            UpdateChannel: updateChannel,
+            UpdateChannelLocked: config.WindowsUpdateChannelLocked,
             CanCheckForUpdates: supported && installed && !isChecking,
             IsCheckingForUpdates: isChecking,
             LastUpdateCheckAt: lastUpdateCheckAt?.UtcDateTime.ToString("O"),
@@ -43,7 +44,7 @@ public sealed class WindowsUpdateService
     public async Task<WindowsUpdateSnapshot> CheckForUpdatesAsync()
     {
         var preferences = preferencesStore.Load();
-        var manager = TryCreateUpdateManager(preferences);
+        var manager = TryCreateUpdateManager(EffectiveUpdateChannel(preferences));
         if (manager is null)
         {
             lastResult = new WindowsUpdateResult(false, null, "Windows updates require a Velopack-installed build.");
@@ -83,7 +84,14 @@ public sealed class WindowsUpdateService
         return Snapshot();
     }
 
-    private UpdateManager? TryCreateUpdateManager(WindowsNativePreferencesState preferences)
+    private string EffectiveUpdateChannel(WindowsNativePreferencesState preferences)
+    {
+        return config.WindowsUpdateChannelLocked
+            ? config.WindowsUpdateChannel
+            : preferences.UpdateChannel;
+    }
+
+    private UpdateManager? TryCreateUpdateManager(string updateChannel)
     {
         var repositoryUrl = config.WindowsUpdateRepositoryUrl;
         if (string.IsNullOrWhiteSpace(repositoryUrl))
@@ -96,12 +104,12 @@ public sealed class WindowsUpdateService
             var source = new GithubSource(
                 repositoryUrl,
                 null,
-                preferences.UpdateChannel == "beta",
+                updateChannel == "beta",
                 null
             );
             return new UpdateManager(source, new UpdateOptions
             {
-                ExplicitChannel = preferences.UpdateChannel
+                ExplicitChannel = updateChannel
             });
         }
         catch (Exception error) when (error is InvalidOperationException)

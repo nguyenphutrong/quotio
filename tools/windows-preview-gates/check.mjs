@@ -210,7 +210,9 @@ assertAllContain('Windows installer package script', installerPackageScript, [
   'Quotio.Windows.exe',
   'releases.$Channel.json',
   'setup executable',
+  'windows-update-channel.txt',
   'quotio-windows-installer.manifest.json',
+  'updateChannelFile = "windows-update-channel.txt"',
   'signing = ![string]::IsNullOrWhiteSpace($SignTemplate)',
 ]);
 

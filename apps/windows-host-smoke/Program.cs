@@ -85,6 +85,14 @@ static void RunConfigSmoke()
     Assert(fallbackConfig.ServerListen == "127.0.0.1:9393", "ServerListen should derive from proxy endpoint authority");
     Assert(fallbackConfig.WindowsUpdateRepositoryUrl == "https://github.com/example/quotio", "Credential fallback should trim update repository URL");
     Assert(fallbackConfig.WindowsUpdateChannel == "beta", "Credential fallback should normalize update channel");
+    Assert(!fallbackConfig.WindowsUpdateChannelLocked, "Credential update channel should not lock installer channel");
+
+    var bundledChannelDirectory = Path.Combine(Path.GetTempPath(), $"quotio-windows-channel-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(bundledChannelDirectory);
+    File.WriteAllText(Path.Combine(bundledChannelDirectory, "windows-update-channel.txt"), " beta ");
+    var bundledChannelConfig = new WindowsHostConfig(_ => null, bundledChannelDirectory);
+    Assert(bundledChannelConfig.WindowsUpdateChannel == "beta", "Bundled installer channel should configure updates");
+    Assert(bundledChannelConfig.WindowsUpdateChannelLocked, "Bundled installer channel should lock update channel");
 
     Environment.SetEnvironmentVariable("QUOTIO_DESKTOP_UI_DEV_SERVER", " http://localhost:5173 ");
     Environment.SetEnvironmentVariable("QUOTIO_MANAGEMENT_BASE_URL", " http://localhost:8386 ");
@@ -276,7 +284,16 @@ static void RunNativePreferencesSmoke()
     var updateSnapshot = updates.Snapshot();
     Assert(!updateSnapshot.UpdatesSupported, "Windows updater should require a Velopack-installed build");
     Assert(updateSnapshot.UpdateChannel == "beta", "Windows updater should use persisted channel");
+    Assert(!updateSnapshot.UpdateChannelLocked, "Windows updater should leave dev channel unlocked");
     Assert(!updateSnapshot.CanCheckForUpdates, "Windows updater should not check outside a Velopack-installed build");
+
+    var lockedChannelDirectory = Path.Combine(Path.GetTempPath(), $"quotio-windows-locked-channel-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(lockedChannelDirectory);
+    File.WriteAllText(Path.Combine(lockedChannelDirectory, "windows-update-channel.txt"), "stable");
+    var lockedUpdates = new WindowsUpdateService(new WindowsHostConfig(_ => null, lockedChannelDirectory), store);
+    var lockedSnapshot = lockedUpdates.Snapshot();
+    Assert(lockedSnapshot.UpdateChannel == "stable", "Windows updater should use installer channel when locked");
+    Assert(lockedSnapshot.UpdateChannelLocked, "Windows updater should expose locked installer channel");
 
     if (OperatingSystem.IsWindows())
     {

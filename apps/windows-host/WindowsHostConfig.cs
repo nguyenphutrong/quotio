@@ -5,16 +5,19 @@ public sealed class WindowsHostConfig
     private const string DefaultEndpoint = "http://127.0.0.1:8386";
     private const string DefaultAuthority = "127.0.0.1:8386";
     private const string DefaultWindowsUpdateRepositoryUrl = "https://github.com/nguyenphutrong/quotio";
+    private const string BundledWindowsUpdateChannelFile = "windows-update-channel.txt";
     private readonly Func<string, string?> credentialReader;
+    private readonly string appBaseDirectory;
 
     public WindowsHostConfig()
         : this(WindowsCredentialStore.TryReadGenericCredential)
     {
     }
 
-    public WindowsHostConfig(Func<string, string?> credentialReader)
+    public WindowsHostConfig(Func<string, string?> credentialReader, string? appBaseDirectory = null)
     {
         this.credentialReader = credentialReader;
+        this.appBaseDirectory = appBaseDirectory ?? AppContext.BaseDirectory;
     }
 
     public string? DesktopUiDevServer => ReadValue(
@@ -59,10 +62,16 @@ public sealed class WindowsHostConfig
         "Quotio/WindowsUpdateRepositoryUrl"
     ) ?? DefaultWindowsUpdateRepositoryUrl;
 
-    public string WindowsUpdateChannel => NormalizeUpdateChannel(ReadValue(
-        "QUOTIO_WINDOWS_UPDATE_CHANNEL",
-        "Quotio/WindowsUpdateChannel"
-    ));
+    public string WindowsUpdateChannel => NormalizeUpdateChannel(
+        ReadValue(
+            "QUOTIO_WINDOWS_UPDATE_CHANNEL",
+            "Quotio/WindowsUpdateChannel"
+        ) ?? ReadBundledWindowsUpdateChannel()
+    );
+
+    public bool WindowsUpdateChannelLocked => !string.IsNullOrWhiteSpace(
+        ReadBundledWindowsUpdateChannel()
+    );
 
     private static string NormalizeUpdateChannel(string? channel)
     {
@@ -79,5 +88,17 @@ public sealed class WindowsHostConfig
 
         var credentialValue = credentialReader(credentialTargetName)?.Trim();
         return string.IsNullOrEmpty(credentialValue) ? null : credentialValue;
+    }
+
+    private string? ReadBundledWindowsUpdateChannel()
+    {
+        var path = Path.Combine(appBaseDirectory, BundledWindowsUpdateChannelFile);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        var channel = File.ReadAllText(path).Trim();
+        return string.IsNullOrEmpty(channel) ? null : channel;
     }
 }

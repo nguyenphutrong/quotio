@@ -33,7 +33,8 @@ CI also builds a Velopack installer artifact from the same bundled host output:
 ```
 
 The installer artifact contains the setup executable, `releases.<channel>.json`
-update metadata, a checksum, and `quotio-windows-installer.manifest.json`.
+update metadata, a bundled `windows-update-channel.txt`, a checksum, and
+`quotio-windows-installer.manifest.json`.
 Signing is enabled only when the script receives `-SignTemplate`; unsigned
 installer artifacts are suitable for CI smoke testing but not final production
 distribution.
@@ -45,8 +46,9 @@ Maintainers can publish the same unsigned ZIP as a GitHub prerelease through the
 Maintainers can publish a Velopack installer release through the
 `Windows Installer Release` workflow. Installer release tags must start with
 `windows-v`. The native Settings route checks for updates through Velopack when
-the app was installed by the Velopack setup executable. Raw ZIP, local build,
-and dev-server launches report that updates require a Velopack install.
+the app was installed by the Velopack setup executable, and locks the update
+channel to the channel bundled by the installer. Raw ZIP, local build, and
+dev-server launches report that updates require a Velopack install.
 
 The host loads `apps/desktop-ui/dist` when bundled by MSBuild. For live UI
 development, set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL.
