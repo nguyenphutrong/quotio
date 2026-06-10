@@ -16,14 +16,6 @@ import {
 } from '@dnd-kit/sortable';
 import { Button } from '@quotio/ui/components/button';
 import { Checkbox } from '@quotio/ui/components/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@quotio/ui/components/dialog';
 import { Input } from '@quotio/ui/components/input';
 import { Switch } from '@quotio/ui/components/switch';
 import { Textarea } from '@quotio/ui/components/textarea';
@@ -908,58 +900,60 @@ function VirtualModelDialog({
 
   const normalized = value.trim();
 
+  if (!open) {
+    return null;
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <label
-            className="text-sm font-medium text-foreground"
-            htmlFor="model-name"
-          >
-            {t('virtualModels.fields.name')}
-          </label>
-          <Input
-            id="model-name"
-            value={value}
-            onChange={(event) => {
-              setValue(event.target.value);
-              if (error) {
-                setError(null);
-              }
-            }}
-            placeholder={t('virtualModels.fields.namePlaceholder')}
-          />
-          {error ? (
-            <p className="text-xs text-destructive">{error}</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {t('virtualModels.fields.nameHint')}
-            </p>
-          )}
-        </div>
-        <DialogFooter className="sticky bottom-0 -mx-6 border-t bg-popover px-6 pt-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            onClick={async () => {
-              if (!normalized) {
-                setError(t('virtualModels.validation.nameRequired'));
-                return;
-              }
-              await onSubmit(normalized);
-            }}
-            disabled={busy || disabled}
-          >
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <Panel className="space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="space-y-2">
+        <label
+          className="text-sm font-medium text-foreground"
+          htmlFor="model-name"
+        >
+          {t('virtualModels.fields.name')}
+        </label>
+        <Input
+          id="model-name"
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            if (error) {
+              setError(null);
+            }
+          }}
+          placeholder={t('virtualModels.fields.namePlaceholder')}
+        />
+        {error ? (
+          <p className="text-xs text-destructive">{error}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {t('virtualModels.fields.nameHint')}
+          </p>
+        )}
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          onClick={async () => {
+            if (!normalized) {
+              setError(t('virtualModels.validation.nameRequired'));
+              return;
+            }
+            await onSubmit(normalized);
+          }}
+          disabled={busy || disabled}
+        >
+          {confirmLabel}
+        </Button>
+      </div>
+    </Panel>
   );
 }
 
@@ -1018,121 +1012,123 @@ function AddEntryDialog({
 
   const selectedCount = selectedTargets.size;
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t('virtualModels.dialogs.addEntryTitle')}</DialogTitle>
-          <DialogDescription>
-            {t('virtualModels.dialogs.addEntryDescription', {
-              name: model?.name ?? '',
-            })}
-          </DialogDescription>
-        </DialogHeader>
-        {availableTargets.length === 0 ? (
-          <EmptyState
-            title={t('virtualModels.entries.noAvailableTargetsTitle')}
-            description={t(
-              'virtualModels.entries.noAvailableTargetsDescription',
-            )}
-          />
-        ) : (
-          <div className="space-y-3">
-            <div className="relative">
-              <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  if (error) {
-                    setError(null);
-                  }
-                }}
-                className="pl-9"
-                placeholder={t('virtualModels.fields.searchPlaceholder')}
-              />
-            </div>
-            <div className="max-h-96 space-y-2 overflow-y-auto rounded-xl border border-border/60 bg-muted/10 p-2">
-              {filteredTargets.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-                  {t('virtualModels.entries.noSearchResults')}
-                </div>
-              ) : (
-                filteredTargets.map((target) => {
-                  const isChecked = selectedTargets.has(target.target);
-                  const displayTarget = getAvailableTargetDialogTitle(target);
+  if (!open) {
+    return null;
+  }
 
-                  return (
-                    <label
-                      key={target.target}
-                      className="flex items-start gap-3 rounded-lg border border-transparent px-3 py-2 hover:border-border/60 hover:bg-muted/40"
-                    >
-                      <Checkbox
-                        checked={isChecked}
-                        onCheckedChange={(checked) => {
-                          setSelectedTargets((current) => {
-                            const next = new Set(current);
-                            if (checked) {
-                              next.add(target.target);
-                            } else {
-                              next.delete(target.target);
-                            }
-                            return next;
-                          });
-                          if (error) {
-                            setError(null);
-                          }
-                        }}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 items-center gap-2">
-                          {target.kind === 'direct' ? (
-                            <ProviderIcon
-                              provider={target.provider}
-                              className="size-4"
-                            />
-                          ) : (
-                            <div className="flex size-4 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">
-                              Q
-                            </div>
-                          )}
-                          <span className="truncate font-mono text-sm font-medium text-foreground">
-                            {displayTarget}
-                          </span>
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })
-              )}
-            </div>
-            {error ? <p className="text-xs text-destructive">{error}</p> : null}
+  return (
+    <Panel className="space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">
+          {t('virtualModels.dialogs.addEntryTitle')}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t('virtualModels.dialogs.addEntryDescription', {
+            name: model?.name ?? '',
+          })}
+        </p>
+      </div>
+      {availableTargets.length === 0 ? (
+        <EmptyState
+          title={t('virtualModels.entries.noAvailableTargetsTitle')}
+          description={t('virtualModels.entries.noAvailableTargetsDescription')}
+        />
+      ) : (
+        <div className="space-y-3">
+          <div className="relative">
+            <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                if (error) {
+                  setError(null);
+                }
+              }}
+              className="pl-9"
+              placeholder={t('virtualModels.fields.searchPlaceholder')}
+            />
           </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            onClick={async () => {
-              if (selectedCount === 0) {
-                setError(t('virtualModels.validation.targetRequired'));
-                return;
-              }
-              const orderedTargets = availableTargets
-                .filter((target) => selectedTargets.has(target.target))
-                .map((target) => target.target);
-              await onSubmit(orderedTargets);
-            }}
-            disabled={busy || disabled || availableTargets.length === 0}
-          >
-            {t('virtualModels.actions.addSelected', {
-              count: selectedCount,
-            })}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <div className="max-h-96 space-y-2 overflow-y-auto rounded-xl border border-border/60 bg-muted/10 p-2">
+            {filteredTargets.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
+                {t('virtualModels.entries.noSearchResults')}
+              </div>
+            ) : (
+              filteredTargets.map((target) => {
+                const isChecked = selectedTargets.has(target.target);
+                const displayTarget = getAvailableTargetDialogTitle(target);
+
+                return (
+                  <label
+                    key={target.target}
+                    className="flex items-start gap-3 rounded-lg border border-transparent px-3 py-2 hover:border-border/60 hover:bg-muted/40"
+                  >
+                    <Checkbox
+                      checked={isChecked}
+                      onCheckedChange={(checked) => {
+                        setSelectedTargets((current) => {
+                          const next = new Set(current);
+                          if (checked) {
+                            next.add(target.target);
+                          } else {
+                            next.delete(target.target);
+                          }
+                          return next;
+                        });
+                        if (error) {
+                          setError(null);
+                        }
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {target.kind === 'direct' ? (
+                          <ProviderIcon
+                            provider={target.provider}
+                            className="size-4"
+                          />
+                        ) : (
+                          <div className="flex size-4 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">
+                            Q
+                          </div>
+                        )}
+                        <span className="truncate font-mono text-sm font-medium text-foreground">
+                          {displayTarget}
+                        </span>
+                      </div>
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        </div>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          onClick={async () => {
+            if (selectedCount === 0) {
+              setError(t('virtualModels.validation.targetRequired'));
+              return;
+            }
+            const orderedTargets = availableTargets
+              .filter((target) => selectedTargets.has(target.target))
+              .map((target) => target.target);
+            await onSubmit(orderedTargets);
+          }}
+          disabled={busy || disabled || availableTargets.length === 0}
+        >
+          {t('virtualModels.actions.addSelected', {
+            count: selectedCount,
+          })}
+        </Button>
+      </div>
+    </Panel>
   );
 }
 
@@ -1160,53 +1156,57 @@ function ImportDialog({
     }
   }, [open]);
 
+  if (!open) {
+    return null;
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t('virtualModels.dialogs.importTitle')}</DialogTitle>
-          <DialogDescription>
-            {t('virtualModels.dialogs.importDescription')}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Textarea
-            rows={16}
-            value={value}
-            onChange={(event) => {
-              setValue(event.target.value);
-              if (error) {
-                setError(null);
-              }
-            }}
-            placeholder={t('virtualModels.fields.importPlaceholder')}
-          />
-          {error ? <p className="text-xs text-destructive">{error}</p> : null}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            onClick={async () => {
-              let parsed: RawVirtualModelExportPayload;
+    <Panel className="space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">
+          {t('virtualModels.dialogs.importTitle')}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t('virtualModels.dialogs.importDescription')}
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Textarea
+          rows={16}
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            if (error) {
+              setError(null);
+            }
+          }}
+          placeholder={t('virtualModels.fields.importPlaceholder')}
+        />
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          onClick={async () => {
+            let parsed: RawVirtualModelExportPayload;
 
-              try {
-                parsed = JSON.parse(value) as RawVirtualModelExportPayload;
-              } catch {
-                setError(t('virtualModels.validation.invalidJson'));
-                return;
-              }
+            try {
+              parsed = JSON.parse(value) as RawVirtualModelExportPayload;
+            } catch {
+              setError(t('virtualModels.validation.invalidJson'));
+              return;
+            }
 
-              await onSubmit(parsed);
-            }}
-            disabled={busy || disabled}
-          >
-            {t('virtualModels.actions.import')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            await onSubmit(parsed);
+          }}
+          disabled={busy || disabled}
+        >
+          {t('virtualModels.actions.import')}
+        </Button>
+      </div>
+    </Panel>
   );
 }
 
@@ -1221,39 +1221,43 @@ function ExportDialog({
 }) {
   const { t } = useTranslation();
 
+  if (!open) {
+    return null;
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t('virtualModels.dialogs.exportTitle')}</DialogTitle>
-          <DialogDescription>
-            {t('virtualModels.dialogs.exportDescription')}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <Textarea
-            rows={16}
+    <Panel className="space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">
+          {t('virtualModels.dialogs.exportTitle')}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t('virtualModels.dialogs.exportDescription')}
+        </p>
+      </div>
+      <div className="space-y-3">
+        <Textarea
+          rows={16}
+          value={value}
+          readOnly
+          className="font-mono text-xs"
+        />
+        <div className="flex justify-end">
+          <CopyButton
+            variant="outline"
             value={value}
-            readOnly
-            className="font-mono text-xs"
-          />
-          <div className="flex justify-end">
-            <CopyButton
-              variant="outline"
-              value={value}
-              successMessage={t('virtualModels.messages.exportCopied')}
-              errorMessage={t('virtualModels.messages.exportCopyFailed')}
-            >
-              {t('virtualModels.actions.copyExport')}
-            </CopyButton>
-          </div>
+            successMessage={t('virtualModels.messages.exportCopied')}
+            errorMessage={t('virtualModels.messages.exportCopyFailed')}
+          >
+            {t('virtualModels.actions.copyExport')}
+          </CopyButton>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t('common.cancel')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          {t('common.cancel')}
+        </Button>
+      </div>
+    </Panel>
   );
 }
