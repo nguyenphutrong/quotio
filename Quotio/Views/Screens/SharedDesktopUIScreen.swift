@@ -45,11 +45,6 @@ struct SharedDesktopUIScreen: View {
             viewModel: viewModel
         )
         .navigationTitle(AppRuntimeIdentity.displayName)
-        .id(
-            languageManager.currentLanguage.rawValue
-                + appearanceManager.appearanceMode.rawValue
-                + modeManager.currentMode.rawValue
-        )
     }
 }
 

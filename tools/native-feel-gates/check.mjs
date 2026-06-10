@@ -107,6 +107,12 @@ if (
   );
 }
 
+if (/\.id\s*\(/.test(macosSharedUIScreen)) {
+  violations.push(
+    'Quotio/Views/Screens/SharedDesktopUIScreen.swift: host bootstrap changes must update the existing web view instead of recreating it',
+  );
+}
+
 for (const requiredText of [
   'authStatus: bootstrap.authStatus',
   "isAuthenticated: bootstrap.authStatus === 'authenticated'",
