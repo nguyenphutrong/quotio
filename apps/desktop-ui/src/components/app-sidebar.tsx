@@ -68,7 +68,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </span>
           </div>
           <span className="truncate text-sidebar-foreground/60">
-            {bootstrap.serverListen}
+            {t(`about.operatingMode.${bootstrap.operatingMode}`)}
           </span>
         </div>
       </SidebarFooter>
