@@ -34,7 +34,7 @@ const expectedCapabilities = {
   supportsRequestLogSettings: true,
   supportsModelSettings: true,
   supportsApiKeyManagement: true,
-  supportsVirtualModelManagement: false,
+  supportsVirtualModelManagement: true,
   supportsUpdates: true,
 };
 

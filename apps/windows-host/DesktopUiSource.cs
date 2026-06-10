@@ -61,7 +61,7 @@ public static class DesktopUiSource
                 ["supportsRequestLogSettings"] = true,
                 ["supportsModelSettings"] = true,
                 ["supportsApiKeyManagement"] = true,
-                ["supportsVirtualModelManagement"] = false,
+                ["supportsVirtualModelManagement"] = true,
                 ["supportsUpdates"] = true
             }
         );

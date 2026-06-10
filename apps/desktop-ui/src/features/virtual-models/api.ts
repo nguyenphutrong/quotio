@@ -17,7 +17,9 @@ import type {
 const stateQueryKey = ['virtual-models', 'state'];
 const targetsQueryKey = ['virtual-models', 'targets'];
 
-function buildAvailableTargetsPath(modelId?: string | null) {
+type VirtualModelsRequest = <T>(path: string, init?: RequestInit) => Promise<T>;
+
+export function buildAvailableTargetsPath(modelId?: string | null) {
   if (!modelId) {
     return '/virtual-models/available-targets';
   }
@@ -90,7 +92,7 @@ function normalizeVirtualModel(
   };
 }
 
-function normalizeVirtualModelExportPayload(
+export function normalizeVirtualModelExportPayload(
   payload: RawVirtualModelExportPayload,
 ): VirtualModelExportPayload {
   const virtualModels = Object.fromEntries(
@@ -127,25 +129,131 @@ function normalizeVirtualModelExportPayload(
   };
 }
 
+export async function fetchVirtualModelsState(request: VirtualModelsRequest) {
+  const [state, list] = await Promise.all([
+    request<VirtualModelsStateResponse>('/virtual-models'),
+    request<VirtualModelsListResponse>('/virtual-models/models'),
+  ]);
+
+  return {
+    enabled: state.enabled,
+    comboTemplates: state.combo_templates ?? {},
+    models: (list.models ?? [])
+      .map((model) => normalizeVirtualModel(model))
+      .filter((model): model is VirtualModelRow => model !== null),
+  };
+}
+
+export function fetchAvailableTargets(
+  request: VirtualModelsRequest,
+  modelId?: string | null,
+) {
+  return request<AvailableTargetsResponse>(buildAvailableTargetsPath(modelId));
+}
+
+export function setVirtualModelsEnabled(
+  request: VirtualModelsRequest,
+  enabled: boolean,
+) {
+  return request<SuccessResponse>('/virtual-models', {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+export function createVirtualModel(
+  request: VirtualModelsRequest,
+  name: string,
+) {
+  return request<SuccessResponse>('/virtual-models/models', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function updateVirtualModel(
+  request: VirtualModelsRequest,
+  modelId: string,
+  payload: {
+    name?: string;
+    disabled?: boolean;
+  },
+) {
+  return request<SuccessResponse>(`/virtual-models/models/${modelId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteVirtualModel(
+  request: VirtualModelsRequest,
+  modelId: string,
+) {
+  return request<SuccessResponse>(`/virtual-models/models/${modelId}`, {
+    method: 'DELETE',
+  });
+}
+
+export function addVirtualModelEntries(
+  request: VirtualModelsRequest,
+  modelId: string,
+  targets: string[],
+) {
+  return request<SuccessResponse>(`/virtual-models/models/${modelId}/entries`, {
+    method: 'POST',
+    body: JSON.stringify({ targets }),
+  });
+}
+
+export function deleteVirtualModelEntry(
+  request: VirtualModelsRequest,
+  modelId: string,
+  entryId: string,
+) {
+  return request<SuccessResponse>(
+    `/virtual-models/models/${modelId}/entries/${entryId}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+export function reorderVirtualModelEntries(
+  request: VirtualModelsRequest,
+  modelId: string,
+  entryIds: string[],
+) {
+  return request<SuccessResponse>(
+    `/virtual-models/models/${modelId}/entries/reorder`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ entryIds }),
+    },
+  );
+}
+
+export function exportVirtualModels(request: VirtualModelsRequest) {
+  return request<RawVirtualModelExportPayload>('/virtual-models/export').then(
+    normalizeVirtualModelExportPayload,
+  );
+}
+
+export function importVirtualModels(
+  request: VirtualModelsRequest,
+  payload: RawVirtualModelExportPayload,
+) {
+  return request<SuccessResponse>('/virtual-models/import', {
+    method: 'POST',
+    body: JSON.stringify(normalizeVirtualModelExportPayload(payload)),
+  });
+}
+
 export function useVirtualModelsStateQuery() {
   const { request } = useAdminRuntime();
 
   return useQuery({
     queryKey: stateQueryKey,
-    queryFn: async () => {
-      const [state, list] = await Promise.all([
-        request<VirtualModelsStateResponse>('/virtual-models'),
-        request<VirtualModelsListResponse>('/virtual-models/models'),
-      ]);
-
-      return {
-        enabled: state.enabled,
-        comboTemplates: state.combo_templates ?? {},
-        models: (list.models ?? [])
-          .map((model) => normalizeVirtualModel(model))
-          .filter((model): model is VirtualModelRow => model !== null),
-      };
-    },
+    queryFn: () => fetchVirtualModelsState(request),
   });
 }
 
@@ -154,8 +262,7 @@ export function useAvailableTargetsQuery(modelId: string | null) {
 
   return useQuery({
     queryKey: [...targetsQueryKey, modelId],
-    queryFn: () =>
-      request<AvailableTargetsResponse>(buildAvailableTargetsPath(modelId)),
+    queryFn: () => fetchAvailableTargets(request, modelId),
     enabled: modelId !== null,
   });
 }
@@ -165,8 +272,7 @@ export function useModelInventoryTargetsQuery() {
 
   return useQuery({
     queryKey: [...targetsQueryKey, 'inventory'],
-    queryFn: () =>
-      request<AvailableTargetsResponse>(buildAvailableTargetsPath()),
+    queryFn: () => fetchAvailableTargets(request),
   });
 }
 
@@ -182,18 +288,11 @@ export function useVirtualModelMutations() {
     invalidateState,
     setEnabledMutation: useMutation({
       mutationFn: (enabled: boolean) =>
-        request<SuccessResponse>('/virtual-models', {
-          method: 'PATCH',
-          body: JSON.stringify({ enabled }),
-        }),
+        setVirtualModelsEnabled(request, enabled),
       onSuccess: invalidateState,
     }),
     createModelMutation: useMutation({
-      mutationFn: (name: string) =>
-        request<SuccessResponse>('/virtual-models/models', {
-          method: 'POST',
-          body: JSON.stringify({ name }),
-        }),
+      mutationFn: (name: string) => createVirtualModel(request, name),
       onSuccess: invalidateState,
     }),
     updateModelMutation: useMutation({
@@ -206,18 +305,11 @@ export function useVirtualModelMutations() {
           name?: string;
           disabled?: boolean;
         };
-      }) =>
-        request<SuccessResponse>(`/virtual-models/models/${modelId}`, {
-          method: 'PATCH',
-          body: JSON.stringify(payload),
-        }),
+      }) => updateVirtualModel(request, modelId, payload),
       onSuccess: invalidateState,
     }),
     deleteModelMutation: useMutation({
-      mutationFn: (modelId: string) =>
-        request<SuccessResponse>(`/virtual-models/models/${modelId}`, {
-          method: 'DELETE',
-        }),
+      mutationFn: (modelId: string) => deleteVirtualModel(request, modelId),
       onSuccess: invalidateState,
     }),
     addEntryMutation: useMutation({
@@ -227,13 +319,7 @@ export function useVirtualModelMutations() {
       }: {
         modelId: string;
         targets: string[];
-      }) =>
-        request<SuccessResponse>(`/virtual-models/models/${modelId}/entries`, {
-          method: 'POST',
-          body: JSON.stringify({
-            targets,
-          }),
-        }),
+      }) => addVirtualModelEntries(request, modelId, targets),
       onSuccess: invalidateState,
     }),
     deleteEntryMutation: useMutation({
@@ -243,13 +329,7 @@ export function useVirtualModelMutations() {
       }: {
         modelId: string;
         entryId: string;
-      }) =>
-        request<SuccessResponse>(
-          `/virtual-models/models/${modelId}/entries/${entryId}`,
-          {
-            method: 'DELETE',
-          },
-        ),
+      }) => deleteVirtualModelEntry(request, modelId, entryId),
       onSuccess: invalidateState,
     }),
     reorderEntriesMutation: useMutation({
@@ -259,28 +339,15 @@ export function useVirtualModelMutations() {
       }: {
         modelId: string;
         entryIds: string[];
-      }) =>
-        request<SuccessResponse>(
-          `/virtual-models/models/${modelId}/entries/reorder`,
-          {
-            method: 'POST',
-            body: JSON.stringify({ entryIds }),
-          },
-        ),
+      }) => reorderVirtualModelEntries(request, modelId, entryIds),
       onSuccess: invalidateState,
     }),
     exportMutation: useMutation({
-      mutationFn: () =>
-        request<RawVirtualModelExportPayload>('/virtual-models/export').then(
-          normalizeVirtualModelExportPayload,
-        ),
+      mutationFn: () => exportVirtualModels(request),
     }),
     importMutation: useMutation({
       mutationFn: (payload: RawVirtualModelExportPayload) =>
-        request<SuccessResponse>('/virtual-models/import', {
-          method: 'POST',
-          body: JSON.stringify(normalizeVirtualModelExportPayload(payload)),
-        }),
+        importVirtualModels(request, payload),
       onSuccess: invalidateState,
     }),
   };
