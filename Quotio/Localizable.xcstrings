@@ -12222,34 +12222,6 @@
         }
       }
     },
-    "nav.sharedUI" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Shared UI"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Interface partagée"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Giao diện chung"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "共享界面"
-          }
-        }
-      }
-    },
     "sharedUI.error.bundleMissing" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "new", "value" : "The bundled proxy binary is missing." } },
