@@ -1138,7 +1138,7 @@
       "description": "Check your server installation and try again."
     },
     "badges": {
-      "guideOnly": "Guide-only",
+      "guideOnly": "Manual guide",
       "unsupported": "Unsupported",
       "unknownSupport": "Unvalidated",
       "installed": "Installed",
@@ -1147,7 +1147,7 @@
       "noBackup": "No backup"
     },
     "support": {
-      "guide-only": "Automatic configuration is not available on this platform yet. Use the guide instead.",
+      "guide-only": "Guided setup is available. Automatic changes are not available here yet.",
       "unsupported": "This agent is not supported on this platform.",
       "unknown": "Support for this agent has not been validated on this platform yet."
     },
@@ -1183,8 +1183,8 @@
       "truncated": "Preview truncated"
     },
     "payload": {
-      "show": "Show raw payload",
-      "hide": "Hide raw payload"
+      "show": "Show technical details",
+      "hide": "Hide technical details"
     },
     "errors": {
       "actionFailed": "Action failed",

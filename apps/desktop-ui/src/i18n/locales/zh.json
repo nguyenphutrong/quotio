@@ -1113,16 +1113,16 @@
     "failedTitle": "操作失败",
     "unknownError": "未知错误",
     "actions": {
-      "guide": "Guide",
-      "diff": "Diff",
-      "install": "Install",
-      "rollback": "Rollback",
-      "viewGuide": "Guide",
-      "runDiff": "Diff",
+      "guide": "指南",
+      "diff": "查看更改",
+      "install": "安装",
+      "rollback": "回滚",
+      "viewGuide": "查看指南",
+      "runDiff": "查看更改",
       "openDocs": "打开文档",
-      "copy": "Copy",
-      "copied": "Copied",
-      "retry": "Retry"
+      "copy": "复制",
+      "copied": "已复制",
+      "retry": "重试"
     },
     "fields": {
       "binaries": "二进制命令",
@@ -1130,61 +1130,61 @@
       "caveats": "注意事项"
     },
     "empty": {
-      "title": "No agents available",
-      "description": "Check your server installation and try again."
+      "title": "没有可用的 Agent",
+      "description": "检查 Quotio 安装后重试。"
     },
     "badges": {
-      "guideOnly": "Guide-only",
+      "guideOnly": "手动指南",
       "unsupported": "不支持",
       "unknownSupport": "未验证",
-      "installed": "Installed",
-      "notInstalled": "Not installed",
-      "rollbackAvailable": "Backup available",
-      "noBackup": "No backup"
+      "installed": "已安装",
+      "notInstalled": "未安装",
+      "rollbackAvailable": "有备份",
+      "noBackup": "无备份"
     },
     "support": {
-      "guide-only": "此平台暂不支持自动配置。请改用手动指南。",
+      "guide-only": "可以使用设置指南。此平台暂不支持自动更改。",
       "unsupported": "此平台不支持该代理。",
       "unknown": "此平台尚未验证该代理支持状态。"
     },
     "actionState": {
-      "running": "Running",
-      "success": "Success",
-      "error": "Error"
+      "running": "运行中",
+      "success": "成功",
+      "error": "错误"
     },
     "sections": {
-      "overview": "Overview",
-      "targets": "Target files",
-      "binaries": "Binaries",
-      "caveats": "Caveats",
-      "capabilities": "Capabilities",
-      "lastResult": "Last result",
-      "docs": "Docs"
+      "overview": "概览",
+      "targets": "目标文件",
+      "binaries": "二进制命令",
+      "caveats": "注意事项",
+      "capabilities": "功能",
+      "lastResult": "最近结果",
+      "docs": "文档"
     },
     "guide": {
-      "title": "Guide",
-      "stepLabel": "Step {{index}}",
-      "verify": "Verify",
-      "configSnippet": "Config snippet",
-      "envSnippet": "Environment snippet",
-      "caveats": "Caveats",
-      "close": "Close"
+      "title": "指南",
+      "stepLabel": "步骤 {{index}}",
+      "verify": "验证",
+      "configSnippet": "配置片段",
+      "envSnippet": "环境变量片段",
+      "caveats": "注意事项",
+      "close": "关闭"
     },
     "diff": {
-      "fileChanged": "Changed",
-      "fileUnchanged": "Unchanged",
-      "fileNew": "New",
-      "before": "Before",
-      "after": "After",
-      "truncated": "Preview truncated"
+      "fileChanged": "已更改",
+      "fileUnchanged": "未更改",
+      "fileNew": "新建",
+      "before": "之前",
+      "after": "之后",
+      "truncated": "预览已截断"
     },
     "payload": {
-      "show": "Show raw payload",
-      "hide": "Hide raw payload"
+      "show": "显示技术详情",
+      "hide": "隐藏技术详情"
     },
     "errors": {
-      "actionFailed": "Action failed",
-      "noManifest": "No rollback manifest is available."
+      "actionFailed": "操作失败",
+      "noManifest": "没有可用于回滚的备份。"
     }
   }
 }

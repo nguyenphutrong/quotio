@@ -1112,16 +1112,16 @@
     "failedTitle": "Thao tác thất bại",
     "unknownError": "Lỗi không xác định",
     "actions": {
-      "guide": "Guide",
-      "diff": "Diff",
-      "install": "Install",
-      "rollback": "Rollback",
-      "viewGuide": "Guide",
-      "runDiff": "Diff",
-      "openDocs": "Mở docs",
-      "copy": "Copy",
-      "copied": "Copied",
-      "retry": "Retry"
+      "guide": "Hướng dẫn",
+      "diff": "Xem thay đổi",
+      "install": "Cài đặt",
+      "rollback": "Khôi phục",
+      "viewGuide": "Xem hướng dẫn",
+      "runDiff": "Xem thay đổi",
+      "openDocs": "Mở tài liệu",
+      "copy": "Sao chép",
+      "copied": "Đã sao chép",
+      "retry": "Thử lại"
     },
     "fields": {
       "binaries": "Binary",
@@ -1129,61 +1129,61 @@
       "caveats": "Lưu ý"
     },
     "empty": {
-      "title": "No agents available",
-      "description": "Check your server installation and try again."
+      "title": "Chưa có agent khả dụng",
+      "description": "Kiểm tra bản cài Quotio rồi thử lại."
     },
     "badges": {
-      "guideOnly": "Guide-only",
+      "guideOnly": "Hướng dẫn thủ công",
       "unsupported": "Chưa hỗ trợ",
       "unknownSupport": "Chưa xác thực",
-      "installed": "Installed",
-      "notInstalled": "Not installed",
-      "rollbackAvailable": "Backup available",
-      "noBackup": "No backup"
+      "installed": "Đã cài",
+      "notInstalled": "Chưa cài",
+      "rollbackAvailable": "Có bản sao lưu",
+      "noBackup": "Chưa có bản sao lưu"
     },
     "support": {
-      "guide-only": "Chưa có cấu hình tự động cho platform này. Hãy dùng hướng dẫn thủ công.",
-      "unsupported": "Agent này chưa được hỗ trợ trên platform này.",
-      "unknown": "Hỗ trợ cho agent này chưa được xác thực trên platform này."
+      "guide-only": "Có hướng dẫn thiết lập. Hiện chưa hỗ trợ tự động thay đổi trên nền tảng này.",
+      "unsupported": "Agent này chưa được hỗ trợ trên nền tảng này.",
+      "unknown": "Hỗ trợ cho agent này chưa được xác thực trên nền tảng này."
     },
     "actionState": {
-      "running": "Running",
-      "success": "Success",
-      "error": "Error"
+      "running": "Đang chạy",
+      "success": "Thành công",
+      "error": "Lỗi"
     },
     "sections": {
-      "overview": "Overview",
-      "targets": "Target files",
-      "binaries": "Binaries",
-      "caveats": "Caveats",
-      "capabilities": "Capabilities",
-      "lastResult": "Last result",
-      "docs": "Docs"
+      "overview": "Tổng quan",
+      "targets": "File mục tiêu",
+      "binaries": "Binary",
+      "caveats": "Lưu ý",
+      "capabilities": "Khả năng",
+      "lastResult": "Kết quả gần nhất",
+      "docs": "Tài liệu"
     },
     "guide": {
-      "title": "Guide",
-      "stepLabel": "Step {{index}}",
-      "verify": "Verify",
-      "configSnippet": "Config snippet",
-      "envSnippet": "Environment snippet",
-      "caveats": "Caveats",
-      "close": "Close"
+      "title": "Hướng dẫn",
+      "stepLabel": "Bước {{index}}",
+      "verify": "Kiểm tra",
+      "configSnippet": "Đoạn cấu hình",
+      "envSnippet": "Biến môi trường",
+      "caveats": "Lưu ý",
+      "close": "Đóng"
     },
     "diff": {
-      "fileChanged": "Changed",
-      "fileUnchanged": "Unchanged",
-      "fileNew": "New",
-      "before": "Before",
-      "after": "After",
-      "truncated": "Preview truncated"
+      "fileChanged": "Đã đổi",
+      "fileUnchanged": "Không đổi",
+      "fileNew": "Mới",
+      "before": "Trước",
+      "after": "Sau",
+      "truncated": "Bản xem trước đã được rút gọn"
     },
     "payload": {
-      "show": "Show raw payload",
-      "hide": "Hide raw payload"
+      "show": "Hiện chi tiết kỹ thuật",
+      "hide": "Ẩn chi tiết kỹ thuật"
     },
     "errors": {
-      "actionFailed": "Action failed",
-      "noManifest": "No rollback manifest is available."
+      "actionFailed": "Thao tác thất bại",
+      "noManifest": "Chưa có bản sao lưu để khôi phục."
     }
   }
 }
