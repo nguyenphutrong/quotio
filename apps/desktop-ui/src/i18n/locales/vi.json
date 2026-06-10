@@ -1031,7 +1031,7 @@
   },
   "agents": {
     "title": "Agents",
-    "description": "Cấu hình và hướng dẫn tích hợp cho Claude, Codex, OpenCode, Factory và các agent guide-only.",
+    "description": "Cấu hình và hướng dẫn tích hợp cho Claude, Codex, Gemini CLI, OpenCode và Factory.",
     "loading": "Đang tải danh sách agents…",
     "failedToLoad": "Không thể tải agents",
     "ampcodeTab": "AmpCode",

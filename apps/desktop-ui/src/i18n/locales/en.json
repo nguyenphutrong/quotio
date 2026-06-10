@@ -1036,7 +1036,7 @@
   },
   "agents": {
     "title": "Agents",
-    "description": "Unified setup and guidance for Claude, Codex, OpenCode, Factory, and guide-only agents.",
+    "description": "Unified setup and guidance for Claude, Codex, Gemini CLI, OpenCode, and Factory.",
     "loading": "Loading agents…",
     "failedToLoad": "Failed to load agents",
     "ampcodeTab": "AmpCode",

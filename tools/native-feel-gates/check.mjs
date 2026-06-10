@@ -58,6 +58,16 @@ const agentFixtures = readFileSync(
   ),
   'utf8',
 );
+const desktopUiLocales = ['en', 'vi', 'zh'].map((locale) => ({
+  locale,
+  source: readFileSync(
+    new URL(
+      `../../apps/desktop-ui/src/i18n/locales/${locale}.json`,
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+}));
 const sharedUiGlobals = readFileSync(
   new URL('../../packages/ui/src/styles/globals.css', import.meta.url),
   'utf8',
@@ -131,6 +141,20 @@ if (/id:\s*['"]gemini['"]/.test(agentFixtures)) {
   violations.push(
     'apps/desktop-ui/src/features/agents/fixtures.ts: Gemini CLI fixture must use the host route id gemini-cli',
   );
+}
+
+for (const { locale, source } of desktopUiLocales) {
+  if (!source.includes('Gemini CLI')) {
+    violations.push(
+      `apps/desktop-ui/src/i18n/locales/${locale}.json: Agents description must include Gemini CLI`,
+    );
+  }
+
+  if (/guide-only agents|agent guide-only|仅指南代理/.test(source)) {
+    violations.push(
+      `apps/desktop-ui/src/i18n/locales/${locale}.json: Agents copy must not describe the product as guide-only`,
+    );
+  }
 }
 
 if (/@fontsource|Geist Variable/.test(sharedUiGlobals)) {
