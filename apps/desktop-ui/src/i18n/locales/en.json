@@ -1,8 +1,8 @@
 {
   "common": {
     "appName": "Quotio",
-    "adminPanel": "Quotio Admin",
-    "tagline": "AI Gateway",
+    "adminPanel": "Quotio",
+    "tagline": "Desktop",
     "loading": "Loading…",
     "retry": "Retry",
     "refresh": "Refresh",
@@ -15,7 +15,7 @@
     "signIn": "Sign in",
     "signOut": "Sign out",
     "welcomeBack": "Welcome back",
-    "title": "Sign in to Quotio Admin",
+    "title": "Sign in to Quotio",
     "description": "Enter your admin API key to access the dashboard and manage your AI gateway.",
     "tokenLabel": "API key",
     "tokenPlaceholder": "Paste your admin API key",
@@ -30,7 +30,7 @@
     "adminConnected": "Connected",
     "authRequired": "Not connected",
     "reloadAdmin": "Reload",
-    "sessionLabel": "Admin session",
+    "sessionLabel": "Local session",
     "sessionDetail": "API key",
     "gatewayUrl": "Gateway URL",
     "gatewayUrlHint": "OpenAI-compatible base URL for your AI clients.",
@@ -38,7 +38,7 @@
     "gatewayUrlCopied": "Copied gateway URL."
   },
   "nav": {
-    "console": "Console",
+    "console": "Workspace",
     "resources": "Resources",
     "docs": "Docs",
     "github": "GitHub",
@@ -60,11 +60,11 @@
     "logs": "Logs",
     "logsDesc": "Browse request history and delivery status.",
     "settings": "Settings",
-    "settingsDesc": "Manage admin preferences and configuration.",
+    "settingsDesc": "Manage app preferences and configuration.",
     "about": "About",
     "aboutDesc": "Version, build info, and support details.",
-    "defaultTitle": "Quotio Admin",
-    "defaultDesc": "AI Gateway control panel.",
+    "defaultTitle": "Quotio",
+    "defaultDesc": "Desktop app console.",
     "providers": "Providers",
     "providersDesc": "Manage API keys and provider connections.",
     "agents": "Agents",
@@ -910,7 +910,7 @@
   },
   "bootstrap": {
     "failedLabel": "Startup error",
-    "failedTitle": "Quotio Admin couldn't start",
+    "failedTitle": "Quotio couldn't start",
     "unknownError": "An unexpected error occurred during startup."
   },
   "agents": {

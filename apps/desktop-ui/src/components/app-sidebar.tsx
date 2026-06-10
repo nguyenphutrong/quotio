@@ -4,7 +4,6 @@ import { Logo } from '@quotio/ui/components/logo';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -14,14 +13,11 @@ import { RiBookOpenLine, RiGithubLine, RiQuestionLine } from '@remixicon/react';
 import type * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavMain } from '@/components/nav-main';
-import { NavUser } from '@/components/nav-user';
 import { useAdminNavItems } from '@/lib/admin/navigation';
-import { useAdminRuntime } from '@/lib/admin/runtime';
 import { NavSecondary } from './nav-secondary';
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation();
-  const { clearToken } = useAdminRuntime();
   const adminNavItems = useAdminNavItems();
 
   const supportItems = [
@@ -41,10 +37,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: <RiQuestionLine />,
     },
   ];
-
-  function handleSignOut() {
-    clearToken();
-  }
 
   return (
     <Sidebar variant="inset" {...props}>
@@ -73,16 +65,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           className="mt-auto"
         />
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser
-          user={{
-            name: t('shell.sessionLabel'),
-            email: t('shell.sessionDetail'),
-            avatar: '',
-          }}
-          onClearToken={handleSignOut}
-        />
-      </SidebarFooter>
     </Sidebar>
   );
 }

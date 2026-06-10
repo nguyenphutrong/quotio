@@ -1,8 +1,8 @@
 {
   "common": {
     "appName": "Quotio",
-    "adminPanel": "Quotio Admin",
-    "tagline": "AI Gateway",
+    "adminPanel": "Quotio",
+    "tagline": "Desktop",
     "loading": "Đang tải…",
     "retry": "Thử lại",
     "refresh": "Làm mới",
@@ -15,7 +15,7 @@
     "signIn": "Đăng nhập",
     "signOut": "Đăng xuất",
     "welcomeBack": "Chào mừng trở lại",
-    "title": "Đăng nhập Quotio Admin",
+    "title": "Đăng nhập Quotio",
     "description": "Nhập API key quản trị để truy cập bảng điều khiển và quản lý AI gateway.",
     "tokenLabel": "API key",
     "tokenPlaceholder": "Dán API key quản trị của bạn",
@@ -30,7 +30,7 @@
     "adminConnected": "Đã kết nối",
     "authRequired": "Chưa kết nối",
     "reloadAdmin": "Tải lại",
-    "sessionLabel": "Phiên quản trị",
+    "sessionLabel": "Phiên local",
     "sessionDetail": "API key",
     "gatewayUrl": "Gateway URL",
     "gatewayUrlHint": "Base URL tương thích OpenAI cho client AI của bạn.",
@@ -38,7 +38,7 @@
     "gatewayUrlCopied": "Đã sao chép gateway URL."
   },
   "nav": {
-    "console": "Bảng điều khiển",
+    "console": "Không gian làm việc",
     "resources": "Tài nguyên",
     "docs": "Tài liệu",
     "github": "GitHub",
@@ -60,11 +60,11 @@
     "logs": "Nhật ký",
     "logsDesc": "Xem lịch sử yêu cầu và trạng thái gửi.",
     "settings": "Cài đặt",
-    "settingsDesc": "Quản lý tùy chỉnh và cấu hình.",
+    "settingsDesc": "Quản lý tùy chỉnh app và cấu hình.",
     "about": "Giới thiệu",
     "aboutDesc": "Phiên bản, thông tin bản dựng và hỗ trợ.",
-    "defaultTitle": "Quotio Admin",
-    "defaultDesc": "Bảng điều khiển AI Gateway.",
+    "defaultTitle": "Quotio",
+    "defaultDesc": "Console của ứng dụng desktop.",
     "providers": "Nhà cung cấp",
     "providersDesc": "Quản lý API key và kết nối nhà cung cấp.",
     "agents": "Agents",
@@ -905,7 +905,7 @@
   },
   "bootstrap": {
     "failedLabel": "Lỗi khởi động",
-    "failedTitle": "Quotio Admin không thể khởi động",
+    "failedTitle": "Quotio không thể khởi động",
     "unknownError": "Đã xảy ra lỗi không mong muốn khi khởi động."
   },
   "agents": {
