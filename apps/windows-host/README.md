@@ -1,9 +1,9 @@
 # Quotio Windows Host
 
-Native Windows shell for the shared desktop UI. Plan 05 owns the WinUI 3,
+Native Windows shell for the shared desktop UI. This host owns the WinUI 3,
 WebView2, tray, single-instance, and Rust bridge implementation.
 
-The Windows host has a preview ZIP path and a Velopack installer package path.
+The Windows host has an unsigned ZIP path and a Velopack installer package path.
 It is expected to build and exercise the shared UI bridge, Credential
 Manager-backed bootstrap config, shared remote credential editing, local
 crash-report capture, optional crash upload, native agent write/rollback
@@ -23,7 +23,7 @@ dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --config
 CI uploads `quotio-windows-preview.zip`, a `.sha256` checksum, and a
 `.manifest.json` file from the Windows job. The manifest records the source
 commit, build configuration, required bundled files, and per-file size/hash
-metadata. The artifact is a preview build output for smoke testing only; it is
+metadata. The artifact is an unsigned build output for smoke testing only; it is
 not an installer, is not signed, and does not include an updater.
 
 CI also builds a Velopack installer artifact from the same bundled host output:
@@ -53,7 +53,7 @@ dev-server launches report that updates require a Velopack install.
 The host loads `apps/desktop-ui/dist` when bundled by MSBuild. For live UI
 development, set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL.
 
-The preview runtime bridge can start, stop, and restart a process owned by the
+The runtime bridge can start, stop, and restart a process owned by the
 Windows host when `QUOTIO_PROXY_BINARY` is set. Optional `QUOTIO_PROXY_ARGS` are
 split on spaces, and `QUOTIO_PROXY_ENDPOINT` defaults to
 `http://127.0.0.1:8386`. Startup is gated on the endpoint becoming reachable;
@@ -70,7 +70,7 @@ Unhandled exceptions also write redacted JSON crash reports to
 `QUOTIO_WINDOWS_CRASH_REPORT_DIR` to redirect crash reports during smoke
 testing. Set `QUOTIO_WINDOWS_CRASH_UPLOAD_URL` to an HTTPS endpoint to upload
 the same redacted JSON payload after it is written locally. Plain HTTP is only
-accepted for loopback smoke tests. The preview build does not configure a
+accepted for loopback smoke tests. The Windows host does not configure a
 production upload endpoint by default.
 
 The management bridge keeps credentials in the native host. It reads
