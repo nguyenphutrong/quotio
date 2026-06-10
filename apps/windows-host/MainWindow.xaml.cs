@@ -4,6 +4,7 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.Web.WebView2.Core;
 using global::Windows.Graphics;
 using System.Runtime.InteropServices;
 using WinRT.Interop;
