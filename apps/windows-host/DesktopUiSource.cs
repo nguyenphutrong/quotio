@@ -59,7 +59,7 @@ public static class DesktopUiSource
                 ["supportsNativePreferences"] = true,
                 ["supportsAppearanceSync"] = true,
                 ["supportsRequestLogSettings"] = true,
-                ["supportsModelSettings"] = false,
+                ["supportsModelSettings"] = true,
                 ["supportsApiKeyManagement"] = true,
                 ["supportsVirtualModelManagement"] = false,
                 ["supportsUpdates"] = true
