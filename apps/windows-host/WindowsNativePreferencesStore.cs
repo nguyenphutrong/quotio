@@ -67,6 +67,11 @@ public sealed class WindowsNativePreferencesStore
             WindowsStartupService.SetEnabled(launchAtLogin);
         }
 
+        if (TryReadBool(preferences, "closeToTray", out var closeToTray))
+        {
+            state.CloseToTray = closeToTray;
+        }
+
         if (TryReadBool(preferences, "hideSensitiveInfo", out var hideSensitiveInfo))
         {
             state.HideSensitiveInfo = hideSensitiveInfo;
@@ -251,6 +256,7 @@ public sealed record WindowsNativePreferencesState
     public string OperatingMode { get; set; } = "local";
     public string Language { get; set; } = "en";
     public string Appearance { get; set; } = "system";
+    public bool CloseToTray { get; set; } = true;
     public bool HideSensitiveInfo { get; set; }
     public string TotalUsageMode { get; set; } = "sessionOnly";
     public string ModelAggregationMode { get; set; } = "lowest";

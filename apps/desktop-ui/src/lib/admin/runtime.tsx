@@ -54,6 +54,7 @@ export type NativePreferences = {
   appearance: 'system' | 'light' | 'dark';
   launchAtLogin: boolean;
   launchAtLoginCanOpenSystemSettings?: boolean;
+  closeToTray: boolean;
   proxyPort: number;
   proxyEndpoint: string;
   proxyRunning: boolean;
@@ -105,6 +106,7 @@ export type NativePreferencesPatch = Partial<
     | 'hideSensitiveInfo'
     | 'language'
     | 'launchAtLogin'
+    | 'closeToTray'
     | 'menuBarColorMode'
     | 'menuBarMaxItems'
     | 'modelAggregationMode'

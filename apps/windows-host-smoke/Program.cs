@@ -194,6 +194,7 @@ static void RunBootstrapSmoke()
         ["supportsManagementBridge"] = false,
         ["supportsNativeOnboarding"] = false,
         ["supportsNativePreferences"] = true,
+        ["supportsTrayBehavior"] = true,
         ["supportsAppearanceSync"] = true,
         ["supportsRequestLogSettings"] = true,
         ["supportsModelSettings"] = true,
@@ -248,6 +249,7 @@ static void RunNativePreferencesSmoke()
           "appearance": "dark",
           "operatingMode": "remote",
           "launchAtLogin": false,
+          "closeToTray": false,
           "hideSensitiveInfo": true,
           "totalUsageMode": "combined",
           "modelAggregationMode": "average",
@@ -271,6 +273,7 @@ static void RunNativePreferencesSmoke()
     Assert(state.Language == "vi", "Windows preferences should persist language");
     Assert(state.Appearance == "dark", "Windows preferences should persist appearance");
     Assert(state.OperatingMode == "remote", "Windows preferences should persist operating mode");
+    Assert(!state.CloseToTray, "Windows preferences should persist tray close behavior");
     Assert(state.HideSensitiveInfo, "Windows preferences should persist privacy settings");
     Assert(state.TotalUsageMode == "combined", "Windows preferences should persist usage mode");
     Assert(state.ModelAggregationMode == "average", "Windows preferences should persist model aggregation mode");
@@ -288,6 +291,7 @@ static void RunNativePreferencesSmoke()
 
     var reloaded = store.Load();
     Assert(reloaded.Language == "vi", "Windows preferences should reload from disk");
+    Assert(!reloaded.CloseToTray, "Windows preferences should reload tray close behavior from disk");
     Assert(reloaded.UpdateChannel == "beta", "Windows preferences should reload update channel from disk");
     Assert(reloaded.QuotaDisplayStyle == "ring", "Windows preferences should reload quota display settings from disk");
 

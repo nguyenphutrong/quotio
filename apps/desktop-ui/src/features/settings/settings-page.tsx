@@ -525,6 +525,7 @@ function NativePreferencesPanel() {
   const supportsPortConfig = bootstrap.capabilities.supportsPortConfig;
   const localModeEnabled =
     supportsLocalProxy && preferences?.operatingMode === 'local';
+  const supportsTrayBehavior = bootstrap.capabilities.supportsTrayBehavior;
   const showWindowsSetup =
     bootstrap.platform === 'windows' &&
     !bootstrap.capabilities.supportsNativeOnboarding &&
@@ -725,6 +726,28 @@ function NativePreferencesPanel() {
                   }
                 />
               </div>
+            </div>
+          </PreferenceField>
+        ) : null}
+
+        {supportsTrayBehavior ? (
+          <PreferenceField
+            label={t('settings.native.fields.closeToTray')}
+            hint={t('settings.native.hints.closeToTray')}
+          >
+            <div className="flex min-h-9 items-center justify-between gap-4 rounded-md border border-border px-3 py-1">
+              <span className="text-muted-foreground text-sm">
+                {preferences?.closeToTray
+                  ? t('about.status.enabled')
+                  : t('about.status.disabled')}
+              </span>
+              <Switch
+                checked={preferences?.closeToTray ?? true}
+                disabled={disabled}
+                onCheckedChange={(checked) =>
+                  void savePreference('closeToTray', checked)
+                }
+              />
             </div>
           </PreferenceField>
         ) : null}

@@ -45,6 +45,7 @@ const expectedCapabilities = {
   supportsManagementBridge: 'managementBridgeReady',
   supportsNativeOnboarding: 'false',
   supportsNativePreferences: 'true',
+  supportsTrayBehavior: 'true',
   supportsAppearanceSync: 'true',
   supportsRequestLogSettings: 'true',
   supportsModelSettings: 'true',
@@ -138,6 +139,7 @@ assertAllContain('Windows WebView2 host chrome', mainWindowSource, [
   '"0x00000000"',
   'DesktopWebView.DefaultBackgroundColor = Colors.Transparent;',
   'core.Settings.AreDefaultContextMenusEnabled = true;',
+  'preferencesStore.Load().CloseToTray',
   'core.Settings.AreDevToolsEnabled = IsDebugHost();',
   'core.WebMessageReceived += bridge.OnWebMessageReceived;',
   'await core.AddScriptToExecuteOnDocumentCreatedAsync(',
@@ -169,6 +171,7 @@ assertAllContain(
     'IsAllowedExternalUri(url)',
     '"ms-settings:startupapps"',
     '["launchAtLoginCanOpenSystemSettings"] = true',
+    '["closeToTray"] = preferences.CloseToTray',
     '["quotaAlertThreshold"] = preferences.QuotaAlertThreshold',
     '["quotaDisplayMode"] = preferences.QuotaDisplayMode',
     '["quotaDisplayStyle"] = preferences.QuotaDisplayStyle',
@@ -180,6 +183,8 @@ assertAllContain(
   'Windows native preferences quota display persistence',
   readProjectFile('apps/windows-host/WindowsNativePreferencesStore.cs'),
   [
+    'public bool CloseToTray { get; set; } = true;',
+    'state.CloseToTray = closeToTray;',
     'public int QuotaAlertThreshold { get; set; } = 20;',
     'public string QuotaDisplayMode { get; set; } = "used";',
     'public string QuotaDisplayStyle { get; set; } = "card";',
@@ -190,6 +195,16 @@ assertAllContain(
     'quotaDisplayStyle == "card" || quotaDisplayStyle == "lowestBar" || quotaDisplayStyle == "ring"',
     'resetTimeDisplayMode == "relative" || resetTimeDisplayMode == "absolute"',
     'refreshCadence == "manual"',
+  ],
+);
+assertAllContain(
+  'Desktop settings Windows tray behavior',
+  readProjectFile('apps/desktop-ui/src/features/settings/settings-page.tsx'),
+  [
+    'bootstrap.capabilities.supportsTrayBehavior',
+    "t('settings.native.fields.closeToTray')",
+    "t('settings.native.hints.closeToTray')",
+    "void savePreference('closeToTray', checked)",
   ],
 );
 assertAllContain(

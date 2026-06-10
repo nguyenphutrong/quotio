@@ -62,6 +62,7 @@ public static class DesktopUiSource
                 ["supportsManagementBridge"] = managementBridgeReady,
                 ["supportsNativeOnboarding"] = false,
                 ["supportsNativePreferences"] = true,
+                ["supportsTrayBehavior"] = true,
                 ["supportsAppearanceSync"] = true,
                 ["supportsRequestLogSettings"] = true,
                 ["supportsModelSettings"] = true,

@@ -38,6 +38,7 @@ export type HostCapabilities = {
   supportsManagementBridge: boolean;
   supportsNativeOnboarding: boolean;
   supportsNativePreferences: boolean;
+  supportsTrayBehavior: boolean;
   supportsAppearanceSync: boolean;
   supportsRequestLogSettings: boolean;
   supportsModelSettings: boolean;
@@ -71,6 +72,7 @@ export const DEFAULT_HOST_CAPABILITIES: HostCapabilities = {
   supportsManagementBridge: false,
   supportsNativeOnboarding: false,
   supportsNativePreferences: false,
+  supportsTrayBehavior: false,
   supportsAppearanceSync: false,
   supportsRequestLogSettings: false,
   supportsModelSettings: false,

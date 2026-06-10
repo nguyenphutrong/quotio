@@ -457,6 +457,7 @@ public sealed class DesktopBridge
             ["appearance"] = preferences.Appearance,
             ["launchAtLogin"] = WindowsStartupService.IsEnabled(),
             ["launchAtLoginCanOpenSystemSettings"] = true,
+            ["closeToTray"] = preferences.CloseToTray,
             ["proxyPort"] = proxyPort,
             ["proxyEndpoint"] = status.Endpoint ?? proxyEndpoint,
             ["proxyRunning"] = status.State == "managed",

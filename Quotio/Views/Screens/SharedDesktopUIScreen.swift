@@ -394,6 +394,7 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 "supportsManagementBridge": true,
                 "supportsNativeOnboarding": true,
                 "supportsNativePreferences": true,
+                "supportsTrayBehavior": false,
                 "supportsAppearanceSync": true,
                 "supportsRequestLogSettings": true,
                 "supportsModelSettings": true,

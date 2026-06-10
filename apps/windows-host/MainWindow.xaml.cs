@@ -216,7 +216,7 @@ public sealed partial class MainWindow : Window
     {
         SaveWindowPlacement();
 
-        if (!isQuitting)
+        if (!isQuitting && preferencesStore.Load().CloseToTray)
         {
             args.Handled = true;
             HideToTray();
