@@ -909,6 +909,73 @@
     "failedTitle": "Quotio 管理面板无法启动",
     "unknownError": "启动过程中发生意外错误。"
   },
+  "providers": {
+    "title": "服务商",
+    "description": "管理服务商连接、配置校验、API 测试、Token 刷新以及启用或停用控制。",
+    "loading": "正在加载服务商…",
+    "failedToLoad": "无法加载服务商",
+    "unknownError": "未知服务商错误",
+    "actions": {
+      "addProvider": "添加服务商",
+      "addConnection": "添加连接",
+      "test": "测试",
+      "validate": "校验",
+      "saveChanges": "保存更改",
+      "delete": "删除",
+      "chooseFile": "选择文件",
+      "import": "导入"
+    },
+    "empty": {
+      "noMatchTitle": "没有匹配的服务商",
+      "noneDescription": "使用上方按钮添加第一个服务商。",
+      "filteredDescription": "调整搜索筛选条件或创建新的服务商。",
+      "noProviders": "暂无服务商。"
+    },
+    "table": {
+      "provider": "服务商",
+      "type": "类型",
+      "connections": "连接",
+      "status": "状态",
+      "actions": "操作",
+      "testedAt": "已测试 {{time}}"
+    },
+    "status": {
+      "noConnections": "暂无连接",
+      "error": "错误",
+      "ready": "就绪",
+      "active": "运行中",
+      "unknown": "未知"
+    },
+    "tooltips": {
+      "addConnection": "添加新连接",
+      "testConnection": "测试此连接",
+      "refreshToken": "刷新 Token",
+      "enableConnection": "启用连接",
+      "disableConnection": "停用连接",
+      "deleteConnection": "删除连接"
+    },
+    "dialogs": {
+      "createTitle": "添加服务商",
+      "configureTitle": "配置服务商",
+      "editTitle": "编辑服务商",
+      "createDescription": "保存到服务商存储前先校验 payload。",
+      "editDescription": "您可以更新标签和停用状态。OpenCode Go 也允许编辑配额元数据。",
+      "deleteTitle": "删除服务商",
+      "deleteMessage": "删除 {{name}}？此操作无法撤销，并会阻止通过该连接访问模型。",
+      "cookieImportTitle": "导入 OpenCode Cookie JSON",
+      "cookieImportDescription": "粘贴为 opencode.ai 导出的 cookie JSON。Quotio 会提取 auth cookie，并仅保存配额同步所需的 cookie header 值。"
+    },
+    "messages": {
+      "tested": "{{name}}：已在 {{time}} 测试 {{provider}}。",
+      "tokenRefreshed": "{{name}}：Token 已刷新。",
+      "disabled": "{{name}}：已停用。",
+      "enabled": "{{name}}：已启用。",
+      "deleted": "{{name}}：服务商已删除。",
+      "validated": "已校验 {{provider}} 服务商 payload。",
+      "created": "{{name}}：服务商已创建。",
+      "updated": "{{name}}：服务商已更新。"
+    }
+  },
   "agents": {
     "title": "Agents",
     "description": "为 Claude、Codex、OpenCode、Factory 以及仅指南代理提供统一配置与说明。",

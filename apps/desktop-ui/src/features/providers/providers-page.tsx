@@ -49,19 +49,19 @@ export function ProvidersPage() {
     providers.find((provider) => provider.id === editingProviderId) ?? null;
 
   if (providersQuery.isLoading) {
-    return <LoadingState label="Loading providers…" />;
+    return <LoadingState label={t('providers.loading')} />;
   }
 
   if (providersQuery.error) {
     return (
       <ErrorState
-        title="Providers failed to load"
+        title={t('providers.failedToLoad')}
         description={
           providersQuery.error instanceof Error
             ? providersQuery.error.message
-            : 'Unknown providers error'
+            : t('providers.unknownError')
         }
-        actionLabel="Retry"
+        actionLabel={t('common.retry')}
         onAction={() => void providersQuery.refetch()}
       />
     );
@@ -70,8 +70,8 @@ export function ProvidersPage() {
   return (
     <div className="space-y-6 h-full flex flex-col">
       <AdminPageHeader
-        title="Providers"
-        description="Manage gateway providers with live validation, API testing, token refresh, and enable/disable controls."
+        title={t('providers.title')}
+        description={t('providers.description')}
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -89,7 +89,7 @@ export function ProvidersPage() {
               }}
             >
               <RiAddLine />
-              Add Provider
+              {t('providers.actions.addProvider')}
             </Button>
           </div>
         }
@@ -108,11 +108,11 @@ export function ProvidersPage() {
 
       {filteredProviders.length === 0 ? (
         <EmptyState
-          title="No providers matched"
+          title={t('providers.empty.noMatchTitle')}
           description={
             providers.length === 0
-              ? 'Add your first provider using the button above.'
-              : 'Adjust the search filter or create a new provider.'
+              ? t('providers.empty.noneDescription')
+              : t('providers.empty.filteredDescription')
           }
         />
       ) : (
@@ -136,7 +136,11 @@ export function ProvidersPage() {
                 provider.id,
               );
               success(
-                `${provider.label || provider.id}: tested ${result.provider} at ${new Date(result.checked_at).toLocaleTimeString()}.`,
+                t('providers.messages.tested', {
+                  name: provider.label || provider.id,
+                  provider: result.provider,
+                  time: new Date(result.checked_at).toLocaleTimeString(),
+                }),
               );
             } finally {
               setBusyId(null);
@@ -147,7 +151,9 @@ export function ProvidersPage() {
             try {
               await mutations.refreshMutation.mutateAsync(provider.id);
               success(
-                `${provider.label || provider.id}: token refresh completed.`,
+                t('providers.messages.tokenRefreshed', {
+                  name: provider.label || provider.id,
+                }),
               );
             } finally {
               setBusyId(null);
@@ -162,7 +168,12 @@ export function ProvidersPage() {
                 disabled: !provider.disabled,
               });
               success(
-                `${updated.label || updated.id}: ${updated.disabled ? 'disabled' : 'enabled'}.`,
+                t(
+                  updated.disabled
+                    ? 'providers.messages.disabled'
+                    : 'providers.messages.enabled',
+                  { name: updated.label || updated.id },
+                ),
               );
             } finally {
               setBusyId(null);
@@ -175,7 +186,11 @@ export function ProvidersPage() {
               setEditingProviderId((current) =>
                 current === provider.id ? null : current,
               );
-              success(`${provider.label || provider.id}: provider deleted.`);
+              success(
+                t('providers.messages.deleted', {
+                  name: provider.label || provider.id,
+                }),
+              );
             } finally {
               setBusyId(null);
             }
@@ -209,18 +224,30 @@ export function ProvidersPage() {
         onValidate={async (payload: ProviderPayload) => {
           const preview = await mutations.validateMutation.mutateAsync(payload);
           setValidationPreview(preview);
-          success(`Validated ${preview.provider} provider payload.`);
+          success(
+            t('providers.messages.validated', {
+              provider: preview.provider,
+            }),
+          );
         }}
         onCreate={async (payload: ProviderPayload) => {
           const created = await mutations.createMutation.mutateAsync(payload);
           setValidationPreview(null);
-          success(`${created.label || created.id}: provider created.`);
+          success(
+            t('providers.messages.created', {
+              name: created.label || created.id,
+            }),
+          );
           setIsAddProviderOpen(false);
           await providersQuery.refetch();
         }}
         onOAuthCreated={async (created) => {
           setValidationPreview(null);
-          success(`${created.label || created.id}: provider created.`);
+          success(
+            t('providers.messages.created', {
+              name: created.label || created.id,
+            }),
+          );
           setIsAddProviderOpen(false);
           await providersQuery.refetch();
         }}
@@ -249,7 +276,11 @@ export function ProvidersPage() {
             disabled,
             headers,
           });
-          success(`${updated.label || updated.id}: provider updated.`);
+          success(
+            t('providers.messages.updated', {
+              name: updated.label || updated.id,
+            }),
+          );
           setEditingProviderId(null);
           await providersQuery.refetch();
         }}

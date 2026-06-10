@@ -13,6 +13,7 @@ import { Switch } from '@quotio/ui/components/switch';
 import { Textarea } from '@quotio/ui/components/textarea';
 import { RiExternalLinkLine, RiLoader4Line } from '@remixicon/react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CopyButton } from '@/components/admin/copy-button';
 import { Panel } from '@/components/admin/panel';
 import { ProviderIcon } from '@/components/admin/provider-icon';
@@ -130,6 +131,7 @@ export function ProviderFormPanel({
   hideHeader?: boolean;
   initialProviderKey?: string;
 }) {
+  const { t } = useTranslation();
   const { request, openExternal, openTextFile } = useAdminRuntime();
   const [step, setStep] = useState<1 | 2>(
     mode === 'create' && !initialProviderKey ? 1 : 2,
@@ -454,7 +456,9 @@ export function ProviderFormPanel({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-foreground">
-              {mode === 'create' ? 'Configure Provider' : 'Edit provider'}
+              {mode === 'create'
+                ? t('providers.dialogs.configureTitle')
+                : t('providers.dialogs.editTitle')}
             </h2>
             <p className="text-sm text-muted-foreground">
               {mode === 'create'
@@ -801,13 +805,13 @@ export function ProviderFormPanel({
                 disabled={busy || !secret}
                 onClick={() => void run(async () => onValidate(payload))}
               >
-                Validate
+                {t('providers.actions.validate')}
               </Button>
               <Button
                 disabled={busy || !secret}
                 onClick={() => void run(async () => onCreate(payload))}
               >
-                Add Provider
+                {t('providers.actions.addProvider')}
               </Button>
             </>
           ) : null
@@ -828,7 +832,7 @@ export function ProviderFormPanel({
               )
             }
           >
-            Save changes
+            {t('providers.actions.saveChanges')}
           </Button>
         ) : null}
       </div>
@@ -836,11 +840,11 @@ export function ProviderFormPanel({
       <Dialog open={cookieImportOpen} onOpenChange={setCookieImportOpen}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Import OpenCode Cookie JSON</DialogTitle>
+            <DialogTitle>
+              {t('providers.dialogs.cookieImportTitle')}
+            </DialogTitle>
             <DialogDescription>
-              Paste exported cookie JSON for <code>opencode.ai</code>. Quotio
-              will extract the auth cookie and store only the cookie header
-              value needed for quota sync.
+              {t('providers.dialogs.cookieImportDescription')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -860,17 +864,17 @@ export function ProviderFormPanel({
               variant="outline"
               onClick={handleImportOpencodeGoCookieFile}
             >
-              Choose File
+              {t('providers.actions.chooseFile')}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => setCookieImportOpen(false)}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="button" onClick={handleImportOpencodeGoCookieJson}>
-              Import
+              {t('providers.actions.import')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -969,7 +973,7 @@ export function ProviderFormPanel({
   async function handleImportOpencodeGoCookieFile() {
     try {
       const text = await openTextFile({
-        title: 'Import OpenCode Cookie JSON',
+        title: t('providers.dialogs.cookieImportTitle'),
         allowedExtensions: ['json', 'txt'],
       });
 

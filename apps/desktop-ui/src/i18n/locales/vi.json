@@ -908,6 +908,73 @@
     "failedTitle": "Quotio không thể khởi động",
     "unknownError": "Đã xảy ra lỗi không mong muốn khi khởi động."
   },
+  "providers": {
+    "title": "Nhà cung cấp",
+    "description": "Quản lý kết nối nhà cung cấp, xác thực cấu hình, kiểm tra API, làm mới token và bật hoặc tắt từng kết nối.",
+    "loading": "Đang tải nhà cung cấp…",
+    "failedToLoad": "Không thể tải nhà cung cấp",
+    "unknownError": "Lỗi nhà cung cấp không xác định",
+    "actions": {
+      "addProvider": "Thêm nhà cung cấp",
+      "addConnection": "Thêm kết nối",
+      "test": "Kiểm tra",
+      "validate": "Xác thực",
+      "saveChanges": "Lưu thay đổi",
+      "delete": "Xóa",
+      "chooseFile": "Chọn file",
+      "import": "Nhập"
+    },
+    "empty": {
+      "noMatchTitle": "Không có nhà cung cấp phù hợp",
+      "noneDescription": "Thêm nhà cung cấp đầu tiên bằng nút phía trên.",
+      "filteredDescription": "Điều chỉnh bộ lọc tìm kiếm hoặc tạo nhà cung cấp mới.",
+      "noProviders": "Chưa có nhà cung cấp."
+    },
+    "table": {
+      "provider": "Nhà cung cấp",
+      "type": "Loại",
+      "connections": "Kết nối",
+      "status": "Trạng thái",
+      "actions": "Thao tác",
+      "testedAt": "Đã kiểm tra {{time}}"
+    },
+    "status": {
+      "noConnections": "Chưa có kết nối",
+      "error": "Lỗi",
+      "ready": "Sẵn sàng",
+      "active": "Đang hoạt động",
+      "unknown": "Không xác định"
+    },
+    "tooltips": {
+      "addConnection": "Thêm kết nối mới",
+      "testConnection": "Kiểm tra kết nối này",
+      "refreshToken": "Làm mới token",
+      "enableConnection": "Bật kết nối",
+      "disableConnection": "Tắt kết nối",
+      "deleteConnection": "Xóa kết nối"
+    },
+    "dialogs": {
+      "createTitle": "Thêm nhà cung cấp",
+      "configureTitle": "Cấu hình nhà cung cấp",
+      "editTitle": "Sửa nhà cung cấp",
+      "createDescription": "Xác thực payload trước khi lưu vào provider store.",
+      "editDescription": "Bạn có thể cập nhật nhãn và trạng thái tắt. OpenCode Go cũng cho phép chỉnh quota metadata.",
+      "deleteTitle": "Xóa nhà cung cấp",
+      "deleteMessage": "Xóa {{name}}? Thao tác này không thể hoàn tác và sẽ chặn truy cập model qua kết nối này.",
+      "cookieImportTitle": "Nhập OpenCode Cookie JSON",
+      "cookieImportDescription": "Dán cookie JSON đã export cho opencode.ai. Quotio sẽ trích xuất auth cookie và chỉ lưu giá trị cookie header cần cho đồng bộ hạn mức."
+    },
+    "messages": {
+      "tested": "{{name}}: đã kiểm tra {{provider}} lúc {{time}}.",
+      "tokenRefreshed": "{{name}}: đã làm mới token.",
+      "disabled": "{{name}}: đã tắt.",
+      "enabled": "{{name}}: đã bật.",
+      "deleted": "{{name}}: đã xóa nhà cung cấp.",
+      "validated": "Đã xác thực payload nhà cung cấp {{provider}}.",
+      "created": "{{name}}: đã tạo nhà cung cấp.",
+      "updated": "{{name}}: đã cập nhật nhà cung cấp."
+    }
+  },
   "agents": {
     "title": "Agents",
     "description": "Cấu hình và hướng dẫn tích hợp cho Claude, Codex, OpenCode, Factory và các agent guide-only.",

@@ -913,6 +913,73 @@
     "failedTitle": "Quotio couldn't start",
     "unknownError": "An unexpected error occurred during startup."
   },
+  "providers": {
+    "title": "Providers",
+    "description": "Manage gateway providers with validation, API testing, token refresh, and enable or disable controls.",
+    "loading": "Loading providers…",
+    "failedToLoad": "Providers failed to load",
+    "unknownError": "Unknown providers error",
+    "actions": {
+      "addProvider": "Add Provider",
+      "addConnection": "Add connection",
+      "test": "Test",
+      "validate": "Validate",
+      "saveChanges": "Save changes",
+      "delete": "Delete",
+      "chooseFile": "Choose File",
+      "import": "Import"
+    },
+    "empty": {
+      "noMatchTitle": "No providers matched",
+      "noneDescription": "Add your first provider using the button above.",
+      "filteredDescription": "Adjust the search filter or create a new provider.",
+      "noProviders": "No providers found."
+    },
+    "table": {
+      "provider": "Provider",
+      "type": "Type",
+      "connections": "Connections",
+      "status": "Status",
+      "actions": "Actions",
+      "testedAt": "Tested {{time}}"
+    },
+    "status": {
+      "noConnections": "No connections",
+      "error": "Error",
+      "ready": "Ready",
+      "active": "Active",
+      "unknown": "Unknown"
+    },
+    "tooltips": {
+      "addConnection": "Add a new connection",
+      "testConnection": "Test this connection",
+      "refreshToken": "Refresh token",
+      "enableConnection": "Enable connection",
+      "disableConnection": "Disable connection",
+      "deleteConnection": "Delete connection"
+    },
+    "dialogs": {
+      "createTitle": "Add Provider",
+      "configureTitle": "Configure Provider",
+      "editTitle": "Edit provider",
+      "createDescription": "Validate the payload before saving it into the provider store.",
+      "editDescription": "You can update label and disabled state. OpenCode Go also allows editing quota metadata.",
+      "deleteTitle": "Delete provider",
+      "deleteMessage": "Delete {{name}}? This action cannot be undone and will prevent accessing models through this connection.",
+      "cookieImportTitle": "Import OpenCode Cookie JSON",
+      "cookieImportDescription": "Paste exported cookie JSON for opencode.ai. Quotio will extract the auth cookie and store only the cookie header value needed for quota sync."
+    },
+    "messages": {
+      "tested": "{{name}}: tested {{provider}} at {{time}}.",
+      "tokenRefreshed": "{{name}}: token refresh completed.",
+      "disabled": "{{name}}: disabled.",
+      "enabled": "{{name}}: enabled.",
+      "deleted": "{{name}}: provider deleted.",
+      "validated": "Validated {{provider}} provider payload.",
+      "created": "{{name}}: provider created.",
+      "updated": "{{name}}: provider updated."
+    }
+  },
   "agents": {
     "title": "Agents",
     "description": "Unified setup and guidance for Claude, Codex, OpenCode, Factory, and guide-only agents.",

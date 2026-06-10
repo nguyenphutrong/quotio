@@ -25,6 +25,7 @@ import {
   RiRefreshLine,
 } from '@remixicon/react';
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ProviderIcon } from '@/components/admin/provider-icon';
 import type { ProviderResponse } from '@/features/providers/types';
 import {
@@ -55,6 +56,7 @@ export function ProvidersTable({
   onAddConnection?: (providerKey: string) => void;
   busyId: string | null;
 }) {
+  const { t } = useTranslation();
   const { confirm } = useAdminRuntime();
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     new Set(),
@@ -107,11 +109,15 @@ export function ProvidersTable({
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent [&>th]:py-2 [&>th]:h-10 text-xs">
-              <TableHead className="w-[300px]">Provider</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Connections</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="w-[300px]">
+                {t('providers.table.provider')}
+              </TableHead>
+              <TableHead>{t('providers.table.type')}</TableHead>
+              <TableHead>{t('providers.table.connections')}</TableHead>
+              <TableHead>{t('providers.table.status')}</TableHead>
+              <TableHead className="text-right">
+                {t('providers.table.actions')}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -121,7 +127,7 @@ export function ProvidersTable({
                   colSpan={5}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  No providers found.
+                  {t('providers.empty.noProviders')}
                 </TableCell>
               </TableRow>
             )}
@@ -130,18 +136,18 @@ export function ProvidersTable({
               const connectionCount = group.connections.length;
 
               // Group status logic
-              let groupStatus = 'No connections';
+              let groupStatus = t('providers.status.noConnections');
               let statusColor = 'text-muted-foreground';
               if (connectionCount > 0) {
                 const hasError = group.connections.some(
                   (c) => !c.validation.valid,
                 );
                 if (hasError) {
-                  groupStatus = 'Error';
+                  groupStatus = t('providers.status.error');
                   statusColor =
                     'text-danger bg-danger/10 px-2 py-0.5 rounded-md text-xs font-medium';
                 } else {
-                  groupStatus = 'Ready';
+                  groupStatus = t('providers.status.ready');
                   statusColor =
                     'text-success bg-success/10 px-2 py-0.5 rounded-md text-xs font-medium';
                 }
@@ -199,11 +205,13 @@ export function ProvidersTable({
                                 }}
                               >
                                 <RiAddLine className="mr-1 h-3 w-3" />
-                                Add connection
+                                {t('providers.actions.addConnection')}
                               </Button>
                             }
                           />
-                          <TooltipContent>Add a new connection</TooltipContent>
+                          <TooltipContent>
+                            {t('providers.tooltips.addConnection')}
+                          </TooltipContent>
                         </Tooltip>
                       </div>
                     </TableCell>
@@ -221,7 +229,7 @@ export function ProvidersTable({
                         ? new Date(
                             connection.validation.checked_at,
                           ).toLocaleTimeString()
-                        : 'Unknown';
+                        : t('providers.status.unknown');
 
                       return (
                         <TableRow
@@ -263,7 +271,9 @@ export function ProvidersTable({
                                   }`}
                                 />
                                 <span className="text-xs font-medium text-foreground">
-                                  {isValid ? 'Active' : 'Error'}
+                                  {isValid
+                                    ? t('providers.status.active')
+                                    : t('providers.status.error')}
                                 </span>
                               </div>
                               {connection.validation.checked_at && (
@@ -273,7 +283,9 @@ export function ProvidersTable({
                                     connection.validation.checked_at,
                                   ).toLocaleString()}
                                 >
-                                  Tested {checkedAt}
+                                  {t('providers.table.testedAt', {
+                                    time: checkedAt,
+                                  })}
                                 </span>
                               )}
                             </div>
@@ -294,12 +306,12 @@ export function ProvidersTable({
                                       disabled={busyId === connection.id}
                                     >
                                       <RiFlashlightLine className="mr-1 h-3 w-3" />
-                                      Test
+                                      {t('providers.actions.test')}
                                     </Button>
                                   }
                                 />
                                 <TooltipContent>
-                                  Test this connection
+                                  {t('providers.tooltips.testConnection')}
                                 </TooltipContent>
                               </Tooltip>
 
@@ -321,7 +333,9 @@ export function ProvidersTable({
                                       </Button>
                                     }
                                   />
-                                  <TooltipContent>Refresh token</TooltipContent>
+                                  <TooltipContent>
+                                    {t('providers.tooltips.refreshToken')}
+                                  </TooltipContent>
                                 </Tooltip>
                               )}
 
@@ -352,8 +366,8 @@ export function ProvidersTable({
                                 />
                                 <TooltipContent>
                                   {connection.disabled
-                                    ? 'Enable connection'
-                                    : 'Disable connection'}
+                                    ? t('providers.tooltips.enableConnection')
+                                    : t('providers.tooltips.disableConnection')}
                                 </TooltipContent>
                               </Tooltip>
 
@@ -369,10 +383,17 @@ export function ProvidersTable({
                                         const name =
                                           connection.label || connection.id;
                                         const accepted = await confirm({
-                                          title: 'Delete provider',
-                                          message: `Delete ${name}? This action cannot be undone and will prevent accessing models through this connection.`,
-                                          confirmLabel: 'Delete',
-                                          cancelLabel: 'Cancel',
+                                          title: t(
+                                            'providers.dialogs.deleteTitle',
+                                          ),
+                                          message: t(
+                                            'providers.dialogs.deleteMessage',
+                                            { name },
+                                          ),
+                                          confirmLabel: t(
+                                            'providers.actions.delete',
+                                          ),
+                                          cancelLabel: t('common.cancel'),
                                           destructive: true,
                                         });
 
@@ -387,7 +408,7 @@ export function ProvidersTable({
                                   }
                                 />
                                 <TooltipContent>
-                                  Delete connection
+                                  {t('providers.tooltips.deleteConnection')}
                                 </TooltipContent>
                               </Tooltip>
                             </div>

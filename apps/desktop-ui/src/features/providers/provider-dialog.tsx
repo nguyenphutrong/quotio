@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@quotio/ui/components/dialog';
+import { useTranslation } from 'react-i18next';
 import { ProviderFormPanel } from '@/features/providers/provider-form-panel';
 import type {
   ProviderPayload,
@@ -41,17 +42,21 @@ export function ProviderDialog({
   onOAuthCreated?: (provider: ProviderResponse) => Promise<void> | void;
   initialProviderKey?: string;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg lg:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {mode === 'create' ? 'Add Provider' : 'Edit provider'}
+            {mode === 'create'
+              ? t('providers.dialogs.createTitle')
+              : t('providers.dialogs.editTitle')}
           </DialogTitle>
           <DialogDescription>
             {mode === 'create'
-              ? 'Validate the payload before saving it into the provider store.'
-              : 'You can update label and disabled state. OpenCode Go also allows editing quota metadata.'}
+              ? t('providers.dialogs.createDescription')
+              : t('providers.dialogs.editDescription')}
           </DialogDescription>
         </DialogHeader>
         <ProviderFormPanel
