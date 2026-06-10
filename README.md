@@ -127,16 +127,17 @@ variable to the `open` command, not to an app later launched from Xcode. The
 script above launches the built app executable directly so the native process
 receives `QUOTIO_DESKTOP_UI_DEV_SERVER`.
 
-### Windows Preview
+### Windows Desktop
 
-The repository includes a preview Windows native host for the multiplatform
-migration. CI uploads a zipped preview build artifact for smoke testing, but it
-is not a shipped Windows release until installer, signing, updater, shared
-credential editing, and production cutover checks are complete.
+The repository includes a Windows native host for the multiplatform migration.
+CI builds a Velopack installer package for release validation and also uploads a
+zipped unsigned host artifact for smoke testing. The Windows app is not a final
+production release until signing and the remaining production cutover checks are
+complete.
 
-Maintainers can publish an unsigned Windows preview prerelease with the
-`Windows Preview Release` workflow. Preview tags must use the
-`windows-preview-*` prefix.
+Maintainers can publish installer artifacts with the `Windows Installer Release`
+workflow. The `Windows Preview Release` workflow is retained for unsigned ZIP
+smoke prereleases only; preview tags must use the `windows-preview-*` prefix.
 
 ### macOS Preview
 

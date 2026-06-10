@@ -3,12 +3,12 @@
 Native Windows shell for the shared desktop UI. This host owns the WinUI 3,
 WebView2, tray, single-instance, and Rust bridge implementation.
 
-The Windows host has an unsigned ZIP smoke path and a Velopack installer package
-path. It is expected to build and exercise the shared UI bridge, Credential
-Manager-backed bootstrap config, shared remote credential editing, local
-crash-report capture, optional crash upload, native agent write/rollback
-adapters, and installer/update metadata, but it is not production parity with
-macOS until signing and cutover checks in
+The Windows host has a Velopack installer package path for release validation
+and an unsigned ZIP smoke path for fast CI checks. It is expected to build and
+exercise the shared UI bridge, Credential Manager-backed bootstrap config,
+shared remote credential editing, local crash-report capture, optional crash
+upload, native agent write/rollback adapters, and installer/update metadata, but
+it is not production parity with macOS until signing and cutover checks in
 `docs/architecture/multiplatform/0006-cutover-gap-matrix.md` are done.
 
 ## Development
@@ -20,13 +20,7 @@ dotnet build apps/windows-host/Quotio.Windows.csproj --configuration Release
 dotnet run --project apps/windows-host-smoke/Quotio.WindowsSmoke.csproj --configuration Release
 ```
 
-CI uploads `quotio-windows-preview.zip`, a `.sha256` checksum, and a
-`.manifest.json` file from the Windows job. The manifest records the source
-commit, build configuration, required bundled files, and per-file size/hash
-metadata. The artifact is an unsigned build output for smoke testing only; it is
-not an installer, is not signed, and does not include an updater.
-
-CI also builds a Velopack installer artifact from the same bundled host output:
+CI builds a Velopack installer artifact from the bundled host output:
 
 ```powershell
 ./scripts/package-windows-installer.ps1 -Version "0.1.0" -Channel stable
@@ -38,6 +32,12 @@ update metadata, a bundled `windows-update-channel.txt`, a checksum, and
 Signing is enabled only when the script receives `-SignTemplate`; unsigned
 installer artifacts are suitable for CI smoke testing but not final production
 distribution.
+
+CI also uploads `quotio-windows-preview.zip`, a `.sha256` checksum, and a
+`.manifest.json` file from the Windows job. The manifest records the source
+commit, build configuration, required bundled files, and per-file size/hash
+metadata. This artifact is an unsigned raw host build for smoke testing only; it
+is not the installer, is not signed, and does not include an updater.
 
 Maintainers can publish the same unsigned ZIP as a GitHub prerelease through the
 `Windows Preview Release` workflow. Preview release tags must start with
