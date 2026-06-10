@@ -151,14 +151,16 @@ static void RunDesktopUiSourceSmoke()
 
 static void RunBootstrapSmoke()
 {
+    ClearEnvironment();
     Environment.SetEnvironmentVariable("QUOTIO_PROXY_ENDPOINT", "http://127.0.0.1:8585");
-    var bootstrap = DesktopUiSource.Bootstrap(new WindowsHostConfig(_ => null));
+    var remoteBootstrap = DesktopUiSource.Bootstrap(new WindowsHostConfig(_ => null));
 
-    Assert(bootstrap.UiEnabled, "Windows bootstrap should enable shared UI");
-    Assert(bootstrap.Platform == "windows", "Windows bootstrap should identify the platform");
-    Assert(bootstrap.BridgeVersion == Quotio.Contract.QuotioContract.Version, "Windows bootstrap should expose the generated contract version");
-    Assert(bootstrap.ServerListen == "127.0.0.1:8585", "Windows bootstrap should expose server listen authority");
-    AssertExactBoolDictionary(bootstrap.Features, new Dictionary<string, bool>
+    Assert(remoteBootstrap.UiEnabled, "Windows bootstrap should enable shared UI");
+    Assert(remoteBootstrap.Platform == "windows", "Windows bootstrap should identify the platform");
+    Assert(remoteBootstrap.BridgeVersion == Quotio.Contract.QuotioContract.Version, "Windows bootstrap should expose the generated contract version");
+    Assert(remoteBootstrap.ServerListen == "127.0.0.1:8585", "Windows bootstrap should expose server listen authority");
+    Assert(remoteBootstrap.OperatingMode == "remote", "Windows bootstrap should default to remote mode without a local runtime");
+    AssertExactBoolDictionary(remoteBootstrap.Features, new Dictionary<string, bool>
     {
         ["overview"] = true,
         ["providers"] = true,
@@ -166,19 +168,19 @@ static void RunBootstrapSmoke()
         ["usage"] = true,
         ["virtualModels"] = true,
         ["models"] = true,
-        ["agents"] = true,
+        ["agents"] = false,
         ["apiKeys"] = true,
         ["logs"] = true,
         ["settings"] = true,
         ["about"] = true
     }, "Windows bootstrap features");
-    AssertExactBoolDictionary(bootstrap.Capabilities, new Dictionary<string, bool>
+    AssertExactBoolDictionary(remoteBootstrap.Capabilities, new Dictionary<string, bool>
     {
-        ["supportsLocalProxy"] = true,
-        ["supportsProxyControl"] = true,
-        ["supportsPortConfig"] = true,
-        ["supportsCliOAuth"] = true,
-        ["supportsAgentConfig"] = true,
+        ["supportsLocalProxy"] = false,
+        ["supportsProxyControl"] = false,
+        ["supportsPortConfig"] = false,
+        ["supportsCliOAuth"] = false,
+        ["supportsAgentConfig"] = false,
         ["supportsRemoteConnections"] = true,
         ["supportsCredentialStorage"] = true,
         ["supportsNativeOnboarding"] = false,
@@ -190,6 +192,27 @@ static void RunBootstrapSmoke()
         ["supportsVirtualModelManagement"] = true,
         ["supportsUpdates"] = true
     }, "Windows bootstrap capabilities");
+
+    var runtimeBinary = Process.GetCurrentProcess().MainModule?.FileName;
+    Assert(!string.IsNullOrWhiteSpace(runtimeBinary), "Smoke process path should be available");
+    Environment.SetEnvironmentVariable("QUOTIO_PROXY_BINARY", runtimeBinary);
+    var localBootstrap = DesktopUiSource.Bootstrap(new WindowsHostConfig(_ => null));
+
+    Assert(localBootstrap.OperatingMode == "local", "Windows bootstrap should allow local mode when a runtime binary exists");
+    Assert(localBootstrap.Features["agents"], "Windows bootstrap should expose agents only in local mode");
+    Assert(localBootstrap.Capabilities["supportsLocalProxy"], "Windows bootstrap should expose local proxy only with a runtime binary");
+    Assert(localBootstrap.Capabilities["supportsProxyControl"], "Windows bootstrap should expose proxy controls only with a runtime binary");
+    Assert(localBootstrap.Capabilities["supportsPortConfig"], "Windows bootstrap should expose port config only with a runtime binary");
+    Assert(localBootstrap.Capabilities["supportsCliOAuth"], "Windows bootstrap should expose CLI OAuth only with a runtime binary");
+    Assert(localBootstrap.Capabilities["supportsAgentConfig"], "Windows bootstrap should expose agent config only with a runtime binary");
+
+    var remotePreferencesPath = Path.Combine(Path.GetTempPath(), $"quotio-windows-remote-bootstrap-{Guid.NewGuid():N}.json");
+    var remotePreferencesStore = new WindowsNativePreferencesStore(remotePreferencesPath);
+    remotePreferencesStore.Save(new WindowsNativePreferencesState { OperatingMode = "remote" });
+    var remoteRuntimeBootstrap = DesktopUiSource.Bootstrap(new WindowsHostConfig(_ => null), remotePreferencesStore);
+    Assert(remoteRuntimeBootstrap.OperatingMode == "remote", "Windows bootstrap should preserve remote mode when a runtime binary exists");
+    Assert(remoteRuntimeBootstrap.Capabilities["supportsLocalProxy"], "Windows bootstrap should still allow switching back to local mode when a runtime binary exists");
+    Assert(!remoteRuntimeBootstrap.Capabilities["supportsProxyControl"], "Windows bootstrap should hide proxy controls in remote mode");
 }
 
 static void RunNativePreferencesSmoke()

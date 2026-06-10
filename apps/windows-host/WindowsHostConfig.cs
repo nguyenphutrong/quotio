@@ -37,6 +37,9 @@ public sealed class WindowsHostConfig
         "Quotio/ProxyBinary"
     );
 
+    public bool LocalProxyAvailable => !string.IsNullOrWhiteSpace(ProxyBinary)
+        && File.Exists(ProxyBinary);
+
     public string? ProxyArgs => ReadValue(
         "QUOTIO_PROXY_ARGS",
         "Quotio/ProxyArgs"

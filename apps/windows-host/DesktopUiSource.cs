@@ -22,6 +22,9 @@ public static class DesktopUiSource
     public static DesktopBootstrap Bootstrap(WindowsHostConfig config, WindowsNativePreferencesStore? preferencesStore = null)
     {
         var preferences = (preferencesStore ?? new WindowsNativePreferencesStore()).Load();
+        var localProxyAvailable = config.LocalProxyAvailable;
+        var localModeEnabled = localProxyAvailable && preferences.OperatingMode == "local";
+        var operatingMode = localModeEnabled ? "local" : "remote";
 
         return new DesktopBootstrap(
             UiEnabled: true,
@@ -29,7 +32,7 @@ public static class DesktopUiSource
             BridgeVersion: Quotio.Contract.QuotioContract.Version,
             ServerListen: config.ServerListen,
             Platform: "windows",
-            OperatingMode: preferences.OperatingMode,
+            OperatingMode: operatingMode,
             Locale: preferences.Language,
             Appearance: preferences.Appearance,
             Features: new Dictionary<string, bool>
@@ -40,7 +43,7 @@ public static class DesktopUiSource
                 ["usage"] = true,
                 ["virtualModels"] = true,
                 ["models"] = true,
-                ["agents"] = true,
+                ["agents"] = localModeEnabled,
                 ["apiKeys"] = true,
                 ["logs"] = true,
                 ["settings"] = true,
@@ -48,11 +51,11 @@ public static class DesktopUiSource
             },
             Capabilities: new Dictionary<string, bool>
             {
-                ["supportsLocalProxy"] = true,
-                ["supportsProxyControl"] = true,
-                ["supportsPortConfig"] = true,
-                ["supportsCliOAuth"] = true,
-                ["supportsAgentConfig"] = true,
+                ["supportsLocalProxy"] = localProxyAvailable,
+                ["supportsProxyControl"] = localModeEnabled,
+                ["supportsPortConfig"] = localModeEnabled,
+                ["supportsCliOAuth"] = localModeEnabled,
+                ["supportsAgentConfig"] = localModeEnabled,
                 ["supportsRemoteConnections"] = true,
                 ["supportsCredentialStorage"] = true,
                 ["supportsNativeOnboarding"] = false,

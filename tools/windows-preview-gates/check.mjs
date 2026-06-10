@@ -14,35 +14,35 @@ const sourcePath = new URL(
 const source = readFileSync(sourcePath, 'utf8');
 
 const expectedFeatures = {
-  overview: true,
-  providers: true,
-  quota: true,
-  usage: true,
-  virtualModels: true,
-  models: true,
-  agents: true,
-  apiKeys: true,
-  logs: true,
-  settings: true,
-  about: true,
+  overview: 'true',
+  providers: 'true',
+  quota: 'true',
+  usage: 'true',
+  virtualModels: 'true',
+  models: 'true',
+  agents: 'localModeEnabled',
+  apiKeys: 'true',
+  logs: 'true',
+  settings: 'true',
+  about: 'true',
 };
 
 const expectedCapabilities = {
-  supportsLocalProxy: true,
-  supportsProxyControl: true,
-  supportsPortConfig: true,
-  supportsCliOAuth: true,
-  supportsAgentConfig: true,
-  supportsRemoteConnections: true,
-  supportsCredentialStorage: true,
-  supportsNativeOnboarding: false,
-  supportsNativePreferences: true,
-  supportsAppearanceSync: true,
-  supportsRequestLogSettings: true,
-  supportsModelSettings: true,
-  supportsApiKeyManagement: true,
-  supportsVirtualModelManagement: true,
-  supportsUpdates: true,
+  supportsLocalProxy: 'localProxyAvailable',
+  supportsProxyControl: 'localModeEnabled',
+  supportsPortConfig: 'localModeEnabled',
+  supportsCliOAuth: 'localModeEnabled',
+  supportsAgentConfig: 'localModeEnabled',
+  supportsRemoteConnections: 'true',
+  supportsCredentialStorage: 'true',
+  supportsNativeOnboarding: 'false',
+  supportsNativePreferences: 'true',
+  supportsAppearanceSync: 'true',
+  supportsRequestLogSettings: 'true',
+  supportsModelSettings: 'true',
+  supportsApiKeyManagement: 'true',
+  supportsVirtualModelManagement: 'true',
+  supportsUpdates: 'true',
 };
 
 function readBoolDictionary(name) {
@@ -57,8 +57,8 @@ function readBoolDictionary(name) {
   }
 
   return Object.fromEntries(
-    [...match[1].matchAll(/\["([^"]+)"\]\s*=\s*(true|false)/g)].map(
-      ([, key, value]) => [key, value === 'true'],
+    [...match[1].matchAll(/\["([^"]+)"\]\s*=\s*([^,\n]+)/g)].map(
+      ([, key, value]) => [key, value.trim()],
     ),
   );
 }
@@ -110,6 +110,11 @@ assertExact(
   readBoolDictionary('Capabilities'),
   expectedCapabilities,
 );
+assertAllContain('Windows desktop bootstrap source', source, [
+  'var localProxyAvailable = config.LocalProxyAvailable;',
+  'var localModeEnabled = localProxyAvailable && preferences.OperatingMode == "local";',
+  'var operatingMode = localModeEnabled ? "local" : "remote";',
+]);
 
 const previewPackageScript = readProjectFile(
   'scripts/package-windows-preview.ps1',

@@ -423,6 +423,8 @@ public sealed class DesktopBridge
         var preferences = preferencesStore.Load();
         var status = runtime.Status();
         var updateSnapshot = updates.Snapshot();
+        var localProxyAvailable = config.LocalProxyAvailable;
+        var operatingMode = localProxyAvailable && preferences.OperatingMode == "local" ? "local" : "remote";
         var proxyEndpoint = config.ProxyEndpoint;
         var proxyPort = Uri.TryCreate(proxyEndpoint, UriKind.Absolute, out var proxyUri)
             ? proxyUri.Port
@@ -430,7 +432,7 @@ public sealed class DesktopBridge
 
         return new Dictionary<string, object?>
         {
-            ["operatingMode"] = preferences.OperatingMode,
+            ["operatingMode"] = operatingMode,
             ["remoteConfigured"] = !string.IsNullOrWhiteSpace(config.ManagementBaseUrl)
                 && !string.IsNullOrWhiteSpace(config.ManagementKey),
             ["language"] = preferences.Language,

@@ -497,6 +497,10 @@ function NativePreferencesPanel() {
 
   const preferences = state.preferences;
   const disabled = state.loading || state.savingKey !== null || !preferences;
+  const supportsLocalProxy = bootstrap.capabilities.supportsLocalProxy;
+  const supportsPortConfig = bootstrap.capabilities.supportsPortConfig;
+  const localModeEnabled =
+    supportsLocalProxy && preferences?.operatingMode === 'local';
 
   return (
     <Panel>
@@ -526,7 +530,11 @@ function NativePreferencesPanel() {
           }
         >
           <Select
-            value={preferences?.operatingMode ?? 'local'}
+            value={
+              supportsLocalProxy
+                ? (preferences?.operatingMode ?? 'local')
+                : 'remote'
+            }
             disabled={disabled}
             onValueChange={(value) =>
               void savePreference(
@@ -539,7 +547,7 @@ function NativePreferencesPanel() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="local">
+              <SelectItem value="local" disabled={!supportsLocalProxy}>
                 {t('about.operatingMode.local')}
               </SelectItem>
               <SelectItem
@@ -630,167 +638,171 @@ function NativePreferencesPanel() {
       </div>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
-        <PreferenceGroup
-          description={t('settings.native.groups.localProxy.description')}
-          title={t('settings.native.groups.localProxy.title')}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <PreferenceStat
-              label={t('settings.native.fields.proxyStatus')}
-              value={
-                preferences?.proxyRunning
-                  ? t('overview.proxyRuntime.status.running')
-                  : t('overview.proxyRuntime.status.stopped')
-              }
-            />
-            <PreferenceStat
-              label={t('settings.native.fields.proxyEndpoint')}
-              value={
-                preferences?.proxyEndpoint ||
-                t('overview.proxyRuntime.noEndpoint')
-              }
-            />
-            <PreferenceStat
-              label={t('settings.native.fields.proxyServerKind')}
-              value={preferences?.proxyServerKind ?? 'cpa-plusplus'}
-            />
-            <PreferenceStat
-              label={t('settings.native.fields.proxyServerVersion')}
-              value={
-                preferences?.proxyServerVersion ??
-                t('settings.native.values.notDetected')
-              }
-            />
-            <PreferenceStat
-              label={t('settings.native.fields.proxyInstallStatus')}
-              value={proxyInstallStatusLabel(
-                preferences?.proxyInstallStatus,
-                t,
-              )}
-            />
-            <PreferenceStat
-              label={t('settings.native.fields.proxyActiveBinaryPath')}
-              value={preferences?.proxyActiveBinaryPath ?? ''}
-            />
-          </div>
-
-          <PreferenceField
-            hint={t('settings.native.hints.proxyPort')}
-            label={t('settings.native.fields.proxyPort')}
+        {localModeEnabled ? (
+          <PreferenceGroup
+            description={t('settings.native.groups.localProxy.description')}
+            title={t('settings.native.groups.localProxy.title')}
           >
-            <div className="flex gap-2">
-              <Input
-                inputMode="numeric"
-                min={1}
-                max={65_535}
-                type="number"
-                value={proxyPortDraft}
-                disabled={disabled}
-                onChange={(event) => {
-                  setProxyPortDraft(event.target.value);
-                  setState((current) => ({ ...current, error: null }));
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    void saveProxyPort();
-                  }
-                }}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PreferenceStat
+                label={t('settings.native.fields.proxyStatus')}
+                value={
+                  preferences?.proxyRunning
+                    ? t('overview.proxyRuntime.status.running')
+                    : t('overview.proxyRuntime.status.stopped')
+                }
               />
-              <Button
-                type="button"
-                disabled={disabled}
-                onClick={() => void saveProxyPort()}
-              >
-                {t('common.save')}
-              </Button>
+              <PreferenceStat
+                label={t('settings.native.fields.proxyEndpoint')}
+                value={
+                  preferences?.proxyEndpoint ||
+                  t('overview.proxyRuntime.noEndpoint')
+                }
+              />
+              <PreferenceStat
+                label={t('settings.native.fields.proxyServerKind')}
+                value={preferences?.proxyServerKind ?? 'cpa-plusplus'}
+              />
+              <PreferenceStat
+                label={t('settings.native.fields.proxyServerVersion')}
+                value={
+                  preferences?.proxyServerVersion ??
+                  t('settings.native.values.notDetected')
+                }
+              />
+              <PreferenceStat
+                label={t('settings.native.fields.proxyInstallStatus')}
+                value={proxyInstallStatusLabel(
+                  preferences?.proxyInstallStatus,
+                  t,
+                )}
+              />
+              <PreferenceStat
+                label={t('settings.native.fields.proxyActiveBinaryPath')}
+                value={preferences?.proxyActiveBinaryPath ?? ''}
+              />
             </div>
-          </PreferenceField>
 
-          {isMacHost ? (
-            <>
-              <SwitchField
-                checked={preferences?.allowNetworkAccess ?? false}
-                disabled={disabled}
-                label={t('settings.native.fields.allowNetworkAccess')}
-                onCheckedChange={(checked) =>
-                  void savePreference('allowNetworkAccess', checked)
-                }
-              />
-
-              {preferences?.allowNetworkAccess ? (
-                <p className="text-danger text-xs">
-                  {t('settings.native.hints.allowNetworkAccessWarning')}
-                </p>
-              ) : null}
-
-              <SwitchField
-                checked={preferences?.autoStartTunnel ?? false}
-                disabled={disabled || !preferences?.tunnelInstalled}
-                label={t('settings.native.fields.autoStartTunnel')}
-                onCheckedChange={(checked) =>
-                  void savePreference('autoStartTunnel', checked)
-                }
-              />
-              <SwitchField
-                checked={preferences?.autoRestartTunnel ?? false}
-                disabled={disabled || !preferences?.tunnelInstalled}
-                label={t('settings.native.fields.autoRestartTunnel')}
-                onCheckedChange={(checked) =>
-                  void savePreference('autoRestartTunnel', checked)
-                }
-              />
-
+            {supportsPortConfig ? (
               <PreferenceField
-                hint={t('settings.native.hints.authDir')}
-                label={t('settings.native.fields.authDir')}
+                hint={t('settings.native.hints.proxyPort')}
+                label={t('settings.native.fields.proxyPort')}
               >
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex gap-2">
                   <Input
-                    className="font-mono text-xs"
-                    value={authDirDraft}
+                    inputMode="numeric"
+                    min={1}
+                    max={65_535}
+                    type="number"
+                    value={proxyPortDraft}
                     disabled={disabled}
                     onChange={(event) => {
-                      setAuthDirDraft(event.target.value);
+                      setProxyPortDraft(event.target.value);
                       setState((current) => ({ ...current, error: null }));
                     }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
-                        void saveAuthDir();
+                        void saveProxyPort();
                       }
                     }}
                   />
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => void saveAuthDir()}
-                    >
-                      {t('common.save')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={disabled || !preferences?.defaultAuthDir}
-                      onClick={() => {
-                        const defaultAuthDir =
-                          preferences?.defaultAuthDir ?? '';
-                        setAuthDirDraft(defaultAuthDir);
-                        void saveAuthDir(defaultAuthDir);
-                      }}
-                    >
-                      {t('settings.native.actions.reset')}
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => void saveProxyPort()}
+                  >
+                    {t('common.save')}
+                  </Button>
                 </div>
               </PreferenceField>
+            ) : null}
 
-              <PreferenceStat
-                label={t('settings.native.fields.proxyConfigPath')}
-                value={preferences?.proxyConfigPath ?? ''}
-              />
-            </>
-          ) : null}
-        </PreferenceGroup>
+            {isMacHost ? (
+              <>
+                <SwitchField
+                  checked={preferences?.allowNetworkAccess ?? false}
+                  disabled={disabled}
+                  label={t('settings.native.fields.allowNetworkAccess')}
+                  onCheckedChange={(checked) =>
+                    void savePreference('allowNetworkAccess', checked)
+                  }
+                />
+
+                {preferences?.allowNetworkAccess ? (
+                  <p className="text-danger text-xs">
+                    {t('settings.native.hints.allowNetworkAccessWarning')}
+                  </p>
+                ) : null}
+
+                <SwitchField
+                  checked={preferences?.autoStartTunnel ?? false}
+                  disabled={disabled || !preferences?.tunnelInstalled}
+                  label={t('settings.native.fields.autoStartTunnel')}
+                  onCheckedChange={(checked) =>
+                    void savePreference('autoStartTunnel', checked)
+                  }
+                />
+                <SwitchField
+                  checked={preferences?.autoRestartTunnel ?? false}
+                  disabled={disabled || !preferences?.tunnelInstalled}
+                  label={t('settings.native.fields.autoRestartTunnel')}
+                  onCheckedChange={(checked) =>
+                    void savePreference('autoRestartTunnel', checked)
+                  }
+                />
+
+                <PreferenceField
+                  hint={t('settings.native.hints.authDir')}
+                  label={t('settings.native.fields.authDir')}
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      className="font-mono text-xs"
+                      value={authDirDraft}
+                      disabled={disabled}
+                      onChange={(event) => {
+                        setAuthDirDraft(event.target.value);
+                        setState((current) => ({ ...current, error: null }));
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          void saveAuthDir();
+                        }
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => void saveAuthDir()}
+                      >
+                        {t('common.save')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={disabled || !preferences?.defaultAuthDir}
+                        onClick={() => {
+                          const defaultAuthDir =
+                            preferences?.defaultAuthDir ?? '';
+                          setAuthDirDraft(defaultAuthDir);
+                          void saveAuthDir(defaultAuthDir);
+                        }}
+                      >
+                        {t('settings.native.actions.reset')}
+                      </Button>
+                    </div>
+                  </div>
+                </PreferenceField>
+
+                <PreferenceStat
+                  label={t('settings.native.fields.proxyConfigPath')}
+                  value={preferences?.proxyConfigPath ?? ''}
+                />
+              </>
+            ) : null}
+          </PreferenceGroup>
+        ) : null}
 
         {isMacHost ? (
           <PreferenceGroup
