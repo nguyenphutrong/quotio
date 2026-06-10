@@ -30,7 +30,7 @@ function Resolve-VpkPath {
   $vpkPath = Join-Path $ToolPath "vpk$extension"
   if (!(Test-Path $vpkPath)) {
     New-Item -ItemType Directory -Force -Path $ToolPath | Out-Null
-    dotnet tool update vpk --tool-path $ToolPath --version 1.2.0
+    dotnet tool update vpk --tool-path $ToolPath --version 1.2.0 | Out-Host
   }
 
   if (!(Test-Path $vpkPath)) {
