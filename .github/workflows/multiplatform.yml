@@ -37,6 +37,7 @@ jobs:
       - run: bun run windows:gates:check
       - run: bun run desktop-ui:bootstrap:check
       - run: bun run desktop-ui:gateway-url:check
+      - run: bun run desktop-ui:native-feel:check
       - run: bun run typecheck
       - run: bun run build
       - run: bun run format-and-lint

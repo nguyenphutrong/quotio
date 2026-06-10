@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/admin/panel';
 import { useToast } from '@/components/admin/toast-provider';
+import { useAdminRuntime } from '@/lib/admin/runtime';
 import { useAgentActions } from '../api';
 import type { AgentGuideResponse, AgentItem } from '../types';
 import { normalizeAgentPlatformSupport, safeArray, safeStr } from '../utils';
@@ -17,6 +18,7 @@ type AgentAction = 'guide' | 'diff' | 'install' | 'rollback';
 export function AgentTabPanel({ agent }: { agent: AgentItem }) {
   const { t } = useTranslation();
   const toast = useToast();
+  const { openExternal } = useAdminRuntime();
   const actions = useAgentActions();
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [guidePayload, setGuidePayload] =
@@ -45,6 +47,7 @@ export function AgentTabPanel({ agent }: { agent: AgentItem }) {
   const supportMessage = safeStr(
     agent.support_message ?? agent.message ?? state.message,
   );
+  const docsUrl = safeStr(agent.docs_url);
   const writeActionsEnabled =
     platformSupport === undefined || platformSupport === 'supported';
   const supportBadge =
@@ -121,16 +124,17 @@ export function AgentTabPanel({ agent }: { agent: AgentItem }) {
               <Badge variant="outline">{rollbackBadge}</Badge>
             ) : null}
           </div>
-          {safeStr(agent.docs_url) ? (
-            <a
-              href={safeStr(agent.docs_url)}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          {docsUrl ? (
+            <Button
+              type="button"
+              variant="link"
+              size="xxs"
+              className="h-auto justify-start gap-1 p-0 text-muted-foreground text-xs hover:text-foreground"
+              onClick={() => void openExternal(docsUrl)}
             >
               {t('agents.sections.docs')}
               <RiExternalLinkLine className="size-3" />
-            </a>
+            </Button>
           ) : null}
         </div>
 

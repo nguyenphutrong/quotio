@@ -9,6 +9,7 @@
     "dev": "turbo dev",
     "desktop-ui:bootstrap:check": "bun apps/desktop-ui/src/lib/admin/bootstrap.test.ts",
     "desktop-ui:gateway-url:check": "bun apps/desktop-ui/src/lib/admin/gateway-url.test.ts",
+    "desktop-ui:native-feel:check": "node tools/native-feel-gates/check.mjs",
     "format-and-lint": "biome check apps packages tools schema generated package.json tsconfig.json tsconfig.base.json turbo.json",
     "format-and-lint:fix": "biome check apps packages tools schema generated package.json tsconfig.json tsconfig.base.json turbo.json --write",
     "macos:shared-ui:bundled": "./scripts/run-macos-shared-ui.sh bundled",
