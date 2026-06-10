@@ -875,7 +875,9 @@
       "routes": "共享路由",
       "routesDesc": "当前由原生主机 bootstrap 暴露的路由。",
       "capabilities": "主机能力",
-      "capabilitiesDesc": "此平台上的共享页面可使用的原生能力。"
+      "capabilitiesDesc": "此平台上的共享页面可使用的原生能力。",
+      "resources": "资源",
+      "resourcesDesc": "项目链接和支持资源。"
     },
     "fields": {
       "platform": "平台",

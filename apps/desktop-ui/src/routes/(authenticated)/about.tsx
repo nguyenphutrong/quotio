@@ -1,3 +1,5 @@
+import { Button } from '@quotio/ui/components/button';
+import { RiBookOpenLine, RiGithubLine, RiQuestionLine } from '@remixicon/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
@@ -104,7 +106,7 @@ function FlagList({
 
 function AboutPage() {
   const { t } = useTranslation();
-  const { bootstrap } = useAdminRuntime();
+  const { bootstrap, openExternal } = useAdminRuntime();
 
   const featureValues = Object.fromEntries(
     FEATURE_KEYS.map((key) => [key, bootstrap.features[key]]),
@@ -112,6 +114,23 @@ function AboutPage() {
   const capabilityValues = Object.fromEntries(
     CAPABILITY_KEYS.map((key) => [key, bootstrap.capabilities[key]]),
   );
+  const resources = [
+    {
+      title: t('nav.docs'),
+      url: 'https://github.com/nguyenphutrong/quotio#readme',
+      icon: <RiBookOpenLine className="h-4 w-4" />,
+    },
+    {
+      title: t('nav.github'),
+      url: 'https://github.com/nguyenphutrong/quotio',
+      icon: <RiGithubLine className="h-4 w-4" />,
+    },
+    {
+      title: t('nav.support'),
+      url: 'https://github.com/nguyenphutrong/quotio/issues',
+      icon: <RiQuestionLine className="h-4 w-4" />,
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -175,6 +194,31 @@ function AboutPage() {
           </p>
         </div>
         <FlagList labelsPrefix="about.capabilities" values={capabilityValues} />
+      </Panel>
+
+      <Panel>
+        <div className="mb-3">
+          <h2 className="font-medium text-foreground text-sm">
+            {t('about.sections.resources')}
+          </h2>
+          <p className="mt-1 text-muted-foreground text-sm">
+            {t('about.sections.resourcesDesc')}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {resources.map((item) => (
+            <Button
+              key={item.title}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void openExternal(item.url)}
+            >
+              {item.icon}
+              {item.title}
+            </Button>
+          ))}
+        </div>
       </Panel>
     </div>
   );

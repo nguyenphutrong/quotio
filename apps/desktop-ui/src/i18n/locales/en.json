@@ -879,7 +879,9 @@
       "routes": "Shared routes",
       "routesDesc": "Routes currently advertised by the native host bootstrap.",
       "capabilities": "Host capabilities",
-      "capabilitiesDesc": "Native features available to shared screens on this platform."
+      "capabilitiesDesc": "Native features available to shared screens on this platform.",
+      "resources": "Resources",
+      "resourcesDesc": "Project links and support resources."
     },
     "fields": {
       "platform": "Platform",

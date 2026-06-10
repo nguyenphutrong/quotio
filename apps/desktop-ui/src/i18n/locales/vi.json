@@ -874,7 +874,9 @@
       "routes": "Route dùng chung",
       "routesDesc": "Các route hiện được native host bootstrap quảng bá.",
       "capabilities": "Khả năng của host",
-      "capabilitiesDesc": "Các tính năng native mà màn hình dùng chung có thể dùng trên platform này."
+      "capabilitiesDesc": "Các tính năng native mà màn hình dùng chung có thể dùng trên platform này.",
+      "resources": "Tài nguyên",
+      "resourcesDesc": "Liên kết dự án và kênh hỗ trợ."
     },
     "fields": {
       "platform": "Platform",
