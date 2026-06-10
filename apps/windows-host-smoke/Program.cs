@@ -356,7 +356,9 @@ static void RunAgentAdapterSmoke()
     var localAppData = Path.Combine(smokeRoot, "local-app-data");
     Directory.CreateDirectory(Path.Combine(home, ".claude"));
     Directory.CreateDirectory(Path.Combine(home, ".codex"));
+    Directory.CreateDirectory(Path.Combine(home, ".config", "amp"));
     Directory.CreateDirectory(Path.Combine(home, ".factory"));
+    Directory.CreateDirectory(Path.Combine(home, ".local", "share", "amp"));
     Directory.CreateDirectory(Path.Combine(localAppData, "opencode"));
     Directory.CreateDirectory(localAppData);
     Environment.SetEnvironmentVariable("USERPROFILE", home);
@@ -412,12 +414,28 @@ static void RunAgentAdapterSmoke()
     """;
     File.WriteAllText(claudeConfigPath, originalClaudeConfig);
 
+    var ampSettingsPath = Path.Combine(home, ".config", "amp", "settings.json");
+    var ampSecretsPath = Path.Combine(home, ".local", "share", "amp", "secrets.json");
+    const string originalAmpSettings = """
+    {
+      "amp.url": "https://ampcode.com"
+    }
+    """;
+    const string originalAmpSecrets = """
+    {
+      "apiKey@https://ampcode.com": "existing-amp-key"
+    }
+    """;
+    File.WriteAllText(ampSettingsPath, originalAmpSettings);
+    File.WriteAllText(ampSecretsPath, originalAmpSecrets);
+
     var adapter = new WindowsAgentAdapter(
         new WindowsHostConfig(_ => null),
         new WindowsCodexConfigPatcher(home, Path.Combine(localAppData, "Quotio", "Codex")),
         new WindowsOpenCodeConfigPatcher(localAppData),
         new WindowsFactoryDroidConfigPatcher(home),
-        new WindowsClaudeCodeConfigPatcher(home)
+        new WindowsClaudeCodeConfigPatcher(home),
+        new WindowsAmpConfigPatcher(home)
     );
     using var list = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var agents = list.RootElement.GetProperty("agents");
@@ -435,7 +453,7 @@ static void RunAgentAdapterSmoke()
     var amp = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "amp");
     Assert(amp.GetProperty("binaries").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["amp"]), "Amp descriptor should expose the amp binary");
     Assert(amp.GetProperty("target_paths").GetArrayLength() == 2, "Amp descriptor should expose settings and secrets paths");
-    Assert(amp.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), "Amp descriptor should expose read-only diff");
+    Assert(amp.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Amp descriptor should expose install after Windows backup validation");
 
     var openCode = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "opencode");
     Assert(openCode.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "OpenCode descriptor should expose install after Windows backup validation");
@@ -452,6 +470,7 @@ static void RunAgentAdapterSmoke()
 
     using var ampGuide = ToJsonDocument(adapter.Handle("/agents/amp/guide", "GET"));
     Assert(ampGuide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "amp", "Amp guide endpoint should return Amp");
+    Assert(ampGuide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Amp guide endpoint should mirror write capabilities");
 
     using var openCodeGuide = ToJsonDocument(adapter.Handle("/agents/opencode/guide", "GET"));
     Assert(openCodeGuide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "OpenCode guide endpoint should mirror write capabilities");
@@ -543,6 +562,26 @@ static void RunAgentAdapterSmoke()
     Assert(claudeCodeRollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "Claude Code rollback should restore the latest backup");
     Assert(JsonEquivalent(File.ReadAllText(claudeConfigPath), originalClaudeConfig), "Claude Code rollback should restore the pre-install config");
 
+    using var ampDiff = ToJsonDocument(adapter.Handle("/agents/amp/diff", "POST"));
+    var ampDiffFiles = ampDiff.RootElement.GetProperty("plan").GetProperty("files");
+    Assert(!ampDiff.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "Amp should not treat unrelated settings as Quotio configuration");
+    Assert(ampDiffFiles.GetArrayLength() == 2, "Amp diff preview should include settings and secrets files");
+    Assert(ampDiffFiles.EnumerateArray().All(file => file.GetProperty("has_changes").GetBoolean()), "Amp diff preview should report both pending file changes");
+    Assert(!ampDiffFiles[1].GetProperty("after").GetString()!.Contains("smoke-management-key", StringComparison.Ordinal), "Amp secrets diff preview should redact management keys");
+    Assert(ampDiffFiles[0].GetProperty("after").GetString()!.Contains("\"amp.url\": \"http://127.0.0.1:8787\"", StringComparison.Ordinal), "Amp settings diff preview should strip /v1 from the proxy endpoint");
+
+    using var ampInstall = ToJsonDocument(adapter.Handle("/agents/amp/install", "POST"));
+    Assert(ampInstall.RootElement.GetProperty("summary").GetString()?.Contains("installed", StringComparison.OrdinalIgnoreCase) == true, "Amp install should succeed");
+    Assert(ampInstall.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "Amp install should mark the adapter configured");
+    Assert(ampInstall.RootElement.GetProperty("status").GetProperty("rollback_available").GetBoolean(), "Amp install should create rollback backups");
+    Assert(File.ReadAllText(ampSettingsPath).Contains("\"amp.url\": \"http://127.0.0.1:8787\"", StringComparison.Ordinal), "Amp install should write settings URL");
+    Assert(File.ReadAllText(ampSecretsPath).Contains("\"apiKey@http://127.0.0.1:8787\": \"smoke-management-key\"", StringComparison.Ordinal), "Amp install should write the configured key to disk");
+
+    using var ampRollback = ToJsonDocument(adapter.Handle("/agents/amp/rollback", "POST"));
+    Assert(ampRollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "Amp rollback should restore the latest backups");
+    Assert(JsonEquivalent(File.ReadAllText(ampSettingsPath), originalAmpSettings), "Amp rollback should restore the pre-install settings");
+    Assert(JsonEquivalent(File.ReadAllText(ampSecretsPath), originalAmpSecrets), "Amp rollback should restore the pre-install secrets");
+
     using var afterRollbackList = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var afterRollbackCodex = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "codex");
     Assert(afterRollbackCodex.GetProperty("rollback_available").GetBoolean(), "Codex should keep rollback available after creating a pre-restore backup");
@@ -552,9 +591,8 @@ static void RunAgentAdapterSmoke()
     Assert(afterRollbackFactoryDroid.GetProperty("rollback_available").GetBoolean(), "Factory Droid should keep rollback available after creating a pre-restore backup");
     var afterRollbackClaudeCode = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "claude-code");
     Assert(afterRollbackClaudeCode.GetProperty("rollback_available").GetBoolean(), "Claude Code should keep rollback available after creating a pre-restore backup");
-
-    using var ampInstall = ToJsonDocument(adapter.Handle("/agents/amp/install", "POST"));
-    Assert(ampInstall.RootElement.GetProperty("summary").GetString()?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true, "Amp install should stay disabled");
+    var afterRollbackAmp = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "amp");
+    Assert(afterRollbackAmp.GetProperty("rollback_available").GetBoolean(), "Amp should keep rollback available after creating pre-restore backups");
 }
 
 static JsonDocument ToJsonDocument(object value)

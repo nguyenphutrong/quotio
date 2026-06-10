@@ -21,7 +21,7 @@ macOS and Windows share shell, path, or backup behavior.
 | Claude Code | `claude-code` | `claude` | `~/.claude/settings.json` | Descriptor, binary/config detection, guide, diff preview, settings.json install, and rollback with timestamped backup-before-write; PowerShell profile writes remain manual |
 | Codex CLI | `codex` | `codex` | `~/.codex/config.toml` | Descriptor, binary/config detection, guide, diff preview, install, and rollback with timestamped backup-before-write |
 | Gemini CLI | `gemini-cli` | `gemini` | shell profile only | `guide-only` until PowerShell/profile writes are implemented |
-| Amp CLI | `amp` | `amp` | `~/.config/amp/settings.json`, `~/.local/share/amp/secrets.json` | Read-only descriptor, binary/config detection, guide, and diff preview; writes disabled until backup/rollback validation |
+| Amp CLI | `amp` | `amp` | `~/.config/amp/settings.json`, `~/.local/share/amp/secrets.json` | Descriptor, binary/config detection, guide, diff preview, settings/secrets install, and rollback with timestamped backup-before-write; shell environment writes remain manual |
 | OpenCode | `opencode` | `opencode`, `oc` | `~/.config/opencode/opencode.json` | Descriptor, binary/config detection, guide, diff preview, install, and rollback with timestamped backup-before-write |
 | Factory Droid | `factory-droid` | `droid`, `factory-droid` | `~/.factory/config.json` | Descriptor, binary/config detection, guide, diff preview, install, and rollback with timestamped backup-before-write |
 
@@ -49,9 +49,9 @@ macOS and Windows share shell, path, or backup behavior.
 
 The shared Agents route can be enabled for read-only Windows preview use after
 the host exposes native adapter-backed descriptor, detection, guide, and diff
-preview responses. Claude Code settings.json, Codex CLI, OpenCode, and Factory
-Droid can use automatic install and rollback after the Windows adapter verifies
-backup-before-write and pre-restore backup behavior. Other agents remain gated
-until their native Windows adapters expose the same verified backup-before-write
-and restore behavior. Until then, existing macOS SwiftUI remains the
-authoritative write path for those agents.
+preview responses. Claude Code settings.json, Codex CLI, Amp CLI settings files,
+OpenCode, and Factory Droid can use automatic install and rollback after the
+Windows adapter verifies backup-before-write and pre-restore backup behavior.
+Other agents remain gated until their native Windows adapters expose the same
+verified backup-before-write and restore behavior. Until then, existing macOS
+SwiftUI remains the authoritative write path for those agents.

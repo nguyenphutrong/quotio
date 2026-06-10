@@ -7,6 +7,7 @@ public sealed class WindowsAgentAdapter
     private readonly WindowsOpenCodeConfigPatcher openCodePatcher;
     private readonly WindowsFactoryDroidConfigPatcher factoryDroidPatcher;
     private readonly WindowsClaudeCodeConfigPatcher claudeCodePatcher;
+    private readonly WindowsAmpConfigPatcher ampPatcher;
 
     public WindowsAgentAdapter()
         : this(new WindowsHostConfig())
@@ -18,7 +19,8 @@ public sealed class WindowsAgentAdapter
         WindowsCodexConfigPatcher? codexPatcher = null,
         WindowsOpenCodeConfigPatcher? openCodePatcher = null,
         WindowsFactoryDroidConfigPatcher? factoryDroidPatcher = null,
-        WindowsClaudeCodeConfigPatcher? claudeCodePatcher = null
+        WindowsClaudeCodeConfigPatcher? claudeCodePatcher = null,
+        WindowsAmpConfigPatcher? ampPatcher = null
     )
     {
         this.config = config;
@@ -26,6 +28,7 @@ public sealed class WindowsAgentAdapter
         this.openCodePatcher = openCodePatcher ?? new WindowsOpenCodeConfigPatcher();
         this.factoryDroidPatcher = factoryDroidPatcher ?? new WindowsFactoryDroidConfigPatcher();
         this.claudeCodePatcher = claudeCodePatcher ?? new WindowsClaudeCodeConfigPatcher();
+        this.ampPatcher = ampPatcher ?? new WindowsAmpConfigPatcher();
     }
 
     private static readonly AgentDefinition[] Agents =
@@ -114,24 +117,8 @@ public sealed class WindowsAgentAdapter
         {
             "guide" when normalizedMethod == "GET" => Guide(agent),
             "diff" when normalizedMethod == "POST" => Diff(agent),
-            "install" when normalizedMethod == "POST" => agent.Id == "codex"
-                ? InstallCodex(agent)
-                : agent.Id == "opencode"
-                    ? InstallOpenCode(agent)
-                : agent.Id == "factory-droid"
-                    ? InstallFactoryDroid(agent)
-                    : agent.Id == "claude-code"
-                        ? InstallClaudeCode(agent)
-                : UnsupportedWrite(agent, "install"),
-            "rollback" when normalizedMethod == "POST" => agent.Id == "codex"
-                ? RollbackCodex(agent)
-                : agent.Id == "opencode"
-                    ? RollbackOpenCode(agent)
-                : agent.Id == "factory-droid"
-                    ? RollbackFactoryDroid(agent)
-                    : agent.Id == "claude-code"
-                        ? RollbackClaudeCode(agent)
-                : UnsupportedWrite(agent, "rollback"),
+            "install" when normalizedMethod == "POST" => Install(agent),
+            "rollback" when normalizedMethod == "POST" => Rollback(agent),
             _ => throw new InvalidOperationException("Unsupported Windows agents endpoint")
         };
     }
@@ -244,6 +231,11 @@ public sealed class WindowsAgentAdapter
                 }
             ];
         }
+        else if (agent.Id == "amp")
+        {
+            var plan = ampPatcher.BuildPlan(config.ProxyEndpoint, RequiredManagementKey());
+            files = plan.Files.Select(FilePlan).ToArray();
+        }
 
         return new Dictionary<string, object?>
         {
@@ -263,7 +255,47 @@ public sealed class WindowsAgentAdapter
                         ? "Windows Factory Droid install is available with backup-before-write."
                         : agent.Id == "claude-code"
                             ? "Windows Claude Code settings install is available with backup-before-write."
+                            : agent.Id == "amp"
+                                ? "Windows Amp CLI install is available with backup-before-write."
                     : "Windows automatic agent configuration is not available for this agent in this preview build."
+        };
+    }
+
+    private Dictionary<string, object?> Install(AgentDefinition agent)
+    {
+        return agent.Id switch
+        {
+            "codex" => InstallCodex(agent),
+            "opencode" => InstallOpenCode(agent),
+            "factory-droid" => InstallFactoryDroid(agent),
+            "claude-code" => InstallClaudeCode(agent),
+            "amp" => InstallAmp(agent),
+            _ => UnsupportedWrite(agent, "install")
+        };
+    }
+
+    private Dictionary<string, object?> Rollback(AgentDefinition agent)
+    {
+        return agent.Id switch
+        {
+            "codex" => RollbackCodex(agent),
+            "opencode" => RollbackOpenCode(agent),
+            "factory-droid" => RollbackFactoryDroid(agent),
+            "claude-code" => RollbackClaudeCode(agent),
+            "amp" => RollbackAmp(agent),
+            _ => UnsupportedWrite(agent, "rollback")
+        };
+    }
+
+    private static Dictionary<string, object?> FilePlan(AmpFilePlan plan)
+    {
+        return new Dictionary<string, object?>
+        {
+            ["target_path"] = plan.TargetPath,
+            ["existed"] = plan.Existed,
+            ["has_changes"] = plan.HasChanges,
+            ["before"] = plan.Before,
+            ["after"] = plan.After
         };
     }
 
@@ -504,6 +536,55 @@ public sealed class WindowsAgentAdapter
         };
     }
 
+    private Dictionary<string, object?> InstallAmp(AgentDefinition agent)
+    {
+        var result = ampPatcher.Install(config.ProxyEndpoint, RequiredManagementKey());
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["plan"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["target_paths"] = agent.TargetPaths,
+                ["files"] = result.Plan.Files.Select(FilePlan).ToArray()
+            },
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["settings_backup_path"] = result.SettingsBackupPath,
+                ["secrets_backup_path"] = result.SecretsBackupPath,
+                ["settings_path"] = ampPatcher.SettingsPath,
+                ["secrets_path"] = ampPatcher.SecretsPath
+            },
+            ["summary"] = "Windows Amp CLI configuration installed with backup-before-write."
+        };
+    }
+
+    private Dictionary<string, object?> RollbackAmp(AgentDefinition agent)
+    {
+        var result = ampPatcher.Rollback();
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["restored_settings_backup_path"] = result.RestoredSettingsBackupPath,
+                ["restored_secrets_backup_path"] = result.RestoredSecretsBackupPath,
+                ["pre_restore_settings_backup_path"] = result.PreRestoreSettingsBackupPath,
+                ["pre_restore_secrets_backup_path"] = result.PreRestoreSecretsBackupPath,
+                ["settings_path"] = ampPatcher.SettingsPath,
+                ["secrets_path"] = ampPatcher.SecretsPath
+            },
+            ["summary"] = result.RestoredSettingsBackupPath is null && result.RestoredSecretsBackupPath is null
+                ? "No Windows Amp CLI backup is available to restore."
+                : "Windows Amp CLI configuration restored from backup."
+        };
+    }
+
     private Dictionary<string, object?> Status(AgentDefinition agent)
     {
         var binaryPath = FindBinary(agent);
@@ -521,6 +602,8 @@ public sealed class WindowsAgentAdapter
                         ? factoryDroidPatcher.IsConfigured()
                         : agent.Id == "claude-code"
                             ? claudeCodePatcher.IsConfigured()
+                            : agent.Id == "amp"
+                                ? ampPatcher.IsConfigured()
                     : agent.TargetPaths.Any(path => File.Exists(ExpandPath(path))),
             ["platform_support"] = agent.PlatformSupport,
             ["rollback_available"] = RollbackAvailable(agent),
@@ -561,6 +644,11 @@ public sealed class WindowsAgentAdapter
             return ["Automatic writes update settings.json with timestamped backups; PowerShell profile writes remain manual."];
         }
 
+        if (agent.Id == "amp")
+        {
+            return ["Automatic writes update settings.json and secrets.json with timestamped backups; shell environment variables remain manual."];
+        }
+
         return agent.PlatformSupport == "guide-only"
             ? ["PowerShell profile writes are not implemented yet."]
             : ["Automatic writes are disabled until backup and rollback behavior is validated on Windows."];
@@ -575,7 +663,7 @@ public sealed class WindowsAgentAdapter
 
         if (agent.Id != "codex")
         {
-            return agent.Id == "opencode" || agent.Id == "factory-droid" || agent.Id == "claude-code"
+            return agent.Id == "opencode" || agent.Id == "factory-droid" || agent.Id == "claude-code" || agent.Id == "amp"
                 ? RollbackAvailable(agent)
                     ? ["guide", "diff", "install", "rollback"]
                     : ["guide", "diff", "install"]
@@ -607,6 +695,11 @@ public sealed class WindowsAgentAdapter
         if (agent.Id == "claude-code")
         {
             return claudeCodePatcher.LatestBackupPath() is not null;
+        }
+
+        if (agent.Id == "amp")
+        {
+            return ampPatcher.LatestBackupPath() is not null;
         }
 
         return false;

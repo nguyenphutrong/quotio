@@ -13,6 +13,7 @@
     <Compile Include="..\windows-host\RuntimeProcessController.cs" Link="RuntimeProcessController.cs" />
     <Compile Include="..\windows-host\SingleInstanceGuard.cs" Link="SingleInstanceGuard.cs" />
     <Compile Include="..\windows-host\WindowsAgentAdapter.cs" Link="WindowsAgentAdapter.cs" />
+    <Compile Include="..\windows-host\WindowsAmpConfigPatcher.cs" Link="WindowsAmpConfigPatcher.cs" />
     <Compile Include="..\windows-host\WindowsClaudeCodeConfigPatcher.cs" Link="WindowsClaudeCodeConfigPatcher.cs" />
     <Compile Include="..\windows-host\WindowsCodexConfigPatcher.cs" Link="WindowsCodexConfigPatcher.cs" />
     <Compile Include="..\windows-host\WindowsCrashReporter.cs" Link="WindowsCrashReporter.cs" />
