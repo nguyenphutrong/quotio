@@ -763,6 +763,7 @@
         "never": "从未",
         "notDetected": "未检测到",
         "notInstalled": "未安装",
+        "velopackRequired": "需要 Velopack 安装",
         "proxyInstallDevOverride": "正在使用本地 dev binary",
         "proxyInstallBundled": "随 Quotio 打包",
         "proxyInstallLegacyCompatible": "发现旧版兼容安装"

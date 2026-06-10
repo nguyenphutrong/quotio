@@ -767,6 +767,7 @@
         "never": "Never",
         "notDetected": "Not detected",
         "notInstalled": "Not installed",
+        "velopackRequired": "Velopack install required",
         "proxyInstallDevOverride": "Using local dev binary",
         "proxyInstallBundled": "Bundled with Quotio",
         "proxyInstallLegacyCompatible": "Legacy compatible install found"

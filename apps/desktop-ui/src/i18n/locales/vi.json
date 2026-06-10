@@ -762,6 +762,7 @@
         "never": "Chưa bao giờ",
         "notDetected": "Chưa phát hiện",
         "notInstalled": "Chưa cài đặt",
+        "velopackRequired": "Cần cài bằng Velopack",
         "proxyInstallDevOverride": "Đang dùng binary dev local",
         "proxyInstallBundled": "Được bundle cùng Quotio",
         "proxyInstallLegacyCompatible": "Đã tìm thấy bản cài tương thích cũ"

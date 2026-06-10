@@ -1155,7 +1155,7 @@ function NativePreferencesPanel() {
             value={
               preferences?.updatesSupported
                 ? t('about.status.enabled')
-                : t('about.status.disabled')
+                : t('settings.native.values.velopackRequired')
             }
           />
           <PreferenceStat

@@ -274,7 +274,7 @@ static void RunNativePreferencesSmoke()
 
     var updates = new WindowsUpdateService(config, store);
     var updateSnapshot = updates.Snapshot();
-    Assert(updateSnapshot.UpdatesSupported, "Windows updater should be configured by default");
+    Assert(!updateSnapshot.UpdatesSupported, "Windows updater should require a Velopack-installed build");
     Assert(updateSnapshot.UpdateChannel == "beta", "Windows updater should use persisted channel");
     Assert(!updateSnapshot.CanCheckForUpdates, "Windows updater should not check outside a Velopack-installed build");
 

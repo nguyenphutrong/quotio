@@ -23,9 +23,10 @@ public sealed class WindowsUpdateService
     public WindowsUpdateSnapshot Snapshot()
     {
         var preferences = preferencesStore.Load();
-        var supported = !string.IsNullOrWhiteSpace(config.WindowsUpdateRepositoryUrl);
+        var configured = !string.IsNullOrWhiteSpace(config.WindowsUpdateRepositoryUrl);
         var manager = TryCreateUpdateManager(preferences);
         var installed = manager?.IsInstalled ?? false;
+        var supported = configured && installed;
 
         return new WindowsUpdateSnapshot(
             UpdatesSupported: supported,

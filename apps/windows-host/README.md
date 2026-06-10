@@ -46,7 +46,7 @@ Maintainers can publish a Velopack installer release through the
 `Windows Installer Release` workflow. Installer release tags must start with
 `windows-v`. The native Settings route checks for updates through Velopack when
 the app was installed by the Velopack setup executable. Raw ZIP, local build,
-and dev-server launches report update support but cannot check/apply updates.
+and dev-server launches report that updates require a Velopack install.
 
 The host loads `apps/desktop-ui/dist` when bundled by MSBuild. For live UI
 development, set `QUOTIO_DESKTOP_UI_DEV_SERVER` to the Vite server URL.
