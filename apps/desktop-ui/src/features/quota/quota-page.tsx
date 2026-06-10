@@ -17,6 +17,7 @@ import {
 } from '@quotio/ui/components/tabs';
 import { RiApps2Line, RiFilter3Line, RiRefreshLine } from '@remixicon/react';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { EmptyState } from '@/components/admin/empty-state';
 import { ErrorState } from '@/components/admin/error-state';
@@ -48,6 +49,7 @@ function loadPreference<T extends string>(key: string, fallback: T): T {
 }
 
 export function QuotaPage() {
+  const { t } = useTranslation();
   const query = useQuotaQuery();
   const mutations = useQuotaMutations();
   const [selectedProvider, setSelectedProvider] = useState(allProvidersId);
@@ -88,7 +90,7 @@ export function QuotaPage() {
 
   const providerTabs = useMemo(
     () => [
-      { provider: allProvidersId, display_name: 'All' },
+      { provider: allProvidersId, display_name: t('quota.providers.all') },
       ...supportedProviders.map((provider) => ({
         ...provider,
         display_name: getProviderDisplayName(
@@ -97,7 +99,7 @@ export function QuotaPage() {
         ),
       })),
     ],
-    [supportedProviders],
+    [supportedProviders, t],
   );
 
   const allAccounts = useMemo(
@@ -114,10 +116,12 @@ export function QuotaPage() {
   const nextAutoRefreshAt = query.dataUpdatedAt + quotaAutoRefreshIntervalMs;
   const autoRefreshLabel =
     refreshingKey === 'all'
-      ? 'Refreshing...'
+      ? t('quota.refresh.refreshing')
       : query.dataUpdatedAt > 0
-        ? `Auto refresh in ${formatCountdown(nextAutoRefreshAt - now)}`
-        : 'Auto refresh every 5m';
+        ? t('quota.refresh.autoRefreshIn', {
+            time: formatCountdown(nextAutoRefreshAt - now),
+          })
+        : t('quota.refresh.autoRefreshEvery');
 
   const setMode = (next: QuotaDisplayMode) => {
     setDisplayMode(next);
@@ -168,17 +172,19 @@ export function QuotaPage() {
   };
 
   if (query.isLoading) {
-    return <LoadingState label="Loading quota data..." />;
+    return <LoadingState label={t('quota.loading')} />;
   }
 
   if (query.isError) {
     return (
       <ErrorState
-        title="Failed to load quota"
+        title={t('quota.failedToLoad')}
         description={
-          query.error instanceof Error ? query.error.message : 'Unknown error'
+          query.error instanceof Error
+            ? query.error.message
+            : t('quota.unknownError')
         }
-        actionLabel="Retry"
+        actionLabel={t('common.retry')}
         onAction={() => {
           void query.refetch();
         }}
@@ -189,8 +195,8 @@ export function QuotaPage() {
   if (!query.data || supportedProviders.length === 0) {
     return (
       <EmptyState
-        title="No quota providers"
-        description="No configured providers currently support quota in Quotio."
+        title={t('quota.empty.title')}
+        description={t('quota.empty.description')}
       />
     );
   }
@@ -198,8 +204,8 @@ export function QuotaPage() {
   return (
     <div className="flex flex-1 flex-col pb-8">
       <AdminPageHeader
-        title="Quota"
-        description="Monitor provider quotas by account with live refresh and switching controls."
+        title={t('quota.title')}
+        description={t('quota.description')}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <DropdownMenu>
@@ -207,37 +213,41 @@ export function QuotaPage() {
                 render={
                   <Button variant="outline" size="sm" className="h-8 gap-2">
                     <RiFilter3Line className="h-4 w-4" />
-                    Display Options
+                    {t('quota.actions.displayOptions')}
                   </Button>
                 }
               />
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuGroup>
-                  <DropdownMenuLabel>Style</DropdownMenuLabel>
+                  <DropdownMenuLabel>
+                    {t('quota.display.style')}
+                  </DropdownMenuLabel>
                   <DropdownMenuRadioGroup
                     value={displayStyle}
                     onValueChange={(v) => setStyle(v as QuotaDisplayStyle)}
                   >
                     <DropdownMenuRadioItem value="overview">
-                      Overview
+                      {t('quota.display.overview')}
                     </DropdownMenuRadioItem>
                     <DropdownMenuRadioItem value="focus">
-                      Focus
+                      {t('quota.display.focus')}
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  <DropdownMenuLabel>Value Mode</DropdownMenuLabel>
+                  <DropdownMenuLabel>
+                    {t('quota.display.valueMode')}
+                  </DropdownMenuLabel>
                   <DropdownMenuRadioGroup
                     value={displayMode}
                     onValueChange={(v) => setMode(v as QuotaDisplayMode)}
                   >
                     <DropdownMenuRadioItem value="remaining">
-                      Remaining
+                      {t('quota.display.remaining')}
                     </DropdownMenuRadioItem>
                     <DropdownMenuRadioItem value="used">
-                      Used
+                      {t('quota.display.used')}
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
                 </DropdownMenuGroup>
@@ -261,12 +271,12 @@ export function QuotaPage() {
 
       <div className="container w-full max-w-none">
         <Tabs value={selectedProvider} onValueChange={setSelectedProvider}>
-          <TabsList className="mb-6 h-auto w-max min-w-0 justify-start gap-1 rounded-[1rem] bg-secondary/50 p-1.5">
+          <TabsList className="mb-6 h-auto max-w-full justify-start gap-1 overflow-x-auto rounded-lg border border-border bg-background p-1">
             {providerTabs.map((provider) => (
               <TabsTrigger
                 key={provider.provider}
                 value={provider.provider}
-                className="rounded-xl px-4 py-2 text-sm font-medium"
+                className="rounded-md px-3 py-1.5 text-sm font-medium"
               >
                 <span className="inline-flex items-center gap-2">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-border bg-muted">

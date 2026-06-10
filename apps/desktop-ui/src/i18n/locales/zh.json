@@ -607,6 +607,36 @@
       "pricesSyncFailed": "同步模型价格失败。"
     }
   },
+  "quota": {
+    "title": "配额",
+    "description": "按账户监控服务商配额，支持实时刷新和账户切换。",
+    "loading": "正在加载配额数据…",
+    "failedToLoad": "配额加载失败",
+    "unknownError": "未知错误",
+    "actions": {
+      "displayOptions": "显示选项"
+    },
+    "providers": {
+      "all": "全部"
+    },
+    "empty": {
+      "title": "没有支持配额的服务商",
+      "description": "当前没有已配置的服务商在 Quotio 中支持配额。"
+    },
+    "refresh": {
+      "refreshing": "正在刷新…",
+      "autoRefreshIn": "{{time}} 后自动刷新",
+      "autoRefreshEvery": "每 5 分钟自动刷新"
+    },
+    "display": {
+      "style": "样式",
+      "overview": "概览",
+      "focus": "聚焦",
+      "valueMode": "数值模式",
+      "remaining": "剩余",
+      "used": "已用"
+    }
+  },
   "placeholder": {
     "comingSoon": "此功能即将上线，我们正在开发中。",
     "aboutDesc": "版本信息和系统详情将在此显示。",

@@ -611,6 +611,36 @@
       "pricesSyncFailed": "Failed to sync model prices."
     }
   },
+  "quota": {
+    "title": "Quota",
+    "description": "Monitor provider quotas by account with live refresh and switching controls.",
+    "loading": "Loading quota data…",
+    "failedToLoad": "Failed to load quota",
+    "unknownError": "Unknown error",
+    "actions": {
+      "displayOptions": "Display Options"
+    },
+    "providers": {
+      "all": "All"
+    },
+    "empty": {
+      "title": "No quota providers",
+      "description": "No configured providers currently support quota in Quotio."
+    },
+    "refresh": {
+      "refreshing": "Refreshing…",
+      "autoRefreshIn": "Auto refresh in {{time}}",
+      "autoRefreshEvery": "Auto refresh every 5m"
+    },
+    "display": {
+      "style": "Style",
+      "overview": "Overview",
+      "focus": "Focus",
+      "valueMode": "Value Mode",
+      "remaining": "Remaining",
+      "used": "Used"
+    }
+  },
   "placeholder": {
     "comingSoon": "This feature is coming soon. We're actively working on it.",
     "aboutDesc": "Version info and system details will appear here.",

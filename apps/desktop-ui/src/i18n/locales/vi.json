@@ -606,6 +606,36 @@
       "pricesSyncFailed": "Không thể đồng bộ model prices."
     }
   },
+  "quota": {
+    "title": "Hạn mức",
+    "description": "Theo dõi hạn mức từng tài khoản provider, làm mới trực tiếp và chuyển tài khoản.",
+    "loading": "Đang tải dữ liệu hạn mức…",
+    "failedToLoad": "Không thể tải hạn mức",
+    "unknownError": "Lỗi không xác định",
+    "actions": {
+      "displayOptions": "Tùy chọn hiển thị"
+    },
+    "providers": {
+      "all": "Tất cả"
+    },
+    "empty": {
+      "title": "Chưa có provider hỗ trợ hạn mức",
+      "description": "Chưa có provider đã cấu hình nào hỗ trợ hạn mức trong Quotio."
+    },
+    "refresh": {
+      "refreshing": "Đang làm mới…",
+      "autoRefreshIn": "Tự làm mới sau {{time}}",
+      "autoRefreshEvery": "Tự làm mới mỗi 5 phút"
+    },
+    "display": {
+      "style": "Kiểu hiển thị",
+      "overview": "Tổng quan",
+      "focus": "Tập trung",
+      "valueMode": "Giá trị",
+      "remaining": "Còn lại",
+      "used": "Đã dùng"
+    }
+  },
   "placeholder": {
     "comingSoon": "Tính năng này sắp ra mắt. Chúng tôi đang phát triển.",
     "aboutDesc": "Thông tin phiên bản và chi tiết hệ thống sẽ hiển thị tại đây.",
