@@ -44,6 +44,13 @@ const desktopRuntime = readFileSync(
   new URL('../../apps/desktop-ui/src/lib/admin/runtime.tsx', import.meta.url),
   'utf8',
 );
+const toastProvider = readFileSync(
+  new URL(
+    '../../apps/desktop-ui/src/components/admin/toast-provider.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+);
 
 const violations = [];
 
@@ -79,6 +86,12 @@ for (const requiredText of [
       `apps/desktop-ui/src/lib/admin/runtime.tsx: missing host-owned auth state guard: ${requiredText}`,
     );
   }
+}
+
+if (/if\s*\(\s*isNativeDesktop\s*\)\s*\{\s*return;?\s*\}/.test(toastProvider)) {
+  violations.push(
+    'apps/desktop-ui/src/components/admin/toast-provider.tsx: native notification failures must fall back to visible in-app feedback',
+  );
 }
 
 for (const requiredText of [
