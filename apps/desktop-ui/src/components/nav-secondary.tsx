@@ -6,6 +6,7 @@ import {
   SidebarMenuItem,
 } from '@quotio/ui/components/sidebar';
 import type * as React from 'react';
+import { useAdminRuntime } from '@/lib/admin/runtime';
 
 export function NavSecondary({
   items,
@@ -19,6 +20,8 @@ export function NavSecondary({
   }[];
   label?: string;
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
+  const { openExternal } = useAdminRuntime();
+
   return (
     <SidebarGroup {...props}>
       {label ? (
@@ -32,9 +35,7 @@ export function NavSecondary({
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 size="sm"
-                onClick={() =>
-                  window.open(item.url, '_blank', 'noopener,noreferrer')
-                }
+                onClick={() => void openExternal(item.url)}
               >
                 {item.icon}
                 <span>{item.title}</span>
