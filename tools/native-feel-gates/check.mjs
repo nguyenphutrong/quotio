@@ -51,6 +51,13 @@ const toastProvider = readFileSync(
   ),
   'utf8',
 );
+const agentFixtures = readFileSync(
+  new URL(
+    '../../apps/desktop-ui/src/features/agents/fixtures.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const sharedUiGlobals = readFileSync(
   new URL('../../packages/ui/src/styles/globals.css', import.meta.url),
   'utf8',
@@ -105,6 +112,24 @@ for (const requiredText of [
 if (/if\s*\(\s*isNativeDesktop\s*\)\s*\{\s*return;?\s*\}/.test(toastProvider)) {
   violations.push(
     'apps/desktop-ui/src/components/admin/toast-provider.tsx: native notification failures must fall back to visible in-app feedback',
+  );
+}
+
+for (const requiredText of [
+  "id: 'gemini-cli'",
+  "platform_support: 'supported'",
+  "'rollback'",
+]) {
+  if (!agentFixtures.includes(requiredText)) {
+    violations.push(
+      `apps/desktop-ui/src/features/agents/fixtures.ts: Gemini CLI fixture must match Windows host support: ${requiredText}`,
+    );
+  }
+}
+
+if (/id:\s*['"]gemini['"]/.test(agentFixtures)) {
+  violations.push(
+    'apps/desktop-ui/src/features/agents/fixtures.ts: Gemini CLI fixture must use the host route id gemini-cli',
   );
 }
 

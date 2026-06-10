@@ -11,14 +11,12 @@ export const agentSupportStateFixture = {
       capabilities: ['guide', 'diff', 'install', 'rollback'],
     },
     {
-      id: 'gemini',
+      id: 'gemini-cli',
       label: 'Gemini CLI',
       config_mode: 'environment',
-      platform_support: 'guide-only',
+      platform_support: 'supported',
       rollback_available: false,
-      message:
-        'Automatic configuration is not available on this platform yet. Use the manual guide.',
-      capabilities: ['guide', 'diff', 'install'],
+      capabilities: ['guide', 'diff', 'install', 'rollback'],
     },
     {
       id: 'factory',
