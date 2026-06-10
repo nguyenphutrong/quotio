@@ -355,6 +355,7 @@ static void RunAgentAdapterSmoke()
     var home = Path.Combine(smokeRoot, "home");
     var localAppData = Path.Combine(smokeRoot, "local-app-data");
     Directory.CreateDirectory(Path.Combine(home, ".codex"));
+    Directory.CreateDirectory(Path.Combine(home, ".factory"));
     Directory.CreateDirectory(Path.Combine(localAppData, "opencode"));
     Directory.CreateDirectory(localAppData);
     Environment.SetEnvironmentVariable("USERPROFILE", home);
@@ -378,10 +379,27 @@ static void RunAgentAdapterSmoke()
     """;
     File.WriteAllText(openCodeConfigPath, originalOpenCodeConfig);
 
+    var factoryConfigPath = Path.Combine(home, ".factory", "config.json");
+    const string originalFactoryConfig = """
+    {
+      "custom_models": [
+        {
+          "model": "existing-model",
+          "model_display_name": "Existing Model",
+          "base_url": "https://example.invalid/v1",
+          "api_key": "existing-key",
+          "provider": "openai"
+        }
+      ]
+    }
+    """;
+    File.WriteAllText(factoryConfigPath, originalFactoryConfig);
+
     var adapter = new WindowsAgentAdapter(
         new WindowsHostConfig(_ => null),
         new WindowsCodexConfigPatcher(home, Path.Combine(localAppData, "Quotio", "Codex")),
-        new WindowsOpenCodeConfigPatcher(localAppData)
+        new WindowsOpenCodeConfigPatcher(localAppData),
+        new WindowsFactoryDroidConfigPatcher(home)
     );
     using var list = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var agents = list.RootElement.GetProperty("agents");
@@ -401,13 +419,16 @@ static void RunAgentAdapterSmoke()
     Assert(amp.GetProperty("target_paths").GetArrayLength() == 2, "Amp descriptor should expose settings and secrets paths");
     Assert(amp.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff"]), "Amp descriptor should expose read-only diff");
 
-    foreach (var readOnlyAgent in new[] { "claude-code", "factory-droid" })
+    foreach (var readOnlyAgent in new[] { "claude-code" })
     {
         AssertReadOnlyAgent(adapter, agents, readOnlyAgent);
     }
 
     var openCode = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "opencode");
     Assert(openCode.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "OpenCode descriptor should expose install after Windows backup validation");
+
+    var factoryDroid = agents.EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "factory-droid");
+    Assert(factoryDroid.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Factory Droid descriptor should expose install after Windows backup validation");
 
     using var guide = ToJsonDocument(adapter.Handle("/agents/codex/guide", "GET"));
     Assert(guide.RootElement.GetProperty("guide").GetProperty("tool").GetString() == "codex", "Guide endpoint should return the requested agent");
@@ -418,6 +439,9 @@ static void RunAgentAdapterSmoke()
 
     using var openCodeGuide = ToJsonDocument(adapter.Handle("/agents/opencode/guide", "GET"));
     Assert(openCodeGuide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "OpenCode guide endpoint should mirror write capabilities");
+
+    using var factoryDroidGuide = ToJsonDocument(adapter.Handle("/agents/factory-droid/guide", "GET"));
+    Assert(factoryDroidGuide.RootElement.GetProperty("guide").GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["guide", "diff", "install"]), "Factory Droid guide endpoint should mirror write capabilities");
 
     using var diff = ToJsonDocument(adapter.Handle("/agents/codex/diff", "POST"));
     var diffFile = diff.RootElement.GetProperty("plan").GetProperty("files")[0];
@@ -459,11 +483,33 @@ static void RunAgentAdapterSmoke()
     Assert(openCodeRollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "OpenCode rollback should restore the latest backup");
     Assert(JsonEquivalent(File.ReadAllText(openCodeConfigPath), originalOpenCodeConfig), "OpenCode rollback should restore the pre-install config");
 
+    using var factoryDroidDiff = ToJsonDocument(adapter.Handle("/agents/factory-droid/diff", "POST"));
+    var factoryDroidDiffFile = factoryDroidDiff.RootElement.GetProperty("plan").GetProperty("files")[0];
+    Assert(!factoryDroidDiff.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "Factory Droid should not treat unrelated custom models as Quotio configuration");
+    Assert(factoryDroidDiffFile.GetProperty("has_changes").GetBoolean(), "Factory Droid diff preview should report the pending config change");
+    Assert(!factoryDroidDiffFile.GetProperty("after").GetString()!.Contains("smoke-management-key", StringComparison.Ordinal), "Factory Droid diff preview should redact management keys");
+    Assert(factoryDroidDiffFile.GetProperty("after").GetString()!.Contains("\"custom_models\"", StringComparison.Ordinal), "Factory Droid diff preview should include custom models");
+
+    using var factoryDroidInstall = ToJsonDocument(adapter.Handle("/agents/factory-droid/install", "POST"));
+    Assert(factoryDroidInstall.RootElement.GetProperty("summary").GetString()?.Contains("installed", StringComparison.OrdinalIgnoreCase) == true, "Factory Droid install should succeed");
+    Assert(factoryDroidInstall.RootElement.GetProperty("status").GetProperty("configured").GetBoolean(), "Factory Droid install should mark the adapter configured");
+    Assert(factoryDroidInstall.RootElement.GetProperty("status").GetProperty("rollback_available").GetBoolean(), "Factory Droid install should create a rollback backup");
+    var installedFactoryDroidConfig = File.ReadAllText(factoryConfigPath);
+    Assert(installedFactoryDroidConfig.Contains("\"model\": \"gpt-5-codex\"", StringComparison.Ordinal), "Factory Droid install should write the default Quotio model");
+    Assert(installedFactoryDroidConfig.Contains("\"base_url\": \"http://127.0.0.1:8787/v1\"", StringComparison.Ordinal), "Factory Droid install should normalize the proxy endpoint");
+    Assert(installedFactoryDroidConfig.Contains("\"api_key\": \"smoke-management-key\"", StringComparison.Ordinal), "Factory Droid install should write the configured key to disk");
+
+    using var factoryDroidRollback = ToJsonDocument(adapter.Handle("/agents/factory-droid/rollback", "POST"));
+    Assert(factoryDroidRollback.RootElement.GetProperty("summary").GetString()?.Contains("restored", StringComparison.OrdinalIgnoreCase) == true, "Factory Droid rollback should restore the latest backup");
+    Assert(JsonEquivalent(File.ReadAllText(factoryConfigPath), originalFactoryConfig), "Factory Droid rollback should restore the pre-install config");
+
     using var afterRollbackList = ToJsonDocument(adapter.Handle("/agents", "GET"));
     var afterRollbackCodex = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "codex");
     Assert(afterRollbackCodex.GetProperty("rollback_available").GetBoolean(), "Codex should keep rollback available after creating a pre-restore backup");
     var afterRollbackOpenCode = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "opencode");
     Assert(afterRollbackOpenCode.GetProperty("rollback_available").GetBoolean(), "OpenCode should keep rollback available after creating a pre-restore backup");
+    var afterRollbackFactoryDroid = afterRollbackList.RootElement.GetProperty("agents").EnumerateArray().First(agent => agent.GetProperty("id").GetString() == "factory-droid");
+    Assert(afterRollbackFactoryDroid.GetProperty("rollback_available").GetBoolean(), "Factory Droid should keep rollback available after creating a pre-restore backup");
 
     using var ampInstall = ToJsonDocument(adapter.Handle("/agents/amp/install", "POST"));
     Assert(ampInstall.RootElement.GetProperty("summary").GetString()?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true, "Amp install should stay disabled");

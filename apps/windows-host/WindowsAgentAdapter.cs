@@ -5,6 +5,7 @@ public sealed class WindowsAgentAdapter
     private readonly WindowsHostConfig config;
     private readonly WindowsCodexConfigPatcher codexPatcher;
     private readonly WindowsOpenCodeConfigPatcher openCodePatcher;
+    private readonly WindowsFactoryDroidConfigPatcher factoryDroidPatcher;
 
     public WindowsAgentAdapter()
         : this(new WindowsHostConfig())
@@ -14,12 +15,14 @@ public sealed class WindowsAgentAdapter
     public WindowsAgentAdapter(
         WindowsHostConfig config,
         WindowsCodexConfigPatcher? codexPatcher = null,
-        WindowsOpenCodeConfigPatcher? openCodePatcher = null
+        WindowsOpenCodeConfigPatcher? openCodePatcher = null,
+        WindowsFactoryDroidConfigPatcher? factoryDroidPatcher = null
     )
     {
         this.config = config;
         this.codexPatcher = codexPatcher ?? new WindowsCodexConfigPatcher();
         this.openCodePatcher = openCodePatcher ?? new WindowsOpenCodeConfigPatcher();
+        this.factoryDroidPatcher = factoryDroidPatcher ?? new WindowsFactoryDroidConfigPatcher();
     }
 
     private static readonly AgentDefinition[] Agents =
@@ -112,11 +115,15 @@ public sealed class WindowsAgentAdapter
                 ? InstallCodex(agent)
                 : agent.Id == "opencode"
                     ? InstallOpenCode(agent)
+                    : agent.Id == "factory-droid"
+                        ? InstallFactoryDroid(agent)
                 : UnsupportedWrite(agent, "install"),
             "rollback" when normalizedMethod == "POST" => agent.Id == "codex"
                 ? RollbackCodex(agent)
                 : agent.Id == "opencode"
                     ? RollbackOpenCode(agent)
+                    : agent.Id == "factory-droid"
+                        ? RollbackFactoryDroid(agent)
                 : UnsupportedWrite(agent, "rollback"),
             _ => throw new InvalidOperationException("Unsupported Windows agents endpoint")
         };
@@ -200,6 +207,21 @@ public sealed class WindowsAgentAdapter
                 }
             ];
         }
+        else if (agent.Id == "factory-droid")
+        {
+            var plan = factoryDroidPatcher.BuildPlan(config.ProxyEndpoint, RequiredManagementKey());
+            files =
+            [
+                new Dictionary<string, object?>
+                {
+                    ["target_path"] = plan.TargetPath,
+                    ["existed"] = plan.Existed,
+                    ["has_changes"] = plan.HasChanges,
+                    ["before"] = plan.Before,
+                    ["after"] = plan.After
+                }
+            ];
+        }
 
         return new Dictionary<string, object?>
         {
@@ -215,6 +237,8 @@ public sealed class WindowsAgentAdapter
                 ? "Windows Codex install is available with backup-before-write."
                 : agent.Id == "opencode"
                     ? "Windows OpenCode install is available with backup-before-write."
+                    : agent.Id == "factory-droid"
+                        ? "Windows Factory Droid install is available with backup-before-write."
                     : "Windows automatic agent configuration is not available for this agent in this preview build."
         };
     }
@@ -348,6 +372,60 @@ public sealed class WindowsAgentAdapter
         };
     }
 
+    private Dictionary<string, object?> InstallFactoryDroid(AgentDefinition agent)
+    {
+        var result = factoryDroidPatcher.Install(config.ProxyEndpoint, RequiredManagementKey());
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["plan"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["target_paths"] = agent.TargetPaths,
+                ["files"] = new object[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["target_path"] = result.Plan.TargetPath,
+                        ["existed"] = result.Plan.Existed,
+                        ["has_changes"] = result.Plan.HasChanges,
+                        ["before"] = result.Plan.Before,
+                        ["after"] = result.Plan.After
+                    }
+                }
+            },
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["backup_path"] = result.BackupPath,
+                ["config_path"] = factoryDroidPatcher.ConfigPath
+            },
+            ["summary"] = "Windows Factory Droid configuration installed with backup-before-write."
+        };
+    }
+
+    private Dictionary<string, object?> RollbackFactoryDroid(AgentDefinition agent)
+    {
+        var result = factoryDroidPatcher.Rollback();
+        return new Dictionary<string, object?>
+        {
+            ["status"] = Status(agent),
+            ["manifest"] = new Dictionary<string, object?>
+            {
+                ["tool"] = agent.Id,
+                ["home_dir"] = HomeDirectory(),
+                ["restored_backup_path"] = result.RestoredBackupPath,
+                ["pre_restore_backup_path"] = result.PreRestoreBackupPath,
+                ["config_path"] = factoryDroidPatcher.ConfigPath
+            },
+            ["summary"] = result.RestoredBackupPath is null
+                ? "No Windows Factory Droid backup is available to restore."
+                : "Windows Factory Droid configuration restored from backup."
+        };
+    }
+
     private Dictionary<string, object?> Status(AgentDefinition agent)
     {
         var binaryPath = FindBinary(agent);
@@ -361,6 +439,8 @@ public sealed class WindowsAgentAdapter
                 ? codexPatcher.IsConfigured()
                 : agent.Id == "opencode"
                     ? openCodePatcher.IsConfigured()
+                    : agent.Id == "factory-droid"
+                        ? factoryDroidPatcher.IsConfigured()
                     : agent.TargetPaths.Any(path => File.Exists(ExpandPath(path))),
             ["platform_support"] = agent.PlatformSupport,
             ["rollback_available"] = RollbackAvailable(agent),
@@ -391,7 +471,7 @@ public sealed class WindowsAgentAdapter
 
     private static string[] Caveats(AgentDefinition agent)
     {
-        if (agent.Id == "codex" || agent.Id == "opencode")
+        if (agent.Id == "codex" || agent.Id == "opencode" || agent.Id == "factory-droid")
         {
             return ["Automatic writes create timestamped backups before install and rollback."];
         }
@@ -410,7 +490,7 @@ public sealed class WindowsAgentAdapter
 
         if (agent.Id != "codex")
         {
-            return agent.Id == "opencode"
+            return agent.Id == "opencode" || agent.Id == "factory-droid"
                 ? RollbackAvailable(agent)
                     ? ["guide", "diff", "install", "rollback"]
                     : ["guide", "diff", "install"]
@@ -432,6 +512,11 @@ public sealed class WindowsAgentAdapter
         if (agent.Id == "opencode")
         {
             return openCodePatcher.LatestBackupPath() is not null;
+        }
+
+        if (agent.Id == "factory-droid")
+        {
+            return factoryDroidPatcher.LatestBackupPath() is not null;
         }
 
         return false;
