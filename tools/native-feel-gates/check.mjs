@@ -51,6 +51,10 @@ const toastProvider = readFileSync(
   ),
   'utf8',
 );
+const sharedUiGlobals = readFileSync(
+  new URL('../../packages/ui/src/styles/globals.css', import.meta.url),
+  'utf8',
+);
 
 const violations = [];
 
@@ -102,6 +106,24 @@ if (/if\s*\(\s*isNativeDesktop\s*\)\s*\{\s*return;?\s*\}/.test(toastProvider)) {
   violations.push(
     'apps/desktop-ui/src/components/admin/toast-provider.tsx: native notification failures must fall back to visible in-app feedback',
   );
+}
+
+if (/@fontsource|Geist Variable/.test(sharedUiGlobals)) {
+  violations.push(
+    'packages/ui/src/styles/globals.css: desktop chrome must use platform fonts instead of bundled web fonts',
+  );
+}
+
+for (const requiredText of [
+  '-apple-system',
+  '"Segoe UI Variable"',
+  '"SF Mono"',
+]) {
+  if (!sharedUiGlobals.includes(requiredText)) {
+    violations.push(
+      `packages/ui/src/styles/globals.css: missing platform font token: ${requiredText}`,
+    );
+  }
 }
 
 for (const requiredText of [
