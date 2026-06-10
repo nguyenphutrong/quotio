@@ -27,6 +27,7 @@
     <Compile Include="..\windows-host\WindowsOpenCodeConfigPatcher.cs" Link="WindowsOpenCodeConfigPatcher.cs" />
     <Compile Include="..\windows-host\WindowsUpdateService.cs" Link="WindowsUpdateService.cs" />
     <Compile Include="..\windows-host\WindowPlacementService.cs" Link="WindowPlacementService.cs" />
+    <Compile Include="..\windows-host\WindowSettingsStore.cs" Link="WindowSettingsStore.cs" />
   </ItemGroup>
 
   <ItemGroup>

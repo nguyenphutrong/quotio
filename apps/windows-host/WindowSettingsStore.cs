@@ -1,20 +1,25 @@
 namespace Quotio.Windows;
 
 using System.Text.Json;
-using global::Windows.Graphics;
 
 public sealed class WindowSettingsStore
 {
     private readonly string settingsPath;
 
     public WindowSettingsStore()
+        : this(DefaultSettingsPath())
     {
-        var directory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Quotio"
-        );
+    }
+
+    public WindowSettingsStore(string settingsPath)
+    {
+        this.settingsPath = settingsPath;
+        var directory = Path.GetDirectoryName(settingsPath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
         Directory.CreateDirectory(directory);
-        settingsPath = Path.Combine(directory, "window.json");
     }
 
     public bool TryLoad(out WindowPlacement placement)
@@ -45,16 +50,32 @@ public sealed class WindowSettingsStore
         }
     }
 
-    public void Save(PointInt32 position, SizeInt32 size, string? monitorDeviceName)
+    public void Save(
+        int x,
+        int y,
+        int width,
+        int height,
+        string? monitorDeviceName,
+        bool isMaximized
+    )
     {
         try
         {
+            if (isMaximized && TryLoad(out var previous))
+            {
+                x = previous.X;
+                y = previous.Y;
+                width = previous.Width;
+                height = previous.Height;
+            }
+
             var placement = new WindowPlacement(
-                position.X,
-                position.Y,
-                size.Width,
-                size.Height,
-                monitorDeviceName
+                x,
+                y,
+                width,
+                height,
+                monitorDeviceName,
+                isMaximized
             );
             File.WriteAllText(
                 settingsPath,
@@ -65,5 +86,14 @@ public sealed class WindowSettingsStore
         {
             DiagnosticLog.Error("Failed to save window placement", error);
         }
+    }
+
+    private static string DefaultSettingsPath()
+    {
+        var directory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Quotio"
+        );
+        return Path.Combine(directory, "window.json");
     }
 }

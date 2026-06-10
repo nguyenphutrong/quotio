@@ -345,6 +345,17 @@ static void RunWindowPlacementSmoke()
         []
     );
     Assert(noDisplays.X == -300 && noDisplays.Y == -200, "Window restore should preserve placement when display data is unavailable");
+
+    var settingsPath = Path.Combine(Path.GetTempPath(), $"quotio-window-{Guid.NewGuid():N}.json");
+    var store = new WindowSettingsStore(settingsPath);
+    store.Save(120, 140, 1100, 760, "DISPLAY1", isMaximized: false);
+    Assert(store.TryLoad(out var saved), "Window settings should reload saved placement");
+    Assert(!saved.IsMaximized, "Window settings should default to normal state");
+
+    store.Save(0, 0, 1920, 1040, "DISPLAY1", isMaximized: true);
+    Assert(store.TryLoad(out var maximized), "Window settings should reload maximized placement");
+    Assert(maximized.IsMaximized, "Window settings should persist maximized state");
+    Assert(maximized.X == 120 && maximized.Width == 1100, "Window settings should preserve normal bounds while maximized");
 }
 
 static void RunDiagnosticLogSmoke()

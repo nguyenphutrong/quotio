@@ -63,7 +63,10 @@ public sealed partial class MainWindow : Window
         Activate();
         if (appWindow?.Presenter is OverlappedPresenter presenter)
         {
-            presenter.Restore();
+            if (presenter.State == OverlappedPresenterState.Minimized)
+            {
+                presenter.Restore();
+            }
         }
     }
 
@@ -83,6 +86,11 @@ public sealed partial class MainWindow : Window
                 placement,
                 GetDisplayWorkAreas()
             )));
+            if (placement.IsMaximized
+                && appWindow.Presenter is OverlappedPresenter presenter)
+            {
+                presenter.Maximize();
+            }
         }
         else
         {
@@ -240,9 +248,15 @@ public sealed partial class MainWindow : Window
         if (appWindow is not null)
         {
             settingsStore.Save(
-                appWindow.Position,
-                appWindow.Size,
-                ResolveMonitorDeviceName(appWindow.Position, appWindow.Size)
+                appWindow.Position.X,
+                appWindow.Position.Y,
+                appWindow.Size.Width,
+                appWindow.Size.Height,
+                ResolveMonitorDeviceName(appWindow.Position, appWindow.Size),
+                appWindow.Presenter is OverlappedPresenter
+                {
+                    State: OverlappedPresenterState.Maximized
+                }
             );
         }
     }

@@ -5,7 +5,8 @@ public sealed record WindowPlacement(
     int Y,
     int Width,
     int Height,
-    string? MonitorDeviceName
+    string? MonitorDeviceName,
+    bool IsMaximized = false
 );
 
 public readonly record struct WindowBounds(int X, int Y, int Width, int Height);
