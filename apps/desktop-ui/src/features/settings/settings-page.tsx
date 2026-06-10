@@ -1789,6 +1789,18 @@ export function SettingsPage() {
   const [remoteConfigurationVersion, setRemoteConfigurationVersion] =
     useState(0);
 
+  useEffect(() => {
+    if (window.location.hash !== `#${REMOTE_CONNECTION_PANEL_ID}`) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      document
+        .getElementById(REMOTE_CONNECTION_PANEL_ID)
+        ?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    });
+  }, []);
+
   return (
     <div className="space-y-6">
       <AdminPageHeader

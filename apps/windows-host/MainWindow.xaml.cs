@@ -11,6 +11,7 @@ using Forms = System.Windows.Forms;
 
 public sealed partial class MainWindow : Window
 {
+    private const string RemoteConnectionPanelId = "remote-management-connection";
     private readonly WindowsHostConfig config = new();
     private readonly WindowsAgentAdapter agents;
     private readonly WindowSettingsStore settingsStore = new();
@@ -22,6 +23,7 @@ public sealed partial class MainWindow : Window
     private AppWindow? appWindow;
     private nint hwnd;
     private bool isQuitting;
+    private bool didOpenInitialSetupLanding;
 
     public MainWindow()
     {
@@ -109,6 +111,7 @@ public sealed partial class MainWindow : Window
             core.Settings.AreDefaultContextMenusEnabled = true;
             core.Settings.AreDevToolsEnabled = IsDebugHost();
             core.WebMessageReceived += bridge.OnWebMessageReceived;
+            core.NavigationCompleted += OnWebViewNavigationCompleted;
 
             await core.AddScriptToExecuteOnDocumentCreatedAsync(
                 bridge.CreateBootstrapScript(DesktopUiSource.Bootstrap(config, preferencesStore))
@@ -128,6 +131,37 @@ public sealed partial class MainWindow : Window
             DiagnosticLog.Error("WebView initialization failed", error);
             ShowError(error.Message);
         }
+    }
+
+    private async void OnWebViewNavigationCompleted(
+        CoreWebView2 sender,
+        CoreWebView2NavigationCompletedEventArgs args
+    )
+    {
+        if (didOpenInitialSetupLanding || !args.IsSuccess || !ShouldOpenInitialSetupLanding())
+        {
+            return;
+        }
+
+        didOpenInitialSetupLanding = true;
+        await sender.ExecuteScriptAsync(
+            $$"""
+            (() => {
+              history.replaceState({}, '', '/settings#{{RemoteConnectionPanelId}}');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+              requestAnimationFrame(() => {
+                document.getElementById('{{RemoteConnectionPanelId}}')
+                  ?.scrollIntoView({ behavior: 'auto', block: 'start' });
+              });
+            })();
+            """
+        );
+    }
+
+    private bool ShouldOpenInitialSetupLanding()
+    {
+        return !config.LocalProxyAvailable
+            && string.IsNullOrWhiteSpace(config.ManagementBaseUrl);
     }
 
     private void ShowError(string message)

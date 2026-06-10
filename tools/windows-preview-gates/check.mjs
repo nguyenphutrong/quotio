@@ -142,6 +142,9 @@ assertAllContain('Windows WebView2 host chrome', mainWindowSource, [
   'preferencesStore.Load().CloseToTray',
   'core.Settings.AreDevToolsEnabled = IsDebugHost();',
   'core.WebMessageReceived += bridge.OnWebMessageReceived;',
+  'core.NavigationCompleted += OnWebViewNavigationCompleted;',
+  'ShouldOpenInitialSetupLanding()',
+  "history.replaceState({}, '', '/settings#",
   'await core.AddScriptToExecuteOnDocumentCreatedAsync(',
   'bridge.CreateBootstrapScript(DesktopUiSource.Bootstrap(config, preferencesStore))',
   'DesktopWebView.Source = source;',
@@ -229,6 +232,9 @@ assertAllContain(
     'remoteConfigurationVersion',
     'onConfigurationChanged',
     'setRemoteConfigurationVersion((version) => version + 1)',
+    'window.location.hash !==',
+    'REMOTE_CONNECTION_PANEL_ID}`',
+    'getElementById(REMOTE_CONNECTION_PANEL_ID)',
   ],
 );
 assertAllContain('Windows native command strip', mainWindowXaml, [
