@@ -13,6 +13,7 @@ import Security
 enum KeychainHelper {
     private static var remoteService: String { AppRuntimeIdentity.keychainService(suffix: "remote-management") }
     private static var localService: String { AppRuntimeIdentity.keychainService(suffix: "local-management") }
+    private static var desktopBridgeService: String { AppRuntimeIdentity.keychainService(suffix: "desktop-bridge") }
     private static let localManagementAccount = "local-management-key"
     private static let localManagementDefaultsKey = "managementKey"
 
@@ -93,6 +94,23 @@ enum KeychainHelper {
             deleteData(service: legacy, account: localManagementAccount)
         }
         UserDefaults.standard.removeObject(forKey: localManagementDefaultsKey)
+    }
+
+    static func saveDesktopBridgeCredential(_ value: String, targetName: String) -> Bool {
+        guard let data = value.data(using: .utf8) else { return false }
+        let saved = saveData(data, service: desktopBridgeService, account: targetName)
+        if !saved {
+            Log.keychain("Failed to save desktop bridge credential for \(targetName)")
+        }
+        return saved
+    }
+
+    static func getDesktopBridgeCredential(targetName: String) -> String? {
+        readString(service: desktopBridgeService, account: targetName)
+    }
+
+    static func deleteDesktopBridgeCredential(targetName: String) {
+        deleteData(service: desktopBridgeService, account: targetName)
     }
 
     private static func migrateData(from oldServices: [String], to newService: String, account: String) -> Data? {

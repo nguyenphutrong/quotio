@@ -94,6 +94,9 @@ private enum DesktopBridgeContract {
         static let nativeConfirm = QuotioRequestKind.NativeConfirm.rawValue
         static let nativeOpenExternal = QuotioRequestKind.NativeOpenExternal.rawValue
         static let nativeOpenTextFile = QuotioRequestKind.NativeOpenTextFile.rawValue
+        static let nativeCredentialRead = QuotioRequestKind.NativeCredentialRead.rawValue
+        static let nativeCredentialWrite = QuotioRequestKind.NativeCredentialWrite.rawValue
+        static let nativeCredentialDelete = QuotioRequestKind.NativeCredentialDelete.rawValue
     }
 }
 
@@ -235,6 +238,37 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 title: request?.title,
                 allowedExtensions: request?.allowedExtensions || []
               });
+            }),
+            credentialRead: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.nativeCredentialRead)',
+                targetName: request?.targetName
+              });
+            }),
+            credentialWrite: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.nativeCredentialWrite)',
+                targetName: request?.targetName,
+                value: request?.value
+              });
+            }),
+            credentialDelete: (request) => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.nativeCredentialDelete)',
+                targetName: request?.targetName
+              });
             })
           };
           window.__QUOTIO_DESKTOP_BRIDGE_RECEIVE__ = (message) => {
@@ -353,6 +387,12 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                     value = try handleNativeOpenExternal(body)
                 case DesktopBridgeContract.RequestKind.nativeOpenTextFile:
                     value = try handleNativeOpenTextFile(body) ?? NSNull()
+                case DesktopBridgeContract.RequestKind.nativeCredentialRead:
+                    value = try handleNativeCredentialRead(body)
+                case DesktopBridgeContract.RequestKind.nativeCredentialWrite:
+                    value = try handleNativeCredentialWrite(body)
+                case DesktopBridgeContract.RequestKind.nativeCredentialDelete:
+                    value = try handleNativeCredentialDelete(body)
                 default:
                     throw APIError.invalidURL
                 }
@@ -447,6 +487,43 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
         }
 
         return types.isEmpty ? [.json, .plainText, .text] : types
+    }
+
+    private func handleNativeCredentialRead(_ body: [String: Any]) throws -> [String: Any] {
+        let targetName = try readRequiredCredentialTargetName(body)
+        let value = KeychainHelper.getDesktopBridgeCredential(targetName: targetName)
+        return [
+            "targetName": targetName,
+            "exists": value != nil,
+            "value": value ?? NSNull()
+        ]
+    }
+
+    private func handleNativeCredentialWrite(_ body: [String: Any]) throws -> Bool {
+        let targetName = try readRequiredCredentialTargetName(body)
+        let value = body["value"] as? String ?? ""
+        guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw APIError.connectionError("Credential value is required")
+        }
+
+        guard KeychainHelper.saveDesktopBridgeCredential(value, targetName: targetName) else {
+            throw APIError.connectionError("Credential could not be saved")
+        }
+        return true
+    }
+
+    private func handleNativeCredentialDelete(_ body: [String: Any]) throws -> Bool {
+        KeychainHelper.deleteDesktopBridgeCredential(targetName: try readRequiredCredentialTargetName(body))
+        return true
+    }
+
+    private func readRequiredCredentialTargetName(_ body: [String: Any]) throws -> String {
+        let targetName = (body["targetName"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !targetName.isEmpty, targetName.hasPrefix("Quotio/") else {
+            throw APIError.connectionError("Invalid credential target")
+        }
+
+        return targetName
     }
 
     private func sendResponse(id: String, ok: Bool, value: Any, error: String?) {
