@@ -1,3 +1,4 @@
+import type { RuntimeStatus } from '@quotio/desktop-contract/generated';
 import { Button } from '@quotio/ui/components/button';
 import {
   RiArrowRightUpLine,
@@ -5,6 +6,7 @@ import {
   RiPulseLine,
   RiServerLine,
 } from '@remixicon/react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { ErrorState } from '@/components/admin/error-state';
@@ -16,6 +18,7 @@ import { StatusBadge } from '@/components/admin/status-badge';
 import { useOverviewQueries } from '@/features/overview/api';
 import type { QuotaProviderSummary } from '@/features/overview/types';
 import { getProviderDisplayName } from '@/features/providers/types';
+import { useAdminRuntime } from '@/lib/admin/runtime';
 
 function formatCurrency(value: number, locale: string) {
   return new Intl.NumberFormat(locale, {
@@ -32,6 +35,7 @@ function formatNumber(value: number, locale: string) {
 
 export function OverviewPage() {
   const { t, i18n } = useTranslation();
+  const { bootstrap } = useAdminRuntime();
   const { pingQuery, healthQuery, logsSummaryQuery, quotaQuery } =
     useOverviewQueries();
 
@@ -116,6 +120,10 @@ export function OverviewPage() {
         <StaleDataBanner
           message={t('overview.staleBanner', { count: staleProviders.length })}
         />
+      ) : null}
+
+      {bootstrap.capabilities.supportsProxyControl ? (
+        <ProxyRuntimePanel />
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -317,6 +325,105 @@ export function OverviewPage() {
         </Panel>
       </div>
     </div>
+  );
+}
+
+function ProxyRuntimePanel() {
+  const { t } = useTranslation();
+  const { runtimeRestart, runtimeStart, runtimeStatus, runtimeStop } =
+    useAdminRuntime();
+  const [status, setStatus] = useState<RuntimeStatus | null>(null);
+  const [busy, setBusy] = useState<'start' | 'stop' | 'restart' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setError(null);
+      setStatus(await runtimeStatus());
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : t('common.unknownError'),
+      );
+    }
+  }, [runtimeStatus, t]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const run = async (
+    action: 'start' | 'stop' | 'restart',
+    command: () => Promise<RuntimeStatus>,
+  ) => {
+    setBusy(action);
+    setError(null);
+    try {
+      setStatus(await command());
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : t('common.unknownError'),
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const isRunning = status?.state === 'managed';
+  const disabled = busy !== null;
+
+  return (
+    <Panel>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-sm font-semibold text-foreground">
+              {t('overview.proxyRuntime.title')}
+            </h2>
+            <StatusBadge tone={isRunning ? 'success' : 'neutral'}>
+              {isRunning
+                ? t('overview.proxyRuntime.status.running')
+                : t('overview.proxyRuntime.status.stopped')}
+            </StatusBadge>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {status?.endpoint ?? t('overview.proxyRuntime.noEndpoint')}
+          </p>
+          {error ? <p className="mt-2 text-danger text-sm">{error}</p> : null}
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled || !isRunning}
+            onClick={() => void run('stop', runtimeStop)}
+          >
+            {busy === 'stop'
+              ? t('overview.proxyRuntime.actions.stopping')
+              : t('overview.proxyRuntime.actions.stop')}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            onClick={() => void run('restart', runtimeRestart)}
+          >
+            {busy === 'restart'
+              ? t('overview.proxyRuntime.actions.restarting')
+              : t('overview.proxyRuntime.actions.restart')}
+          </Button>
+          <Button
+            type="button"
+            disabled={disabled || isRunning}
+            onClick={() => void run('start', runtimeStart)}
+          >
+            {busy === 'start'
+              ? t('overview.proxyRuntime.actions.starting')
+              : t('overview.proxyRuntime.actions.start')}
+          </Button>
+        </div>
+      </div>
+    </Panel>
   );
 }
 

@@ -109,6 +109,22 @@
     "requests": "Requests",
     "cost": "Cost",
     "reset": "Resets in",
+    "proxyRuntime": {
+      "title": "Local proxy",
+      "noEndpoint": "No active endpoint",
+      "status": {
+        "running": "Running",
+        "stopped": "Stopped"
+      },
+      "actions": {
+        "start": "Start",
+        "starting": "Starting…",
+        "stop": "Stop",
+        "stopping": "Stopping…",
+        "restart": "Restart",
+        "restarting": "Restarting…"
+      }
+    },
     "runtimeCapabilities": "Runtime features",
     "flagCount": "{{count}} flag",
     "flagCount_other": "{{count}} flags"

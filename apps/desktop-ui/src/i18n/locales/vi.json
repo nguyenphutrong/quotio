@@ -106,6 +106,22 @@
     "requests": "Yêu cầu",
     "cost": "Chi phí",
     "reset": "Đặt lại sau",
+    "proxyRuntime": {
+      "title": "Local proxy",
+      "noEndpoint": "Chưa có endpoint đang chạy",
+      "status": {
+        "running": "Đang chạy",
+        "stopped": "Đã dừng"
+      },
+      "actions": {
+        "start": "Khởi động",
+        "starting": "Đang khởi động…",
+        "stop": "Dừng",
+        "stopping": "Đang dừng…",
+        "restart": "Khởi động lại",
+        "restarting": "Đang khởi động lại…"
+      }
+    },
     "runtimeCapabilities": "Tính năng runtime",
     "flagCount": "{{count}} cờ"
   },

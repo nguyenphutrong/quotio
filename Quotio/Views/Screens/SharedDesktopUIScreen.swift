@@ -90,6 +90,10 @@ private enum DesktopBridgeContract {
     static let version = quotioContractVersion
 
     enum RequestKind {
+        static let runtimeStatus = QuotioRequestKind.RuntimeStatus.rawValue
+        static let runtimeStart = QuotioRequestKind.RuntimeStart.rawValue
+        static let runtimeStop = QuotioRequestKind.RuntimeStop.rawValue
+        static let runtimeRestart = QuotioRequestKind.RuntimeRestart.rawValue
         static let managementRequest = QuotioRequestKind.ManagementRequest.rawValue
         static let nativeConfirm = QuotioRequestKind.NativeConfirm.rawValue
         static let nativeOpenExternal = QuotioRequestKind.NativeOpenExternal.rawValue
@@ -193,6 +197,42 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
           const bootstrap = \(Self.javascriptObjectLiteral(bootstrapPayload));
           window.__QUOTIO_DESKTOP_BOOTSTRAP__ = bootstrap;
           window.__QUOTIO_DESKTOP_BRIDGE__ = {
+            runtimeStatus: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.runtimeStatus)'
+              });
+            }),
+            runtimeStart: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.runtimeStart)'
+              });
+            }),
+            runtimeStop: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.runtimeStop)'
+              });
+            }),
+            runtimeRestart: () => new Promise((resolve, reject) => {
+              const id = crypto.randomUUID();
+              window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
+              window.__QUOTIO_BRIDGE_CALLBACKS__[id] = { resolve, reject };
+              window.webkit.messageHandlers.\(Self.messageName).postMessage({
+                id,
+                kind: '\(DesktopBridgeContract.RequestKind.runtimeRestart)'
+              });
+            }),
             request: (request) => new Promise((resolve, reject) => {
               const id = request?.id || crypto.randomUUID();
               window.__QUOTIO_BRIDGE_CALLBACKS__ = window.__QUOTIO_BRIDGE_CALLBACKS__ || {};
@@ -379,6 +419,14 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             do {
                 let value: Any
                 switch kind {
+                case DesktopBridgeContract.RequestKind.runtimeStatus:
+                    value = try handleRuntimeStatus()
+                case DesktopBridgeContract.RequestKind.runtimeStart:
+                    value = try await handleRuntimeStart()
+                case DesktopBridgeContract.RequestKind.runtimeStop:
+                    value = try handleRuntimeStop()
+                case DesktopBridgeContract.RequestKind.runtimeRestart:
+                    value = try await handleRuntimeRestart()
                 case DesktopBridgeContract.RequestKind.managementRequest:
                     value = try await handleManagementRequest(body)
                 case DesktopBridgeContract.RequestKind.nativeConfirm:
@@ -405,6 +453,55 @@ final class BridgeCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                 sendResponse(id: id, ok: false, value: NSNull(), error: error.localizedDescription)
             }
         }
+    }
+
+    private func handleRuntimeStatus() throws -> [String: Any] {
+        guard let viewModel else {
+            throw APIError.connectionError("Desktop bridge is unavailable")
+        }
+
+        return runtimeStatusPayload(viewModel: viewModel)
+    }
+
+    private func handleRuntimeStart() async throws -> [String: Any] {
+        guard let viewModel else {
+            throw APIError.connectionError("Desktop bridge is unavailable")
+        }
+
+        await viewModel.startProxy()
+        return runtimeStatusPayload(viewModel: viewModel)
+    }
+
+    private func handleRuntimeStop() throws -> [String: Any] {
+        guard let viewModel else {
+            throw APIError.connectionError("Desktop bridge is unavailable")
+        }
+
+        viewModel.stopProxy()
+        return runtimeStatusPayload(viewModel: viewModel)
+    }
+
+    private func handleRuntimeRestart() async throws -> [String: Any] {
+        guard let viewModel else {
+            throw APIError.connectionError("Desktop bridge is unavailable")
+        }
+
+        await viewModel.restartProxy()
+        return runtimeStatusPayload(viewModel: viewModel)
+    }
+
+    private func runtimeStatusPayload(viewModel: QuotaViewModel) -> [String: Any] {
+        if viewModel.proxyManager.proxyStatus.running {
+            return [
+                "state": "managed",
+                "endpoint": viewModel.proxyManager.clientEndpoint + "/v1"
+            ]
+        }
+
+        return [
+            "state": "stopped",
+            "endpoint": NSNull()
+        ]
     }
 
     private func handleManagementRequest(_ body: [String: Any]) async throws -> Any {

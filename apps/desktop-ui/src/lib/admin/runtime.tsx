@@ -75,6 +75,10 @@ type AdminRuntimeValue = {
   verifyToken: () => Promise<boolean>;
   clearToken: () => void;
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
+  runtimeStatus: () => Promise<RuntimeStatus>;
+  runtimeStart: () => Promise<RuntimeStatus>;
+  runtimeStop: () => Promise<RuntimeStatus>;
+  runtimeRestart: () => Promise<RuntimeStatus>;
   confirm: (request: NativeConfirmRequest) => Promise<boolean>;
   openExternal: (url: string) => Promise<boolean>;
   openTextFile: (request: NativeOpenTextFileRequest) => Promise<string | null>;
@@ -167,6 +171,46 @@ export function AdminRuntimeProvider({
     [],
   );
 
+  const runtimeStatus = useCallback(async () => {
+    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+    if (!bridge?.runtimeStatus) {
+      throw new Error('Desktop runtime bridge is unavailable');
+    }
+
+    return bridge.runtimeStatus();
+  }, []);
+
+  const runtimeStart = useCallback(async () => {
+    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+    if (!bridge?.runtimeStart) {
+      throw new Error('Desktop runtime bridge is unavailable');
+    }
+
+    return bridge.runtimeStart();
+  }, []);
+
+  const runtimeStop = useCallback(async () => {
+    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+    if (!bridge?.runtimeStop) {
+      throw new Error('Desktop runtime bridge is unavailable');
+    }
+
+    return bridge.runtimeStop();
+  }, []);
+
+  const runtimeRestart = useCallback(async () => {
+    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+
+    if (!bridge?.runtimeRestart) {
+      throw new Error('Desktop runtime bridge is unavailable');
+    }
+
+    return bridge.runtimeRestart();
+  }, []);
+
   const credentialRead = useCallback(
     async (request: Pick<NativeCredentialRequest, 'targetName'>) => {
       const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
@@ -216,6 +260,10 @@ export function AdminRuntimeProvider({
       verifyToken: async () => true,
       clearToken: () => {},
       request,
+      runtimeStatus,
+      runtimeStart,
+      runtimeStop,
+      runtimeRestart,
       confirm,
       openExternal,
       openTextFile,
@@ -232,6 +280,10 @@ export function AdminRuntimeProvider({
       openExternal,
       openTextFile,
       request,
+      runtimeRestart,
+      runtimeStart,
+      runtimeStatus,
+      runtimeStop,
     ],
   );
 
