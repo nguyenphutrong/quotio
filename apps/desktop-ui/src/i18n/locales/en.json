@@ -30,7 +30,7 @@
   "shell": {
     "adminConnected": "Connected",
     "authRequired": "Not connected",
-    "reloadAdmin": "Reload",
+    "reloadAdmin": "Reload app",
     "sessionLabel": "Local session",
     "sessionDetail": "API key",
     "gatewayUrl": "Gateway URL",

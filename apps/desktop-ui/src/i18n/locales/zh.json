@@ -30,7 +30,7 @@
   "shell": {
     "adminConnected": "已连接",
     "authRequired": "未连接",
-    "reloadAdmin": "重新加载",
+    "reloadAdmin": "重新加载应用",
     "sessionLabel": "本地会话",
     "sessionDetail": "API 密钥",
     "gatewayUrl": "网关 URL",

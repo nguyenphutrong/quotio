@@ -30,7 +30,7 @@
   "shell": {
     "adminConnected": "Đã kết nối",
     "authRequired": "Chưa kết nối",
-    "reloadAdmin": "Tải lại",
+    "reloadAdmin": "Tải lại app",
     "sessionLabel": "Phiên local",
     "sessionDetail": "API key",
     "gatewayUrl": "Gateway URL",
