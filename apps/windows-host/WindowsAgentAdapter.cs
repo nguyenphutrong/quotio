@@ -43,7 +43,7 @@ public sealed class WindowsAgentAdapter
             ["claude"],
             ["%USERPROFILE%\\.claude\\settings.json"],
             "supported",
-            "Windows preview supports read-only detection, guide, and diff preview for Claude Code.",
+            "Windows preview supports detection, guide, diff preview, settings.json install, and rollback for Claude Code.",
             "https://docs.anthropic.com/en/docs/claude-code"
         ),
         new(
@@ -53,7 +53,7 @@ public sealed class WindowsAgentAdapter
             ["codex"],
             ["%USERPROFILE%\\.codex\\config.toml"],
             "supported",
-            "Windows preview supports read-only detection, guide, and diff preview for Codex CLI.",
+            "Windows preview supports detection, guide, diff preview, install, and rollback for Codex CLI.",
             "https://github.com/openai/codex"
         ),
         new(
@@ -73,7 +73,7 @@ public sealed class WindowsAgentAdapter
             ["opencode", "oc"],
             ["%LOCALAPPDATA%\\opencode\\opencode.json"],
             "supported",
-            "Windows preview supports read-only detection, guide, and diff preview for OpenCode.",
+            "Windows preview supports detection, guide, diff preview, install, and rollback for OpenCode.",
             "https://github.com/sst/opencode"
         ),
         new(
@@ -83,7 +83,7 @@ public sealed class WindowsAgentAdapter
             ["droid", "factory-droid"],
             ["%USERPROFILE%\\.factory\\config.json"],
             "supported",
-            "Windows preview supports read-only detection, guide, and diff preview for Factory Droid.",
+            "Windows preview supports detection, guide, diff preview, install, and rollback for Factory Droid.",
             "https://docs.factory.ai/welcome"
         ),
         new(
@@ -93,7 +93,7 @@ public sealed class WindowsAgentAdapter
             ["amp"],
             ["%USERPROFILE%\\.config\\amp\\settings.json", "%USERPROFILE%\\.local\\share\\amp\\secrets.json"],
             "supported",
-            "Windows preview supports read-only detection, guide, and diff preview for Amp CLI.",
+            "Windows preview supports detection, guide, diff preview, settings/secrets install, and rollback for Amp CLI.",
             "https://ampcode.com/manual"
         )
     ];
