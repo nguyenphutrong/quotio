@@ -4,13 +4,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@quotio/ui/components/collapsible';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@quotio/ui/components/dialog';
 import { Input } from '@quotio/ui/components/input';
 import {
   Select,
@@ -902,25 +895,30 @@ export function AmpCodePage({ embedded = false }: { embedded?: boolean }) {
                 </p>
               ) : null}
 
-              <Dialog
-                open={isDiffDialogOpen}
-                onOpenChange={(open) => {
-                  setIsDiffDialogOpen(open);
-                  if (!open) {
-                    mutations.ampCLISetupDiffMutation.reset();
-                  }
-                }}
-              >
-                <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-4xl lg:max-w-5xl">
-                  <DialogHeader>
-                    <DialogTitle>
-                      {t('ampcode.labels.latestDiffPreview')}
-                    </DialogTitle>
-                    <DialogDescription>
-                      {latestDiffResponse?.summary ??
-                        t('ampcode.labels.diffDialogDescription')}
-                    </DialogDescription>
-                  </DialogHeader>
+              {isDiffDialogOpen ? (
+                <Panel className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">
+                        {t('ampcode.labels.latestDiffPreview')}
+                      </h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {latestDiffResponse?.summary ??
+                          t('ampcode.labels.diffDialogDescription')}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsDiffDialogOpen(false);
+                        mutations.ampCLISetupDiffMutation.reset();
+                      }}
+                    >
+                      {t('common.close')}
+                    </Button>
+                  </div>
 
                   {isDiffingCLISetup ? (
                     <p className="text-xs text-muted-foreground">
@@ -956,8 +954,8 @@ export function AmpCodePage({ embedded = false }: { embedded?: boolean }) {
                       </div>
                     </div>
                   ))}
-                </DialogContent>
-              </Dialog>
+                </Panel>
+              ) : null}
 
               <Collapsible>
                 <CollapsibleTrigger
