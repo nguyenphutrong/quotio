@@ -184,30 +184,14 @@ type EntryDialogState = {
   model: VirtualModelRow;
 } | null;
 
-type DeleteModelDialogState = {
-  modelId: string;
-  modelName: string;
-} | null;
-
-type DeleteEntryDialogState = {
-  modelId: string;
-  modelName: string;
-  entryId: string;
-  entryLabel: string;
-} | null;
-
 export function VirtualModelsPage() {
   const { t } = useTranslation();
   const toast = useToast();
-  const { bootstrap } = useAdminRuntime();
+  const { bootstrap, confirm } = useAdminRuntime();
   const stateQuery = useVirtualModelsStateQuery();
   const mutations = useVirtualModelMutations();
   const [modelDialog, setModelDialog] = useState<ModelDialogState>(null);
   const [entryDialog, setEntryDialog] = useState<EntryDialogState>(null);
-  const [deleteModelDialog, setDeleteModelDialog] =
-    useState<DeleteModelDialogState>(null);
-  const [deleteEntryDialog, setDeleteEntryDialog] =
-    useState<DeleteEntryDialogState>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -393,11 +377,35 @@ export function VirtualModelsPage() {
                     );
                   }
                 }}
-                onDelete={() => {
-                  setDeleteModelDialog({
-                    modelId: model.id,
-                    modelName: model.name,
+                onDelete={async () => {
+                  const accepted = await confirm({
+                    title: t('virtualModels.dialogs.deleteModelTitle'),
+                    message: t('virtualModels.dialogs.deleteModelDescription', {
+                      name: model.name,
+                    }),
+                    confirmLabel: t('virtualModels.actions.delete'),
+                    cancelLabel: t('common.cancel'),
+                    destructive: true,
                   });
+
+                  if (!accepted) {
+                    return;
+                  }
+
+                  try {
+                    await mutations.deleteModelMutation.mutateAsync(model.id);
+                    toast.success(
+                      t('virtualModels.messages.modelDeleted', {
+                        name: model.name,
+                      }),
+                    );
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : t('virtualModels.messages.modelDeleteFailed'),
+                    );
+                  }
                 }}
                 onReorderEntries={async (entryIds) => {
                   const sorted = sortEntries(model.entries);
@@ -427,19 +435,46 @@ export function VirtualModelsPage() {
                     throw error;
                   }
                 }}
-                onDeleteEntry={(entryId) => {
+                onDeleteEntry={async (entryId) => {
                   const entry = model.entries.find(
                     (item) => item.id === entryId,
                   );
-                  setDeleteEntryDialog({
-                    modelId: model.id,
-                    modelName: model.name,
-                    entryId,
-                    entryLabel:
-                      getEntryTargetTitle(entry?.target) ??
-                      entry?.target ??
-                      entryId,
+                  const entryLabel =
+                    getEntryTargetTitle(entry?.target) ??
+                    entry?.target ??
+                    entryId;
+                  const accepted = await confirm({
+                    title: t('virtualModels.dialogs.deleteEntryTitle'),
+                    message: t('virtualModels.dialogs.deleteEntryDescription', {
+                      target: entryLabel,
+                      name: model.name,
+                    }),
+                    confirmLabel: t('virtualModels.actions.delete'),
+                    cancelLabel: t('common.cancel'),
+                    destructive: true,
                   });
+
+                  if (!accepted) {
+                    return;
+                  }
+
+                  try {
+                    await mutations.deleteEntryMutation.mutateAsync({
+                      modelId: model.id,
+                      entryId,
+                    });
+                    toast.success(
+                      t('virtualModels.messages.entryDeleted', {
+                        name: model.name,
+                      }),
+                    );
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : t('virtualModels.messages.entryDeleteFailed'),
+                    );
+                  }
                 }}
               />
             ))}
@@ -566,86 +601,6 @@ export function VirtualModelsPage() {
         open={exportOpen}
         value={exportJson}
         onOpenChange={setExportOpen}
-      />
-
-      <ConfirmDeleteDialog
-        open={deleteModelDialog !== null}
-        title={t('virtualModels.dialogs.deleteModelTitle')}
-        description={t('virtualModels.dialogs.deleteModelDescription', {
-          name: deleteModelDialog?.modelName ?? '',
-        })}
-        confirmLabel={t('virtualModels.actions.delete')}
-        busy={mutations.deleteModelMutation.isPending}
-        disabled={!canManageVirtualModels}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeleteModelDialog(null);
-          }
-        }}
-        onConfirm={async () => {
-          if (!deleteModelDialog) {
-            return;
-          }
-
-          try {
-            await mutations.deleteModelMutation.mutateAsync(
-              deleteModelDialog.modelId,
-            );
-            toast.success(
-              t('virtualModels.messages.modelDeleted', {
-                name: deleteModelDialog.modelName,
-              }),
-            );
-            setDeleteModelDialog(null);
-          } catch (error) {
-            toast.error(
-              error instanceof Error
-                ? error.message
-                : t('virtualModels.messages.modelDeleteFailed'),
-            );
-          }
-        }}
-      />
-
-      <ConfirmDeleteDialog
-        open={deleteEntryDialog !== null}
-        title={t('virtualModels.dialogs.deleteEntryTitle')}
-        description={t('virtualModels.dialogs.deleteEntryDescription', {
-          target: deleteEntryDialog?.entryLabel ?? '',
-          name: deleteEntryDialog?.modelName ?? '',
-        })}
-        confirmLabel={t('virtualModels.actions.delete')}
-        busy={mutations.deleteEntryMutation.isPending}
-        disabled={!canManageVirtualModels}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeleteEntryDialog(null);
-          }
-        }}
-        onConfirm={async () => {
-          if (!deleteEntryDialog) {
-            return;
-          }
-
-          try {
-            await mutations.deleteEntryMutation.mutateAsync({
-              modelId: deleteEntryDialog.modelId,
-              entryId: deleteEntryDialog.entryId,
-            });
-            toast.success(
-              t('virtualModels.messages.entryDeleted', {
-                name: deleteEntryDialog.modelName,
-              }),
-            );
-            setDeleteEntryDialog(null);
-          } catch (error) {
-            toast.error(
-              error instanceof Error
-                ? error.message
-                : t('virtualModels.messages.entryDeleteFailed'),
-            );
-          }
-        }}
       />
     </div>
   );
@@ -1296,51 +1251,6 @@ function ExportDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ConfirmDeleteDialog({
-  open,
-  title,
-  description,
-  confirmLabel,
-  busy,
-  disabled,
-  onOpenChange,
-  onConfirm,
-}: {
-  open: boolean;
-  title: string;
-  description: string;
-  confirmLabel: string;
-  busy: boolean;
-  disabled: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: () => Promise<void>;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => void onConfirm()}
-            disabled={busy || disabled}
-          >
-            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

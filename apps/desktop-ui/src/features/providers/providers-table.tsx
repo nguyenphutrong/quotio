@@ -1,14 +1,6 @@
 import { Badge } from '@quotio/ui/components/badge';
 import { Button } from '@quotio/ui/components/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@quotio/ui/components/dialog';
-import {
   Table,
   TableBody,
   TableCell,
@@ -40,6 +32,7 @@ import {
   normalizeProviderId,
   providerCatalog,
 } from '@/features/providers/types';
+import { useAdminRuntime } from '@/lib/admin/runtime';
 
 export function ProvidersTable({
   providers,
@@ -62,11 +55,10 @@ export function ProvidersTable({
   onAddConnection?: (providerKey: string) => void;
   busyId: string | null;
 }) {
+  const { confirm } = useAdminRuntime();
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     new Set(),
   );
-  const [deleteConfirmConnection, setDeleteConfirmConnection] =
-    useState<ProviderResponse | null>(null);
 
   const toggleGroup = (key: string) => {
     setCollapsedGroups((prev) => {
@@ -372,9 +364,21 @@ export function ProvidersTable({
                                       variant="ghost"
                                       size="icon"
                                       className="h-7 w-7 text-danger hover:text-danger hover:bg-danger/10"
-                                      onClick={(e) => {
+                                      onClick={async (e) => {
                                         e.stopPropagation();
-                                        setDeleteConfirmConnection(connection);
+                                        const name =
+                                          connection.label || connection.id;
+                                        const accepted = await confirm({
+                                          title: 'Delete provider',
+                                          message: `Delete ${name}? This action cannot be undone and will prevent accessing models through this connection.`,
+                                          confirmLabel: 'Delete',
+                                          cancelLabel: 'Cancel',
+                                          destructive: true,
+                                        });
+
+                                        if (accepted) {
+                                          await onDelete(connection);
+                                        }
                                       }}
                                       disabled={busyId === connection.id}
                                     >
@@ -397,50 +401,6 @@ export function ProvidersTable({
           </TableBody>
         </Table>
       </div>
-
-      <Dialog
-        open={!!deleteConfirmConnection}
-        onOpenChange={(open) => {
-          if (!open) setDeleteConfirmConnection(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Provider</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete{' '}
-              <span className="font-medium text-foreground">
-                {deleteConfirmConnection?.label ||
-                  deleteConfirmConnection?.id ||
-                  'this provider'}
-              </span>
-              ? This action cannot be undone and will prevent accessing models
-              through this connection.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="mt-4 gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setDeleteConfirmConnection(null)}
-              disabled={!!busyId && busyId === deleteConfirmConnection?.id}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                if (deleteConfirmConnection) {
-                  await onDelete(deleteConfirmConnection);
-                  setDeleteConfirmConnection(null);
-                }
-              }}
-              disabled={!!busyId && busyId === deleteConfirmConnection?.id}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
