@@ -1187,9 +1187,9 @@ private final class MacAgentBridgeAdapter {
     private func caveats(for agent: CLIAgent) -> [String] {
         switch agent {
         case .geminiCLI:
-            return ["Shell profile writes remain in the native macOS setup flow; shared UI provides guide and diff preview."]
+            return ["Shell profile writes remain in the native macOS setup flow; Quotio provides guide and diff preview."]
         case .claudeCode, .ampCLI:
-            return ["Automatic writes update app settings files; shell profile writes remain manual in the shared UI."]
+            return ["Automatic writes update app settings files; shell profile writes remain manual in Quotio."]
         case .codexCLI, .openCode, .factoryDroid:
             return ["Automatic writes create timestamped backups before install and rollback."]
         }

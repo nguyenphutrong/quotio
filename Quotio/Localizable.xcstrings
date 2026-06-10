@@ -12232,10 +12232,10 @@
     },
     "sharedUI.error.connect" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "new", "value" : "Connect to a management server before using the shared UI." } },
-        "fr" : { "stringUnit" : { "state" : "new", "value" : "Connectez-vous à un serveur de gestion avant d’utiliser l’interface partagée." } },
-        "vi" : { "stringUnit" : { "state" : "new", "value" : "Hãy kết nối management server trước khi dùng giao diện chung." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "使用共享界面前请先连接管理服务器。" } }
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Connect to a management server before using Quotio." } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Connectez-vous à un serveur de gestion avant d’utiliser Quotio." } },
+        "vi" : { "stringUnit" : { "state" : "new", "value" : "Hãy kết nối management server trước khi dùng Quotio." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "使用 Quotio 前请先连接管理服务器。" } }
       }
     },
     "sharedUI.error.remoteDisconnected" : {
@@ -12248,10 +12248,10 @@
     },
     "sharedUI.error.startLocal" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "new", "value" : "Start the local proxy before using the shared UI." } },
-        "fr" : { "stringUnit" : { "state" : "new", "value" : "Démarrez le proxy local avant d’utiliser l’interface partagée." } },
-        "vi" : { "stringUnit" : { "state" : "new", "value" : "Hãy khởi động local proxy trước khi dùng giao diện chung." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "使用共享界面前请先启动本地代理。" } }
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Start the local proxy before using Quotio." } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Démarrez le proxy local avant d’utiliser Quotio." } },
+        "vi" : { "stringUnit" : { "state" : "new", "value" : "Hãy khởi động local proxy trước khi dùng Quotio." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "使用 Quotio 前请先启动本地代理。" } }
       }
     },
     "sharedUI.unavailable.description" : {
@@ -12264,10 +12264,10 @@
     },
     "sharedUI.unavailable.title" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "new", "value" : "Shared UI is unavailable" } },
-        "fr" : { "stringUnit" : { "state" : "new", "value" : "Interface partagée indisponible" } },
-        "vi" : { "stringUnit" : { "state" : "new", "value" : "Chưa có giao diện chung" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "共享界面不可用" } }
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Quotio interface is unavailable" } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Interface Quotio indisponible" } },
+        "vi" : { "stringUnit" : { "state" : "new", "value" : "Không thể mở giao diện Quotio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "Quotio 界面不可用" } }
       }
     },
     "nav.accounts" : {

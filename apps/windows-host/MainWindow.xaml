@@ -115,7 +115,7 @@
                 <TextBlock
                     FontSize="18"
                     FontWeight="SemiBold"
-                    Text="Shared UI is unavailable" />
+                    Text="Quotio interface is unavailable" />
                 <TextBlock
                     x:Name="ErrorText"
                     TextWrapping="WrapWholeWords"
