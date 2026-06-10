@@ -1,14 +1,6 @@
 import { Badge } from '@quotio/ui/components/badge';
 import { Button } from '@quotio/ui/components/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@quotio/ui/components/dialog';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -316,6 +308,113 @@ export function APIKeysPage() {
         </div>
       </div>
 
+      {createOpen ? (
+        <Panel className="space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">
+              {t('apiKeys.dialogs.create.title')}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t('apiKeys.dialogs.create.description')}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="api-key-name">
+              {t('apiKeys.fields.name')}
+            </label>
+            <Input
+              id="api-key-name"
+              placeholder={t('apiKeys.fields.namePlaceholder')}
+              value={createName}
+              onChange={(event) => setCreateName(event.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={() => void handleCreate()}
+              disabled={mutations.createMutation.isPending || !canManageKeys}
+            >
+              {t('apiKeys.actions.createKey')}
+            </Button>
+          </div>
+        </Panel>
+      ) : null}
+
+      {createdPlaintext ? (
+        <Panel className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-semibold text-foreground">
+                {createdKeyName || t('apiKeys.dialogs.created.title')}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('apiKeys.dialogs.created.description')}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setCreatedPlaintext(null);
+                setCreatedKeyName('');
+              }}
+            >
+              {t('common.close')}
+            </Button>
+          </div>
+          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4">
+            <div className="flex min-w-0 flex-col gap-3 overflow-hidden rounded-lg bg-background px-3 py-3 sm:flex-row sm:items-center">
+              <span className="block min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-sm">
+                {createdPlaintext}
+              </span>
+              <CopyButton value={createdPlaintext} className="shrink-0">
+                {t('apiKeys.actions.copyKey')}
+              </CopyButton>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {t('apiKeys.dialogs.created.helper')}
+            </p>
+          </div>
+        </Panel>
+      ) : null}
+
+      {renameTarget ? (
+        <Panel className="space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">
+              {t('apiKeys.dialogs.rename.title')}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t('apiKeys.dialogs.rename.description')}
+            </p>
+          </div>
+          <Input
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value)}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRenameTarget(null);
+                setRenameValue('');
+              }}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={() => void handleRename()}
+              disabled={mutations.updateMutation.isPending || !canManageKeys}
+            >
+              {t('apiKeys.actions.saveName')}
+            </Button>
+          </div>
+        </Panel>
+      ) : null}
+
       {keys.length === 0 ? (
         <EmptyState
           title={t('apiKeys.emptyTitle')}
@@ -459,113 +558,6 @@ export function APIKeysPage() {
           </div>
         </Panel>
       )}
-
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('apiKeys.dialogs.create.title')}</DialogTitle>
-            <DialogDescription>
-              {t('apiKeys.dialogs.create.description')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="api-key-name">
-              {t('apiKeys.fields.name')}
-            </label>
-            <Input
-              id="api-key-name"
-              placeholder={t('apiKeys.fields.namePlaceholder')}
-              value={createName}
-              onChange={(event) => setCreateName(event.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              onClick={() => void handleCreate()}
-              disabled={mutations.createMutation.isPending || !canManageKeys}
-            >
-              {t('apiKeys.actions.createKey')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={Boolean(createdPlaintext)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setCreatedPlaintext(null);
-            setCreatedKeyName('');
-          }
-        }}
-      >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="truncate">
-              {createdKeyName || t('apiKeys.dialogs.created.title')}
-            </DialogTitle>
-            <DialogDescription>
-              {t('apiKeys.dialogs.created.description')}
-            </DialogDescription>
-          </DialogHeader>
-          <Panel className="space-y-3 border border-border/60 bg-muted/30 p-4">
-            <div className="flex min-w-0 flex-col gap-3 overflow-hidden rounded-lg bg-background px-3 py-3 sm:flex-row sm:items-center">
-              <span className="block min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-sm">
-                {createdPlaintext}
-              </span>
-              <CopyButton value={createdPlaintext ?? ''} className="shrink-0">
-                {t('apiKeys.actions.copyKey')}
-              </CopyButton>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {t('apiKeys.dialogs.created.helper')}
-            </p>
-          </Panel>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={Boolean(renameTarget)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRenameTarget(null);
-            setRenameValue('');
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('apiKeys.dialogs.rename.title')}</DialogTitle>
-            <DialogDescription>
-              {t('apiKeys.dialogs.rename.description')}
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            value={renameValue}
-            onChange={(event) => setRenameValue(event.target.value)}
-          />
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRenameTarget(null);
-                setRenameValue('');
-              }}
-            >
-              {t('common.cancel')}
-            </Button>
-            <Button
-              onClick={() => void handleRename()}
-              disabled={mutations.updateMutation.isPending || !canManageKeys}
-            >
-              {t('apiKeys.actions.saveName')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
