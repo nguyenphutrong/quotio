@@ -644,11 +644,11 @@
     }
   },
   "settings": {
-    "description": "此桌面构建由原生主机开放的共享设置。",
+    "description": "配置 Quotio 桌面偏好、代理行为和连接。",
     "native": {
       "title": "应用偏好",
-      "description": "控制由原生桌面主机拥有的偏好设置。",
-      "unsupported": "此主机构建暂不支持原生应用偏好。",
+      "description": "控制 Quotio 的启动、外观和状态提醒。",
+      "unsupported": "此版本暂不支持应用偏好。",
       "status": {
         "loading": "加载中",
         "ready": "就绪"
@@ -696,8 +696,8 @@
       "hints": {
         "operatingMode": "在本地代理和已保存的远程连接之间切换。",
         "remoteNotConfigured": "请先配置远程连接，然后再切换到远程模式。",
-        "language": "更改桌面 shell 使用的语言。",
-        "appearance": "立即应用原生桌面外观。",
+        "language": "更改应用语言。",
+        "appearance": "立即应用所选外观。",
         "launchAtLogin": "登录后自动启动 Quotio。",
         "closeToTray": "关闭窗口时让 Quotio 继续在 Windows 托盘中运行。",
         "proxyPort": "如果本地代理正在运行，会自动重启。",
@@ -705,7 +705,7 @@
         "authDir": "存储 provider auth 文件。目录不存在时会创建。",
         "quotaAlertThreshold": "当剩余配额低于此值时通知。",
         "quotaDisplayMode": "选择百分比显示已用或剩余配额。",
-        "quotaDisplayStyle": "控制原生配额视图使用的布局。",
+        "quotaDisplayStyle": "控制 Quotio 中的配额布局。",
         "resetTimeDisplayMode": "选择相对或绝对重置时间。",
         "refreshCadence": "控制自动刷新配额的频率。",
         "menuBarMaxItems": "限制在 1 到 10 个项目之间。",
@@ -717,11 +717,11 @@
       "groups": {
         "localProxy": {
           "title": "本地代理",
-          "description": "由原生主机拥有的 runtime 设置、路径和 tunnel 启动行为。"
+          "description": "本地代理路径、端口和 tunnel 启动行为。"
         },
         "notifications": {
           "title": "通知",
-          "description": "由原生主机发送的配额和代理提醒。"
+          "description": "Quotio 发送的配额和代理提醒。"
         },
         "quota": {
           "title": "配额显示",
@@ -737,12 +737,12 @@
         },
         "updates": {
           "title": "更新",
-          "description": "由 native host 管理的 Sparkle 更新检查和发布通道设置。"
+          "description": "自动更新检查和发布通道设置。"
         }
       },
       "setup": {
         "title": "Windows 设置",
-        "description": "完成系统级启动偏好；未使用打包的本地代理时，连接 management endpoint。",
+        "description": "完成 Windows 启动设置，并在需要时连接另一个 Quotio 网关。",
         "startupApps": "启动应用",
         "remoteConnection": "远程连接",
         "actions": {
@@ -793,7 +793,7 @@
     },
     "advancedProxy": {
       "title": "高级代理设置",
-      "description": "通过 management API 管理 cpa++ 路由、重试、上游代理和诊断行为。",
+      "description": "调整本地网关的路由、重试、上游代理和日志。",
       "status": {
         "loading": "加载中",
         "ready": "就绪",
@@ -812,11 +812,11 @@
       },
       "hints": {
         "proxyUrl": "留空可清除上游代理路由。",
-        "proxyUrlSensitive": "代理 URL 可能包含凭证；该值只会发送到 management API。",
+        "proxyUrlSensitive": "代理 URL 可能包含凭证；Quotio 只会将该值发送到网关。",
         "routingStrategy": "Round robin 分散流量；fill first 会先用尽一个符合条件的账号。",
         "requestRetry": "允许范围为 0 到 10 次重试。",
         "maxRetryInterval": "允许范围为 5 到 300 秒，步进 5 秒。",
-        "loggingSensitive": "请求日志、文件日志和 debug 模式可能持久化敏感请求数据。"
+        "loggingSensitive": "请求日志、文件日志和 debug 模式可能保存敏感请求数据。"
       },
       "groups": {
         "upstream": {
@@ -833,7 +833,7 @@
         },
         "logging": {
           "title": "日志和 debug",
-          "description": "可能写入敏感请求详情的诊断选项。"
+          "description": "可能写入敏感请求详情的选项。"
         }
       },
       "options": {
@@ -850,15 +850,15 @@
       }
     },
     "remote": {
-      "title": "远程管理连接",
-      "description": "将 management endpoint 和 API key 存入原生凭证存储。",
-      "unsupported": "此主机构建暂不支持编辑远程连接。",
-      "baseUrlLabel": "Management base URL",
-      "keyLabel": "Management key",
-      "keyPlaceholder": "粘贴 management key",
+      "title": "已保存的网关连接",
+      "description": "安全保存另一个 Quotio 网关 URL 和访问密钥。",
+      "unsupported": "此版本暂不支持编辑连接。",
+      "baseUrlLabel": "网关 URL",
+      "keyLabel": "访问密钥",
+      "keyPlaceholder": "粘贴访问密钥",
       "keyStoredPlaceholder": "已存储的 key 会保留，除非替换",
       "clearConfirmTitle": "清除远程连接",
-      "clearConfirmMessage": "这会从原生凭证存储中移除已保存的 management endpoint 和 key。",
+      "clearConfirmMessage": "这会从安全存储中移除已保存的网关 URL 和访问密钥。",
       "status": {
         "configured": "已配置",
         "notConfigured": "未配置"
@@ -874,7 +874,7 @@
         "cleared": "远程连接已清除。"
       },
       "errors": {
-        "baseUrlRequired": "需要填写 Management base URL。"
+        "baseUrlRequired": "需要填写网关 URL。"
       }
     }
   },

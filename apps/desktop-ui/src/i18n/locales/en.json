@@ -648,11 +648,11 @@
     }
   },
   "settings": {
-    "description": "Shared settings exposed by the native host for this desktop build.",
+    "description": "Configure Quotio desktop preferences, proxy behavior, and connections.",
     "native": {
       "title": "App preferences",
-      "description": "Control preferences owned by the native desktop host.",
-      "unsupported": "Native app preferences are not available in this host build.",
+      "description": "Control how Quotio starts, appears, and reports status.",
+      "unsupported": "App preferences are not available in this build.",
       "status": {
         "loading": "Loading",
         "ready": "Ready"
@@ -700,8 +700,8 @@
       "hints": {
         "operatingMode": "Switch between the local proxy and a saved remote connection.",
         "remoteNotConfigured": "Configure a remote connection before switching to remote mode.",
-        "language": "Changes the language used by the desktop shell.",
-        "appearance": "Applies the native desktop appearance immediately.",
+        "language": "Changes the app language.",
+        "appearance": "Applies the selected appearance immediately.",
         "launchAtLogin": "Starts Quotio automatically after signing in.",
         "closeToTray": "Keeps Quotio running in the Windows tray when the window is closed.",
         "proxyPort": "Restarts the local proxy if it is running.",
@@ -709,7 +709,7 @@
         "authDir": "Stores provider auth files. The folder is created if it does not exist.",
         "quotaAlertThreshold": "Notify when remaining quota drops below this value.",
         "quotaDisplayMode": "Choose whether percentages show used or remaining quota.",
-        "quotaDisplayStyle": "Controls the quota layout used by native quota views.",
+        "quotaDisplayStyle": "Controls the quota layout throughout Quotio.",
         "resetTimeDisplayMode": "Choose relative or absolute reset times.",
         "refreshCadence": "Controls automatic quota refresh timing.",
         "menuBarMaxItems": "Clamped between 1 and 10 items.",
@@ -721,11 +721,11 @@
       "groups": {
         "localProxy": {
           "title": "Local proxy",
-          "description": "Host-owned runtime settings, paths, and tunnel startup behavior."
+          "description": "Local proxy paths, port, and tunnel startup behavior."
         },
         "notifications": {
           "title": "Notifications",
-          "description": "Quota and proxy alerts delivered by the native host."
+          "description": "Quota and proxy alerts from Quotio."
         },
         "quota": {
           "title": "Quota display",
@@ -741,12 +741,12 @@
         },
         "updates": {
           "title": "Updates",
-          "description": "Sparkle update checks and release channel settings owned by the native host."
+          "description": "Automatic update checks and release channel settings."
         }
       },
       "setup": {
         "title": "Windows setup",
-        "description": "Finish the OS-level startup preference and connect a management endpoint when this app is used without the bundled local proxy.",
+        "description": "Finish Windows startup settings and connect another Quotio gateway when needed.",
         "startupApps": "Startup Apps",
         "remoteConnection": "Remote connection",
         "actions": {
@@ -797,7 +797,7 @@
     },
     "advancedProxy": {
       "title": "Advanced proxy settings",
-      "description": "Manage cpa++ routing, retry, upstream proxy, and diagnostic behavior through the management API.",
+      "description": "Tune routing, retries, upstream proxy, and logging for the local gateway.",
       "status": {
         "loading": "Loading",
         "ready": "Ready",
@@ -816,11 +816,11 @@
       },
       "hints": {
         "proxyUrl": "Leave empty to clear upstream proxy routing.",
-        "proxyUrlSensitive": "Proxy URLs can contain credentials; the value is only sent to the management API.",
+        "proxyUrlSensitive": "Proxy URLs can contain credentials; Quotio sends this only to the gateway.",
         "routingStrategy": "Round robin spreads traffic; fill first exhausts one eligible account before moving on.",
         "requestRetry": "Allowed range is 0 to 10 retries.",
         "maxRetryInterval": "Allowed range is 5 to 300 seconds in 5 second steps.",
-        "loggingSensitive": "Request logs, file logging, and debug mode can persist sensitive request data."
+        "loggingSensitive": "Request logs, file logging, and debug mode can save sensitive request data."
       },
       "groups": {
         "upstream": {
@@ -837,7 +837,7 @@
         },
         "logging": {
           "title": "Logging and debug",
-          "description": "Diagnostics that can write sensitive request details."
+          "description": "Options that can write sensitive request details."
         }
       },
       "options": {
@@ -854,15 +854,15 @@
       }
     },
     "remote": {
-      "title": "Remote management connection",
-      "description": "Store the management endpoint and API key in the native credential store.",
-      "unsupported": "Remote connection editing is not available in this host build.",
-      "baseUrlLabel": "Management base URL",
-      "keyLabel": "Management key",
-      "keyPlaceholder": "Paste a management key",
+      "title": "Saved gateway connection",
+      "description": "Store another Quotio gateway URL and access key securely.",
+      "unsupported": "Connection editing is not available in this build.",
+      "baseUrlLabel": "Gateway URL",
+      "keyLabel": "Access key",
+      "keyPlaceholder": "Paste an access key",
       "keyStoredPlaceholder": "Stored key will be kept unless replaced",
       "clearConfirmTitle": "Clear remote connection",
-      "clearConfirmMessage": "This removes the stored management endpoint and key from the native credential store.",
+      "clearConfirmMessage": "This removes the saved gateway URL and access key from secure storage.",
       "status": {
         "configured": "Configured",
         "notConfigured": "Not configured"
@@ -878,7 +878,7 @@
         "cleared": "Remote connection cleared."
       },
       "errors": {
-        "baseUrlRequired": "Management base URL is required."
+        "baseUrlRequired": "Gateway URL is required."
       }
     }
   },

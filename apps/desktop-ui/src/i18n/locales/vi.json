@@ -643,11 +643,11 @@
     }
   },
   "settings": {
-    "description": "Các cài đặt dùng chung do native host mở cho bản desktop này.",
+    "description": "Cấu hình tùy chọn Quotio desktop, proxy và kết nối.",
     "native": {
       "title": "Tùy chọn ứng dụng",
-      "description": "Điều chỉnh các preference thuộc native desktop host.",
-      "unsupported": "Host build này chưa hỗ trợ tùy chọn native app.",
+      "description": "Điều chỉnh cách Quotio khởi động, hiển thị và báo trạng thái.",
+      "unsupported": "Bản này chưa hỗ trợ tùy chọn ứng dụng.",
       "status": {
         "loading": "Đang tải",
         "ready": "Sẵn sàng"
@@ -695,8 +695,8 @@
       "hints": {
         "operatingMode": "Chuyển giữa local proxy và kết nối remote đã lưu.",
         "remoteNotConfigured": "Cấu hình kết nối remote trước khi chuyển sang remote mode.",
-        "language": "Thay đổi ngôn ngữ dùng trong desktop shell.",
-        "appearance": "Áp dụng giao diện native desktop ngay lập tức.",
+        "language": "Thay đổi ngôn ngữ của ứng dụng.",
+        "appearance": "Áp dụng giao diện đã chọn ngay lập tức.",
         "launchAtLogin": "Tự động mở Quotio sau khi đăng nhập.",
         "closeToTray": "Giữ Quotio chạy trong Windows tray khi đóng cửa sổ.",
         "proxyPort": "Sẽ restart local proxy nếu proxy đang chạy.",
@@ -704,7 +704,7 @@
         "authDir": "Lưu file auth của provider. Folder sẽ được tạo nếu chưa tồn tại.",
         "quotaAlertThreshold": "Thông báo khi hạn mức còn lại thấp hơn giá trị này.",
         "quotaDisplayMode": "Chọn phần trăm hiển thị là đã dùng hay còn lại.",
-        "quotaDisplayStyle": "Điều khiển bố cục hạn mức trong các màn native.",
+        "quotaDisplayStyle": "Điều khiển bố cục hạn mức trong Quotio.",
         "resetTimeDisplayMode": "Chọn thời gian reset dạng tương đối hoặc tuyệt đối.",
         "refreshCadence": "Điều khiển chu kỳ tự động làm mới hạn mức.",
         "menuBarMaxItems": "Được giới hạn từ 1 đến 10 item.",
@@ -716,11 +716,11 @@
       "groups": {
         "localProxy": {
           "title": "Local proxy",
-          "description": "Cài đặt runtime, đường dẫn và hành vi tunnel thuộc native host."
+          "description": "Đường dẫn, cổng và hành vi khởi động tunnel của local proxy."
         },
         "notifications": {
           "title": "Thông báo",
-          "description": "Cảnh báo hạn mức và proxy do native host gửi."
+          "description": "Cảnh báo hạn mức và proxy từ Quotio."
         },
         "quota": {
           "title": "Hiển thị hạn mức",
@@ -736,12 +736,12 @@
         },
         "updates": {
           "title": "Cập nhật",
-          "description": "Kiểm tra cập nhật Sparkle và kênh phát hành do native host quản lý."
+          "description": "Tự kiểm tra cập nhật và chọn kênh phát hành."
         }
       },
       "setup": {
         "title": "Thiết lập Windows",
-        "description": "Hoàn tất tùy chọn startup cấp hệ điều hành và kết nối management endpoint khi app không dùng local proxy được bundle.",
+        "description": "Hoàn tất cài đặt khởi động Windows và kết nối gateway Quotio khác khi cần.",
         "startupApps": "Startup Apps",
         "remoteConnection": "Kết nối remote",
         "actions": {
@@ -792,7 +792,7 @@
     },
     "advancedProxy": {
       "title": "Cài đặt proxy nâng cao",
-      "description": "Quản lý routing, retry, upstream proxy và diagnostic của cpa++ qua management API.",
+      "description": "Tinh chỉnh routing, retry, upstream proxy và logging cho local gateway.",
       "status": {
         "loading": "Đang tải",
         "ready": "Sẵn sàng",
@@ -811,7 +811,7 @@
       },
       "hints": {
         "proxyUrl": "Để trống để xóa upstream proxy routing.",
-        "proxyUrlSensitive": "Proxy URL có thể chứa credential; giá trị chỉ được gửi tới management API.",
+        "proxyUrlSensitive": "Proxy URL có thể chứa credential; Quotio chỉ gửi giá trị này tới gateway.",
         "routingStrategy": "Round robin chia đều traffic; fill first dùng cạn một tài khoản phù hợp trước khi chuyển.",
         "requestRetry": "Khoảng hợp lệ là 0 đến 10 lần retry.",
         "maxRetryInterval": "Khoảng hợp lệ là 5 đến 300 giây, bước 5 giây.",
@@ -832,7 +832,7 @@
         },
         "logging": {
           "title": "Logging và debug",
-          "description": "Diagnostic có thể ghi chi tiết request nhạy cảm."
+          "description": "Các tùy chọn có thể ghi chi tiết request nhạy cảm."
         }
       },
       "options": {
@@ -849,15 +849,15 @@
       }
     },
     "remote": {
-      "title": "Kết nối quản trị remote",
-      "description": "Lưu management endpoint và API key trong credential store native.",
-      "unsupported": "Host build này chưa hỗ trợ chỉnh kết nối remote.",
-      "baseUrlLabel": "Management base URL",
-      "keyLabel": "Management key",
-      "keyPlaceholder": "Dán management key",
+      "title": "Kết nối gateway đã lưu",
+      "description": "Lưu URL gateway Quotio khác và access key một cách an toàn.",
+      "unsupported": "Bản này chưa hỗ trợ chỉnh kết nối.",
+      "baseUrlLabel": "Gateway URL",
+      "keyLabel": "Access key",
+      "keyPlaceholder": "Dán access key",
       "keyStoredPlaceholder": "Key đã lưu sẽ được giữ nếu không thay mới",
       "clearConfirmTitle": "Xóa kết nối remote",
-      "clearConfirmMessage": "Thao tác này xóa management endpoint và key đã lưu khỏi credential store native.",
+      "clearConfirmMessage": "Thao tác này xóa gateway URL và access key đã lưu khỏi kho bảo mật.",
       "status": {
         "configured": "Đã cấu hình",
         "notConfigured": "Chưa cấu hình"
@@ -873,7 +873,7 @@
         "cleared": "Đã xóa kết nối remote."
       },
       "errors": {
-        "baseUrlRequired": "Cần nhập Management base URL."
+        "baseUrlRequired": "Cần nhập Gateway URL."
       }
     }
   },
