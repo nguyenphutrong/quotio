@@ -25,6 +25,7 @@ export type AdminFeatureFlags = Record<ScreenFeatureKey, boolean>;
 
 export type OperatingMode = 'local' | 'remote' | 'quota-only';
 export type HostAppearance = 'light' | 'dark' | 'system';
+export type HostAuthStatus = 'authenticated' | 'disconnected';
 
 export type HostCapabilities = {
   supportsLocalProxy: boolean;
@@ -85,6 +86,7 @@ export type AdminBootstrap = {
   serverListen: string;
   platform: 'macos' | 'windows' | 'unknown';
   operatingMode: OperatingMode;
+  authStatus: HostAuthStatus;
   locale: string;
   appearance: HostAppearance;
   features: AdminFeatureFlags;
@@ -135,6 +137,18 @@ function normalizeAppearance(value?: string | null): HostAppearance {
   return 'system';
 }
 
+function normalizeAuthStatus(
+  value: string | null | undefined,
+  capabilities: HostCapabilities,
+): HostAuthStatus {
+  if (value === 'authenticated' || value === 'disconnected') {
+    return value;
+  }
+  return capabilities.supportsManagementBridge
+    ? 'authenticated'
+    : 'disconnected';
+}
+
 function normalizeCapabilities(capabilities?: Partial<HostCapabilities>) {
   return {
     ...DEFAULT_HOST_CAPABILITIES,
@@ -148,6 +162,7 @@ function normalizeCapabilities(capabilities?: Partial<HostCapabilities>) {
 
 export function getDesktopBootstrap(): AdminBootstrap {
   const payload = window.__QUOTIO_DESKTOP_BOOTSTRAP__;
+  const capabilities = normalizeCapabilities(payload?.capabilities);
 
   if (payload?.uiEnabled === false) {
     throw new AdminBootstrapError('Desktop UI is disabled by host bootstrap');
@@ -160,10 +175,11 @@ export function getDesktopBootstrap(): AdminBootstrap {
     serverListen: payload?.serverListen?.trim() ?? 'localhost:8386',
     platform: payload?.platform ?? 'unknown',
     operatingMode: normalizeOperatingMode(payload?.operatingMode),
+    authStatus: normalizeAuthStatus(payload?.authStatus, capabilities),
     locale: payload?.locale ?? navigator.language,
     appearance: normalizeAppearance(payload?.appearance),
     features: normalizeFeatureFlags(payload?.features),
-    capabilities: normalizeCapabilities(payload?.capabilities),
+    capabilities,
   };
 }
 

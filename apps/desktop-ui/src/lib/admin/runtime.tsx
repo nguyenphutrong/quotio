@@ -11,6 +11,7 @@ import {
   useMemo,
 } from 'react';
 import type { AdminBootstrap } from '@/lib/admin/bootstrap';
+import { AdminAuthError } from '@/lib/admin/errors';
 
 type DesktopBridgeRequest = {
   id: string;
@@ -162,9 +163,9 @@ declare global {
 type AdminRuntimeValue = {
   bootstrap: AdminBootstrap;
   token: null;
-  authStatus: 'authenticated';
-  authError: null;
-  isAuthenticated: true;
+  authStatus: AdminBootstrap['authStatus'];
+  authError: string | null;
+  isAuthenticated: boolean;
   verifyToken: () => Promise<boolean>;
   clearToken: () => void;
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
@@ -201,23 +202,30 @@ export function AdminRuntimeProvider({
   bootstrap: AdminBootstrap;
   children: ReactNode;
 }) {
-  const request = useCallback(async <T,>(path: string, init?: RequestInit) => {
-    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+  const request = useCallback(
+    async <T,>(path: string, init?: RequestInit) => {
+      if (bootstrap.authStatus !== 'authenticated') {
+        throw new AdminAuthError('Desktop management bridge is not connected');
+      }
 
-    if (!bridge) {
-      throw new Error('Desktop host bridge is unavailable');
-    }
+      const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
 
-    return bridge.request<T>({
-      id: crypto.randomUUID(),
-      kind: 'management.request',
-      path,
-      init: {
-        method: init?.method,
-        body: typeof init?.body === 'string' ? init.body : undefined,
-      },
-    });
-  }, []);
+      if (!bridge) {
+        throw new Error('Desktop host bridge is unavailable');
+      }
+
+      return bridge.request<T>({
+        id: crypto.randomUUID(),
+        kind: 'management.request',
+        path,
+        init: {
+          method: init?.method,
+          body: typeof init?.body === 'string' ? init.body : undefined,
+        },
+      });
+    },
+    [bootstrap.authStatus],
+  );
 
   const confirm = useCallback(async (request: NativeConfirmRequest) => {
     const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
@@ -396,10 +404,13 @@ export function AdminRuntimeProvider({
     () => ({
       bootstrap,
       token: null,
-      authStatus: 'authenticated',
-      authError: null,
-      isAuthenticated: true,
-      verifyToken: async () => true,
+      authStatus: bootstrap.authStatus,
+      authError:
+        bootstrap.authStatus === 'authenticated'
+          ? null
+          : 'Desktop management bridge is not connected',
+      isAuthenticated: bootstrap.authStatus === 'authenticated',
+      verifyToken: async () => bootstrap.authStatus === 'authenticated',
       clearToken: () => {},
       request,
       runtimeStatus,

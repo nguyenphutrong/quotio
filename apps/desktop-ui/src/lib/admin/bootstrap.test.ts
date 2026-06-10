@@ -48,3 +48,37 @@ assertEqual(
   'system',
   'bootstrap should default missing appearance to system',
 );
+
+setBootstrap({
+  capabilities: {
+    supportsManagementBridge: true,
+  },
+});
+assertEqual(
+  getDesktopBootstrap().authStatus,
+  'authenticated',
+  'bootstrap should authenticate when the management bridge is ready',
+);
+
+setBootstrap({
+  capabilities: {
+    supportsManagementBridge: false,
+  },
+});
+assertEqual(
+  getDesktopBootstrap().authStatus,
+  'disconnected',
+  'bootstrap should disconnect when the management bridge is unavailable',
+);
+
+setBootstrap({
+  authStatus: 'disconnected',
+  capabilities: {
+    supportsManagementBridge: true,
+  },
+});
+assertEqual(
+  getDesktopBootstrap().authStatus,
+  'disconnected',
+  'bootstrap should preserve a valid explicit host auth status',
+);

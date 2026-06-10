@@ -40,6 +40,10 @@ const allowedWindowOpenFiles = new Set([
 ]);
 const macosDebugBundleGuard =
   'if [[ "$' + '{CONFIGURATION:-}" == "Debug" ]]; then';
+const desktopRuntime = readFileSync(
+  new URL('../../apps/desktop-ui/src/lib/admin/runtime.tsx', import.meta.url),
+  'utf8',
+);
 
 const violations = [];
 
@@ -63,6 +67,18 @@ if (!macosSharedUIScreen.includes('return true')) {
   violations.push(
     'Quotio/Views/Screens/SharedDesktopUIScreen.swift: shared UI must remain the default macOS app surface',
   );
+}
+
+for (const requiredText of [
+  'authStatus: bootstrap.authStatus',
+  "isAuthenticated: bootstrap.authStatus === 'authenticated'",
+  "throw new AdminAuthError('Desktop management bridge is not connected')",
+]) {
+  if (!desktopRuntime.includes(requiredText)) {
+    violations.push(
+      `apps/desktop-ui/src/lib/admin/runtime.tsx: missing host-owned auth state guard: ${requiredText}`,
+    );
+  }
 }
 
 for (const requiredText of [
