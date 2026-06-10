@@ -745,6 +745,15 @@
           "description": "Sparkle update checks and release channel settings owned by the native host."
         }
       },
+      "setup": {
+        "title": "Windows setup",
+        "description": "Finish the OS-level startup preference and connect a management endpoint when this app is used without the bundled local proxy.",
+        "startupApps": "Startup Apps",
+        "remoteConnection": "Remote connection",
+        "actions": {
+          "remoteConnection": "Remote connection"
+        }
+      },
       "options": {
         "quotaUsed": "Used",
         "quotaRemaining": "Remaining",

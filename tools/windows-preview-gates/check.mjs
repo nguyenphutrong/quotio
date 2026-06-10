@@ -180,6 +180,18 @@ assertAllContain(
     "t('settings.native.actions.openStartupSettings')",
   ],
 );
+assertAllContain(
+  'Desktop settings Windows setup surface',
+  readProjectFile('apps/desktop-ui/src/features/settings/settings-page.tsx'),
+  [
+    "const REMOTE_CONNECTION_PANEL_ID = 'remote-management-connection';",
+    "bootstrap.platform === 'windows'",
+    '!bootstrap.capabilities.supportsNativeOnboarding',
+    "t('settings.native.setup.title')",
+    'scrollToRemoteConnection',
+    'id={REMOTE_CONNECTION_PANEL_ID}',
+  ],
+);
 assertAllContain('Windows native command strip', mainWindowXaml, [
   'x:Name="NativeTitleBar"',
   'x:Name="TitleBarDragRegion"',

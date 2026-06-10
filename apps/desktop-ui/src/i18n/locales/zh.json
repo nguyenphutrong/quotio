@@ -741,6 +741,15 @@
           "description": "由 native host 管理的 Sparkle 更新检查和发布通道设置。"
         }
       },
+      "setup": {
+        "title": "Windows 设置",
+        "description": "完成系统级启动偏好；未使用打包的本地代理时，连接 management endpoint。",
+        "startupApps": "启动应用",
+        "remoteConnection": "远程连接",
+        "actions": {
+          "remoteConnection": "远程连接"
+        }
+      },
       "options": {
         "quotaUsed": "已用",
         "quotaRemaining": "剩余",

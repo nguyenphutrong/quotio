@@ -31,6 +31,7 @@ import {
 
 const MANAGEMENT_BASE_URL_TARGET = 'Quotio/ManagementBaseUrl';
 const MANAGEMENT_KEY_TARGET = 'Quotio/ManagementKey';
+const REMOTE_CONNECTION_PANEL_ID = 'remote-management-connection';
 
 type RemoteConnectionState = {
   baseUrl: string;
@@ -225,7 +226,7 @@ function RemoteConnectionPanel() {
 
   if (!enabled) {
     return (
-      <Panel>
+      <Panel id={REMOTE_CONNECTION_PANEL_ID}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-medium text-foreground text-sm">
@@ -244,7 +245,7 @@ function RemoteConnectionPanel() {
   const disabled = state.loading || state.saving || state.clearing;
 
   return (
-    <Panel>
+    <Panel id={REMOTE_CONNECTION_PANEL_ID}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-medium text-foreground text-sm">
@@ -468,6 +469,12 @@ function NativePreferencesPanel() {
     }
   };
 
+  const scrollToRemoteConnection = () => {
+    document
+      .getElementById(REMOTE_CONNECTION_PANEL_ID)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const saveProxyPort = async () => {
     const port = Number(proxyPortDraft);
     if (!Number.isInteger(port) || port < 1 || port > 65_535) {
@@ -518,6 +525,10 @@ function NativePreferencesPanel() {
   const supportsPortConfig = bootstrap.capabilities.supportsPortConfig;
   const localModeEnabled =
     supportsLocalProxy && preferences?.operatingMode === 'local';
+  const showWindowsSetup =
+    bootstrap.platform === 'windows' &&
+    !bootstrap.capabilities.supportsNativeOnboarding &&
+    preferences;
 
   return (
     <Panel>
@@ -536,6 +547,59 @@ function NativePreferencesPanel() {
             : t('settings.native.status.ready')}
         </StatusBadge>
       </div>
+
+      {showWindowsSetup ? (
+        <div className="mt-5 rounded-lg border border-border bg-muted/20 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="font-medium text-foreground text-sm">
+                {t('settings.native.setup.title')}
+              </h3>
+              <p className="mt-1 max-w-2xl text-muted-foreground text-xs">
+                {t('settings.native.setup.description')}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {preferences.launchAtLoginCanOpenSystemSettings ? (
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  onClick={() => void openLaunchAtLoginSettings()}
+                >
+                  {t('settings.native.actions.openStartupSettings')}
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                type="button"
+                variant="outline"
+                onClick={scrollToRemoteConnection}
+              >
+                {t('settings.native.setup.actions.remoteConnection')}
+              </Button>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <PreferenceStat
+              label={t('settings.native.setup.startupApps')}
+              value={
+                preferences.launchAtLogin
+                  ? t('about.status.enabled')
+                  : t('about.status.disabled')
+              }
+            />
+            <PreferenceStat
+              label={t('settings.native.setup.remoteConnection')}
+              value={
+                preferences.remoteConfigured
+                  ? t('settings.remote.status.configured')
+                  : t('settings.remote.status.notConfigured')
+              }
+            />
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <PreferenceField

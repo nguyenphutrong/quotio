@@ -740,6 +740,15 @@
           "description": "Kiểm tra cập nhật Sparkle và kênh phát hành do native host quản lý."
         }
       },
+      "setup": {
+        "title": "Thiết lập Windows",
+        "description": "Hoàn tất tùy chọn startup cấp hệ điều hành và kết nối management endpoint khi app không dùng local proxy được bundle.",
+        "startupApps": "Startup Apps",
+        "remoteConnection": "Kết nối remote",
+        "actions": {
+          "remoteConnection": "Kết nối remote"
+        }
+      },
       "options": {
         "quotaUsed": "Đã dùng",
         "quotaRemaining": "Còn lại",
