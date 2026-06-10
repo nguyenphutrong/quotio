@@ -5,6 +5,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using global::Windows.Graphics;
+using System.Runtime.InteropServices;
 using WinRT.Interop;
 using Forms = System.Windows.Forms;
 
@@ -18,6 +19,8 @@ public sealed partial class MainWindow : Window
     private readonly DesktopBridge bridge;
     private readonly Forms.NotifyIcon trayIcon;
     private AppWindow? appWindow;
+    private nint hwnd;
+    private bool isQuitting;
 
     public MainWindow()
     {
@@ -39,6 +42,11 @@ public sealed partial class MainWindow : Window
 
     public void ShowFromActivation()
     {
+        if (hwnd != 0)
+        {
+            ShowWindow(hwnd, ShowWindowCommand.Show);
+        }
+
         Activate();
         if (appWindow?.Presenter is OverlappedPresenter presenter)
         {
@@ -48,7 +56,7 @@ public sealed partial class MainWindow : Window
 
     private void ConfigureWindow()
     {
-        var hwnd = WindowNative.GetWindowHandle(this);
+        hwnd = WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(hwnd);
         appWindow = AppWindow.GetFromWindowId(windowId);
 
@@ -108,7 +116,7 @@ public sealed partial class MainWindow : Window
     {
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Open Quotio", null, (_, _) => DispatcherQueue.TryEnqueue(ShowFromActivation));
-        menu.Items.Add("Quit", null, (_, _) => DispatcherQueue.TryEnqueue(Close));
+        menu.Items.Add("Quit", null, (_, _) => DispatcherQueue.TryEnqueue(Quit));
 
         var icon = new Forms.NotifyIcon
         {
@@ -123,6 +131,37 @@ public sealed partial class MainWindow : Window
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
+        SaveWindowPlacement();
+
+        if (!isQuitting)
+        {
+            args.Handled = true;
+            HideToTray();
+            return;
+        }
+
+        trayIcon.Visible = false;
+        trayIcon.Dispose();
+        runtime.Dispose();
+        DesktopWebView.CoreWebView2?.Stop();
+    }
+
+    private void Quit()
+    {
+        isQuitting = true;
+        Close();
+    }
+
+    private void HideToTray()
+    {
+        if (hwnd != 0)
+        {
+            ShowWindow(hwnd, ShowWindowCommand.Hide);
+        }
+    }
+
+    private void SaveWindowPlacement()
+    {
         if (appWindow is not null)
         {
             settingsStore.Save(
@@ -131,11 +170,6 @@ public sealed partial class MainWindow : Window
                 ResolveMonitorDeviceName(appWindow.Position, appWindow.Size)
             );
         }
-
-        trayIcon.Visible = false;
-        trayIcon.Dispose();
-        runtime.Dispose();
-        DesktopWebView.CoreWebView2?.Stop();
     }
 
     private static bool IsDebugHost()
@@ -183,4 +217,12 @@ public sealed partial class MainWindow : Window
         return new System.Drawing.Rectangle(x, y, width, height);
     }
 
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(nint hWnd, ShowWindowCommand command);
+
+    private enum ShowWindowCommand
+    {
+        Hide = 0,
+        Show = 5
+    }
 }
