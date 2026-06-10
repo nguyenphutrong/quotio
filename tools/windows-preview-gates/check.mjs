@@ -15,6 +15,7 @@ const source = readFileSync(sourcePath, 'utf8');
 const mainWindowSource = readProjectFile(
   'apps/windows-host/MainWindow.xaml.cs',
 );
+const mainWindowXaml = readProjectFile('apps/windows-host/MainWindow.xaml');
 const windowsProject = readProjectFile(
   'apps/windows-host/Quotio.Windows.csproj',
 );
@@ -125,6 +126,8 @@ assertAllContain('Windows desktop bootstrap source', source, [
 ]);
 assertAllContain('Windows WebView2 host chrome', mainWindowSource, [
   'SystemBackdrop = new MicaBackdrop();',
+  'ExtendsContentIntoTitleBar = true;',
+  'SetTitleBar(TitleBarDragRegion);',
   'ConfigureWebViewStartupBackground();',
   '"WEBVIEW2_DEFAULT_BACKGROUND_COLOR"',
   '"0x00000000"',
@@ -135,6 +138,19 @@ assertAllContain('Windows WebView2 host chrome', mainWindowSource, [
   'await core.AddScriptToExecuteOnDocumentCreatedAsync(',
   'bridge.CreateBootstrapScript(DesktopUiSource.Bootstrap(config, preferencesStore))',
   'DesktopWebView.Source = source;',
+  'DesktopWebView.CoreWebView2?.CanGoBack == true',
+  'DesktopWebView.CoreWebView2?.Reload();',
+  "history.pushState({}, '', '/settings');",
+]);
+assertAllContain('Windows native command strip', mainWindowXaml, [
+  'x:Name="NativeTitleBar"',
+  'x:Name="TitleBarDragRegion"',
+  'x:Name="BackButton"',
+  'x:Name="RefreshButton"',
+  'x:Name="SettingsButton"',
+  'Segoe MDL2 Assets',
+  '<controls:WebView2',
+  'Grid.Row="1"',
 ]);
 assertAllContain('Windows MSBuild desktop UI bundle target', windowsProject, [
   '<Target Name="CopyDesktopUi" AfterTargets="Build" Condition="Exists(\'..\\desktop-ui\\dist\\index.html\')">',

@@ -71,6 +71,8 @@ public sealed partial class MainWindow : Window
         var windowId = Win32Interop.GetWindowIdFromWindow(hwnd);
         appWindow = AppWindow.GetFromWindowId(windowId);
 
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(TitleBarDragRegion);
         appWindow.Title = "Quotio";
 
         if (settingsStore.TryLoad(out var placement))
@@ -122,6 +124,36 @@ public sealed partial class MainWindow : Window
     {
         ErrorText.Text = message;
         ErrorPanel.Visibility = Visibility.Visible;
+    }
+
+    private void OnBackClicked(object sender, RoutedEventArgs args)
+    {
+        if (DesktopWebView.CoreWebView2?.CanGoBack == true)
+        {
+            DesktopWebView.CoreWebView2.GoBack();
+        }
+    }
+
+    private void OnRefreshClicked(object sender, RoutedEventArgs args)
+    {
+        DesktopWebView.CoreWebView2?.Reload();
+    }
+
+    private async void OnSettingsClicked(object sender, RoutedEventArgs args)
+    {
+        if (DesktopWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        await DesktopWebView.CoreWebView2.ExecuteScriptAsync(
+            """
+            (() => {
+              history.pushState({}, '', '/settings');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            })();
+            """
+        );
     }
 
     private bool ShowNativeNotification(string title, string message, string tone)

@@ -4,9 +4,104 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls">
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <controls:WebView2 x:Name="DesktopWebView" />
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid
+            x:Name="NativeTitleBar"
+            Grid.Row="0"
+            Padding="16,0,144,0"
+            Background="{ThemeResource LayerFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="0,0,0,1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel
+                Grid.Column="0"
+                Orientation="Horizontal"
+                Spacing="8"
+                VerticalAlignment="Center">
+                <Border
+                    Width="24"
+                    Height="24"
+                    CornerRadius="6"
+                    Background="{ThemeResource AccentFillColorDefaultBrush}">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                        Text="Q" />
+                </Border>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    Text="Quotio" />
+            </StackPanel>
+
+            <Border
+                x:Name="TitleBarDragRegion"
+                Grid.Column="1"
+                Background="Transparent" />
+
+            <StackPanel
+                Grid.Column="2"
+                Orientation="Horizontal"
+                Spacing="4"
+                VerticalAlignment="Center">
+                <Button
+                    x:Name="BackButton"
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    Click="OnBackClicked"
+                    ToolTipService.ToolTip="Back">
+                    <FontIcon
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="12"
+                        Glyph="&#xE72B;" />
+                </Button>
+                <Button
+                    x:Name="RefreshButton"
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    Click="OnRefreshClicked"
+                    ToolTipService.ToolTip="Refresh">
+                    <FontIcon
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="12"
+                        Glyph="&#xE72C;" />
+                </Button>
+                <Button
+                    x:Name="SettingsButton"
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    Click="OnSettingsClicked"
+                    ToolTipService.ToolTip="Settings">
+                    <FontIcon
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="13"
+                        Glyph="&#xE713;" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <controls:WebView2
+            x:Name="DesktopWebView"
+            Grid.Row="1" />
         <Border
             x:Name="ErrorPanel"
+            Grid.RowSpan="2"
             Padding="24"
             MaxWidth="520"
             HorizontalAlignment="Center"
