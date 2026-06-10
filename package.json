@@ -11,6 +11,8 @@
     "desktop-ui:gateway-url:check": "bun apps/desktop-ui/src/lib/admin/gateway-url.test.ts",
     "format-and-lint": "biome check apps packages tools schema generated package.json tsconfig.json tsconfig.base.json turbo.json",
     "format-and-lint:fix": "biome check apps packages tools schema generated package.json tsconfig.json tsconfig.base.json turbo.json --write",
+    "macos:shared-ui:bundled": "./scripts/run-macos-shared-ui.sh bundled",
+    "macos:shared-ui:dev": "./scripts/run-macos-shared-ui.sh",
     "smoke:agents": "./scripts/run-codex-patcher-smoke.sh && ./scripts/run-agent-config-smoke.sh",
     "typecheck": "turbo typecheck",
     "windows:gates:check": "node tools/windows-preview-gates/check.mjs",

@@ -26,16 +26,20 @@ For macOS development:
 
 ```bash
 bun --cwd apps/desktop-ui dev
-QUOTIO_DESKTOP_UI_DEV_SERVER=http://localhost:5173 open Quotio.xcodeproj
+bun run macos:shared-ui:dev
 ```
 
-`QUOTIO_DESKTOP_UI_DEV_SERVER` automatically exposes the shared UI entry in
-Debug builds. To test the bundled web assets instead, run the normal desktop UI
-build first and launch the app with:
+`bun run macos:shared-ui:dev` builds the Debug macOS app into an isolated
+DerivedData directory and launches the built app executable with
+`QUOTIO_DESKTOP_UI_DEV_SERVER` in the app process environment. Opening
+`Quotio.xcodeproj` with `open` does not pass that environment into an app later
+started from Xcode.
+
+To test the bundled web assets instead, run the normal desktop UI build first
+and launch the app with:
 
 ```bash
-bun --cwd apps/desktop-ui build
-QUOTIO_ENABLE_SHARED_UI=1 open Quotio.xcodeproj
+bun run macos:shared-ui:bundled
 ```
 
 For release-candidate cutover testing, the shared UI can also be enabled with a

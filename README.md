@@ -108,6 +108,25 @@ Download the latest `.dmg` from the [Releases](https://github.com/nguyenphutrong
 
 > The app will automatically download the `CLIProxyAPI` binary on first launch.
 
+### Shared Desktop UI Development
+
+Run the React desktop UI dev server in one terminal:
+
+```bash
+bun --cwd apps/desktop-ui dev
+```
+
+Then build and launch the macOS app with the shared UI enabled:
+
+```bash
+bun run macos:shared-ui:dev
+```
+
+Opening `Quotio.xcodeproj` with an environment variable only passes that
+variable to the `open` command, not to an app later launched from Xcode. The
+script above launches the built app executable directly so the native process
+receives `QUOTIO_DESKTOP_UI_DEV_SERVER`.
+
 ### Windows Preview
 
 The repository includes a preview Windows native host for the multiplatform
