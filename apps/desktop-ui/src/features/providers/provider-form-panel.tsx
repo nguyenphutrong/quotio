@@ -302,7 +302,9 @@ export function ProviderFormPanel({
         }
         setOAuthStatus('failed');
         setLocalError(
-          error instanceof Error ? error.message : 'OAuth start failed',
+          error instanceof Error
+            ? error.message
+            : t('providers.form.errors.oauthStartFailed'),
         );
       }
     })();
@@ -317,6 +319,7 @@ export function ProviderFormPanel({
     provider,
     request,
     step,
+    t,
     usesSessionFlow,
   ]);
 
@@ -353,8 +356,8 @@ export function ProviderFormPanel({
           setLocalError(
             nextSession.error ||
               (nextSession.status === 'expired'
-                ? 'OAuth session expired'
-                : 'OAuth session failed'),
+                ? t('providers.form.errors.oauthSessionExpired')
+                : t('providers.form.errors.oauthSessionFailed')),
           );
         }
       } catch (error) {
@@ -365,7 +368,7 @@ export function ProviderFormPanel({
         setLocalError(
           error instanceof Error
             ? error.message
-            : 'OAuth status polling failed',
+            : t('providers.form.errors.oauthStatusFailed'),
         );
       }
     }, intervalMs);
@@ -374,11 +377,15 @@ export function ProviderFormPanel({
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [oauthSession, oauthStatus, onOAuthCreated, request]);
+  }, [oauthSession, oauthStatus, onOAuthCreated, request, t]);
 
   const oauthLink =
     oauthSession?.auth_url || oauthSession?.verification_uri || '';
-  const oauthActionLabel = isDeviceCode ? 'Open Link' : 'Open OAuth Link';
+  const oauthActionLabel = isDeviceCode
+    ? t('providers.form.openSignIn')
+    : t('providers.form.openAuthorization');
+  const selectedProviderName = getProviderDisplayName(provider);
+  const customProviderName = t('providers.form.customProvider');
 
   if (step === 1 && mode === 'create') {
     return (
@@ -386,10 +393,10 @@ export function ProviderFormPanel({
         {!hideHeader && (
           <div>
             <h2 className="text-lg font-semibold text-foreground">
-              Select Provider
+              {t('providers.form.selectTitle')}
             </h2>
             <p className="text-sm text-muted-foreground">
-              Choose a provider to add to your inventory.
+              {t('providers.form.selectDescription')}
             </p>
           </div>
         )}
@@ -410,12 +417,12 @@ export function ProviderFormPanel({
                 <div className="text-sm font-medium">{info.name}</div>
                 <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
                   {info.onboarding === 'device_code'
-                    ? 'Device Code'
+                    ? t('providers.form.onboarding.deviceCode')
                     : info.onboarding === 'oauth'
-                      ? 'OAuth'
+                      ? t('providers.form.onboarding.oauth')
                       : info.onboarding === 'manual'
-                        ? 'Manual'
-                        : 'API Key'}
+                        ? t('providers.form.onboarding.manual')
+                        : t('providers.form.onboarding.apiKey')}
                 </div>
               </div>
             </button>
@@ -431,9 +438,9 @@ export function ProviderFormPanel({
               <ProviderIcon provider="custom" className="h-6 w-6" />
             </div>
             <div>
-              <div className="text-sm font-medium">Custom Provider</div>
+              <div className="text-sm font-medium">{customProviderName}</div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
-                API Key
+                {t('providers.form.onboarding.apiKey')}
               </div>
             </div>
           </button>
@@ -455,15 +462,17 @@ export function ProviderFormPanel({
             <p className="text-sm text-muted-foreground">
               {mode === 'create'
                 ? isManual
-                  ? 'Configure the explicit runtime settings for this provider.'
-                  : 'Authenticate or configure the provider settings.'
+                  ? t('providers.form.configureManualDescription')
+                  : t('providers.form.configureDescription')
                 : isOpencodeGoEdit
-                  ? 'Update label, disabled state, and OpenCode Go quota metadata.'
-                  : 'Existing providers only allow label and disabled state updates from this endpoint.'}
+                  ? t('providers.form.editOpencodeGoDescription')
+                  : t('providers.form.editDescription')}
             </p>
           </div>
           {validationPreview?.validation.valid ? (
-            <StatusBadge tone="success">validated</StatusBadge>
+            <StatusBadge tone="success">
+              {t('providers.form.validation.connected')}
+            </StatusBadge>
           ) : null}
         </div>
       )}
@@ -479,7 +488,7 @@ export function ProviderFormPanel({
                 {getProviderDisplayName(provider)}
               </div>
               <div className="text-xs text-muted-foreground">
-                {getProviderDescription(provider, 'Custom Provider')}
+                {getProviderDescription(provider, customProviderName)}
               </div>
             </div>
           </div>
@@ -492,7 +501,7 @@ export function ProviderFormPanel({
             }}
             className="text-xs"
           >
-            Change Provider
+            {t('providers.form.changeProvider')}
           </Button>
         </div>
       )}
@@ -501,15 +510,17 @@ export function ProviderFormPanel({
       {mode === 'create' && onboardingMode === 'device_code' && (
         <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
           <h3 className="text-sm font-semibold text-foreground">
-            Authenticate with Device Code
+            {t('providers.form.deviceCodeTitle')}
           </h3>
           <p className="text-sm text-muted-foreground">
-            {`Sign in with the ${getProviderDisplayName(provider).toLowerCase()} device flow. Quotio will keep polling until the authorization completes or expires.`}
+            {t('providers.form.deviceCodeDescription', {
+              provider: selectedProviderName,
+            })}
           </p>
 
           <div className="flex items-center gap-2">
             <div className="flex-1 font-mono text-center rounded-md bg-background border px-4 py-2 font-bold tracking-widest text-lg">
-              {oauthSession?.user_code || 'Starting…'}
+              {oauthSession?.user_code || t('providers.form.starting')}
             </div>
             <CopyButton
               variant="outline"
@@ -540,7 +551,7 @@ export function ProviderFormPanel({
               disabled={!oauthLink}
               value={oauthLink}
             >
-              Copy Link
+              {t('providers.form.copyLink')}
             </CopyButton>
           </div>
 
@@ -548,14 +559,14 @@ export function ProviderFormPanel({
             {oauthStatus === 'starting' ? (
               <div className="flex items-center gap-2">
                 <RiLoader4Line className="h-4 w-4 animate-spin" />
-                Requesting device code…
+                {t('providers.form.deviceCodeRequesting')}
               </div>
             ) : oauthStatus === 'awaiting_device_confirmation' ? (
-              'Complete the provider confirmation page, then return here while Quotio finishes the session.'
+              t('providers.form.deviceCodeAwaiting')
             ) : oauthStatus === 'completed' ? (
-              'Authorization completed. The provider has been created.'
+              t('providers.form.authorizationCompleted')
             ) : oauthStatus === 'expired' ? (
-              'This device code expired. Choose the provider again to restart the flow.'
+              t('providers.form.deviceCodeExpired')
             ) : null}
           </div>
         </div>
@@ -565,12 +576,12 @@ export function ProviderFormPanel({
       {mode === 'create' && onboardingMode === 'oauth' && (
         <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
           <h3 className="text-sm font-semibold text-foreground">
-            Authenticate with OAuth
+            {t('providers.form.oauthTitle')}
           </h3>
           <p className="text-sm text-muted-foreground">
             {provider === 'kiro'
-              ? 'Quotio opens Kiro sign-in and the backend completes the localhost callback automatically.'
-              : 'Quotio opens the provider-specific authorization page automatically and waits for the callback to complete.'}
+              ? t('providers.form.oauthKiroDescription')
+              : t('providers.form.oauthDescription')}
           </p>
 
           <div className="flex items-center gap-2 pt-2">
@@ -593,7 +604,7 @@ export function ProviderFormPanel({
               disabled={!oauthLink}
               value={oauthLink}
             >
-              Copy Link
+              {t('providers.form.copyLink')}
             </CopyButton>
           </div>
 
@@ -601,14 +612,14 @@ export function ProviderFormPanel({
             {oauthStatus === 'starting' ? (
               <div className="flex items-center gap-2">
                 <RiLoader4Line className="h-4 w-4 animate-spin" />
-                Preparing the OAuth session…
+                {t('providers.form.oauthPreparing')}
               </div>
             ) : oauthStatus === 'awaiting_callback' ? (
-              'Finish signing in with the opened provider page. Quotio will create the provider after the callback returns.'
+              t('providers.form.oauthAwaiting')
             ) : oauthStatus === 'completed' ? (
-              'Authorization completed. The provider has been created.'
+              t('providers.form.authorizationCompleted')
             ) : oauthStatus === 'expired' ? (
-              'This OAuth session expired. Choose the provider again to restart the flow.'
+              t('providers.form.oauthExpired')
             ) : null}
           </div>
         </div>
@@ -617,7 +628,7 @@ export function ProviderFormPanel({
       {/* BUILT-IN API KEY CREATE */}
       {isBuiltInApiKeyCreate ? (
         <div className="space-y-4">
-          <Field label="API Key">
+          <Field label={t('providers.form.fields.apiKey')}>
             <Input
               type="password"
               value={secret}
@@ -636,7 +647,7 @@ export function ProviderFormPanel({
         <>
           <div className="grid gap-4 md:grid-cols-2">
             {provider === 'custom' && mode === 'create' && (
-              <Field label="Custom Provider Name">
+              <Field label={t('providers.form.fields.customProviderName')}>
                 <Input
                   value={label}
                   onChange={(event) => {
@@ -647,49 +658,49 @@ export function ProviderFormPanel({
                 />
               </Field>
             )}
-            <Field label="Label">
+            <Field label={t('providers.form.fields.displayName')}>
               <Input
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
                 placeholder={t('providers.placeholders.displayName')}
               />
             </Field>
-            <Field label="Disabled">
+            <Field label={t('providers.form.fields.disabled')}>
               <div className="flex h-9 items-center">
                 <Switch checked={disabled} onCheckedChange={setDisabled} />
               </div>
             </Field>
             {!isOpencodeGoEdit ? (
               <>
-                <Field label="Project ID">
+                <Field label={t('providers.form.fields.projectId')}>
                   <Input
                     value={projectId}
                     onChange={(event) => setProjectId(event.target.value)}
                     disabled={mode === 'edit'}
                   />
                 </Field>
-                <Field label="Priority">
+                <Field label={t('providers.form.fields.priority')}>
                   <Input
                     value={priority}
                     onChange={(event) => setPriority(event.target.value)}
                     disabled={mode === 'edit'}
                   />
                 </Field>
-                <Field label="Prefix">
+                <Field label={t('providers.form.fields.routePrefix')}>
                   <Input
                     value={prefix}
                     onChange={(event) => setPrefix(event.target.value)}
                     disabled={mode === 'edit'}
                   />
                 </Field>
-                <Field label="Base URL">
+                <Field label={t('providers.form.fields.baseUrl')}>
                   <Input
                     value={baseUrl}
                     onChange={(event) => setBaseUrl(event.target.value)}
                     disabled={mode === 'edit'}
                     placeholder={
                       providerCatalog[provider]?.baseURL ||
-                      'https://api.example.com'
+                      t('providers.placeholders.baseUrl')
                     }
                   />
                 </Field>
@@ -702,8 +713,8 @@ export function ProviderFormPanel({
               <Field
                 label={
                   mode === 'create'
-                    ? 'Secret'
-                    : 'Secret (leave blank to keep current)'
+                    ? t('providers.form.fields.secret')
+                    : t('providers.form.fields.secretKeepCurrent')
                 }
               >
                 <Input
@@ -720,14 +731,14 @@ export function ProviderFormPanel({
               </Field>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Proxy URL">
+                <Field label={t('providers.form.fields.proxyUrl')}>
                   <Input
                     value={proxyUrl}
                     onChange={(event) => setProxyUrl(event.target.value)}
                     disabled={mode === 'edit'}
                   />
                 </Field>
-                <Field label="Excluded models">
+                <Field label={t('providers.form.fields.excludedModels')}>
                   <Input
                     value={excludedModels}
                     onChange={(event) => setExcludedModels(event.target.value)}
@@ -742,7 +753,7 @@ export function ProviderFormPanel({
           {showsOpencodeGoQuotaMetadata ? (
             renderOpencodeGoQuotaMetadata()
           ) : (
-            <Field label="Headers JSON">
+            <Field label={t('providers.form.fields.headers')}>
               <Textarea
                 value={headersText}
                 onChange={(event) => setHeadersText(event.target.value)}
@@ -764,7 +775,9 @@ export function ProviderFormPanel({
             <StatusBadge
               tone={validationPreview.validation.valid ? 'success' : 'danger'}
             >
-              {validationPreview.validation.valid ? 'valid' : 'invalid'}
+              {validationPreview.validation.valid
+                ? t('providers.form.validation.valid')
+                : t('providers.form.validation.invalid')}
             </StatusBadge>
             <p className="text-sm text-muted-foreground">
               {validationPreview.validation.auth_type || authType}
@@ -880,7 +893,9 @@ export function ProviderFormPanel({
       await action();
     } catch (error) {
       setLocalError(
-        error instanceof Error ? error.message : 'Provider action failed',
+        error instanceof Error
+          ? error.message
+          : t('providers.form.errors.actionFailed'),
       );
     }
   }
@@ -915,8 +930,8 @@ export function ProviderFormPanel({
     } catch {
       setLocalError(
         provider === 'opencode-go'
-          ? 'OpenCode Go cookie must be a raw auth cookie or valid exported cookie JSON'
-          : 'Headers must be valid JSON',
+          ? t('providers.form.errors.opencodeCookie')
+          : t('providers.form.errors.headersJson'),
       );
       return normalizePayload({
         provider:
@@ -957,7 +972,7 @@ export function ProviderFormPanel({
       setCookieImportError(
         error instanceof Error
           ? error.message
-          : 'Failed to parse exported cookie JSON',
+          : t('providers.form.errors.parseCookieJson'),
       );
     }
   }
@@ -981,7 +996,9 @@ export function ProviderFormPanel({
       setCookieImportText('');
     } catch (error) {
       setCookieImportError(
-        error instanceof Error ? error.message : 'Failed to import cookie file',
+        error instanceof Error
+          ? error.message
+          : t('providers.form.errors.importCookieFile'),
       );
       setCookieImportOpen(true);
     }
@@ -989,7 +1006,7 @@ export function ProviderFormPanel({
 
   function renderOpencodeGoQuotaMetadata() {
     return (
-      <Field label="Quota Metadata">
+      <Field label={t('providers.form.fields.quotaDetails')}>
         <div className="space-y-3">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
@@ -1042,11 +1059,12 @@ export function ProviderFormPanel({
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Optional quota-only metadata for OpenCode Go. These values are
-            stored into provider headers for quota sync only and do not affect
-            inference requests. Paste a raw <code>auth=...</code> cookie, or use{' '}
-            <code>Import Cookie JSON</code> to extract it from an exported{' '}
-            <code>opencode.ai</code> cookie file.
+            {t('providers.form.opencodeGoQuotaHelpPrefix')}{' '}
+            <code>auth=...</code>{' '}
+            {t('providers.form.opencodeGoQuotaHelpMiddle')}{' '}
+            <code>{t('providers.actions.importCookieJson')}</code>{' '}
+            {t('providers.form.opencodeGoQuotaHelpSuffix')}{' '}
+            <code>opencode.ai</code>.
           </p>
         </div>
       </Field>
