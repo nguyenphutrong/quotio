@@ -501,9 +501,9 @@
       "deleteEntryTitle": "Delete entry",
       "deleteEntryDescription": "Delete {{target}} from {{name}}?",
       "importTitle": "Import virtual models",
-      "importDescription": "Paste an exported virtual-model configuration JSON payload.",
+      "importDescription": "Paste an exported virtual-model configuration JSON.",
       "exportTitle": "Export virtual models",
-      "exportDescription": "Copy the current virtual-model configuration payload."
+      "exportDescription": "Copy the current virtual-model configuration JSON."
     },
     "actions": {
       "create": "Create virtual model",
@@ -514,7 +514,7 @@
       "export": "Export",
       "copyExport": "Copy JSON",
       "copyModelName": "Copy model name",
-      "clearRoutes": "Clear routes",
+      "clearRoutes": "Clear routing cache",
       "addEntry": "Add entry",
       "addSelected": "Add selected ({{count}})",
       "deleteEntry": "Delete entry",
@@ -527,7 +527,7 @@
     "validation": {
       "nameRequired": "Virtual model name is required.",
       "targetRequired": "Select a target before saving.",
-      "invalidJson": "The import payload must be valid JSON."
+      "invalidJson": "The imported configuration must be valid JSON."
     },
     "messages": {
       "enabled": "Virtual model routing enabled.",
@@ -549,8 +549,8 @@
       "reorderSaved": "Saved new order for {{name}}.",
       "reorderFailed": "Failed to reorder entries.",
       "reorderUnavailable": "Cannot reorder entries until all visible entries have stable IDs.",
-      "routesCleared": "Cleared all cached routes.",
-      "clearRoutesFailed": "Failed to clear active routes.",
+      "routesCleared": "Cleared the routing cache.",
+      "clearRoutesFailed": "Failed to clear the routing cache.",
       "importComplete": "Imported virtual-model configuration.",
       "importFailed": "Failed to import virtual-model configuration.",
       "exportFailed": "Failed to export virtual-model configuration.",
