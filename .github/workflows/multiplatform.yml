@@ -40,6 +40,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run contracts:check
       - run: bun run windows:gates:check
+      - run: bun run desktop-ui:auth-guard:check
       - run: bun run desktop-ui:bootstrap:check
       - run: bun run desktop-ui:gateway-url:check
       - run: bun run desktop-ui:native-feel:check
