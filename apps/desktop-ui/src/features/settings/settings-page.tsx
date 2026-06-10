@@ -70,7 +70,11 @@ const initialPreferencesState: NativePreferencesState = {
 const requestRetryRange = { min: 0, max: 10 };
 const maxRetryIntervalRange = { min: 5, max: 300, step: 5 };
 
-function RemoteConnectionPanel() {
+function RemoteConnectionPanel({
+  onConfigurationChanged,
+}: {
+  onConfigurationChanged?: () => void;
+}) {
   const { t } = useTranslation();
   const toast = useToast();
   const {
@@ -174,6 +178,7 @@ function RemoteConnectionPanel() {
       }));
       setKeyInput('');
       toast.success(t('settings.remote.messages.saved'));
+      onConfigurationChanged?.();
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -214,6 +219,7 @@ function RemoteConnectionPanel() {
       }));
       setKeyInput('');
       toast.success(t('settings.remote.messages.cleared'));
+      onConfigurationChanged?.();
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -1780,6 +1786,8 @@ function SwitchField({
 export function SettingsPage() {
   const { t } = useTranslation();
   const { bootstrap } = useAdminRuntime();
+  const [remoteConfigurationVersion, setRemoteConfigurationVersion] =
+    useState(0);
 
   return (
     <div className="space-y-6">
@@ -1787,11 +1795,15 @@ export function SettingsPage() {
         title={t('nav.settings')}
         description={t('settings.description')}
       />
-      <NativePreferencesPanel />
+      <NativePreferencesPanel key={remoteConfigurationVersion} />
       {bootstrap.capabilities.supportsManagementBridge ? (
         <AdvancedProxySettingsPanel />
       ) : null}
-      <RemoteConnectionPanel />
+      <RemoteConnectionPanel
+        onConfigurationChanged={() =>
+          setRemoteConfigurationVersion((version) => version + 1)
+        }
+      />
     </div>
   );
 }

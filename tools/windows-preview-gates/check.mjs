@@ -226,6 +226,9 @@ assertAllContain(
     "t('settings.native.setup.title')",
     'scrollToRemoteConnection',
     'id={REMOTE_CONNECTION_PANEL_ID}',
+    'remoteConfigurationVersion',
+    'onConfigurationChanged',
+    'setRemoteConfigurationVersion((version) => version + 1)',
   ],
 );
 assertAllContain('Windows native command strip', mainWindowXaml, [
