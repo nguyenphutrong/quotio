@@ -12,6 +12,12 @@ const sourcePath = new URL(
   import.meta.url,
 );
 const source = readFileSync(sourcePath, 'utf8');
+const mainWindowSource = readProjectFile(
+  'apps/windows-host/MainWindow.xaml.cs',
+);
+const windowsProject = readProjectFile(
+  'apps/windows-host/Quotio.Windows.csproj',
+);
 
 const expectedFeatures = {
   overview: 'managementBridgeReady',
@@ -117,6 +123,21 @@ assertAllContain('Windows desktop bootstrap source', source, [
   'var operatingMode = localModeEnabled ? "local" : "remote";',
   'var managementBridgeReady = localModeEnabled || !string.IsNullOrWhiteSpace(config.ManagementBaseUrl);',
 ]);
+assertAllContain('Windows WebView2 host chrome', mainWindowSource, [
+  'SystemBackdrop = new MicaBackdrop();',
+  'core.Settings.AreDefaultContextMenusEnabled = false;',
+  'core.Settings.AreDevToolsEnabled = IsDebugHost();',
+  'core.WebMessageReceived += bridge.OnWebMessageReceived;',
+  'await core.AddScriptToExecuteOnDocumentCreatedAsync(',
+  'bridge.CreateBootstrapScript(DesktopUiSource.Bootstrap(config, preferencesStore))',
+  'DesktopWebView.Source = source;',
+]);
+assertAllContain('Windows MSBuild desktop UI bundle target', windowsProject, [
+  '<Target Name="CopyDesktopUi" AfterTargets="Build" Condition="Exists(\'..\\desktop-ui\\dist\\index.html\')">',
+  '<DesktopUiFiles Include="..\\desktop-ui\\dist\\**\\*.*" />',
+  'DestinationFiles="@(DesktopUiFiles->\'$(OutDir)desktop-ui\\%(RecursiveDir)%(Filename)%(Extension)\')"',
+  'SkipUnchangedFiles="true"',
+]);
 
 const previewPackageScript = readProjectFile(
   'scripts/package-windows-preview.ps1',
@@ -185,5 +206,5 @@ assertAllContain(
 );
 
 console.log(
-  'Windows preview route, capability, and packaging gates match the approved matrix',
+  'Windows preview route, WebView2 chrome, and packaging gates match the approved matrix',
 );
