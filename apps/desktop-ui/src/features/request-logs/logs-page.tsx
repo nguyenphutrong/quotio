@@ -7,13 +7,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@quotio/ui/components/select';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@quotio/ui/components/sheet';
 import { Switch } from '@quotio/ui/components/switch';
 import {
   Tabs,
@@ -441,347 +434,329 @@ export function LogsPage() {
           description={t('logs.emptyDescription')}
         />
       ) : (
-        <>
-          <Panel>
-            <h2 className="text-sm font-semibold text-foreground">
-              {t('logs.tableTitle')}
-            </h2>
-            <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[1100px] text-left text-sm">
-                <thead className="bg-muted text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-3 font-medium">
-                      <ColumnHeaderWithInfo
-                        label={t('logs.columns.timestamp')}
-                        description={t('logs.columnsHelp.timestamp')}
-                      />
-                    </th>
-                    <th className="px-3 py-3 font-medium">
-                      <ColumnHeaderWithInfo
-                        label={t('logs.columns.endpoint')}
-                        description={t('logs.columnsHelp.endpoint')}
-                      />
-                    </th>
-                    <th className="px-3 py-3 font-medium">
-                      <ColumnHeaderWithInfo
-                        label={t('logs.columns.providerModel')}
-                        description={t('logs.columnsHelp.providerModel')}
-                      />
-                    </th>
-                    <th className="px-3 py-3 font-medium">
-                      <ColumnHeaderWithInfo
-                        label={t('logs.columns.app')}
-                        description={t('logs.columnsHelp.app')}
-                      />
-                    </th>
-                    <th className="px-3 py-3 font-medium">
-                      <ColumnHeaderWithInfo
-                        label={t('logs.columns.tokens')}
-                        description={t('logs.columnsHelp.tokens')}
-                      />
-                    </th>
-                    <th className="px-3 py-3 font-medium">
-                      <ColumnHeaderWithInfo
-                        label={t('logs.columns.cost')}
-                        description={t('logs.columnsHelp.cost')}
-                      />
-                    </th>
-                    <th className="px-3 py-3 font-medium">
-                      <ColumnHeaderWithInfo
-                        label={t('logs.columns.speed')}
-                        description={t('logs.columnsHelp.speed')}
-                      />
-                    </th>
-                    <th className="px-3 py-3 font-medium">
-                      <ColumnHeaderWithInfo
-                        label={t('logs.columns.finish')}
-                        description={t('logs.columnsHelp.finish')}
-                      />
-                    </th>
-                    <th className="px-3 py-3 text-right font-medium">
-                      <span className="sr-only">
-                        {t('logs.columns.actions')}
-                      </span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {latestEntries.map((entry) => {
-                    const speed =
-                      entry.duration_ms > 0 && entry.total_tokens > 0
-                        ? Math.round(
-                            (entry.total_tokens / entry.duration_ms) * 1000,
-                          )
-                        : null;
-                    const providerModel = displayProviderModel(entry);
-                    return (
-                      <tr
-                        key={`${entry.request_id}-${entry.timestamp}`}
-                        className="border-t border-border"
-                      >
-                        <td className="px-3 py-3 text-muted-foreground">
-                          {new Date(entry.timestamp).toLocaleString(
-                            i18n.language,
-                          )}
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">
-                              {displayRequestMethod(entry)}
-                            </Badge>
-                            <span className="font-mono text-xs text-foreground">
-                              {entry.endpoint || '—'}
-                            </span>
+        <Panel>
+          <h2 className="text-sm font-semibold text-foreground">
+            {t('logs.tableTitle')}
+          </h2>
+          <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[1100px] text-left text-sm">
+              <thead className="bg-muted text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-3 font-medium">
+                    <ColumnHeaderWithInfo
+                      label={t('logs.columns.timestamp')}
+                      description={t('logs.columnsHelp.timestamp')}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <ColumnHeaderWithInfo
+                      label={t('logs.columns.endpoint')}
+                      description={t('logs.columnsHelp.endpoint')}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <ColumnHeaderWithInfo
+                      label={t('logs.columns.providerModel')}
+                      description={t('logs.columnsHelp.providerModel')}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <ColumnHeaderWithInfo
+                      label={t('logs.columns.app')}
+                      description={t('logs.columnsHelp.app')}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <ColumnHeaderWithInfo
+                      label={t('logs.columns.tokens')}
+                      description={t('logs.columnsHelp.tokens')}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <ColumnHeaderWithInfo
+                      label={t('logs.columns.cost')}
+                      description={t('logs.columnsHelp.cost')}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <ColumnHeaderWithInfo
+                      label={t('logs.columns.speed')}
+                      description={t('logs.columnsHelp.speed')}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <ColumnHeaderWithInfo
+                      label={t('logs.columns.finish')}
+                      description={t('logs.columnsHelp.finish')}
+                    />
+                  </th>
+                  <th className="px-3 py-3 text-right font-medium">
+                    <span className="sr-only">{t('logs.columns.actions')}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {latestEntries.map((entry) => {
+                  const speed =
+                    entry.duration_ms > 0 && entry.total_tokens > 0
+                      ? Math.round(
+                          (entry.total_tokens / entry.duration_ms) * 1000,
+                        )
+                      : null;
+                  const providerModel = displayProviderModel(entry);
+                  return (
+                    <tr
+                      key={`${entry.request_id}-${entry.timestamp}`}
+                      className="border-t border-border"
+                    >
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {new Date(entry.timestamp).toLocaleString(
+                          i18n.language,
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">
+                            {displayRequestMethod(entry)}
+                          </Badge>
+                          <span className="font-mono text-xs text-foreground">
+                            {entry.endpoint || '—'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="space-y-1">
+                          <div className="font-mono text-xs font-medium text-foreground">
+                            {providerModel.primary}
                           </div>
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="space-y-1">
-                            <div className="font-mono text-xs font-medium text-foreground">
+                          {providerModel.mappedFrom ? (
+                            <div className="text-xs text-muted-foreground">
+                              {providerModel.mappedFrom} →{' '}
                               {providerModel.primary}
                             </div>
-                            {providerModel.mappedFrom ? (
-                              <div className="text-xs text-muted-foreground">
-                                {providerModel.mappedFrom} →{' '}
-                                {providerModel.primary}
-                              </div>
-                            ) : null}
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {formatAppLabel(entry.app)}
+                      </td>
+                      <td className="px-3 py-3 text-xs text-muted-foreground">
+                        <div className="space-y-1">
+                          <div>
+                            <span className="font-medium text-foreground">
+                              {t('logs.tokenLabels.input')}:
+                            </span>{' '}
+                            <span className="font-mono">
+                              {formatNumber(entry.prompt_tokens, i18n.language)}
+                            </span>
                           </div>
-                        </td>
-                        <td className="px-3 py-3 text-muted-foreground">
-                          {formatAppLabel(entry.app)}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-muted-foreground">
-                          <div className="space-y-1">
-                            <div>
-                              <span className="font-medium text-foreground">
-                                {t('logs.tokenLabels.input')}:
-                              </span>{' '}
-                              <span className="font-mono">
-                                {formatNumber(
-                                  entry.prompt_tokens,
-                                  i18n.language,
-                                )}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="font-medium text-foreground">
-                                {t('logs.tokenLabels.output')}:
-                              </span>{' '}
-                              <span className="font-mono">
-                                {formatNumber(
-                                  entry.completion_tokens,
-                                  i18n.language,
-                                )}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="font-medium text-foreground">
-                                {t('logs.tokenLabels.cache')}:
-                              </span>{' '}
-                              <span className="font-mono">
-                                {formatNumber(
-                                  toNumber(entry.cache_tokens),
-                                  i18n.language,
-                                )}
-                              </span>
-                            </div>
+                          <div>
+                            <span className="font-medium text-foreground">
+                              {t('logs.tokenLabels.output')}:
+                            </span>{' '}
+                            <span className="font-mono">
+                              {formatNumber(
+                                entry.completion_tokens,
+                                i18n.language,
+                              )}
+                            </span>
                           </div>
-                        </td>
-                        <td className="px-3 py-3 text-muted-foreground">
-                          {formatCurrency(
-                            entry.estimated_cost_usd,
-                            i18n.language,
-                          )}
-                        </td>
-                        <td className="px-3 py-3 text-muted-foreground">
-                          {speed === null ? '—' : `${speed} tok/s`}
-                        </td>
-                        <td className="px-3 py-3 text-muted-foreground">
-                          {entry.finish_reason?.trim() || '—'}
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {isUpstreamValidationError(entry) ? (
-                              <Badge variant="destructive">
-                                {t('logs.badges.upstreamValidationError')}
-                              </Badge>
-                            ) : null}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setSelectedEntry(entry)}
-                            >
-                              <RiEyeLine className="size-4" />
-                              {t('logs.viewDetails')}
-                            </Button>
+                          <div>
+                            <span className="font-medium text-foreground">
+                              {t('logs.tokenLabels.cache')}:
+                            </span>{' '}
+                            <span className="font-mono">
+                              {formatNumber(
+                                toNumber(entry.cache_tokens),
+                                i18n.language,
+                              )}
+                            </span>
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {formatCurrency(
+                          entry.estimated_cost_usd,
+                          i18n.language,
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {speed === null ? '—' : `${speed} tok/s`}
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {entry.finish_reason?.trim() || '—'}
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {isUpstreamValidationError(entry) ? (
+                            <Badge variant="destructive">
+                              {t('logs.badges.upstreamValidationError')}
+                            </Badge>
+                          ) : null}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedEntry(entry)}
+                          >
+                            <RiEyeLine className="size-4" />
+                            {t('logs.viewDetails')}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {hasMore ? (
+            <div className="mt-4 flex justify-center">
+              <Button
+                variant="outline"
+                onClick={loadMore}
+                disabled={listQuery.isFetching}
+              >
+                {t('logs.loadMore')}
+              </Button>
             </div>
-            {hasMore ? (
-              <div className="mt-4 flex justify-center">
+          ) : null}
+
+          {selectedEntry ? (
+            <div className="mt-5 border-t border-border pt-5">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {t('logs.detailsTitle')}
+                  </h3>
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                    {selectedEntry.request_id}
+                  </p>
+                </div>
                 <Button
                   variant="outline"
-                  onClick={loadMore}
-                  disabled={listQuery.isFetching}
+                  size="sm"
+                  onClick={() => setSelectedEntry(null)}
                 >
-                  {t('logs.loadMore')}
+                  {t('common.close')}
                 </Button>
               </div>
-            ) : null}
-          </Panel>
+              <Tabs defaultValue="overview">
+                <TabsList>
+                  <TabsTrigger value="overview">
+                    {t('logs.details.overview')}
+                  </TabsTrigger>
+                  <TabsTrigger value="request">
+                    {t('logs.details.request')}
+                  </TabsTrigger>
+                  <TabsTrigger value="response">
+                    {t('logs.details.response')}
+                  </TabsTrigger>
+                  <TabsTrigger value="error">
+                    {t('logs.details.error')}
+                  </TabsTrigger>
+                </TabsList>
 
-          <Sheet
-            open={selectedEntry !== null}
-            onOpenChange={(open) => {
-              if (!open) {
-                setSelectedEntry(null);
-              }
-            }}
-          >
-            <SheetContent
-              side="right"
-              className="data-[side=right]:w-[90vw] data-[side=right]:sm:max-w-[42rem] data-[side=right]:lg:max-w-[56rem] data-[side=right]:xl:max-w-[64rem]"
-            >
-              {selectedEntry ? (
-                <>
-                  <SheetHeader>
-                    <SheetTitle>{t('logs.detailsTitle')}</SheetTitle>
-                    <SheetDescription>
-                      {selectedEntry.request_id}
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="px-6 pb-6">
-                    <Tabs defaultValue="overview">
-                      <TabsList>
-                        <TabsTrigger value="overview">
-                          {t('logs.details.overview')}
-                        </TabsTrigger>
-                        <TabsTrigger value="request">
-                          {t('logs.details.request')}
-                        </TabsTrigger>
-                        <TabsTrigger value="response">
-                          {t('logs.details.response')}
-                        </TabsTrigger>
-                        <TabsTrigger value="error">
-                          {t('logs.details.error')}
-                        </TabsTrigger>
-                      </TabsList>
+                <TabsContent value="overview" className="mt-4 space-y-2">
+                  <DetailRow
+                    label="Requested model"
+                    value={selectedEntry.requested_model || '—'}
+                  />
+                  <DetailRow label="Provider" value={selectedEntry.provider} />
+                  <DetailRow label="Model" value={selectedEntry.model} />
+                  <DetailRow
+                    label="Routing"
+                    value={`${displayProviderModel(selectedEntry).mappedFrom || selectedEntry.requested_model || selectedEntry.model} -> ${displayProviderModel(selectedEntry).primary}`}
+                  />
+                  <DetailRow label="Endpoint" value={selectedEntry.endpoint} />
+                  <DetailRow
+                    label="Timestamp"
+                    value={new Date(selectedEntry.timestamp).toLocaleString(
+                      i18n.language,
+                    )}
+                  />
+                  <DetailRow
+                    label="Status"
+                    value={String(selectedEntry.status_code)}
+                  />
+                  <DetailRow
+                    label="Duration"
+                    value={`${selectedEntry.duration_ms} ms`}
+                  />
+                  <DetailRow
+                    label="Finish"
+                    value={selectedEntry.finish_reason || '—'}
+                  />
+                </TabsContent>
 
-                      <TabsContent value="overview" className="mt-4 space-y-2">
-                        <DetailRow
-                          label="Requested model"
-                          value={selectedEntry.requested_model || '—'}
-                        />
-                        <DetailRow
-                          label="Provider"
-                          value={selectedEntry.provider}
-                        />
-                        <DetailRow label="Model" value={selectedEntry.model} />
-                        <DetailRow
-                          label="Routing"
-                          value={`${displayProviderModel(selectedEntry).mappedFrom || selectedEntry.requested_model || selectedEntry.model} -> ${displayProviderModel(selectedEntry).primary}`}
-                        />
-                        <DetailRow
-                          label="Endpoint"
-                          value={selectedEntry.endpoint}
-                        />
-                        <DetailRow
-                          label="Timestamp"
-                          value={new Date(
-                            selectedEntry.timestamp,
-                          ).toLocaleString(i18n.language)}
-                        />
-                        <DetailRow
-                          label="Status"
-                          value={String(selectedEntry.status_code)}
-                        />
-                        <DetailRow
-                          label="Duration"
-                          value={`${selectedEntry.duration_ms} ms`}
-                        />
-                        <DetailRow
-                          label="Finish"
-                          value={selectedEntry.finish_reason || '—'}
-                        />
-                      </TabsContent>
+                <TabsContent value="request" className="mt-4 space-y-3">
+                  {selectedEntry.request_body ? (
+                    <>
+                      <CopyButton
+                        value={selectedEntry.request_body}
+                        size="sm"
+                        variant="outline"
+                      >
+                        {t('logs.copy')}
+                      </CopyButton>
+                      <pre className="max-h-[380px] overflow-auto rounded-lg border border-border bg-muted/40 p-3 text-xs leading-5 text-foreground">
+                        {selectedEntry.request_body}
+                      </pre>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                      <RiCodeLine className="mr-2 inline size-4" />
+                      {t('logs.noRequestBody')}
+                    </div>
+                  )}
+                </TabsContent>
 
-                      <TabsContent value="request" className="mt-4 space-y-3">
-                        {selectedEntry.request_body ? (
-                          <>
-                            <CopyButton
-                              value={selectedEntry.request_body}
-                              size="sm"
-                              variant="outline"
-                            >
-                              {t('logs.copy')}
-                            </CopyButton>
-                            <pre className="max-h-[380px] overflow-auto rounded-lg border border-border bg-muted/40 p-3 text-xs leading-5 text-foreground">
-                              {selectedEntry.request_body}
-                            </pre>
-                          </>
-                        ) : (
-                          <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                            <RiCodeLine className="mr-2 inline size-4" />
-                            {t('logs.noRequestBody')}
-                          </div>
-                        )}
-                      </TabsContent>
+                <TabsContent value="response" className="mt-4 space-y-3">
+                  {selectedEntry.response_body ? (
+                    <>
+                      <CopyButton
+                        value={selectedEntry.response_body}
+                        size="sm"
+                        variant="outline"
+                      >
+                        {t('logs.copy')}
+                      </CopyButton>
+                      <pre className="max-h-[380px] overflow-auto rounded-lg border border-border bg-muted/40 p-3 text-xs leading-5 text-foreground">
+                        {selectedEntry.response_body}
+                      </pre>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                      <RiCodeLine className="mr-2 inline size-4" />
+                      {t('logs.noResponseBody')}
+                    </div>
+                  )}
+                </TabsContent>
 
-                      <TabsContent value="response" className="mt-4 space-y-3">
-                        {selectedEntry.response_body ? (
-                          <>
-                            <CopyButton
-                              value={selectedEntry.response_body}
-                              size="sm"
-                              variant="outline"
-                            >
-                              {t('logs.copy')}
-                            </CopyButton>
-                            <pre className="max-h-[380px] overflow-auto rounded-lg border border-border bg-muted/40 p-3 text-xs leading-5 text-foreground">
-                              {selectedEntry.response_body}
-                            </pre>
-                          </>
-                        ) : (
-                          <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                            <RiCodeLine className="mr-2 inline size-4" />
-                            {t('logs.noResponseBody')}
-                          </div>
-                        )}
-                      </TabsContent>
-
-                      <TabsContent value="error" className="mt-4 space-y-3">
-                        {selectedEntry.error ? (
-                          <>
-                            <CopyButton
-                              value={selectedEntry.error}
-                              size="sm"
-                              variant="outline"
-                            >
-                              {t('logs.copy')}
-                            </CopyButton>
-                            <pre className="max-h-[380px] overflow-auto rounded-lg border border-border bg-danger/5 p-3 text-xs leading-5 text-foreground">
-                              {selectedEntry.error}
-                            </pre>
-                          </>
-                        ) : (
-                          <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                            <RiErrorWarningLine className="mr-2 inline size-4" />
-                            {t('logs.noErrorData')}
-                          </div>
-                        )}
-                      </TabsContent>
-                    </Tabs>
-                  </div>
-                </>
-              ) : null}
-            </SheetContent>
-          </Sheet>
-        </>
+                <TabsContent value="error" className="mt-4 space-y-3">
+                  {selectedEntry.error ? (
+                    <>
+                      <CopyButton
+                        value={selectedEntry.error}
+                        size="sm"
+                        variant="outline"
+                      >
+                        {t('logs.copy')}
+                      </CopyButton>
+                      <pre className="max-h-[380px] overflow-auto rounded-lg border border-border bg-danger/5 p-3 text-xs leading-5 text-foreground">
+                        {selectedEntry.error}
+                      </pre>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                      <RiErrorWarningLine className="mr-2 inline size-4" />
+                      {t('logs.noErrorData')}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </div>
+          ) : null}
+        </Panel>
       )}
     </div>
   );
