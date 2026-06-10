@@ -363,7 +363,8 @@ public sealed class DesktopBridge
 
     private static bool IsAllowedExternalUri(Uri url)
     {
-        return url.Scheme is Uri.UriSchemeHttp or Uri.UriSchemeHttps
+        return string.Equals(url.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(url.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
             || string.Equals(url.ToString(), "ms-settings:startupapps", StringComparison.OrdinalIgnoreCase);
     }
 
