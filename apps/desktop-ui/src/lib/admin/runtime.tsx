@@ -8,7 +8,10 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
+  useState,
 } from 'react';
 import type { AdminBootstrap } from '@/lib/admin/bootstrap';
 import { AdminAuthError } from '@/lib/admin/errors';
@@ -22,6 +25,33 @@ type DesktopBridgeRequest = {
     body?: string;
   };
 };
+
+const RUNTIME_BOOT_ATTEMPTS = 4;
+
+function isRuntimeUnavailableError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('kcferrordomaincfnetwork') ||
+    message.includes('error 306') ||
+    message.includes('failed to fetch') ||
+    message.includes('network error') ||
+    message.includes('connection refused') ||
+    message.includes('failed to connect') ||
+    message.includes('cannot connect') ||
+    message.includes('econnrefused') ||
+    message.includes('desktop bridge request failed')
+  );
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 export type NativeConfirmRequest = {
   title: string;
@@ -171,6 +201,10 @@ type AdminRuntimeValue = {
   verifyToken: () => Promise<boolean>;
   clearToken: () => void;
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
+  ensureRuntimeStarted: () => Promise<RuntimeStatus>;
+  isRuntimeReady: boolean;
+  isRuntimeBooting: boolean;
+  runtimeBootError: string | null;
   runtimeStatus: () => Promise<RuntimeStatus>;
   runtimeStart: () => Promise<RuntimeStatus>;
   runtimeStop: () => Promise<RuntimeStatus>;
@@ -204,6 +238,12 @@ export function AdminRuntimeProvider({
   bootstrap: AdminBootstrap;
   children: ReactNode;
 }) {
+  const isNativeDesktop =
+    bootstrap.platform === 'macos' || bootstrap.platform === 'windows';
+  const [isRuntimeReady, setIsRuntimeReady] = useState(!isNativeDesktop);
+  const [isRuntimeBooting, setIsRuntimeBooting] = useState(false);
+  const [runtimeBootError, setRuntimeBootError] = useState<string | null>(null);
+
   const request = useCallback(
     async <T,>(path: string, init?: RequestInit) => {
       if (bootstrap.authStatus !== 'authenticated') {
@@ -227,6 +267,94 @@ export function AdminRuntimeProvider({
       });
     },
     [bootstrap.authStatus],
+  );
+
+  const runtimeStartupInProgress = useRef<Promise<RuntimeStatus> | null>(null);
+
+  const ensureRuntimeStarted = useCallback(async () => {
+    if (!isNativeDesktop) {
+      setIsRuntimeReady(true);
+      return { state: 'managed', endpoint: bootstrap.serverListen };
+    }
+
+    const bridge = window.__QUOTIO_DESKTOP_BRIDGE__;
+    if (!bridge?.runtimeStatus || !bridge?.runtimeStart) {
+      const message = 'Desktop runtime bridge is unavailable';
+      setRuntimeBootError(message);
+      throw new Error('Desktop runtime bridge is unavailable');
+    }
+
+    const getStatus = bridge.runtimeStatus;
+    const startRuntime = bridge.runtimeStart;
+
+    if (!runtimeStartupInProgress.current) {
+      setIsRuntimeBooting(true);
+      setRuntimeBootError(null);
+      runtimeStartupInProgress.current = (async () => {
+        let attempts = 0;
+
+        while (attempts <= RUNTIME_BOOT_ATTEMPTS) {
+          const status = await getStatus();
+          if (status.state === 'managed' && status.endpoint) {
+            return status;
+          }
+
+          await startRuntime();
+          await sleep(350 * 1.6 ** attempts);
+          attempts += 1;
+        }
+
+        return getStatus();
+      })();
+
+      runtimeStartupInProgress.current.finally(() => {
+        runtimeStartupInProgress.current = null;
+        setIsRuntimeBooting(false);
+      });
+    }
+
+    try {
+      const status = await runtimeStartupInProgress.current;
+      setIsRuntimeReady(status.state === 'managed');
+      return status;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to start runtime';
+      setRuntimeBootError(message);
+      throw error;
+    }
+  }, [bootstrap.serverListen, isNativeDesktop]);
+
+  useEffect(() => {
+    if (!isNativeDesktop || isRuntimeReady) {
+      return;
+    }
+
+    void ensureRuntimeStarted().catch(() => {});
+  }, [ensureRuntimeStarted, isNativeDesktop, isRuntimeReady]);
+
+  const requestWithRuntimeRetry = useCallback(
+    async <T,>(path: string, init?: RequestInit, attempt = 0): Promise<T> => {
+      if (isNativeDesktop) {
+        await ensureRuntimeStarted();
+      }
+
+      try {
+        return await request<T>(path, init);
+      } catch (error) {
+        if (
+          !isRuntimeUnavailableError(error) ||
+          attempt >= RUNTIME_BOOT_ATTEMPTS
+        ) {
+          throw error;
+        }
+
+        await ensureRuntimeStarted();
+        await sleep(300 * 2 ** attempt);
+        return requestWithRuntimeRetry<T>(path, init, attempt + 1);
+      }
+    },
+    [ensureRuntimeStarted, isNativeDesktop, request],
   );
 
   const confirm = useCallback(async (request: NativeConfirmRequest) => {
@@ -414,7 +542,11 @@ export function AdminRuntimeProvider({
       isAuthenticated: bootstrap.authStatus === 'authenticated',
       verifyToken: async () => bootstrap.authStatus === 'authenticated',
       clearToken: () => {},
-      request,
+      request: requestWithRuntimeRetry,
+      ensureRuntimeStarted,
+      isRuntimeReady,
+      isRuntimeBooting,
+      runtimeBootError,
       runtimeStatus,
       runtimeStart,
       runtimeStop,
@@ -432,6 +564,7 @@ export function AdminRuntimeProvider({
     }),
     [
       bootstrap,
+      ensureRuntimeStarted,
       confirm,
       credentialDelete,
       credentialRead,
@@ -441,7 +574,10 @@ export function AdminRuntimeProvider({
       openTextFile,
       preferencesRead,
       preferencesWrite,
-      request,
+      isRuntimeBooting,
+      isRuntimeReady,
+      runtimeBootError,
+      requestWithRuntimeRetry,
       runtimeRestart,
       runtimeStart,
       runtimeStatus,

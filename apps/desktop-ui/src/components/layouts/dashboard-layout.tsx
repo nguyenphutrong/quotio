@@ -5,8 +5,14 @@ import {
 } from '@quotio/ui/components/sidebar';
 import { Outlet } from '@tanstack/react-router';
 import { lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ErrorState } from '@/components/admin/error-state';
+import { LoadingState } from '@/components/admin/loading-state';
 import { AppSidebar } from '@/components/app-sidebar';
-import { useIsNativeDesktopRuntime } from '@/lib/admin/runtime';
+import {
+  useAdminRuntime,
+  useIsNativeDesktopRuntime,
+} from '@/lib/admin/runtime';
 
 const CommandPalette = lazy(() =>
   import('@/components/navigation/command-palette').then((mod) => ({
@@ -15,7 +21,51 @@ const CommandPalette = lazy(() =>
 );
 
 export function DashboardLayout() {
+  const { t } = useTranslation();
   const isNativeDesktop = useIsNativeDesktopRuntime();
+  const {
+    ensureRuntimeStarted,
+    isRuntimeBooting,
+    isRuntimeReady,
+    runtimeBootError,
+  } = useAdminRuntime();
+
+  if (isNativeDesktop && !isRuntimeReady && !runtimeBootError) {
+    return (
+      <SidebarProvider className="h-svh overflow-hidden">
+        <AppSidebar />
+        <SidebarInset className="overflow-hidden">
+          <div className="flex flex-1 items-center justify-center p-4">
+            <LoadingState
+              label={
+                isRuntimeBooting
+                  ? t('overview.proxyRuntime.actions.starting')
+                  : t('common.loading')
+              }
+            />
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    );
+  }
+
+  if (isNativeDesktop && runtimeBootError) {
+    return (
+      <SidebarProvider className="h-svh overflow-hidden">
+        <AppSidebar />
+        <SidebarInset className="overflow-hidden">
+          <ErrorState
+            title={t('common.error')}
+            description={runtimeBootError}
+            actionLabel={t('common.retry')}
+            onAction={() => {
+              void ensureRuntimeStarted();
+            }}
+          />
+        </SidebarInset>
+      </SidebarProvider>
+    );
+  }
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">

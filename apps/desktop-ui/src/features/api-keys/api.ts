@@ -12,6 +12,40 @@ const clientKeyUsageQueryKey = ['client-key-usage'] as const;
 
 type APIKeysRequest = <T>(path: string, init?: RequestInit) => Promise<T>;
 
+const SUPPORTS_CPA_KEYS_ERROR =
+  'unsupported endpoint: requires cpa++ api support';
+
+function isCPAUnsupportedError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return error.message.toLowerCase().includes(SUPPORTS_CPA_KEYS_ERROR);
+}
+
+function withFallbackPath(path: string) {
+  if (!path.startsWith('/client-keys')) {
+    return path;
+  }
+
+  return path.replace(/^\/client-keys/, '/api-keys');
+}
+
+async function requestWithFallback<T>(
+  request: APIKeysRequest,
+  path: string,
+  init?: RequestInit,
+) {
+  try {
+    return await request<T>(path, init);
+  } catch (error) {
+    if (!isCPAUnsupportedError(error)) {
+      throw error;
+    }
+    return request<T>(withFallbackPath(path), init);
+  }
+}
+
 export type APIKeyListFilters = {
   status: string;
   q: string;
@@ -41,11 +75,14 @@ export function fetchClientKeys(
   request: APIKeysRequest,
   filters: APIKeyListFilters,
 ) {
-  return request<APIKeysListResponse>(buildClientKeysPath(filters));
+  return requestWithFallback<APIKeysListResponse>(
+    request,
+    buildClientKeysPath(filters),
+  );
 }
 
 export function createClientKey(request: APIKeysRequest, name: string) {
-  return request<APIKeyCreateResponse>('/client-keys', {
+  return requestWithFallback<APIKeyCreateResponse>(request, '/client-keys', {
     method: 'POST',
     body: JSON.stringify({ name }),
   });
@@ -56,16 +93,24 @@ export function updateClientKey(
   id: string,
   payload: { name?: string; status?: string },
 ) {
-  return request<APIKeyMutationResponse>(`/client-keys/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+  return requestWithFallback<APIKeyMutationResponse>(
+    request,
+    `/client-keys/${id}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export function deleteClientKey(request: APIKeysRequest, id: string) {
-  return request<APIKeyMutationResponse>(`/client-keys/${id}`, {
-    method: 'DELETE',
-  });
+  return requestWithFallback<APIKeyMutationResponse>(
+    request,
+    `/client-keys/${id}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 export function useClientKeysQuery(filters: APIKeyListFilters) {
@@ -92,7 +137,8 @@ export function useClientKeyUsageQuery(
       if (filters.model) params.set('model', filters.model);
       if (filters.endpoint) params.set('endpoint', filters.endpoint);
       if (filters.granularity) params.set('granularity', filters.granularity);
-      return request<APIKeyUsageResponse>(
+      return requestWithFallback<APIKeyUsageResponse>(
+        request,
         `/client-keys/${id}/usage?${params.toString()}`,
       );
     },
