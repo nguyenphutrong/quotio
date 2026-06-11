@@ -1,6 +1,12 @@
 import type { RuntimeStatus } from '@quotio/desktop-contract/generated';
 import { Button } from '@quotio/ui/components/button';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@quotio/ui/components/collapsible';
+import {
+  RiArrowRightSLine,
   RiArrowRightUpLine,
   RiCoinsLine,
   RiPulseLine,
@@ -16,7 +22,10 @@ import { Panel } from '@/components/admin/panel';
 import { StaleDataBanner } from '@/components/admin/stale-data-banner';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { useOverviewQueries } from '@/features/overview/api';
-import type { QuotaProviderSummary } from '@/features/overview/types';
+import type {
+  HealthSnapshot,
+  QuotaProviderSummary,
+} from '@/features/overview/types';
 import { getProviderDisplayName } from '@/features/providers/types';
 import { useAdminRuntime } from '@/lib/admin/runtime';
 
@@ -169,166 +178,190 @@ export function OverviewPage() {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-        <Panel>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">
-                {t('overview.providerHealth')}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {t('overview.providerHealthDesc')}
-              </p>
-            </div>
-            <StatusBadge tone="success">{t('overview.snapshot')}</StatusBadge>
+      <Panel>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">
+              {t('overview.providerHealth')}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {t('overview.providerHealthDesc')}
+            </p>
           </div>
-          <div className="mt-4 overflow-hidden rounded-lg border border-border">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-muted text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">
-                    {t('overview.provider')}
-                  </th>
-                  <th className="px-4 py-3 font-medium">
-                    {t('overview.credentialEntries')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(health.providers).map(([provider, entries]) => {
-                  const count = Array.isArray(entries) ? entries.length : 0;
+          <StatusBadge tone="success">{t('overview.snapshot')}</StatusBadge>
+        </div>
+        <div className="mt-4 overflow-hidden rounded-lg border border-border">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-muted text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 font-medium">
+                  {t('overview.provider')}
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  {t('overview.credentialEntries')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(health.providers).map(([provider, entries]) => {
+                const count = Array.isArray(entries) ? entries.length : 0;
 
-                  return (
-                    <tr key={provider} className="border-t border-border">
-                      <td className="px-4 py-3 font-medium text-foreground">
-                        {getProviderDisplayName(provider)}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {count}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-
-        <Panel>
-          <h2 className="text-sm font-semibold text-foreground">
-            {t('overview.operationalCounters')}
-          </h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <CounterRow
-              label={t('overview.affinityBindings')}
-              value={health.affinity.bindings?.length ?? 0}
-            />
-            <CounterRow
-              label={t('overview.concurrencyRecords')}
-              value={health.concurrency.length}
-            />
-            <CounterRow
-              label={t('overview.virtualRoutes')}
-              value={health.virtual_routes.length}
-            />
-            <CounterRow
-              label={t('overview.providerCooldowns')}
-              value={health.provider_cooldowns.length}
-            />
-          </div>
-        </Panel>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-        <Panel>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">
-                {t('overview.quotaSnapshot')}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {t('overview.quotaSnapshotDesc')}
-              </p>
-            </div>
-            <StatusBadge tone="neutral">
-              {t('overview.providerCount', { count: quota.providers.length })}
-            </StatusBadge>
-          </div>
-          <div className="mt-4 overflow-hidden rounded-lg border border-border">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-muted text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">
-                    {t('overview.provider')}
-                  </th>
-                  <th className="px-4 py-3 font-medium">
-                    {t('overview.accounts')}
-                  </th>
-                  <th className="px-4 py-3 font-medium">
-                    {t('overview.staleOrError')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {quota.providers.map((provider: QuotaProviderSummary) => (
-                  <tr
-                    key={provider.provider}
-                    className="border-t border-border"
-                  >
+                return (
+                  <tr key={provider} className="border-t border-border">
                     <td className="px-4 py-3 font-medium text-foreground">
-                      {getProviderDisplayName(provider.provider)}
+                      {getProviderDisplayName(provider)}
                     </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge
-                        tone={provider.stale_count > 0 ? 'warning' : 'success'}
-                      >
-                        {String(provider.accounts)}
-                      </StatusBadge>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {provider.stale_count}
-                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{count}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      <Panel>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">
+              {t('overview.quotaSnapshot')}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {t('overview.quotaSnapshotDesc')}
+            </p>
           </div>
-        </Panel>
-
-        <Panel>
-          <h2 className="text-sm font-semibold text-foreground">
-            {t('overview.runtimeCapabilities')}
-          </h2>
-          <div className="mt-4 space-y-3">
-            {Object.entries(health.runtime).map(([runtime, capability]) => {
-              const capabilityRecord =
-                capability && typeof capability === 'object'
-                  ? (capability as Record<string, unknown>)
-                  : {};
-
-              return (
-                <div
-                  key={runtime}
-                  className="rounded-lg border border-border bg-muted/50 p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium text-foreground">{runtime}</p>
-                    <StatusBadge tone="neutral">
-                      {t('overview.flagCount', {
-                        count: Object.keys(capabilityRecord).length,
-                      })}
+          <StatusBadge tone="neutral">
+            {t('overview.providerCount', { count: quota.providers.length })}
+          </StatusBadge>
+        </div>
+        <div className="mt-4 overflow-hidden rounded-lg border border-border">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-muted text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 font-medium">
+                  {t('overview.provider')}
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  {t('overview.accounts')}
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  {t('overview.staleOrError')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {quota.providers.map((provider: QuotaProviderSummary) => (
+                <tr key={provider.provider} className="border-t border-border">
+                  <td className="px-4 py-3 font-medium text-foreground">
+                    {getProviderDisplayName(provider.provider)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge
+                      tone={provider.stale_count > 0 ? 'warning' : 'success'}
+                    >
+                      {String(provider.accounts)}
                     </StatusBadge>
-                  </div>
-                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-xs leading-5 text-muted-foreground">
-                    {JSON.stringify(capabilityRecord, null, 2)}
-                  </pre>
-                </div>
-              );
-            })}
-          </div>
-        </Panel>
-      </div>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {provider.stale_count}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      <AdvancedDiagnostics health={health} />
     </div>
+  );
+}
+
+function AdvancedDiagnostics({ health }: { health: HealthSnapshot }) {
+  const { t } = useTranslation();
+
+  return (
+    <Collapsible className="group/diagnostics space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">
+            {t('overview.advancedDiagnostics')}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {t('overview.advancedDiagnosticsDesc')}
+          </p>
+        </div>
+        <CollapsibleTrigger
+          render={
+            <Button type="button" variant="outline" size="sm" className="gap-2">
+              <span>{t('overview.showDiagnostics')}</span>
+              <RiArrowRightSLine className="size-4 transition-transform group-data-open/diagnostics:rotate-90" />
+            </Button>
+          }
+        />
+      </div>
+
+      <CollapsibleContent>
+        <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+          <Panel>
+            <h3 className="text-sm font-semibold text-foreground">
+              {t('overview.operationalCounters')}
+            </h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <CounterRow
+                label={t('overview.affinityBindings')}
+                value={health.affinity.bindings?.length ?? 0}
+              />
+              <CounterRow
+                label={t('overview.concurrencyRecords')}
+                value={health.concurrency.length}
+              />
+              <CounterRow
+                label={t('overview.virtualRoutes')}
+                value={health.virtual_routes.length}
+              />
+              <CounterRow
+                label={t('overview.providerCooldowns')}
+                value={health.provider_cooldowns.length}
+              />
+            </div>
+          </Panel>
+
+          <Panel>
+            <h3 className="text-sm font-semibold text-foreground">
+              {t('overview.runtimeCapabilities')}
+            </h3>
+            <div className="mt-4 space-y-3">
+              {Object.entries(health.runtime).map(([runtime, capability]) => {
+                const capabilityRecord =
+                  capability && typeof capability === 'object'
+                    ? (capability as Record<string, unknown>)
+                    : {};
+
+                return (
+                  <div
+                    key={runtime}
+                    className="rounded-lg border border-border bg-muted/50 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-foreground">{runtime}</p>
+                      <StatusBadge tone="neutral">
+                        {t('overview.flagCount', {
+                          count: Object.keys(capabilityRecord).length,
+                        })}
+                      </StatusBadge>
+                    </div>
+                    <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-xs leading-5 text-muted-foreground">
+                      {JSON.stringify(capabilityRecord, null, 2)}
+                    </pre>
+                  </div>
+                );
+              })}
+            </div>
+          </Panel>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
