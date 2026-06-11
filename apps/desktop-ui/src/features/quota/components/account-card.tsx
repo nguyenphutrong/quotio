@@ -1,5 +1,6 @@
 import { Badge } from '@quotio/ui/components/badge';
 import { Button } from '@quotio/ui/components/button';
+import { cn } from '@quotio/ui/lib/utils';
 import {
   RiArrowLeftRightLine,
   RiErrorWarningLine,
@@ -10,9 +11,144 @@ import type {
   QuotaAccountView,
   QuotaDisplayMode,
   QuotaDisplayStyle,
+  QuotaModelView,
 } from '../types';
 import { formatTimeAgo } from '../utils';
 import { MetricGroup } from './metric-presenters';
+
+type AntigravityGroup = {
+  name: string;
+  models: QuotaModelView[];
+  aggregatePercent: number | null;
+  resetTime?: string;
+};
+
+const ANTIGRAVITY_GROUP_ORDER = [
+  'Gemini 3 Pro',
+  'Gemini 3 Flash',
+  'Claude',
+] as const;
+
+function getAntigravityGroupName(modelName: string) {
+  const lower = modelName.toLowerCase();
+  if (
+    lower.includes('claude') ||
+    lower.includes('gpt') ||
+    lower.includes('oss')
+  ) {
+    return 'Claude';
+  }
+  if (lower.includes('gemini') && lower.includes('pro')) {
+    return 'Gemini 3 Pro';
+  }
+  if (lower.includes('gemini') && lower.includes('flash')) {
+    return 'Gemini 3 Flash';
+  }
+  return null;
+}
+
+function parseModelPercent(value?: number) {
+  return typeof value === 'number' && !Number.isNaN(value) && value >= 0
+    ? value
+    : null;
+}
+
+function getAntigravityGroupedModels(models: QuotaModelView[]) {
+  const groups = new Map<string, QuotaModelView[]>();
+  models.forEach((model) => {
+    const group = getAntigravityGroupName(model.name);
+    if (!group) return;
+    const bucket = groups.get(group) ?? [];
+    bucket.push(model);
+    groups.set(group, bucket);
+  });
+
+  const grouped: AntigravityGroup[] = ANTIGRAVITY_GROUP_ORDER.filter(
+    (groupName) => groups.has(groupName),
+  )
+    .flatMap((groupName) => {
+      const items = groups.get(groupName) ?? [];
+      if (items.length === 0) return [];
+
+      const remainingValues = items
+        .map((item) => parseModelPercent(item.remaining_percent))
+        .filter((value): value is number => value !== null);
+
+      const usedValues = items
+        .map((item) => {
+          const usedPercent = parseModelPercent(item.used_percent);
+          if (usedPercent !== null) {
+            return usedPercent;
+          }
+          if (item.remaining_percent == null) {
+            return null;
+          }
+          return 100 - item.remaining_percent;
+        })
+        .filter((value): value is number => value !== null);
+
+      const resetValues = items
+        .map((item) =>
+          item.reset_time
+            ? new Date(item.reset_time).getTime()
+            : Number.POSITIVE_INFINITY,
+        )
+        .filter((value) => Number.isFinite(value));
+
+      const resetTime =
+        resetValues.length > 0
+          ? new Date(Math.min(...resetValues)).toISOString()
+          : undefined;
+
+      return [
+        {
+          name: groupName,
+          models: items,
+          aggregatePercent:
+            remainingValues.length > 0
+              ? Math.min(...remainingValues)
+              : usedValues.length > 0
+                ? 100 - Math.min(...usedValues)
+                : null,
+          resetTime,
+        },
+      ];
+    })
+    .sort(
+      (left, right) =>
+        (left.aggregatePercent ?? Number.POSITIVE_INFINITY) -
+        (right.aggregatePercent ?? Number.POSITIVE_INFINITY),
+    );
+
+  return grouped;
+}
+
+function metricLabelPercent(value: number | null, mode: QuotaDisplayMode) {
+  if (value == null) return '—';
+  const displayed = mode === 'used' ? 100 - value : value;
+  return `${Math.round(displayed)}%`;
+}
+
+function metricBarClass(percent: number | null, mode: QuotaDisplayMode) {
+  const value = percent == null ? 0 : mode === 'used' ? 100 - percent : percent;
+  if (value > 50) return 'bg-emerald-500/15 dark:bg-emerald-400/20';
+  if (value > 20) return 'bg-amber-500/15 dark:bg-amber-400/20';
+  return 'bg-rose-500/15 dark:bg-rose-400/20';
+}
+
+function metricFillClass(percent: number | null, mode: QuotaDisplayMode) {
+  const value = percent == null ? 0 : mode === 'used' ? 100 - percent : percent;
+  if (value > 50) return 'bg-emerald-500 dark:bg-emerald-400';
+  if (value > 20) return 'bg-amber-500 dark:bg-amber-400';
+  return 'bg-rose-500 dark:bg-rose-400';
+}
+
+function metricToneClass(percent: number | null, mode: QuotaDisplayMode) {
+  const value = percent == null ? 0 : mode === 'used' ? 100 - percent : percent;
+  if (value > 50) return 'text-emerald-500 dark:text-emerald-400';
+  if (value > 20) return 'text-amber-500 dark:text-amber-400';
+  return 'text-rose-500 dark:text-rose-400';
+}
 
 type Props = {
   account: QuotaAccountView;
@@ -40,6 +176,11 @@ export function AccountCard({
     const rightValue = right.remaining_percent ?? Number.POSITIVE_INFINITY;
     return leftValue - rightValue;
   });
+
+  const isAntigravity = account.provider === 'antigravity';
+  const groupedModels = isAntigravity
+    ? getAntigravityGroupedModels(account.models)
+    : [];
 
   return (
     <div className="rounded-lg border border-border/70 bg-card p-4">
@@ -120,7 +261,80 @@ export function AccountCard({
       ) : null}
 
       <div className="mt-4">
-        {sortedModels.length > 0 ? (
+        {isAntigravity && groupedModels.length > 0 ? (
+          <div className="space-y-4">
+            {groupedModels.map((group) => (
+              <details
+                key={`${account.credential_id}:${group.name}`}
+                className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm"
+              >
+                <summary className="list-none cursor-pointer text-sm font-semibold">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{group.name}</span>
+                    <span
+                      className={cn(
+                        'font-medium',
+                        metricToneClass(group.aggregatePercent, displayMode),
+                      )}
+                    >
+                      {metricLabelPercent(group.aggregatePercent, displayMode)}
+                      {group.resetTime ? (
+                        <span className="ml-1.5 text-[11px] text-muted-foreground">
+                          {formatTimeAgo(group.resetTime, now)}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn(
+                        'h-2 w-full rounded-full bg-opacity-30 transition-[width] duration-300',
+                        metricBarClass(group.aggregatePercent, displayMode),
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-[width] duration-300',
+                          metricFillClass(group.aggregatePercent, displayMode),
+                        )}
+                        style={{
+                          width: `${group.aggregatePercent == null ? 0 : Math.max(0, Math.min(100, group.aggregatePercent))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </summary>
+                <div className="mt-3 space-y-2 border-t border-border/60 pt-2">
+                  {group.models.map((model) => (
+                    <div
+                      key={model.name}
+                      className="flex items-center justify-between text-xs"
+                    >
+                      <span className="text-muted-foreground">
+                        {model.display_name}
+                      </span>
+                      <span
+                        className={cn(
+                          'font-medium',
+                          metricToneClass(
+                            model.remaining_percent ?? null,
+                            displayMode,
+                          ),
+                        )}
+                      >
+                        {metricLabelPercent(
+                          model.remaining_percent ?? null,
+                          displayMode,
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        ) : sortedModels.length > 0 ? (
           <MetricGroup
             models={sortedModels}
             mode={displayMode}
