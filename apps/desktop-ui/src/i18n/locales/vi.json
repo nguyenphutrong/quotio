@@ -17,9 +17,9 @@
     "signOut": "Đăng xuất",
     "welcomeBack": "Chào mừng trở lại",
     "title": "Đăng nhập Quotio",
-    "description": "Nhập access key của gateway để kết nối Quotio.",
+    "description": "Nhập access key để kết nối Quotio.",
     "tokenLabel": "Access key",
-    "tokenPlaceholder": "Dán access key của gateway",
+    "tokenPlaceholder": "Dán access key",
     "submitting": "Đang đăng nhập…",
     "submit": "Đăng nhập",
     "tokenRequired": "Cần nhập access key",
@@ -32,11 +32,11 @@
     "authRequired": "Chưa kết nối",
     "reloadAdmin": "Tải lại app",
     "sessionLabel": "Phiên local",
-    "sessionDetail": "Truy cập gateway",
-    "gatewayUrl": "Gateway URL",
+    "sessionDetail": "Truy cập app",
+    "gatewayUrl": "URL kết nối",
     "gatewayUrlHint": "Base URL tương thích OpenAI cho client AI của bạn.",
-    "copyGatewayUrl": "Sao chép gateway URL",
-    "gatewayUrlCopied": "Đã sao chép gateway URL."
+    "copyGatewayUrl": "Sao chép URL kết nối",
+    "gatewayUrlCopied": "Đã sao chép URL kết nối."
   },
   "nav": {
     "console": "Không gian làm việc",
@@ -138,7 +138,7 @@
   },
   "logs": {
     "title": "Nhật ký",
-    "description": "Theo dõi hoạt động request, mức dùng token và xu hướng chi phí.",
+    "description": "Xem request gần đây, mức dùng token và xu hướng chi phí.",
     "filters": {
       "apiKeys": "API keys",
       "apiKeysPlaceholder": "Lọc theo API key",
@@ -162,7 +162,7 @@
     "estimatedSavings": "Tiết kiệm ước tính",
     "savingsHint": "Tiết kiệm {{amount}}",
     "emptyTitle": "Chưa có nhật ký request",
-    "emptyDescription": "Hãy gửi request qua gateway để bắt đầu thấy các chỉ số nhật ký và xu hướng gửi.",
+    "emptyDescription": "Gửi request để bắt đầu thấy hoạt động gần đây.",
     "breakdownTitle": "Chi tiết chỉ số nhật ký",
     "tableTitle": "Nhật ký request",
     "captureBodiesTitle": "Lịch sử yêu cầu và phản hồi",
@@ -242,12 +242,12 @@
   },
   "apiKeys": {
     "title": "API Keys",
-    "description": "Tạo và quản lý API key client, thu hồi tức thì, và xem usage.",
+    "description": "Tạo, đổi tên và thu hồi key cho app. Xem nhanh mức sử dụng.",
     "loadingData": "Đang tải API keys…",
     "failedToLoad": "Không thể tải API keys",
     "searchPlaceholder": "Tìm theo tên key",
     "emptyTitle": "Chưa có API key",
-    "emptyDescription": "Tạo key đầu tiên để cấp bearer token cho client.",
+    "emptyDescription": "Tạo key để app có thể kết nối Quotio.",
     "never": "Chưa bao giờ",
     "noTrafficYet": "Chưa có traffic",
     "usageSummary": "{{requests}} req · {{tokens}} tok · {{cost}}",
@@ -561,10 +561,10 @@
   },
   "usageStats": {
     "title": "Thống kê sử dụng",
-    "description": "Xem hoạt động, token, độ trễ và chi phí ước tính.",
+    "description": "Xem hoạt động gần đây, token, độ trễ và chi phí.",
     "failedToLoad": "Không thể tải thống kê sử dụng",
     "disabledTitle": "Thống kê sử dụng đang tắt",
-    "disabledDescription": "Bật usage statistics service trong gateway trước khi dùng màn này.",
+    "disabledDescription": "Bật theo dõi sử dụng trước khi mở màn này.",
     "priceCount": "{{count}} model price được theo dõi",
     "loadingEvents": "Đang tải hoạt động…",
     "limit": "{{count}} dòng",
@@ -647,7 +647,7 @@
     }
   },
   "settings": {
-    "description": "Cấu hình tùy chọn Quotio desktop, proxy và kết nối.",
+    "description": "Cấu hình tùy chọn Quotio desktop, dịch vụ và kết nối.",
     "native": {
       "title": "Tùy chọn ứng dụng",
       "description": "Điều chỉnh cách Quotio khởi động, hiển thị và báo trạng thái.",
@@ -662,11 +662,11 @@
         "appearance": "Giao diện",
         "launchAtLogin": "Mở khi đăng nhập",
         "closeToTray": "Đóng xuống tray",
-        "proxyStatus": "Trạng thái gateway",
-        "proxyEndpoint": "Endpoint local",
+        "proxyStatus": "Trạng thái dịch vụ",
+        "proxyEndpoint": "Dịch vụ trên máy này",
         "proxyServerKind": "Loại gateway",
         "proxyServerVersion": "Phiên bản gateway",
-        "proxyInstallStatus": "Gateway của app",
+        "proxyInstallStatus": "Dịch vụ của app",
         "proxyActiveBinaryPath": "File runtime",
         "proxyConfigPath": "File cài đặt",
         "proxyPort": "Cổng gateway trên máy này",
@@ -697,8 +697,8 @@
         "updateChannel": "Kênh cập nhật"
       },
       "hints": {
-        "operatingMode": "Chọn Quotio dùng gateway trên máy này hay gateway đã lưu.",
-        "remoteNotConfigured": "Lưu gateway khác trước khi chuyển khỏi máy này.",
+        "operatingMode": "Chọn Quotio dùng máy này hay kết nối đã lưu khác.",
+        "remoteNotConfigured": "Lưu kết nối khác trước khi chuyển khỏi máy này.",
         "language": "Thay đổi ngôn ngữ của ứng dụng.",
         "appearance": "Áp dụng giao diện đã chọn ngay lập tức.",
         "launchAtLogin": "Tự động mở Quotio sau khi đăng nhập.",
@@ -719,15 +719,15 @@
       },
       "groups": {
         "localProxy": {
-          "title": "Gateway trên máy này",
-          "description": "Trạng thái gateway đang chạy trên máy này.",
+          "title": "Máy này",
+          "description": "Trạng thái dịch vụ Quotio đang chạy tại đây.",
           "advancedTitle": "Gateway local nâng cao",
           "advancedDescription": "Cổng, runtime và chi tiết xử lý sự cố.",
           "showAdvanced": "Hiện chi tiết"
         },
         "notifications": {
           "title": "Thông báo",
-          "description": "Cảnh báo hạn mức và proxy từ Quotio."
+          "description": "Cảnh báo hạn mức và dịch vụ từ Quotio."
         },
         "quota": {
           "title": "Hiển thị hạn mức",
@@ -748,7 +748,7 @@
       },
       "setup": {
         "title": "Thiết lập Windows",
-        "description": "Hoàn tất cài đặt khởi động Windows và kết nối gateway Quotio khác khi cần.",
+        "description": "Hoàn tất cài đặt khởi động Windows và kết nối thiết bị khác khi cần.",
         "startupApps": "Startup Apps",
         "remoteConnection": "Kết nối remote",
         "actions": {
@@ -859,16 +859,16 @@
       }
     },
     "remote": {
-      "title": "Gateway khác",
-      "description": "Kết nối ứng dụng này tới một Quotio gateway đang chạy ở nơi khác.",
+      "title": "Thiết bị khác",
+      "description": "Kết nối ứng dụng này tới Quotio đang chạy ở nơi khác.",
       "unsupported": "Bản này chưa hỗ trợ chỉnh kết nối.",
-      "baseUrlLabel": "Gateway URL",
+      "baseUrlLabel": "URL kết nối",
       "baseUrlPlaceholder": "https://quotio.example.com",
       "keyLabel": "Access key",
       "keyPlaceholder": "Dán access key",
       "keyStoredPlaceholder": "Key đã lưu sẽ được giữ nếu không thay mới",
-      "clearConfirmTitle": "Xóa gateway đã lưu",
-      "clearConfirmMessage": "Thao tác này xóa gateway URL và access key đã lưu khỏi kho bảo mật.",
+      "clearConfirmTitle": "Xóa kết nối đã lưu",
+      "clearConfirmMessage": "Thao tác này xóa URL kết nối và access key đã lưu khỏi kho bảo mật.",
       "status": {
         "configured": "Đã cấu hình",
         "notConfigured": "Chưa cấu hình"
@@ -880,11 +880,11 @@
         "clearing": "Đang xóa…"
       },
       "messages": {
-        "saved": "Đã lưu kết nối gateway.",
-        "cleared": "Đã xóa kết nối gateway."
+        "saved": "Đã lưu kết nối.",
+        "cleared": "Đã xóa kết nối."
       },
       "errors": {
-        "baseUrlRequired": "Cần nhập Gateway URL."
+        "baseUrlRequired": "Cần nhập URL kết nối."
       }
     }
   },
@@ -969,12 +969,12 @@
   },
   "providers": {
     "title": "Nhà cung cấp",
-    "description": "Kết nối các dịch vụ Quotio dùng cho model, hạn mức và trạng thái tài khoản.",
+    "description": "Kết nối các dịch vụ AI Quotio dùng cho model, usage và trạng thái tài khoản.",
     "loading": "Đang tải nhà cung cấp…",
     "failedToLoad": "Không thể tải nhà cung cấp",
     "unknownError": "Lỗi nhà cung cấp không xác định",
     "actions": {
-      "addProvider": "Thêm nhà cung cấp",
+      "addProvider": "Thêm dịch vụ",
       "addConnection": "Thêm kết nối",
       "edit": "Sửa",
       "test": "Kiểm tra",
@@ -999,7 +999,7 @@
     },
     "form": {
       "selectTitle": "Chọn nhà cung cấp",
-      "selectDescription": "Chọn nơi Quotio sẽ gửi request model.",
+      "selectDescription": "Chọn dịch vụ mà kết nối này sẽ dùng.",
       "customProvider": "Nhà cung cấp tùy chỉnh",
       "changeProvider": "Đổi nhà cung cấp",
       "configureDescription": "Đăng nhập hoặc thêm thông tin Quotio cần để dùng dịch vụ này.",
@@ -1010,13 +1010,13 @@
       "openAuthorization": "Mở trang cấp quyền",
       "copyLink": "Sao chép link",
       "starting": "Đang bắt đầu…",
-      "deviceCodeTitle": "Đăng nhập trên trang nhà cung cấp",
+      "deviceCodeTitle": "Hoàn tất đăng nhập trong trình duyệt",
       "deviceCodeDescription": "Dùng mã này trên {{provider}} để cho phép Quotio. Cửa sổ này sẽ cập nhật khi đăng nhập xong.",
       "deviceCodeRequesting": "Đang lấy mã đăng nhập…",
       "deviceCodeAwaiting": "Hoàn tất trang nhà cung cấp, rồi quay lại đây để Quotio hoàn tất thiết lập.",
       "authorizationCompleted": "Đăng nhập xong. Kết nối đã sẵn sàng.",
       "deviceCodeExpired": "Mã thiết bị này đã hết hạn. Chọn lại nhà cung cấp để đăng nhập lại.",
-      "oauthTitle": "Đăng nhập trên trang nhà cung cấp",
+      "oauthTitle": "Hoàn tất đăng nhập trong trình duyệt",
       "oauthDescription": "Quotio mở trang đăng nhập của nhà cung cấp và hoàn tất thiết lập khi bạn quay lại.",
       "oauthKiroDescription": "Quotio mở đăng nhập Kiro và tự hoàn tất thiết lập.",
       "oauthPreparing": "Đang chuẩn bị đăng nhập…",
@@ -1039,7 +1039,7 @@
         "projectId": "Project",
         "priority": "Độ ưu tiên",
         "routePrefix": "Tiền tố định tuyến",
-        "baseUrl": "API endpoint",
+        "baseUrl": "URL dịch vụ",
         "secret": "API secret",
         "secretKeepCurrent": "API secret",
         "proxyUrl": "Proxy endpoint",

@@ -17,9 +17,9 @@
     "signOut": "退出登录",
     "welcomeBack": "欢迎回来",
     "title": "登录 Quotio",
-    "description": "输入网关访问密钥以连接 Quotio。",
+    "description": "输入访问密钥以连接 Quotio。",
     "tokenLabel": "访问密钥",
-    "tokenPlaceholder": "粘贴您的网关访问密钥",
+    "tokenPlaceholder": "粘贴访问密钥",
     "submitting": "登录中…",
     "submit": "登录",
     "tokenRequired": "需要输入访问密钥",
@@ -32,11 +32,11 @@
     "authRequired": "未连接",
     "reloadAdmin": "重新加载应用",
     "sessionLabel": "本地会话",
-    "sessionDetail": "网关访问",
-    "gatewayUrl": "网关 URL",
+    "sessionDetail": "应用访问",
+    "gatewayUrl": "连接 URL",
     "gatewayUrlHint": "供 AI 客户端使用的 OpenAI 兼容基础 URL。",
-    "copyGatewayUrl": "复制网关 URL",
-    "gatewayUrlCopied": "已复制网关 URL。"
+    "copyGatewayUrl": "复制连接 URL",
+    "gatewayUrlCopied": "已复制连接 URL。"
   },
   "nav": {
     "console": "工作区",
@@ -138,7 +138,7 @@
   },
   "logs": {
     "title": "日志",
-    "description": "查看请求活动、Token 用量和成本趋势。",
+    "description": "查看最近请求、Token 用量和支出趋势。",
     "filters": {
       "apiKeys": "API Keys",
       "apiKeysPlaceholder": "按 API Key 筛选",
@@ -162,7 +162,7 @@
     "estimatedSavings": "预估节省",
     "savingsHint": "已节省 {{amount}}",
     "emptyTitle": "暂无请求日志",
-    "emptyDescription": "先通过网关发起请求，即可查看日志指标和投递趋势。",
+    "emptyDescription": "发送请求后即可看到最近活动。",
     "breakdownTitle": "日志指标明细",
     "tableTitle": "请求日志",
     "captureBodiesTitle": "请求与响应历史",
@@ -242,12 +242,12 @@
   },
   "apiKeys": {
     "title": "API Keys",
-    "description": "创建并管理客户端 API key，支持即时吊销和 usage 查看。",
+    "description": "创建、重命名和撤销应用密钥，并快速查看用量。",
     "loadingData": "正在加载 API keys…",
     "failedToLoad": "API keys 加载失败",
     "searchPlaceholder": "按 key 名称搜索",
     "emptyTitle": "还没有 API key",
-    "emptyDescription": "创建第一个 client key 以签发 bearer token。",
+    "emptyDescription": "创建密钥，让应用可以连接 Quotio。",
     "never": "从未",
     "noTrafficYet": "暂无流量",
     "usageSummary": "{{requests}} req · {{tokens}} tok · {{cost}}",
@@ -562,10 +562,10 @@
   },
   "usageStats": {
     "title": "使用统计",
-    "description": "查看活动、Token 用量、延迟和预估支出。",
+    "description": "查看最近活动、Token 用量、延迟和支出。",
     "failedToLoad": "使用统计不可用",
     "disabledTitle": "使用统计已禁用",
-    "disabledDescription": "请先在网关中启用 usage statistics service。",
+    "disabledDescription": "请先开启使用跟踪，再打开此页面。",
     "priceCount": "已跟踪 {{count}} 个模型价格",
     "loadingEvents": "正在加载活动…",
     "limit": "{{count}} 行",
@@ -648,7 +648,7 @@
     }
   },
   "settings": {
-    "description": "配置 Quotio 桌面偏好、代理行为和连接。",
+    "description": "配置 Quotio 桌面偏好、服务行为和连接。",
     "native": {
       "title": "应用偏好",
       "description": "控制 Quotio 的启动、外观和状态提醒。",
@@ -663,11 +663,11 @@
         "appearance": "外观",
         "launchAtLogin": "登录时启动",
         "closeToTray": "关闭到托盘",
-        "proxyStatus": "网关状态",
-        "proxyEndpoint": "本机端点",
+        "proxyStatus": "服务状态",
+        "proxyEndpoint": "本机服务",
         "proxyServerKind": "网关类型",
         "proxyServerVersion": "网关版本",
-        "proxyInstallStatus": "应用网关",
+        "proxyInstallStatus": "应用服务",
         "proxyActiveBinaryPath": "运行时文件",
         "proxyConfigPath": "设置文件",
         "proxyPort": "本机网关端口",
@@ -698,8 +698,8 @@
         "updateChannel": "更新通道"
       },
       "hints": {
-        "operatingMode": "选择 Quotio 使用此设备，还是使用已保存的其他网关。",
-        "remoteNotConfigured": "请先保存其他网关，再切换离开此设备。",
+        "operatingMode": "选择 Quotio 使用此设备，还是使用已保存的其他连接。",
+        "remoteNotConfigured": "请先保存其他连接，再切换离开此设备。",
         "language": "更改应用语言。",
         "appearance": "立即应用所选外观。",
         "launchAtLogin": "登录后自动启动 Quotio。",
@@ -720,15 +720,15 @@
       },
       "groups": {
         "localProxy": {
-          "title": "本机网关",
-          "description": "此设备上运行的网关状态。",
+          "title": "此设备",
+          "description": "此处运行的 Quotio 服务状态。",
           "advancedTitle": "高级本机网关",
           "advancedDescription": "端口、运行时和故障排查详情。",
           "showAdvanced": "显示详情"
         },
         "notifications": {
           "title": "通知",
-          "description": "Quotio 发送的配额和代理提醒。"
+          "description": "Quotio 发送的配额和服务提醒。"
         },
         "quota": {
           "title": "配额显示",
@@ -749,7 +749,7 @@
       },
       "setup": {
         "title": "Windows 设置",
-        "description": "完成 Windows 启动设置，并在需要时连接另一个 Quotio 网关。",
+        "description": "完成 Windows 启动设置，并在需要时连接另一台设备。",
         "startupApps": "启动应用",
         "remoteConnection": "远程连接",
         "actions": {
@@ -860,16 +860,16 @@
       }
     },
     "remote": {
-      "title": "其他网关",
-      "description": "将此应用连接到已在其他位置运行的 Quotio 网关。",
+      "title": "另一台设备",
+      "description": "将此应用连接到已在其他位置运行的 Quotio。",
       "unsupported": "此版本暂不支持编辑连接。",
-      "baseUrlLabel": "网关 URL",
+      "baseUrlLabel": "连接 URL",
       "baseUrlPlaceholder": "https://quotio.example.com",
       "keyLabel": "访问密钥",
       "keyPlaceholder": "粘贴访问密钥",
       "keyStoredPlaceholder": "已存储的 key 会保留，除非替换",
-      "clearConfirmTitle": "清除已保存的网关",
-      "clearConfirmMessage": "这会从安全存储中移除已保存的网关 URL 和访问密钥。",
+      "clearConfirmTitle": "清除已保存的连接",
+      "clearConfirmMessage": "这会从安全存储中移除已保存的连接 URL 和访问密钥。",
       "status": {
         "configured": "已配置",
         "notConfigured": "未配置"
@@ -881,11 +881,11 @@
         "clearing": "正在清除…"
       },
       "messages": {
-        "saved": "网关连接已保存。",
-        "cleared": "网关连接已清除。"
+        "saved": "连接已保存。",
+        "cleared": "连接已清除。"
       },
       "errors": {
-        "baseUrlRequired": "需要填写网关 URL。"
+        "baseUrlRequired": "需要填写连接 URL。"
       }
     }
   },
@@ -965,17 +965,17 @@
   },
   "bootstrap": {
     "failedLabel": "启动错误",
-    "failedTitle": "Quotio 管理面板无法启动",
+    "failedTitle": "Quotio 无法启动",
     "unknownError": "启动过程中发生意外错误。"
   },
   "providers": {
     "title": "服务商",
-    "description": "连接 Quotio 可用于模型、配额和账号状态的服务。",
+    "description": "连接 Quotio 用于模型、用量和账号状态的 AI 服务。",
     "loading": "正在加载服务商…",
     "failedToLoad": "无法加载服务商",
     "unknownError": "未知服务商错误",
     "actions": {
-      "addProvider": "添加服务商",
+      "addProvider": "添加服务",
       "addConnection": "添加连接",
       "edit": "编辑",
       "test": "测试",
@@ -1000,7 +1000,7 @@
     },
     "form": {
       "selectTitle": "选择服务商",
-      "selectDescription": "选择 Quotio 应该将模型请求发送到哪里。",
+      "selectDescription": "选择此连接要使用的服务。",
       "customProvider": "自定义服务商",
       "changeProvider": "更换服务商",
       "configureDescription": "登录或填写 Quotio 使用此服务所需的信息。",
@@ -1011,13 +1011,13 @@
       "openAuthorization": "打开授权页",
       "copyLink": "复制链接",
       "starting": "正在启动…",
-      "deviceCodeTitle": "在服务商网站登录",
+      "deviceCodeTitle": "在浏览器中完成登录",
       "deviceCodeDescription": "在 {{provider}} 使用此代码授权 Quotio。登录完成后此窗口会自动更新。",
       "deviceCodeRequesting": "正在获取登录代码…",
       "deviceCodeAwaiting": "完成服务商页面，然后回到这里等待 Quotio 完成设置。",
       "authorizationCompleted": "登录完成。连接已就绪。",
       "deviceCodeExpired": "此设备码已过期。请重新选择服务商开始登录。",
-      "oauthTitle": "在服务商网站登录",
+      "oauthTitle": "在浏览器中完成登录",
       "oauthDescription": "Quotio 会打开服务商登录页，并在你返回后完成设置。",
       "oauthKiroDescription": "Quotio 会打开 Kiro 登录页并自动完成设置。",
       "oauthPreparing": "正在准备登录…",
@@ -1040,7 +1040,7 @@
         "projectId": "项目",
         "priority": "优先级",
         "routePrefix": "路由前缀",
-        "baseUrl": "API 端点",
+        "baseUrl": "服务 URL",
         "secret": "API 密钥",
         "secretKeepCurrent": "API 密钥",
         "proxyUrl": "代理端点",

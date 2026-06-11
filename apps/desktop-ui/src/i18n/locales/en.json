@@ -17,9 +17,9 @@
     "signOut": "Sign out",
     "welcomeBack": "Welcome back",
     "title": "Sign in to Quotio",
-    "description": "Enter your gateway access key to connect Quotio.",
+    "description": "Enter your access key to connect Quotio.",
     "tokenLabel": "Access key",
-    "tokenPlaceholder": "Paste your gateway access key",
+    "tokenPlaceholder": "Paste your access key",
     "submitting": "Signing in…",
     "submit": "Sign in",
     "tokenRequired": "Access key is required",
@@ -32,11 +32,11 @@
     "authRequired": "Not connected",
     "reloadAdmin": "Reload app",
     "sessionLabel": "Local session",
-    "sessionDetail": "Gateway access",
-    "gatewayUrl": "Gateway URL",
+    "sessionDetail": "App access",
+    "gatewayUrl": "Connection URL",
     "gatewayUrlHint": "OpenAI-compatible base URL for your AI clients.",
-    "copyGatewayUrl": "Copy gateway URL",
-    "gatewayUrlCopied": "Copied gateway URL."
+    "copyGatewayUrl": "Copy connection URL",
+    "gatewayUrlCopied": "Copied connection URL."
   },
   "nav": {
     "console": "Workspace",
@@ -142,7 +142,7 @@
   },
   "logs": {
     "title": "Logs",
-    "description": "Review request activity, token use, and cost trends.",
+    "description": "See recent requests, token use, and spend trends.",
     "filters": {
       "apiKeys": "API keys",
       "apiKeysPlaceholder": "Filter by API key",
@@ -166,7 +166,7 @@
     "estimatedSavings": "Estimated savings",
     "savingsHint": "Saved {{amount}}",
     "emptyTitle": "No request logs yet",
-    "emptyDescription": "Run requests through the gateway to start seeing log metrics and delivery trends.",
+    "emptyDescription": "Send requests to start seeing recent activity.",
     "breakdownTitle": "Log metrics breakdown",
     "tableTitle": "Request logs",
     "captureBodiesTitle": "Request and response history",
@@ -246,12 +246,12 @@
   },
   "apiKeys": {
     "title": "API Keys",
-    "description": "Create and manage client keys, revoke instantly, and inspect usage.",
+    "description": "Create, rename, and revoke app keys. See usage at a glance.",
     "loadingData": "Loading API keys…",
     "failedToLoad": "API keys failed to load",
     "searchPlaceholder": "Search key names",
     "emptyTitle": "No API keys yet",
-    "emptyDescription": "Create your first client key to start issuing bearer tokens.",
+    "emptyDescription": "Create a key so an app can connect to Quotio.",
     "never": "Never",
     "noTrafficYet": "No traffic yet",
     "usageSummary": "{{requests}} req · {{tokens}} tok · {{cost}}",
@@ -566,10 +566,10 @@
   },
   "usageStats": {
     "title": "Usage Statistics",
-    "description": "Review activity, token use, latency, and estimated spend.",
+    "description": "See recent activity, token use, latency, and spend.",
     "failedToLoad": "Usage statistics unavailable",
     "disabledTitle": "Usage statistics are disabled",
-    "disabledDescription": "Enable the usage statistics service in the gateway before using this screen.",
+    "disabledDescription": "Turn on usage tracking before opening this screen.",
     "priceCount": "{{count}} model prices tracked",
     "loadingEvents": "Loading activity…",
     "limit": "{{count}} rows",
@@ -652,7 +652,7 @@
     }
   },
   "settings": {
-    "description": "Configure Quotio desktop preferences, proxy behavior, and connections.",
+    "description": "Configure Quotio desktop preferences, service behavior, and connections.",
     "native": {
       "title": "App preferences",
       "description": "Control how Quotio starts, appears, and reports status.",
@@ -667,11 +667,11 @@
         "appearance": "Appearance",
         "launchAtLogin": "Launch at login",
         "closeToTray": "Close to tray",
-        "proxyStatus": "Gateway status",
-        "proxyEndpoint": "Local endpoint",
+        "proxyStatus": "Service status",
+        "proxyEndpoint": "Local service",
         "proxyServerKind": "Gateway type",
         "proxyServerVersion": "Gateway version",
-        "proxyInstallStatus": "App gateway",
+        "proxyInstallStatus": "App service",
         "proxyActiveBinaryPath": "Runtime file",
         "proxyConfigPath": "Settings file",
         "proxyPort": "Local gateway port",
@@ -702,8 +702,8 @@
         "updateChannel": "Update channel"
       },
       "hints": {
-        "operatingMode": "Choose whether Quotio uses this device or another saved gateway.",
-        "remoteNotConfigured": "Save another gateway before switching away from this device.",
+        "operatingMode": "Choose whether Quotio uses this device or another saved connection.",
+        "remoteNotConfigured": "Save another connection before switching away from this device.",
         "language": "Changes the app language.",
         "appearance": "Applies the selected appearance immediately.",
         "launchAtLogin": "Starts Quotio automatically after signing in.",
@@ -724,15 +724,15 @@
       },
       "groups": {
         "localProxy": {
-          "title": "Local gateway",
-          "description": "Status for the gateway running on this Mac.",
+          "title": "This device",
+          "description": "Status for the Quotio service running here.",
           "advancedTitle": "Advanced local gateway",
           "advancedDescription": "Port, runtime, and troubleshooting details.",
           "showAdvanced": "Show details"
         },
         "notifications": {
           "title": "Notifications",
-          "description": "Quota and proxy alerts from Quotio."
+          "description": "Quota and service alerts from Quotio."
         },
         "quota": {
           "title": "Quota display",
@@ -753,7 +753,7 @@
       },
       "setup": {
         "title": "Windows setup",
-        "description": "Finish Windows startup settings and connect another Quotio gateway when needed.",
+        "description": "Finish Windows startup settings and connect another device when needed.",
         "startupApps": "Startup Apps",
         "remoteConnection": "Remote connection",
         "actions": {
@@ -864,16 +864,16 @@
       }
     },
     "remote": {
-      "title": "Another gateway",
-      "description": "Connect this app to a Quotio gateway already running elsewhere.",
+      "title": "Another device",
+      "description": "Connect this app to Quotio already running elsewhere.",
       "unsupported": "Connection editing is not available in this build.",
-      "baseUrlLabel": "Gateway URL",
+      "baseUrlLabel": "Connection URL",
       "baseUrlPlaceholder": "https://quotio.example.com",
       "keyLabel": "Access key",
       "keyPlaceholder": "Paste an access key",
       "keyStoredPlaceholder": "Stored key will be kept unless replaced",
-      "clearConfirmTitle": "Clear saved gateway",
-      "clearConfirmMessage": "This removes the saved gateway URL and access key from secure storage.",
+      "clearConfirmTitle": "Clear saved connection",
+      "clearConfirmMessage": "This removes the saved connection URL and access key from secure storage.",
       "status": {
         "configured": "Configured",
         "notConfigured": "Not configured"
@@ -885,11 +885,11 @@
         "clearing": "Clearing…"
       },
       "messages": {
-        "saved": "Gateway connection saved.",
-        "cleared": "Gateway connection cleared."
+        "saved": "Connection saved.",
+        "cleared": "Connection cleared."
       },
       "errors": {
-        "baseUrlRequired": "Gateway URL is required."
+        "baseUrlRequired": "Connection URL is required."
       }
     }
   },
@@ -974,12 +974,12 @@
   },
   "providers": {
     "title": "Providers",
-    "description": "Connect the services Quotio can use for models, quota, and account status.",
+    "description": "Connect the AI services Quotio uses for models, usage, and account state.",
     "loading": "Loading providers…",
     "failedToLoad": "Providers failed to load",
     "unknownError": "Unknown providers error",
     "actions": {
-      "addProvider": "Add Provider",
+      "addProvider": "Add service",
       "addConnection": "Add connection",
       "edit": "Edit",
       "test": "Test",
@@ -1004,7 +1004,7 @@
     },
     "form": {
       "selectTitle": "Choose a provider",
-      "selectDescription": "Choose where Quotio should send model requests.",
+      "selectDescription": "Choose which service this connection should use.",
       "customProvider": "Custom provider",
       "changeProvider": "Change provider",
       "configureDescription": "Sign in or add the details Quotio needs to use this service.",
@@ -1015,13 +1015,13 @@
       "openAuthorization": "Open authorization page",
       "copyLink": "Copy link",
       "starting": "Starting…",
-      "deviceCodeTitle": "Sign in on the provider site",
+      "deviceCodeTitle": "Finish sign-in in your browser",
       "deviceCodeDescription": "Use this code on {{provider}} to approve Quotio. This window will update when sign-in finishes.",
       "deviceCodeRequesting": "Getting sign-in code…",
       "deviceCodeAwaiting": "Finish the provider page, then return here while Quotio completes setup.",
       "authorizationCompleted": "Sign-in complete. The connection is ready.",
       "deviceCodeExpired": "This device code expired. Choose the provider again to restart sign-in.",
-      "oauthTitle": "Sign in on the provider site",
+      "oauthTitle": "Finish sign-in in your browser",
       "oauthDescription": "Quotio opens the provider sign-in page and finishes setup when you return.",
       "oauthKiroDescription": "Quotio opens Kiro sign-in and finishes setup automatically.",
       "oauthPreparing": "Preparing sign-in…",
@@ -1044,7 +1044,7 @@
         "projectId": "Project",
         "priority": "Priority",
         "routePrefix": "Routing prefix",
-        "baseUrl": "API endpoint",
+        "baseUrl": "Service URL",
         "secret": "API secret",
         "secretKeepCurrent": "API secret",
         "proxyUrl": "Proxy endpoint",
