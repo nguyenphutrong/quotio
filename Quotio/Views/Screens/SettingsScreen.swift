@@ -276,7 +276,7 @@ struct RemoteServerSection: View {
                 .font(.subheadline)
 
             if let serverInfo = modeManager.serverInfo {
-                Text(serverInfo.version.map { "\(serverInfo.kind.rawValue) \($0)" } ?? serverInfo.kind.rawValue)
+                Text(serverInfo.version.map { "\(serverInfo.kind.displayName) \($0)" } ?? serverInfo.kind.displayName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -818,7 +818,7 @@ struct LocalProxyServerSection: View {
     }
 
     private var serverKindText: String {
-        modeManager.serverInfo?.kind == .cpaPlusPlus ? "cpa++" : modeManager.serverInfo?.kind.rawValue ?? "cpa++"
+        modeManager.serverInfo?.kind.displayName ?? "management.serverKind.quotioGateway".localized()
     }
 
     private var serverVersionText: String {
@@ -1462,14 +1462,14 @@ struct AboutTab: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("cpa++ Management UI")
+            Text("about.managementConsole".localized())
                 .foregroundStyle(.secondary)
             
             Text("Version 1.0")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             
-            Link("GitHub: cpa++", destination: URL(string: "https://github.com/nguyenphutrong/cpa-plusplus")!)
+            Link("about.gatewaySource".localized(), destination: URL(string: "https://github.com/nguyenphutrong/cpa-plusplus")!)
                 .buttonStyle(.bordered)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1636,7 +1636,7 @@ struct AboutScreen: View {
                 )
                 
                 LinkCard(
-                    title: "GitHub: cpa++",
+                    title: "about.gatewaySource".localized(),
                     icon: "link",
                     color: .purple,
                     url: URL(string: "https://github.com/nguyenphutrong/cpa-plusplus")!

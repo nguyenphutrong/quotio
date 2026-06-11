@@ -755,6 +755,15 @@ actor ManagementAPIClient {
 nonisolated enum ManagementServerKind: String, Sendable {
     case cpaPlusPlus = "cpa-plusplus"
     case legacyCompatible = "legacy compatible"
+
+    var displayName: String {
+        switch self {
+        case .cpaPlusPlus:
+            return "management.serverKind.quotioGateway".localizedStatic()
+        case .legacyCompatible:
+            return "management.serverKind.compatibleGateway".localizedStatic()
+        }
+    }
 }
 
 nonisolated struct ManagementServerInfo: Sendable, Equatable {

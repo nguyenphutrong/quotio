@@ -254,25 +254,54 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quotio is a native macOS application for managing cpa++ - a local proxy server that powers your AI coding agents. Manage multiple AI accounts, track quotas, and configure CLI tools in one place."
+            "value" : "Quotio manages the local gateway that powers your AI coding agents. Manage multiple AI accounts, track quotas, and configure CLI tools in one place."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quotio est une application macOS native pour gérer cpa++ - un serveur proxy local qui alimente vos agents de codage IA. Gérez plusieurs comptes IA, suivez les quotas et configurez les outils CLI en un seul endroit."
+            "value" : "Quotio gère la passerelle locale qui alimente vos agents de codage IA. Gérez plusieurs comptes IA, suivez les quotas et configurez les outils CLI en un seul endroit."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quotio là ứng dụng macOS để quản lý cpa++ - máy chủ proxy cục bộ hỗ trợ các AI coding agent. Quản lý nhiều tài khoản AI, theo dõi hạn mức và cấu hình các công cụ CLI tại một nơi."
+            "value" : "Quotio quản lý gateway cục bộ dùng cho các AI coding agent. Quản lý nhiều tài khoản AI, theo dõi hạn mức và cấu hình công cụ CLI tại một nơi."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quotio 是一个原生 macOS 应用程序，用于管理 cpa++ - 一个为您的 AI 编码代理提供支持的使用本地 cpa++服务器。在一个地方管理多个 AI 账户、跟踪配额和配置 CLI 工具。"
+            "value" : "Quotio 管理为您的 AI 编码代理提供支持的本地网关。在一个地方管理多个 AI 账户、跟踪配额并配置 CLI 工具。"
+          }
+        }
+      }
+    },
+    "about.gatewaySource" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gateway source"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source de la passerelle"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mã nguồn gateway"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网关源码"
           }
         }
       }
@@ -302,6 +331,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用 ❤️ 在越南制作"
+          }
+        }
+      }
+    },
+    "about.managementConsole" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gateway management console"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Console de gestion de la passerelle"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bảng quản lý gateway"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网关管理控制台"
           }
         }
       }
@@ -11148,6 +11206,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "项目过多"
+          }
+        }
+      }
+    },
+    "management.serverKind.compatibleGateway" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compatible gateway"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passerelle compatible"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gateway tương thích"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兼容网关"
+          }
+        }
+      }
+    },
+    "management.serverKind.quotioGateway" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quotio Gateway"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quotio Gateway"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quotio Gateway"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quotio Gateway"
           }
         }
       }

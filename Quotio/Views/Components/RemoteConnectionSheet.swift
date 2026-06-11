@@ -306,7 +306,7 @@ struct RemoteConnectionSheet: View {
             let versionSuffix = info.version.map { " (\($0))" } ?? ""
             testResult = RemoteTestResult(
                 success: true,
-                message: "\(info.kind.rawValue)\(versionSuffix)"
+                message: "\(info.kind.displayName)\(versionSuffix)"
             )
         } catch {
             testResult = RemoteTestResult(
