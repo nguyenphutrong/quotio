@@ -13,7 +13,19 @@ export function AdminPageHeader({
   const isNativeDesktop = useIsNativeDesktopRuntime();
 
   if (isNativeDesktop) {
-    return actions ? <div className="flex justify-end">{actions}</div> : null;
+    return (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-semibold text-foreground">
+            {title}
+          </h1>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
+            {description}
+          </p>
+        </div>
+        {actions ? <div className="shrink-0">{actions}</div> : null}
+      </div>
+    );
   }
 
   return (
