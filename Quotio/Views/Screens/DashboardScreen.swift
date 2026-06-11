@@ -517,9 +517,8 @@ struct DashboardScreen: View {
     private var endpointSection: some View {
         GroupBox {
             HStack {
-                Text(displayEndpoint)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
+                Text("dashboard.gatewayReady".localized())
+                    .foregroundStyle(.secondary)
 
                 Spacer()
 
@@ -530,9 +529,10 @@ struct DashboardScreen: View {
                     Image(systemName: "doc.on.doc")
                 }
                 .buttonStyle(.bordered)
+                .help("action.copy".localized())
             }
         } label: {
-            Label("dashboard.apiEndpoint".localized(), systemImage: "link")
+            Label("dashboard.gatewayConnection".localized(), systemImage: "link")
         }
     }
     
@@ -576,12 +576,11 @@ struct DashboardScreen: View {
                         TunnelStatusBadge(status: tunnelManager.tunnelState.status, compact: true)
                     }
                     
-                    if tunnelManager.tunnelState.isActive, let url = tunnelManager.tunnelState.publicURL {
-                        Text(url)
+                    if tunnelManager.tunnelState.isActive {
+                        Text("tunnel.section.active".localized())
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                            .monospaced()
                     } else {
                         Text("tunnel.section.description".localized())
                             .font(.caption)

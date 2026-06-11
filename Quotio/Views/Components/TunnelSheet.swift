@@ -118,10 +118,9 @@ struct TunnelSheet: View {
                     Text("tunnel.status".localized())
                         .font(.headline)
                     
-                    Text("localhost:" + String(proxyPort))
+                    Text("tunnel.localServiceReady".localized())
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .monospaced()
                 }
                 
                 Spacer()
@@ -168,17 +167,15 @@ struct TunnelSheet: View {
     
     private var publicUrlSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("tunnel.publicURL".localized(), systemImage: "link")
+            Label("tunnel.publicAccess".localized(), systemImage: "link")
                 .font(.headline)
                 .foregroundStyle(.primary)
             
             HStack(spacing: 12) {
-                Text(tunnelManager.tunnelState.publicURL ?? "—")
-                    .font(.system(.body, design: .monospaced))
+                Text("tunnel.publicAccessReady".localized())
+                    .font(.body)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
                 
                 Spacer()
                 

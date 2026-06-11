@@ -738,9 +738,8 @@ struct LocalProxyServerSection: View {
             }
             
             LabeledContent("settings.endpoint".localized()) {
-                Text(viewModel.proxyManager.proxyStatus.endpoint)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
+                Text(viewModel.proxyManager.proxyStatus.running ? "settings.gatewayReady".localized() : "settings.gatewayUnavailable".localized())
+                    .foregroundStyle(.secondary)
             }
 
             LabeledContent("Server kind") {
@@ -848,8 +847,7 @@ struct NetworkAccessSection: View {
             Toggle("settings.allowNetworkAccess".localized(), isOn: $allowNetworkAccess)
             
             LabeledContent("settings.bindAddress".localized()) {
-                Text(allowNetworkAccess ? "0.0.0.0 (All Interfaces)" : "127.0.0.1 (Localhost)")
-                    .font(.system(.body, design: .monospaced))
+                Text(allowNetworkAccess ? "settings.networkDevices".localized() : "settings.thisMacOnly".localized())
                     .foregroundStyle(allowNetworkAccess ? .orange : .secondary)
             }
             
