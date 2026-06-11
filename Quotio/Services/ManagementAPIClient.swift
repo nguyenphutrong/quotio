@@ -82,7 +82,7 @@ actor ManagementAPIClient {
         self.isRemote = false
         self.timeoutConfig = .local
         
-        let config = Self.makeSessionConfiguration(timeoutConfig: timeoutConfig)
+        let config = Self.makeSessionConfiguration(timeoutConfig: timeoutConfig, useHTTPProxyOverride: false)
         
         self.sessionDelegate = SessionDelegate(clientId: clientId)
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
@@ -100,7 +100,7 @@ actor ManagementAPIClient {
         self.isRemote = true
         self.timeoutConfig = timeoutConfig
         
-        let config = Self.makeSessionConfiguration(timeoutConfig: timeoutConfig)
+        let config = Self.makeSessionConfiguration(timeoutConfig: timeoutConfig, useHTTPProxyOverride: true)
         
         self.sessionDelegate = SessionDelegate(clientId: clientId, verifySSL: verifySSL)
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
@@ -132,7 +132,10 @@ actor ManagementAPIClient {
         session.invalidateAndCancel()
     }
 
-    private static func makeSessionConfiguration(timeoutConfig: TimeoutConfig) -> URLSessionConfiguration {
+    private static func makeSessionConfiguration(
+        timeoutConfig: TimeoutConfig,
+        useHTTPProxyOverride: Bool
+    ) -> URLSessionConfiguration {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = timeoutConfig.requestTimeout
         config.timeoutIntervalForResource = timeoutConfig.resourceTimeout
@@ -140,7 +143,9 @@ actor ManagementAPIClient {
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
 
-        applyHTTPProxyOverride(to: config)
+        if useHTTPProxyOverride {
+            applyHTTPProxyOverride(to: config)
+        }
 
         return config
     }
