@@ -189,24 +189,24 @@
     },
     "columns": {
       "timestamp": "Timestamp",
-      "endpoint": "Endpoint",
-      "providerModel": "Provider / Model",
-      "app": "App",
-      "tokens": "Tokens",
+      "endpoint": "Route",
+      "providerModel": "Destination",
+      "app": "Client",
+      "tokens": "Usage",
       "cost": "Cost",
       "speed": "Speed",
-      "finish": "Finish",
+      "finish": "Result",
       "actions": "Actions"
     },
     "columnsHelp": {
-      "timestamp": "When the gateway recorded this request log entry.",
-      "endpoint": "Gateway endpoint and transport method used for the request, such as POST /v1/messages or WS stream traffic.",
-      "providerModel": "Resolved upstream target in slug format. If a virtual model was requested, a mapping line shows requested model to resolved target.",
-      "app": "Client app identifier inferred from headers (X-Title, HTTP-Referer host, Originator, or User-Agent fallback).",
-      "tokens": "Token usage split into Input, Output, and Cache. Input = request input tokens, Output = generated tokens, Cache = cached input tokens reported by the upstream provider.",
+      "timestamp": "When Quotio recorded this request.",
+      "endpoint": "Request route and method. Open details for the exact path.",
+      "providerModel": "Provider and model that handled the request. Virtual model mappings appear as a secondary line.",
+      "app": "Client app that sent the request.",
+      "tokens": "Input, output, and cached token usage for the request.",
       "cost": "Estimated retail cost for this request based on known model pricing and parsed token usage.",
       "speed": "Approximate generation throughput in tokens per second, computed from total tokens and request duration.",
-      "finish": "Finish signal extracted from upstream response payload, such as stop/completed/length."
+      "finish": "Final status reported by the provider."
     },
     "tokenLabels": {
       "input": "Input",

@@ -519,18 +519,18 @@ export function LogsPage() {
                           <Badge variant="outline">
                             {displayRequestMethod(entry)}
                           </Badge>
-                          <span className="font-mono text-xs text-foreground">
+                          <span className="max-w-[220px] truncate text-foreground text-sm">
                             {entry.endpoint || '—'}
                           </span>
                         </div>
                       </td>
                       <td className="px-3 py-3">
                         <div className="space-y-1">
-                          <div className="font-mono text-xs font-medium text-foreground">
+                          <div className="max-w-[240px] truncate font-medium text-foreground text-sm">
                             {providerModel.primary}
                           </div>
                           {providerModel.mappedFrom ? (
-                            <div className="text-xs text-muted-foreground">
+                            <div className="max-w-[240px] truncate text-muted-foreground text-xs">
                               {providerModel.mappedFrom} →{' '}
                               {providerModel.primary}
                             </div>
@@ -540,38 +540,32 @@ export function LogsPage() {
                       <td className="px-3 py-3 text-muted-foreground">
                         {formatAppLabel(entry.app)}
                       </td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground">
-                        <div className="space-y-1">
-                          <div>
-                            <span className="font-medium text-foreground">
-                              {t('logs.tokenLabels.input')}:
-                            </span>{' '}
-                            <span className="font-mono">
+                      <td className="px-3 py-3 text-muted-foreground text-xs">
+                        <div className="flex flex-wrap gap-x-3 gap-y-1">
+                          <span>
+                            {t('logs.tokenLabels.input')}{' '}
+                            <span className="text-foreground">
                               {formatNumber(entry.prompt_tokens, i18n.language)}
                             </span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-foreground">
-                              {t('logs.tokenLabels.output')}:
-                            </span>{' '}
-                            <span className="font-mono">
+                          </span>
+                          <span>
+                            {t('logs.tokenLabels.output')}{' '}
+                            <span className="text-foreground">
                               {formatNumber(
                                 entry.completion_tokens,
                                 i18n.language,
                               )}
                             </span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-foreground">
-                              {t('logs.tokenLabels.cache')}:
-                            </span>{' '}
-                            <span className="font-mono">
+                          </span>
+                          <span>
+                            {t('logs.tokenLabels.cache')}{' '}
+                            <span className="text-foreground">
                               {formatNumber(
                                 toNumber(entry.cache_tokens),
                                 i18n.language,
                               )}
                             </span>
-                          </div>
+                          </span>
                         </div>
                       </td>
                       <td className="px-3 py-3 text-muted-foreground">

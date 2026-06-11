@@ -185,24 +185,24 @@
     },
     "columns": {
       "timestamp": "Thời gian",
-      "endpoint": "Endpoint",
-      "providerModel": "Provider / Model",
-      "app": "App",
-      "tokens": "Token",
+      "endpoint": "Đường gửi",
+      "providerModel": "Nơi xử lý",
+      "app": "Client",
+      "tokens": "Sử dụng",
       "cost": "Chi phí",
       "speed": "Tốc độ",
-      "finish": "Finish",
+      "finish": "Kết quả",
       "actions": "Thao tác"
     },
     "columnsHelp": {
-      "timestamp": "Thời điểm gateway ghi nhận log entry của request.",
-      "endpoint": "Endpoint và phương thức vận chuyển được dùng cho request, ví dụ POST /v1/messages hoặc luồng WS stream.",
-      "providerModel": "Target upstream đã resolve ở dạng slug. Nếu request dùng virtual model, dòng phụ sẽ hiển thị mapping từ model yêu cầu sang target thực tế.",
-      "app": "Định danh app client suy ra từ header (X-Title, host của HTTP-Referer, Originator, hoặc User-Agent fallback).",
-      "tokens": "Lượng token được tách theo Input, Output và Cache. Input = token đầu vào của request, Output = token model sinh ra, Cache = token đầu vào lấy từ cache theo báo cáo upstream.",
+      "timestamp": "Thời điểm Quotio ghi nhận yêu cầu này.",
+      "endpoint": "Đường gửi và phương thức của yêu cầu. Mở chi tiết để xem path chính xác.",
+      "providerModel": "Nhà cung cấp và mô hình đã xử lý yêu cầu. Mapping virtual model hiển thị ở dòng phụ.",
+      "app": "Ứng dụng client đã gửi yêu cầu.",
+      "tokens": "Token input, output và cache của yêu cầu.",
       "cost": "Chi phí retail ước tính cho request này dựa trên pricing model đã biết và token usage parse được.",
       "speed": "Tốc độ sinh token xấp xỉ theo token/giây, tính từ tổng token và thời gian request.",
-      "finish": "Tín hiệu kết thúc trích từ payload upstream, ví dụ stop/completed/length."
+      "finish": "Trạng thái cuối do nhà cung cấp trả về."
     },
     "tokenLabels": {
       "input": "Input",

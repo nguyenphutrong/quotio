@@ -185,24 +185,24 @@
     },
     "columns": {
       "timestamp": "时间",
-      "endpoint": "端点",
-      "providerModel": "服务商 / 模型",
-      "app": "应用",
-      "tokens": "Token",
+      "endpoint": "路径",
+      "providerModel": "目标",
+      "app": "客户端",
+      "tokens": "用量",
       "cost": "成本",
       "speed": "速度",
-      "finish": "结束原因",
+      "finish": "结果",
       "actions": "操作"
     },
     "columnsHelp": {
-      "timestamp": "网关记录该请求日志条目的时间。",
-      "endpoint": "请求使用的网关端点与传输方式，例如 POST /v1/messages 或 WS 流式传输。",
-      "providerModel": "已解析的上游目标（slug 形式）。若请求使用虚拟模型，会显示“请求模型 -> 实际目标”的映射行。",
-      "app": "从请求头推断的客户端应用标识（X-Title、HTTP-Referer 主机、Originator，或 User-Agent 回退）。",
-      "tokens": "Token 用量拆分为 Input、Output、Cache。Input = 请求输入 token，Output = 模型输出 token，Cache = 上游返回的缓存输入 token。",
+      "timestamp": "Quotio 记录该请求的时间。",
+      "endpoint": "请求路径和方法。打开详情可查看精确路径。",
+      "providerModel": "处理该请求的服务商和模型。虚拟模型映射会显示在副行。",
+      "app": "发送请求的客户端应用。",
+      "tokens": "该请求的输入、输出和缓存 token 用量。",
       "cost": "基于已知模型定价与解析到的 token 用量估算的单请求零售成本。",
       "speed": "近似生成速度（tokens/秒），由总 token 与请求耗时计算。",
-      "finish": "从上游响应 payload 提取的结束信号，例如 stop/completed/length。"
+      "finish": "服务商返回的最终状态。"
     },
     "tokenLabels": {
       "input": "Input",
