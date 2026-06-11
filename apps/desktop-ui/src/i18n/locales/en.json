@@ -702,8 +702,8 @@
         "updateChannel": "Update channel"
       },
       "hints": {
-        "operatingMode": "Switch between the local proxy and a saved remote connection.",
-        "remoteNotConfigured": "Configure a remote connection before switching to remote mode.",
+        "operatingMode": "Choose whether Quotio uses this device or another saved gateway.",
+        "remoteNotConfigured": "Save another gateway before switching away from this device.",
         "language": "Changes the app language.",
         "appearance": "Applies the selected appearance immediately.",
         "launchAtLogin": "Starts Quotio automatically after signing in.",
@@ -796,7 +796,7 @@
         "checkingUpdates": "Checking…"
       },
       "errors": {
-        "proxyPortInvalid": "Proxy port must be between 1 and 65535.",
+        "proxyPortInvalid": "Gateway port must be between 1 and 65535.",
         "authDirRequired": "Auth directory is required."
       },
       "messages": {
@@ -805,15 +805,16 @@
       }
     },
     "advancedProxy": {
-      "title": "Advanced proxy settings",
-      "description": "Tune routing, retries, upstream proxy, and logging for the local gateway.",
+      "title": "Advanced gateway settings",
+      "description": "Tune routing, retries, network proxy, and logging for the local gateway.",
+      "proxyUrlPlaceholder": "https://proxy.example.com:8080",
       "status": {
         "loading": "Loading",
         "ready": "Ready",
         "unavailable": "Unavailable"
       },
       "fields": {
-        "proxyUrl": "Upstream proxy URL",
+        "proxyUrl": "Network proxy",
         "routingStrategy": "Routing strategy",
         "switchProject": "Switch account on quota exceeded",
         "switchPreviewModel": "Switch preview model on quota exceeded",
@@ -824,8 +825,8 @@
         "debugMode": "Debug mode"
       },
       "hints": {
-        "proxyUrl": "Leave empty to clear upstream proxy routing.",
-        "proxyUrlSensitive": "Proxy URLs can contain credentials; Quotio sends this only to the gateway.",
+        "proxyUrl": "Leave empty to connect directly.",
+        "proxyUrlSensitive": "Proxy addresses can contain credentials; Quotio only passes this to the local gateway.",
         "routingStrategy": "Round robin spreads traffic; fill first exhausts one eligible account before moving on.",
         "requestRetry": "Allowed range is 0 to 10 retries.",
         "maxRetryInterval": "Allowed range is 5 to 300 seconds in 5 second steps.",
@@ -833,8 +834,8 @@
       },
       "groups": {
         "upstream": {
-          "title": "Upstream routing",
-          "description": "Proxy chaining and account routing strategy."
+          "title": "Network path",
+          "description": "Optional proxy and account routing strategy."
         },
         "quota": {
           "title": "Quota exceeded",
@@ -859,18 +860,19 @@
         "maxRetryIntervalInvalid": "Max retry interval must be 5 to 300 seconds in 5 second steps."
       },
       "messages": {
-        "saved": "Advanced proxy setting saved."
+        "saved": "Advanced gateway setting saved."
       }
     },
     "remote": {
-      "title": "Saved gateway connection",
-      "description": "Store another Quotio gateway URL and access key securely.",
+      "title": "Another gateway",
+      "description": "Connect this app to a Quotio gateway already running elsewhere.",
       "unsupported": "Connection editing is not available in this build.",
       "baseUrlLabel": "Gateway URL",
+      "baseUrlPlaceholder": "https://quotio.example.com",
       "keyLabel": "Access key",
       "keyPlaceholder": "Paste an access key",
       "keyStoredPlaceholder": "Stored key will be kept unless replaced",
-      "clearConfirmTitle": "Clear remote connection",
+      "clearConfirmTitle": "Clear saved gateway",
       "clearConfirmMessage": "This removes the saved gateway URL and access key from secure storage.",
       "status": {
         "configured": "Configured",
@@ -883,8 +885,8 @@
         "clearing": "Clearing…"
       },
       "messages": {
-        "saved": "Remote connection saved.",
-        "cleared": "Remote connection cleared."
+        "saved": "Gateway connection saved.",
+        "cleared": "Gateway connection cleared."
       },
       "errors": {
         "baseUrlRequired": "Gateway URL is required."

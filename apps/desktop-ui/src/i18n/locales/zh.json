@@ -698,8 +698,8 @@
         "updateChannel": "更新通道"
       },
       "hints": {
-        "operatingMode": "在本地代理和已保存的远程连接之间切换。",
-        "remoteNotConfigured": "请先配置远程连接，然后再切换到远程模式。",
+        "operatingMode": "选择 Quotio 使用此设备，还是使用已保存的其他网关。",
+        "remoteNotConfigured": "请先保存其他网关，再切换离开此设备。",
         "language": "更改应用语言。",
         "appearance": "立即应用所选外观。",
         "launchAtLogin": "登录后自动启动 Quotio。",
@@ -792,7 +792,7 @@
         "checkingUpdates": "检查中…"
       },
       "errors": {
-        "proxyPortInvalid": "代理端口必须在 1 到 65535 之间。",
+        "proxyPortInvalid": "网关端口必须在 1 到 65535 之间。",
         "authDirRequired": "需要填写 auth 目录。"
       },
       "messages": {
@@ -801,15 +801,16 @@
       }
     },
     "advancedProxy": {
-      "title": "高级代理设置",
-      "description": "调整本地网关的路由、重试、上游代理和日志。",
+      "title": "高级网关设置",
+      "description": "调整本地网关的路由、重试、网络代理和日志。",
+      "proxyUrlPlaceholder": "https://proxy.example.com:8080",
       "status": {
         "loading": "加载中",
         "ready": "就绪",
         "unavailable": "不可用"
       },
       "fields": {
-        "proxyUrl": "上游代理 URL",
+        "proxyUrl": "网络代理",
         "routingStrategy": "路由策略",
         "switchProject": "配额耗尽时切换账号",
         "switchPreviewModel": "配额耗尽时切换 preview model",
@@ -820,8 +821,8 @@
         "debugMode": "Debug 模式"
       },
       "hints": {
-        "proxyUrl": "留空可清除上游代理路由。",
-        "proxyUrlSensitive": "代理 URL 可能包含凭证；Quotio 只会将该值发送到网关。",
+        "proxyUrl": "留空则直接连接。",
+        "proxyUrlSensitive": "代理地址可能包含凭证；Quotio 只会将该值传给本地网关。",
         "routingStrategy": "Round robin 分散流量；fill first 会先用尽一个符合条件的账号。",
         "requestRetry": "允许范围为 0 到 10 次重试。",
         "maxRetryInterval": "允许范围为 5 到 300 秒，步进 5 秒。",
@@ -829,8 +830,8 @@
       },
       "groups": {
         "upstream": {
-          "title": "上游路由",
-          "description": "代理链路和账号路由策略。"
+          "title": "网络路径",
+          "description": "可选代理和账号路由策略。"
         },
         "quota": {
           "title": "配额耗尽",
@@ -855,18 +856,19 @@
         "maxRetryIntervalInvalid": "最大重试间隔必须是 5 到 300 秒，步进 5 秒。"
       },
       "messages": {
-        "saved": "高级代理设置已保存。"
+        "saved": "高级网关设置已保存。"
       }
     },
     "remote": {
-      "title": "已保存的网关连接",
-      "description": "安全保存另一个 Quotio 网关 URL 和访问密钥。",
+      "title": "其他网关",
+      "description": "将此应用连接到已在其他位置运行的 Quotio 网关。",
       "unsupported": "此版本暂不支持编辑连接。",
       "baseUrlLabel": "网关 URL",
+      "baseUrlPlaceholder": "https://quotio.example.com",
       "keyLabel": "访问密钥",
       "keyPlaceholder": "粘贴访问密钥",
       "keyStoredPlaceholder": "已存储的 key 会保留，除非替换",
-      "clearConfirmTitle": "清除远程连接",
+      "clearConfirmTitle": "清除已保存的网关",
       "clearConfirmMessage": "这会从安全存储中移除已保存的网关 URL 和访问密钥。",
       "status": {
         "configured": "已配置",
@@ -879,8 +881,8 @@
         "clearing": "正在清除…"
       },
       "messages": {
-        "saved": "远程连接已保存。",
-        "cleared": "远程连接已清除。"
+        "saved": "网关连接已保存。",
+        "cleared": "网关连接已清除。"
       },
       "errors": {
         "baseUrlRequired": "需要填写网关 URL。"

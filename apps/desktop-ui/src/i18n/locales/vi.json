@@ -697,8 +697,8 @@
         "updateChannel": "Kênh cập nhật"
       },
       "hints": {
-        "operatingMode": "Chuyển giữa local proxy và kết nối remote đã lưu.",
-        "remoteNotConfigured": "Cấu hình kết nối remote trước khi chuyển sang remote mode.",
+        "operatingMode": "Chọn Quotio dùng gateway trên máy này hay gateway đã lưu.",
+        "remoteNotConfigured": "Lưu gateway khác trước khi chuyển khỏi máy này.",
         "language": "Thay đổi ngôn ngữ của ứng dụng.",
         "appearance": "Áp dụng giao diện đã chọn ngay lập tức.",
         "launchAtLogin": "Tự động mở Quotio sau khi đăng nhập.",
@@ -791,7 +791,7 @@
         "checkingUpdates": "Đang kiểm tra…"
       },
       "errors": {
-        "proxyPortInvalid": "Cổng proxy phải nằm trong khoảng 1 đến 65535.",
+        "proxyPortInvalid": "Cổng gateway phải nằm trong khoảng 1 đến 65535.",
         "authDirRequired": "Cần nhập thư mục auth."
       },
       "messages": {
@@ -800,15 +800,16 @@
       }
     },
     "advancedProxy": {
-      "title": "Cài đặt proxy nâng cao",
-      "description": "Tinh chỉnh routing, retry, upstream proxy và logging cho local gateway.",
+      "title": "Cài đặt gateway nâng cao",
+      "description": "Tinh chỉnh routing, retry, proxy mạng và logging cho local gateway.",
+      "proxyUrlPlaceholder": "https://proxy.example.com:8080",
       "status": {
         "loading": "Đang tải",
         "ready": "Sẵn sàng",
         "unavailable": "Không khả dụng"
       },
       "fields": {
-        "proxyUrl": "Upstream proxy URL",
+        "proxyUrl": "Proxy mạng",
         "routingStrategy": "Chiến lược routing",
         "switchProject": "Đổi tài khoản khi hết hạn mức",
         "switchPreviewModel": "Đổi preview model khi hết hạn mức",
@@ -819,8 +820,8 @@
         "debugMode": "Debug mode"
       },
       "hints": {
-        "proxyUrl": "Để trống để xóa upstream proxy routing.",
-        "proxyUrlSensitive": "Proxy URL có thể chứa credential; Quotio chỉ gửi giá trị này tới gateway.",
+        "proxyUrl": "Để trống để kết nối trực tiếp.",
+        "proxyUrlSensitive": "Địa chỉ proxy có thể chứa credential; Quotio chỉ chuyển giá trị này cho gateway local.",
         "routingStrategy": "Round robin chia đều traffic; fill first dùng cạn một tài khoản phù hợp trước khi chuyển.",
         "requestRetry": "Khoảng hợp lệ là 0 đến 10 lần retry.",
         "maxRetryInterval": "Khoảng hợp lệ là 5 đến 300 giây, bước 5 giây.",
@@ -828,8 +829,8 @@
       },
       "groups": {
         "upstream": {
-          "title": "Upstream routing",
-          "description": "Proxy chaining và chiến lược routing tài khoản."
+          "title": "Đường mạng",
+          "description": "Proxy tùy chọn và chiến lược routing tài khoản."
         },
         "quota": {
           "title": "Khi hết hạn mức",
@@ -854,18 +855,19 @@
         "maxRetryIntervalInvalid": "Khoảng retry tối đa phải từ 5 đến 300 giây, bước 5 giây."
       },
       "messages": {
-        "saved": "Đã lưu cài đặt proxy nâng cao."
+        "saved": "Đã lưu cài đặt gateway nâng cao."
       }
     },
     "remote": {
-      "title": "Kết nối gateway đã lưu",
-      "description": "Lưu URL gateway Quotio khác và access key một cách an toàn.",
+      "title": "Gateway khác",
+      "description": "Kết nối ứng dụng này tới một Quotio gateway đang chạy ở nơi khác.",
       "unsupported": "Bản này chưa hỗ trợ chỉnh kết nối.",
       "baseUrlLabel": "Gateway URL",
+      "baseUrlPlaceholder": "https://quotio.example.com",
       "keyLabel": "Access key",
       "keyPlaceholder": "Dán access key",
       "keyStoredPlaceholder": "Key đã lưu sẽ được giữ nếu không thay mới",
-      "clearConfirmTitle": "Xóa kết nối remote",
+      "clearConfirmTitle": "Xóa gateway đã lưu",
       "clearConfirmMessage": "Thao tác này xóa gateway URL và access key đã lưu khỏi kho bảo mật.",
       "status": {
         "configured": "Đã cấu hình",
@@ -878,8 +880,8 @@
         "clearing": "Đang xóa…"
       },
       "messages": {
-        "saved": "Đã lưu kết nối remote.",
-        "cleared": "Đã xóa kết nối remote."
+        "saved": "Đã lưu kết nối gateway.",
+        "cleared": "Đã xóa kết nối gateway."
       },
       "errors": {
         "baseUrlRequired": "Cần nhập Gateway URL."

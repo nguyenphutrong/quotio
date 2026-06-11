@@ -281,7 +281,7 @@ function RemoteConnectionPanel({
             id={baseUrlId}
             autoComplete="off"
             inputMode="url"
-            placeholder="http://127.0.0.1:8386"
+            placeholder={t('settings.remote.baseUrlPlaceholder')}
             value={state.baseUrl}
             disabled={disabled}
             onChange={(event) =>
@@ -1553,7 +1553,7 @@ function AdvancedProxySettingsPanel() {
                 inputMode="url"
                 autoComplete="off"
                 disabled={disabled}
-                placeholder="socks5://127.0.0.1:1080"
+                placeholder={t('settings.advancedProxy.proxyUrlPlaceholder')}
                 onChange={(event) => {
                   setProxyUrlDraft(event.target.value);
                   setLocalError(null);
