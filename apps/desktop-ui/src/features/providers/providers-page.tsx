@@ -1,5 +1,4 @@
 import { Button } from '@quotio/ui/components/button';
-import { Input } from '@quotio/ui/components/input';
 import {
   Dialog,
   DialogContent,
@@ -7,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@quotio/ui/components/dialog';
+import { Input } from '@quotio/ui/components/input';
 import { RiAddLine, RiRefreshLine, RiSearchLine } from '@remixicon/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -271,8 +271,7 @@ export function ProvidersPage() {
                 setValidationPreview(null);
                 success(
                   t('providers.messages.created', {
-                    name:
-                      created?.label || created?.id || t('providers.title'),
+                    name: created?.label || created?.id || t('providers.title'),
                   }),
                 );
                 setIsAddProviderOpen(false);
