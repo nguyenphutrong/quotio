@@ -73,7 +73,7 @@ struct CurrentModeBadge: View {
         switch modeManager.currentMode {
         case .localProxy:
             if viewModel.proxyManager.proxyStatus.running {
-                return ":" + String(viewModel.proxyManager.port) + " - " + "status.running".localized()
+                return "settings.thisMacOnly".localized() + " - " + "status.running".localized()
             } else if viewModel.proxyManager.isStarting {
                 return "status.starting".localized()
             } else {

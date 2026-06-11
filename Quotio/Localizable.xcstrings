@@ -2474,25 +2474,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy (cpa++)"
+            "value" : "Quotio Gateway"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy (cpa++)"
+            "value" : "Quotio Gateway"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Proxy (cpa++)"
+            "value" : "Quotio Gateway"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "代理（cpa++）"
+            "value" : "Quotio Gateway"
           }
         }
       }
