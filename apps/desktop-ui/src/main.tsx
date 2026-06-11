@@ -9,6 +9,7 @@ import { ToastProvider } from '@/components/admin/toast-provider';
 import i18n from '@/i18n';
 import { getDesktopBootstrap } from '@/lib/admin/bootstrap';
 import { createAdminQueryClient } from '@/lib/admin/query';
+import { createDesktopRouterHistory } from '@/lib/admin/router-history';
 import { AdminRuntimeProvider } from '@/lib/admin/runtime';
 import { routeTree } from './routeTree.gen';
 
@@ -47,6 +48,7 @@ async function start() {
     const router = createRouter({
       routeTree,
       basepath: bootstrap.basePath,
+      history: createDesktopRouterHistory(),
       scrollRestoration: true,
       scrollToTopSelectors: ['[data-scroll-restoration-id="dashboard-main"]'],
       context: {
