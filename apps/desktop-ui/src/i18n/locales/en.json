@@ -117,8 +117,9 @@
     "cost": "Cost",
     "reset": "Resets in",
     "proxyRuntime": {
-      "title": "Local proxy",
-      "noEndpoint": "No active endpoint",
+      "title": "Gateway service",
+      "noEndpoint": "Start the gateway service to route requests from your tools.",
+      "ready": "Ready to route requests from your tools.",
       "status": {
         "running": "Running",
         "stopped": "Stopped"

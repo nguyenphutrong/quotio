@@ -114,8 +114,9 @@
     "cost": "成本",
     "reset": "重置倒计时",
     "proxyRuntime": {
-      "title": "本地代理",
-      "noEndpoint": "没有正在运行的端点",
+      "title": "网关服务",
+      "noEndpoint": "启动网关服务后即可为你的工具转发请求。",
+      "ready": "已准备好为你的工具转发请求。",
       "status": {
         "running": "运行中",
         "stopped": "已停止"

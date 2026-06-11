@@ -390,7 +390,9 @@ function ProxyRuntimePanel() {
             </StatusBadge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {status?.endpoint ?? t('overview.proxyRuntime.noEndpoint')}
+            {isRunning
+              ? t('overview.proxyRuntime.ready')
+              : t('overview.proxyRuntime.noEndpoint')}
           </p>
           {error ? <p className="mt-2 text-danger text-sm">{error}</p> : null}
         </div>

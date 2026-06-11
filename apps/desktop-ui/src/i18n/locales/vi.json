@@ -114,8 +114,9 @@
     "cost": "Chi phí",
     "reset": "Đặt lại sau",
     "proxyRuntime": {
-      "title": "Local proxy",
-      "noEndpoint": "Chưa có endpoint đang chạy",
+      "title": "Dịch vụ gateway",
+      "noEndpoint": "Khởi động dịch vụ gateway để định tuyến yêu cầu từ công cụ của bạn.",
+      "ready": "Sẵn sàng định tuyến yêu cầu từ công cụ của bạn.",
       "status": {
         "running": "Đang chạy",
         "stopped": "Đã dừng"
