@@ -769,7 +769,7 @@ struct ProxyStatusRow: View {
             
             Spacer()
             
-            Text(":" + String(viewModel.proxyManager.port))
+            Text("settings.thisMacOnly".localized())
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
