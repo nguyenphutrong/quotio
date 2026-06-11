@@ -3,7 +3,6 @@ import { RiBookOpenLine, RiGithubLine, RiQuestionLine } from '@remixicon/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
-import { CopyButton } from '@/components/admin/copy-button';
 import { Panel } from '@/components/admin/panel';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { requireScreenFeature } from '@/lib/admin/auth-guard';
@@ -46,31 +45,12 @@ const CAPABILITY_KEYS = [
   'supportsUpdates',
 ] satisfies (keyof HostCapabilities)[];
 
-function DiagnosticsRow({
-  label,
-  value,
-  copyValue,
-}: {
-  label: string;
-  value: string;
-  copyValue?: string;
-}) {
+function DiagnosticsRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-h-10 items-center justify-between gap-4 border-border border-b py-2 last:border-b-0">
       <dt className="text-muted-foreground text-sm">{label}</dt>
       <dd className="flex min-w-0 items-center gap-2 text-right">
-        <code className="truncate font-mono text-sm text-foreground">
-          {value}
-        </code>
-        {copyValue ? (
-          <CopyButton
-            value={copyValue}
-            variant="ghost"
-            size="icon-xs"
-            aria-label={label}
-            title={label}
-          />
-        ) : null}
+        <span className="truncate text-foreground text-sm">{value}</span>
       </dd>
     </div>
   );
@@ -190,7 +170,7 @@ function AboutPage() {
 
       <Panel>
         <details>
-          <summary className="cursor-pointer font-medium text-foreground text-sm">
+          <summary className="font-medium text-foreground text-sm">
             {t('about.sections.troubleshooting')}
           </summary>
           <div className="mt-3 space-y-5">
@@ -202,7 +182,6 @@ function AboutPage() {
               <DiagnosticsRow
                 label={t('about.fields.serverListen')}
                 value={t('about.values.localGatewayReady')}
-                copyValue={bootstrap.serverListen}
               />
             </dl>
             <div>
