@@ -45,9 +45,9 @@
     "github": "GitHub",
     "support": "Support",
     "overview": "Overview",
-    "overviewDesc": "Gateway health, usage, and costs at a glance.",
+    "overviewDesc": "Status, activity, and spend at a glance.",
     "credentials": "Credentials",
-    "credentialsDesc": "Manage API keys and provider connections.",
+    "credentialsDesc": "Manage provider access and saved connections.",
     "models": "Models",
     "modelsDesc": "Configure models and routing rules.",
     "virtualModels": "Virtual Models",
@@ -55,9 +55,9 @@
     "quota": "Quota",
     "quotaDesc": "Monitor usage limits and spending across providers.",
     "usage": "Usage",
-    "usageDesc": "Inspect request usage events, tokens, cost, and model pricing state.",
+    "usageDesc": "Review activity, latency, token use, and estimated spend.",
     "apiKeys": "API Keys",
-    "apiKeysDesc": "Manage client credentials and usage analytics.",
+    "apiKeysDesc": "Manage app access keys and usage analytics.",
     "logs": "Logs",
     "logsDesc": "Browse request history and delivery status.",
     "settings": "Settings",
@@ -67,7 +67,7 @@
     "defaultTitle": "Quotio",
     "defaultDesc": "Desktop workspace.",
     "providers": "Providers",
-    "providersDesc": "Manage API keys and provider connections.",
+    "providersDesc": "Connect model providers and manage their access.",
     "agents": "Agents",
     "agentsDesc": "Manage setup and guidance for popular AI agents."
   },
@@ -77,7 +77,7 @@
   },
   "overview": {
     "title": "Overview",
-    "description": "A real-time snapshot of your gateway's health, traffic, and costs.",
+    "description": "A live snapshot of Quotio status, activity, and spend.",
     "refreshSnapshot": "Refresh",
     "loadingData": "Loading overview…",
     "failedToLoad": "Overview unavailable",
@@ -85,7 +85,7 @@
     "incompleteDataDesc": "Some data sources did not respond. Please refresh to try again.",
     "staleBanner": "{{count}} data source may be outdated. Metrics shown are approximate.",
     "staleBanner_other": "{{count}} data sources may be outdated. Metrics shown are approximate.",
-    "gatewayStatus": "Gateway status",
+    "gatewayStatus": "Service status",
     "healthy": "Healthy",
     "unknown": "Unknown",
     "providerGroupsHint": "{{count}} active provider",
@@ -97,10 +97,10 @@
     "estimatedCost": "Estimated cost",
     "savingsHint": "Saved {{amount}}",
     "providerHealth": "Provider health",
-    "providerHealthDesc": "Connection status and credential count by provider.",
+    "providerHealthDesc": "Connection status and saved access by provider.",
     "snapshot": "Live",
     "provider": "Provider",
-    "credentialEntries": "Credentials",
+    "credentialEntries": "Saved access",
     "advancedDiagnostics": "Advanced diagnostics",
     "advancedDiagnosticsDesc": "Service counters and runtime details for troubleshooting.",
     "showDiagnostics": "Show",
@@ -142,7 +142,7 @@
   },
   "logs": {
     "title": "Logs",
-    "description": "Review aggregated request traffic, token usage, and cost trends from gateway logs.",
+    "description": "Review request activity, token use, and cost trends.",
     "filters": {
       "apiKeys": "API keys",
       "apiKeysPlaceholder": "Filter by API key",
@@ -566,12 +566,12 @@
   },
   "usageStats": {
     "title": "Usage Statistics",
-    "description": "Inspect request usage events, token volume, latency, and estimated cost from the gateway usage database.",
+    "description": "Review activity, token use, latency, and estimated spend.",
     "failedToLoad": "Usage statistics unavailable",
     "disabledTitle": "Usage statistics are disabled",
     "disabledDescription": "Enable the usage statistics service in the gateway before using this screen.",
     "priceCount": "{{count}} model prices tracked",
-    "loadingEvents": "Loading usage events…",
+    "loadingEvents": "Loading activity…",
     "limit": "{{count}} rows",
     "actions": {
       "syncPrices": "Sync prices"
@@ -601,9 +601,9 @@
       "offsetHint": "Current page"
     },
     "events": {
-      "title": "Usage events",
-      "description": "Recent normalized request usage rows.",
-      "emptyTitle": "No usage events",
+      "title": "Activity",
+      "description": "Recent request activity.",
+      "emptyTitle": "No activity yet",
       "emptyDescription": "Run requests through the gateway or adjust filters."
     },
     "columns": {
