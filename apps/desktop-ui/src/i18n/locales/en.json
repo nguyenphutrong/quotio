@@ -777,6 +777,7 @@
         "notDetected": "Not detected",
         "notInstalled": "Not installed",
         "velopackRequired": "Velopack install required",
+        "gatewayReady": "Ready to route requests",
         "proxyInstallDevOverride": "Using local dev binary",
         "proxyInstallBundled": "Bundled with Quotio",
         "proxyInstallLegacyCompatible": "Legacy compatible install found"
@@ -902,6 +903,9 @@
       "serverListen": "Local gateway",
       "locale": "Locale",
       "appearance": "Appearance"
+    },
+    "values": {
+      "localGatewayReady": "Ready on this device"
     },
     "status": {
       "enabled": "Enabled",

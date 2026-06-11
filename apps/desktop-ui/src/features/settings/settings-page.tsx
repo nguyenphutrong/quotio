@@ -777,8 +777,10 @@ function NativePreferencesPanel() {
               <PreferenceStat
                 label={t('settings.native.fields.proxyEndpoint')}
                 value={
-                  preferences?.proxyEndpoint ||
-                  t('overview.proxyRuntime.noEndpoint')
+                  preferences?.proxyRunning
+                    ? t('settings.native.values.gatewayReady')
+                    : preferences?.proxyEndpoint ||
+                      t('overview.proxyRuntime.noEndpoint')
                 }
               />
               <PreferenceStat

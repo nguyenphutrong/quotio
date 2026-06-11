@@ -772,6 +772,7 @@
         "notDetected": "Chưa phát hiện",
         "notInstalled": "Chưa cài đặt",
         "velopackRequired": "Cần cài bằng Velopack",
+        "gatewayReady": "Sẵn sàng định tuyến yêu cầu",
         "proxyInstallDevOverride": "Đang dùng binary dev local",
         "proxyInstallBundled": "Được bundle cùng Quotio",
         "proxyInstallLegacyCompatible": "Đã tìm thấy bản cài tương thích cũ"
@@ -897,6 +898,9 @@
       "serverListen": "Gateway local",
       "locale": "Ngôn ngữ",
       "appearance": "Giao diện"
+    },
+    "values": {
+      "localGatewayReady": "Sẵn sàng trên thiết bị này"
     },
     "status": {
       "enabled": "Bật",

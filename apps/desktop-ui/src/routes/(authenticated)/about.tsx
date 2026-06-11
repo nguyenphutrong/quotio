@@ -201,7 +201,7 @@ function AboutPage() {
               />
               <DiagnosticsRow
                 label={t('about.fields.serverListen')}
-                value={bootstrap.serverListen}
+                value={t('about.values.localGatewayReady')}
                 copyValue={bootstrap.serverListen}
               />
             </dl>
