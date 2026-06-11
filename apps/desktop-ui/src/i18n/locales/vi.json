@@ -660,7 +660,7 @@
         "launchAtLogin": "Mở khi đăng nhập",
         "closeToTray": "Đóng xuống tray",
         "proxyStatus": "Trạng thái proxy",
-        "proxyEndpoint": "Endpoint",
+        "proxyEndpoint": "Gateway",
         "proxyServerKind": "Loại server",
         "proxyServerVersion": "Phiên bản server",
         "proxyInstallStatus": "Trạng thái cài đặt",

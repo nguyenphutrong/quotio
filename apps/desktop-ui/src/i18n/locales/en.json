@@ -665,7 +665,7 @@
         "launchAtLogin": "Launch at login",
         "closeToTray": "Close to tray",
         "proxyStatus": "Proxy status",
-        "proxyEndpoint": "Endpoint",
+        "proxyEndpoint": "Gateway",
         "proxyServerKind": "Server kind",
         "proxyServerVersion": "Server version",
         "proxyInstallStatus": "Install status",

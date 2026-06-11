@@ -661,7 +661,7 @@
         "launchAtLogin": "登录时启动",
         "closeToTray": "关闭到托盘",
         "proxyStatus": "代理状态",
-        "proxyEndpoint": "Endpoint",
+        "proxyEndpoint": "网关",
         "proxyServerKind": "服务器类型",
         "proxyServerVersion": "服务器版本",
         "proxyInstallStatus": "安装状态",
