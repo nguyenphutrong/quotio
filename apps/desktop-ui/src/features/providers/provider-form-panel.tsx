@@ -117,7 +117,9 @@ export function ProviderFormPanel({
     disabled: boolean;
     headers?: Record<string, string>;
   }) => Promise<void>;
-  onOAuthCreated?: (provider: ProviderResponse) => Promise<void> | void;
+  onOAuthCreated?: (
+    provider?: ProviderResponse,
+  ) => Promise<void> | void;
   validationPreview: ProviderResponse | null;
   busy: boolean;
   hideHeader?: boolean;
@@ -347,7 +349,7 @@ export function ProviderFormPanel({
         }
         setOAuthSession(nextSession);
         setOAuthStatus(nextSession.status);
-        if (nextSession.status === 'completed' && nextSession.credential) {
+        if (nextSession.status === 'completed') {
           await onOAuthCreated?.(nextSession.credential);
         } else if (
           nextSession.status === 'failed' ||

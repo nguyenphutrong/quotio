@@ -1,5 +1,12 @@
 import { Button } from '@quotio/ui/components/button';
 import { Input } from '@quotio/ui/components/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@quotio/ui/components/dialog';
 import { RiAddLine, RiRefreshLine, RiSearchLine } from '@remixicon/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -206,77 +213,75 @@ export function ProvidersPage() {
       )}
 
       {isAddProviderOpen ? (
-        <Panel className="space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">
-                {t('providers.dialogs.createTitle')}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+        <Dialog
+          open={isAddProviderOpen}
+          onOpenChange={(nextOpen) => {
+            setIsAddProviderOpen(nextOpen);
+            if (!nextOpen) {
+              setInitialProviderKey(undefined);
+              setValidationPreview(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{t('providers.dialogs.createTitle')}</DialogTitle>
+              <DialogDescription>
                 {t('providers.dialogs.createDescription')}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setIsAddProviderOpen(false);
-                setInitialProviderKey(undefined);
+              </DialogDescription>
+            </DialogHeader>
+            <ProviderFormPanel
+              key={
+                isAddProviderOpen
+                  ? 'create-provider-open'
+                  : 'create-provider-closed'
+              }
+              mode="create"
+              provider={null}
+              validationPreview={validationPreview}
+              initialProviderKey={initialProviderKey}
+              busy={
+                mutations.createMutation.isPending ||
+                mutations.validateMutation.isPending
+              }
+              hideHeader
+              onValidate={async (payload: ProviderPayload) => {
+                const preview =
+                  await mutations.validateMutation.mutateAsync(payload);
+                setValidationPreview(preview);
+                success(
+                  t('providers.messages.validated', {
+                    provider: preview.provider,
+                  }),
+                );
               }}
-            >
-              {t('common.close')}
-            </Button>
-          </div>
-          <ProviderFormPanel
-            key={
-              isAddProviderOpen
-                ? 'create-provider-open'
-                : 'create-provider-closed'
-            }
-            mode="create"
-            provider={null}
-            validationPreview={validationPreview}
-            initialProviderKey={initialProviderKey}
-            busy={
-              mutations.createMutation.isPending ||
-              mutations.validateMutation.isPending
-            }
-            hideHeader
-            onValidate={async (payload: ProviderPayload) => {
-              const preview =
-                await mutations.validateMutation.mutateAsync(payload);
-              setValidationPreview(preview);
-              success(
-                t('providers.messages.validated', {
-                  provider: preview.provider,
-                }),
-              );
-            }}
-            onCreate={async (payload: ProviderPayload) => {
-              const created =
-                await mutations.createMutation.mutateAsync(payload);
-              setValidationPreview(null);
-              success(
-                t('providers.messages.created', {
-                  name: created.label || created.id,
-                }),
-              );
-              setIsAddProviderOpen(false);
-              await providersQuery.refetch();
-            }}
-            onOAuthCreated={async (created) => {
-              setValidationPreview(null);
-              success(
-                t('providers.messages.created', {
-                  name: created.label || created.id,
-                }),
-              );
-              setIsAddProviderOpen(false);
-              await providersQuery.refetch();
-            }}
-            onUpdate={async () => {}}
-          />
-        </Panel>
+              onCreate={async (payload: ProviderPayload) => {
+                const created =
+                  await mutations.createMutation.mutateAsync(payload);
+                setValidationPreview(null);
+                success(
+                  t('providers.messages.created', {
+                    name: created.label || created.id,
+                  }),
+                );
+                setIsAddProviderOpen(false);
+                await providersQuery.refetch();
+              }}
+              onOAuthCreated={async (created) => {
+                setValidationPreview(null);
+                success(
+                  t('providers.messages.created', {
+                    name:
+                      created?.label || created?.id || t('providers.title'),
+                  }),
+                );
+                setIsAddProviderOpen(false);
+                await providersQuery.refetch();
+              }}
+              onUpdate={async () => {}}
+            />
+          </DialogContent>
+        </Dialog>
       ) : null}
 
       {editingProviderId ? (
