@@ -1,4 +1,9 @@
 import { Button } from '@quotio/ui/components/button';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@quotio/ui/components/collapsible';
 import { Input } from '@quotio/ui/components/input';
 import { Label } from '@quotio/ui/components/label';
 import {
@@ -9,6 +14,7 @@ import {
   SelectValue,
 } from '@quotio/ui/components/select';
 import { Switch } from '@quotio/ui/components/switch';
+import { RiArrowRightSLine } from '@remixicon/react';
 import { type ReactNode, useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
@@ -779,19 +785,7 @@ function NativePreferencesPanel() {
                 value={
                   preferences?.proxyRunning
                     ? t('settings.native.values.gatewayReady')
-                    : preferences?.proxyEndpoint ||
-                      t('overview.proxyRuntime.noEndpoint')
-                }
-              />
-              <PreferenceStat
-                label={t('settings.native.fields.proxyServerKind')}
-                value={preferences?.proxyServerKind ?? 'cpa-plusplus'}
-              />
-              <PreferenceStat
-                label={t('settings.native.fields.proxyServerVersion')}
-                value={
-                  preferences?.proxyServerVersion ??
-                  t('settings.native.values.notDetected')
+                    : t('overview.proxyRuntime.noEndpoint')
                 }
               />
               <PreferenceStat
@@ -801,130 +795,192 @@ function NativePreferencesPanel() {
                   t,
                 )}
               />
-              <PreferenceStat
-                label={t('settings.native.fields.proxyActiveBinaryPath')}
-                value={preferences?.proxyActiveBinaryPath ?? ''}
-              />
             </div>
 
-            {supportsPortConfig ? (
-              <PreferenceField
-                hint={t('settings.native.hints.proxyPort')}
-                label={t('settings.native.fields.proxyPort')}
-              >
-                <div className="flex gap-2">
-                  <Input
-                    inputMode="numeric"
-                    min={1}
-                    max={65_535}
-                    type="number"
-                    value={proxyPortDraft}
-                    disabled={disabled}
-                    onChange={(event) => {
-                      setProxyPortDraft(event.target.value);
-                      setState((current) => ({ ...current, error: null }));
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        void saveProxyPort();
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => void saveProxyPort()}
-                  >
-                    {t('common.save')}
-                  </Button>
-                </div>
-              </PreferenceField>
-            ) : null}
-
-            {isMacHost ? (
-              <>
-                <SwitchField
-                  checked={preferences?.allowNetworkAccess ?? false}
-                  disabled={disabled}
-                  label={t('settings.native.fields.allowNetworkAccess')}
-                  onCheckedChange={(checked) =>
-                    void savePreference('allowNetworkAccess', checked)
-                  }
-                />
-
-                {preferences?.allowNetworkAccess ? (
-                  <p className="text-danger text-xs">
-                    {t('settings.native.hints.allowNetworkAccessWarning')}
+            <Collapsible className="group/local-gateway space-y-3">
+              <div className="flex flex-col gap-3 rounded-md border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm">
+                    {t('settings.native.groups.localProxy.advancedTitle')}
                   </p>
-                ) : null}
-
-                <SwitchField
-                  checked={preferences?.autoStartTunnel ?? false}
-                  disabled={disabled || !preferences?.tunnelInstalled}
-                  label={t('settings.native.fields.autoStartTunnel')}
-                  onCheckedChange={(checked) =>
-                    void savePreference('autoStartTunnel', checked)
+                  <p className="text-muted-foreground text-xs">
+                    {t('settings.native.groups.localProxy.advancedDescription')}
+                  </p>
+                </div>
+                <CollapsibleTrigger
+                  render={
+                    <Button
+                      className="w-fit gap-1"
+                      type="button"
+                      variant="outline"
+                    >
+                      <span>
+                        {t('settings.native.groups.localProxy.showAdvanced')}
+                      </span>
+                      <RiArrowRightSLine className="size-4 transition-transform group-data-open/local-gateway:rotate-90" />
+                    </Button>
                   }
                 />
-                <SwitchField
-                  checked={preferences?.autoRestartTunnel ?? false}
-                  disabled={disabled || !preferences?.tunnelInstalled}
-                  label={t('settings.native.fields.autoRestartTunnel')}
-                  onCheckedChange={(checked) =>
-                    void savePreference('autoRestartTunnel', checked)
-                  }
-                />
-
-                <PreferenceField
-                  hint={t('settings.native.hints.authDir')}
-                  label={t('settings.native.fields.authDir')}
-                >
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      className="font-mono text-xs"
-                      value={authDirDraft}
-                      disabled={disabled}
-                      onChange={(event) => {
-                        setAuthDirDraft(event.target.value);
-                        setState((current) => ({ ...current, error: null }));
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          void saveAuthDir();
-                        }
-                      }}
+              </div>
+              <CollapsibleContent>
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <PreferenceStat
+                      label={t('settings.native.fields.proxyEndpoint')}
+                      value={
+                        preferences?.proxyEndpoint ||
+                        t('overview.proxyRuntime.noEndpoint')
+                      }
                     />
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => void saveAuthDir()}
-                      >
-                        {t('common.save')}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={disabled || !preferences?.defaultAuthDir}
-                        onClick={() => {
-                          const defaultAuthDir =
-                            preferences?.defaultAuthDir ?? '';
-                          setAuthDirDraft(defaultAuthDir);
-                          void saveAuthDir(defaultAuthDir);
-                        }}
-                      >
-                        {t('settings.native.actions.reset')}
-                      </Button>
-                    </div>
+                    <PreferenceStat
+                      label={t('settings.native.fields.proxyServerKind')}
+                      value={
+                        preferences?.proxyServerKind ||
+                        t('settings.native.values.defaultGatewayType')
+                      }
+                    />
+                    <PreferenceStat
+                      label={t('settings.native.fields.proxyServerVersion')}
+                      value={
+                        preferences?.proxyServerVersion ??
+                        t('settings.native.values.notDetected')
+                      }
+                    />
+                    <PreferenceStat
+                      label={t('settings.native.fields.proxyActiveBinaryPath')}
+                      value={preferences?.proxyActiveBinaryPath ?? ''}
+                    />
                   </div>
-                </PreferenceField>
 
-                <PreferenceStat
-                  label={t('settings.native.fields.proxyConfigPath')}
-                  value={preferences?.proxyConfigPath ?? ''}
-                />
-              </>
-            ) : null}
+                  {supportsPortConfig ? (
+                    <PreferenceField
+                      hint={t('settings.native.hints.proxyPort')}
+                      label={t('settings.native.fields.proxyPort')}
+                    >
+                      <div className="flex gap-2">
+                        <Input
+                          inputMode="numeric"
+                          min={1}
+                          max={65_535}
+                          type="number"
+                          value={proxyPortDraft}
+                          disabled={disabled}
+                          onChange={(event) => {
+                            setProxyPortDraft(event.target.value);
+                            setState((current) => ({
+                              ...current,
+                              error: null,
+                            }));
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              void saveProxyPort();
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => void saveProxyPort()}
+                        >
+                          {t('common.save')}
+                        </Button>
+                      </div>
+                    </PreferenceField>
+                  ) : null}
+
+                  {isMacHost ? (
+                    <>
+                      <SwitchField
+                        checked={preferences?.allowNetworkAccess ?? false}
+                        disabled={disabled}
+                        label={t('settings.native.fields.allowNetworkAccess')}
+                        onCheckedChange={(checked) =>
+                          void savePreference('allowNetworkAccess', checked)
+                        }
+                      />
+
+                      {preferences?.allowNetworkAccess ? (
+                        <p className="text-danger text-xs">
+                          {t('settings.native.hints.allowNetworkAccessWarning')}
+                        </p>
+                      ) : null}
+
+                      <SwitchField
+                        checked={preferences?.autoStartTunnel ?? false}
+                        disabled={disabled || !preferences?.tunnelInstalled}
+                        label={t('settings.native.fields.autoStartTunnel')}
+                        onCheckedChange={(checked) =>
+                          void savePreference('autoStartTunnel', checked)
+                        }
+                      />
+                      <SwitchField
+                        checked={preferences?.autoRestartTunnel ?? false}
+                        disabled={disabled || !preferences?.tunnelInstalled}
+                        label={t('settings.native.fields.autoRestartTunnel')}
+                        onCheckedChange={(checked) =>
+                          void savePreference('autoRestartTunnel', checked)
+                        }
+                      />
+
+                      <PreferenceField
+                        hint={t('settings.native.hints.authDir')}
+                        label={t('settings.native.fields.authDir')}
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Input
+                            className="font-mono text-xs"
+                            value={authDirDraft}
+                            disabled={disabled}
+                            onChange={(event) => {
+                              setAuthDirDraft(event.target.value);
+                              setState((current) => ({
+                                ...current,
+                                error: null,
+                              }));
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                void saveAuthDir();
+                              }
+                            }}
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => void saveAuthDir()}
+                            >
+                              {t('common.save')}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={
+                                disabled || !preferences?.defaultAuthDir
+                              }
+                              onClick={() => {
+                                const defaultAuthDir =
+                                  preferences?.defaultAuthDir ?? '';
+                                setAuthDirDraft(defaultAuthDir);
+                                void saveAuthDir(defaultAuthDir);
+                              }}
+                            >
+                              {t('settings.native.actions.reset')}
+                            </Button>
+                          </div>
+                        </div>
+                      </PreferenceField>
+
+                      <PreferenceStat
+                        label={t('settings.native.fields.proxyConfigPath')}
+                        value={preferences?.proxyConfigPath ?? ''}
+                      />
+                    </>
+                  ) : null}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </PreferenceGroup>
         ) : null}
 
