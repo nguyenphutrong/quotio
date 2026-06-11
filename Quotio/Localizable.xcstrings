@@ -29393,6 +29393,126 @@
           }
         }
       }
+    },
+    "onboarding.local.devBinaryMessage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Using a developer-provided gateway binary at %@." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utilise un binaire de passerelle fourni pour le développement à %@." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang dùng gateway binary dành cho phát triển tại %@." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在使用位于 %@ 的开发网关二进制文件。" } }
+      }
+    },
+    "onboarding.local.useBundledGateway" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use bundled Quotio Gateway" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utiliser la passerelle Quotio intégrée" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Dùng Quotio Gateway đi kèm" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用内置 Quotio Gateway" } }
+      }
+    },
+    "onboarding.local.useExistingGateway" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use local development gateway" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utiliser la passerelle de développement locale" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Dùng gateway phát triển cục bộ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用本地开发网关" } }
+      }
+    },
+    "settings.devBinaryActive" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Using a developer-provided gateway binary." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utilise un binaire de passerelle fourni pour le développement." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang dùng gateway binary dành cho phát triển." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在使用开发网关二进制文件。" } }
+      }
+    },
+    "settings.gatewayMissingLong" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quotio Gateway is missing. Rebuild Quotio to restore local mode." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "La passerelle Quotio est manquante. Recompilez Quotio pour restaurer le mode local." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thiếu Quotio Gateway. Build lại Quotio để khôi phục chế độ cục bộ." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "缺少 Quotio Gateway。请重新构建 Quotio 以恢复本地模式。" } }
+      }
+    },
+    "settings.gatewayMissingShort" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quotio Gateway missing" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Passerelle Quotio manquante" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thiếu Quotio Gateway" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "缺少 Quotio Gateway" } }
+      }
+    },
+    "settings.gatewayType" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Gateway type" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Type de passerelle" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Loại gateway" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "网关类型" } }
+      }
+    },
+    "settings.gatewayVersion" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Gateway version" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Version de la passerelle" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Phiên bản gateway" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "网关版本" } }
+      }
+    },
+    "settings.installStatus" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Install status" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "État de l’installation" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Trạng thái cài đặt" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安装状态" } }
+      }
+    },
+    "settings.installStatus.bundled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Bundled with Quotio" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Intégré à Quotio" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đi kèm Quotio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "随 Quotio 内置" } }
+      }
+    },
+    "settings.installStatus.developerBinary" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Developer binary" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Binaire de développement" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Binary phát triển" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开发二进制文件" } }
+      }
+    },
+    "settings.installStatus.notInstalled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not installed" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Non installé" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chưa cài đặt" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未安装" } }
+      }
+    },
+    "settings.installStatus.olderInstall" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Older gateway install found" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ancienne installation de passerelle trouvée" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã tìm thấy bản gateway cũ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发现旧版网关安装" } }
+      }
+    },
+    "settings.installedComponent" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Installed component" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Composant installé" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thành phần đã cài" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已安装组件" } }
+      }
+    },
+    "settings.legacyGatewayFound" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "An older gateway install was found. Use the bundled Quotio Gateway to continue local mode. Existing auth files will be preserved." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Une ancienne installation de passerelle a été trouvée. Utilisez la passerelle Quotio intégrée pour continuer en mode local. Les fichiers d’authentification existants seront conservés." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã tìm thấy bản gateway cũ. Dùng Quotio Gateway đi kèm để tiếp tục chế độ cục bộ. Các tệp xác thực hiện có sẽ được giữ nguyên." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发现旧版网关安装。请使用内置 Quotio Gateway 继续本地模式。现有身份验证文件将被保留。" } }
+      }
     }
   },
   "version" : "1.1"

@@ -79,19 +79,19 @@ final class OnboardingViewModel {
     var localModeNotice: (title: String, message: String)? {
         if let devPath = proxyManager.cpaPlusPlusDevBinaryPath {
             return (
-                "Use existing local dev binary",
-                "\(ProxyBinarySource.devBinaryPathEnvironmentKey)=\(devPath)"
+                "onboarding.local.useExistingGateway".localized(),
+                String(format: "onboarding.local.devBinaryMessage".localized(), devPath)
             )
         }
 
         if let legacyPrompt = proxyManager.legacyMigrationPrompt {
-            return ("Use bundled cpa++", legacyPrompt)
+            return ("onboarding.local.useBundledGateway".localized(), legacyPrompt)
         }
 
         if !proxyManager.isBinaryInstalled {
             return (
-                "Use bundled cpa++",
-                "Bundled cpa++ is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH for local development."
+                "onboarding.local.useBundledGateway".localized(),
+                "settings.gatewayMissingLong".localized()
             )
         }
 

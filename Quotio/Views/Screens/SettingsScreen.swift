@@ -742,24 +742,24 @@ struct LocalProxyServerSection: View {
                     .foregroundStyle(.secondary)
             }
 
-            LabeledContent("Server kind") {
+            LabeledContent("settings.gatewayType".localized()) {
                 Text(serverKindText)
                     .foregroundStyle(.secondary)
             }
 
-            LabeledContent("cpa++ version") {
+            LabeledContent("settings.gatewayVersion".localized()) {
                 Text(serverVersionText)
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
 
-            LabeledContent("Install status") {
+            LabeledContent("settings.installStatus".localized()) {
                 Text(installStatusText)
                     .foregroundStyle(.secondary)
             }
 
-            LabeledContent("Active binary") {
+            LabeledContent("settings.installedComponent".localized()) {
                 Text(viewModel.proxyManager.activeBinaryPathDescription)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -780,7 +780,7 @@ struct LocalProxyServerSection: View {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "hammer.fill")
                         .foregroundStyle(.orange)
-                    Text("Using CPA_PLUSPLUS_BINARY_PATH dev override.")
+                    Text("settings.devBinaryActive".localized())
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -830,12 +830,12 @@ struct LocalProxyServerSection: View {
 
     private var installStatusText: String {
         let source = viewModel.proxyManager.activeBinarySourceDescription
-        if source == "Dev override" { return "Using local dev binary" }
-        if source == "Bundled" { return "Bundled with Quotio" }
+        if source == "Dev override" { return "settings.installStatus.developerBinary".localized() }
+        if source == "Bundled" { return "settings.installStatus.bundled".localized() }
         if viewModel.proxyManager.hasLegacyCLIProxyAPIInstall {
-            return "Legacy compatible install found"
+            return "settings.installStatus.olderInstall".localized()
         }
-        return "Not installed"
+        return "settings.installStatus.notInstalled".localized()
     }
 }
 

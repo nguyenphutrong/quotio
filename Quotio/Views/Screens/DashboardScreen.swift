@@ -316,7 +316,7 @@ struct DashboardScreen: View {
                     .font(.caption)
                     .foregroundStyle(.red)
             } else {
-                Text("Bundled cpa++ is missing. Rebuild Quotio or set CPA_PLUSPLUS_BINARY_PATH for local development.")
+                Text("settings.gatewayMissingLong".localized())
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
