@@ -64,12 +64,14 @@ final class StatusBarMenuBuilder {
             menu.addItem(NSMenuItem.separator())
 
             let visibleProviders = visibleProviders(from: providers)
+            let showsProviderHeaders = selectedProvider(from: providers) == nil
             for (index, provider) in visibleProviders.enumerated() {
                 let accounts = accountsForProvider(provider)
 
-                // Provider section header
-                let headerView = MenuProviderSectionHeader(provider: provider)
-                menu.addItem(viewItem(for: headerView))
+                if showsProviderHeaders {
+                    let headerView = MenuProviderSectionHeader(provider: provider)
+                    menu.addItem(viewItem(for: headerView))
+                }
 
                 if accounts.isEmpty {
                     menu.addItem(buildEmptyStateItem())
@@ -1433,7 +1435,7 @@ private extension AIProvider {
         switch self {
         case .gemini: return "Gemini"
         case .claude: return "Claude"
-        case .codex: return "OpenAI"
+        case .codex: return "Codex"
         case .cursor: return "Cursor"
         case .copilot: return "Copilot"
         case .trae: return "Trae"
