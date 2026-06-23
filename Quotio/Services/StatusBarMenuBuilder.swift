@@ -51,10 +51,20 @@ final class StatusBarMenuBuilder {
             menu.addItem(NSMenuItem.separator())
         }
 
-        // 3. All provider accounts shown together, grouped by provider header
+        // 3. Provider picker and account groups
         let providers = providersWithData
         if !providers.isEmpty {
-            for (index, provider) in providers.enumerated() {
+            let pickerView = MenuProviderPickerView(
+                providers: providers,
+                onProviderChanged: {
+                    StatusBarManager.shared.rebuildMenuInPlace()
+                }
+            )
+            menu.addItem(viewItem(for: pickerView))
+            menu.addItem(NSMenuItem.separator())
+
+            let visibleProviders = visibleProviders(from: providers)
+            for (index, provider) in visibleProviders.enumerated() {
                 let accounts = accountsForProvider(provider)
 
                 // Provider section header
@@ -75,7 +85,7 @@ final class StatusBarMenuBuilder {
                 }
 
                 // Separator between provider groups (not after the last one)
-                if index < providers.count - 1 {
+                if index < visibleProviders.count - 1 {
                     menu.addItem(NSMenuItem.separator())
                 }
             }
@@ -171,15 +181,22 @@ final class StatusBarMenuBuilder {
         return false
     }
     
-    private func resolveSelectedProvider(from providers: [AIProvider]) -> AIProvider {
-        if !selectedProviderRaw.isEmpty,
-           let provider = AIProvider(rawValue: selectedProviderRaw),
-           providers.contains(provider) {
-            return provider
+    private func selectedProvider(from providers: [AIProvider]) -> AIProvider? {
+        guard !selectedProviderRaw.isEmpty,
+              let provider = AIProvider(rawValue: selectedProviderRaw),
+              providers.contains(provider) else {
+            return nil
         }
-        return providers.first ?? .gemini
+        return provider
     }
-    
+
+    private func visibleProviders(from providers: [AIProvider]) -> [AIProvider] {
+        guard let provider = selectedProvider(from: providers) else {
+            return providers
+        }
+        return [provider]
+    }
+
     private func accountsForProvider(_ provider: AIProvider) -> [(email: String, data: ProviderQuotaData)] {
         guard let quotas = viewModel.providerQuotas[provider] else { return [] }
         return quotas.map { ($0.key, $0.value) }.sorted { $0.email < $1.email }
@@ -424,18 +441,23 @@ private struct MenuProviderPickerView: View {
     let providers: [AIProvider]
     let onProviderChanged: () -> Void
     
-    private var selectedProvider: AIProvider {
+    private var selectedProvider: AIProvider? {
         if !selectedProviderRaw.isEmpty,
            let provider = AIProvider(rawValue: selectedProviderRaw),
            providers.contains(provider) {
             return provider
         }
-        return providers.first ?? .gemini
+        return nil
     }
     
     var body: some View {
         // Wrap providers in a flexible layout
         FlowLayout(spacing: 6) {
+            AllProviderFilterButton(isSelected: selectedProvider == nil) {
+                selectedProviderRaw = ""
+                onProviderChanged()
+            }
+
             ForEach(providers) { provider in
                 ProviderFilterButton(
                     provider: provider,
@@ -448,6 +470,39 @@ private struct MenuProviderPickerView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: All Provider Filter Button
+
+private struct AllProviderFilterButton: View {
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 14, height: 14)
+                    .opacity(isSelected ? 1.0 : 0.7)
+
+                Text("menubar.providers.all".localized())
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .medium, design: .rounded))
+            }
+            .foregroundStyle(isSelected ? .primary : .secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.05))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
