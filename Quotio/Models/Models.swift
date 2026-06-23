@@ -29,7 +29,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .gemini: return "Gemini CLI"
         case .claude: return "Claude Code"
-        case .codex: return "Codex (OpenAI)"
+        case .codex: return "Codex"
         case .qwen: return "Qwen Code"
         case .iflow: return "iFlow"
         case .antigravity: return "Antigravity"
