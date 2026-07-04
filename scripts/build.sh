@@ -24,10 +24,11 @@ print_step 1 4 "Creating Archive"
 start_step_timer "archive"
 
 xcodebuild archive \
-    -project "${PROJECT_DIR}/${PROJECT_NAME}.xcodeproj" \
+    -project "${PROJECT_FILE}" \
     -scheme "${SCHEME}" \
     -configuration Release \
     -archivePath "${ARCHIVE_PATH}" \
+    -derivedDataPath "${RELEASE_DERIVED_DATA}" \
     -destination "generic/platform=macOS" \
     SKIP_INSTALL=NO \
     BUILD_LIBRARY_FOR_DISTRIBUTION=YES \

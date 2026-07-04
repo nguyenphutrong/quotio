@@ -10,14 +10,20 @@
 export PROJECT_NAME="Quotio"
 export SCHEME="Quotio"
 export BUNDLE_ID="dev.quotio.desktop"
+export DESTINATION="platform=macOS"
 
 # Paths
 export PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PROJECT_FILE="${PROJECT_DIR}/${PROJECT_NAME}.xcodeproj"
 export BUILD_DIR="${PROJECT_DIR}/build"
 export ARCHIVE_PATH="${BUILD_DIR}/${PROJECT_NAME}.xcarchive"
 export APP_PATH="${BUILD_DIR}/${PROJECT_NAME}.app"
 export DMG_PATH="${BUILD_DIR}/${PROJECT_NAME}.dmg"
 export RELEASE_DIR="${BUILD_DIR}/release"
+export DEBUG_DERIVED_DATA="${BUILD_DIR}/DebugDerivedData"
+export RELEASE_DERIVED_DATA="${BUILD_DIR}/ReleaseDerivedData"
+export DEBUG_APP_PATH="${DEBUG_DERIVED_DATA}/Build/Products/Debug/${PROJECT_NAME}.app"
+export DEBUG_APP_BINARY="${DEBUG_APP_PATH}/Contents/MacOS/${PROJECT_NAME}"
 
 # Code signing (set via environment or keychain)
 export DEVELOPER_ID="${DEVELOPER_ID:-}"

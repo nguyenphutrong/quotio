@@ -60,10 +60,14 @@ run_step "Build" \
         CODE_SIGNING_REQUIRED=NO \
         CODE_SIGNING_ALLOWED=NO
 
-if command -v swiftlint >/dev/null 2>&1; then
-    run_step "SwiftLint" swiftlint lint
+if [ -f "${PROJECT_DIR}/.swiftlint.yml" ] || [ -f "${PROJECT_DIR}/.swiftlint.yaml" ]; then
+    if command -v swiftlint >/dev/null 2>&1; then
+        run_step "SwiftLint" swiftlint lint
+    else
+        warn "SwiftLint config found, but SwiftLint is not installed; skipping lint"
+    fi
 else
-    warn "SwiftLint is not installed; skipping lint"
+    warn "SwiftLint config not found; skipping lint"
 fi
 
 if has_test_target; then
