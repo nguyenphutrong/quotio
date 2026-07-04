@@ -46,24 +46,6 @@ nonisolated struct CodexJWTClaims: Sendable {
     let subscriptionActiveUntil: Date?
 }
 
-/// Quota data from Codex CLI
-nonisolated struct CodexCLIQuotaInfo: Sendable {
-    let email: String
-    let planType: String?
-    let organizationName: String?
-    let subscriptionActiveUntil: Date?
-    
-    /// Session (3-hour window) usage
-    let sessionUsedPercent: Int
-    let sessionResetAt: Date?
-    
-    /// Weekly usage
-    let weeklyUsedPercent: Int
-    let weeklyResetAt: Date?
-    
-    let limitReached: Bool
-}
-
 /// Fetches quota from Codex CLI auth file
 actor CodexCLIQuotaFetcher {
     private let authFilePath = "~/.codex/auth.json"
@@ -168,7 +150,7 @@ actor CodexCLIQuotaFetcher {
     }
     
     /// Fetch quota from ChatGPT usage API
-    func fetchQuota(accessToken: String, accountId: String?) async throws -> CodexCLIQuotaInfo {
+    func fetchQuota(accessToken: String, accountId: String?, identity: CodexQuotaIdentity) async throws -> ProviderQuotaData {
         guard let url = URL(string: usageURL) else {
             throw CodexCLIQuotaError.invalidURL
         }
@@ -193,59 +175,26 @@ actor CodexCLIQuotaFetcher {
             throw CodexCLIQuotaError.httpError(httpResponse.statusCode)
         }
         
-        // Parse the usage response
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw CodexCLIQuotaError.invalidResponse
-        }
-        
-        let quotaInfo = parseUsageResponse(json)
+        var quotaData = try CodexUsageMapper.map(data: data, identity: identity)
 #if DEBUG
-        Log.quota("plan_type=\(quotaInfo.planType ?? "<nil>")")
+        Log.quota("plan_type=\(quotaData.planType ?? "<nil>")")
 #endif
-        return quotaInfo
-    }
-    
-    /// Parse usage API response
-    private func parseUsageResponse(_ json: [String: Any]) -> CodexCLIQuotaInfo {
-        let planType = json["plan_type"] as? String
-        
-        var sessionUsedPercent = 0
-        var sessionResetAt: Date? = nil
-        var weeklyUsedPercent = 0
-        var weeklyResetAt: Date? = nil
-        var limitReached = false
-        
-        if let rateLimit = json["rate_limit"] as? [String: Any] {
-            limitReached = rateLimit["limit_reached"] as? Bool ?? false
-            
-            // Primary window = session (3h)
-            if let primaryWindow = rateLimit["primary_window"] as? [String: Any] {
-                sessionUsedPercent = primaryWindow["used_percent"] as? Int ?? 0
-                if let resetAt = primaryWindow["reset_at"] as? Int {
-                    sessionResetAt = Date(timeIntervalSince1970: TimeInterval(resetAt))
-                }
-            }
-            
-            // Secondary window = weekly
-            if let secondaryWindow = rateLimit["secondary_window"] as? [String: Any] {
-                weeklyUsedPercent = secondaryWindow["used_percent"] as? Int ?? 0
-                if let resetAt = secondaryWindow["reset_at"] as? Int {
-                    weeklyResetAt = Date(timeIntervalSince1970: TimeInterval(resetAt))
-                }
-            }
+        if let profileAnalytics = await fetchProfileAnalytics(accessToken: accessToken, accountId: accountId) {
+            quotaData.analytics = quotaData.analytics?.merging(profileAnalytics) ?? profileAnalytics
         }
-        
-        return CodexCLIQuotaInfo(
-            email: "Codex User",
-            planType: planType,
-            organizationName: nil,
-            subscriptionActiveUntil: nil,
-            sessionUsedPercent: sessionUsedPercent,
-            sessionResetAt: sessionResetAt,
-            weeklyUsedPercent: weeklyUsedPercent,
-            weeklyResetAt: weeklyResetAt,
-            limitReached: limitReached
-        )
+        return quotaData
+    }
+
+    private func fetchProfileAnalytics(accessToken: String, accountId: String?) async -> QuotaAnalytics? {
+        do {
+            return try await CodexProfileAnalyticsFetcher(urlSession: session).fetch(
+                accessToken: accessToken,
+                accountID: accountId
+            )
+        } catch {
+            Log.quota("Failed to fetch Codex profile analytics: \(error)")
+            return nil
+        }
     }
     
     /// Refresh access token using refresh token
@@ -332,45 +281,13 @@ actor CodexCLIQuotaFetcher {
         
         // Fetch quota from API
         do {
-            let quotaInfo = try await fetchQuota(accessToken: currentAccessToken, accountId: accountId)
-            
-            // Build model quotas
-            var models: [ModelQuota] = []
-            
-            // Session quota (3-hour window)
-            let sessionResetStr: String
-            if let resetAt = quotaInfo.sessionResetAt {
-                sessionResetStr = ISO8601DateFormatter().string(from: resetAt)
-            } else {
-                sessionResetStr = ""
-            }
-            models.append(ModelQuota(
-                name: "codex-session",
-                percentage: Double(100 - quotaInfo.sessionUsedPercent),
-                resetTime: sessionResetStr
-            ))
-            
-            // Weekly quota
-            let weeklyResetStr: String
-            if let resetAt = quotaInfo.weeklyResetAt {
-                weeklyResetStr = ISO8601DateFormatter().string(from: resetAt)
-            } else {
-                weeklyResetStr = ""
-            }
-            models.append(ModelQuota(
-                name: "codex-weekly",
-                percentage: Double(100 - quotaInfo.weeklyUsedPercent),
-                resetTime: weeklyResetStr
-            ))
-            
-            let providerQuota = ProviderQuotaData(
-                models: models,
-                lastUpdated: Date(),
-                isForbidden: quotaInfo.limitReached,
-                planType: quotaInfo.planType ?? planType
+            let providerQuota = try await fetchQuota(
+                accessToken: currentAccessToken,
+                accountId: accountId,
+                identity: CodexQuotaIdentity(planType: planType)
             )
 #if DEBUG
-            Log.quota("finalPlan=\(providerQuota.planType ?? "<nil>") usage=\(quotaInfo.planType ?? "<nil>") jwt=\(planType ?? "<nil>")")
+            Log.quota("finalPlan=\(providerQuota.planType ?? "<nil>") jwt=\(planType ?? "<nil>")")
 #endif
             
             return [email: providerQuota]

@@ -188,6 +188,13 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         // Codex quota names
         case "codex-session": return "Session"
         case "codex-weekly": return "Weekly"
+        case "codex-spark": return "Codex Spark"
+        case "codex-spark-weekly": return "Codex Spark Weekly"
+        case let name where name.hasPrefix("codex-"):
+            return name.dropFirst("codex-".count)
+                .split(separator: "-")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " ")
         // Copilot quota names
         case "copilot-chat": return "Chat"
         case "copilot-completions": return "Completions"
@@ -273,13 +280,22 @@ nonisolated struct ProviderQuotaData: Codable, Sendable {
     var isForbidden: Bool
     var planType: String?
     var tokenExpiresAt: Date?  // For Kiro: token expiry time
+    var analytics: QuotaAnalytics?
 
-    init(models: [ModelQuota] = [], lastUpdated: Date = Date(), isForbidden: Bool = false, planType: String? = nil, tokenExpiresAt: Date? = nil) {
+    init(
+        models: [ModelQuota] = [],
+        lastUpdated: Date = Date(),
+        isForbidden: Bool = false,
+        planType: String? = nil,
+        tokenExpiresAt: Date? = nil,
+        analytics: QuotaAnalytics? = nil
+    ) {
         self.models = models
         self.lastUpdated = lastUpdated
         self.isForbidden = isForbidden
         self.planType = planType
         self.tokenExpiresAt = tokenExpiresAt
+        self.analytics = analytics
     }
 
     /// Format token expiry time in user's local timezone
