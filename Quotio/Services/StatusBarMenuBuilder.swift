@@ -261,10 +261,12 @@ final class StatusBarMenuBuilder {
 
         let item = viewItem(for: cardView)
 
+        let isAntigravitySummary = provider == .antigravity && data.models.contains { $0.name.hasPrefix("antigravity-") }
+
         if provider == .codex, let analytics = data.analytics, !analytics.isEmpty {
             let submenu = buildCodexAnalyticsSubmenu(analytics: analytics)
             item.submenu = submenu
-        } else if provider == .antigravity && !data.models.isEmpty {
+        } else if provider == .antigravity && !data.models.isEmpty && !isAntigravitySummary {
             let submenu = buildAntigravitySubmenu(data: data)
             item.submenu = submenu
         }
