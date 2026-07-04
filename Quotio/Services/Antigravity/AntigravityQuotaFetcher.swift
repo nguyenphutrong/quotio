@@ -185,6 +185,11 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         case "claude-opus-4-6-thinking": return "Claude Opus 4.6 (Thinking)"
         case "claude-4-sonnet": return "Claude 4 Sonnet"
         case "claude-4-opus": return "Claude 4 Opus"
+        // Antigravity quota summary names
+        case "antigravity-gemini-session": return "Gemini Session"
+        case "antigravity-gemini-weekly": return "Gemini Weekly"
+        case "antigravity-claude-gpt-session": return "Claude/GPT Session"
+        case "antigravity-claude-gpt-weekly": return "Claude/GPT Weekly"
         // Codex quota names
         case "codex-session": return "Session"
         case "codex-weekly": return "Weekly"
@@ -492,6 +497,7 @@ nonisolated struct AntigravityAuthFile: Codable, Sendable {
 
 actor AntigravityQuotaFetcher {
     private let quotaAPIURL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels"
+    private let quotaSummaryAPIURL = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
     private let loadProjectAPIURL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
     private let tokenURL = "https://oauth2.googleapis.com/token"
     private let clientId = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
@@ -577,6 +583,10 @@ actor AntigravityQuotaFetcher {
     func fetchQuota(accessToken: String) async throws -> ProviderQuotaData {
         let projectId = await fetchProjectId(accessToken: accessToken)
 
+        if let summaryModels = await fetchQuotaSummaryModels(accessToken: accessToken, projectId: projectId) {
+            return ProviderQuotaData(models: summaryModels, lastUpdated: Date())
+        }
+
         guard let url = URL(string: quotaAPIURL) else {
             throw QuotaFetchError.invalidURL
         }
@@ -638,6 +648,188 @@ actor AntigravityQuotaFetcher {
         }
 
         throw lastError ?? QuotaFetchError.unknown
+    }
+
+    private func fetchQuotaSummaryModels(accessToken: String, projectId: String?) async -> [ModelQuota]? {
+        let payloads: [[String: Any]]
+        if let projectId = projectId {
+            payloads = [["project": projectId], [:]]
+        } else {
+            payloads = [[:]]
+        }
+
+        for payload in payloads {
+            guard let data = try? await postCloudCode(urlString: quotaSummaryAPIURL, accessToken: accessToken, payload: payload),
+                  let models = Self.parseQuotaSummaryModels(from: data),
+                  !models.isEmpty else {
+                continue
+            }
+            return models
+        }
+
+        return nil
+    }
+
+    private func postCloudCode(urlString: String, accessToken: String, payload: [String: Any]) async throws -> Data {
+        guard let url = URL(string: urlString) else {
+            throw QuotaFetchError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaFetchError.invalidResponse
+        }
+        guard 200...299 ~= httpResponse.statusCode else {
+            throw QuotaFetchError.httpError(httpResponse.statusCode)
+        }
+
+        return data
+    }
+
+    private static func parseQuotaSummaryModels(from data: Data) -> [ModelQuota]? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let groups = quotaSummaryGroups(from: root) else {
+            return nil
+        }
+
+        var models: [ModelQuota] = []
+        for group in groups {
+            guard let groupName = trimmedString(group["displayName"] ?? group["name"]),
+                  let groupID = quotaSummaryGroupID(from: groupName),
+                  let buckets = group["buckets"] as? [[String: Any]] else {
+                continue
+            }
+
+            for bucket in buckets {
+                let bucketID = trimmedString(bucket["bucketId"] ?? bucket["id"]) ?? ""
+                let bucketName = trimmedString(bucket["displayName"] ?? bucket["name"]) ?? bucketID
+                let bucketWindow = trimmedString(bucket["window"]) ?? ""
+
+                guard boolValue(bucket["disabled"]) != true,
+                      let period = quotaSummaryPeriod(from: "\(bucketID) \(bucketName) \(bucketWindow)"),
+                      let remainingFraction = quotaSummaryRemainingFraction(from: bucket) else {
+                    continue
+                }
+
+                models.append(ModelQuota(
+                    name: "antigravity-\(groupID)-\(period.id)",
+                    percentage: (remainingFraction.clamped(to: 0...1) * 100).clamped(to: 0...100),
+                    resetTime: trimmedString(bucket["resetTime"] ?? bucket["reset_time"] ?? bucket["resetAt"] ?? bucket["reset_at"]) ?? ""
+                ))
+            }
+        }
+
+        var seen = Set<String>()
+        return models
+            .filter { seen.insert($0.name).inserted }
+            .sorted { lhs, rhs in
+                let order = [
+                    "antigravity-gemini-session",
+                    "antigravity-gemini-weekly",
+                    "antigravity-claude-gpt-session",
+                    "antigravity-claude-gpt-weekly"
+                ]
+                return (order.firstIndex(of: lhs.name) ?? order.count) < (order.firstIndex(of: rhs.name) ?? order.count)
+            }
+    }
+
+    private static func quotaSummaryGroups(from root: [String: Any]) -> [[String: Any]]? {
+        if let groups = root["groups"] as? [[String: Any]] {
+            return groups
+        }
+        if let response = root["response"] as? [String: Any],
+           let groups = response["groups"] as? [[String: Any]] {
+            return groups
+        }
+        if let summary = root["summary"] as? [String: Any],
+           let groups = summary["groups"] as? [[String: Any]] {
+            return groups
+        }
+        return nil
+    }
+
+    private static func quotaSummaryGroupID(from name: String) -> String? {
+        let lower = name.lowercased()
+        if lower.contains("gemini") {
+            return "gemini"
+        }
+        if lower.contains("claude") || lower.contains("gpt") {
+            return "claude-gpt"
+        }
+        return nil
+    }
+
+    private static func quotaSummaryPeriod(from label: String) -> (id: String, displayName: String)? {
+        let lower = label.lowercased()
+        if lower.contains("week") || lower.contains("7d") || lower.contains("seven") {
+            return ("weekly", "Weekly")
+        }
+        if lower.contains("session") || lower.contains("5") || lower.contains("hour") {
+            return ("session", "Session")
+        }
+        return nil
+    }
+
+    private static func quotaSummaryRemainingFraction(from bucket: [String: Any]) -> Double? {
+        if let value = doubleValue(bucket["remainingFraction"] ?? bucket["remaining_fraction"]) {
+            return value
+        }
+        guard let remaining = bucket["remaining"] as? [String: Any] else { return nil }
+        if let value = doubleValue(remaining["remainingFraction"] ?? remaining["remaining_fraction"]) {
+            return value
+        }
+        if trimmedString(remaining["case"]) == "remainingFraction" {
+            return doubleValue(remaining["value"])
+        }
+        return nil
+    }
+
+    private static func trimmedString(_ value: Any?) -> String? {
+        let raw: String?
+        switch value {
+        case let string as String:
+            raw = string
+        case let number as NSNumber:
+            raw = number.stringValue
+        default:
+            raw = nil
+        }
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static func doubleValue(_ value: Any?) -> Double? {
+        switch value {
+        case let double as Double:
+            return double
+        case let int as Int:
+            return Double(int)
+        case let number as NSNumber:
+            return number.doubleValue
+        case let string as String:
+            return Double(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
+        }
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool? {
+        if let value = value as? Bool { return value }
+        if let value = value as? NSNumber { return value.boolValue }
+        if let string = trimmedString(value)?.lowercased() {
+            if ["true", "1"].contains(string) { return true }
+            if ["false", "0"].contains(string) { return false }
+        }
+        return nil
     }
 
     private func fetchProjectId(accessToken: String) async -> String? {

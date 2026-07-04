@@ -285,10 +285,12 @@ final class StatusBarMenuBuilder {
         let submenu = NSMenu()
         submenu.autoenablesItems = false
 
-        let allModels = data.models.sorted { $0.name < $1.name }
+        let hasSummary = data.models.contains { $0.name.hasPrefix("antigravity-") }
+        let allModels = hasSummary ? data.models : data.models.sorted { $0.name < $1.name }
 
         for model in allModels {
-            let modelItem = viewItem(for: MenuModelDetailView(model: model, showRawName: true))
+            let isSummary = model.name.hasPrefix("antigravity-")
+            let modelItem = viewItem(for: MenuModelDetailView(model: model, showRawName: !isSummary))
             submenu.addItem(modelItem)
         }
 
@@ -837,6 +839,12 @@ private struct MenuAccountCardView: View {
     
     private var antigravityGroups: [AntigravityDisplayGroup] {
         guard isAntigravity else { return [] }
+        let summaryModels = data.models.filter { $0.name.hasPrefix("antigravity-") }
+        if !summaryModels.isEmpty {
+            return summaryModels
+                .map { AntigravityDisplayGroup(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime) }
+        }
+
         var groups: [AntigravityDisplayGroup] = []
 
         let settings = MenuBarSettingsManager.shared
