@@ -86,6 +86,15 @@ actor OpenAIQuotaFetcher {
         return trimmedNonEmpty(json["email"] as? String)
     }
 
+    private func decodePlanType(fromJWT token: String) -> String? {
+        guard let json = decodeJWTPayload(token: token) else { return nil }
+        if let authInfo = json["https://api.openai.com/auth"] as? [String: Any],
+           let planType = trimmedNonEmpty(authInfo["chatgpt_plan_type"] as? String) {
+            return planType
+        }
+        return trimmedNonEmpty(json["chatgpt_plan_type"] as? String)
+    }
+
     private func fallbackKey(fromFilename filename: String) -> String {
         filename.codexFilenameKey
     }
@@ -112,7 +121,7 @@ actor OpenAIQuotaFetcher {
         */
     }
     
-    func fetchQuota(accessToken: String, accountId: String?) async throws -> CodexQuotaData {
+    func fetchQuota(accessToken: String, accountId: String?, identity: CodexQuotaIdentity) async throws -> ProviderQuotaData {
         guard let url = URL(string: usageURL) else {
             throw CodexQuotaError.invalidURL
         }
@@ -137,14 +146,17 @@ actor OpenAIQuotaFetcher {
             throw CodexQuotaError.httpError(httpResponse.statusCode)
         }
         
-        let quotaResponse = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
+        var quotaData = try CodexUsageMapper.map(data: data, identity: identity)
 #if DEBUG
-        Log.quota("plan_type=\(quotaResponse.planType ?? "<nil>")")
+        Log.quota("plan_type=\(quotaData.planType ?? "<nil>")")
 #endif
-        return CodexQuotaData(from: quotaResponse)
+        if let profileAnalytics = await fetchProfileAnalytics(accessToken: accessToken, accountId: accountId) {
+            quotaData.analytics = quotaData.analytics?.merging(profileAnalytics) ?? profileAnalytics
+        }
+        return quotaData
     }
     
-    func fetchQuotaForAuthFile(at path: String) async throws -> (accountKey: String, quota: CodexQuotaData) {
+    func fetchQuotaForAuthFile(at path: String) async throws -> (accountKey: String, quota: ProviderQuotaData) {
         let url = URL(fileURLWithPath: path)
         let data = try Data(contentsOf: url)
         let authFile = try JSONDecoder().decode(CodexAuthFile.self, from: data)
@@ -157,6 +169,9 @@ actor OpenAIQuotaFetcher {
         )
 
         var accessToken = authFile.accessToken
+        let identity = CodexQuotaIdentity(
+            planType: authFile.idToken.flatMap(decodePlanType)
+        )
 
         if authFile.isExpired, let refreshToken = authFile.refreshToken {
             do {
@@ -167,8 +182,20 @@ actor OpenAIQuotaFetcher {
             }
         }
 
-        let quota = try await fetchQuota(accessToken: accessToken, accountId: accountId)
+        let quota = try await fetchQuota(accessToken: accessToken, accountId: accountId, identity: identity)
         return (accountKey: accountKey, quota: quota)
+    }
+
+    private func fetchProfileAnalytics(accessToken: String, accountId: String?) async -> QuotaAnalytics? {
+        do {
+            return try await CodexProfileAnalyticsFetcher(urlSession: session).fetch(
+                accessToken: accessToken,
+                accountID: accountId
+            )
+        } catch {
+            Log.quota("Failed to fetch Codex profile analytics: \(error)")
+            return nil
+        }
     }
     
     private func refreshAccessToken(refreshToken: String) async throws -> String {
@@ -227,128 +254,13 @@ actor OpenAIQuotaFetcher {
             
             do {
                 let result = try await fetchQuotaForAuthFile(at: filePath)
-                results[result.accountKey] = result.quota.toProviderQuotaData()
+                results[result.accountKey] = result.quota
             } catch {
                 Log.quota("Failed to fetch Codex quota for \(file): \(error)")
             }
         }
         
         return results
-    }
-}
-
-nonisolated struct CodexUsageResponse: Codable, Sendable {
-    let planType: String?
-    let rateLimit: RateLimitInfo?
-    let codeReviewRateLimit: RateLimitInfo?
-    let credits: CreditsInfo?
-    
-    enum CodingKeys: String, CodingKey {
-        case planType = "plan_type"
-        case rateLimit = "rate_limit"
-        case codeReviewRateLimit = "code_review_rate_limit"
-        case credits
-    }
-}
-
-nonisolated struct RateLimitInfo: Codable, Sendable {
-    let allowed: Bool?
-    let limitReached: Bool?
-    let primaryWindow: WindowInfo?
-    let secondaryWindow: WindowInfo?
-    
-    enum CodingKeys: String, CodingKey {
-        case allowed
-        case limitReached = "limit_reached"
-        case primaryWindow = "primary_window"
-        case secondaryWindow = "secondary_window"
-    }
-}
-
-nonisolated struct WindowInfo: Codable, Sendable {
-    let usedPercent: Int?
-    let limitWindowSeconds: Int?
-    let resetAfterSeconds: Int?
-    let resetAt: Int?
-    
-    enum CodingKeys: String, CodingKey {
-        case usedPercent = "used_percent"
-        case limitWindowSeconds = "limit_window_seconds"
-        case resetAfterSeconds = "reset_after_seconds"
-        case resetAt = "reset_at"
-    }
-}
-
-nonisolated struct CreditsInfo: Codable, Sendable {
-    let hasCredits: Bool?
-    let unlimited: Bool?
-    let balance: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case hasCredits = "has_credits"
-        case unlimited
-        case balance
-    }
-}
-
-nonisolated struct CodexQuotaData: Codable, Sendable {
-    let planType: String
-    let sessionUsedPercent: Int
-    let sessionResetAt: Date?
-    let weeklyUsedPercent: Int
-    let weeklyResetAt: Date?
-    let limitReached: Bool
-    let lastUpdated: Date
-    
-    init(from response: CodexUsageResponse) {
-        self.planType = response.planType ?? "unknown"
-        self.sessionUsedPercent = response.rateLimit?.primaryWindow?.usedPercent ?? 0
-        self.weeklyUsedPercent = response.rateLimit?.secondaryWindow?.usedPercent ?? 0
-        self.limitReached = response.rateLimit?.limitReached ?? false
-        self.lastUpdated = Date()
-        
-        if let resetAt = response.rateLimit?.primaryWindow?.resetAt {
-            self.sessionResetAt = Date(timeIntervalSince1970: TimeInterval(resetAt))
-        } else {
-            self.sessionResetAt = nil
-        }
-        
-        if let resetAt = response.rateLimit?.secondaryWindow?.resetAt {
-            self.weeklyResetAt = Date(timeIntervalSince1970: TimeInterval(resetAt))
-        } else {
-            self.weeklyResetAt = nil
-        }
-    }
-    
-    nonisolated var sessionRemainingPercent: Double {
-        Double(100 - sessionUsedPercent)
-    }
-    
-    nonisolated var weeklyRemainingPercent: Double {
-        Double(100 - weeklyUsedPercent)
-    }
-    
-    nonisolated func toProviderQuotaData() -> ProviderQuotaData {
-        var models: [ModelQuota] = []
-        
-        models.append(ModelQuota(
-            name: "codex-session",
-            percentage: sessionRemainingPercent,
-            resetTime: sessionResetAt.map { ISO8601DateFormatter().string(from: $0) } ?? ""
-        ))
-        
-        models.append(ModelQuota(
-            name: "codex-weekly",
-            percentage: weeklyRemainingPercent,
-            resetTime: weeklyResetAt.map { ISO8601DateFormatter().string(from: $0) } ?? ""
-        ))
-        
-        return ProviderQuotaData(
-            models: models,
-            lastUpdated: lastUpdated,
-            isForbidden: limitReached,
-            planType: planType
-        )
     }
 }
 
