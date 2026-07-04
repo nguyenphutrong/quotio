@@ -20,7 +20,7 @@ final class StatusBarMenuBuilder {
     
     private let viewModel: QuotaViewModel
     private let modeManager = OperatingModeManager.shared
-    private let menuWidth: CGFloat = 320
+    private let menuWidth: CGFloat = 360
     private let agentDetectionService = AgentDetectionService()
     
     // Cached agent statuses for filtering
