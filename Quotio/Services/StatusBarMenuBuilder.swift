@@ -759,7 +759,12 @@ private struct MenuAccountCardView: View {
             return (info.tierDisplayName, .secondary.opacity(0.1), .secondary)
         }
         
-        guard let planName = provider == .codex ? codexPlanDisplayName(data.planType) : data.planDisplayName else { return nil }
+        if provider == .codex, let planName = codexPlanDisplayName(data.planType) {
+            let config = planConfig(for: planName)
+            return (planName, config.bgColor, config.textColor)
+        }
+
+        guard let planName = data.planDisplayName else { return nil }
         return planConfig(for: planName)
     }
 
