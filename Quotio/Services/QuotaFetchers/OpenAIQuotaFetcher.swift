@@ -150,6 +150,12 @@ actor OpenAIQuotaFetcher {
 #if DEBUG
         Log.quota("plan_type=\(quotaData.planType ?? "<nil>")")
 #endif
+        if let resetCreditAnalytics = await fetchResetCreditAnalytics(accessToken: accessToken, accountId: accountId) {
+            quotaData.analytics = CodexResetCreditInventoryFetcher.merge(
+                resetCreditAnalytics,
+                into: quotaData.analytics
+            )
+        }
         if let profileAnalytics = await fetchProfileAnalytics(accessToken: accessToken, accountId: accountId) {
             quotaData.analytics = quotaData.analytics?.merging(profileAnalytics) ?? profileAnalytics
         }
@@ -184,6 +190,18 @@ actor OpenAIQuotaFetcher {
 
         let quota = try await fetchQuota(accessToken: accessToken, accountId: accountId, identity: identity)
         return (accountKey: accountKey, quota: quota)
+    }
+
+    private func fetchResetCreditAnalytics(accessToken: String, accountId: String?) async -> QuotaAnalytics? {
+        do {
+            return try await CodexResetCreditInventoryFetcher(urlSession: session).fetchAnalytics(
+                accessToken: accessToken,
+                accountID: accountId
+            )
+        } catch {
+            Log.quota("Failed to fetch Codex reset credit inventory: \(error)")
+            return nil
+        }
     }
 
     private func fetchProfileAnalytics(accessToken: String, accountId: String?) async -> QuotaAnalytics? {
