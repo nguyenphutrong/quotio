@@ -1078,13 +1078,14 @@ private struct AnalyticsDetailSection: View {
 
     private static let usageMetricRowIDs = [
         "codex-extra-usage",
-        "codex-rate-limit-resets",
         "today",
         "yesterday",
         "last-30-days"
     ]
 
     private static let hiddenRowIDs = Set(primaryMetricRowIDs + usageMetricRowIDs)
+    private static let resetCreditsSummaryID = "codex-rate-limit-resets"
+    private static let resetCreditRowPrefix = "codex-rate-limit-reset-"
 
     private var metricRows: [QuotaAnalyticsRow] {
         metricRows(for: Self.primaryMetricRowIDs)
@@ -1095,7 +1096,7 @@ private struct AnalyticsDetailSection: View {
     }
 
     private var shouldShowNote: Bool {
-        metricRows.isEmpty && usageRows.isEmpty
+        metricRows.isEmpty && usageRows.isEmpty && resetCreditsSummary == nil
     }
 
     private func metricRows(for ids: [String]) -> [QuotaAnalyticsRow] {
@@ -1106,7 +1107,19 @@ private struct AnalyticsDetailSection: View {
     }
 
     private var detailRows: [QuotaAnalyticsRow] {
-        analytics.rows.filter { !Self.hiddenRowIDs.contains($0.id) }
+        analytics.rows.filter {
+            !Self.hiddenRowIDs.contains($0.id)
+                && $0.id != Self.resetCreditsSummaryID
+                && !$0.id.hasPrefix(Self.resetCreditRowPrefix)
+        }
+    }
+
+    private var resetCreditsSummary: QuotaAnalyticsRow? {
+        analytics.rows.first { $0.id == Self.resetCreditsSummaryID }
+    }
+
+    private var resetCreditRows: [QuotaAnalyticsRow] {
+        analytics.rows.filter { $0.id.hasPrefix(Self.resetCreditRowPrefix) }
     }
 
     var body: some View {
@@ -1117,6 +1130,10 @@ private struct AnalyticsDetailSection: View {
 
             if !usageRows.isEmpty {
                 AnalyticsMetricStripView(rows: usageRows)
+            }
+
+            if let resetCreditsSummary {
+                ResetCreditsInventoryView(summary: resetCreditsSummary, credits: resetCreditRows)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -1155,6 +1172,247 @@ private struct AnalyticsDetailSection: View {
             }
         }
         .padding(10)
+    }
+}
+
+private struct ResetCreditsInventoryView: View {
+    let summary: QuotaAnalyticsRow
+    let credits: [QuotaAnalyticsRow]
+
+    private var countLabel: String {
+        let count = summary.value.split(separator: " ").first.map(String.init) ?? "0"
+        return "\(count) resets available"
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "gift")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.blue)
+
+            Text(countLabel)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+
+            Spacer(minLength: 12)
+
+            HStack(spacing: 6) {
+                ForEach(Array(credits.enumerated()), id: \.element.id) { index, credit in
+                    ResetCreditChip(
+                        label: compactRelativeLabel(credit.value),
+                        tooltip: creditTooltip(credit),
+                        isNext: index == 0
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.025))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(.separator.opacity(0.45), lineWidth: 1)
+        )
+    }
+
+    private func compactRelativeLabel(_ value: String) -> String {
+        let lowercased = value.lowercased()
+        let parts = lowercased.split(separator: " ")
+        guard parts.count >= 3, parts.first == "in", let number = parts.dropFirst().first else {
+            return value.isEmpty ? "∞" : value
+        }
+
+        let unit = parts.dropFirst(2).first ?? ""
+        if unit.hasPrefix("day") { return "\(number)d" }
+        if unit.hasPrefix("hour") { return "\(number)h" }
+        if unit.hasPrefix("minute") { return "\(number)m" }
+        return String(number)
+    }
+
+    private func creditTooltip(_ credit: QuotaAnalyticsRow) -> String {
+        let suffix = credit.value.isEmpty ? "" : " - \(credit.value)"
+        return "Expires: \(credit.title)\(suffix)"
+    }
+}
+
+private struct ResetCreditChip: View {
+    let label: String
+    let tooltip: String
+    let isNext: Bool
+
+    var body: some View {
+        Text(label)
+            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .foregroundStyle(isNext ? Color.blue : .secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isNext ? Color.blue.opacity(0.18) : Color.primary.opacity(0.08))
+            )
+            .contentShape(Capsule(style: .continuous))
+            .menuNativeTooltip(tooltip)
+    }
+}
+
+private final class MenuTooltipWindow: NSWindow {
+    static let shared = MenuTooltipWindow()
+
+    private let label: NSTextField = {
+        let label = NSTextField(labelWithString: "")
+        label.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
+        label.textColor = .labelColor
+        label.backgroundColor = .clear
+        label.isBezeled = false
+        label.isEditable = false
+        label.lineBreakMode = .byTruncatingTail
+        return label
+    }()
+
+    private init() {
+        super.init(
+            contentRect: .zero,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: true
+        )
+        isOpaque = false
+        backgroundColor = .clear
+        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.popUpMenuWindow)) + 1)
+        collectionBehavior = [.canJoinAllSpaces, .transient]
+        ignoresMouseEvents = true
+
+        let effectView = NSVisualEffectView()
+        effectView.material = .toolTip
+        effectView.state = .active
+        effectView.wantsLayer = true
+        effectView.layer?.cornerRadius = 6
+
+        label.translatesAutoresizingMaskIntoConstraints = false
+        effectView.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: effectView.leadingAnchor, constant: 9),
+            label.trailingAnchor.constraint(equalTo: effectView.trailingAnchor, constant: -9),
+            label.topAnchor.constraint(equalTo: effectView.topAnchor, constant: 5),
+            label.bottomAnchor.constraint(equalTo: effectView.bottomAnchor, constant: -5)
+        ])
+
+        contentView = effectView
+    }
+
+    func show(text: String, near view: NSView) {
+        guard !text.isEmpty else {
+            hide()
+            return
+        }
+
+        label.stringValue = text
+        label.sizeToFit()
+
+        let labelSize = label.fittingSize
+        let windowSize = NSSize(width: min(labelSize.width + 18, 360), height: labelSize.height + 10)
+
+        guard let screen = view.window?.screen ?? NSScreen.main else { return }
+        let screenFrame = screen.visibleFrame
+        let viewFrame = view.window?.convertToScreen(view.convert(view.bounds, to: nil)) ?? .zero
+
+        var origin = NSPoint(
+            x: viewFrame.midX - windowSize.width / 2,
+            y: viewFrame.maxY + 5
+        )
+
+        if origin.x < screenFrame.minX {
+            origin.x = screenFrame.minX
+        }
+        if origin.x + windowSize.width > screenFrame.maxX {
+            origin.x = screenFrame.maxX - windowSize.width
+        }
+        if origin.y + windowSize.height > screenFrame.maxY {
+            origin.y = viewFrame.minY - windowSize.height - 5
+        }
+        if origin.y < screenFrame.minY {
+            origin.y = screenFrame.minY
+        }
+
+        setFrame(NSRect(origin: origin, size: windowSize), display: true)
+        orderFrontRegardless()
+    }
+
+    func hide() {
+        orderOut(nil)
+    }
+}
+
+private final class MenuTooltipTrackingView: NSView {
+    var text: String = ""
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach { removeTrackingArea($0) }
+        addTrackingArea(NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        ))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        MenuTooltipWindow.shared.show(text: text, near: self)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        MenuTooltipWindow.shared.show(text: text, near: self)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        MenuTooltipWindow.shared.hide()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            MenuTooltipWindow.shared.hide()
+        }
+    }
+
+    override func removeFromSuperview() {
+        MenuTooltipWindow.shared.hide()
+        super.removeFromSuperview()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+}
+
+private struct MenuNativeTooltipView: NSViewRepresentable {
+    let text: String
+
+    func makeNSView(context: Context) -> MenuTooltipTrackingView {
+        let view = MenuTooltipTrackingView()
+        view.text = text
+        return view
+    }
+
+    func updateNSView(_ nsView: MenuTooltipTrackingView, context: Context) {
+        nsView.text = text
+    }
+
+    static func dismantleNSView(_ nsView: MenuTooltipTrackingView, coordinator: ()) {
+        MenuTooltipWindow.shared.hide()
+    }
+}
+
+private extension View {
+    func menuNativeTooltip(_ text: String) -> some View {
+        overlay(MenuNativeTooltipView(text: text))
     }
 }
 
