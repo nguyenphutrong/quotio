@@ -143,29 +143,15 @@ final class AppBootstrap {
             return quotaData
         }
 
-        let cleanKey = selectedItem.accountKey.replacingOccurrences(of: ".json", with: "")
+        let cleanKey = selectedItem.accountKey.hasSuffix(".json")
+            ? String(selectedItem.accountKey.dropLast(".json".count))
+            : selectedItem.accountKey
         if let quotaData = accountQuotas[cleanKey] {
             return quotaData
         }
 
         guard provider == .codex else { return nil }
-        let normalizedSelected = normalizedCodexKey(cleanKey)
-        return accountQuotas.first { normalizedCodexKey($0.key) == normalizedSelected }?.value
-    }
-
-    private func normalizedCodexKey(_ key: String) -> String {
-        let cleanKey = key.replacingOccurrences(of: ".json", with: "")
-        if let email = extractEmail(from: cleanKey) {
-            return email.lowercased()
-        }
-        return cleanKey.lowercased()
-    }
-
-    private func extractEmail(from text: String) -> String? {
-        let pattern = #"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#
-        let options: String.CompareOptions = [.regularExpression, .caseInsensitive]
-        guard let range = text.range(of: pattern, options: options) else { return nil }
-        return String(text[range])
+        return accountQuotas[selectedItem.accountKey.codexFilenameKey]
     }
 }
 

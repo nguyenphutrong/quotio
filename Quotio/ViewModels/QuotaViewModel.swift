@@ -360,16 +360,15 @@ final class QuotaViewModel {
         // Note: Cursor and Trae removed from auto-refresh to address privacy concerns (issue #29)
         // User must explicitly scan for IDEs to detect Cursor/Trae quotas
         async let antigravity: () = refreshAntigravityQuotasInternal()
-        async let openai: () = refreshOpenAIQuotasInternal()
+        async let codex: () = refreshCodexQuotasInternal(includeCLIFallback: true)
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        async let codexCLI: () = refreshCodexCLIQuotasInternal()
         async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
         async let glm: () = refreshGlmQuotasInternal()
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
 
-        _ = await (antigravity, openai, copilot, claudeCode, codexCLI, geminiCLI, glm, warp, kiro)
+        _ = await (antigravity, codex, copilot, claudeCode, geminiCLI, glm, warp, kiro)
         
         checkQuotaNotifications()
         pruneMenuBarItems()
@@ -1261,7 +1260,7 @@ final class QuotaViewModel {
         // Refresh direct fetchers (these don't need proxy)
         // Note: Cursor and Trae removed - require explicit scan (issue #29)
         async let antigravity: () = refreshAntigravityQuotasInternal()
-        async let openai: () = refreshOpenAIQuotasInternal()
+        async let codex: () = refreshCodexQuotasInternal(includeCLIFallback: modeManager.isMonitorMode)
         async let copilot: () = refreshCopilotQuotasInternal()
         async let claudeCode: () = refreshClaudeCodeQuotasInternal()
         async let glm: () = refreshGlmQuotasInternal()
@@ -1269,13 +1268,7 @@ final class QuotaViewModel {
         async let kiro: () = refreshKiroQuotasInternal()
         async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
 
-        // In Quota-Only Mode, also include CLI fetchers
-        if modeManager.isMonitorMode {
-            async let codexCLI: () = refreshCodexCLIQuotasInternal()
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, codexCLI, geminiCLI)
-        } else {
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, geminiCLI)
-        }
+        _ = await (antigravity, codex, copilot, claudeCode, glm, warp, kiro, geminiCLI)
 
         checkQuotaNotifications()
         pruneMenuBarItems()
@@ -1353,6 +1346,13 @@ final class QuotaViewModel {
     private func refreshOpenAIQuotasInternal() async {
         let quotas = await openAIFetcher.fetchAllCodexQuotas()
         providerQuotas[.codex] = quotas
+    }
+
+    private func refreshCodexQuotasInternal(includeCLIFallback: Bool) async {
+        await refreshOpenAIQuotasInternal()
+        if includeCLIFallback {
+            await refreshCodexCLIQuotasInternal()
+        }
     }
     
     private func refreshCopilotQuotasInternal() async {
@@ -1643,6 +1643,8 @@ final class QuotaViewModel {
 
     /// Remove menu bar items that no longer have valid quota data
     private func pruneMenuBarItems() {
+        migrateCodexMenuBarSelections()
+
         var validItems: [MenuBarQuotaItem] = []
         var seen = Set<String>()
         
@@ -1677,6 +1679,66 @@ final class QuotaViewModel {
         }
         
         menuBarSettings.pruneInvalidItems(validItems: validItems)
+    }
+
+    private func migrateCodexMenuBarSelections() {
+        var canonicalKeys = Set<String>()
+        var canonicalKeysByAlias: [String: Set<String>] = [:]
+
+        func addAliases(filename: String, email: String?) {
+            let canonicalKey = filename.codexFilenameKey
+            guard !canonicalKey.isEmpty else { return }
+
+            canonicalKeys.insert(canonicalKey)
+
+            let filenameWithoutExtension = filename.hasSuffix(".json")
+                ? String(filename.dropLast(".json".count))
+                : filename
+            var aliases = [filename, filenameWithoutExtension]
+            if let email, !email.isEmpty {
+                aliases.append(email)
+            }
+
+            for alias in aliases where alias != canonicalKey {
+                canonicalKeysByAlias[alias, default: []].insert(canonicalKey)
+            }
+        }
+
+        if !modeManager.isRemoteProxyMode {
+            for file in directAuthFiles where file.provider == .codex {
+                addAliases(filename: file.filename, email: file.email)
+            }
+        }
+
+        for file in authFiles where file.providerType == .codex {
+            addAliases(filename: file.name, email: file.email)
+        }
+
+        var migratedItems: [MenuBarQuotaItem] = []
+        var seenIds = Set<String>()
+
+        for item in menuBarSettings.selectedItems {
+            var migratedItem = item
+
+            if item.aiProvider == .codex,
+               !canonicalKeys.contains(item.accountKey),
+               let candidates = canonicalKeysByAlias[item.accountKey],
+               candidates.count == 1,
+               let canonicalKey = candidates.first {
+                migratedItem = MenuBarQuotaItem(
+                    provider: AIProvider.codex.rawValue,
+                    accountKey: canonicalKey
+                )
+            }
+
+            if seenIds.insert(migratedItem.id).inserted {
+                migratedItems.append(migratedItem)
+            }
+        }
+
+        if migratedItems != menuBarSettings.selectedItems {
+            menuBarSettings.selectedItems = migratedItems
+        }
     }
 
     func importVertexServiceAccount(url: URL) async {
