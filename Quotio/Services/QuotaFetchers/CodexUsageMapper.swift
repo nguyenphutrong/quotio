@@ -13,13 +13,7 @@ nonisolated enum CodexUsageMapper {
         let response = try JSONDecoder().decode(CodexUsageResponseV2.self, from: data)
         let rawJSON = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
 
-        var models: [ModelQuota] = []
-        if let primary = modelQuota(name: "codex-session", from: response.rateLimit?.primaryWindow) {
-            models.append(primary)
-        }
-        if let secondary = modelQuota(name: "codex-weekly", from: response.rateLimit?.secondaryWindow) {
-            models.append(secondary)
-        }
+        var models = standardModels(from: response.rateLimit)
         models.append(contentsOf: extraModels(from: response.additionalRateLimits))
 
         let planType = response.planType ?? identity.planType
@@ -39,6 +33,31 @@ nonisolated enum CodexUsageMapper {
             percentage: Double(100 - snapshot.usedPercent),
             resetTime: snapshot.resetDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
         )
+    }
+
+    private static func standardModels(from rateLimit: CodexUsageResponseV2.RateLimitDetails?) -> [ModelQuota] {
+        let windows: [(CodexUsageResponseV2.WindowSnapshot?, StandardWindowKind)] = [
+            (rateLimit?.primaryWindow, .session),
+            (rateLimit?.secondaryWindow, .weekly)
+        ]
+        var usedKinds = Set<StandardWindowKind>()
+
+        return windows.compactMap { snapshot, fallbackKind in
+            guard let snapshot else { return nil }
+            let kind = standardWindowKind(for: snapshot, fallback: fallbackKind)
+            guard usedKinds.insert(kind).inserted else { return nil }
+            return modelQuota(name: kind.id, from: snapshot)
+        }
+    }
+
+    private static func standardWindowKind(
+        for snapshot: CodexUsageResponseV2.WindowSnapshot,
+        fallback: StandardWindowKind
+    ) -> StandardWindowKind {
+        guard let seconds = snapshot.limitWindowSeconds, seconds > 0 else { return fallback }
+        if seconds >= 6 * 24 * 60 * 60 { return .weekly }
+        if seconds <= 24 * 60 * 60 { return .session }
+        return fallback
     }
 
     private static func extraModels(from limits: [CodexUsageResponseV2.AdditionalRateLimit]?) -> [ModelQuota] {
@@ -183,6 +202,18 @@ nonisolated enum CodexUsageMapper {
             switch self {
             case .fiveHour: "codex-spark"
             case .weekly: "codex-spark-weekly"
+            }
+        }
+    }
+
+    private enum StandardWindowKind {
+        case session
+        case weekly
+
+        var id: String {
+            switch self {
+            case .session: "codex-session"
+            case .weekly: "codex-weekly"
             }
         }
     }
