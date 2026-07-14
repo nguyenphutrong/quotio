@@ -494,6 +494,17 @@ private struct AccountQuotaCardV2: View {
     /// Build 4-group display for Antigravity: Gemini 3 Pro, Gemini 3 Flash, Gemini 3 Image, Claude 4.5
     private var antigravityDisplayGroups: [AntigravityDisplayGroup] {
         guard let data = account.quotaData, provider == .antigravity else { return [] }
+
+        let summaryModels = data.models.filter { $0.name.hasPrefix("antigravity-") }
+        if !summaryModels.isEmpty {
+            return summaryModels.map {
+                AntigravityDisplayGroup(
+                    name: $0.displayName,
+                    percentage: $0.percentage,
+                    models: [$0]
+                )
+            }
+        }
         
         var groups: [AntigravityDisplayGroup] = []
         
