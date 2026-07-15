@@ -25,10 +25,12 @@ struct ProvidersScreen: View {
     @State private var editingWarpToken: WarpService.WarpToken?
     @State private var showAddProviderPopover = false
     @State private var switchingAccount: AccountRowData?
+    @State private var showAddCursorAccountSheet = false
     @State private var modeManager = OperatingModeManager.shared
 
     private let customProviderService = CustomProviderService.shared
     private let warpService = WarpService.shared
+    private let cursorAccountStore = CursorAccountStore.shared
     
     // MARK: - Computed Properties
     
@@ -62,11 +64,33 @@ struct ProvidersScreen: View {
 
         // Add auto-detected accounts (Cursor, Trae)
         // Note: GLM uses API key auth via CustomProviderService, so skip it here
+        let savedCursorEmails = Set(
+            cursorAccountStore.accounts.map { $0.email.lowercased() }
+        )
         for (provider, quotas) in viewModel.providerQuotas {
             if !provider.supportsManualAuth && provider != .glm {
                 for (accountKey, _) in quotas {
                     let data = AccountRowData.from(provider: provider, accountKey: accountKey)
                     groups[provider, default: []].append(data)
+                }
+            } else if provider == .cursor {
+                // Cursor accounts come from two sources:
+                //   - The currently signed-in IDE session (auto-detected, no delete).
+                //   - Explicitly saved accounts in CursorAccountStore (deletable).
+                for (accountKey, _) in quotas {
+                    let isSaved = savedCursorEmails.contains(accountKey.lowercased())
+                    let data = AccountRowData(
+                        id: "cursor_\(accountKey)",
+                        provider: .cursor,
+                        displayName: accountKey,
+                        menuBarAccountKey: accountKey,
+                        source: isSaved ? .direct : .autoDetected,
+                        status: nil,
+                        statusMessage: nil,
+                        isDisabled: false,
+                        canDelete: isSaved
+                    )
+                    groups[.cursor, default: []].append(data)
                 }
             }
         }
@@ -225,6 +249,12 @@ struct ProvidersScreen: View {
             )
             .environment(viewModel)
         }
+        .sheet(isPresented: $showAddCursorAccountSheet) {
+            AddCursorAccountSheet {
+                showAddCursorAccountSheet = false
+            }
+            .environment(viewModel)
+        }
     }
     
     // MARK: - Toolbar
@@ -375,6 +405,13 @@ struct ProvidersScreen: View {
     // MARK: - Helper Functions
 
     private func handleAddProvider(_ provider: AIProvider) {
+        // Cursor uses a snapshot-based flow (no OAuth endpoint), so it skips
+        // the proxy-running guard.
+        if provider == .cursor {
+            showAddCursorAccountSheet = true
+            return
+        }
+
         // In Local Proxy Mode, require proxy to be running for OAuth
         if modeManager.isLocalProxyMode && !viewModel.proxyManager.proxyStatus.running {
             showProxyRequiredAlert = true
@@ -413,6 +450,14 @@ struct ProvidersScreen: View {
                 warpService.deleteToken(id: uuid)
                 await viewModel.refreshQuotaForProvider(.warp)
             }
+            return
+        }
+
+        // Handle Cursor accounts (stored in CursorAccountStore).
+        // account.displayName carries the email — see groupedAccounts.
+        if account.provider == .cursor {
+            cursorAccountStore.remove(email: account.displayName)
+            await viewModel.refreshQuotaForProvider(.cursor)
             return
         }
 
