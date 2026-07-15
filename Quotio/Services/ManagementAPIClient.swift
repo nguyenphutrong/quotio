@@ -142,7 +142,13 @@ actor ManagementAPIClient {
         session.invalidateAndCancel()
     }
     
-    private func makeRequest(_ endpoint: String, method: String = "GET", body: Data? = nil, retryCount: Int = 0) async throws -> Data {
+    private func makeRequest(
+        _ endpoint: String,
+        method: String = "GET",
+        body: Data? = nil,
+        contentType: String = "application/json",
+        retryCount: Int = 0
+    ) async throws -> Data {
         let requestId = String(UUID().uuidString.prefix(6))
         let activeCount = Self.incrementActiveRequests()
         let startTime = Date()
@@ -162,7 +168,7 @@ actor ManagementAPIClient {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.addValue("Bearer \(authKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue(contentType, forHTTPHeaderField: "Content-Type")
         // Force new connection to avoid stale connection issues after idle periods
         request.addValue("close", forHTTPHeaderField: "Connection")
         
@@ -195,7 +201,13 @@ actor ManagementAPIClient {
                 
                 // Exponential backoff delay
                 try? await Task.sleep(nanoseconds: UInt64(backoffSeconds * 1_000_000_000))
-                return try await makeRequest(endpoint, method: method, body: body, retryCount: retryCount + 1)
+                return try await makeRequest(
+                    endpoint,
+                    method: method,
+                    body: body,
+                    contentType: contentType,
+                    retryCount: retryCount + 1
+                )
             }
             throw APIError.connectionError(error.localizedDescription)
         } catch {
@@ -433,7 +445,21 @@ actor ManagementAPIClient {
     }
 
     func uploadVertexServiceAccount(data: Data) async throws {
-        _ = try await makeRequest("/vertex/import", method: "POST", body: data)
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"service-account.json\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: application/json\r\n\r\n".data(using: .utf8)!)
+        body.append(data)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+
+        _ = try await makeRequest(
+            "/vertex/import",
+            method: "POST",
+            body: body,
+            contentType: "multipart/form-data; boundary=\(boundary)"
+        )
     }
     
     func fetchAPIKeys() async throws -> [String] {

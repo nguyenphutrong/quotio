@@ -17,6 +17,7 @@ struct DashboardScreen: View {
     @State private var selectedAgentForConfig: CLIAgent?
     @State private var sheetPresentationID = UUID()
     @State private var showTunnelSheet = false
+    @State private var showProxyRequiredAlert = false
     
     private var tunnelManager: TunnelManager { TunnelManager.shared }
     
@@ -132,12 +133,39 @@ struct DashboardScreen: View {
             allowedContentTypes: [.json],
             allowsMultipleSelection: false
         ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                Task {
-                    await viewModel.importVertexServiceAccount(url: url)
-                    await viewModel.refreshData()
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    Task {
+                        await viewModel.importVertexServiceAccount(url: url)
+                        await viewModel.refreshData()
+                    }
                 }
+            case .failure(let error):
+                if let cocoaError = error as? CocoaError, cocoaError.code == .userCancelled {
+                    return
+                }
+                viewModel.errorMessage = "Import failed: \(error.localizedDescription)"
             }
+        }
+        .alert(
+            "Error",
+            isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
+            )
+        ) {
+            Button("OK") { viewModel.errorMessage = nil }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
+        .alert("providers.proxyRequired.title".localized(), isPresented: $showProxyRequiredAlert) {
+            Button("action.startProxy".localized()) {
+                Task { await viewModel.startProxy() }
+            }
+            Button("action.cancel".localized(), role: .cancel) {}
+        } message: {
+            Text("providers.proxyRequired.message".localized())
         }
         .task {
             if modeManager.isLocalProxyMode {
@@ -581,6 +609,21 @@ struct DashboardScreen: View {
         }
     }
     
+    private func handleAddProvider(_ provider: AIProvider) {
+        // In Local Proxy Mode, require proxy to be running for OAuth
+        if modeManager.isLocalProxyMode && !viewModel.proxyManager.proxyStatus.running {
+            showProxyRequiredAlert = true
+            return
+        }
+
+        if provider == .vertex {
+            isImporterPresented = true
+        } else {
+            viewModel.oauthState = nil
+            selectedProvider = provider
+        }
+    }
+    
     private func showProviderPicker() {
         let alert = NSAlert()
         alert.messageText = "providers.addProvider".localized()
@@ -596,12 +639,7 @@ struct DashboardScreen: View {
         
         if index >= 0 && index < AIProvider.allCases.count {
             let provider = AIProvider.allCases[index]
-            if provider == .vertex {
-                isImporterPresented = true
-            } else {
-                viewModel.oauthState = nil
-                selectedProvider = provider
-            }
+            handleAddProvider(provider)
         }
     }
     
@@ -665,12 +703,7 @@ struct DashboardScreen: View {
                     
                     ForEach(viewModel.disconnectedProviders.filter { $0.supportsManualAuth }) { provider in
                         Button {
-                            if provider == .vertex {
-                                isImporterPresented = true
-                            } else {
-                                viewModel.oauthState = nil
-                                selectedProvider = provider
-                            }
+                            handleAddProvider(provider)
                         } label: {
                             Label(provider.displayName, systemImage: "plus.circle")
                                 .font(.caption)
