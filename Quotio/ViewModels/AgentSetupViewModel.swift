@@ -94,7 +94,7 @@ final class AgentSetupViewModel {
 
         // Use tunnel URL if active, otherwise use local proxy endpoint
         let endpoint: String
-        if let tunnelURL = TunnelManager.shared.tunnelState.publicURL {
+        if let tunnelURL = TunnelManager.shared.effectivePublicURL {
             endpoint = tunnelURL
         } else {
             endpoint = proxyManager.clientEndpoint
@@ -362,7 +362,7 @@ final class AgentSetupViewModel {
 
             // Use tunnel URL if active, otherwise use local proxy endpoint
             let modelEndpoint: String
-            if let tunnelURL = TunnelManager.shared.tunnelState.publicURL {
+            if let tunnelURL = TunnelManager.shared.effectivePublicURL {
                 modelEndpoint = tunnelURL
             } else {
                 modelEndpoint = proxyManager.clientEndpoint

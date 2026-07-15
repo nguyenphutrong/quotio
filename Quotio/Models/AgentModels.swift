@@ -73,6 +73,19 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         }
     }
 
+    var skillsDirectory: String {
+        switch self {
+        case .geminiCLI:
+            return "~/.gemini/skills"
+        default:
+            let primaryConfigPath = configPaths.first ?? "~/.config/\(rawValue)/settings.json"
+            return URL(fileURLWithPath: NSString(string: primaryConfigPath).expandingTildeInPath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("skills")
+                .path
+        }
+    }
+
     var docsURL: URL? {
         switch self {
         case .claudeCode: return URL(string: "https://docs.anthropic.com/en/docs/claude-code")
