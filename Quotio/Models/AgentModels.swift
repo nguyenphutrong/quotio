@@ -222,6 +222,11 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
     let provider: String
     let isDefault: Bool
 
+    static let legacyModelReplacements: [String: String] = [
+        "gpt-5.4-codex": "gpt-5-codex",
+        "gpt-5.4-codex-mini": "gpt-5-codex-mini"
+    ]
+
     var displayName: String {
         name.split(separator: "-")
             .map { $0.capitalized }
@@ -249,6 +254,7 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
         AvailableModel(id: "gemini-2.5-computer-use-preview-10-2025", name: "gemini-2.5-computer-use-preview-10-2025", provider: "google", isDefault: false),
         // GPT models
         AvailableModel(id: "gpt-5.3-codex", name: "gpt-5.3-codex", provider: "openai", isDefault: false),
+        AvailableModel(id: "gpt-5.4", name: "gpt-5.4", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.2", name: "gpt-5.2", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.2-codex", name: "gpt-5.2-codex", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.1", name: "gpt-5.1", provider: "openai", isDefault: false),
@@ -260,6 +266,36 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
         AvailableModel(id: "gpt-5-codex-mini", name: "gpt-5-codex-mini", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-oss-120b-medium", name: "gpt-oss-120b-medium", provider: "openai", isDefault: false),
     ]
+
+    static func normalizedModelName(_ modelName: String) -> String {
+        legacyModelReplacements[modelName] ?? modelName
+    }
+
+    static func normalizedModelSlots(_ modelSlots: [ModelSlot: String]) -> [ModelSlot: String] {
+        Dictionary(uniqueKeysWithValues: modelSlots.map { slot, modelName in
+            (slot, normalizedModelName(modelName))
+        })
+    }
+
+    static func sanitizedModels(_ models: [AvailableModel]) -> [AvailableModel] {
+        var seenIds = Set<String>()
+
+        return models.compactMap { model in
+            let normalizedId = normalizedModelName(model.id)
+            let normalizedName = normalizedModelName(model.name)
+
+            guard seenIds.insert(normalizedId).inserted else {
+                return nil
+            }
+
+            return AvailableModel(
+                id: normalizedId,
+                name: normalizedName,
+                provider: model.provider,
+                isDefault: model.isDefault
+            )
+        }
+    }
 }
 
 // MARK: - Agent Status
@@ -328,7 +364,7 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
         var slots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
             AvailableModel.defaultModels[slot].map { (slot, $0.name) }
         })
-        for (slot, model) in savedModelSlots {
+        for (slot, model) in AvailableModel.normalizedModelSlots(savedModelSlots) {
             slots[slot] = model
         }
         self.modelSlots = slots
