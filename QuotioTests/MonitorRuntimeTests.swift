@@ -2,6 +2,60 @@ import XCTest
 @testable import Quotio
 
 final class MonitorRuntimeTests: XCTestCase {
+    func testCodexQuotaReconciliationRemovesOnlyLegacyAliases() {
+        let quota = ProviderQuotaData(models: [], lastUpdated: Date())
+        let legacy = [
+            CodexQuotaAccountIdentity(
+                key: "same@example.com-pro",
+                email: "same@example.com",
+                accountID: "account-1"
+            ),
+            CodexQuotaAccountIdentity(
+                key: "same@example.com-team",
+                email: "same@example.com",
+                accountID: "account-2"
+            ),
+        ]
+        let quotas = [
+            "same@example.com": quota,
+            "same@example.com-pro": quota,
+            "same@example.com-team": quota,
+        ]
+
+        let duplicate = CodexCLIQuotaFetcher.reconcileLegacyAliases(
+            in: quotas,
+            legacy: legacy,
+            current: [
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com",
+                    email: "same@example.com",
+                    accountID: "account-1"
+                ),
+            ]
+        )
+        XCTAssertEqual(Set(duplicate.keys), Set(["same@example.com-pro", "same@example.com-team"]))
+
+        let distinct = CodexCLIQuotaFetcher.reconcileLegacyAliases(
+            in: quotas,
+            legacy: legacy,
+            current: [
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com",
+                    email: "same@example.com",
+                    accountID: "account-3"
+                ),
+            ]
+        )
+        XCTAssertEqual(Set(distinct.keys), Set(quotas.keys))
+
+        let stale = CodexCLIQuotaFetcher.reconcileLegacyAliases(
+            in: quotas,
+            legacy: legacy,
+            current: []
+        )
+        XCTAssertEqual(Set(stale.keys), Set(["same@example.com-pro", "same@example.com-team"]))
+    }
+
     func testLegacyCodexAccountsUseDistinctFilenameKeysForSameEmail() {
         let plus = DirectAuthFile(
             id: "plus",

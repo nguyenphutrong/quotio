@@ -455,7 +455,7 @@ final class QuotaViewModel {
             return quotas
         }
 
-        providerQuotas[.codex] = await codex
+        providerQuotas[.codex] = await codexFetcher.reconcileLegacyAliases(in: await codex)
         providerQuotas[.claude] = await claude
         providerQuotas[.gemini] = await gemini
         providerQuotas[.copilot] = await copilot

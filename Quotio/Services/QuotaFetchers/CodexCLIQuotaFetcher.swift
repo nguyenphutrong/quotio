@@ -46,6 +46,12 @@ nonisolated struct CodexJWTClaims: Sendable {
     let subscriptionActiveUntil: Date?
 }
 
+nonisolated struct CodexQuotaAccountIdentity: Sendable {
+    let key: String
+    let email: String?
+    let accountID: String?
+}
+
 /// Fetches quota from Codex CLI auth file
 actor CodexCLIQuotaFetcher {
     private let usageURL = "https://chatgpt.com/backend-api/wham/usage"
@@ -360,6 +366,101 @@ actor CodexCLIQuotaFetcher {
             results[key] = quota
         }
         return results
+    }
+
+    func reconcileLegacyAliases(
+        in quotas: [String: ProviderQuotaData]
+    ) async -> [String: ProviderQuotaData] {
+        var current = readAuthSources().map { source in
+            let claims = source.auth.tokens?.idToken.flatMap(decodeJWT)
+            return CodexQuotaAccountIdentity(
+                key: claims?.email ?? source.auth.tokens?.accountId ?? "Codex User",
+                email: claims?.email,
+                accountID: source.auth.tokens?.accountId ?? claims?.accountId
+            )
+        }
+
+        if let record = KeychainHelper.readExternalCredentialRecord(service: "Codex Auth"),
+           let auth = try? JSONDecoder().decode(CodexCLIAuthFile.self, from: record.data),
+           let tokens = auth.tokens {
+            let claims = tokens.idToken.flatMap(decodeJWT)
+            current.append(CodexQuotaAccountIdentity(
+                key: claims?.email ?? tokens.accountId ?? "Codex",
+                email: claims?.email,
+                accountID: tokens.accountId ?? claims?.accountId
+            ))
+        }
+
+        for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .codex }) {
+            guard let credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
+            let claims = credential.idToken.flatMap(decodeJWT)
+            current.append(CodexQuotaAccountIdentity(
+                key: account.accountKey,
+                email: claims?.email,
+                accountID: credential.accountID ?? claims?.accountId
+            ))
+        }
+
+        return Self.reconcileLegacyAliases(
+            in: quotas,
+            legacy: readLegacyIdentities(),
+            current: current
+        )
+    }
+
+    nonisolated static func reconcileLegacyAliases(
+        in quotas: [String: ProviderQuotaData],
+        legacy: [CodexQuotaAccountIdentity],
+        current: [CodexQuotaAccountIdentity]
+    ) -> [String: ProviderQuotaData] {
+        var reconciled = quotas
+        let legacyByEmail = Dictionary(grouping: legacy.compactMap { identity -> (String, CodexQuotaAccountIdentity)? in
+            guard let email = identity.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                  !email.isEmpty else { return nil }
+            return (email, identity)
+        }, by: \.0)
+
+        for (email, entries) in legacyByEmail {
+            let legacyAccounts = entries.map(\.1)
+            guard legacyAccounts.contains(where: { reconciled[$0.key] != nil }) else { continue }
+
+            let legacyAccountIDs = Set(legacyAccounts.compactMap { identity -> String? in
+                guard let accountID = identity.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !accountID.isEmpty else { return nil }
+                return accountID
+            })
+            let matchingCurrent = current.filter {
+                $0.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == email
+            }
+            let hasDistinctCurrentAccount = matchingCurrent.contains { identity in
+                guard let accountID = identity.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !accountID.isEmpty, !legacyAccountIDs.isEmpty else { return true }
+                return !legacyAccountIDs.contains(accountID)
+            }
+            guard !hasDistinctCurrentAccount else { continue }
+
+            for key in reconciled.keys where key.lowercased() == email {
+                reconciled.removeValue(forKey: key)
+            }
+        }
+        return reconciled
+    }
+
+    private func readLegacyIdentities() -> [CodexQuotaAccountIdentity] {
+        let directory = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: directory) else { return [] }
+        return files.compactMap { filename in
+            guard filename.hasPrefix("codex-"), filename.hasSuffix(".json") else { return nil }
+            let path = (directory as NSString).appendingPathComponent(filename)
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  let auth = try? JSONDecoder().decode(CodexAuthFile.self, from: data) else { return nil }
+            let claims = auth.idToken.flatMap(decodeJWT)
+            return CodexQuotaAccountIdentity(
+                key: filename.codexFilenameKey,
+                email: claims?.email,
+                accountID: auth.accountId ?? claims?.accountId
+            )
+        }
     }
 
     private func fetchLegacyQuotas() async -> [String: ProviderQuotaData] {
