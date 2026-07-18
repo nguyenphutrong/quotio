@@ -20,6 +20,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let copilotFetcher = CopilotQuotaFetcher()
     @ObservationIgnored private let glmFetcher = GLMQuotaFetcher()
     @ObservationIgnored private let warpFetcher = WarpQuotaFetcher()
+    @ObservationIgnored private let clinePassFetcher = ClinePassQuotaFetcher()
     @ObservationIgnored private let directAuthService = DirectAuthFileService()
     @ObservationIgnored private let notificationManager = NotificationManager.shared
     @ObservationIgnored private let modeManager = OperatingModeManager.shared
@@ -217,6 +218,7 @@ final class QuotaViewModel {
         await codexCLIFetcher.updateProxyConfiguration()
         await geminiCLIFetcher.updateProxyConfiguration()
         await warpFetcher.updateProxyConfiguration()
+        await clinePassFetcher.updateProxyConfiguration()
         await traeFetcher.updateProxyConfiguration()
         await kiroFetcher.updateProxyConfiguration()
     }
@@ -367,8 +369,9 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
+        async let clinePass: () = refreshClinePassQuotasInternal()
 
-        _ = await (antigravity, codex, copilot, claudeCode, geminiCLI, glm, warp, kiro)
+        _ = await (antigravity, codex, copilot, claudeCode, geminiCLI, glm, warp, kiro, clinePass)
         
         checkQuotaNotifications()
         pruneMenuBarItems()
@@ -520,6 +523,16 @@ final class QuotaViewModel {
             providerQuotas[.glm] = quotas
         } else {
             providerQuotas.removeValue(forKey: .glm)
+        }
+    }
+
+    /// Refresh ClinePass quota using API keys from CustomProviderService
+    private func refreshClinePassQuotasInternal() async {
+        let quotas = await clinePassFetcher.fetchAllQuotas()
+        if !quotas.isEmpty {
+            providerQuotas[.clinePass] = quotas
+        } else {
+            providerQuotas.removeValue(forKey: .clinePass)
         }
     }
     
@@ -1230,8 +1243,9 @@ final class QuotaViewModel {
             async let glm: () = refreshGlmQuotasInternal()
             async let warp: () = refreshWarpQuotasInternal()
             async let kiro: () = refreshKiroQuotasInternal()
+            async let clinePass: () = refreshClinePassQuotasInternal()
 
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, geminiCLI)
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, clinePass, geminiCLI)
         } else {
             _ = await geminiCLI
         }
@@ -1267,8 +1281,9 @@ final class QuotaViewModel {
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
         async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
+        async let clinePass: () = refreshClinePassQuotasInternal()
 
-        _ = await (antigravity, codex, copilot, claudeCode, glm, warp, kiro, geminiCLI)
+        _ = await (antigravity, codex, copilot, claudeCode, glm, warp, kiro, geminiCLI, clinePass)
 
         checkQuotaNotifications()
         pruneMenuBarItems()
@@ -1383,6 +1398,8 @@ final class QuotaViewModel {
             await refreshWarpQuotasInternal()
         case .kiro:
             await refreshKiroQuotasInternal()
+        case .clinePass:
+            await refreshClinePassQuotasInternal()
         default:
             break
         }

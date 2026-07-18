@@ -22,6 +22,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
     case trae = "trae"
     case glm = "glm"
     case warp = "warp"
+    case clinePass = "clinepass"
     
     var id: String { rawValue }
     
@@ -40,6 +41,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return "Trae"
         case .glm: return "GLM"
         case .warp: return "Warp"
+        case .clinePass: return "ClinePass"
         }
     }
     
@@ -58,6 +60,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return "cursorarrow.rays"
         case .glm: return "brain"
         case .warp: return "terminal.fill"
+        case .clinePass: return "cpu"
         }
     }
     
@@ -77,6 +80,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return "trae"
         case .glm: return "glm"
         case .warp: return "warp"
+        case .clinePass: return "clinepass"
         }
     }
     
@@ -95,6 +99,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return Color(hex: "00B4D8") ?? .cyan
         case .glm: return Color(hex: "3B82F6") ?? .blue
         case .warp: return Color(hex: "01E5FF") ?? .cyan
+        case .clinePass: return Color(hex: "61A3FA") ?? .blue
         }
     }
     
@@ -113,6 +118,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return ""  // Uses browser session
         case .glm: return ""
         case .warp: return ""
+        case .clinePass: return ""
         }
     }
     
@@ -132,6 +138,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return "TR"
         case .glm: return "G"
         case .warp: return "W"
+        case .clinePass: return "CL"
         }
     }
     
@@ -152,13 +159,14 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .trae: return "trae-menubar"
         case .glm: return "glm-menubar"
         case .warp: return "warp-menubar"
+        case .clinePass: return "clinepass-menubar"
         }
     }
     
     /// Whether this provider supports quota tracking in quota-only mode
     var supportsQuotaOnlyMode: Bool {
         switch self {
-        case .claude, .codex, .cursor, .gemini, .antigravity, .copilot, .trae, .glm, .warp, .kiro:
+        case .claude, .codex, .cursor, .gemini, .antigravity, .copilot, .trae, .glm, .warp, .kiro, .clinePass:
             return true
         case .qwen, .iflow, .vertex:
             return false
@@ -197,11 +205,11 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
     
     /// Whether this provider can be added manually (via OAuth, CLI login, or file import)
     /// Cursor, Trae, Windsurf are excluded because they only read from local app databases
-    /// GLM is excluded because it should only be added via Custom Providers
+    /// GLM and ClinePass are excluded because they should only be added via Custom Providers
     var supportsManualAuth: Bool {
         switch self {
-        case .cursor, .trae, .glm:
-            return false  // GLM: only via Custom Providers; Cursor/Trae: only reads from local app database
+        case .cursor, .trae, .glm, .clinePass:
+            return false  // API-key providers: Custom Providers; Cursor/Trae: local app databases
         default:
             return true
         }
@@ -210,7 +218,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
     /// Whether this provider uses API key authentication (stored in CustomProviderService)
     var usesAPIKeyAuth: Bool {
         switch self {
-        case .glm, .warp:
+        case .glm, .warp, .clinePass:
             return true
         default:
             return false

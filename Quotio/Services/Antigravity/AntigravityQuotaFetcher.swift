@@ -228,6 +228,10 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         case "windsurf-usage": return "Usage"
         // Warp quota names
         case "warp-usage": return "warp.credits.label".localizedStatic()
+        // ClinePass quota windows
+        case "clinepass-five-hour": return "clinepass.quota.fiveHour".localizedStatic()
+        case "clinepass-weekly": return "clinepass.quota.weekly".localizedStatic()
+        case "clinepass-monthly": return "clinepass.quota.monthly".localizedStatic()
         case let name where name.hasPrefix("warp-bonus-"):
             let index = Int(String(name.dropFirst("warp-bonus-".count))) ?? 0
             return "Bonus \(index + 1)"

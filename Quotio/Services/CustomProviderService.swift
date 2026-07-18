@@ -192,9 +192,10 @@ final class CustomProviderService {
     private func removeCustomProviderSections(from content: String) -> String {
         var result = content
         
-        // Dynamically derive custom provider keys from CustomProviderType enum
-        // This ensures new provider types are automatically handled
-        let customProviderKeys = CustomProviderType.allCases.map { "\($0.rawValue):" }
+        // Derive and deduplicate the CLIProxyAPI section keys managed by custom providers.
+        let customProviderKeys = Set(CustomProviderType.allCases.map(\.yamlSectionKey))
+            .sorted()
+            .map { "\($0):" }
         
         // Remove marker comment and everything after it that belongs to custom providers
         if let markerRange = result.range(of: "# Custom Providers (managed by Quotio)") {

@@ -163,8 +163,11 @@ struct CustomProviderSheet: View {
                 }
                 .pickerStyle(.menu)
                 .onChange(of: providerType) { _, newType in
-                    // Update base URL to default if empty
-                    if baseURL.isEmpty, let defaultURL = newType.defaultBaseURL {
+                    if newType == .clinePass, let defaultURL = newType.defaultBaseURL {
+                        baseURL = defaultURL
+                        apiKeys = [apiKeys.first ?? CustomAPIKeyEntry(apiKey: "")]
+                        limitToSelectedModels = true
+                    } else if baseURL.isEmpty, let defaultURL = newType.defaultBaseURL {
                         baseURL = defaultURL
                     }
                 }
@@ -185,6 +188,7 @@ struct CustomProviderSheet: View {
                 
                 TextField(providerType.defaultBaseURL ?? "https://api.example.com", text: $baseURL)
                     .textFieldStyle(.roundedBorder)
+                    .disabled(providerType == .clinePass)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -220,13 +224,15 @@ struct CustomProviderSheet: View {
                 
                 Spacer()
                 
-                Button {
-                    apiKeys.append(CustomAPIKeyEntry(apiKey: ""))
-                } label: {
-                    Label("customProviders.addKey".localized(), systemImage: "plus.circle")
-                        .font(.caption)
+                if providerType != .clinePass {
+                    Button {
+                        apiKeys.append(CustomAPIKeyEntry(apiKey: ""))
+                    } label: {
+                        Label("customProviders.addKey".localized(), systemImage: "plus.circle")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.sectionHeader)
                 }
-                .buttonStyle(.sectionHeader)
             }
             
             ForEach(Array(apiKeys.enumerated()), id: \.offset) { index, _ in
@@ -348,6 +354,7 @@ struct CustomProviderSheet: View {
                     }
                 }
                 .toggleStyle(.checkbox)
+                .disabled(providerType == .clinePass)
                 
                 if limitToSelectedModels && selectedModelIds.isEmpty {
                     HStack {
@@ -646,6 +653,7 @@ struct CustomProviderSheet: View {
     private var enabledSection: some View {
         HStack {
             Toggle("customProviders.enableProvider".localized(), isOn: $isEnabled)
+                .disabled(providerType == .clinePass)
             
             Spacer()
             
@@ -699,13 +707,17 @@ struct CustomProviderSheet: View {
         
         name = provider.name
         providerType = provider.type
-        baseURL = normalizedBaseURL(provider.baseURL, for: provider.type)
+        baseURL = provider.type == .clinePass
+            ? (provider.type.defaultBaseURL ?? provider.baseURL)
+            : normalizedBaseURL(provider.baseURL, for: provider.type)
         prefix = provider.prefix ?? ""
-        apiKeys = provider.apiKeys
+        apiKeys = provider.type == .clinePass
+            ? [provider.apiKeys.first ?? CustomAPIKeyEntry(apiKey: "")]
+            : provider.apiKeys
         models = provider.models
         headers = provider.headers
-        limitToSelectedModels = provider.limitToSelectedModels
-        isEnabled = provider.isEnabled
+        limitToSelectedModels = provider.type == .clinePass ? true : provider.limitToSelectedModels
+        isEnabled = provider.type == .clinePass ? true : provider.isEnabled
         
         // Set selected models from existing provider
         selectedModelIds = Set(provider.models.map { $0.name })
@@ -778,7 +790,7 @@ struct CustomProviderSheet: View {
         
         // Set authorization header based on provider type
         switch providerType {
-        case .openaiCompatibility, .codexCompatibility:
+        case .openaiCompatibility, .codexCompatibility, .clinePass:
             request.setValue("Bearer \(firstKey.apiKey)", forHTTPHeaderField: "Authorization")
         case .claudeCompatibility:
             request.setValue("Bearer \(firstKey.apiKey)", forHTTPHeaderField: "Authorization")
@@ -862,7 +874,9 @@ struct CustomProviderSheet: View {
             id: provider?.id ?? UUID(),
             name: name.trimmingCharacters(in: .whitespaces),
             type: providerType,
-            baseURL: normalizedBaseURL(baseURL, for: providerType),
+            baseURL: providerType == .clinePass
+                ? (providerType.defaultBaseURL ?? baseURL)
+                : normalizedBaseURL(baseURL, for: providerType),
             prefix: prefix.trimmingCharacters(in: .whitespaces).isEmpty ? nil : prefix.trimmingCharacters(in: .whitespaces),
             apiKeys: apiKeys.filter { !$0.apiKey.trimmingCharacters(in: .whitespaces).isEmpty },
             models: limitToSelectedModels ? allModels : [],
@@ -923,7 +937,7 @@ struct CustomProviderSheet: View {
         
         // Set authorization header based on provider type
         switch provider.type {
-        case .openaiCompatibility, .codexCompatibility:
+        case .openaiCompatibility, .codexCompatibility, .clinePass:
             request.setValue("Bearer \(firstKey.apiKey)", forHTTPHeaderField: "Authorization")
         case .claudeCompatibility:
             request.setValue("Bearer \(firstKey.apiKey)", forHTTPHeaderField: "Authorization")

@@ -61,9 +61,9 @@ struct ProvidersScreen: View {
         }
 
         // Add auto-detected accounts (Cursor, Trae)
-        // Note: GLM uses API key auth via CustomProviderService, so skip it here
+        // API-key providers are added from their own storage below.
         for (provider, quotas) in viewModel.providerQuotas {
-            if !provider.supportsManualAuth && provider != .glm {
+            if !provider.supportsManualAuth && provider != .glm && provider != .clinePass {
                 for (accountKey, _) in quotas {
                     let data = AccountRowData.from(provider: provider, accountKey: accountKey)
                     groups[provider, default: []].append(data)
@@ -87,6 +87,23 @@ struct ProvidersScreen: View {
                 canEdit: true
             )
             groups[.glm, default: []].append(data)
+        }
+
+        // ClinePass API keys are stored as custom providers but shown as first-class accounts.
+        for clinePassProvider in customProviderService.providers.filter({ $0.type == .clinePass && $0.isEnabled }) {
+            let data = AccountRowData(
+                id: clinePassProvider.id.uuidString,
+                provider: .clinePass,
+                displayName: clinePassProvider.name,
+                menuBarAccountKey: clinePassProvider.name,
+                source: .direct,
+                status: "ready",
+                statusMessage: nil,
+                isDisabled: false,
+                canDelete: true,
+                canEdit: true
+            )
+            groups[.clinePass, default: []].append(data)
         }
 
         // Add Warp providers from WarpService
@@ -182,6 +199,9 @@ struct ProvidersScreen: View {
                     customProviderService.addProvider(provider)
                 }
                 syncCustomProvidersToConfig()
+                if provider.type == .clinePass {
+                    Task { await viewModel.refreshQuotaForProvider(.clinePass) }
+                }
             }
         }
         .sheet(isPresented: $showWarpConnectionSheet) {
@@ -289,6 +309,8 @@ struct ProvidersScreen: View {
                         onEditAccount: { account in
                             if provider == .glm {
                                 handleEditGlmAccount(account)
+                            } else if provider == .clinePass {
+                                handleEditClinePassAccount(account)
                             } else if provider == .warp {
                                 handleEditWarpAccount(account)
                             }
@@ -330,12 +352,14 @@ struct ProvidersScreen: View {
 
     @ViewBuilder
     private var customProvidersSection: some View {
-        // Filter out GLM providers (they're shown in Your Accounts section)
-        let nonGlmProviders = customProviderService.providers.filter { $0.type != .glmCompatibility }
+        // API-key providers with first-class quota tracking are shown in Your Accounts.
+        let genericProviders = customProviderService.providers.filter {
+            $0.type != .glmCompatibility && $0.type != .clinePass
+        }
 
         Section {
             // List existing custom providers
-            ForEach(nonGlmProviders) { provider in
+            ForEach(genericProviders) { provider in
                 CustomProviderRow(
                     provider: provider,
                     onEdit: {
@@ -355,9 +379,9 @@ struct ProvidersScreen: View {
             HStack {
                 Label("customProviders.title".localized(), systemImage: "puzzlepiece.extension.fill")
 
-                if !nonGlmProviders.isEmpty {
+                if !genericProviders.isEmpty {
                     Spacer()
-                    Text("\(nonGlmProviders.count)")
+                    Text("\(genericProviders.count)")
                         .font(.caption2.bold())
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -406,6 +430,15 @@ struct ProvidersScreen: View {
             }
             return
         }
+
+        if account.provider == .clinePass {
+            if let provider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
+                customProviderService.deleteProvider(id: provider.id)
+                syncCustomProvidersToConfig()
+                await viewModel.refreshQuotaForProvider(.clinePass)
+            }
+            return
+        }
         
         // Handle Warp accounts (stored in WarpService)
         if account.provider == .warp {
@@ -436,6 +469,12 @@ struct ProvidersScreen: View {
         // Find the GLM provider by ID and open edit sheet using CustomProviderSheet
         if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
             customProviderSheetMode = .edit(glmProvider)
+        }
+    }
+
+    private func handleEditClinePassAccount(_ account: AccountRowData) {
+        if let provider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
+            customProviderSheetMode = .edit(provider)
         }
     }
     

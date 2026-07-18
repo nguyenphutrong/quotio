@@ -17,8 +17,19 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
     case geminiCompatibility = "gemini-api-key"
     case codexCompatibility = "codex-api-key"
     case glmCompatibility = "glm-api-key"
+    case clinePass = "clinepass"
 
     var id: String { rawValue }
+
+    /// CLIProxyAPI section key. Kept separate from rawValue, which is persisted.
+    var yamlSectionKey: String {
+        switch self {
+        case .clinePass:
+            return CustomProviderType.openaiCompatibility.rawValue
+        default:
+            return rawValue
+        }
+    }
 
     var displayName: String {
         switch self {
@@ -27,6 +38,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .geminiCompatibility: return "Gemini Compatible"
         case .codexCompatibility: return "Codex Compatible"
         case .glmCompatibility: return "GLM Compatible"
+        case .clinePass: return "ClinePass"
         }
     }
     
@@ -38,6 +50,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .geminiCompatibility: return "customProviders.type.gemini".localized()
         case .codexCompatibility: return "customProviders.type.codex".localized()
         case .glmCompatibility: return "customProviders.type.glm".localized()
+        case .clinePass: return "customProviders.type.clinepass".localized()
         }
     }
     
@@ -53,6 +66,8 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
             return "Custom Codex-compatible endpoints"
         case .glmCompatibility:
             return "GLM (BigModel.cn) API"
+        case .clinePass:
+            return "ClinePass subscription with OpenAI-compatible routing"
         }
     }
     
@@ -64,6 +79,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .geminiCompatibility: return "customProviders.type.gemini.desc".localized()
         case .codexCompatibility: return "customProviders.type.codex.desc".localized()
         case .glmCompatibility: return "customProviders.type.glm.desc".localized()
+        case .clinePass: return "customProviders.type.clinepass.desc".localized()
         }
     }
     
@@ -74,6 +90,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .geminiCompatibility: return "gemini"
         case .codexCompatibility: return "openai"
         case .glmCompatibility: return "glm"
+        case .clinePass: return "clinepass"
         }
     }
     
@@ -84,6 +101,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .geminiCompatibility: return "gemini-menubar"
         case .codexCompatibility: return "openai-menubar"
         case .glmCompatibility: return "glm-menubar"
+        case .clinePass: return "clinepass-menubar"
         }
     }
     
@@ -94,6 +112,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .geminiCompatibility: return Color(hex: "4285F4") ?? .blue
         case .codexCompatibility: return Color(hex: "10A37F") ?? .green
         case .glmCompatibility: return Color(hex: "3B82F6") ?? .blue
+        case .clinePass: return Color(hex: "61A3FA") ?? .blue
         }
     }
     
@@ -102,7 +121,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         switch self {
         case .openaiCompatibility, .codexCompatibility:
             return true
-        case .claudeCompatibility, .geminiCompatibility, .glmCompatibility:
+        case .claudeCompatibility, .geminiCompatibility, .glmCompatibility, .clinePass:
             return false // Has default base URL
         }
     }
@@ -116,6 +135,8 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
             return "https://generativelanguage.googleapis.com"
         case .glmCompatibility:
             return "https://bigmodel.cn"
+        case .clinePass:
+            return "https://api.cline.bot/api/v1"
         case .openaiCompatibility, .codexCompatibility:
             return nil
         }
@@ -124,7 +145,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
     /// Whether this provider type supports model alias mapping
     var supportsModelMapping: Bool {
         switch self {
-        case .openaiCompatibility, .claudeCompatibility:
+        case .openaiCompatibility, .claudeCompatibility, .clinePass:
             return true
         case .geminiCompatibility, .codexCompatibility, .glmCompatibility:
             return false
@@ -136,7 +157,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         switch self {
         case .geminiCompatibility:
             return true
-        case .openaiCompatibility, .claudeCompatibility, .codexCompatibility, .glmCompatibility:
+        case .openaiCompatibility, .claudeCompatibility, .codexCompatibility, .glmCompatibility, .clinePass:
             return false
         }
     }
@@ -334,6 +355,14 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
                 errors.append("API key #\(index + 1) is empty")
             }
         }
+
+        if type == .clinePass, apiKeys.count != 1 {
+            errors.append("clinepass.error.singleKey".localizedStatic())
+        }
+
+        if type == .clinePass, models.isEmpty {
+            errors.append("clinepass.error.modelsRequired".localizedStatic())
+        }
         
         return errors
     }
@@ -360,6 +389,8 @@ extension CustomProvider {
             return generateCodexCompatibilityYAML()
         case .glmCompatibility:
             return generateGlmCompatibilityYAML()
+        case .clinePass:
+            return generateOpenAICompatibilityYAML()
         }
     }
 
@@ -502,8 +533,9 @@ extension Array where Element == CustomProvider {
         let grouped = Dictionary(grouping: self.filter(\.isEnabled), by: \.type)
         
         // OpenAI Compatibility
-        if let openaiProviders = grouped[.openaiCompatibility], !openaiProviders.isEmpty {
-            yaml += "\nopenai-compatibility:\n"
+        let openaiProviders = (grouped[.openaiCompatibility] ?? []) + (grouped[.clinePass] ?? [])
+        if !openaiProviders.isEmpty {
+            yaml += "\n\(CustomProviderType.openaiCompatibility.yamlSectionKey):\n"
             for provider in openaiProviders {
                 yaml += provider.toYAMLBlock()
             }
@@ -511,7 +543,7 @@ extension Array where Element == CustomProvider {
         
         // Claude Compatibility
         if let claudeProviders = grouped[.claudeCompatibility], !claudeProviders.isEmpty {
-            yaml += "\nclaude-api-key:\n"
+            yaml += "\n\(CustomProviderType.claudeCompatibility.yamlSectionKey):\n"
             for provider in claudeProviders {
                 yaml += provider.toYAMLBlock()
             }
@@ -519,7 +551,7 @@ extension Array where Element == CustomProvider {
         
         // Gemini Compatibility
         if let geminiProviders = grouped[.geminiCompatibility], !geminiProviders.isEmpty {
-            yaml += "\ngemini-api-key:\n"
+            yaml += "\n\(CustomProviderType.geminiCompatibility.yamlSectionKey):\n"
             for provider in geminiProviders {
                 yaml += provider.toYAMLBlock()
             }
@@ -527,7 +559,7 @@ extension Array where Element == CustomProvider {
         
         // Codex Compatibility
         if let codexProviders = grouped[.codexCompatibility], !codexProviders.isEmpty {
-            yaml += "\ncodex-api-key:\n"
+            yaml += "\n\(CustomProviderType.codexCompatibility.yamlSectionKey):\n"
             for provider in codexProviders {
                 yaml += provider.toYAMLBlock()
             }
@@ -535,7 +567,7 @@ extension Array where Element == CustomProvider {
 
         // GLM Compatibility
         if let glmProviders = grouped[.glmCompatibility], !glmProviders.isEmpty {
-            yaml += "\nglm-api-key:\n"
+            yaml += "\n\(CustomProviderType.glmCompatibility.yamlSectionKey):\n"
             for provider in glmProviders {
                 yaml += provider.toYAMLBlock()
             }
