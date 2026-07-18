@@ -2,6 +2,37 @@ import XCTest
 @testable import Quotio
 
 final class MonitorRuntimeTests: XCTestCase {
+    func testDiscoveryCanonicalizesNativeCodexAccountBeforeDeduplication() {
+        let legacy = MonitorAccount.make(
+            provider: .codex,
+            accountKey: "same@example.com-pro",
+            displayName: "same@example.com",
+            source: .legacyCLIProxy
+        )
+        let native = MonitorAccount.make(
+            provider: .codex,
+            accountKey: "same@example.com",
+            source: .nativeCredential
+        )
+
+        let canonicalNative = MonitorAccountDiscovery.canonicalizeCodexAccount(
+            native,
+            accountID: "account-1",
+            aliases: ["account-1": "same@example.com-pro"]
+        )
+        let duplicate = MonitorAccountDiscovery.selectPreferred([legacy, canonicalNative])
+        XCTAssertEqual(duplicate.count, 1)
+        XCTAssertEqual(duplicate.first?.accountKey, "same@example.com-pro")
+        XCTAssertEqual(duplicate.first?.source, .nativeCredential)
+
+        let distinctNative = MonitorAccountDiscovery.canonicalizeCodexAccount(
+            native,
+            accountID: "account-2",
+            aliases: ["account-1": "same@example.com-pro"]
+        )
+        XCTAssertEqual(MonitorAccountDiscovery.selectPreferred([legacy, distinctNative]).count, 2)
+    }
+
     func testCodexQuotaReconciliationRemovesOnlyLegacyAliases() {
         let quota = ProviderQuotaData(models: [], lastUpdated: Date())
         let legacy = [

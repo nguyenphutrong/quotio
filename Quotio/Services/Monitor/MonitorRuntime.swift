@@ -279,10 +279,12 @@ actor MonitorAccountDiscovery {
     }
 
     func discover() async -> [MonitorAccount] {
-        var candidates = await vault.accounts()
-        candidates.append(contentsOf: discoverNativeFiles())
-        candidates.append(contentsOf: discoverNativeKeychains())
-        let legacy = await directAuthService.scanAllAuthFiles().map(MonitorAccount.makeLegacy)
+        let legacyFiles = await directAuthService.scanAllAuthFiles()
+        let codexAliases = Self.codexAliases(from: legacyFiles)
+        var candidates = await canonicalizeCodexAccounts(await vault.accounts(), aliases: codexAliases)
+        candidates.append(contentsOf: discoverNativeFiles(codexAliases: codexAliases))
+        candidates.append(contentsOf: discoverNativeKeychains(codexAliases: codexAliases))
+        let legacy = legacyFiles.map(MonitorAccount.makeLegacy)
         candidates.append(contentsOf: legacy)
 
         let disabled = await metadata.disabledAccountIDs()
@@ -310,13 +312,75 @@ actor MonitorAccountDiscovery {
         }
     }
 
+    nonisolated static func canonicalizeCodexAccount(
+        _ account: MonitorAccount,
+        accountID: String?,
+        aliases: [String: String]
+    ) -> MonitorAccount {
+        guard account.provider == .codex,
+              let accountID = accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let canonicalKey = aliases[accountID] else { return account }
+        return MonitorAccount(
+            id: account.id,
+            provider: account.provider,
+            accountKey: canonicalKey,
+            displayName: account.displayName,
+            source: account.source,
+            credentialReference: account.credentialReference,
+            canDelete: account.canDelete,
+            isDisabled: account.isDisabled
+        )
+    }
+
+    private nonisolated static func codexAliases(from files: [DirectAuthFile]) -> [String: String] {
+        var keysByAccountID: [String: Set<String>] = [:]
+        for file in files where file.provider == .codex {
+            guard let json = MonitorIdentity.json(at: file.filePath) else { continue }
+            let accountID = (json["account_id"] as? String)
+                ?? MonitorIdentity.jwtNestedString(
+                    json["id_token"] as? String,
+                    namespace: "https://api.openai.com/auth",
+                    claim: "chatgpt_account_id"
+                )
+            guard let accountID = accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !accountID.isEmpty else { continue }
+            keysByAccountID[accountID, default: []].insert(file.filename.codexFilenameKey)
+        }
+        return keysByAccountID.reduce(into: [:]) { aliases, entry in
+            guard entry.value.count == 1, let key = entry.value.first else { return }
+            aliases[entry.key] = key
+        }
+    }
+
+    private func canonicalizeCodexAccounts(
+        _ accounts: [MonitorAccount],
+        aliases: [String: String]
+    ) async -> [MonitorAccount] {
+        var result: [MonitorAccount] = []
+        for account in accounts {
+            guard account.provider == .codex,
+                  let credential = await vault.credential(for: account.id) else {
+                result.append(account)
+                continue
+            }
+            let accountID = credential.accountID
+                ?? MonitorIdentity.jwtNestedString(
+                    credential.idToken,
+                    namespace: "https://api.openai.com/auth",
+                    claim: "chatgpt_account_id"
+                )
+            result.append(Self.canonicalizeCodexAccount(account, accountID: accountID, aliases: aliases))
+        }
+        return result
+    }
+
     func setDisabled(_ disabled: Bool, accountID: String) async {
         try? await metadata.setDisabled(disabled, accountID: accountID)
     }
 
-    private func discoverNativeFiles() -> [MonitorAccount] {
+    private func discoverNativeFiles(codexAliases: [String: String]) -> [MonitorAccount] {
         var accounts: [MonitorAccount] = []
-        accounts.append(contentsOf: discoverCodexFiles())
+        accounts.append(contentsOf: discoverCodexFiles(aliases: codexAliases))
         accounts.append(contentsOf: discoverClaudeFile())
         if ClaudeDesktopCredentialReader.hasCredentialMaterial() {
             accounts.append(.make(
@@ -341,7 +405,7 @@ actor MonitorAccountDiscovery {
         return accounts
     }
 
-    private func discoverCodexFiles() -> [MonitorAccount] {
+    private func discoverCodexFiles(aliases: [String: String]) -> [MonitorAccount] {
         var paths: [String] = []
         if let home = ProcessInfo.processInfo.environment["CODEX_HOME"], !home.isEmpty {
             paths.append((home as NSString).appendingPathComponent("auth.json"))
@@ -355,7 +419,8 @@ actor MonitorAccountDiscovery {
             let accountID = (tokens["account_id"] as? String)
                 ?? MonitorIdentity.jwtNestedString(tokens["id_token"] as? String, namespace: "https://api.openai.com/auth", claim: "chatgpt_account_id")
             let key = email ?? accountID ?? "Codex"
-            return MonitorAccount.make(provider: .codex, accountKey: key, source: .nativeCredential, credentialReference: path)
+            let account = MonitorAccount.make(provider: .codex, accountKey: key, source: .nativeCredential, credentialReference: path)
+            return Self.canonicalizeCodexAccount(account, accountID: accountID, aliases: aliases)
         }
     }
 
@@ -400,14 +465,18 @@ actor MonitorAccountDiscovery {
         return [.make(provider: .kiro, accountKey: key, source: .nativeCredential, credentialReference: path)]
     }
 
-    private func discoverNativeKeychains() -> [MonitorAccount] {
+    private func discoverNativeKeychains(codexAliases: [String: String]) -> [MonitorAccount] {
         var accounts: [MonitorAccount] = []
         if let data = KeychainHelper.readExternalCredential(service: "Codex Auth"),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let tokens = json["tokens"] as? [String: Any],
            (tokens["access_token"] as? String)?.isEmpty == false {
-            let email = MonitorIdentity.jwtString(tokens["id_token"] as? String, claim: "email") ?? "Codex"
-            accounts.append(.make(provider: .codex, accountKey: email, source: .nativeCredential, credentialReference: "keychain:Codex Auth"))
+            let idToken = tokens["id_token"] as? String
+            let email = MonitorIdentity.jwtString(idToken, claim: "email") ?? "Codex"
+            let accountID = (tokens["account_id"] as? String)
+                ?? MonitorIdentity.jwtNestedString(idToken, namespace: "https://api.openai.com/auth", claim: "chatgpt_account_id")
+            let account = MonitorAccount.make(provider: .codex, accountKey: email, source: .nativeCredential, credentialReference: "keychain:Codex Auth")
+            accounts.append(Self.canonicalizeCodexAccount(account, accountID: accountID, aliases: codexAliases))
         }
         if let data = KeychainHelper.readExternalCredential(service: "Claude Code-credentials"),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
