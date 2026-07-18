@@ -35,9 +35,11 @@ struct ProvidersScreen: View {
     /// Providers that can be added manually
     private var addableProviders: [AIProvider] {
         if modeManager.isLocalProxyMode {
-            return AIProvider.allCases.filter { $0.supportsManualAuth }
+            return AIProvider.allCases.filter { $0.supportsManualAuth || $0 == .clinePass }
         } else {
-            return AIProvider.allCases.filter { $0.supportsQuotaOnlyMode && $0.supportsManualAuth }
+            return AIProvider.allCases.filter {
+                $0.supportsQuotaOnlyMode && ($0.supportsManualAuth || $0 == .clinePass)
+            }
         }
     }
     
@@ -191,7 +193,10 @@ struct ProvidersScreen: View {
             .environment(viewModel)
         }
         .sheet(item: $customProviderSheetMode) { mode in
-            CustomProviderSheet(provider: mode.provider) { provider in
+            CustomProviderSheet(
+                provider: mode.provider,
+                initialProviderType: mode.initialProviderType
+            ) { provider in
                 // Check if provider already exists by ID to determine if we're updating or adding
                 if customProviderService.providers.contains(where: { $0.id == provider.id }) {
                     customProviderService.updateProvider(provider)
@@ -229,7 +234,7 @@ struct ProvidersScreen: View {
                     showIDEScanSheet = true
                 },
                 onAddCustomProvider: {
-                    customProviderSheetMode = .add
+                    customProviderSheetMode = .add(.openaiCompatibility)
                 },
                 onDismiss: {
                     showAddProviderPopover = false
@@ -399,6 +404,11 @@ struct ProvidersScreen: View {
     // MARK: - Helper Functions
 
     private func handleAddProvider(_ provider: AIProvider) {
+        if provider == .clinePass {
+            customProviderSheetMode = .add(.clinePass)
+            return
+        }
+
         // In Local Proxy Mode, require proxy to be running for OAuth
         if modeManager.isLocalProxyMode && !viewModel.proxyManager.proxyStatus.running {
             showProxyRequiredAlert = true
@@ -1074,13 +1084,13 @@ private struct OAuthStatusView: View {
 // MARK: - Custom Provider Sheet Mode
 
 enum CustomProviderSheetMode: Identifiable {
-    case add
+    case add(CustomProviderType)
     case edit(CustomProvider)
 
     var id: String {
         switch self {
-        case .add:
-            return "add"
+        case .add(let type):
+            return "add-\(type.rawValue)"
         case .edit(let provider):
             return provider.id.uuidString
         }
@@ -1092,6 +1102,15 @@ enum CustomProviderSheetMode: Identifiable {
             return nil
         case .edit(let provider):
             return provider
+        }
+    }
+
+    var initialProviderType: CustomProviderType {
+        switch self {
+        case .add(let type):
+            return type
+        case .edit(let provider):
+            return provider.type
         }
     }
 }

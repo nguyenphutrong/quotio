@@ -9,7 +9,18 @@ struct CustomProviderSheet: View {
     @Environment(\.dismiss) private var dismiss
     
     let provider: CustomProvider?
+    let initialProviderType: CustomProviderType
     let onSave: (CustomProvider) -> Void
+
+    init(
+        provider: CustomProvider?,
+        initialProviderType: CustomProviderType = .openaiCompatibility,
+        onSave: @escaping (CustomProvider) -> Void
+    ) {
+        self.provider = provider
+        self.initialProviderType = initialProviderType
+        self.onSave = onSave
+    }
     
     // MARK: - Form State
     
@@ -703,7 +714,16 @@ struct CustomProviderSheet: View {
     // MARK: - Actions
     
     private func loadProviderData() {
-        guard let provider = provider else { return }
+        guard let provider = provider else {
+            providerType = initialProviderType
+            if initialProviderType == .clinePass {
+                baseURL = initialProviderType.defaultBaseURL ?? ""
+                apiKeys = [CustomAPIKeyEntry(apiKey: "")]
+                limitToSelectedModels = true
+                isEnabled = true
+            }
+            return
+        }
         
         name = provider.name
         providerType = provider.type
