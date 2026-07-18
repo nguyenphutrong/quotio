@@ -13,12 +13,21 @@ enum AccountSource: Equatable {
     case proxy           // From proxy API (AuthFile)
     case direct          // From disk auth files (DirectAuthFile)
     case autoDetected    // Auto-detected from IDE (Cursor, Trae)
+    case monitor(MonitorAccountSource)
     
     var displayName: String {
         switch self {
         case .proxy: return "providers.source.proxy".localizedStatic()
         case .direct: return "providers.source.disk".localizedStatic()
         case .autoDetected: return "providers.autoDetected".localizedStatic()
+        case .monitor(let source): return source.displayName
+        }
+    }
+
+    var supportsDisable: Bool {
+        switch self {
+        case .proxy, .monitor: true
+        case .direct, .autoDetected: false
         }
     }
 }
@@ -118,6 +127,24 @@ struct AccountRowData: Identifiable, Hashable {
         )
     }
 
+    static func from(
+        monitorAccount: MonitorAccount,
+        status: String?,
+        statusMessage: String?
+    ) -> AccountRowData {
+        AccountRowData(
+            id: monitorAccount.id,
+            provider: monitorAccount.provider,
+            displayName: monitorAccount.displayName,
+            menuBarAccountKey: monitorAccount.accountKey,
+            source: .monitor(monitorAccount.source),
+            status: status,
+            statusMessage: statusMessage,
+            isDisabled: monitorAccount.isDisabled,
+            canDelete: monitorAccount.canDelete
+        )
+    }
+
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(isDisabled)
@@ -157,7 +184,7 @@ struct AccountRow: View {
     private var statusColor: Color {
         switch account.status {
         case "ready": return account.isDisabled ? .gray : .green
-        case "cooling": return .orange
+        case "cooling", "outdated": return .orange
         case "error": return .red
         default: return .gray
         }
@@ -199,6 +226,13 @@ struct AccountRow: View {
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
+                }
+
+                if let message = account.statusMessage, !message.isEmpty {
+                    Text(message)
+                        .font(.caption2)
+                        .foregroundStyle(account.status == "error" ? .red : .secondary)
+                        .lineLimit(1)
                 }
             }
             
@@ -254,7 +288,7 @@ struct AccountRow: View {
             )
 
             // Disable/Enable toggle button (only for proxy accounts)
-            if account.source == .proxy, let onToggleDisabled = onToggleDisabled {
+            if account.source.supportsDisable, let onToggleDisabled = onToggleDisabled {
                 Button {
                     onToggleDisabled()
                 } label: {
@@ -322,7 +356,7 @@ struct AccountRow: View {
             }
 
             // Disable/Enable toggle (only for proxy accounts)
-            if account.source == .proxy, let onToggleDisabled = onToggleDisabled {
+            if account.source.supportsDisable, let onToggleDisabled = onToggleDisabled {
                 Button {
                     onToggleDisabled()
                 } label: {

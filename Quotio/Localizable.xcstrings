@@ -11262,6 +11262,62 @@
         }
       }
     },
+    "monitor.refresh.failed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The latest refresh failed. Showing the last successful quota." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "La dernière actualisation a échoué. Le dernier quota valide reste affiché." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Lần làm mới gần nhất thất bại. Đang hiển thị quota thành công gần nhất." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最新刷新失败，正在显示上次成功的配额。" } }
+      }
+    },
+    "monitor.refresh.partial" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Some accounts could not be refreshed. Their last successful quota is still shown." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Certains comptes n’ont pas pu être actualisés. Leur dernier quota valide reste affiché." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không thể làm mới một số tài khoản. Quota thành công gần nhất vẫn được giữ lại." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部分账户无法刷新，仍显示其上次成功的配额。" } }
+      }
+    },
+    "monitor.status.outdated" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Showing quota last updated %@." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Affichage du quota mis à jour pour la dernière fois à %@." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang hiển thị quota được cập nhật lần cuối lúc %@." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示上次于 %@ 更新的配额。" } }
+      }
+    },
+    "monitor.status.updated" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Updated %@" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Mis à jour %@" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã cập nhật %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已于 %@ 更新" } }
+      }
+    },
+    "oauth.enterDeviceCode" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter device code %@ in the browser." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez le code d’appareil %@ dans le navigateur." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập mã thiết bị %@ trong trình duyệt." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请在浏览器中输入设备代码 %@。" } }
+      }
+    },
+    "oauth.authorizationCode" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Authorization code" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Code d’autorisation" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mã xác thực" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "授权码" } }
+      }
+    },
+    "oauth.complete" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Terminer" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hoàn tất" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成" } }
+      }
+    },
     "oauth.authenticate" : {
       "extractionState" : "stale",
       "localizations" : {

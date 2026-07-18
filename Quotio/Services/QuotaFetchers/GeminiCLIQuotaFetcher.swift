@@ -27,6 +27,14 @@ nonisolated struct GeminiCLIAuthFile: Codable, Sendable {
     }
 }
 
+private extension String {
+    nonisolated var geminiFormEncoded: String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return addingPercentEncoding(withAllowedCharacters: allowed) ?? self
+    }
+}
+
 /// Google accounts file structure (~/.gemini/google_accounts.json)
 nonisolated struct GeminiAccountsFile: Codable, Sendable {
     let active: String?
@@ -58,6 +66,11 @@ actor GeminiCLIQuotaFetcher {
     private let executor = CLIExecutor.shared
     private let quotaURL = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
     private let codeAssistURL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
+    private let tokenURL = "https://oauth2.googleapis.com/token"
+    private let userInfoURL = "https://www.googleapis.com/oauth2/v2/userinfo?alt=json"
+    private let oauthClientID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+    private let oauthClientSecret = "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"
+    private var session: URLSession
     private let requestHeaders = [
         "Authorization": "Bearer $TOKEN$",
         "Content-Type": "application/json"
@@ -111,6 +124,10 @@ actor GeminiCLIQuotaFetcher {
         )
     ]
 
+    init() {
+        session = URLSession(configuration: ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15))
+    }
+
     // Note: Gemini CLI interactions are handled by the executor, which spawns processes.
     // The current CLIExecutor implementation does not seem to support explicit proxy configuration
     // for the executed commands.
@@ -119,7 +136,7 @@ actor GeminiCLIQuotaFetcher {
     /// Update the URLSession with current proxy settings
     /// (No-op for now as Gemini CLI uses shell commands, but kept for protocol conformance)
     func updateProxyConfiguration() {
-        // Future: If GeminiFetcher starts making direct HTTP calls, update session here
+        session = URLSession(configuration: ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15))
     }
 
     /// Check if Gemini CLI is installed
@@ -245,29 +262,186 @@ actor GeminiCLIQuotaFetcher {
         return results
     }
 
-    /// Fetch account presence as ProviderQuotaData when real quota is unavailable.
+    /// Fetch Gemini quota directly from the native Gemini CLI credential.
     func fetchAsProviderQuota() async -> [String: ProviderQuotaData] {
-        guard await isInstalled() else { return [:] }
-        guard let accountInfo = getAccountInfo() else { return [:] }
-        
-        // Since Gemini CLI doesn't have a public quota API, we create a placeholder
-        // that shows the account is connected but quota is unknown
-        let models: [ModelQuota] = [
-            ModelQuota(
-                name: "gemini-quota",
-                percentage: -1, // -1 indicates unknown/unavailable
-                resetTime: ""
-            )
-        ]
-        
-        let quotaData = ProviderQuotaData(
-            models: models,
-            lastUpdated: Date(),
-            isForbidden: false,
-            planType: "Google Account" // We don't know the actual plan type
+        var results = await fetchOwnedQuotas()
+        guard let accountInfo = getAccountInfo(), var auth = readAuthFile(), var accessToken = auth.accessToken else { return results }
+        let path = NSString(string: authFilePath).expandingTildeInPath
+        if shouldRefresh(auth), let refreshToken = auth.refreshToken {
+            do {
+                let refreshed = try await refresh(refreshToken: refreshToken)
+                accessToken = refreshed.accessToken
+                auth = applying(refreshed, to: auth)
+                try persist(auth, expectedRefreshToken: refreshToken, path: path)
+            } catch {
+                Log.quota("Failed to proactively refresh Gemini CLI token")
+            }
+        }
+
+        do {
+            if results[accountInfo.email] == nil {
+                results[accountInfo.email] = try await fetchDirectQuota(accessToken: accessToken)
+            }
+            return results
+        } catch DirectGeminiError.authenticationRequired {
+            let latest = readAuthFile() ?? auth
+            guard let refreshToken = latest.refreshToken else { return results }
+            do {
+                let refreshed = try await refresh(refreshToken: refreshToken)
+                let updated = applying(refreshed, to: latest)
+                try persist(updated, expectedRefreshToken: refreshToken, path: path)
+                if results[accountInfo.email] == nil {
+                    results[accountInfo.email] = try await fetchDirectQuota(accessToken: refreshed.accessToken)
+                }
+                return results
+            } catch {
+                Log.quota("Failed to refresh Gemini CLI quota after authentication error")
+                return results
+            }
+        } catch {
+            Log.quota("Failed to fetch Gemini CLI quota directly: \(error.localizedDescription)")
+            return results
+        }
+    }
+
+    private func fetchOwnedQuotas() async -> [String: ProviderQuotaData] {
+        var results: [String: ProviderQuotaData] = [:]
+        for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .gemini && !$0.isDisabled }) {
+            guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
+            do {
+                if credential.expiresAt.map({ $0.timeIntervalSinceNow < 300 }) ?? false,
+                   let refreshToken = credential.refreshToken {
+                    let refreshed = try await refresh(refreshToken: refreshToken)
+                    credential.accessToken = refreshed.accessToken
+                    credential.refreshToken = refreshed.refreshToken ?? refreshToken
+                    credential.idToken = refreshed.idToken ?? credential.idToken
+                    credential.expiresAt = refreshed.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) }
+                    try await MonitorCredentialVault.shared.save(credential, metadata: account)
+                }
+                do {
+                    results[account.accountKey] = try await fetchDirectQuota(accessToken: credential.accessToken)
+                } catch DirectGeminiError.authenticationRequired {
+                    if let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id) {
+                        credential = latest
+                    }
+                    guard let refreshToken = credential.refreshToken else { continue }
+                    let refreshed = try await refresh(refreshToken: refreshToken)
+                    credential.accessToken = refreshed.accessToken
+                    credential.refreshToken = refreshed.refreshToken ?? refreshToken
+                    credential.idToken = refreshed.idToken ?? credential.idToken
+                    credential.expiresAt = refreshed.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) }
+                    try await MonitorCredentialVault.shared.save(credential, metadata: account)
+                    results[account.accountKey] = try await fetchDirectQuota(accessToken: credential.accessToken)
+                }
+            } catch {
+                Log.quota("Failed to fetch Gemini quota for Quotio credential")
+            }
+        }
+        return results
+    }
+
+    private struct DirectTokenResponse: Decodable {
+        let accessToken: String
+        let refreshToken: String?
+        let idToken: String?
+        let expiresIn: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case accessToken = "access_token"
+            case refreshToken = "refresh_token"
+            case idToken = "id_token"
+            case expiresIn = "expires_in"
+        }
+    }
+
+    private enum DirectGeminiError: LocalizedError {
+        case authenticationRequired
+        case http(Int)
+        case invalidResponse
+
+        var errorDescription: String? {
+            switch self {
+            case .authenticationRequired: "Gemini CLI login expired."
+            case .http(let status): "Gemini quota request failed with HTTP \(status)."
+            case .invalidResponse: "Gemini quota returned an invalid response."
+            }
+        }
+    }
+
+    private func shouldRefresh(_ auth: GeminiCLIAuthFile) -> Bool {
+        guard let expiry = auth.expiryDate else { return false }
+        return Date(timeIntervalSince1970: expiry / 1000).timeIntervalSinceNow < 300
+    }
+
+    private func refresh(refreshToken: String) async throws -> DirectTokenResponse {
+        var request = URLRequest(url: URL(string: tokenURL)!)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let values = [
+            "client_id=\(oauthClientID.geminiFormEncoded)",
+            "client_secret=\(oauthClientSecret.geminiFormEncoded)",
+            "grant_type=refresh_token",
+            "refresh_token=\(refreshToken.geminiFormEncoded)",
+        ].joined(separator: "&")
+        request.httpBody = Data(values.utf8)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
+            throw DirectGeminiError.authenticationRequired
+        }
+        return try JSONDecoder().decode(DirectTokenResponse.self, from: data)
+    }
+
+    private func applying(_ response: DirectTokenResponse, to auth: GeminiCLIAuthFile) -> GeminiCLIAuthFile {
+        GeminiCLIAuthFile(
+            idToken: response.idToken ?? auth.idToken,
+            accessToken: response.accessToken,
+            scope: auth.scope,
+            refreshToken: response.refreshToken ?? auth.refreshToken,
+            tokenType: auth.tokenType,
+            expiryDate: response.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)).timeIntervalSince1970 * 1000 } ?? auth.expiryDate
         )
-        
-        return [accountInfo.email: quotaData]
+    }
+
+    private func persist(_ auth: GeminiCLIAuthFile, expectedRefreshToken: String, path: String) throws {
+        guard let current = readAuthFile(), current.refreshToken == expectedRefreshToken else { return }
+        let data = try JSONEncoder().encode(auth)
+        try SecureAtomicFileWriter.write(data, to: URL(fileURLWithPath: path))
+    }
+
+    private func fetchDirectQuota(accessToken: String) async throws -> ProviderQuotaData {
+        let projectPayload = try await postJSON(
+            url: codeAssistURL,
+            accessToken: accessToken,
+            body: [
+                "metadata": [
+                    "ideType": "IDE_UNSPECIFIED",
+                    "platform": "PLATFORM_UNSPECIFIED",
+                    "pluginType": "GEMINI",
+                ],
+            ]
+        )
+        guard let projectID = stringValue(projectPayload["cloudaicompanionProject"] ?? projectPayload["projectId"] ?? projectPayload["project"]) else {
+            throw DirectGeminiError.invalidResponse
+        }
+        let quotaPayload = try await postJSON(url: quotaURL, accessToken: accessToken, body: ["project": projectID])
+        let models = buildModelQuotas(from: parseBuckets(from: quotaPayload))
+        guard !models.isEmpty else { throw DirectGeminiError.invalidResponse }
+        return ProviderQuotaData(models: models, lastUpdated: Date(), planType: resolveTierLabel(from: projectPayload))
+    }
+
+    private func postJSON(url: String, accessToken: String, body: [String: Any]) async throws -> [String: Any] {
+        var request = URLRequest(url: URL(string: url)!)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("GeminiCLI", forHTTPHeaderField: "User-Agent")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw DirectGeminiError.invalidResponse }
+        if http.statusCode == 401 || http.statusCode == 403 { throw DirectGeminiError.authenticationRequired }
+        guard 200..<300 ~= http.statusCode else { throw DirectGeminiError.http(http.statusCode) }
+        guard let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw DirectGeminiError.invalidResponse }
+        return value
     }
 
     private func fetchQuota(authIndex: String, projectId: String, apiClient: ManagementAPIClient) async throws -> ProviderQuotaData? {

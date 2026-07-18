@@ -54,6 +54,16 @@ struct ProvidersScreen: View {
                 let data = AccountRowData.from(authFile: file)
                 groups[provider, default: []].append(data)
             }
+        } else if modeManager.isMonitorMode {
+            for account in viewModel.monitorAccounts where ![.glm, .warp, .clinePass].contains(account.provider) {
+                let state = viewModel.monitorStatus(for: account)
+                let data = AccountRowData.from(
+                    monitorAccount: account,
+                    status: state.status,
+                    statusMessage: state.message
+                )
+                groups[account.provider, default: []].append(data)
+            }
         } else {
             // From direct auth files (proxy not running or quota-only mode)
             for file in viewModel.directAuthFiles {
@@ -64,7 +74,7 @@ struct ProvidersScreen: View {
 
         // Add auto-detected accounts (Cursor, Trae)
         // API-key providers are added from their own storage below.
-        for (provider, quotas) in viewModel.providerQuotas {
+        for (provider, quotas) in viewModel.providerQuotas where !modeManager.isMonitorMode {
             if !provider.supportsManualAuth && provider != .glm && provider != .clinePass {
                 for (accountKey, _) in quotas {
                     let data = AccountRowData.from(provider: provider, accountKey: accountKey)
@@ -268,12 +278,16 @@ struct ProvidersScreen: View {
         ToolbarItem(placement: .automatic) {
             Button {
                 Task {
-        if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
+                    if modeManager.isMonitorMode {
+                        await viewModel.manualRefresh()
+                    } else if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
                         await viewModel.refreshData()
                     } else {
                         await viewModel.loadDirectAuthFiles()
                     }
-                    await viewModel.refreshAutoDetectedProviders()
+                    if !modeManager.isMonitorMode {
+                        await viewModel.refreshAutoDetectedProviders()
+                    }
                 }
             } label: {
                 if viewModel.isLoadingQuotas {
@@ -430,6 +444,11 @@ struct ProvidersScreen: View {
         // Only proxy accounts can be deleted via API
         guard account.canDelete else { return }
 
+        if modeManager.isMonitorMode, case .monitor = account.source {
+            await viewModel.deleteMonitorAccount(accountID: account.id)
+            return
+        }
+
         // Handle GLM accounts (stored in CustomProviderService)
         if account.provider == .glm {
             // GLM accounts are stored as custom providers
@@ -466,7 +485,11 @@ struct ProvidersScreen: View {
     }
 
     private func toggleAccountDisabled(_ account: AccountRowData) async {
-        // Only proxy accounts can be disabled via API
+        if modeManager.isMonitorMode, case .monitor = account.source {
+            await viewModel.setMonitorAccountDisabled(!account.isDisabled, accountID: account.id)
+            return
+        }
+
         guard account.source == .proxy else { return }
 
         // Find the original AuthFile to toggle
@@ -778,6 +801,8 @@ struct OAuthSheet: View {
     
     @State private var hasStartedAuth = false
     @State private var selectedKiroMethod: AuthCommand = .kiroImport
+    @State private var manualOAuthCode = ""
+    @State private var modeManager = OperatingModeManager.shared
     
     private var isPolling: Bool {
         viewModel.oauthState?.status == .polling || viewModel.oauthState?.status == .waiting
@@ -792,7 +817,8 @@ struct OAuthSheet: View {
     }
     
     private var kiroAuthMethods: [AuthCommand] {
-        [.kiroImport, .kiroGoogleLogin, .kiroAWSAuthCode, .kiroAWSLogin]
+        if modeManager.isMonitorMode { return [.kiroAWSLogin] }
+        return [.kiroImport, .kiroGoogleLogin, .kiroAWSAuthCode, .kiroAWSLogin]
     }
     
     var body: some View {
@@ -838,7 +864,8 @@ struct OAuthSheet: View {
                 .frame(maxWidth: 320)
             }
 
-            if viewModel.proxyManager.isLegacyAuthWarningNeeded(for: provider),
+            if !modeManager.isMonitorMode,
+               viewModel.proxyManager.isLegacyAuthWarningNeeded(for: provider),
                let warning = viewModel.proxyManager.selectedBinarySourceWarning {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -856,6 +883,19 @@ struct OAuthSheet: View {
             if let state = viewModel.oauthState, state.provider == provider {
                 OAuthStatusView(status: state.status, error: state.error, state: state.state, authURL: state.authURL, provider: provider)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            if modeManager.isMonitorMode, provider == .claude, viewModel.oauthState?.status == .polling {
+                HStack(spacing: 8) {
+                    TextField("oauth.authorizationCode".localized(), text: $manualOAuthCode)
+                        .textFieldStyle(.roundedBorder)
+                    Button("oauth.complete".localized()) {
+                        Task { await viewModel.completeMonitorOAuthCode(manualOAuthCode, provider: provider) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(manualOAuthCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .frame(maxWidth: 360)
             }
             
             HStack(spacing: 16) {
@@ -961,7 +1001,7 @@ private struct OAuthStatusView: View {
                     }
                     
                     // For Copilot Device Code flow, show device code with copy button
-                    if provider == .copilot, let deviceCode = state, !deviceCode.isEmpty {
+                    if (provider == .copilot || provider == .kiro), let deviceCode = state, !deviceCode.isEmpty {
                         VStack(spacing: 8) {
                             Text("oauth.enterCodeInBrowser".localized())
                                 .font(.subheadline)
@@ -991,7 +1031,7 @@ private struct OAuthStatusView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                    } else if provider == .copilot, let message = error {
+                    } else if (provider == .copilot || provider == .kiro), let message = error {
                         Text(message)
                             .font(.caption)
                             .foregroundStyle(.primary)

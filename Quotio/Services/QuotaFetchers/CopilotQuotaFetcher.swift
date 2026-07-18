@@ -236,16 +236,38 @@ actor CopilotQuotaFetcher {
     }
     
     func fetchAllCopilotQuotas(authDir: String = "~/.cli-proxy-api") async -> [String: ProviderQuotaData] {
+        var results: [String: ProviderQuotaData] = [:]
+        for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .copilot && !$0.isDisabled }) {
+            guard let credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
+            do {
+                let entitlement = try await fetchEntitlement(accessToken: credential.accessToken)
+                results[account.accountKey] = convertToQuotaData(entitlement: entitlement)
+            } catch {
+                continue
+            }
+        }
+
+        let nativeTokens = loadNativeTokens()
+        for token in nativeTokens {
+            do {
+                let entitlement = try await fetchEntitlement(accessToken: token)
+                let key = await fetchGitHubLogin(accessToken: token) ?? "GitHub Copilot"
+                if results[key] == nil {
+                    results[key] = convertToQuotaData(entitlement: entitlement)
+                }
+            } catch {
+                continue
+            }
+        }
+
         let expandedPath = NSString(string: authDir).expandingTildeInPath
         let fileManager = FileManager.default
         
         guard let files = try? fileManager.contentsOfDirectory(atPath: expandedPath) else {
-            return [:]
+            return results
         }
         
         let copilotFiles = files.filter { $0.hasPrefix("github-copilot-") && $0.hasSuffix(".json") }
-        
-        var results: [String: ProviderQuotaData] = [:]
         
         for file in copilotFiles {
             let filePath = (expandedPath as NSString).appendingPathComponent(file)
@@ -257,6 +279,66 @@ actor CopilotQuotaFetcher {
         }
         
         return results
+    }
+
+    private func loadNativeTokens() -> [String] {
+        var tokens: [String] = []
+        let jsonPaths = [
+            "~/.config/github-copilot/apps.json",
+            "~/.config/github-copilot/hosts.json",
+        ].map { NSString(string: $0).expandingTildeInPath }
+
+        for path in jsonPaths {
+            guard let data = FileManager.default.contents(atPath: path),
+                  let object = try? JSONSerialization.jsonObject(with: data) else { continue }
+            collectTokens(from: object, into: &tokens)
+        }
+
+        let ghHosts = NSString(string: "~/.config/gh/hosts.yml").expandingTildeInPath
+        if let yaml = try? String(contentsOfFile: ghHosts, encoding: .utf8) {
+            for line in yaml.split(separator: "\n") {
+                let parts = line.split(separator: ":", maxSplits: 1).map(String.init)
+                guard parts.count == 2,
+                      parts[0].trimmingCharacters(in: .whitespaces) == "oauth_token" else { continue }
+                let token = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !token.isEmpty { tokens.append(token) }
+            }
+        }
+
+        if let data = KeychainHelper.readExternalCredential(service: "gh:github.com"),
+           let token = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !token.isEmpty {
+            tokens.append(token)
+        }
+        return Array(Set(tokens))
+    }
+
+    private func fetchGitHubLogin(accessToken: String) async -> String? {
+        guard let url = URL(string: "https://api.github.com/user") else { return nil }
+        var request = URLRequest(url: url)
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse,
+              200...299 ~= http.statusCode,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return json["login"] as? String
+    }
+
+    private func collectTokens(from value: Any, into tokens: inout [String]) {
+        if let dictionary = value as? [String: Any] {
+            for (key, child) in dictionary {
+                if ["oauth_token", "oauthToken", "access_token"].contains(key),
+                   let token = child as? String,
+                   !token.isEmpty {
+                    tokens.append(token)
+                } else {
+                    collectTokens(from: child, into: &tokens)
+                }
+            }
+        } else if let array = value as? [Any] {
+            for child in array { collectTokens(from: child, into: &tokens) }
+        }
     }
     
     private func loadAuthFile(from path: String) -> CopilotAuthFile? {

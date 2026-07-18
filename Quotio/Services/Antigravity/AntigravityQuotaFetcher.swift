@@ -507,11 +507,26 @@ actor AntigravityQuotaFetcher {
     private let clientId = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
     private let clientSecret = "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"
     private let userAgent = "antigravity/1.11.3 Darwin/arm64"
+    private let nativeCacheURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("Quotio/Monitor/antigravity-shadow-v1.json")
 
     private var session: URLSession
+    private let databaseService = AntigravityDatabaseService()
 
     // Cache subscription info to avoid duplicate API calls within same refresh cycle
     private var subscriptionCache: [String: SubscriptionInfo] = [:]
+
+    private struct NativeToken: Sendable {
+        var accessToken: String?
+        var refreshToken: String?
+        var expiresAt: Date?
+    }
+
+    private struct NativeTokenCache: Codable {
+        var accessToken: String
+        var expiresAt: Date
+        var refreshFingerprint: String
+    }
 
     init() {
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
@@ -567,6 +582,7 @@ actor AntigravityQuotaFetcher {
     /// Persist refreshed access token back to auth file using read-modify-write
     /// to preserve all existing fields (including `disabled`, etc.)
     private func persistRefreshedToken(at url: URL, originalData: Data, newAccessToken: String, expiresIn: Int) {
+        guard (try? Data(contentsOf: url)) == originalData else { return }
         guard var json = try? JSONSerialization.jsonObject(with: originalData) as? [String: Any] else { return }
         json["access_token"] = newAccessToken
 
@@ -580,7 +596,7 @@ actor AntigravityQuotaFetcher {
         json["timestamp"] = Int64(now.timeIntervalSince1970 * 1000)
 
         if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]) {
-            try? updatedData.write(to: url)
+            try? SecureAtomicFileWriter.write(updatedData, to: url)
         }
     }
 
@@ -1029,12 +1045,70 @@ actor AntigravityQuotaFetcher {
         let expandedPath = NSString(string: authDir).expandingTildeInPath
         let fileManager = FileManager.default
 
-        guard let files = try? fileManager.contentsOfDirectory(atPath: expandedPath) else {
-            return ([:], [:])
-        }
-
         var quotaResults: [String: ProviderQuotaData] = [:]
         var subscriptionResults: [String: SubscriptionInfo] = [:]
+
+        for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .antigravity && !$0.isDisabled }) {
+            guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
+            if credential.expiresAt.map({ $0.timeIntervalSinceNow < 300 }) ?? false,
+               let refresh = credential.refreshToken,
+               let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
+                credential.accessToken = access
+                credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+                try? await MonitorCredentialVault.shared.save(credential, metadata: account)
+            }
+            do {
+                var quota = try await fetchQuota(accessToken: credential.accessToken)
+                if quota.isForbidden,
+                   let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id),
+                   let refresh = latest.refreshToken,
+                   let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
+                    credential = latest
+                    credential.accessToken = access
+                    credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+                    try? await MonitorCredentialVault.shared.save(credential, metadata: account)
+                    quota = try await fetchQuota(accessToken: access)
+                }
+                quotaResults[account.accountKey] = quota
+            } catch QuotaFetchError.httpError(let status) where status == 401 || status == 403 {
+                if let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id),
+                   let refresh = latest.refreshToken,
+                   let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
+                    credential = latest
+                    credential.accessToken = access
+                    credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+                    try? await MonitorCredentialVault.shared.save(credential, metadata: account)
+                    quotaResults[account.accountKey] = try? await fetchQuota(accessToken: access)
+                }
+            } catch {
+                continue
+            }
+        }
+
+        if let ideToken = try? await databaseService.getCurrentTokenInfo(),
+           let accessToken = await usableNativeAccessToken(from: NativeToken(
+               accessToken: ideToken.accessToken,
+               refreshToken: ideToken.refreshToken,
+               expiresAt: ideToken.expiry.map {
+                   let raw = TimeInterval($0)
+                   return Date(timeIntervalSince1970: raw > 10_000_000_000 ? raw / 1000 : raw)
+               }
+           )),
+           let quota = try? await fetchQuota(accessToken: accessToken) {
+            quotaResults[await nativeAccountName(accessToken: accessToken)] = quota
+        }
+
+        if let native = loadNativeKeychainToken(),
+           let accessToken = await usableNativeAccessToken(from: native) {
+            if let quota = try? await fetchQuota(accessToken: accessToken) {
+                let key = await nativeAccountName(accessToken: accessToken)
+                if quotaResults[key] == nil { quotaResults[key] = quota }
+            }
+        }
+
+        guard let files = try? fileManager.contentsOfDirectory(atPath: expandedPath) else {
+            return (quotaResults, subscriptionResults)
+        }
 
         // Run all fetches concurrently using TaskGroup
         await withTaskGroup(of: (String, ProviderQuotaData?, SubscriptionInfo?).self) { group in
@@ -1054,16 +1128,84 @@ actor AntigravityQuotaFetcher {
             }
 
             for await (email, quota, subscription) in group {
-                if let quota = quota {
+                if let quota = quota, quotaResults[email] == nil {
                     quotaResults[email] = quota
                 }
-                if let subscription = subscription {
+                if let subscription = subscription, subscriptionResults[email] == nil {
                     subscriptionResults[email] = subscription
                 }
             }
         }
 
         return (quotaResults, subscriptionResults)
+    }
+
+    /// Antigravity/agy stores a go-keyring wrapped JSON credential. Quotio only reads that item;
+    /// refreshed access tokens are bound to the refresh-token fingerprint in our own cache.
+    private func loadNativeKeychainToken() -> NativeToken? {
+        guard let data = KeychainHelper.readExternalCredential(service: "gemini", account: "antigravity"),
+              var raw = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return nil }
+        let prefix = "go-keyring-base64:"
+        if raw.hasPrefix(prefix) {
+            let encoded = String(raw.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let decoded = Data(base64Encoded: encoded),
+                  let text = String(data: decoded, encoding: .utf8) else { return nil }
+            raw = text
+        }
+        guard let data = raw.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return NativeToken(accessToken: raw, refreshToken: nil, expiresAt: nil)
+        }
+        let token = (root["token"] as? [String: Any]) ?? root
+        let access = token["access_token"] as? String ?? token["accessToken"] as? String
+        let refresh = token["refresh_token"] as? String ?? token["refreshToken"] as? String
+        let expiryText = token["expiry"] as? String ?? token["expires_at"] as? String ?? token["expiresAt"] as? String
+        return NativeToken(accessToken: access, refreshToken: refresh, expiresAt: expiryText.flatMap(parseDate))
+    }
+
+    private func usableNativeAccessToken(from token: NativeToken) async -> String? {
+        if let access = token.accessToken,
+           token.expiresAt.map({ $0.timeIntervalSinceNow > 300 }) ?? true {
+            return access
+        }
+        guard let refresh = token.refreshToken else { return token.accessToken }
+        let fingerprint = MonitorIdentity.fingerprint(refresh)
+        if let data = try? Data(contentsOf: nativeCacheURL),
+           let cached = try? JSONDecoder().decode(NativeTokenCache.self, from: data),
+           cached.refreshFingerprint == fingerprint,
+           cached.expiresAt.timeIntervalSinceNow > 300 {
+            return cached.accessToken
+        }
+        guard let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) else { return nil }
+        let cache = NativeTokenCache(
+            accessToken: access,
+            expiresAt: Date().addingTimeInterval(TimeInterval(expiresIn)),
+            refreshFingerprint: fingerprint
+        )
+        if let data = try? JSONEncoder().encode(cache) {
+            try? SecureAtomicFileWriter.write(data, to: nativeCacheURL)
+        }
+        return access
+    }
+
+    private func nativeAccountName(accessToken: String) async -> String {
+        guard let url = URL(string: "https://www.googleapis.com/oauth2/v2/userinfo") else { return "Antigravity" }
+        var request = URLRequest(url: url)
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse,
+              200...299 ~= http.statusCode,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let email = json["email"] as? String,
+              !email.isEmpty else { return "Antigravity" }
+        return email
+    }
+
+    private func parseDate(_ value: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
     }
 
     /// Legacy function - now just calls fetchAllAntigravityQuotas
