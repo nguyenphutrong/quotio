@@ -50,6 +50,7 @@ struct CustomProviderSheet: View {
 
     private static let clinePassModels = [
         AvailableModel(id: "cline-pass/glm-5.2", name: "GLM-5.2", provider: "clinepass", isDefault: false),
+        AvailableModel(id: "cline-pass/kimi-k3", name: "Kimi K3", provider: "clinepass", isDefault: false),
         AvailableModel(id: "cline-pass/kimi-k2.7-code", name: "Kimi K2.7 Code", provider: "clinepass", isDefault: false),
         AvailableModel(id: "cline-pass/kimi-k2.6", name: "Kimi K2.6", provider: "clinepass", isDefault: false),
         AvailableModel(id: "cline-pass/deepseek-v4-pro", name: "DeepSeek V4 Pro", provider: "clinepass", isDefault: false),
