@@ -372,10 +372,7 @@ actor CodexCLIQuotaFetcher {
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
                   let auth = try? JSONDecoder().decode(CodexAuthFile.self, from: data) else { continue }
             let claims = auth.idToken.flatMap(decodeJWT)
-            let key = nonEmpty(auth.email)
-                ?? nonEmpty(claims?.email)
-                ?? nonEmpty(auth.accountId)
-                ?? filename.codexFilenameKey
+            let key = filename.codexFilenameKey
             let accountID = auth.accountId ?? claims?.accountId
             let identity = CodexQuotaIdentity(planType: claims?.planType)
             var accessToken = auth.accessToken
@@ -410,12 +407,6 @@ actor CodexCLIQuotaFetcher {
             }
         }
         return results
-    }
-
-    private func nonEmpty(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func fetchNativeKeychainQuotas() async -> [String: ProviderQuotaData] {

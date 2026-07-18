@@ -64,6 +64,25 @@ nonisolated struct MonitorAccount: Identifiable, Codable, Hashable, Sendable {
             isDisabled: isDisabled
         )
     }
+
+    static func makeLegacy(_ file: DirectAuthFile) -> MonitorAccount {
+        let accountKey: String
+        if file.provider == .codex {
+            accountKey = file.filename.codexFilenameKey
+        } else if let email = file.email, !email.isEmpty {
+            accountKey = email
+        } else {
+            accountKey = file.filename.replacingOccurrences(of: ".json", with: "")
+        }
+        let displayName = file.email?.nilIfBlank ?? file.login?.nilIfBlank ?? file.filename
+        return make(
+            provider: file.provider,
+            accountKey: accountKey,
+            displayName: displayName,
+            source: .legacyCLIProxy,
+            credentialReference: file.filePath
+        )
+    }
 }
 
 nonisolated struct MonitorRefreshIssue: Codable, Hashable, Sendable {
@@ -263,25 +282,7 @@ actor MonitorAccountDiscovery {
         var candidates = await vault.accounts()
         candidates.append(contentsOf: discoverNativeFiles())
         candidates.append(contentsOf: discoverNativeKeychains())
-        let legacy = await directAuthService.scanAllAuthFiles().map { file in
-            let accountKey: String
-            if file.provider == .codex {
-                accountKey = file.email?.nilIfBlank
-                    ?? file.filename.replacingOccurrences(of: ".json", with: "")
-            } else if let email = file.email, !email.isEmpty {
-                accountKey = email
-            } else {
-                accountKey = file.filename.replacingOccurrences(of: ".json", with: "")
-            }
-            let displayName = file.email?.nilIfBlank ?? file.login?.nilIfBlank ?? file.filename
-            return MonitorAccount.make(
-                provider: file.provider,
-                accountKey: accountKey,
-                displayName: displayName,
-                source: .legacyCLIProxy,
-                credentialReference: file.filePath
-            )
-        }
+        let legacy = await directAuthService.scanAllAuthFiles().map(MonitorAccount.makeLegacy)
         candidates.append(contentsOf: legacy)
 
         let disabled = await metadata.disabledAccountIDs()

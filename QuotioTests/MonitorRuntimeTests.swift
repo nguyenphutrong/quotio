@@ -2,6 +2,37 @@ import XCTest
 @testable import Quotio
 
 final class MonitorRuntimeTests: XCTestCase {
+    func testLegacyCodexAccountsUseDistinctFilenameKeysForSameEmail() {
+        let plus = DirectAuthFile(
+            id: "plus",
+            provider: .codex,
+            email: "same@example.com",
+            login: nil,
+            expired: nil,
+            accountType: "plus",
+            filePath: "/tmp/codex-same@example.com-plus.json",
+            source: .cliProxyApi,
+            filename: "codex-same@example.com-plus.json"
+        )
+        let team = DirectAuthFile(
+            id: "team",
+            provider: .codex,
+            email: "same@example.com",
+            login: nil,
+            expired: nil,
+            accountType: "team",
+            filePath: "/tmp/codex-same@example.com-team.json",
+            source: .cliProxyApi,
+            filename: "codex-same@example.com-team.json"
+        )
+
+        let accounts = [plus, team].map(MonitorAccount.makeLegacy)
+
+        let expectedKeys = Set(["same@example.com-plus", "same@example.com-team"])
+        XCTAssertEqual(Set(accounts.map(\.accountKey)), expectedKeys)
+        XCTAssertEqual(Set(accounts.map(\.deduplicationKey)).count, 2)
+    }
+
     private actor Counter {
         var value = 0
         func increment() { value += 1 }
