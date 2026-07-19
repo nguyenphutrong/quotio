@@ -123,11 +123,24 @@ final class StatusBarMenuBuilder {
             }
         }
         
-        // Filter out CLI-based providers if CLI is not installed
-        return providers.filter { provider in
+        return Self.filterProviders(
+            providers,
+            isMonitorMode: modeManager.isMonitorMode,
+            isCLIInstalled: isCLIInstalled
+        )
+    }
+
+    nonisolated static func filterProviders(
+        _ providers: Set<AIProvider>,
+        isMonitorMode: Bool,
+        isCLIInstalled: (CLIAgent) -> Bool
+    ) -> [AIProvider] {
+        let sorted = providers.sorted { $0.displayName < $1.displayName }
+        guard !isMonitorMode else { return sorted }
+        return sorted.filter { provider in
             guard let agent = provider.cliAgent else { return true }
             return isCLIInstalled(agent)
-        }.sorted { $0.displayName < $1.displayName }
+        }
     }
     
     private func isCLIInstalled(_ agent: CLIAgent) -> Bool {

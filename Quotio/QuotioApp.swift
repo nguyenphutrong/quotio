@@ -10,6 +10,10 @@ import ServiceManagement
 import Sparkle
 #endif
 
+private var isRunningUnitTests: Bool {
+    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+}
+
 // MARK: - App Bootstrap (Singleton for headless initialization)
 
 /// Manages app-wide initialization that must happen regardless of window visibility.
@@ -175,82 +179,86 @@ struct QuotioApp: App {
 
     var body: some Scene {
         Window("Quotio", id: "main") {
-            ContentView()
-                .id(languageManager.currentLanguage) // Force re-render on language change
-                .environment(viewModel)
-                .environment(logsViewModel)
-                .environment(\.locale, languageManager.locale)
-                .task {
-                    // Initialize via bootstrap (idempotent - safe to call multiple times)
-                    // This handles the case where window opens before AppDelegate finishes
-                    await bootstrap.initializeIfNeeded()
+            if isRunningUnitTests {
+                EmptyView()
+            } else {
+                ContentView()
+                    .id(languageManager.currentLanguage) // Force re-render on language change
+                    .environment(viewModel)
+                    .environment(logsViewModel)
+                    .environment(\.locale, languageManager.locale)
+                    .task {
+                        // Initialize via bootstrap (idempotent - safe to call multiple times)
+                        // This handles the case where window opens before AppDelegate finishes
+                        await bootstrap.initializeIfNeeded()
 
-                    // Show onboarding if needed
-                    if bootstrap.needsOnboarding {
-                        showOnboarding = true
-                    } else if viewModel.proxyManager.shouldPromptForBinarySourceSelection {
-                        showProxyBinarySourceSelection = true
+                        // Show onboarding if needed
+                        if bootstrap.needsOnboarding {
+                            showOnboarding = true
+                        } else if viewModel.proxyManager.shouldPromptForBinarySourceSelection {
+                            showProxyBinarySourceSelection = true
+                        }
                     }
-                }
-                .onChange(of: viewModel.proxyManager.proxyStatus.running) {
-                    bootstrap.updateStatusBar()
-                }
-                .onChange(of: viewModel.isLoadingQuotas) {
-                    bootstrap.updateStatusBar()
-                    // Rebuild menu when loading state changes so loader updates
-                    statusBarManager.rebuildMenuInPlace()
-                }
-                .onChange(of: languageManager.currentLanguage) { _, _ in
-                    // Rebuild menu bar when language changes
-                    statusBarManager.rebuildMenuInPlace()
-                }
-                .onChange(of: menuBarSettings.showQuotaInMenuBar) {
-                    bootstrap.updateStatusBar()
-                }
-                .onChange(of: menuBarSettings.showMenuBarIcon) {
-                    bootstrap.updateStatusBar()
-                }
-                .onChange(of: menuBarSettings.selectedItems) {
-                    bootstrap.updateStatusBar()
-                }
-                .onChange(of: menuBarSettings.colorMode) {
-                    bootstrap.updateStatusBar()
-                }
-                .onChange(of: menuBarSettings.totalUsageMode) {
-                    bootstrap.updateStatusBar()
-                    statusBarManager.rebuildMenuInPlace()
-                }
-                .onChange(of: menuBarSettings.modelAggregationMode) {
-                    bootstrap.updateStatusBar()
-                    statusBarManager.rebuildMenuInPlace()
-                }
-                .onChange(of: modeManager.currentMode) {
-                    bootstrap.updateStatusBar()
-                }
-                .onChange(of: viewModel.providerQuotas.count) {
-                    bootstrap.updateStatusBar()
-                    statusBarManager.rebuildMenuInPlace()
-                }
-                .onChange(of: viewModel.directAuthFiles.count) {
-                    bootstrap.updateStatusBar()
-                    statusBarManager.rebuildMenuInPlace()
-                }
-                .sheet(isPresented: $showOnboarding) {
-                    OnboardingFlow {
-                        Task {
-                            await bootstrap.completeOnboarding()
-                            if viewModel.proxyManager.shouldPromptForBinarySourceSelection {
-                                showProxyBinarySourceSelection = true
+                    .onChange(of: viewModel.proxyManager.proxyStatus.running) {
+                        bootstrap.updateStatusBar()
+                    }
+                    .onChange(of: viewModel.isLoadingQuotas) {
+                        bootstrap.updateStatusBar()
+                        // Rebuild menu when loading state changes so loader updates
+                        statusBarManager.rebuildMenuInPlace()
+                    }
+                    .onChange(of: languageManager.currentLanguage) { _, _ in
+                        // Rebuild menu bar when language changes
+                        statusBarManager.rebuildMenuInPlace()
+                    }
+                    .onChange(of: menuBarSettings.showQuotaInMenuBar) {
+                        bootstrap.updateStatusBar()
+                    }
+                    .onChange(of: menuBarSettings.showMenuBarIcon) {
+                        bootstrap.updateStatusBar()
+                    }
+                    .onChange(of: menuBarSettings.selectedItems) {
+                        bootstrap.updateStatusBar()
+                    }
+                    .onChange(of: menuBarSettings.colorMode) {
+                        bootstrap.updateStatusBar()
+                    }
+                    .onChange(of: menuBarSettings.totalUsageMode) {
+                        bootstrap.updateStatusBar()
+                        statusBarManager.rebuildMenuInPlace()
+                    }
+                    .onChange(of: menuBarSettings.modelAggregationMode) {
+                        bootstrap.updateStatusBar()
+                        statusBarManager.rebuildMenuInPlace()
+                    }
+                    .onChange(of: modeManager.currentMode) {
+                        bootstrap.updateStatusBar()
+                    }
+                    .onChange(of: viewModel.providerQuotas.count) {
+                        bootstrap.updateStatusBar()
+                        statusBarManager.rebuildMenuInPlace()
+                    }
+                    .onChange(of: viewModel.directAuthFiles.count) {
+                        bootstrap.updateStatusBar()
+                        statusBarManager.rebuildMenuInPlace()
+                    }
+                    .sheet(isPresented: $showOnboarding) {
+                        OnboardingFlow {
+                            Task {
+                                await bootstrap.completeOnboarding()
+                                if viewModel.proxyManager.shouldPromptForBinarySourceSelection {
+                                    showProxyBinarySourceSelection = true
+                                }
                             }
                         }
                     }
-                }
-                .sheet(isPresented: $showProxyBinarySourceSelection) {
-                    ProxyBinarySourceSelectionSheet {
-                        showProxyBinarySourceSelection = false
+                    .sheet(isPresented: $showProxyBinarySourceSelection) {
+                        ProxyBinarySourceSelectionSheet {
+                            showProxyBinarySourceSelection = false
+                        }
+                        .environment(viewModel)
                     }
-                    .environment(viewModel)
-                }
+            }
         }
         .defaultSize(width: 1000, height: 700)
         .commands {
@@ -280,6 +288,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hasTriggeredAntiDropForCurrentActivation = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isRunningUnitTests else { return }
+
         // Move orphan cleanup off main thread to avoid blocking app launch
         DispatchQueue.global(qos: .utility).async {
             TunnelManager.cleanupOrphans()

@@ -2,6 +2,18 @@ import XCTest
 @testable import Quotio
 
 final class MonitorRuntimeTests: XCTestCase {
+    func testMonitorProvidersDoNotRequireInstalledCLI() {
+        let providers: Set<AIProvider> = [.codex, .claude, .gemini]
+
+        let filtered = StatusBarMenuBuilder.filterProviders(
+            providers,
+            isMonitorMode: true,
+            isCLIInstalled: { _ in false }
+        )
+
+        XCTAssertEqual(Set(filtered), providers)
+    }
+
     func testDiscoveryCanonicalizesNativeCodexAccountBeforeDeduplication() {
         let legacy = MonitorAccount.make(
             provider: .codex,
