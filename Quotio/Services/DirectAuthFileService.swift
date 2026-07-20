@@ -333,7 +333,7 @@ actor DirectAuthFileService {
                 var expiresAt: String?
                 if let expStr = json["expires_at"] as? String ?? json["expiresAt"] as? String ?? json["expiry"] as? String {
                     expiresAt = expStr
-                } else if let expNum = json["expires_at"] as? Double ?? json["expiry"] as? Double {
+                } else if let expNum = json["expires_at"] as? Double ?? json["expiresAt"] as? Double ?? json["expiry"] as? Double {
                     // Convert numeric timestamp to ISO string for consistency in AuthTokenData
                     expiresAt = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: expNum))
                 }
@@ -467,7 +467,7 @@ actor DirectAuthFileService {
 // MARK: - Auth Token Data
 
 /// Token data extracted from auth file
-struct AuthTokenData: Sendable {
+nonisolated struct AuthTokenData: Sendable {
     let accessToken: String
     let refreshToken: String?
     let expiresAt: String?

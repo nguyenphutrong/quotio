@@ -11262,6 +11262,46 @@
         }
       }
     },
+    "monitor.source.apiKey" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "API key" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Clé API" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Khóa API" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "API 密钥" } }
+      }
+    },
+    "monitor.source.cliProxyFile" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "CLIProxyAPI file" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Fichier CLIProxyAPI" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tệp CLIProxyAPI" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "CLIProxyAPI 文件" } }
+      }
+    },
+    "monitor.source.localIDE" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Local IDE" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "IDE local" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "IDE cục bộ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地 IDE" } }
+      }
+    },
+    "monitor.source.localLogin" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Local login" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Connexion locale" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đăng nhập cục bộ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地登录" } }
+      }
+    },
+    "monitor.source.quotio" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quotio" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Quotio" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Quotio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Quotio" } }
+      }
+    },
     "monitor.refresh.failed" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "The latest refresh failed. Showing the last successful quota." } },

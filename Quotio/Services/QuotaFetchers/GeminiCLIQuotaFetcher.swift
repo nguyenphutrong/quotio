@@ -263,8 +263,8 @@ actor GeminiCLIQuotaFetcher {
     }
 
     /// Fetch Gemini quota directly from the native Gemini CLI credential.
-    func fetchAsProviderQuota() async -> [String: ProviderQuotaData] {
-        var results = await fetchOwnedQuotas()
+    func fetchAsProviderQuota(includeMonitorCredentials: Bool = false) async -> [String: ProviderQuotaData] {
+        var results = includeMonitorCredentials ? await fetchOwnedQuotas() : [:]
         guard let accountInfo = getAccountInfo(), var auth = readAuthFile(), var accessToken = auth.accessToken else { return results }
         let path = NSString(string: authFilePath).expandingTildeInPath
         if shouldRefresh(auth), let refreshToken = auth.refreshToken {

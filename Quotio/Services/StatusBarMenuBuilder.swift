@@ -122,12 +122,20 @@ final class StatusBarMenuBuilder {
                 providers.insert(provider)
             }
         }
+
+        if modeManager.isMonitorMode {
+            providers.formUnion(Self.monitorProviders(viewModel.monitorAccounts))
+        }
         
         return Self.filterProviders(
             providers,
             isMonitorMode: modeManager.isMonitorMode,
             isCLIInstalled: isCLIInstalled
         )
+    }
+
+    nonisolated static func monitorProviders(_ accounts: [MonitorAccount]) -> Set<AIProvider> {
+        Set(accounts.lazy.filter { !$0.isDisabled }.map(\.provider))
     }
 
     nonisolated static func filterProviders(

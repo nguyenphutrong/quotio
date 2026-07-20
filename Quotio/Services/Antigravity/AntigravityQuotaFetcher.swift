@@ -1038,7 +1038,10 @@ actor AntigravityQuotaFetcher {
 
     /// Fetch all Antigravity data (quotas + subscriptions) in one call
     /// This avoids duplicate API calls by reusing cached subscription info
-    func fetchAllAntigravityData(authDir: String = "~/.cli-proxy-api") async -> (quotas: [String: ProviderQuotaData], subscriptions: [String: SubscriptionInfo]) {
+    func fetchAllAntigravityData(
+        authDir: String = "~/.cli-proxy-api",
+        includeMonitorCredentials: Bool = false
+    ) async -> (quotas: [String: ProviderQuotaData], subscriptions: [String: SubscriptionInfo]) {
         // Clear cache at start of refresh cycle
         clearCache()
 
@@ -1048,40 +1051,42 @@ actor AntigravityQuotaFetcher {
         var quotaResults: [String: ProviderQuotaData] = [:]
         var subscriptionResults: [String: SubscriptionInfo] = [:]
 
-        for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .antigravity && !$0.isDisabled }) {
-            guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
-            if credential.expiresAt.map({ $0.timeIntervalSinceNow < 300 }) ?? false,
-               let refresh = credential.refreshToken,
-               let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
-                credential.accessToken = access
-                credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
-                try? await MonitorCredentialVault.shared.save(credential, metadata: account)
-            }
-            do {
-                var quota = try await fetchQuota(accessToken: credential.accessToken)
-                if quota.isForbidden,
-                   let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id),
-                   let refresh = latest.refreshToken,
+        if includeMonitorCredentials {
+            for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .antigravity && !$0.isDisabled }) {
+                guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
+                if credential.expiresAt.map({ $0.timeIntervalSinceNow < 300 }) ?? false,
+                   let refresh = credential.refreshToken,
                    let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
-                    credential = latest
                     credential.accessToken = access
                     credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
                     try? await MonitorCredentialVault.shared.save(credential, metadata: account)
-                    quota = try await fetchQuota(accessToken: access)
                 }
-                quotaResults[account.accountKey] = quota
-            } catch QuotaFetchError.httpError(let status) where status == 401 || status == 403 {
-                if let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id),
-                   let refresh = latest.refreshToken,
-                   let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
-                    credential = latest
-                    credential.accessToken = access
-                    credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
-                    try? await MonitorCredentialVault.shared.save(credential, metadata: account)
-                    quotaResults[account.accountKey] = try? await fetchQuota(accessToken: access)
+                do {
+                    var quota = try await fetchQuota(accessToken: credential.accessToken)
+                    if quota.isForbidden,
+                       let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id),
+                       let refresh = latest.refreshToken,
+                       let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
+                        credential = latest
+                        credential.accessToken = access
+                        credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+                        try? await MonitorCredentialVault.shared.save(credential, metadata: account)
+                        quota = try await fetchQuota(accessToken: access)
+                    }
+                    quotaResults[account.accountKey] = quota
+                } catch QuotaFetchError.httpError(let status) where status == 401 || status == 403 {
+                    if let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id),
+                       let refresh = latest.refreshToken,
+                       let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
+                        credential = latest
+                        credential.accessToken = access
+                        credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+                        try? await MonitorCredentialVault.shared.save(credential, metadata: account)
+                        quotaResults[account.accountKey] = try? await fetchQuota(accessToken: access)
+                    }
+                } catch {
+                    continue
                 }
-            } catch {
-                continue
             }
         }
 

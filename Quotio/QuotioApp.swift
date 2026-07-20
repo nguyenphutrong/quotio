@@ -165,16 +165,20 @@ struct QuotioApp: App {
     // Use shared bootstrap instance for viewModel
     private var bootstrap: AppBootstrap { AppBootstrap.shared }
     @State private var logsViewModel = LogsViewModel()
-    @State private var menuBarSettings = MenuBarSettingsManager.shared
+    @State private var menuBarSettingsStorage: MenuBarSettingsManager? = isRunningUnitTests ? nil : .shared
     @State private var statusBarManager = StatusBarManager.shared
-    @State private var modeManager = OperatingModeManager.shared
-    @State private var appearanceManager = AppearanceManager.shared
-    @State private var languageManager = LanguageManager.shared
+    @State private var modeManagerStorage: OperatingModeManager? = isRunningUnitTests ? nil : .shared
+    @State private var appearanceManagerStorage: AppearanceManager? = isRunningUnitTests ? nil : .shared
+    @State private var languageManagerStorage: LanguageManager? = isRunningUnitTests ? nil : .shared
     @State private var showOnboarding = false
     @State private var showProxyBinarySourceSelection = false
     @Environment(\.openWindow) private var openWindow
 
     private var viewModel: QuotaViewModel { bootstrap.viewModel }
+    private var menuBarSettings: MenuBarSettingsManager { menuBarSettingsStorage! }
+    private var modeManager: OperatingModeManager { modeManagerStorage! }
+    private var appearanceManager: AppearanceManager { appearanceManagerStorage! }
+    private var languageManager: LanguageManager { languageManagerStorage! }
 
 
     var body: some Scene {

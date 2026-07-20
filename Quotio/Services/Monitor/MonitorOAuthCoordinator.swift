@@ -398,10 +398,19 @@ actor MonitorOAuthCoordinator {
                   let refreshToken = result["refreshToken"] as? String else {
                 throw MonitorOAuthError.invalidResponse
             }
-            let accountKey = "AWS Builder ID"
+            let expiresAt = Date().addingTimeInterval(TimeInterval(result["expiresIn"] as? Int ?? 3600))
+            let identity = await KiroQuotaFetcher().authenticatedAccountIdentity(
+                accessToken: accessToken,
+                expiresAt: expiresAt,
+                clientID: clientID,
+                clientSecret: clientSecret,
+                region: region
+            )
+            let accountKey = Self.kiroAccountKey(identity: identity, clientID: clientID)
             let account = MonitorAccount.make(
                 provider: .kiro,
                 accountKey: accountKey,
+                displayName: identity ?? "AWS Builder ID",
                 source: .quotioKeychain,
                 credentialReference: "keychain",
                 canDelete: true
@@ -410,8 +419,8 @@ actor MonitorOAuthCoordinator {
                 accessToken: accessToken,
                 refreshToken: refreshToken,
                 idToken: nil,
-                accountID: nil,
-                expiresAt: Date().addingTimeInterval(TimeInterval(result["expiresIn"] as? Int ?? 3600)),
+                accountID: identity,
+                expiresAt: expiresAt,
                 extra: [
                     "authMethod": "IdC",
                     "clientId": clientID,
@@ -423,6 +432,13 @@ actor MonitorOAuthCoordinator {
             return account
         }
         throw MonitorOAuthError.expired
+    }
+
+    nonisolated static func kiroAccountKey(identity: String?, clientID: String) -> String {
+        if let identity = identity?.trimmingCharacters(in: .whitespacesAndNewlines), !identity.isEmpty {
+            return identity
+        }
+        return "AWS Builder ID • " + String(MonitorIdentity.fingerprint(clientID).prefix(8))
     }
 
     private func postJSON(url: String, body: [String: Any]) async throws -> [String: Any] {

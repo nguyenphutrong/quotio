@@ -158,10 +158,10 @@ actor KiroQuotaFetcher {
     }
 
     /// Scan and fetch quotas for all Kiro auth files
-    func fetchAllQuotas() async -> [String: ProviderQuotaData] {
+    func fetchAllQuotas(includeMonitorCredentials: Bool = false) async -> [String: ProviderQuotaData] {
         let authService = DirectAuthFileService()
         let kiroFiles = await kiroAuthFiles(using: authService)
-        var results = await fetchOwnedQuotas()
+        var results = includeMonitorCredentials ? await fetchOwnedQuotas() : [:]
 
         for authFile in kiroFiles {
             guard let tokenData = await authService.readAuthToken(from: authFile) else { continue }
@@ -425,6 +425,42 @@ actor KiroQuotaFetcher {
     private struct UsageAPIResult {
         let statusCode: Int
         let quotaData: ProviderQuotaData?
+        let accountIdentity: String?
+
+        init(
+            statusCode: Int,
+            quotaData: ProviderQuotaData?,
+            accountIdentity: String? = nil
+        ) {
+            self.statusCode = statusCode
+            self.quotaData = quotaData
+            self.accountIdentity = accountIdentity
+        }
+    }
+
+    func authenticatedAccountIdentity(
+        accessToken: String,
+        expiresAt: Date,
+        clientID: String,
+        clientSecret: String,
+        region: String
+    ) async -> String? {
+        let tokenData = AuthTokenData(
+            accessToken: accessToken,
+            refreshToken: nil,
+            expiresAt: expiresAt.ISO8601Format(),
+            clientId: clientID,
+            clientSecret: clientSecret,
+            authMethod: "IdC",
+            extras: ["region": region]
+        )
+        return await fetchUsageAPI(
+            token: accessToken,
+            tokenExpiresAt: expiresAt,
+            profileArn: nil,
+            region: region,
+            tokenData: tokenData
+        ).accountIdentity
     }
 
     private func fetchUsageAPI(token: String, tokenExpiresAt: Date?, profileArn: String?, region: String, tokenData: AuthTokenData) async -> UsageAPIResult {
@@ -490,7 +526,18 @@ actor KiroQuotaFetcher {
             do {
                 let usageResponse = try JSONDecoder().decode(KiroUsageResponse.self, from: data)
                 let planType = usageResponse.subscriptionInfo?.subscriptionTitle ?? "Standard"
-                return UsageAPIResult(statusCode: 200, quotaData: convertToQuotaData(usageResponse, planType: planType, tokenExpiresAt: tokenExpiresAt))
+                let accountIdentity = [usageResponse.userInfo?.email, usageResponse.userInfo?.userId]
+                    .compactMap { value -> String? in
+                        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                              !value.isEmpty else { return nil }
+                        return value
+                    }
+                    .first
+                return UsageAPIResult(
+                    statusCode: 200,
+                    quotaData: convertToQuotaData(usageResponse, planType: planType, tokenExpiresAt: tokenExpiresAt),
+                    accountIdentity: accountIdentity
+                )
             } catch {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     let keys = json.keys.sorted().joined(separator: ",")

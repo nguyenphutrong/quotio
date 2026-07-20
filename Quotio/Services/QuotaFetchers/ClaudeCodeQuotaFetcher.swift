@@ -315,7 +315,10 @@ actor ClaudeCodeQuotaFetcher {
 
     /// Fetch quota for all Claude accounts from auth files in ~/.cli-proxy-api/
     /// - Parameter forceRefresh: If true, bypass cache and fetch fresh data
-    func fetchAsProviderQuota(forceRefresh: Bool = false) async -> [String: ProviderQuotaData] {
+    func fetchAsProviderQuota(
+        forceRefresh: Bool = false,
+        includeMonitorCredentials: Bool = false
+    ) async -> [String: ProviderQuotaData] {
         let expandedPath = NSString(string: authDir).expandingTildeInPath
         let fileManager = FileManager.default
         let legacyFiles = (try? fileManager.contentsOfDirectory(atPath: expandedPath))?
@@ -325,7 +328,9 @@ actor ClaudeCodeQuotaFetcher {
         let nativeBase = (claudeHome?.isEmpty == false ? claudeHome! : NSString(string: "~/.claude").expandingTildeInPath)
         let nativePath = (nativeBase as NSString).appendingPathComponent(".credentials.json")
         let nativePaths = fileManager.fileExists(atPath: nativePath) ? [nativePath] : []
-        var results = await fetchOwnedQuotas(forceRefresh: forceRefresh)
+        var results = includeMonitorCredentials
+            ? await fetchOwnedQuotas(forceRefresh: forceRefresh)
+            : [:]
         for (key, quota) in await fetchNativeKeychainQuotas(forceRefresh: forceRefresh) where results[key] == nil {
             results[key] = quota
         }

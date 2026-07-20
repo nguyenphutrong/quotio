@@ -17,12 +17,16 @@ nonisolated enum MonitorAccountSource: String, Codable, Sendable, CaseIterable {
     }
 
     var displayName: String {
+        localizationKey.localizedStatic()
+    }
+
+    var localizationKey: String {
         switch self {
-        case .quotioKeychain: "Quotio"
-        case .nativeCredential: "Local login"
-        case .legacyCLIProxy: "CLIProxyAPI file"
-        case .localIDE: "Local IDE"
-        case .apiKey: "API key"
+        case .quotioKeychain: "monitor.source.quotio"
+        case .nativeCredential: "monitor.source.localLogin"
+        case .legacyCLIProxy: "monitor.source.cliProxyFile"
+        case .localIDE: "monitor.source.localIDE"
+        case .apiKey: "monitor.source.apiKey"
         }
     }
 }
@@ -282,7 +286,7 @@ actor MonitorAccountDiscovery {
         let legacyFiles = await directAuthService.scanAllAuthFiles()
         let codexAliases = Self.codexAliases(from: legacyFiles)
         var candidates = await canonicalizeCodexAccounts(await vault.accounts(), aliases: codexAliases)
-        candidates.append(contentsOf: discoverNativeFiles(codexAliases: codexAliases))
+        candidates.append(contentsOf: await discoverNativeFiles(codexAliases: codexAliases))
         candidates.append(contentsOf: discoverNativeKeychains(codexAliases: codexAliases))
         let legacy = legacyFiles.map(MonitorAccount.makeLegacy)
         candidates.append(contentsOf: legacy)
@@ -378,7 +382,11 @@ actor MonitorAccountDiscovery {
         try? await metadata.setDisabled(disabled, accountID: accountID)
     }
 
-    private func discoverNativeFiles(codexAliases: [String: String]) -> [MonitorAccount] {
+    func disabledAccountIDs() async -> Set<String> {
+        await metadata.disabledAccountIDs()
+    }
+
+    private func discoverNativeFiles(codexAliases: [String: String]) async -> [MonitorAccount] {
         var accounts: [MonitorAccount] = []
         accounts.append(contentsOf: discoverCodexFiles(aliases: codexAliases))
         accounts.append(contentsOf: discoverClaudeFile())
@@ -394,7 +402,8 @@ actor MonitorAccountDiscovery {
         accounts.append(contentsOf: discoverCopilotFiles())
         accounts.append(contentsOf: discoverKiroFile())
         let antigravityDatabase = MonitorIdentity.expand("~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb")
-        if FileManager.default.fileExists(atPath: antigravityDatabase) {
+        if let token = try? await AntigravityDatabaseService().getCurrentTokenInfo(),
+           token.accessToken?.nilIfBlank != nil || token.refreshToken?.nilIfBlank != nil {
             accounts.append(.make(
                 provider: .antigravity,
                 accountKey: "Antigravity",
@@ -519,6 +528,7 @@ actor MonitorRefreshCoordinator {
 
     func discoverAccounts(merging quotas: [AIProvider: [String: ProviderQuotaData]] = [:]) async -> [MonitorAccount] {
         var accounts = await discovery.discover()
+        let disabledIDs = await discovery.disabledAccountIDs()
         let existingKeys = Set(accounts.map(\.deduplicationKey))
         var appendedKeys = existingKeys
 
@@ -530,10 +540,11 @@ actor MonitorRefreshCoordinator {
             default: source = .nativeCredential
             }
             for accountKey in accountQuotas.keys {
-                let account = MonitorAccount.make(
+                let account = Self.makeQuotaDerivedAccount(
                     provider: provider,
                     accountKey: accountKey,
-                    source: source
+                    source: source,
+                    disabledIDs: disabledIDs
                 )
                 guard appendedKeys.insert(account.deduplicationKey).inserted else { continue }
                 accounts.append(account)
@@ -564,10 +575,22 @@ actor MonitorRefreshCoordinator {
         }
     }
 
+    nonisolated static func makeQuotaDerivedAccount(
+        provider: AIProvider,
+        accountKey: String,
+        source: MonitorAccountSource,
+        disabledIDs: Set<String>
+    ) -> MonitorAccount {
+        var account = MonitorAccount.make(provider: provider, accountKey: accountKey, source: source)
+        account.isDisabled = disabledIDs.contains(account.id)
+        return account
+    }
+
     func refresh(
         provider: AIProvider,
         force: Bool,
         previous: [String: ProviderQuotaData],
+        credentialAvailability: MonitorCredentialAvailability = .unknown,
         operation: @escaping @Sendable () async -> [String: ProviderQuotaData]
     ) async -> [String: ProviderQuotaData] {
         if !force, let retry = retryAfter[provider], retry > Date() {
@@ -581,6 +604,12 @@ actor MonitorRefreshCoordinator {
         inFlight[provider] = task
         let fresh = await task.value
         inFlight[provider] = nil
+
+        if fresh.isEmpty, credentialAvailability == .missing {
+            issues.removeValue(forKey: provider)
+            retryAfter.removeValue(forKey: provider)
+            return [:]
+        }
 
         if fresh.isEmpty, !previous.isEmpty {
             issues[provider] = MonitorRefreshIssue(
@@ -627,6 +656,12 @@ actor MonitorRefreshCoordinator {
     func deleteOwnedAccount(accountID: String) async {
         await MonitorCredentialVault.shared.delete(accountID: accountID)
     }
+}
+
+nonisolated enum MonitorCredentialAvailability: Equatable, Sendable {
+    case unknown
+    case present
+    case missing
 }
 
 nonisolated enum SecureAtomicFileWriter {

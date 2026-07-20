@@ -14,6 +14,35 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(Set(filtered), providers)
     }
 
+    func testStatusBarIncludesEnabledMonitorAccountsWithoutQuota() {
+        let enabled = MonitorAccount.make(
+            provider: .claude,
+            accountKey: "enabled@example.com",
+            source: .nativeCredential
+        )
+        var disabled = MonitorAccount.make(
+            provider: .gemini,
+            accountKey: "disabled@example.com",
+            source: .nativeCredential
+        )
+        disabled.isDisabled = true
+
+        XCTAssertEqual(StatusBarMenuBuilder.monitorProviders([enabled, disabled]), Set([.claude]))
+    }
+
+    func testMonitorAccountSourcesUseLocalizationKeys() {
+        XCTAssertEqual(
+            Set(MonitorAccountSource.allCases.map(\.localizationKey)),
+            Set([
+                "monitor.source.quotio",
+                "monitor.source.localLogin",
+                "monitor.source.cliProxyFile",
+                "monitor.source.localIDE",
+                "monitor.source.apiKey",
+            ])
+        )
+    }
+
     func testDiscoveryCanonicalizesNativeCodexAccountBeforeDeduplication() {
         let legacy = MonitorAccount.make(
             provider: .codex,
@@ -201,6 +230,23 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(disabled, Set([account.id]))
     }
 
+    func testQuotaDerivedAccountPreservesDisabledState() {
+        let account = MonitorAccount.make(
+            provider: .cursor,
+            accountKey: "cursor@example.com",
+            source: .localIDE
+        )
+
+        let derived = MonitorRefreshCoordinator.makeQuotaDerivedAccount(
+            provider: .cursor,
+            accountKey: account.accountKey,
+            source: .localIDE,
+            disabledIDs: [account.id]
+        )
+
+        XCTAssertTrue(derived.isDisabled)
+    }
+
     func testCoordinatorRetainsLastGoodQuotaOnTransientFailure() async {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let coordinator = MonitorRefreshCoordinator(
@@ -221,6 +267,77 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(result["account"]?.models.first?.percentage, 75)
         let issues = await coordinator.currentIssues()
         XCTAssertNotNil(issues[.codex])
+    }
+
+    func testCoordinatorRemovesStaleQuotaWhenCredentialsAreMissing() async {
+        let coordinator = MonitorRefreshCoordinator()
+        let previous = ["account": ProviderQuotaData(models: [], lastUpdated: Date())]
+
+        let result = await coordinator.refresh(
+            provider: .codex,
+            force: true,
+            previous: previous,
+            credentialAvailability: .missing,
+            operation: { [:] }
+        )
+
+        XCTAssertTrue(result.isEmpty)
+        let issues = await coordinator.currentIssues()
+        XCTAssertNil(issues[.codex])
+    }
+
+    func testMonitorStatusDoesNotBorrowSiblingTimestamp() {
+        let account = MonitorAccount.make(
+            provider: .claude,
+            accountKey: "failed@example.com",
+            source: .nativeCredential
+        )
+        let sibling = ProviderQuotaData(models: [], lastUpdated: Date())
+
+        let updated = QuotaViewModel.monitorLastUpdated(
+            for: account,
+            providerQuotas: [.claude: ["successful@example.com": sibling]]
+        )
+
+        XCTAssertNil(updated)
+    }
+
+    func testKiroFallbackAccountKeysDoNotCollide() {
+        let first = MonitorOAuthCoordinator.kiroAccountKey(identity: nil, clientID: "client-1")
+        let second = MonitorOAuthCoordinator.kiroAccountKey(identity: nil, clientID: "client-2")
+
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(
+            MonitorOAuthCoordinator.kiroAccountKey(identity: "builder@example.com", clientID: "client-1"),
+            "builder@example.com"
+        )
+    }
+
+    func testNumericCamelCaseKiroExpiryIsParsed() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("kiro.json")
+        let timestamp = 1_900_000_000.0
+        let data = try JSONSerialization.data(withJSONObject: [
+            "accessToken": "test-access-token",
+            "expiresAt": timestamp,
+        ])
+        try data.write(to: url)
+        let file = DirectAuthFile(
+            id: url.path,
+            provider: .kiro,
+            email: nil,
+            login: nil,
+            expired: nil,
+            accountType: nil,
+            filePath: url.path,
+            source: .nativeCredential,
+            filename: url.lastPathComponent
+        )
+
+        let token = await DirectAuthFileService().readAuthToken(from: file)
+
+        XCTAssertEqual(token?.expiresAt, ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: timestamp)))
     }
 
     func testCoordinatorCoalescesConcurrentRefreshForProvider() async {

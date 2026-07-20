@@ -79,8 +79,7 @@ final class QuotaViewModel {
         if let issue = monitorIssues[account.provider] {
             return ("outdated", issue.message)
         }
-        let updated = providerQuotas[account.provider]?[account.accountKey]?.lastUpdated
-            ?? providerQuotas[account.provider]?.values.map(\.lastUpdated).max()
+        let updated = Self.monitorLastUpdated(for: account, providerQuotas: providerQuotas)
         guard let updated else { return (nil, nil) }
         let staleAfter = refreshSettings.refreshCadence.intervalSeconds ?? 600
         if Date().timeIntervalSince(updated) > staleAfter {
@@ -93,6 +92,13 @@ final class QuotaViewModel {
             "ready",
             String(format: "monitor.status.updated".localized(), updated.formatted(date: .omitted, time: .shortened))
         )
+    }
+
+    nonisolated static func monitorLastUpdated(
+        for account: MonitorAccount,
+        providerQuotas: [AIProvider: [String: ProviderQuotaData]]
+    ) -> Date? {
+        providerQuotas[account.provider]?[account.accountKey]?.lastUpdated
     }
     
     /// Last quota refresh time (for quota-only mode display)
@@ -409,6 +415,11 @@ final class QuotaViewModel {
         
         let previous = providerQuotas
         let coordinator = monitorCoordinator
+        let discoveredProviders = Set(await coordinator.discoverAccounts().map(\.provider))
+        let credentialProviders: Set<AIProvider> = [.codex, .claude, .gemini, .copilot, .kiro, .antigravity]
+        let credentialAvailability = Dictionary(uniqueKeysWithValues: credentialProviders.map {
+            ($0, discoveredProviders.contains($0) ? MonitorCredentialAvailability.present : .missing)
+        })
         let codexFetcher = codexCLIFetcher
         let claudeFetcher = claudeCodeFetcher
         let geminiFetcher = geminiCLIFetcher
@@ -420,20 +431,45 @@ final class QuotaViewModel {
         let antigravityQuotaFetcher = antigravityFetcher
         let warpTokens = WarpService.shared.tokens.filter { $0.isEnabled }
 
-        async let codex = coordinator.refresh(provider: .codex, force: force, previous: previous[.codex] ?? [:]) {
+        async let codex = coordinator.refresh(
+            provider: .codex,
+            force: force,
+            previous: previous[.codex] ?? [:],
+            credentialAvailability: credentialAvailability[.codex] ?? .unknown
+        ) {
             await codexFetcher.fetchAsProviderQuota()
         }
-        async let claude = coordinator.refresh(provider: .claude, force: force, previous: previous[.claude] ?? [:]) {
-            await claudeFetcher.fetchAsProviderQuota()
+        async let claude = coordinator.refresh(
+            provider: .claude,
+            force: force,
+            previous: previous[.claude] ?? [:],
+            credentialAvailability: credentialAvailability[.claude] ?? .unknown
+        ) {
+            await claudeFetcher.fetchAsProviderQuota(forceRefresh: force, includeMonitorCredentials: true)
         }
-        async let gemini = coordinator.refresh(provider: .gemini, force: force, previous: previous[.gemini] ?? [:]) {
-            await geminiFetcher.fetchAsProviderQuota()
+        async let gemini = coordinator.refresh(
+            provider: .gemini,
+            force: force,
+            previous: previous[.gemini] ?? [:],
+            credentialAvailability: credentialAvailability[.gemini] ?? .unknown
+        ) {
+            await geminiFetcher.fetchAsProviderQuota(includeMonitorCredentials: true)
         }
-        async let copilot = coordinator.refresh(provider: .copilot, force: force, previous: previous[.copilot] ?? [:]) {
-            await copilotQuotaFetcher.fetchAllCopilotQuotas()
+        async let copilot = coordinator.refresh(
+            provider: .copilot,
+            force: force,
+            previous: previous[.copilot] ?? [:],
+            credentialAvailability: credentialAvailability[.copilot] ?? .unknown
+        ) {
+            await copilotQuotaFetcher.fetchAllCopilotQuotas(includeMonitorCredentials: true)
         }
-        async let kiro = coordinator.refresh(provider: .kiro, force: force, previous: previous[.kiro] ?? [:]) {
-            await kiroQuotaFetcher.fetchAllQuotas()
+        async let kiro = coordinator.refresh(
+            provider: .kiro,
+            force: force,
+            previous: previous[.kiro] ?? [:],
+            credentialAvailability: credentialAvailability[.kiro] ?? .unknown
+        ) {
+            await kiroQuotaFetcher.fetchAllQuotas(includeMonitorCredentials: true)
         }
         async let glm = coordinator.refresh(provider: .glm, force: force, previous: previous[.glm] ?? [:]) {
             await glmQuotaFetcher.fetchAllQuotas()
@@ -450,8 +486,13 @@ final class QuotaViewModel {
             }
             return quotas
         }
-        async let antigravity = coordinator.refresh(provider: .antigravity, force: force, previous: previous[.antigravity] ?? [:]) {
-            let (quotas, _) = await antigravityQuotaFetcher.fetchAllAntigravityData()
+        async let antigravity = coordinator.refresh(
+            provider: .antigravity,
+            force: force,
+            previous: previous[.antigravity] ?? [:],
+            credentialAvailability: credentialAvailability[.antigravity] ?? .unknown
+        ) {
+            let (quotas, _) = await antigravityQuotaFetcher.fetchAllAntigravityData(includeMonitorCredentials: true)
             return quotas
         }
 
@@ -466,11 +507,8 @@ final class QuotaViewModel {
         providerQuotas[.antigravity] = await antigravity
         providerQuotas = providerQuotas.filter { !$0.value.isEmpty }
 
-        for account in monitorAccounts where account.isDisabled {
-            providerQuotas[account.provider]?.removeValue(forKey: account.accountKey)
-        }
-
         monitorAccounts = await coordinator.discoverAccounts(merging: providerQuotas)
+        removeDisabledMonitorQuotas()
         monitorIssues = await coordinator.currentIssues()
         await coordinator.finish(quotas: providerQuotas)
         
@@ -517,6 +555,12 @@ final class QuotaViewModel {
         }
         
         menuBarSettings.autoSelectNewAccounts(availableItems: availableItems)
+    }
+
+    private func removeDisabledMonitorQuotas() {
+        for account in monitorAccounts where account.isDisabled {
+            providerQuotas[account.provider]?.removeValue(forKey: account.accountKey)
+        }
     }
     
     func syncMenuBarSelection() {
@@ -2131,6 +2175,11 @@ final class QuotaViewModel {
         
         // Persist IDE quota data for Cursor and Trae
         savePersistedIDEQuotas()
+
+        if modeManager.isMonitorMode {
+            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            removeDisabledMonitorQuotas()
+        }
 
         // Update menu bar items
         pruneMenuBarItems()

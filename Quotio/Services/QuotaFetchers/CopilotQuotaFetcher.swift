@@ -235,15 +235,20 @@ actor CopilotQuotaFetcher {
         }
     }
     
-    func fetchAllCopilotQuotas(authDir: String = "~/.cli-proxy-api") async -> [String: ProviderQuotaData] {
+    func fetchAllCopilotQuotas(
+        authDir: String = "~/.cli-proxy-api",
+        includeMonitorCredentials: Bool = false
+    ) async -> [String: ProviderQuotaData] {
         var results: [String: ProviderQuotaData] = [:]
-        for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .copilot && !$0.isDisabled }) {
-            guard let credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
-            do {
-                let entitlement = try await fetchEntitlement(accessToken: credential.accessToken)
-                results[account.accountKey] = convertToQuotaData(entitlement: entitlement)
-            } catch {
-                continue
+        if includeMonitorCredentials {
+            for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .copilot && !$0.isDisabled }) {
+                guard let credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
+                do {
+                    let entitlement = try await fetchEntitlement(accessToken: credential.accessToken)
+                    results[account.accountKey] = convertToQuotaData(entitlement: entitlement)
+                } catch {
+                    continue
+                }
             }
         }
 
