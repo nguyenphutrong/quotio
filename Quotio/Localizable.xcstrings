@@ -22631,30 +22631,6 @@
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tuần" } }
       }
     },
-    "factory.status.extraUsageBalance" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enabled · Extra usage balance" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã bật · Số dư dùng thêm" } }
-      }
-    },
-    "factory.status.extraUsageCore" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enabled · Droid Core" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã bật · Droid Core" } }
-      }
-    },
-    "factory.status.extraUsageDisabled" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disabled" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã tắt" } }
-      }
-    },
-    "factory.status.extraUsageEnabled" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enabled" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã bật" } }
-      }
-    },
     "factory.status.legacyBilling" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Legacy billing" } },

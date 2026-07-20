@@ -293,7 +293,6 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         case "factory-core-weekly": return "factory.quota.coreWeekly".localizedStatic()
         case "factory-core-monthly": return "factory.quota.coreMonthly".localizedStatic()
         case "factory-extra-balance": return "quota.metric.extraBalance".localizedStatic()
-        case "factory-extra-usage": return "quota.metric.extraUsage".localizedStatic()
         case "factory-billing-mode": return "factory.quota.billingMode".localizedStatic()
         // OpenRouter
         case "openrouter-credits": return "quota.metric.credits".localizedStatic()

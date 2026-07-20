@@ -315,7 +315,7 @@ final class MonitorRuntimeTests: XCTestCase {
 
         let quota = FactoryDroidQuotaMapper.map(response)
 
-        XCTAssertEqual(quota.models.count, 8)
+        XCTAssertEqual(quota.models.count, 7)
         XCTAssertEqual(quota.models.first(where: { $0.name == "factory-standard-five-hour" })?.percentage, 0)
         XCTAssertEqual(quota.models.first(where: { $0.name == "factory-standard-weekly" })?.percentage, 37)
         XCTAssertEqual(quota.models.first(where: { $0.name == "factory-core-weekly" })?.percentage, 49)
@@ -334,10 +334,7 @@ final class MonitorRuntimeTests: XCTestCase {
             quota.models.first(where: { $0.name == "factory-extra-balance" })?.presentation,
             .amount(value: 0, unit: .usd, semantics: .balance)
         )
-        XCTAssertEqual(
-            quota.models.first(where: { $0.name == "factory-extra-usage" })?.presentation,
-            .status(text: "factory.status.extraUsageCore".localizedStatic())
-        )
+        XCTAssertNil(quota.models.first(where: { $0.name == "factory-extra-usage" }))
     }
 
     func testFactoryDroidAuthMeExtractsUserProfileEmail() throws {

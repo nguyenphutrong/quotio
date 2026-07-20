@@ -113,8 +113,6 @@ nonisolated struct FactoryDroidQuotaResponse: Decodable, Sendable {
     let usesTokenRateLimitsBilling: Bool?
     let limits: FactoryDroidLimitPools?
     let extraUsageBalanceCents: Double?
-    let overagePreference: String?
-    let extraUsageAllowed: Bool?
 }
 
 nonisolated struct FactoryDroidAuthMeResponse: Decodable, Sendable {
@@ -211,18 +209,6 @@ nonisolated enum FactoryDroidQuotaMapper {
             ))
         }
 
-        if let allowed = response.extraUsageAllowed {
-            models.append(ModelQuota(
-                name: "factory-extra-usage",
-                percentage: -1,
-                resetTime: "",
-                presentation: .status(text: extraUsageStatus(
-                    allowed: allowed,
-                    preference: response.overagePreference
-                ))
-            ))
-        }
-
         return ProviderQuotaData(models: models, lastUpdated: now)
     }
 
@@ -246,14 +232,6 @@ nonisolated enum FactoryDroidQuotaMapper {
         }
     }
 
-    private static func extraUsageStatus(allowed: Bool, preference: String?) -> String {
-        guard allowed else { return "factory.status.extraUsageDisabled".localizedStatic() }
-        switch preference {
-        case "droidCore": return "factory.status.extraUsageCore".localizedStatic()
-        case "extraUsage": return "factory.status.extraUsageBalance".localizedStatic()
-        default: return "factory.status.extraUsageEnabled".localizedStatic()
-        }
-    }
 }
 
 actor FactoryDroidQuotaFetcher {
