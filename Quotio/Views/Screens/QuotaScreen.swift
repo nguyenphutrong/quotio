@@ -377,7 +377,7 @@ private struct ProviderQuotaView: View {
             if !existingKeys.contains(key) {
                 accounts.append(AccountInfo(
                     key: key,
-                    email: directAuthEmailsByKey[key] ?? key,
+                    email: data.accountDisplayName ?? directAuthEmailsByKey[key] ?? key,
                     status: "active",
                     statusColor: .green,
                     authFile: nil,
@@ -868,35 +868,66 @@ private struct AccountQuotaCardV2: View {
     private func standardContentByStyle(data: ProviderQuotaData) -> some View {
         let meterModels = data.models.filter { !$0.isStandaloneMetric }
         let standaloneModels = data.models.filter(\.isStandaloneMetric)
+        let factorySections = provider == .factoryDroid
+            ? FactoryDroidQuotaSection.sections(from: meterModels)
+            : []
 
         VStack(spacing: 12) {
-            if !meterModels.isEmpty {
-                switch displayStyle {
-                case .lowestBar:
-                    StandardLowestBarLayout(models: meterModels)
-                case .ring:
-                    StandardRingLayout(models: meterModels)
-                case .card:
-                    VStack(spacing: 12) {
-                        ForEach(meterModels) { model in
-                            UsageRowV2(
-                                name: model.displayName,
-                                icon: nil,
-                                usedPercent: model.usedPercentage,
-                                used: model.used,
-                                limit: model.limit,
-                                formattedUsage: model.presentation == nil ? nil : model.formattedUsage,
-                                resetTime: model.formattedResetTime,
-                                tooltip: model.tooltip
-                            )
-                        }
+            if !factorySections.isEmpty {
+                ForEach(factorySections) { section in
+                    VStack(alignment: .leading, spacing: 8) {
+                        FactoryDroidQuotaSectionHeader(title: section.title)
+                        meterContentByStyle(models: section.models)
                     }
                 }
+            } else if !meterModels.isEmpty {
+                meterContentByStyle(models: meterModels)
             }
 
             ForEach(standaloneModels) { model in
                 StandaloneMetricRow(model: model)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func meterContentByStyle(models: [ModelQuota]) -> some View {
+        switch displayStyle {
+        case .lowestBar:
+            StandardLowestBarLayout(models: models)
+        case .ring:
+            StandardRingLayout(models: models)
+        case .card:
+            VStack(spacing: 12) {
+                ForEach(models) { model in
+                    UsageRowV2(
+                        name: model.displayName,
+                        icon: nil,
+                        usedPercent: model.usedPercentage,
+                        used: model.used,
+                        limit: model.limit,
+                        formattedUsage: model.presentation == nil ? nil : model.formattedUsage,
+                        resetTime: model.formattedResetTime,
+                        tooltip: model.tooltip
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct FactoryDroidQuotaSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+            Rectangle()
+                .fill(Color.primary.opacity(0.08))
+                .frame(height: 1)
         }
     }
 }

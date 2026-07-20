@@ -222,7 +222,8 @@ final class StatusBarMenuBuilder {
 
     private func accountsForProvider(_ provider: AIProvider) -> [(email: String, data: ProviderQuotaData)] {
         guard let quotas = viewModel.providerQuotas[provider] else { return [] }
-        return quotas.map { ($0.key, $0.value) }.sorted { $0.email < $1.email }
+        return quotas.map { ($0.value.accountDisplayName ?? $0.key, $0.value) }
+            .sorted { $0.email < $1.email }
     }
 
     // MARK: - Header Item
@@ -1011,8 +1012,9 @@ private struct MenuAccountCardView: View {
             }
         }()
         let standaloneModels = isAntigravity ? [] : data.models.filter(\.isStandaloneMetric)
-        
-        let displayStyle = settings.quotaDisplayStyle
+        let factorySections = provider == .factoryDroid
+            ? FactoryDroidQuotaSection.sections(from: data.models.filter { !$0.isStandaloneMetric })
+            : []
         
         return VStack(spacing: 8) {
             if models.isEmpty && standaloneModels.isEmpty {
@@ -1021,15 +1023,17 @@ private struct MenuAccountCardView: View {
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 8)
-            } else if !models.isEmpty && displayStyle == .lowestBar {
-                // Modern Lowest Bar: Big highlighted row for bottleneck, others compact
-                LowestBarLayout(models: models)
-            } else if !models.isEmpty && displayStyle == .ring {
-                // Ring Grid
-                RingGridLayout(models: models)
+            } else if !factorySections.isEmpty {
+                ForEach(factorySections) { section in
+                    VStack(alignment: .leading, spacing: 6) {
+                        FactoryDroidMenuSectionHeader(title: section.title)
+                        quotaLayout(models: section.models.map {
+                            ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime)
+                        })
+                    }
+                }
             } else if !models.isEmpty {
-                // Standard Card Grid (Bars)
-                CardGridLayout(models: models)
+                quotaLayout(models: models)
             }
 
             ForEach(standaloneModels) { model in
@@ -1045,6 +1049,18 @@ private struct MenuAccountCardView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func quotaLayout(models: [ModelBadgeData]) -> some View {
+        switch settings.quotaDisplayStyle {
+        case .lowestBar:
+            LowestBarLayout(models: models)
+        case .ring:
+            RingGridLayout(models: models)
+        case .card:
+            CardGridLayout(models: models)
         }
     }
     
@@ -1098,6 +1114,21 @@ private struct MenuAccountCardView: View {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+}
+
+private struct FactoryDroidMenuSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+            Rectangle()
+                .fill(Color.primary.opacity(0.08))
+                .frame(height: 1)
+        }
     }
 }
 

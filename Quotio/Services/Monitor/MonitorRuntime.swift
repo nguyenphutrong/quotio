@@ -562,15 +562,17 @@ actor MonitorRefreshCoordinator {
     }
 
     func bootstrap() async -> MonitorRefreshBatch {
-        MonitorRefreshBatch(
-            accounts: await discovery.discover(),
-            quotas: await snapshots.load(),
+        let quotas = await snapshots.load()
+        return MonitorRefreshBatch(
+            accounts: await discoverAccounts(merging: quotas),
+            quotas: quotas,
             issues: issues
         )
     }
 
     func discoverAccounts(merging quotas: [AIProvider: [String: ProviderQuotaData]] = [:]) async -> [MonitorAccount] {
         var accounts = await discovery.discover()
+        accounts = Self.applyingQuotaDisplayNames(accounts, quotas: quotas)
         let disabledIDs = await discovery.disabledAccountIDs()
         let existingKeys = Set(accounts.map(\.deduplicationKey))
         var appendedKeys = existingKeys
@@ -582,10 +584,11 @@ actor MonitorRefreshCoordinator {
             case .glm, .warp, .clinePass, .factoryDroid, .openRouter: source = .apiKey
             default: source = .nativeCredential
             }
-            for accountKey in accountQuotas.keys {
+            for (accountKey, quota) in accountQuotas {
                 let account = Self.makeQuotaDerivedAccount(
                     provider: provider,
                     accountKey: accountKey,
+                    displayName: quota.accountDisplayName,
                     source: source,
                     disabledIDs: disabledIDs
                 )
@@ -621,12 +624,39 @@ actor MonitorRefreshCoordinator {
     nonisolated static func makeQuotaDerivedAccount(
         provider: AIProvider,
         accountKey: String,
+        displayName: String? = nil,
         source: MonitorAccountSource,
         disabledIDs: Set<String>
     ) -> MonitorAccount {
-        var account = MonitorAccount.make(provider: provider, accountKey: accountKey, source: source)
+        var account = MonitorAccount.make(
+            provider: provider,
+            accountKey: accountKey,
+            displayName: displayName,
+            source: source
+        )
         account.isDisabled = disabledIDs.contains(account.id)
         return account
+    }
+
+    nonisolated static func applyingQuotaDisplayNames(
+        _ accounts: [MonitorAccount],
+        quotas: [AIProvider: [String: ProviderQuotaData]]
+    ) -> [MonitorAccount] {
+        accounts.map { account in
+            guard let displayName = quotas[account.provider]?[account.accountKey]?.accountDisplayName else {
+                return account
+            }
+            return MonitorAccount(
+                id: account.id,
+                provider: account.provider,
+                accountKey: account.accountKey,
+                displayName: displayName,
+                source: account.source,
+                credentialReference: account.credentialReference,
+                canDelete: account.canDelete,
+                isDisabled: account.isDisabled
+            )
+        }
     }
 
     func refresh(

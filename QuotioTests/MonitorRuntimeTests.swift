@@ -200,13 +200,15 @@ final class MonitorRuntimeTests: XCTestCase {
         let store = MonitorSnapshotStore(url: url)
         let quota = ProviderQuotaData(
             models: [ModelQuota(name: "test", percentage: 42, resetTime: "")],
-            lastUpdated: Date(timeIntervalSince1970: 1234)
+            lastUpdated: Date(timeIntervalSince1970: 1234),
+            accountDisplayName: "factory@example.com"
         )
 
         await store.store([.codex: ["account": quota]])
         let loaded = await store.load()
 
         XCTAssertEqual(loaded[.codex]?["account"]?.models.first?.percentage, 42)
+        XCTAssertEqual(loaded[.codex]?["account"]?.accountDisplayName, "factory@example.com")
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
     }
@@ -317,6 +319,17 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(quota.models.first(where: { $0.name == "factory-standard-five-hour" })?.percentage, 0)
         XCTAssertEqual(quota.models.first(where: { $0.name == "factory-standard-weekly" })?.percentage, 37)
         XCTAssertEqual(quota.models.first(where: { $0.name == "factory-core-weekly" })?.percentage, 49)
+        let sections = FactoryDroidQuotaSection.sections(from: quota.models)
+        XCTAssertEqual(sections.map(\.group), [.standard, .core])
+        XCTAssertEqual(sections.map { $0.models.count }, [3, 3])
+        XCTAssertEqual(
+            sections[0].models.map(\.name),
+            ["factory-standard-five-hour", "factory-standard-weekly", "factory-standard-monthly"]
+        )
+        XCTAssertEqual(
+            sections[1].models.map(\.name),
+            ["factory-core-five-hour", "factory-core-weekly", "factory-core-monthly"]
+        )
         XCTAssertEqual(
             quota.models.first(where: { $0.name == "factory-extra-balance" })?.presentation,
             .amount(value: 0, unit: .usd, semantics: .balance)
@@ -325,6 +338,20 @@ final class MonitorRuntimeTests: XCTestCase {
             quota.models.first(where: { $0.name == "factory-extra-usage" })?.presentation,
             .status(text: "factory.status.extraUsageCore".localizedStatic())
         )
+    }
+
+    func testFactoryDroidAuthMeExtractsUserProfileEmail() throws {
+        let response = try JSONDecoder().decode(
+            FactoryDroidAuthMeResponse.self,
+            from: Data(#"{"organization":{"id":"org-123"},"userProfile":{"email":" factory@example.com ","firstName":"Factory"}}"#.utf8)
+        )
+        let missing = try JSONDecoder().decode(
+            FactoryDroidAuthMeResponse.self,
+            from: Data(#"{"userProfile":{"email":"  "}}"#.utf8)
+        )
+
+        XCTAssertEqual(response.email, "factory@example.com")
+        XCTAssertNil(missing.email)
     }
 
     func testFactoryDroidMapsLegacyBillingStatus() throws {
@@ -578,6 +605,25 @@ final class MonitorRuntimeTests: XCTestCase {
         )
 
         XCTAssertTrue(derived.isDisabled)
+    }
+
+    func testQuotaDisplayNameEnrichmentPreservesFactoryAccountIdentity() {
+        let account = MonitorAccount.make(
+            provider: .factoryDroid,
+            accountKey: "org-123",
+            displayName: "Factory Droid",
+            source: .nativeCredential
+        )
+        let quota = ProviderQuotaData(accountDisplayName: "factory@example.com")
+
+        let enriched = MonitorRefreshCoordinator.applyingQuotaDisplayNames(
+            [account],
+            quotas: [.factoryDroid: [account.accountKey: quota]]
+        )
+
+        XCTAssertEqual(enriched.first?.displayName, "factory@example.com")
+        XCTAssertEqual(enriched.first?.accountKey, account.accountKey)
+        XCTAssertEqual(enriched.first?.id, account.id)
     }
 
     func testCoordinatorRetainsLastGoodQuotaOnTransientFailure() async {

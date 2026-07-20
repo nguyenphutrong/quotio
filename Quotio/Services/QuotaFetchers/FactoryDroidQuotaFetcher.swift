@@ -117,6 +117,20 @@ nonisolated struct FactoryDroidQuotaResponse: Decodable, Sendable {
     let extraUsageAllowed: Bool?
 }
 
+nonisolated struct FactoryDroidAuthMeResponse: Decodable, Sendable {
+    struct UserProfile: Decodable, Sendable {
+        let email: String?
+    }
+
+    let userProfile: UserProfile?
+
+    var email: String? {
+        guard let email = userProfile?.email?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !email.isEmpty else { return nil }
+        return email
+    }
+}
+
 nonisolated struct FactoryDroidLimitPools: Decodable, Sendable {
     let standard: FactoryDroidLimitPool?
     let core: FactoryDroidLimitPool?
@@ -132,6 +146,38 @@ nonisolated struct FactoryDroidLimitWindow: Decodable, Sendable {
     let usedPercent: Double
     let windowEnd: String?
     let secondsRemaining: Double?
+}
+
+nonisolated enum FactoryDroidQuotaGroup: String, CaseIterable, Identifiable, Sendable {
+    case standard
+    case core
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .standard: "factory.quota.group.standard".localizedStatic()
+        case .core: "factory.quota.group.core".localizedStatic()
+        }
+    }
+
+    fileprivate var modelPrefix: String { "factory-\(rawValue)-" }
+}
+
+nonisolated struct FactoryDroidQuotaSection: Identifiable, Sendable {
+    let group: FactoryDroidQuotaGroup
+    let models: [ModelQuota]
+
+    var id: FactoryDroidQuotaGroup { group }
+    var title: String { group.title }
+
+    static func sections(from models: [ModelQuota]) -> [FactoryDroidQuotaSection] {
+        FactoryDroidQuotaGroup.allCases.compactMap { group in
+            let groupModels = models.filter { $0.name.hasPrefix(group.modelPrefix) }
+            guard !groupModels.isEmpty else { return nil }
+            return FactoryDroidQuotaSection(group: group, models: groupModels)
+        }
+    }
 }
 
 nonisolated enum FactoryDroidQuotaMapper {
@@ -215,6 +261,7 @@ actor FactoryDroidQuotaFetcher {
     private let metadata: MonitorMetadataStore
     private var session: URLSession
     private let limitsURL = URL(string: "https://api.factory.ai/api/billing/limits")!
+    private let profileURL = URL(string: "https://api.factory.ai/api/app/auth/me")!
 
     init(
         vault: MonitorCredentialStore = MonitorCredentialVault.shared,
@@ -261,6 +308,8 @@ actor FactoryDroidQuotaFetcher {
     }
 
     private func fetch(accessToken: String) async -> ProviderQuotaData? {
+        async let profile = fetchProfile(accessToken: accessToken)
+
         var request = URLRequest(url: limitsURL)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -273,6 +322,18 @@ actor FactoryDroidQuotaFetcher {
               let decoded = try? JSONDecoder().decode(FactoryDroidQuotaResponse.self, from: data) else {
             return nil
         }
-        return FactoryDroidQuotaMapper.map(decoded)
+        var quota = FactoryDroidQuotaMapper.map(decoded)
+        quota.accountDisplayName = await profile?.email
+        return quota
+    }
+
+    private func fetchProfile(accessToken: String) async -> FactoryDroidAuthMeResponse? {
+        var request = URLRequest(url: profileURL)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse,
+              200...299 ~= http.statusCode else { return nil }
+        return try? JSONDecoder().decode(FactoryDroidAuthMeResponse.self, from: data)
     }
 }

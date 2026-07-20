@@ -360,6 +360,7 @@ nonisolated struct ProviderQuotaData: Codable, Sendable {
     var planType: String?
     var tokenExpiresAt: Date?  // For Kiro: token expiry time
     var analytics: QuotaAnalytics?
+    var accountDisplayName: String?
 
     init(
         models: [ModelQuota] = [],
@@ -367,7 +368,8 @@ nonisolated struct ProviderQuotaData: Codable, Sendable {
         isForbidden: Bool = false,
         planType: String? = nil,
         tokenExpiresAt: Date? = nil,
-        analytics: QuotaAnalytics? = nil
+        analytics: QuotaAnalytics? = nil,
+        accountDisplayName: String? = nil
     ) {
         self.models = models
         self.lastUpdated = lastUpdated
@@ -375,6 +377,7 @@ nonisolated struct ProviderQuotaData: Codable, Sendable {
         self.planType = planType
         self.tokenExpiresAt = tokenExpiresAt
         self.analytics = analytics
+        self.accountDisplayName = accountDisplayName
     }
 
     /// Format token expiry time in user's local timezone
