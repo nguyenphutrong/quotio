@@ -401,6 +401,8 @@ actor MonitorAccountDiscovery {
         accounts.append(contentsOf: discoverGeminiFile())
         accounts.append(contentsOf: discoverCopilotFiles())
         accounts.append(contentsOf: discoverKiroFile())
+        accounts.append(contentsOf: discoverDevinCredential())
+        accounts.append(contentsOf: discoverGrokCredentials())
         let antigravityDatabase = MonitorIdentity.expand("~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb")
         if let token = try? await AntigravityDatabaseService().getCurrentTokenInfo(),
            token.accessToken?.nilIfBlank != nil || token.refreshToken?.nilIfBlank != nil {
@@ -412,6 +414,41 @@ actor MonitorAccountDiscovery {
             ))
         }
         return accounts
+    }
+
+    private func discoverDevinCredential() -> [MonitorAccount] {
+        let credentialsPath = MonitorIdentity.expand(DevinQuotaFetcher.credentialsPath)
+        if let text = try? String(contentsOfFile: credentialsPath, encoding: .utf8),
+           DevinQuotaFetcher.parseCredentialsTOML(text) != nil {
+            return [.make(
+                provider: .devin,
+                accountKey: "Devin",
+                source: .nativeCredential,
+                credentialReference: credentialsPath
+            )]
+        }
+
+        let databasePath = MonitorIdentity.expand(DevinQuotaFetcher.stateDBPath)
+        guard DevinQuotaFetcher.loadAppCredential(path: databasePath) != nil else { return [] }
+        return [.make(
+            provider: .devin,
+            accountKey: "Devin",
+            source: .localIDE,
+            credentialReference: databasePath
+        )]
+    }
+
+    private func discoverGrokCredentials() -> [MonitorAccount] {
+        let path = MonitorIdentity.expand(GrokQuotaFetcher.authPath)
+        return GrokQuotaFetcher.loadCandidates(path: path).map { candidate in
+            .make(
+                provider: .grok,
+                accountKey: candidate.entryKey,
+                displayName: candidate.displayName,
+                source: .nativeCredential,
+                credentialReference: path + "#" + candidate.entryKey
+            )
+        }
     }
 
     private func discoverCodexFiles(aliases: [String: String]) -> [MonitorAccount] {
@@ -536,7 +573,7 @@ actor MonitorRefreshCoordinator {
             let source: MonitorAccountSource
             switch provider {
             case .cursor, .trae: source = .localIDE
-            case .glm, .warp, .clinePass: source = .apiKey
+            case .glm, .warp, .clinePass, .openRouter: source = .apiKey
             default: source = .nativeCredential
             }
             for accountKey in accountQuotas.keys {
@@ -680,6 +717,7 @@ nonisolated enum SecureAtomicFileWriter {
         } else {
             try manager.moveItem(at: temporary, to: url)
         }
+        try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 }
 
@@ -718,11 +756,13 @@ nonisolated enum MonitorIdentity {
 
 nonisolated enum MonitorRuntimeError: LocalizedError {
     case credentialWriteFailed
+    case invalidCredential
     case symbolicLinkRefused
 
     var errorDescription: String? {
         switch self {
         case .credentialWriteFailed: "Could not save the Monitor credential in Keychain."
+        case .invalidCredential: "The Monitor credential file is invalid."
         case .symbolicLinkRefused: "Refusing to write credentials through a symbolic link."
         }
     }

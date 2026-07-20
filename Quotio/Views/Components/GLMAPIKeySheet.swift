@@ -18,7 +18,7 @@ struct GLMAPIKeySheet: View {
     // MARK: - Form State
 
     @State private var apiKey: String = ""
-    @State private var endpoint: GLMEndpoint = .bigmodel
+    @State private var endpoint: GLMEndpoint = .zai
 
     @State private var validationError: String?
     @State private var showValidationAlert = false
@@ -133,7 +133,6 @@ struct GLMAPIKeySheet: View {
                 }
                 .pickerStyle(.menu)
                 .labelsHidden()
-                .disabled(true) // Only bigmodel.cn is supported
             }
         }
         .padding(16)
@@ -174,6 +173,8 @@ struct GLMAPIKeySheet: View {
         // Determine endpoint from base URL
         if provider.baseURL.contains("bigmodel.cn") {
             endpoint = .bigmodel
+        } else {
+            endpoint = .zai
         }
     }
 
@@ -190,7 +191,7 @@ struct GLMAPIKeySheet: View {
         // Build provider using GLM type (similar to Gemini compatibility)
         let newProvider = CustomProvider(
             id: provider?.id ?? UUID(),
-            name: "GLM",
+            name: provider?.name ?? "Z.ai",
             type: .glmCompatibility,
             baseURL: endpoint.baseURL,
             apiKeys: [CustomAPIKeyEntry(apiKey: trimmedKey)],
@@ -207,18 +208,21 @@ struct GLMAPIKeySheet: View {
 // MARK: - GLM Endpoint
 
 enum GLMEndpoint: String, CaseIterable, Codable, Identifiable, Sendable {
+    case zai
     case bigmodel
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
+        case .zai: return "Z.ai Global"
         case .bigmodel: return "bigmodel.cn"
         }
     }
 
     var baseURL: String {
         switch self {
+        case .zai: return "https://api.z.ai"
         case .bigmodel: return "https://bigmodel.cn"
         }
     }

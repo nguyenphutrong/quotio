@@ -141,7 +141,8 @@ struct AccountRowData: Identifiable, Hashable {
             status: status,
             statusMessage: statusMessage,
             isDisabled: monitorAccount.isDisabled,
-            canDelete: monitorAccount.canDelete
+            canDelete: monitorAccount.canDelete,
+            canEdit: monitorAccount.provider == .openRouter
         )
     }
 

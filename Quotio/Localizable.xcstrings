@@ -22529,6 +22529,168 @@
         }
       }
     },
+    "grok.status.cap" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ cap" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giới hạn %@" } }
+      }
+    },
+    "grok.status.disabled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disabled" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã tắt" } }
+      }
+    },
+    "openrouter.apiKey.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stored securely in Keychain and never shown again." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Được lưu an toàn trong Keychain và không hiển thị lại." } }
+      }
+    },
+    "openrouter.apiKey.label" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OpenRouter API Key" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "OpenRouter API Key" } }
+      }
+    },
+    "openrouter.apiKey.placeholder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter your OpenRouter API key" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập OpenRouter API key" } }
+      }
+    },
+    "openrouter.apiKey.rotateHint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a replacement key. The current key is never revealed." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập key thay thế. Key hiện tại không bao giờ được hiển thị." } }
+      }
+    },
+    "openrouter.connection.edit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rotate OpenRouter Key" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thay OpenRouter Key" } }
+      }
+    },
+    "openrouter.connection.subtitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Monitor credits and API-key spend without proxy routing" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Theo dõi credits và chi tiêu API key, không dùng proxy routing" } }
+      }
+    },
+    "openrouter.connection.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connect OpenRouter" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kết nối OpenRouter" } }
+      }
+    },
+    "openrouter.label.placeholder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Account label" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhãn tài khoản" } }
+      }
+    },
+    "quota.metric.balance" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Balance" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Số dư" } }
+      }
+    },
+    "quota.metric.balanceValue" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ left" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Còn %@" } }
+      }
+    },
+    "quota.metric.credits" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Credits" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Credits" } }
+      }
+    },
+    "quota.metric.daily" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Daily" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng ngày" } }
+      }
+    },
+    "quota.metric.extraBalance" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Extra Balance" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Số dư bổ sung" } }
+      }
+    },
+    "quota.metric.extraUsage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Extra Usage" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mức dùng thêm" } }
+      }
+    },
+    "quota.metric.keyLimit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Key Limit" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giới hạn key" } }
+      }
+    },
+    "quota.metric.session" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Session" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Phiên" } }
+      }
+    },
+    "quota.metric.spentValue" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ spent" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã dùng %@" } }
+      }
+    },
+    "quota.metric.thisMonth" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This Month" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tháng này" } }
+      }
+    },
+    "quota.metric.thisWeek" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This Week" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tuần này" } }
+      }
+    },
+    "quota.metric.today" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Today" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hôm nay" } }
+      }
+    },
+    "quota.metric.unit.credits" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ credits" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ credits" } }
+      }
+    },
+    "quota.metric.unit.requests" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ requests" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ yêu cầu" } }
+      }
+    },
+    "quota.metric.unit.searches" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ searches" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ lượt tìm kiếm" } }
+      }
+    },
+    "quota.metric.webSearches" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Web Searches" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tìm kiếm web" } }
+      }
+    },
+    "quota.metric.weekly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Weekly" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tuần" } }
+      }
+    },
     "warp.token.placeholder" : {
       "extractionState" : "stale",
       "localizations" : {

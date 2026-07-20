@@ -1,9 +1,10 @@
 import XCTest
+import SQLite3
 @testable import Quotio
 
 final class MonitorRuntimeTests: XCTestCase {
     func testMonitorProvidersDoNotRequireInstalledCLI() {
-        let providers: Set<AIProvider> = [.codex, .claude, .gemini]
+        let providers: Set<AIProvider> = [.codex, .claude, .gemini, .devin, .grok, .openRouter]
 
         let filtered = StatusBarMenuBuilder.filterProviders(
             providers,
@@ -207,6 +208,234 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(loaded[.codex]?["account"]?.models.first?.percentage, 42)
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+    }
+
+    func testLegacyModelQuotaDecodesWithoutMetricPresentation() throws {
+        let data = Data(#"{"name":"legacy","percentage":42,"resetTime":"","used":3,"limit":10}"#.utf8)
+
+        let model = try JSONDecoder().decode(ModelQuota.self, from: data)
+
+        XCTAssertNil(model.presentation)
+        XCTAssertEqual(model.percentage, 42)
+        XCTAssertEqual(model.used, 3)
+        XCTAssertEqual(model.limit, 10)
+    }
+
+    func testMetricPresentationsRoundTrip() throws {
+        let values: [QuotaMetricPresentation] = [
+            .progress(used: 1.25, limit: 10.5, unit: .usd),
+            .amount(value: 4.75, unit: .credits, semantics: .balance),
+            .status(text: "Enabled"),
+        ]
+
+        for value in values {
+            let decoded = try JSONDecoder().decode(
+                QuotaMetricPresentation.self,
+                from: JSONEncoder().encode(value)
+            )
+            XCTAssertEqual(decoded, value)
+        }
+    }
+
+    func testZAIQuotaMappingClassifiesWindowsAndSearches() {
+        let data = GLMQuotaData(limits: [
+            GLMLimit(type: "TOKENS_LIMIT", unit: 3, number: 5, usage: 100, currentValue: 20, remaining: 80, percentage: 20, usageDetails: nil, nextResetTime: nil),
+            GLMLimit(type: "TOKENS_LIMIT", unit: 4, number: 7, usage: 100, currentValue: 60, remaining: 40, percentage: 60, usageDetails: nil, nextResetTime: nil),
+            GLMLimit(type: "TIME_LIMIT", unit: 4, number: 1, usage: 1000, currentValue: 125, remaining: 875, percentage: 12.5, usageDetails: nil, nextResetTime: nil),
+        ])
+
+        let quota = GLMQuotaFetcher.mapQuotaData(data, planName: "GLM Coding Pro")
+
+        XCTAssertEqual(quota.planType, "GLM Coding Pro")
+        XCTAssertEqual(quota.models.map(\.name), ["zai-session", "zai-weekly", "zai-web-searches"])
+        XCTAssertEqual(quota.models[0].percentage, 80)
+        XCTAssertEqual(quota.models[1].percentage, 40)
+        XCTAssertEqual(quota.models[2].presentation, .progress(used: 125, limit: 1000, unit: .searches))
+        XCTAssertEqual(GLMQuotaFetcher.apiRoot(from: "https://bigmodel.cn/api/paas/v4"), "https://bigmodel.cn")
+    }
+
+    func testZAIQuotaResponseDecodesOptionalLiveFields() throws {
+        let payload = Data(#"{"code":200,"data":{"limits":[{"type":"TOKENS_LIMIT","unit":6,"number":1,"percentage":25},{"type":"TIME_LIMIT","usage":1000,"currentValue":0}]},"success":true}"#.utf8)
+
+        let response = try JSONDecoder().decode(GLMQuotaResponse.self, from: payload)
+        let quota = GLMQuotaFetcher.mapQuotaData(try XCTUnwrap(response.data), planName: nil)
+
+        XCTAssertEqual(quota.models.map(\.name), ["zai-weekly", "zai-web-searches"])
+        XCTAssertEqual(quota.models[1].presentation, .progress(used: 0, limit: 1000, unit: .searches))
+    }
+
+    func testDevinMappingPreservesRemainingConventionAndWeeklyFallback() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "userStatus": [
+                "planStatus": [
+                    "planInfo": ["planName": "Max", "hideDailyQuota": true],
+                    "dailyQuotaRemainingPercent": 30,
+                    "overageBalanceMicros": "0",
+                ],
+            ],
+        ])
+
+        let quota = try XCTUnwrap(DevinQuotaMapper.map(data))
+
+        XCTAssertEqual(quota.models.first(where: { $0.name == "devin-weekly" })?.percentage, 30)
+        XCTAssertEqual(
+            quota.models.first(where: { $0.name == "devin-extra-balance" })?.presentation,
+            .amount(value: 0, unit: .usd, semantics: .balance)
+        )
+        XCTAssertEqual(quota.planType, "Max")
+    }
+
+    func testDevinTOMLParsesNativeCredentialAndHTTPSOnlyServer() {
+        let native = DevinQuotaFetcher.parseCredentialsTOML("""
+        windsurf_api_key = "native-token"
+        api_server_url = "https://server.codeium.test/"
+        """)
+        let insecure = DevinQuotaFetcher.parseCredentialsTOML("""
+        windsurf_api_key = "native-token"
+        api_server_url = "http://server.codeium.test"
+        """)
+
+        XCTAssertEqual(native, DevinCredential(apiKey: "native-token", apiServerURL: "https://server.codeium.test"))
+        XCTAssertNil(insecure?.apiServerURL)
+    }
+
+    func testDevinReadsSQLiteAppCredential() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let path = directory.appendingPathComponent("state.vscdb").path
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(path, &database), SQLITE_OK)
+        defer { sqlite3_close(database) }
+        XCTAssertEqual(sqlite3_exec(database, "CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(database, "INSERT INTO ItemTable VALUES ('windsurfAuthStatus', '{\"apiKey\":\"app-token\"}')", nil, nil, nil), SQLITE_OK)
+
+        XCTAssertEqual(
+            DevinQuotaFetcher.loadAppCredential(path: path),
+            DevinCredential(apiKey: "app-token", apiServerURL: nil)
+        )
+    }
+
+    func testGrokParsesMultipleAccountsAndSkipsInvalidEntries() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("auth.json")
+        let data = try JSONSerialization.data(withJSONObject: [
+            "account-a::client-a": ["key": "token-a", "refresh_token": "refresh-a"],
+            "account-b::client-b": ["key": "token-b"],
+            "invalid": ["refresh_token": "refresh-only"],
+        ])
+        try data.write(to: url)
+
+        let candidates = GrokQuotaFetcher.loadCandidates(path: url.path)
+
+        XCTAssertEqual(candidates.map(\.entryKey), ["account-a::client-a", "account-b::client-b"])
+        XCTAssertEqual(candidates.map(\.clientID), ["client-a", "client-b"])
+    }
+
+    func testGrokMapsOnlyWeeklyPeriodAndStatusCap() throws {
+        let weekly = try JSONSerialization.data(withJSONObject: [
+            "config": [
+                "creditUsagePercent": 25,
+                "currentPeriod": ["type": "USAGE_PERIOD_TYPE_WEEKLY", "end": "2030-01-08T00:00:00Z"],
+                "onDemandCap": ["val": 2500],
+            ],
+        ])
+        let legacy = try JSONSerialization.data(withJSONObject: [
+            "config": [
+                "creditUsagePercent": 25,
+                "currentPeriod": ["type": "USAGE_PERIOD_TYPE_MONTHLY", "end": "2030-02-01T00:00:00Z"],
+            ],
+        ])
+
+        let weeklyQuota = try XCTUnwrap(GrokQuotaMapper.mapBilling(weekly, plan: "SuperGrok"))
+        let legacyQuota = try XCTUnwrap(GrokQuotaMapper.mapBilling(legacy, plan: nil))
+
+        XCTAssertEqual(weeklyQuota.models.first(where: { $0.name == "grok-weekly" })?.percentage, 75)
+        XCTAssertEqual(
+            weeklyQuota.models.first(where: { $0.name == "grok-extra-usage" })?.presentation,
+            .status(text: String(format: "grok.status.cap".localizedStatic(), "2500"))
+        )
+        XCTAssertNil(legacyQuota.models.first(where: { $0.name == "grok-weekly" }))
+    }
+
+    func testGrokAtomicRotationPreservesSiblingAndUnknownFields() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("auth.json")
+        let original: [String: Any] = [
+            "target": ["key": "old", "refresh_token": "old-refresh", "unknown": "keep"],
+            "sibling": ["key": "sibling-token", "custom": 42],
+        ]
+        try JSONSerialization.data(withJSONObject: original).write(to: url)
+
+        try GrokQuotaFetcher.persistRotatedCredential(
+            path: url.path,
+            entryKey: "target",
+            accessToken: "new",
+            refreshToken: "new-refresh",
+            idToken: nil,
+            expiresAt: Date(timeIntervalSince1970: 1_900_000_000)
+        )
+
+        let updated = try XCTUnwrap(MonitorIdentity.json(at: url.path))
+        XCTAssertEqual((updated["target"] as? [String: Any])?["unknown"] as? String, "keep")
+        XCTAssertEqual((updated["sibling"] as? [String: Any])?["key"] as? String, "sibling-token")
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+    }
+
+    func testOpenRouterPartialSuccessKeepsDecimalMetrics() throws {
+        let credits = OpenRouterEndpointResult(
+            data: try JSONSerialization.data(withJSONObject: ["data": ["total_credits": 100.25, "total_usage": 40.10]]),
+            statusCode: 200
+        )
+        let failedKey = OpenRouterEndpointResult(data: nil, statusCode: 503)
+
+        let quota = try XCTUnwrap(OpenRouterQuotaMapper.map(credits: credits, key: failedKey))
+
+        XCTAssertEqual(quota.models.first(where: { $0.name == "openrouter-credits" })?.presentation, .progress(used: 40.10, limit: 100.25, unit: .usd))
+        XCTAssertEqual(quota.models.first(where: { $0.name == "openrouter-balance" })?.presentation, .amount(value: 60.15, unit: .usd, semantics: .balance))
+    }
+
+    func testOpenRouterZeroBalanceAndAuthenticationFailure() throws {
+        let zeroCredits = OpenRouterEndpointResult(
+            data: try JSONSerialization.data(withJSONObject: ["data": ["total_credits": 0, "total_usage": 0]]),
+            statusCode: 200
+        )
+        let failedKey = OpenRouterEndpointResult(data: nil, statusCode: 500)
+        let zero = try XCTUnwrap(OpenRouterQuotaMapper.map(credits: zeroCredits, key: failedKey))
+        XCTAssertEqual(zero.models.first?.presentation, .amount(value: 0, unit: .usd, semantics: .balance))
+
+        let forbidden = try XCTUnwrap(OpenRouterQuotaMapper.map(
+            credits: OpenRouterEndpointResult(data: Data(), statusCode: 401),
+            key: OpenRouterEndpointResult(data: Data(), statusCode: 403)
+        ))
+        XCTAssertTrue(forbidden.isForbidden)
+    }
+
+    func testMonitorCredentialVaultAddsRotatesAndDeletesOpenRouterKey() async throws {
+        let metadataURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("accounts.json")
+        let vault = MonitorCredentialVault(metadata: MonitorMetadataStore(url: metadataURL))
+        let account = MonitorAccount.make(
+            provider: .openRouter,
+            accountKey: "Test " + UUID().uuidString,
+            source: .quotioKeychain,
+            canDelete: true
+        )
+        let first = MonitorOAuthCredential(accessToken: "first", refreshToken: nil, idToken: nil, accountID: nil, expiresAt: nil, extra: [:])
+        let second = MonitorOAuthCredential(accessToken: "second", refreshToken: nil, idToken: nil, accountID: nil, expiresAt: nil, extra: [:])
+
+        try await vault.save(first, metadata: account)
+        let loadedFirst = await vault.credential(for: account.id)
+        XCTAssertEqual(loadedFirst?.accessToken, "first")
+        try await vault.save(second, metadata: account)
+        let loadedSecond = await vault.credential(for: account.id)
+        XCTAssertEqual(loadedSecond?.accessToken, "second")
+        await vault.delete(accountID: account.id)
+        let deleted = await vault.credential(for: account.id)
+        XCTAssertNil(deleted)
     }
 
     func testMetadataRoundTripStoresOwnedAccountAndDisabledState() async throws {

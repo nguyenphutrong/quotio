@@ -10,40 +10,72 @@ import Foundation
 
 // MARK: - API Response Models
 
-struct GLMQuotaResponse: Codable, Sendable {
-    let code: Int
-    let msg: String
+nonisolated struct GLMQuotaResponse: Codable, Sendable {
+    let code: Int?
+    let msg: String?
     let data: GLMQuotaData?
-    let success: Bool
+    let success: Bool?
 }
 
-struct GLMQuotaData: Codable, Sendable {
+nonisolated struct GLMQuotaData: Codable, Sendable {
     let limits: [GLMLimit]
 }
 
-struct GLMLimit: Codable, Sendable {
-    let type: String
-    let unit: Int
-    let number: Int
-    let usage: Int
-    let currentValue: Int
-    let remaining: Int
-    let percentage: Double
+nonisolated struct GLMSubscriptionResponse: Codable, Sendable {
+    let data: [GLMSubscription]?
+}
+
+nonisolated struct GLMSubscription: Codable, Sendable {
+    let productName: String?
+}
+
+nonisolated struct GLMLimit: Codable, Sendable {
+    let type: String?
+    let name: String?
+    let unit: Double?
+    let number: Double?
+    let usage: Double?
+    let currentValue: Double?
+    let remaining: Double?
+    let percentage: Double?
     let usageDetails: [GLMUsageDetail]?
-    let nextResetTime: Int64?
+    let nextResetTime: Double?
 
     enum CodingKeys: String, CodingKey {
-        case type, unit, number, usage
+        case type, name, unit, number, usage
         case currentValue = "currentValue"
         case remaining, percentage
         case usageDetails = "usageDetails"
         case nextResetTime = "nextResetTime"
     }
+
+    init(
+        type: String,
+        unit: Int? = nil,
+        number: Int? = nil,
+        usage: Int? = nil,
+        currentValue: Int? = nil,
+        remaining: Int? = nil,
+        percentage: Double? = nil,
+        usageDetails: [GLMUsageDetail]? = nil,
+        nextResetTime: Int64? = nil
+    ) {
+        self.type = type
+        name = nil
+        self.unit = unit.map(Double.init)
+        self.number = number.map(Double.init)
+        self.usage = usage.map(Double.init)
+        self.currentValue = currentValue.map(Double.init)
+        self.remaining = remaining.map(Double.init)
+        self.percentage = percentage
+        self.usageDetails = usageDetails
+        self.nextResetTime = nextResetTime.map(Double.init)
+    }
 }
 
-struct GLMUsageDetail: Codable, Sendable {
-    let modelCode: String
-    let usage: Int
+nonisolated struct GLMUsageDetail: Codable, Sendable {
+    let modelCode: String?
+    let usage: Double?
 
     enum CodingKeys: String, CodingKey {
         case modelCode = "modelCode"
@@ -54,8 +86,6 @@ struct GLMUsageDetail: Codable, Sendable {
 // MARK: - Quota Fetcher
 
 actor GLMQuotaFetcher {
-    private let quotaAPIURL = "https://bigmodel.cn/api/monitor/usage/quota/limit"
-
     private var session: URLSession
 
     init() {
@@ -70,19 +100,15 @@ actor GLMQuotaFetcher {
     }
 
     /// Fetch quota for a single API key
-    func fetchQuota(apiKey: String) async throws -> ProviderQuotaData {
-        guard let url = URL(string: quotaAPIURL) else {
+    func fetchQuota(apiKey: String, baseURL: String) async throws -> ProviderQuotaData {
+        guard let rootURL = Self.apiRoot(from: baseURL),
+              let quotaURL = URL(string: rootURL + "/api/monitor/usage/quota/limit") else {
             throw QuotaFetchError.invalidURL
         }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw QuotaFetchError.invalidResponse
-        }
+        async let quotaResult = fetch(apiKey: apiKey, url: quotaURL)
+        async let subscriptionName = fetchSubscriptionName(apiKey: apiKey, rootURL: rootURL)
+        let (data, httpResponse) = try await quotaResult
 
         guard 200...299 ~= httpResponse.statusCode else {
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
@@ -92,55 +118,106 @@ actor GLMQuotaFetcher {
         }
 
         let decoder = JSONDecoder()
-        let quotaResponse = try await MainActor.run {
-            try decoder.decode(GLMQuotaResponse.self, from: data)
+        let quotaResponse = try decoder.decode(GLMQuotaResponse.self, from: data)
+
+        guard quotaResponse.success != false,
+              quotaResponse.code.map({ $0 == 200 }) ?? true,
+              let responseData = quotaResponse.data else {
+            throw QuotaFetchError.apiErrorMessage(quotaResponse.msg ?? "Z.ai quota unavailable")
         }
 
-        guard quotaResponse.success, quotaResponse.code == 200, let responseData = quotaResponse.data else {
-            throw QuotaFetchError.apiErrorMessage(quotaResponse.msg)
+        let planName = await subscriptionName
+        return Self.mapQuotaData(responseData, planName: planName)
+    }
+
+    private func fetch(apiKey: String, url: URL) async throws -> (Data, HTTPURLResponse) {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaFetchError.invalidResponse
         }
+        return (data, httpResponse)
+    }
 
-        return await MainActor.run {
-            var models: [ModelQuota] = []
+    private func fetchSubscriptionName(apiKey: String, rootURL: String) async -> String? {
+        guard let url = URL(string: rootURL + "/api/biz/subscription/list"),
+              let (data, response) = try? await fetch(apiKey: apiKey, url: url),
+              200...299 ~= response.statusCode else {
+            return nil
+        }
+        guard let value = (try? JSONDecoder().decode(GLMSubscriptionResponse.self, from: data))?
+            .data?.first?.productName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return nil }
+        return value
+    }
 
-            // Parse limits - GLM has TOKENS_LIMIT (main quota) and TIME_LIMIT (MCP quota)
-            for limit in responseData.limits {
-                if limit.type == "TOKENS_LIMIT" {
-                    // Token limit - show as main quota on dashboard
-                    let resetTime: String
-                    if let nextReset = limit.nextResetTime {
-                        resetTime = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: TimeInterval(nextReset / 1000)))
-                    } else {
-                        resetTime = ""
-                    }
+    nonisolated static func apiRoot(from baseURL: String) -> String? {
+        guard let components = URLComponents(string: baseURL),
+              let scheme = components.scheme,
+              let host = components.host else { return nil }
+        var root = scheme + "://" + host
+        if let port = components.port { root += ":\(port)" }
+        return root
+    }
 
-                    // currentValue is used, usage is total limit
-                    // API returns percentage as "used", so convert to "remaining" for ModelQuota
-                    models.append(ModelQuota(
-                        name: "Tokens",
-                        percentage: 100 - limit.percentage,
-                        resetTime: resetTime,
-                        used: limit.currentValue,
-                        limit: limit.usage,
-                        remaining: limit.remaining
-                    ))
-                } else if limit.type == "TIME_LIMIT" {
-                    // MCP quota (monthly, no reset time)
-                    // currentValue is used, usage is total
-                    // API returns percentage as "used", so convert to "remaining" for ModelQuota
-                    models.append(ModelQuota(
-                        name: "MCP Usage",
-                        percentage: 100 - limit.percentage,
-                        resetTime: "",
-                        used: limit.currentValue,
-                        limit: limit.usage,
-                        remaining: limit.remaining
-                    ))
-                }
+    nonisolated static func mapQuotaData(_ data: GLMQuotaData, planName: String?) -> ProviderQuotaData {
+        var models: [ModelQuota] = []
+
+        for limit in data.limits {
+            let resetTime = limit.nextResetTime.map {
+                ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: $0 / 1000))
+            } ?? ""
+            let kind = limit.type ?? limit.name
+
+            if kind == "TOKENS_LIMIT",
+               let percentage = limit.percentage,
+               let unit = limit.unit,
+               let number = limit.number,
+               let windowName = tokenWindowName(unit: unit, number: number) {
+                models.append(ModelQuota(
+                    name: windowName,
+                    percentage: max(0, min(100, 100 - percentage)),
+                    resetTime: resetTime
+                ))
+            } else if kind == "TIME_LIMIT",
+                      let used = limit.currentValue,
+                      let quotaLimit = limit.usage,
+                      used >= 0,
+                      quotaLimit >= 0 {
+                let remainingPercent = quotaLimit > 0 ? max(0, min(100, (quotaLimit - used) / quotaLimit * 100)) : 0
+                models.append(ModelQuota(
+                    name: "zai-web-searches",
+                    percentage: remainingPercent,
+                    resetTime: resetTime,
+                    presentation: .progress(
+                        used: used,
+                        limit: quotaLimit,
+                        unit: .searches
+                    ),
+                    used: Int(used),
+                    limit: Int(quotaLimit)
+                ))
             }
-
-            return ProviderQuotaData(models: models, lastUpdated: Date())
         }
+
+        return ProviderQuotaData(models: models, lastUpdated: Date(), planType: planName)
+    }
+
+    private nonisolated static func tokenWindowName(unit: Double, number: Double) -> String? {
+        guard number > 0 else { return nil }
+        let durationHours: Double
+        switch unit {
+        case 3: durationHours = number
+        case 4: durationHours = number * 24
+        case 5: durationHours = number * 24 * 30
+        case 6: durationHours = number * 24 * 7
+        default: return nil
+        }
+        return durationHours < 24 ? "zai-session" : "zai-weekly"
     }
 
     /// Fetch quota for all configured GLM API keys
@@ -155,7 +232,10 @@ actor GLMQuotaFetcher {
                 for apiKeyEntry in provider.apiKeys {
                     group.addTask {
                         do {
-                            let quota = try await self.fetchQuota(apiKey: apiKeyEntry.apiKey)
+                            let quota = try await self.fetchQuota(
+                                apiKey: apiKeyEntry.apiKey,
+                                baseURL: provider.baseURL
+                            )
                             // Use provider name as identifier
                             return (provider.name, quota)
                         } catch {

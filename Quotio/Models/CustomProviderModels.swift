@@ -37,7 +37,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .claudeCompatibility: return "Claude Compatible"
         case .geminiCompatibility: return "Gemini Compatible"
         case .codexCompatibility: return "Codex Compatible"
-        case .glmCompatibility: return "GLM Compatible"
+        case .glmCompatibility: return "Z.ai / GLM"
         case .clinePass: return "ClinePass"
         }
     }
@@ -65,7 +65,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .codexCompatibility:
             return "Custom Codex-compatible endpoints"
         case .glmCompatibility:
-            return "GLM (BigModel.cn) API"
+            return "Z.ai GLM Coding Plan API"
         case .clinePass:
             return "ClinePass subscription with OpenAI-compatible routing"
         }
@@ -134,7 +134,7 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         case .geminiCompatibility:
             return "https://generativelanguage.googleapis.com"
         case .glmCompatibility:
-            return "https://bigmodel.cn"
+            return "https://api.z.ai"
         case .clinePass:
             return "https://api.cline.bot/api/v1"
         case .openaiCompatibility, .codexCompatibility:

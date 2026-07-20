@@ -866,24 +866,36 @@ private struct AccountQuotaCardV2: View {
     
     @ViewBuilder
     private func standardContentByStyle(data: ProviderQuotaData) -> some View {
-        switch displayStyle {
-        case .lowestBar:
-            StandardLowestBarLayout(models: data.models)
-        case .ring:
-            StandardRingLayout(models: data.models)
-        case .card:
-            VStack(spacing: 12) {
-                ForEach(data.models) { model in
-                    UsageRowV2(
-                        name: model.displayName,
-                        icon: nil,
-                        usedPercent: model.usedPercentage,
-                        used: model.used,
-                        limit: model.limit,
-                        resetTime: model.formattedResetTime,
-                        tooltip: model.tooltip
-                    )
+        let meterModels = data.models.filter { !$0.isStandaloneMetric }
+        let standaloneModels = data.models.filter(\.isStandaloneMetric)
+
+        VStack(spacing: 12) {
+            if !meterModels.isEmpty {
+                switch displayStyle {
+                case .lowestBar:
+                    StandardLowestBarLayout(models: meterModels)
+                case .ring:
+                    StandardRingLayout(models: meterModels)
+                case .card:
+                    VStack(spacing: 12) {
+                        ForEach(meterModels) { model in
+                            UsageRowV2(
+                                name: model.displayName,
+                                icon: nil,
+                                usedPercent: model.usedPercentage,
+                                used: model.used,
+                                limit: model.limit,
+                                formattedUsage: model.presentation == nil ? nil : model.formattedUsage,
+                                resetTime: model.formattedResetTime,
+                                tooltip: model.tooltip
+                            )
+                        }
+                    }
                 }
+            }
+
+            ForEach(standaloneModels) { model in
+                StandaloneMetricRow(model: model)
             }
         }
     }
@@ -1531,6 +1543,7 @@ private struct UsageRowV2: View {
     let usedPercent: Double
     let used: Int?
     let limit: Int?
+    let formattedUsage: String?
     let resetTime: String
     let tooltip: String?
     
@@ -1567,7 +1580,12 @@ private struct UsageRowV2: View {
                 
                 Spacer()
                 
-                if let used = used {
+                if let formattedUsage {
+                    Text(formattedUsage)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                } else if let used = used {
                     if let limit = limit, limit > 0 {
                         Text(String(used) + "/" + String(limit))
                             .font(.caption)
@@ -1608,6 +1626,26 @@ private struct UsageRowV2: View {
                 .frame(height: 6)
             }
         }
+    }
+}
+
+private struct StandaloneMetricRow: View {
+    let model: ModelQuota
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(model.displayName)
+                .font(.subheadline)
+                .fontWeight(.medium)
+            Spacer()
+            Text(model.formattedUsage ?? "—")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .padding(.vertical, 2)
+        .help(model.tooltip ?? "")
     }
 }
 

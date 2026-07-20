@@ -21,6 +21,9 @@ final class QuotaViewModel {
     @ObservationIgnored private let glmFetcher = GLMQuotaFetcher()
     @ObservationIgnored private let warpFetcher = WarpQuotaFetcher()
     @ObservationIgnored private let clinePassFetcher = ClinePassQuotaFetcher()
+    @ObservationIgnored private let devinFetcher = DevinQuotaFetcher()
+    @ObservationIgnored private let grokFetcher = GrokQuotaFetcher()
+    @ObservationIgnored private let openRouterFetcher = OpenRouterQuotaFetcher()
     @ObservationIgnored private let directAuthService = DirectAuthFileService()
     @ObservationIgnored private let monitorCoordinator = MonitorRefreshCoordinator()
     @ObservationIgnored private let notificationManager = NotificationManager.shared
@@ -250,6 +253,9 @@ final class QuotaViewModel {
         await clinePassFetcher.updateProxyConfiguration()
         await traeFetcher.updateProxyConfiguration()
         await kiroFetcher.updateProxyConfiguration()
+        await devinFetcher.updateProxyConfiguration()
+        await grokFetcher.updateProxyConfiguration()
+        await openRouterFetcher.updateProxyConfiguration()
     }
 
     private func setupRefreshCadenceCallback() {
@@ -404,6 +410,44 @@ final class QuotaViewModel {
         await monitorCoordinator.finish(quotas: providerQuotas)
         monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
     }
+
+    func saveOpenRouterAccount(label: String, apiKey: String, existingAccountID: String? = nil) async throws {
+        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedLabel.isEmpty, !trimmedKey.isEmpty else { throw MonitorRuntimeError.invalidCredential }
+
+        let account: MonitorAccount
+        if let existingAccountID,
+           let existing = monitorAccounts.first(where: { $0.id == existingAccountID && $0.provider == .openRouter }) {
+            account = existing
+            _ = await MonitorCredentialVault.shared.credential(for: existing.id)
+        } else {
+            guard !monitorAccounts.contains(where: {
+                $0.provider == .openRouter && $0.accountKey.caseInsensitiveCompare(trimmedLabel) == .orderedSame
+            }) else { throw MonitorRuntimeError.invalidCredential }
+            account = .make(
+                provider: .openRouter,
+                accountKey: trimmedLabel,
+                source: .quotioKeychain,
+                credentialReference: "keychain",
+                canDelete: true
+            )
+        }
+
+        try await MonitorCredentialVault.shared.save(
+            MonitorOAuthCredential(
+                accessToken: trimmedKey,
+                refreshToken: nil,
+                idToken: nil,
+                accountID: nil,
+                expiresAt: nil,
+                extra: [:]
+            ),
+            metadata: account
+        )
+        monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+        await refreshQuotasDirectly(force: true)
+    }
     
     /// Refresh quotas directly without proxy (for Quota-Only Mode)
     /// Note: Cursor and Trae are NOT auto-refreshed - user must use "Scan for IDEs" (issue #29)
@@ -415,8 +459,13 @@ final class QuotaViewModel {
         
         let previous = providerQuotas
         let coordinator = monitorCoordinator
-        let discoveredProviders = Set(await coordinator.discoverAccounts().map(\.provider))
-        let credentialProviders: Set<AIProvider> = [.codex, .claude, .gemini, .copilot, .kiro, .antigravity]
+        let discoveredAccounts = await coordinator.discoverAccounts()
+        let discoveredProviders = Set(discoveredAccounts.map(\.provider))
+        let discoveredAccountKeys = Dictionary(grouping: discoveredAccounts, by: \.provider)
+            .mapValues { Set($0.map(\.accountKey)) }
+        let credentialProviders: Set<AIProvider> = [
+            .codex, .claude, .gemini, .copilot, .kiro, .antigravity, .devin, .grok, .openRouter,
+        ]
         let credentialAvailability = Dictionary(uniqueKeysWithValues: credentialProviders.map {
             ($0, discoveredProviders.contains($0) ? MonitorCredentialAvailability.present : .missing)
         })
@@ -429,7 +478,19 @@ final class QuotaViewModel {
         let clineQuotaFetcher = clinePassFetcher
         let warpQuotaFetcher = warpFetcher
         let antigravityQuotaFetcher = antigravityFetcher
+        let devinQuotaFetcher = devinFetcher
+        let grokQuotaFetcher = grokFetcher
+        let openRouterQuotaFetcher = openRouterFetcher
         let warpTokens = WarpService.shared.tokens.filter { $0.isEnabled }
+        let devinPrevious = previous[.devin]?.filter {
+            discoveredAccountKeys[.devin]?.contains($0.key) == true
+        } ?? [:]
+        let grokPrevious = previous[.grok]?.filter {
+            discoveredAccountKeys[.grok]?.contains($0.key) == true
+        } ?? [:]
+        let openRouterPrevious = previous[.openRouter]?.filter {
+            discoveredAccountKeys[.openRouter]?.contains($0.key) == true
+        } ?? [:]
 
         async let codex = coordinator.refresh(
             provider: .codex,
@@ -495,6 +556,30 @@ final class QuotaViewModel {
             let (quotas, _) = await antigravityQuotaFetcher.fetchAllAntigravityData(includeMonitorCredentials: true)
             return quotas
         }
+        async let devin = coordinator.refresh(
+            provider: .devin,
+            force: force,
+            previous: devinPrevious,
+            credentialAvailability: credentialAvailability[.devin] ?? .unknown
+        ) {
+            await devinQuotaFetcher.fetchAsProviderQuota()
+        }
+        async let grok = coordinator.refresh(
+            provider: .grok,
+            force: force,
+            previous: grokPrevious,
+            credentialAvailability: credentialAvailability[.grok] ?? .unknown
+        ) {
+            await grokQuotaFetcher.fetchAllQuotas()
+        }
+        async let openRouter = coordinator.refresh(
+            provider: .openRouter,
+            force: force,
+            previous: openRouterPrevious,
+            credentialAvailability: credentialAvailability[.openRouter] ?? .unknown
+        ) {
+            await openRouterQuotaFetcher.fetchAllQuotas()
+        }
 
         providerQuotas[.codex] = await codexFetcher.reconcileLegacyAliases(in: await codex)
         providerQuotas[.claude] = await claude
@@ -505,6 +590,9 @@ final class QuotaViewModel {
         providerQuotas[.clinePass] = await clinePass
         providerQuotas[.warp] = await warp
         providerQuotas[.antigravity] = await antigravity
+        providerQuotas[.devin] = await devin
+        providerQuotas[.grok] = await grok
+        providerQuotas[.openRouter] = await openRouter
         providerQuotas = providerQuotas.filter { !$0.value.isEmpty }
 
         monitorAccounts = await coordinator.discoverAccounts(merging: providerQuotas)
