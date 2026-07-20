@@ -444,8 +444,25 @@ final class QuotaViewModel {
         let account: MonitorAccount
         if let existingAccountID,
            let existing = monitorAccounts.first(where: { $0.id == existingAccountID && $0.provider == provider }) {
-            account = existing
+            guard !monitorAccounts.contains(where: {
+                $0.id != existing.id
+                    && $0.provider == provider
+                    && $0.accountKey.caseInsensitiveCompare(trimmedLabel) == .orderedSame
+            }) else { throw MonitorRuntimeError.invalidCredential }
+            account = MonitorAccount(
+                id: existing.id,
+                provider: existing.provider,
+                accountKey: trimmedLabel,
+                displayName: trimmedLabel,
+                source: existing.source,
+                credentialReference: existing.credentialReference,
+                canDelete: existing.canDelete,
+                isDisabled: existing.isDisabled
+            )
             _ = await MonitorCredentialVault.shared.credential(for: existing.id)
+            if existing.accountKey != trimmedLabel {
+                providerQuotas[provider]?.removeValue(forKey: existing.accountKey)
+            }
         } else {
             guard !monitorAccounts.contains(where: {
                 $0.provider == provider && $0.accountKey.caseInsensitiveCompare(trimmedLabel) == .orderedSame

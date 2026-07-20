@@ -22697,6 +22697,22 @@
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhãn tài khoản" } }
       }
     },
+    "openrouter.plan.freeTier" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Free tier" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Offre gratuite" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Gói miễn phí" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "免费套餐" } }
+      }
+    },
+    "openrouter.plan.payAsYouGo" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pay as you go" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Paiement à l’usage" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Trả theo mức sử dụng" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按量付费" } }
+      }
+    },
     "quota.metric.balance" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Balance" } },
@@ -22719,6 +22735,14 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Daily" } },
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng ngày" } }
+      }
+    },
+    "quota.metric.monthly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Monthly" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Mensuel" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tháng" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每月" } }
       }
     },
     "quota.metric.extraBalance" : {
@@ -22771,20 +22795,104 @@
     },
     "quota.metric.unit.credits" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ credits" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ credits" } }
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%g credit" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g credits" } }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%g crédit" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g crédits" } }
+            }
+          }
+        },
+        "vi" : {
+          "variations" : {
+            "plural" : {
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g credits" } }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g 积分" } }
+            }
+          }
+        }
       }
     },
     "quota.metric.unit.requests" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ requests" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ yêu cầu" } }
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%g request" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g requests" } }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%g requête" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g requêtes" } }
+            }
+          }
+        },
+        "vi" : {
+          "variations" : {
+            "plural" : {
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g yêu cầu" } }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g 个请求" } }
+            }
+          }
+        }
       }
     },
     "quota.metric.unit.searches" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ searches" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ lượt tìm kiếm" } }
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%g search" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g searches" } }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%g recherche" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g recherches" } }
+            }
+          }
+        },
+        "vi" : {
+          "variations" : {
+            "plural" : {
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g lượt tìm kiếm" } }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%g 次搜索" } }
+            }
+          }
+        }
       }
     },
     "quota.metric.webSearches" : {

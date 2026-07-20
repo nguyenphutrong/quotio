@@ -16,6 +16,13 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(Set(filtered), providers)
     }
 
+    func testMonitorOnlyProvidersDoNotOfferLocalProxySetup() {
+        for provider in [AIProvider.factoryDroid, .devin, .grok, .openRouter, .warp] {
+            XCTAssertFalse(provider.supportsLocalProxySetup)
+        }
+        XCTAssertTrue(AIProvider.claude.supportsLocalProxySetup)
+    }
+
     func testStatusBarIncludesEnabledMonitorAccountsWithoutQuota() {
         let enabled = MonitorAccount.make(
             provider: .claude,
@@ -240,6 +247,19 @@ final class MonitorRuntimeTests: XCTestCase {
         }
     }
 
+    func testCountMetricUnitsUseEnglishSingularAndPluralForms() {
+        let previousLanguage = UserDefaults.standard.string(forKey: "appLanguage")
+        UserDefaults.standard.set("en", forKey: "appLanguage")
+        defer { UserDefaults.standard.set(previousLanguage, forKey: "appLanguage") }
+
+        XCTAssertEqual(QuotaMetricUnit.credits.format(1), "1 credit")
+        XCTAssertEqual(QuotaMetricUnit.credits.format(2), "2 credits")
+        XCTAssertEqual(QuotaMetricUnit.requests.format(1), "1 request")
+        XCTAssertEqual(QuotaMetricUnit.requests.format(2), "2 requests")
+        XCTAssertEqual(QuotaMetricUnit.searches.format(1), "1 search")
+        XCTAssertEqual(QuotaMetricUnit.searches.format(2), "2 searches")
+    }
+
     func testFactoryDroidDecryptsLocalCredentialFile() throws {
         let keyData = Data((0..<32).map(UInt8.init))
         let nonce = try AES.GCM.Nonce(data: Data((32..<48).map(UInt8.init)))
@@ -366,17 +386,21 @@ final class MonitorRuntimeTests: XCTestCase {
     func testZAIQuotaMappingClassifiesWindowsAndSearches() {
         let data = GLMQuotaData(limits: [
             GLMLimit(type: "TOKENS_LIMIT", unit: 3, number: 5, usage: 100, currentValue: 20, remaining: 80, percentage: 20, usageDetails: nil, nextResetTime: nil),
+            GLMLimit(type: "TOKENS_LIMIT", unit: 4, number: 1, usage: 100, currentValue: 30, remaining: 70, percentage: 30, usageDetails: nil, nextResetTime: nil),
             GLMLimit(type: "TOKENS_LIMIT", unit: 4, number: 7, usage: 100, currentValue: 60, remaining: 40, percentage: 60, usageDetails: nil, nextResetTime: nil),
+            GLMLimit(type: "TOKENS_LIMIT", unit: 5, number: 1, usage: 100, currentValue: 10, remaining: 90, percentage: 10, usageDetails: nil, nextResetTime: nil),
             GLMLimit(type: "TIME_LIMIT", unit: 4, number: 1, usage: 1000, currentValue: 125, remaining: 875, percentage: 12.5, usageDetails: nil, nextResetTime: nil),
         ])
 
         let quota = GLMQuotaFetcher.mapQuotaData(data, planName: "GLM Coding Pro")
 
         XCTAssertEqual(quota.planType, "GLM Coding Pro")
-        XCTAssertEqual(quota.models.map(\.name), ["zai-session", "zai-weekly", "zai-web-searches"])
+        XCTAssertEqual(quota.models.map(\.name), ["zai-session", "zai-daily", "zai-weekly", "zai-monthly", "zai-web-searches"])
         XCTAssertEqual(quota.models[0].percentage, 80)
-        XCTAssertEqual(quota.models[1].percentage, 40)
-        XCTAssertEqual(quota.models[2].presentation, .progress(used: 125, limit: 1000, unit: .searches))
+        XCTAssertEqual(quota.models[1].percentage, 70)
+        XCTAssertEqual(quota.models[2].percentage, 40)
+        XCTAssertEqual(quota.models[3].percentage, 90)
+        XCTAssertEqual(quota.models[4].presentation, .progress(used: 125, limit: 1000, unit: .searches))
         XCTAssertEqual(GLMQuotaFetcher.apiRoot(from: "https://bigmodel.cn/api/paas/v4"), "https://bigmodel.cn")
     }
 
@@ -388,6 +412,49 @@ final class MonitorRuntimeTests: XCTestCase {
 
         XCTAssertEqual(quota.models.map(\.name), ["zai-weekly", "zai-web-searches"])
         XCTAssertEqual(quota.models[1].presentation, .progress(used: 0, limit: 1000, unit: .searches))
+    }
+
+    @MainActor
+    func testGLMEditorPreservesExistingProviderConfiguration() {
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let firstKeyID = UUID()
+        let secondKey = CustomAPIKeyEntry(apiKey: "second-key", proxyURL: "https://second.proxy")
+        let existing = CustomProvider(
+            name: "Existing Z.ai",
+            type: .glmCompatibility,
+            baseURL: GLMEndpoint.bigmodel.baseURL,
+            prefix: "existing-prefix",
+            apiKeys: [
+                CustomAPIKeyEntry(id: firstKeyID, apiKey: "first-key", proxyURL: "https://first.proxy"),
+                secondKey,
+            ],
+            limitToSelectedModels: false,
+            isEnabled: false,
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+
+        let updated = GLMProviderEditor.updatedProvider(
+            existing,
+            apiKey: "rotated-key",
+            endpoint: .zai,
+            now: updatedAt
+        )
+
+        XCTAssertEqual(updated.id, existing.id)
+        XCTAssertEqual(updated.name, "Existing Z.ai")
+        XCTAssertEqual(updated.baseURL, GLMEndpoint.zai.baseURL)
+        XCTAssertEqual(updated.prefix, "existing-prefix")
+        XCTAssertEqual(updated.apiKeys.count, 2)
+        XCTAssertEqual(updated.apiKeys[0].id, firstKeyID)
+        XCTAssertEqual(updated.apiKeys[0].apiKey, "rotated-key")
+        XCTAssertEqual(updated.apiKeys[0].proxyURL, "https://first.proxy")
+        XCTAssertEqual(updated.apiKeys[1], secondKey)
+        XCTAssertFalse(updated.limitToSelectedModels)
+        XCTAssertFalse(updated.isEnabled)
+        XCTAssertEqual(updated.createdAt, createdAt)
+        XCTAssertEqual(updated.updatedAt, updatedAt)
     }
 
     func testDevinMappingPreservesRemainingConventionAndWeeklyFallback() throws {
@@ -409,6 +476,12 @@ final class MonitorRuntimeTests: XCTestCase {
             .amount(value: 0, unit: .usd, semantics: .balance)
         )
         XCTAssertEqual(quota.planType, "Max")
+    }
+
+    func testDevinRejectedCredentialReturnsForbiddenQuota() throws {
+        XCTAssertTrue(try XCTUnwrap(DevinQuotaFetcher.quotaResult(data: Data(), statusCode: 401)).isForbidden)
+        XCTAssertTrue(try XCTUnwrap(DevinQuotaFetcher.quotaResult(data: Data(), statusCode: 403)).isForbidden)
+        XCTAssertNil(DevinQuotaFetcher.quotaResult(data: Data(), statusCode: 500))
     }
 
     func testDevinTOMLParsesNativeCredentialAndHTTPSOnlyServer() {
@@ -484,6 +557,31 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertNil(legacyQuota.models.first(where: { $0.name == "grok-weekly" }))
     }
 
+    func testGrokQuotaResultMarksRejectedCredentialsAndSetsDisplayName() throws {
+        let forbidden = try XCTUnwrap(GrokQuotaFetcher.quotaResult(
+            data: Data(),
+            statusCode: 403,
+            plan: nil,
+            displayName: "person@example.com"
+        ))
+        XCTAssertTrue(forbidden.isForbidden)
+        XCTAssertEqual(forbidden.accountDisplayName, "person@example.com")
+
+        let billing = try JSONSerialization.data(withJSONObject: [
+            "config": [
+                "creditUsagePercent": 25,
+                "currentPeriod": ["type": "USAGE_PERIOD_TYPE_WEEKLY", "end": "2030-01-08T00:00:00Z"],
+            ],
+        ])
+        let quota = try XCTUnwrap(GrokQuotaFetcher.quotaResult(
+            data: billing,
+            statusCode: 200,
+            plan: "SuperGrok",
+            displayName: "person@example.com"
+        ))
+        XCTAssertEqual(quota.accountDisplayName, "person@example.com")
+    }
+
     func testGrokAtomicRotationPreservesSiblingAndUnknownFields() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -521,6 +619,22 @@ final class MonitorRuntimeTests: XCTestCase {
 
         XCTAssertEqual(quota.models.first(where: { $0.name == "openrouter-credits" })?.presentation, .progress(used: 40.10, limit: 100.25, unit: .usd))
         XCTAssertEqual(quota.models.first(where: { $0.name == "openrouter-balance" })?.presentation, .amount(value: 60.15, unit: .usd, semantics: .balance))
+    }
+
+    func testOpenRouterPlanLabelsUseLocalization() throws {
+        let previousLanguage = UserDefaults.standard.string(forKey: "appLanguage")
+        UserDefaults.standard.set("vi", forKey: "appLanguage")
+        defer { UserDefaults.standard.set(previousLanguage, forKey: "appLanguage") }
+        let key = OpenRouterEndpointResult(
+            data: try JSONSerialization.data(withJSONObject: ["data": ["is_free_tier": true]]),
+            statusCode: 200
+        )
+        let quota = try XCTUnwrap(OpenRouterQuotaMapper.map(
+            credits: OpenRouterEndpointResult(data: nil, statusCode: 500),
+            key: key
+        ))
+
+        XCTAssertEqual(quota.planType, "Gói miễn phí")
     }
 
     func testOpenRouterZeroBalanceAndAuthenticationFailure() throws {

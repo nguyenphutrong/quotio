@@ -54,7 +54,7 @@ nonisolated enum OpenRouterQuotaMapper {
            let body = object(data) {
             let payload = dictionary(body["data"]) ?? body
             let isFree = bool(payload["is_free_tier"])
-            plan = isFree == true ? "Free tier" : "Pay as you go"
+            plan = (isFree == true ? "openrouter.plan.freeTier" : "openrouter.plan.payAsYouGo").localizedStatic()
             for (name, field) in [
                 ("openrouter-today", "usage_daily"),
                 ("openrouter-week", "usage_weekly"),

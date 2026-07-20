@@ -260,6 +260,11 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
             return false
         }
     }
+
+    /// Whether the Local Proxy dashboard can route this provider through its setup flow.
+    var supportsLocalProxySetup: Bool {
+        supportsManualAuth && !isQuotaTrackingOnly
+    }
 }
 
 // MARK: - Quota Metric Presentation
@@ -277,11 +282,11 @@ nonisolated enum QuotaMetricUnit: String, Codable, Sendable, Equatable {
         case .usd:
             return value.formatted(.currency(code: "USD").precision(.fractionLength(0...2)))
         case .credits:
-            return String(format: "quota.metric.unit.credits".localizedStatic(), value.formatted(.number.precision(.fractionLength(0...2))))
+            return String.localizedStringWithFormat("quota.metric.unit.credits".localizedStatic(), value)
         case .requests:
-            return String(format: "quota.metric.unit.requests".localizedStatic(), value.formatted(.number.precision(.fractionLength(0...2))))
+            return String.localizedStringWithFormat("quota.metric.unit.requests".localizedStatic(), value)
         case .searches:
-            return String(format: "quota.metric.unit.searches".localizedStatic(), value.formatted(.number.precision(.fractionLength(0...2))))
+            return String.localizedStringWithFormat("quota.metric.unit.searches".localizedStatic(), value)
         }
     }
 }

@@ -209,15 +209,18 @@ actor GLMQuotaFetcher {
 
     private nonisolated static func tokenWindowName(unit: Double, number: Double) -> String? {
         guard number > 0 else { return nil }
-        let durationHours: Double
         switch unit {
-        case 3: durationHours = number
-        case 4: durationHours = number * 24
-        case 5: durationHours = number * 24 * 30
-        case 6: durationHours = number * 24 * 7
+        case 3:
+            return number < 24 ? "zai-session" : "zai-daily"
+        case 4:
+            if number <= 1 { return "zai-daily" }
+            return number < 28 ? "zai-weekly" : "zai-monthly"
+        case 5:
+            return "zai-monthly"
+        case 6:
+            return number < 4 ? "zai-weekly" : "zai-monthly"
         default: return nil
         }
-        return durationHours < 24 ? "zai-session" : "zai-weekly"
     }
 
     /// Fetch quota for all configured GLM API keys

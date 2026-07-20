@@ -276,7 +276,9 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         case "clinepass-monthly": return "clinepass.quota.monthly".localizedStatic()
         // Z.ai / GLM Coding Plan
         case "zai-session": return "quota.metric.session".localizedStatic()
+        case "zai-daily": return "quota.metric.daily".localizedStatic()
         case "zai-weekly": return "quota.metric.weekly".localizedStatic()
+        case "zai-monthly": return "quota.metric.monthly".localizedStatic()
         case "zai-web-searches": return "quota.metric.webSearches".localizedStatic()
         // Devin
         case "devin-daily": return "quota.metric.daily".localizedStatic()

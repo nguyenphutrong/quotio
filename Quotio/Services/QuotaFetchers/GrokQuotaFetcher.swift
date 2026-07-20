@@ -103,6 +103,21 @@ actor GrokQuotaFetcher {
         return results
     }
 
+    nonisolated static func quotaResult(
+        data: Data,
+        statusCode: Int,
+        plan: String?,
+        displayName: String
+    ) -> ProviderQuotaData? {
+        if statusCode == 401 || statusCode == 403 {
+            return ProviderQuotaData(isForbidden: true, accountDisplayName: displayName)
+        }
+        guard 200...299 ~= statusCode,
+              var quota = GrokQuotaMapper.mapBilling(data, plan: plan) else { return nil }
+        quota.accountDisplayName = displayName
+        return quota
+    }
+
     nonisolated static func loadCandidates(path: String = MonitorIdentity.expand(authPath)) -> [GrokAuthCandidate] {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
@@ -136,8 +151,16 @@ actor GrokQuotaFetcher {
             candidate = refreshed
             billing = await get(billingURL, token: candidate.accessToken)
         }
-        guard let (billingData, billingResponse) = billing,
-              200...299 ~= billingResponse.statusCode else { return nil }
+        guard let (billingData, billingResponse) = billing else { return nil }
+        if billingResponse.statusCode == 401 || billingResponse.statusCode == 403 {
+            return Self.quotaResult(
+                data: billingData,
+                statusCode: billingResponse.statusCode,
+                plan: nil,
+                displayName: candidate.displayName
+            )
+        }
+        guard 200...299 ~= billingResponse.statusCode else { return nil }
 
         let plan: String?
         if let (settingsData, settingsResponse) = await get(settingsURL, token: candidate.accessToken),
@@ -146,7 +169,12 @@ actor GrokQuotaFetcher {
         } else {
             plan = nil
         }
-        return GrokQuotaMapper.mapBilling(billingData, plan: plan)
+        return Self.quotaResult(
+            data: billingData,
+            statusCode: billingResponse.statusCode,
+            plan: plan,
+            displayName: candidate.displayName
+        )
     }
 
     private func get(_ url: URL, token: String) async -> (Data, HTTPURLResponse)? {

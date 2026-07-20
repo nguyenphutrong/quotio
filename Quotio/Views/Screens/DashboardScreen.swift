@@ -592,8 +592,9 @@ struct DashboardScreen: View {
         let alert = NSAlert()
         alert.messageText = "providers.addProvider".localized()
         alert.informativeText = "onboarding.addProviderDesc".localized()
-        
-        for provider in AIProvider.allCases {
+
+        let providers = AIProvider.allCases.filter(\.supportsLocalProxySetup)
+        for provider in providers {
             alert.addButton(withTitle: provider.displayName)
         }
         alert.addButton(withTitle: "action.cancel".localized())
@@ -601,8 +602,8 @@ struct DashboardScreen: View {
         let response = alert.runModal()
         let index = response.rawValue - 1000
         
-        if index >= 0 && index < AIProvider.allCases.count {
-            let provider = AIProvider.allCases[index]
+        if index >= 0 && index < providers.count {
+            let provider = providers[index]
             if provider == .vertex {
                 isImporterPresented = true
             } else {
@@ -670,7 +671,7 @@ struct DashboardScreen: View {
                         ProviderChip(provider: provider, count: viewModel.authFilesByProvider[provider]?.count ?? 0)
                     }
                     
-                    ForEach(viewModel.disconnectedProviders.filter { $0.supportsManualAuth }) { provider in
+                    ForEach(viewModel.disconnectedProviders.filter(\.supportsLocalProxySetup)) { provider in
                         Button {
                             if provider == .vertex {
                                 isImporterPresented = true

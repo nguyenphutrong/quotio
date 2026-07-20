@@ -105,12 +105,28 @@ actor DevinQuotaFetcher {
 
     func fetchAsProviderQuota() async -> [String: ProviderQuotaData] {
         let candidates = [loadCredentialsFile(), Self.loadAppCredential()].compactMap { $0 }
+        var rejectedCredential: ProviderQuotaData?
         for credential in candidates {
             if let quota = await fetchQuota(credential: credential) {
+                if quota.isForbidden {
+                    rejectedCredential = quota
+                    continue
+                }
                 return ["Devin": quota]
             }
         }
+        if let rejectedCredential {
+            return ["Devin": rejectedCredential]
+        }
         return [:]
+    }
+
+    nonisolated static func quotaResult(data: Data, statusCode: Int) -> ProviderQuotaData? {
+        if statusCode == 401 || statusCode == 403 {
+            return ProviderQuotaData(isForbidden: true)
+        }
+        guard 200...299 ~= statusCode else { return nil }
+        return DevinQuotaMapper.map(data)
     }
 
     private func fetchQuota(credential: DevinCredential) async -> ProviderQuotaData? {
@@ -136,9 +152,8 @@ actor DevinQuotaFetcher {
         request.setValue("1", forHTTPHeaderField: "Connect-Protocol-Version")
 
         guard let (responseData, response) = try? await session.data(for: request),
-              let http = response as? HTTPURLResponse,
-              200...299 ~= http.statusCode else { return nil }
-        return DevinQuotaMapper.map(responseData)
+              let http = response as? HTTPURLResponse else { return nil }
+        return Self.quotaResult(data: responseData, statusCode: http.statusCode)
     }
 
     nonisolated static func parseCredentialsTOML(_ text: String) -> DevinCredential? {

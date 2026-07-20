@@ -188,20 +188,43 @@ struct GLMAPIKeySheet: View {
             return
         }
 
-        // Build provider using GLM type (similar to Gemini compatibility)
-        let newProvider = CustomProvider(
-            id: provider?.id ?? UUID(),
-            name: provider?.name ?? "Z.ai",
-            type: .glmCompatibility,
-            baseURL: endpoint.baseURL,
-            apiKeys: [CustomAPIKeyEntry(apiKey: trimmedKey)],
-            isEnabled: true,
-            createdAt: provider?.createdAt ?? Date(),
-            updatedAt: Date()
+        let newProvider = GLMProviderEditor.updatedProvider(
+            provider,
+            apiKey: trimmedKey,
+            endpoint: endpoint
         )
 
         onSave(newProvider)
         dismiss()
+    }
+}
+
+enum GLMProviderEditor {
+    static func updatedProvider(
+        _ existing: CustomProvider?,
+        apiKey: String,
+        endpoint: GLMEndpoint,
+        now: Date = Date()
+    ) -> CustomProvider {
+        guard var provider = existing else {
+            return CustomProvider(
+                name: "Z.ai",
+                type: .glmCompatibility,
+                baseURL: endpoint.baseURL,
+                apiKeys: [CustomAPIKeyEntry(apiKey: apiKey)],
+                createdAt: now,
+                updatedAt: now
+            )
+        }
+
+        provider.baseURL = endpoint.baseURL
+        if provider.apiKeys.isEmpty {
+            provider.apiKeys.append(CustomAPIKeyEntry(apiKey: apiKey))
+        } else {
+            provider.apiKeys[0].apiKey = apiKey
+        }
+        provider.updatedAt = now
+        return provider
     }
 }
 
