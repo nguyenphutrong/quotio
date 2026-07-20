@@ -25,10 +25,12 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
     /// Source location of the auth file
     enum AuthFileSource: String, Sendable {
         case cliProxyApi = "~/.cli-proxy-api"
+        case nativeCredential = "Native Credential"
         
         var displayName: String {
             switch self {
             case .cliProxyApi: return "CLI Proxy API"
+            case .nativeCredential: return "Native Credential"
             }
         }
     }
@@ -323,15 +325,15 @@ actor DirectAuthFileService {
             
         case .kiro:
             // Kiro (AWS CodeWhisperer) format
-            if let accessToken = json["access_token"] as? String {
+            if let accessToken = json["access_token"] as? String ?? json["accessToken"] as? String {
 
-                let refreshToken = json["refresh_token"] as? String
+                let refreshToken = json["refresh_token"] as? String ?? json["refreshToken"] as? String
 
                 // Robust parsing for expires_at (could be string or int/double)
                 var expiresAt: String?
-                if let expStr = json["expires_at"] as? String ?? json["expiry"] as? String {
+                if let expStr = json["expires_at"] as? String ?? json["expiresAt"] as? String ?? json["expiry"] as? String {
                     expiresAt = expStr
-                } else if let expNum = json["expires_at"] as? Double ?? json["expiry"] as? Double {
+                } else if let expNum = json["expires_at"] as? Double ?? json["expiresAt"] as? Double ?? json["expiry"] as? Double {
                     // Convert numeric timestamp to ISO string for consistency in AuthTokenData
                     expiresAt = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: expNum))
                 }
@@ -340,8 +342,8 @@ actor DirectAuthFileService {
                 // Default to "IdC" if not specified for backwards compatibility
                 let authMethod = json["auth_method"] as? String ?? json["authMethod"] as? String ?? "IdC"
 
-                var clientId = json["client_id"] as? String
-                var clientSecret = json["client_secret"] as? String
+                var clientId = json["client_id"] as? String ?? json["clientId"] as? String
+                var clientSecret = json["client_secret"] as? String ?? json["clientSecret"] as? String
 
                 // For IdC auth, if clientId/clientSecret are missing, try to load from AWS SSO cache
                 // Social auth (Google) doesn't need these credentials
@@ -455,7 +457,7 @@ actor DirectAuthFileService {
         // Write back to file atomically
         do {
             let updatedData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
-            try updatedData.write(to: URL(fileURLWithPath: filePath), options: .atomic)
+            try SecureAtomicFileWriter.write(updatedData, to: URL(fileURLWithPath: filePath))
         } catch {
             // Silent failure
         }
@@ -465,7 +467,7 @@ actor DirectAuthFileService {
 // MARK: - Auth Token Data
 
 /// Token data extracted from auth file
-struct AuthTokenData: Sendable {
+nonisolated struct AuthTokenData: Sendable {
     let accessToken: String
     let refreshToken: String?
     let expiresAt: String?

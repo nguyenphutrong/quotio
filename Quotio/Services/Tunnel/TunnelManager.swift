@@ -32,6 +32,7 @@ final class TunnelManager {
     // MARK: - Init
     
     private init() {
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         Task {
             await refreshInstallation()
             Self.cleanupOrphans()

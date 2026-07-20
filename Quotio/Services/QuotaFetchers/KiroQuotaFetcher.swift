@@ -158,35 +158,107 @@ actor KiroQuotaFetcher {
     }
 
     /// Scan and fetch quotas for all Kiro auth files
-    func fetchAllQuotas() async -> [String: ProviderQuotaData] {
+    func fetchAllQuotas(includeMonitorCredentials: Bool = false) async -> [String: ProviderQuotaData] {
         let authService = DirectAuthFileService()
-        let allFiles = await authService.scanAllAuthFiles()
-        let kiroFiles = allFiles.filter { $0.provider == .kiro }
+        let kiroFiles = await kiroAuthFiles(using: authService)
+        var results = includeMonitorCredentials ? await fetchOwnedQuotas() : [:]
 
-        // Parallel fetching
-        return await withTaskGroup(of: (String, ProviderQuotaData?).self) { group in
-            for authFile in kiroFiles {
-                group.addTask {
-                    guard let tokenData = await authService.readAuthToken(from: authFile) else {
-                        return ("", nil)
-                    }
+        for authFile in kiroFiles {
+            guard let tokenData = await authService.readAuthToken(from: authFile) else { continue }
+            let key = authFile.email
+                ?? tokenData.extras?["profileArn"]
+                ?? authFile.filename.replacingOccurrences(of: ".json", with: "")
+            guard results[key] == nil,
+                  let quota = await fetchQuota(tokenData: tokenData, filePath: authFile.filePath) else { continue }
+            results[key] = quota
+        }
+        return results
+    }
 
-                    // Use filename as key to match Proxy's behavior (ignoring email inside JSON for key purposes)
-                    // This prevents duplicate accounts in the UI
-                    let key = authFile.filename.replacingOccurrences(of: ".json", with: "")
-
-                    let quota = await self.fetchQuota(tokenData: tokenData, filePath: authFile.filePath)
-                    return (key, quota)
-                }
+    private func fetchOwnedQuotas() async -> [String: ProviderQuotaData] {
+        var results: [String: ProviderQuotaData] = [:]
+        for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .kiro && !$0.isDisabled }) {
+            guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
+            if credential.expiresAt.map({ $0.timeIntervalSinceNow < 300 }) ?? false {
+                guard await refreshOwnedCredential(&credential, account: account) else { continue }
             }
-
-            var results: [String: ProviderQuotaData] = [:]
-            for await (key, quota) in group {
-                if let quota = quota, !key.isEmpty {
-                    results[key] = quota
-                }
+            var tokenData = ownedTokenData(credential)
+            let region = credential.extra["region"] ?? defaultRegion
+            var response = await fetchUsageAPI(
+                token: credential.accessToken,
+                tokenExpiresAt: credential.expiresAt,
+                profileArn: credential.extra["profileArn"],
+                region: region,
+                tokenData: tokenData
+            )
+            if (response.statusCode == 401 || response.statusCode == 403),
+               await reloadAndRefreshOwnedCredential(&credential, account: account) {
+                tokenData = ownedTokenData(credential)
+                response = await fetchUsageAPI(
+                    token: credential.accessToken,
+                    tokenExpiresAt: credential.expiresAt,
+                    profileArn: credential.extra["profileArn"],
+                    region: region,
+                    tokenData: tokenData
+                )
             }
-            return results
+            if let quota = response.quotaData { results[account.accountKey] = quota }
+        }
+        return results
+    }
+
+    private func reloadAndRefreshOwnedCredential(
+        _ credential: inout MonitorOAuthCredential,
+        account: MonitorAccount
+    ) async -> Bool {
+        if let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id) {
+            credential = latest
+        }
+        return await refreshOwnedCredential(&credential, account: account)
+    }
+
+    private func ownedTokenData(_ credential: MonitorOAuthCredential) -> AuthTokenData {
+        AuthTokenData(
+            accessToken: credential.accessToken,
+            refreshToken: credential.refreshToken,
+            expiresAt: credential.expiresAt?.ISO8601Format(),
+            clientId: credential.extra["clientId"],
+            clientSecret: credential.extra["clientSecret"],
+            authMethod: credential.extra["authMethod"] ?? "IdC",
+            extras: credential.extra
+        )
+    }
+
+    private func refreshOwnedCredential(
+        _ credential: inout MonitorOAuthCredential,
+        account: MonitorAccount
+    ) async -> Bool {
+        guard let refreshToken = credential.refreshToken,
+              let clientID = credential.extra["clientId"],
+              let clientSecret = credential.extra["clientSecret"] else { return false }
+        let region = credential.extra["region"] ?? defaultRegion
+        guard let url = URL(string: idcTokenEndpoint(region: region)) else { return false }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "clientId": clientID,
+            "clientSecret": clientSecret,
+            "grantType": "refresh_token",
+            "refreshToken": refreshToken,
+        ])
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse,
+              200...299 ~= http.statusCode,
+              let token = try? JSONDecoder().decode(KiroTokenResponse.self, from: data) else { return false }
+        credential.accessToken = token.accessToken
+        credential.refreshToken = token.refreshToken ?? refreshToken
+        credential.expiresAt = Date().addingTimeInterval(TimeInterval(token.expiresIn))
+        do {
+            try await MonitorCredentialVault.shared.save(credential, metadata: account)
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -194,8 +266,7 @@ actor KiroQuotaFetcher {
     
     func refreshAllTokensIfNeeded() async -> Int {
         let authService = DirectAuthFileService()
-        let allFiles = await authService.scanAllAuthFiles()
-        let kiroFiles = allFiles.filter { $0.provider == .kiro }
+        let kiroFiles = await kiroAuthFiles(using: authService)
 
         guard !kiroFiles.isEmpty else {
             return 0
@@ -217,6 +288,37 @@ actor KiroQuotaFetcher {
         }
 
         return refreshedCount
+    }
+
+    private func kiroAuthFiles(using authService: DirectAuthFileService) async -> [DirectAuthFile] {
+        var files = await authService.scanAllAuthFiles().filter { $0.provider == .kiro }
+        guard fileManager.fileExists(atPath: kiroIDEAuthPath),
+              !files.contains(where: { $0.filePath == kiroIDEAuthPath }) else {
+            return files
+        }
+
+        var email: String?
+        var expiry: Date?
+        if let data = fileManager.contents(atPath: kiroIDEAuthPath),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            email = json["email"] as? String
+            let rawExpiry = json["expiresAt"] as? String
+                ?? json["expires_at"] as? String
+                ?? json["expiry"] as? String
+            expiry = parseExpiryDate(rawExpiry)
+        }
+        files.insert(DirectAuthFile(
+            id: kiroIDEAuthPath,
+            provider: .kiro,
+            email: email,
+            login: nil,
+            expired: expiry,
+            accountType: nil,
+            filePath: kiroIDEAuthPath,
+            source: .nativeCredential,
+            filename: URL(fileURLWithPath: kiroIDEAuthPath).lastPathComponent
+        ), at: 0)
+        return files
     }
     
     private func shouldRefreshToken(_ tokenData: AuthTokenData) -> (shouldRefresh: Bool, reason: String) {
@@ -280,13 +382,31 @@ actor KiroQuotaFetcher {
 
         // Reactive refresh: If 401/403 and haven't tried refresh yet, refresh and retry
         if (result.statusCode == 401 || result.statusCode == 403) && !hasAttemptedRefresh {
-            if let (refreshed, newExpiry) = await refreshTokenWithExpiry(tokenData: tokenData, filePath: filePath) {
-                let retryResult = await fetchUsageAPI(token: refreshed, tokenExpiresAt: newExpiry, profileArn: profileArn, region: region, tokenData: tokenData)
+            let latestTokenData = await reloadTokenData(at: filePath) ?? tokenData
+            if let (refreshed, newExpiry) = await refreshTokenWithExpiry(tokenData: latestTokenData, filePath: filePath) {
+                let latestRegion = extractRegionFromProfileArn(latestTokenData.extras?["profileArn"]) ?? latestTokenData.extras?["region"] ?? defaultRegion
+                let retryResult = await fetchUsageAPI(token: refreshed, tokenExpiresAt: newExpiry, profileArn: latestTokenData.extras?["profileArn"], region: latestRegion, tokenData: latestTokenData)
                 return retryResult.quotaData ?? ProviderQuotaData(models: [], lastUpdated: Date(), isForbidden: true, planType: "Unauthorized", tokenExpiresAt: newExpiry)
             }
         }
 
         return result.quotaData
+    }
+
+    private func reloadTokenData(at filePath: String) async -> AuthTokenData? {
+        let source: DirectAuthFile.AuthFileSource = filePath.contains("/.aws/sso/cache/") ? .nativeCredential : .cliProxyApi
+        let file = DirectAuthFile(
+            id: filePath,
+            provider: .kiro,
+            email: nil,
+            login: nil,
+            expired: nil,
+            accountType: nil,
+            filePath: filePath,
+            source: source,
+            filename: URL(fileURLWithPath: filePath).lastPathComponent
+        )
+        return await DirectAuthFileService().readAuthToken(from: file)
     }
 
     /// Parse expiry date from ISO8601 string
@@ -305,6 +425,42 @@ actor KiroQuotaFetcher {
     private struct UsageAPIResult {
         let statusCode: Int
         let quotaData: ProviderQuotaData?
+        let accountIdentity: String?
+
+        init(
+            statusCode: Int,
+            quotaData: ProviderQuotaData?,
+            accountIdentity: String? = nil
+        ) {
+            self.statusCode = statusCode
+            self.quotaData = quotaData
+            self.accountIdentity = accountIdentity
+        }
+    }
+
+    func authenticatedAccountIdentity(
+        accessToken: String,
+        expiresAt: Date,
+        clientID: String,
+        clientSecret: String,
+        region: String
+    ) async -> String? {
+        let tokenData = AuthTokenData(
+            accessToken: accessToken,
+            refreshToken: nil,
+            expiresAt: expiresAt.ISO8601Format(),
+            clientId: clientID,
+            clientSecret: clientSecret,
+            authMethod: "IdC",
+            extras: ["region": region]
+        )
+        return await fetchUsageAPI(
+            token: accessToken,
+            tokenExpiresAt: expiresAt,
+            profileArn: nil,
+            region: region,
+            tokenData: tokenData
+        ).accountIdentity
     }
 
     private func fetchUsageAPI(token: String, tokenExpiresAt: Date?, profileArn: String?, region: String, tokenData: AuthTokenData) async -> UsageAPIResult {
@@ -370,7 +526,18 @@ actor KiroQuotaFetcher {
             do {
                 let usageResponse = try JSONDecoder().decode(KiroUsageResponse.self, from: data)
                 let planType = usageResponse.subscriptionInfo?.subscriptionTitle ?? "Standard"
-                return UsageAPIResult(statusCode: 200, quotaData: convertToQuotaData(usageResponse, planType: planType, tokenExpiresAt: tokenExpiresAt))
+                let accountIdentity = [usageResponse.userInfo?.email, usageResponse.userInfo?.userId]
+                    .compactMap { value -> String? in
+                        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                              !value.isEmpty else { return nil }
+                        return value
+                    }
+                    .first
+                return UsageAPIResult(
+                    statusCode: 200,
+                    quotaData: convertToQuotaData(usageResponse, planType: planType, tokenExpiresAt: tokenExpiresAt),
+                    accountIdentity: accountIdentity
+                )
             } catch {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     let keys = json.keys.sorted().joined(separator: ",")
@@ -440,12 +607,14 @@ actor KiroQuotaFetcher {
 
             await persistRefreshedToken(
                 filePath: filePath,
+                expectedRefreshToken: refreshToken,
                 newAccessToken: tokenResponse.accessToken,
                 newRefreshToken: tokenResponse.refreshToken,
                 expiresIn: tokenResponse.expiresIn
             )
             
             await syncToKiroIDEAuthFile(
+                expectedRefreshToken: refreshToken,
                 newAccessToken: tokenResponse.accessToken,
                 newRefreshToken: tokenResponse.refreshToken,
                 expiresIn: tokenResponse.expiresIn
@@ -511,6 +680,7 @@ actor KiroQuotaFetcher {
             // Persist to Quotio's auth file
             await persistRefreshedToken(
                 filePath: filePath,
+                expectedRefreshToken: refreshToken,
                 newAccessToken: tokenResponse.accessToken,
                 newRefreshToken: tokenResponse.refreshToken,
                 expiresIn: tokenResponse.expiresIn
@@ -518,6 +688,7 @@ actor KiroQuotaFetcher {
             
             // Also sync to Kiro IDE auth file if it exists
             await syncToKiroIDEAuthFile(
+                expectedRefreshToken: refreshToken,
                 newAccessToken: tokenResponse.accessToken,
                 newRefreshToken: tokenResponse.refreshToken,
                 expiresIn: tokenResponse.expiresIn
@@ -532,6 +703,7 @@ actor KiroQuotaFetcher {
     /// Sync refreshed token to Kiro IDE auth file (~/.aws/sso/cache/kiro-auth-token.json)
     /// This keeps Kiro IDE in sync when Quotio refreshes the token
     private func syncToKiroIDEAuthFile(
+        expectedRefreshToken: String,
         newAccessToken: String,
         newRefreshToken: String?,
         expiresIn: Int
@@ -541,6 +713,8 @@ actor KiroQuotaFetcher {
               var json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
             return
         }
+        let latestRefresh = json["refreshToken"] as? String ?? json["refresh_token"] as? String
+        guard latestRefresh == expectedRefreshToken else { return }
         
         // Kiro IDE uses camelCase keys (accessToken, refreshToken, expiresAt)
         json["accessToken"] = newAccessToken
@@ -556,7 +730,7 @@ actor KiroQuotaFetcher {
         
         do {
             let updatedData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
-            try updatedData.write(to: URL(fileURLWithPath: kiroIDEAuthPath), options: .atomic)
+            try SecureAtomicFileWriter.write(updatedData, to: URL(fileURLWithPath: kiroIDEAuthPath))
         } catch {
             // Silent failure - Kiro IDE will refresh on its own if needed
         }
@@ -565,6 +739,7 @@ actor KiroQuotaFetcher {
     /// Persist refreshed token back to the auth file on disk
     private func persistRefreshedToken(
         filePath: String,
+        expectedRefreshToken: String,
         newAccessToken: String,
         newRefreshToken: String?,
         expiresIn: Int
@@ -573,6 +748,8 @@ actor KiroQuotaFetcher {
               var json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
             return
         }
+        let latestRefresh = json["refresh_token"] as? String ?? json["refreshToken"] as? String
+        guard latestRefresh == expectedRefreshToken else { return }
 
         json["access_token"] = newAccessToken
         if let newRefresh = newRefreshToken {
@@ -589,7 +766,7 @@ actor KiroQuotaFetcher {
 
         do {
             let updatedData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
-            try updatedData.write(to: URL(fileURLWithPath: filePath), options: .atomic)
+            try SecureAtomicFileWriter.write(updatedData, to: URL(fileURLWithPath: filePath))
         } catch {
             // Silent failure - token will be refreshed again on next request
         }

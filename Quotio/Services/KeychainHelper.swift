@@ -18,6 +18,7 @@ enum KeychainHelper {
     private static let warpTokensAccount = "warp-tokens"
     private static let localManagementDefaultsKey = "managementKey"
     private static let warpTokensDefaultsKey = "warpTokens"
+    nonisolated private static let monitorAuthService = "dev.quotio.desktop.monitor-auth"
 
     // Legacy service names for keychain migration (newest first)
     private static let legacyRemoteServices = [
@@ -136,6 +137,103 @@ enum KeychainHelper {
         UserDefaults.standard.removeObject(forKey: warpTokensDefaultsKey)
     }
 
+    // MARK: - Monitor-only credentials
+
+    nonisolated static func saveMonitorCredential(_ data: Data, account: String) -> Bool {
+        saveData(data, service: monitorAuthService, account: account)
+    }
+
+    nonisolated static func getMonitorCredential(account: String) -> Data? {
+        readData(service: monitorAuthService, account: account)
+    }
+
+    nonisolated static func deleteMonitorCredential(account: String) {
+        deleteData(service: monitorAuthService, account: account)
+    }
+
+    nonisolated static func compareAndSwapMonitorCredential(
+        _ data: Data,
+        account: String,
+        expectedFingerprint: String
+    ) -> Bool {
+        guard let current = getMonitorCredential(account: account),
+              MonitorIdentity.fingerprint(current.base64EncodedString()) == expectedFingerprint else {
+            return false
+        }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: monitorAuthService,
+            kSecAttrAccount as String: account,
+        ]
+        return SecItemUpdate(
+            query as CFDictionary,
+            [kSecValueData as String: data] as CFDictionary
+        ) == errSecSuccess
+    }
+
+    /// Read a credential owned by another local CLI/app without mutating it.
+    nonisolated static func readExternalCredential(service: String, account: String? = nil) -> Data? {
+        readExternalCredentialRecord(service: service, account: account)?.data
+    }
+
+    nonisolated static func readExternalCredentialRecord(
+        service: String,
+        account: String? = nil
+    ) -> (data: Data, account: String)? {
+        let query: [String: Any] = {
+            var value: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecReturnData as String: true,
+                kSecReturnAttributes as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne,
+            ]
+            if let account, !account.isEmpty {
+                value[kSecAttrAccount as String] = account
+            }
+            return value
+        }()
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecSuccess,
+           let item = result as? [String: Any],
+           let data = item[kSecValueData as String] as? Data,
+           let resolvedAccount = item[kSecAttrAccount as String] as? String {
+            return (data, resolvedAccount)
+        }
+        if status != errSecItemNotFound && status != errSecInteractionNotAllowed {
+            Log.keychain("External keychain read failed (service: \(service)): \(status)")
+        }
+        return nil
+    }
+
+    /// Update a known writable credential source after an OAuth refresh.
+    nonisolated static func writeExternalCredential(_ data: Data, service: String, account: String) -> Bool {
+        saveData(data, service: service, account: account)
+    }
+
+    nonisolated static func compareAndSwapExternalCredential(
+        service: String,
+        account: String,
+        expectedData: Data,
+        newData: Data
+    ) -> Bool {
+        guard readExternalCredentialRecord(service: service, account: account)?.data == expectedData else {
+            return false
+        }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        let status = SecItemUpdate(
+            query as CFDictionary,
+            [kSecValueData as String: newData] as CFDictionary
+        )
+        return status == errSecSuccess
+    }
+
     private static func migrateData(from oldServices: [String], to newService: String, account: String) -> Data? {
         for oldService in oldServices {
             guard let data = readData(service: oldService, account: account) else { continue }
@@ -159,16 +257,30 @@ enum KeychainHelper {
     }
 
 
-    private static func saveData(_ data: Data, service: String, account: String) -> Bool {
-        deleteData(service: service, account: account)
-
-        let query: [String: Any] = [
+    nonisolated private static func saveData(_ data: Data, service: String, account: String) -> Bool {
+        let identity: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
+        let updateStatus = SecItemUpdate(
+            identity as CFDictionary,
+            [
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            ] as CFDictionary
+        )
+        if updateStatus == errSecSuccess { return true }
+        guard updateStatus == errSecItemNotFound else {
+            Log.keychain("Keychain update failed (service: \(service), account: \(account)): \(updateStatus)")
+            return false
+        }
+
+        var query = identity
+        query.merge([
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        ]) { _, new in new }
 
         let status = SecItemAdd(query as CFDictionary, nil)
         if status == errSecSuccess {
@@ -179,7 +291,7 @@ enum KeychainHelper {
         return false
     }
 
-    private static func readData(service: String, account: String) -> Data? {
+    nonisolated private static func readData(service: String, account: String) -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -210,7 +322,7 @@ enum KeychainHelper {
         return String(data: data, encoding: .utf8)
     }
 
-    private static func deleteData(service: String, account: String) {
+    nonisolated private static func deleteData(service: String, account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

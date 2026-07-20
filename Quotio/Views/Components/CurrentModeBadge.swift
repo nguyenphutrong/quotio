@@ -74,7 +74,7 @@ struct CurrentModeBadge: View {
     private var statusText: String {
         switch modeManager.currentMode {
         case .monitor:
-            let count = viewModel.directAuthFiles.count
+            let count = viewModel.monitorAccounts.count
             return String(format: "sidebar.modeBadge.accounts".localized(), count)
         case .localProxy:
             if viewModel.proxyManager.proxyStatus.running {

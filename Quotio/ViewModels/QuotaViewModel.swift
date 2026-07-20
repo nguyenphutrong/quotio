@@ -22,6 +22,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let warpFetcher = WarpQuotaFetcher()
     @ObservationIgnored private let clinePassFetcher = ClinePassQuotaFetcher()
     @ObservationIgnored private let directAuthService = DirectAuthFileService()
+    @ObservationIgnored private let monitorCoordinator = MonitorRefreshCoordinator()
     @ObservationIgnored private let notificationManager = NotificationManager.shared
     @ObservationIgnored private let modeManager = OperatingModeManager.shared
     @ObservationIgnored private let refreshSettings = RefreshSettingsManager.shared
@@ -71,6 +72,34 @@ final class QuotaViewModel {
     
     /// Direct auth files for quota-only mode
     var directAuthFiles: [DirectAuthFile] = []
+    var monitorAccounts: [MonitorAccount] = []
+    var monitorIssues: [AIProvider: MonitorRefreshIssue] = [:]
+
+    func monitorStatus(for account: MonitorAccount) -> (status: String?, message: String?) {
+        if let issue = monitorIssues[account.provider] {
+            return ("outdated", issue.message)
+        }
+        let updated = Self.monitorLastUpdated(for: account, providerQuotas: providerQuotas)
+        guard let updated else { return (nil, nil) }
+        let staleAfter = refreshSettings.refreshCadence.intervalSeconds ?? 600
+        if Date().timeIntervalSince(updated) > staleAfter {
+            return (
+                "outdated",
+                String(format: "monitor.status.outdated".localized(), updated.formatted(date: .abbreviated, time: .shortened))
+            )
+        }
+        return (
+            "ready",
+            String(format: "monitor.status.updated".localized(), updated.formatted(date: .omitted, time: .shortened))
+        )
+    }
+
+    nonisolated static func monitorLastUpdated(
+        for account: MonitorAccount,
+        providerQuotas: [AIProvider: [String: ProviderQuotaData]]
+    ) -> Date? {
+        providerQuotas[account.provider]?[account.accountKey]?.lastUpdated
+    }
     
     /// Last quota refresh time (for quota-only mode display)
     var lastQuotaRefreshTime: Date?
@@ -292,7 +321,16 @@ final class QuotaViewModel {
     
     /// Initialize for Quota-Only Mode (no proxy)
     private func initializeQuotaOnlyMode() async {
-        // Load auth files directly from filesystem
+        if let existingClient = _apiClient {
+            await existingClient.invalidate()
+            _apiClient = nil
+        }
+        let bootstrap = await monitorCoordinator.bootstrap()
+        monitorAccounts = bootstrap.accounts
+        monitorIssues = bootstrap.issues
+        providerQuotas = bootstrap.quotas
+
+        // Keep legacy files available only as a compatibility source.
         await loadDirectAuthFiles()
         
         // Fetch quotas directly
@@ -348,30 +386,131 @@ final class QuotaViewModel {
     /// Load auth files directly from filesystem
     func loadDirectAuthFiles() async {
         directAuthFiles = await directAuthService.scanAllAuthFiles()
+        if modeManager.isMonitorMode {
+            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+        }
+    }
+
+    func setMonitorAccountDisabled(_ disabled: Bool, accountID: String) async {
+        await monitorCoordinator.setDisabled(disabled, accountID: accountID)
+        monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+        syncMenuBarSelection()
+    }
+
+    func deleteMonitorAccount(accountID: String) async {
+        guard let account = monitorAccounts.first(where: { $0.id == accountID }), account.canDelete else { return }
+        await monitorCoordinator.deleteOwnedAccount(accountID: accountID)
+        providerQuotas[account.provider]?.removeValue(forKey: account.accountKey)
+        await monitorCoordinator.finish(quotas: providerQuotas)
+        monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
     }
     
     /// Refresh quotas directly without proxy (for Quota-Only Mode)
     /// Note: Cursor and Trae are NOT auto-refreshed - user must use "Scan for IDEs" (issue #29)
-    func refreshQuotasDirectly() async {
+    func refreshQuotasDirectly(force: Bool = false) async {
         guard !isLoadingQuotas else { return }
         
         isLoadingQuotas = true
         lastQuotaRefreshTime = Date()
         
-        // Fetch from available fetchers in parallel
-        // Note: Cursor and Trae removed from auto-refresh to address privacy concerns (issue #29)
-        // User must explicitly scan for IDEs to detect Cursor/Trae quotas
-        async let antigravity: () = refreshAntigravityQuotasInternal()
-        async let codex: () = refreshCodexQuotasInternal(includeCLIFallback: true)
-        async let copilot: () = refreshCopilotQuotasInternal()
-        async let claudeCode: () = refreshClaudeCodeQuotasInternal()
-        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
-        async let glm: () = refreshGlmQuotasInternal()
-        async let warp: () = refreshWarpQuotasInternal()
-        async let kiro: () = refreshKiroQuotasInternal()
-        async let clinePass: () = refreshClinePassQuotasInternal()
+        let previous = providerQuotas
+        let coordinator = monitorCoordinator
+        let discoveredProviders = Set(await coordinator.discoverAccounts().map(\.provider))
+        let credentialProviders: Set<AIProvider> = [.codex, .claude, .gemini, .copilot, .kiro, .antigravity]
+        let credentialAvailability = Dictionary(uniqueKeysWithValues: credentialProviders.map {
+            ($0, discoveredProviders.contains($0) ? MonitorCredentialAvailability.present : .missing)
+        })
+        let codexFetcher = codexCLIFetcher
+        let claudeFetcher = claudeCodeFetcher
+        let geminiFetcher = geminiCLIFetcher
+        let copilotQuotaFetcher = copilotFetcher
+        let kiroQuotaFetcher = kiroFetcher
+        let glmQuotaFetcher = glmFetcher
+        let clineQuotaFetcher = clinePassFetcher
+        let warpQuotaFetcher = warpFetcher
+        let antigravityQuotaFetcher = antigravityFetcher
+        let warpTokens = WarpService.shared.tokens.filter { $0.isEnabled }
 
-        _ = await (antigravity, codex, copilot, claudeCode, geminiCLI, glm, warp, kiro, clinePass)
+        async let codex = coordinator.refresh(
+            provider: .codex,
+            force: force,
+            previous: previous[.codex] ?? [:],
+            credentialAvailability: credentialAvailability[.codex] ?? .unknown
+        ) {
+            await codexFetcher.fetchAsProviderQuota()
+        }
+        async let claude = coordinator.refresh(
+            provider: .claude,
+            force: force,
+            previous: previous[.claude] ?? [:],
+            credentialAvailability: credentialAvailability[.claude] ?? .unknown
+        ) {
+            await claudeFetcher.fetchAsProviderQuota(forceRefresh: force, includeMonitorCredentials: true)
+        }
+        async let gemini = coordinator.refresh(
+            provider: .gemini,
+            force: force,
+            previous: previous[.gemini] ?? [:],
+            credentialAvailability: credentialAvailability[.gemini] ?? .unknown
+        ) {
+            await geminiFetcher.fetchAsProviderQuota(includeMonitorCredentials: true)
+        }
+        async let copilot = coordinator.refresh(
+            provider: .copilot,
+            force: force,
+            previous: previous[.copilot] ?? [:],
+            credentialAvailability: credentialAvailability[.copilot] ?? .unknown
+        ) {
+            await copilotQuotaFetcher.fetchAllCopilotQuotas(includeMonitorCredentials: true)
+        }
+        async let kiro = coordinator.refresh(
+            provider: .kiro,
+            force: force,
+            previous: previous[.kiro] ?? [:],
+            credentialAvailability: credentialAvailability[.kiro] ?? .unknown
+        ) {
+            await kiroQuotaFetcher.fetchAllQuotas(includeMonitorCredentials: true)
+        }
+        async let glm = coordinator.refresh(provider: .glm, force: force, previous: previous[.glm] ?? [:]) {
+            await glmQuotaFetcher.fetchAllQuotas()
+        }
+        async let clinePass = coordinator.refresh(provider: .clinePass, force: force, previous: previous[.clinePass] ?? [:]) {
+            await clineQuotaFetcher.fetchAllQuotas()
+        }
+        async let warp = coordinator.refresh(provider: .warp, force: force, previous: previous[.warp] ?? [:]) {
+            var quotas: [String: ProviderQuotaData] = [:]
+            for entry in warpTokens {
+                if let quota = try? await warpQuotaFetcher.fetchQuota(apiKey: entry.token) {
+                    quotas[entry.name] = quota
+                }
+            }
+            return quotas
+        }
+        async let antigravity = coordinator.refresh(
+            provider: .antigravity,
+            force: force,
+            previous: previous[.antigravity] ?? [:],
+            credentialAvailability: credentialAvailability[.antigravity] ?? .unknown
+        ) {
+            let (quotas, _) = await antigravityQuotaFetcher.fetchAllAntigravityData(includeMonitorCredentials: true)
+            return quotas
+        }
+
+        providerQuotas[.codex] = await codexFetcher.reconcileLegacyAliases(in: await codex)
+        providerQuotas[.claude] = await claude
+        providerQuotas[.gemini] = await gemini
+        providerQuotas[.copilot] = await copilot
+        providerQuotas[.kiro] = await kiro
+        providerQuotas[.glm] = await glm
+        providerQuotas[.clinePass] = await clinePass
+        providerQuotas[.warp] = await warp
+        providerQuotas[.antigravity] = await antigravity
+        providerQuotas = providerQuotas.filter { !$0.value.isEmpty }
+
+        monitorAccounts = await coordinator.discoverAccounts(merging: providerQuotas)
+        removeDisabledMonitorQuotas()
+        monitorIssues = await coordinator.currentIssues()
+        await coordinator.finish(quotas: providerQuotas)
         
         checkQuotaNotifications()
         pruneMenuBarItems()
@@ -404,8 +543,11 @@ final class QuotaViewModel {
             }
         }
         
-        for file in directAuthFiles {
-            let item = MenuBarQuotaItem(provider: file.provider.rawValue, accountKey: file.menuBarAccountKey)
+        let monitorItems = modeManager.isMonitorMode
+            ? monitorAccounts.filter { !$0.isDisabled }.map { ($0.provider, $0.accountKey) }
+            : directAuthFiles.map { ($0.provider, $0.menuBarAccountKey) }
+        for (provider, accountKey) in monitorItems {
+            let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: accountKey)
             if !seen.contains(item.id) {
                 seen.insert(item.id)
                 availableItems.append(item)
@@ -413,6 +555,12 @@ final class QuotaViewModel {
         }
         
         menuBarSettings.autoSelectNewAccounts(availableItems: availableItems)
+    }
+
+    private func removeDisabledMonitorQuotas() {
+        for account in monitorAccounts where account.isDisabled {
+            providerQuotas[account.provider]?.removeValue(forKey: account.accountKey)
+        }
     }
     
     func syncMenuBarSelection() {
@@ -454,12 +602,7 @@ final class QuotaViewModel {
     
     /// Refresh Codex quota using CLI auth file (~/.codex/auth.json)
     private func refreshCodexCLIQuotasInternal() async {
-        // Only use CLI fetcher if proxy is not available or in quota-only mode
-        // The openAIFetcher handles Codex via proxy auth files
         guard modeManager.isMonitorMode else { return }
-
-        // Skip if OpenAI fetcher already populated codex quotas (avoids duplicate entries
-        // since OpenAIQuotaFetcher keys by filename while CodexCLIFetcher keys by JWT email)
         if let existing = providerQuotas[.codex], !existing.isEmpty { return }
 
         let quotas = await codexCLIFetcher.fetchAsProviderQuota()
@@ -470,6 +613,12 @@ final class QuotaViewModel {
     
     /// Refresh Gemini quota using CLIProxyAPI management data when available.
     private func refreshGeminiCLIQuotasInternal() async {
+        if modeManager.isMonitorMode {
+            let quotas = await geminiCLIFetcher.fetchAsProviderQuota()
+            if !quotas.isEmpty { providerQuotas[.gemini] = quotas }
+            return
+        }
+
         var quotaAuthFiles = authFiles
         var quotaClient = apiClient
         var transientClient: ManagementAPIClient?
@@ -1001,7 +1150,10 @@ final class QuotaViewModel {
     }
     
     var connectedProviders: [AIProvider] {
-        Array(Set(authFiles.compactMap { $0.providerType })).sorted { $0.displayName < $1.displayName }
+        if modeManager.isMonitorMode {
+            return Array(Set(monitorAccounts.map(\.provider))).sorted { $0.displayName < $1.displayName }
+        }
+        return Array(Set(authFiles.compactMap { $0.providerType })).sorted { $0.displayName < $1.displayName }
     }
     
     var disconnectedProviders: [AIProvider] {
@@ -1214,7 +1366,7 @@ final class QuotaViewModel {
     
     func manualRefresh() async {
         if modeManager.isMonitorMode {
-            await refreshQuotasDirectly()
+            await refreshQuotasDirectly(force: true)
         } else if proxyManager.proxyStatus.running {
             await refreshData()
         } else {
@@ -1224,6 +1376,10 @@ final class QuotaViewModel {
     }
     
     func refreshAllQuotas() async {
+        if modeManager.isMonitorMode {
+            await refreshQuotasDirectly()
+            return
+        }
         guard !isLoadingQuotas else { return }
 
         isLoadingQuotas = true
@@ -1264,6 +1420,10 @@ final class QuotaViewModel {
     /// In Remote Mode: skips local fetchers (data comes from remote proxy)
     /// Note: Cursor and Trae require explicit user scan (issue #29)
     func refreshQuotasUnified() async {
+        if modeManager.isMonitorMode {
+            await refreshQuotasDirectly()
+            return
+        }
         guard !isLoadingQuotas else { return }
         guard !modeManager.isRemoteProxyMode else { return }
 
@@ -1364,6 +1524,10 @@ final class QuotaViewModel {
     }
 
     private func refreshCodexQuotasInternal(includeCLIFallback: Bool) async {
+        if modeManager.isMonitorMode {
+            providerQuotas[.codex] = await codexCLIFetcher.fetchAsProviderQuota()
+            return
+        }
         await refreshOpenAIQuotasInternal()
         if includeCLIFallback {
             await refreshCodexCLIQuotasInternal()
@@ -1376,12 +1540,19 @@ final class QuotaViewModel {
     }
     
     func refreshQuotaForProvider(_ provider: AIProvider) async {
+        if modeManager.isMonitorMode {
+            await refreshQuotasDirectly(force: true)
+            return
+        }
         switch provider {
         case .antigravity:
             await refreshAntigravityQuotasInternal()
         case .codex:
-            await refreshOpenAIQuotasInternal()
-            await refreshCodexCLIQuotasInternal()
+            if modeManager.isMonitorMode {
+                await refreshCodexQuotasInternal(includeCLIFallback: true)
+            } else {
+                await refreshOpenAIQuotasInternal()
+            }
         case .copilot:
             await refreshCopilotQuotasInternal()
         case .claude:
@@ -1420,6 +1591,11 @@ final class QuotaViewModel {
     }
     
     func startOAuth(for provider: AIProvider, projectId: String? = nil, authMethod: AuthCommand? = nil, launchMode: OAuthLaunchMode = .manual) async {
+        if modeManager.isMonitorMode {
+            await startMonitorOAuth(for: provider)
+            return
+        }
+
         // GitHub Copilot uses Device Code Flow via CLI binary, not Management API
         if provider == .copilot {
             await startCopilotAuth()
@@ -1457,6 +1633,64 @@ final class QuotaViewModel {
             
             await pollOAuthStatus(state: state, provider: provider)
             
+        } catch {
+            oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
+        }
+    }
+
+    private func startMonitorOAuth(for provider: AIProvider) async {
+        oauthState = OAuthState(provider: provider, status: .waiting)
+        if provider == .claude {
+            do {
+                let pending = try await MonitorOAuthCoordinator.shared.beginClaudeLogin()
+                oauthState = OAuthState(
+                    provider: provider,
+                    status: .polling,
+                    state: pending.state,
+                    authURL: pending.url.absoluteString
+                )
+            } catch {
+                oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
+            }
+            return
+        }
+        let observer = NotificationCenter.default.addObserver(
+            forName: .monitorOAuthDeviceCode,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let code = notification.userInfo?["code"] as? String
+            let url = notification.userInfo?["url"] as? String
+            Task { @MainActor [weak self] in
+                self?.oauthState = OAuthState(
+                    provider: provider,
+                    status: .polling,
+                    state: code,
+                    error: code.map { String(format: "oauth.enterDeviceCode".localized(), $0) },
+                    authURL: url
+                )
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        do {
+            _ = try await MonitorOAuthCoordinator.shared.login(provider: provider)
+            oauthState = OAuthState(provider: provider, status: .success)
+            await refreshQuotasDirectly(force: true)
+        } catch is CancellationError {
+            oauthState = nil
+        } catch {
+            oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
+        }
+    }
+
+    func completeMonitorOAuthCode(_ code: String, provider: AIProvider) async {
+        guard modeManager.isMonitorMode, provider == .claude else { return }
+        oauthState = OAuthState(provider: provider, status: .waiting)
+        do {
+            _ = try await MonitorOAuthCoordinator.shared.completeClaudeLogin(code: code)
+            oauthState = OAuthState(provider: provider, status: .success)
+            await refreshQuotasDirectly(force: true)
         } catch {
             oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
         }
@@ -1590,6 +1824,7 @@ final class QuotaViewModel {
     }
     
     func cancelOAuth() {
+        Task { await MonitorOAuthCoordinator.shared.cancel() }
         oauthState = nil
     }
     
@@ -1940,6 +2175,11 @@ final class QuotaViewModel {
         
         // Persist IDE quota data for Cursor and Trae
         savePersistedIDEQuotas()
+
+        if modeManager.isMonitorMode {
+            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            removeDisabledMonitorQuotas()
+        }
 
         // Update menu bar items
         pruneMenuBarItems()

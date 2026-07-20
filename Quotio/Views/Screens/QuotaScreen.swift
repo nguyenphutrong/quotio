@@ -70,7 +70,7 @@ struct QuotaScreen: View {
     /// Check if we have any data to show
     private var hasAnyData: Bool {
         if modeManager.isMonitorMode {
-            return !viewModel.providerQuotas.isEmpty || !viewModel.directAuthFiles.isEmpty
+            return !viewModel.providerQuotas.isEmpty || !viewModel.monitorAccounts.isEmpty
         }
         return !viewModel.authFiles.isEmpty || !viewModel.providerQuotas.isEmpty
     }
@@ -128,7 +128,11 @@ struct QuotaScreen: View {
                 ToolbarItem(placement: .primaryAction) {
                 Button {
                     Task {
-                        await viewModel.refreshQuotasUnified()
+                        if modeManager.isMonitorMode {
+                            await viewModel.manualRefresh()
+                        } else {
+                            await viewModel.refreshQuotasUnified()
+                        }
                     }
                 } label: {
                     Image(systemName: "arrow.clockwise")
@@ -365,18 +369,9 @@ private struct ProviderQuotaView: View {
         // Only Codex needs direct-auth email backfill because its quota key is
         // filename-based to distinguish same-email Plus/Team accounts.
         let directAuthEmailsByKey: [String: String] = provider == .codex
-            ? Dictionary(
-                grouping: viewModel.directAuthFiles
-                    .lazy
-                    .filter { $0.provider == .codex },
-                by: { $0.filename.codexFilenameKey }
-            ).reduce(into: [:]) { result, entry in
-                let (key, files) = entry
-                // Ambiguous normalized keys should keep the quota key as-is
-                // instead of guessing which email to display.
-                guard !key.isEmpty, files.count == 1 else { return }
-                result[key] = files[0].email ?? files[0].displayName
-            }
+            ? viewModel.monitorAccounts
+                .filter { $0.provider == .codex }
+                .reduce(into: [:]) { $0[$1.accountKey] = $1.displayName }
             : [:]
         for (key, data) in quotaData {
             if !existingKeys.contains(key) {

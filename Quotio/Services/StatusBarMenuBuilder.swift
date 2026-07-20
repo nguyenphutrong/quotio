@@ -122,12 +122,33 @@ final class StatusBarMenuBuilder {
                 providers.insert(provider)
             }
         }
+
+        if modeManager.isMonitorMode {
+            providers.formUnion(Self.monitorProviders(viewModel.monitorAccounts))
+        }
         
-        // Filter out CLI-based providers if CLI is not installed
-        return providers.filter { provider in
+        return Self.filterProviders(
+            providers,
+            isMonitorMode: modeManager.isMonitorMode,
+            isCLIInstalled: isCLIInstalled
+        )
+    }
+
+    nonisolated static func monitorProviders(_ accounts: [MonitorAccount]) -> Set<AIProvider> {
+        Set(accounts.lazy.filter { !$0.isDisabled }.map(\.provider))
+    }
+
+    nonisolated static func filterProviders(
+        _ providers: Set<AIProvider>,
+        isMonitorMode: Bool,
+        isCLIInstalled: (CLIAgent) -> Bool
+    ) -> [AIProvider] {
+        let sorted = providers.sorted { $0.displayName < $1.displayName }
+        guard !isMonitorMode else { return sorted }
+        return sorted.filter { provider in
             guard let agent = provider.cliAgent else { return true }
             return isCLIInstalled(agent)
-        }.sorted { $0.displayName < $1.displayName }
+        }
     }
     
     private func isCLIInstalled(_ agent: CLIAgent) -> Bool {
