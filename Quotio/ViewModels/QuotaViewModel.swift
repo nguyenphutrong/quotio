@@ -21,6 +21,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let glmFetcher = GLMQuotaFetcher()
     @ObservationIgnored private let warpFetcher = WarpQuotaFetcher()
     @ObservationIgnored private let clinePassFetcher = ClinePassQuotaFetcher()
+    @ObservationIgnored private let factoryDroidFetcher = FactoryDroidQuotaFetcher()
     @ObservationIgnored private let devinFetcher = DevinQuotaFetcher()
     @ObservationIgnored private let grokFetcher = GrokQuotaFetcher()
     @ObservationIgnored private let openRouterFetcher = OpenRouterQuotaFetcher()
@@ -253,6 +254,7 @@ final class QuotaViewModel {
         await clinePassFetcher.updateProxyConfiguration()
         await traeFetcher.updateProxyConfiguration()
         await kiroFetcher.updateProxyConfiguration()
+        await factoryDroidFetcher.updateProxyConfiguration()
         await devinFetcher.updateProxyConfiguration()
         await grokFetcher.updateProxyConfiguration()
         await openRouterFetcher.updateProxyConfiguration()
@@ -412,21 +414,44 @@ final class QuotaViewModel {
     }
 
     func saveOpenRouterAccount(label: String, apiKey: String, existingAccountID: String? = nil) async throws {
+        try await saveMonitorAPIKeyAccount(
+            provider: .openRouter,
+            label: label,
+            apiKey: apiKey,
+            existingAccountID: existingAccountID
+        )
+    }
+
+    func saveFactoryDroidAccount(label: String, apiKey: String, existingAccountID: String? = nil) async throws {
+        try await saveMonitorAPIKeyAccount(
+            provider: .factoryDroid,
+            label: label,
+            apiKey: apiKey,
+            existingAccountID: existingAccountID
+        )
+    }
+
+    private func saveMonitorAPIKeyAccount(
+        provider: AIProvider,
+        label: String,
+        apiKey: String,
+        existingAccountID: String?
+    ) async throws {
         let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedLabel.isEmpty, !trimmedKey.isEmpty else { throw MonitorRuntimeError.invalidCredential }
 
         let account: MonitorAccount
         if let existingAccountID,
-           let existing = monitorAccounts.first(where: { $0.id == existingAccountID && $0.provider == .openRouter }) {
+           let existing = monitorAccounts.first(where: { $0.id == existingAccountID && $0.provider == provider }) {
             account = existing
             _ = await MonitorCredentialVault.shared.credential(for: existing.id)
         } else {
             guard !monitorAccounts.contains(where: {
-                $0.provider == .openRouter && $0.accountKey.caseInsensitiveCompare(trimmedLabel) == .orderedSame
+                $0.provider == provider && $0.accountKey.caseInsensitiveCompare(trimmedLabel) == .orderedSame
             }) else { throw MonitorRuntimeError.invalidCredential }
             account = .make(
-                provider: .openRouter,
+                provider: provider,
                 accountKey: trimmedLabel,
                 source: .quotioKeychain,
                 credentialReference: "keychain",
@@ -464,7 +489,7 @@ final class QuotaViewModel {
         let discoveredAccountKeys = Dictionary(grouping: discoveredAccounts, by: \.provider)
             .mapValues { Set($0.map(\.accountKey)) }
         let credentialProviders: Set<AIProvider> = [
-            .codex, .claude, .gemini, .copilot, .kiro, .antigravity, .devin, .grok, .openRouter,
+            .codex, .claude, .gemini, .copilot, .kiro, .antigravity, .factoryDroid, .devin, .grok, .openRouter,
         ]
         let credentialAvailability = Dictionary(uniqueKeysWithValues: credentialProviders.map {
             ($0, discoveredProviders.contains($0) ? MonitorCredentialAvailability.present : .missing)
@@ -478,10 +503,14 @@ final class QuotaViewModel {
         let clineQuotaFetcher = clinePassFetcher
         let warpQuotaFetcher = warpFetcher
         let antigravityQuotaFetcher = antigravityFetcher
+        let factoryDroidQuotaFetcher = factoryDroidFetcher
         let devinQuotaFetcher = devinFetcher
         let grokQuotaFetcher = grokFetcher
         let openRouterQuotaFetcher = openRouterFetcher
         let warpTokens = WarpService.shared.tokens.filter { $0.isEnabled }
+        let factoryDroidPrevious = previous[.factoryDroid]?.filter {
+            discoveredAccountKeys[.factoryDroid]?.contains($0.key) == true
+        } ?? [:]
         let devinPrevious = previous[.devin]?.filter {
             discoveredAccountKeys[.devin]?.contains($0.key) == true
         } ?? [:]
@@ -556,6 +585,14 @@ final class QuotaViewModel {
             let (quotas, _) = await antigravityQuotaFetcher.fetchAllAntigravityData(includeMonitorCredentials: true)
             return quotas
         }
+        async let factoryDroid = coordinator.refresh(
+            provider: .factoryDroid,
+            force: force,
+            previous: factoryDroidPrevious,
+            credentialAvailability: credentialAvailability[.factoryDroid] ?? .unknown
+        ) {
+            await factoryDroidQuotaFetcher.fetchAllQuotas()
+        }
         async let devin = coordinator.refresh(
             provider: .devin,
             force: force,
@@ -590,6 +627,7 @@ final class QuotaViewModel {
         providerQuotas[.clinePass] = await clinePass
         providerQuotas[.warp] = await warp
         providerQuotas[.antigravity] = await antigravity
+        providerQuotas[.factoryDroid] = await factoryDroid
         providerQuotas[.devin] = await devin
         providerQuotas[.grok] = await grok
         providerQuotas[.openRouter] = await openRouter

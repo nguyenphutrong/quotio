@@ -1,10 +1,11 @@
-import XCTest
+import CryptoKit
 import SQLite3
+import XCTest
 @testable import Quotio
 
 final class MonitorRuntimeTests: XCTestCase {
     func testMonitorProvidersDoNotRequireInstalledCLI() {
-        let providers: Set<AIProvider> = [.codex, .claude, .gemini, .devin, .grok, .openRouter]
+        let providers: Set<AIProvider> = [.codex, .claude, .gemini, .factoryDroid, .devin, .grok, .openRouter]
 
         let filtered = StatusBarMenuBuilder.filterProviders(
             providers,
@@ -237,6 +238,107 @@ final class MonitorRuntimeTests: XCTestCase {
         }
     }
 
+    func testFactoryDroidDecryptsLocalCredentialFile() throws {
+        let keyData = Data((0..<32).map(UInt8.init))
+        let nonce = try AES.GCM.Nonce(data: Data((32..<48).map(UInt8.init)))
+        let cleartext = Data(#"{"access_token":"local-token","refresh_token":"refresh","active_organization_id":"org-123"}"#.utf8)
+        let sealed = try AES.GCM.seal(cleartext, using: SymmetricKey(data: keyData), nonce: nonce)
+        let encrypted = [
+            Data(nonce).base64EncodedString(),
+            sealed.tag.base64EncodedString(),
+            sealed.ciphertext.base64EncodedString(),
+        ].joined(separator: ":")
+
+        let credential = FactoryDroidCredentialReader.decryptCredential(
+            encrypted: encrypted,
+            keyData: Data(keyData.base64EncodedString().utf8),
+            sourcePath: "/tmp/auth.v2.file"
+        )
+
+        XCTAssertEqual(credential, FactoryDroidCredential(
+            accessToken: "local-token",
+            activeOrganizationID: "org-123",
+            sourcePath: "/tmp/auth.v2.file"
+        ))
+    }
+
+    func testFactoryDroidLoadsKeyFileCredentialFromDirectory() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let keyData = Data(repeating: 7, count: 32)
+        let nonce = try AES.GCM.Nonce(data: Data(repeating: 8, count: 16))
+        let cleartext = Data(#"{"access_token":"directory-token","active_organization_id":"org-directory"}"#.utf8)
+        let sealed = try AES.GCM.seal(cleartext, using: SymmetricKey(data: keyData), nonce: nonce)
+        let encrypted = [
+            Data(nonce).base64EncodedString(),
+            sealed.tag.base64EncodedString(),
+            sealed.ciphertext.base64EncodedString(),
+        ].joined(separator: ":")
+        try Data(encrypted.utf8).write(to: directory.appendingPathComponent("auth.v2.file"))
+        try Data(keyData.base64EncodedString().utf8).write(to: directory.appendingPathComponent("auth.v2.key"))
+
+        let credential = FactoryDroidCredentialReader.load(directory: directory)
+
+        XCTAssertEqual(credential?.accessToken, "directory-token")
+        XCTAssertEqual(credential?.accountKey, "org-directory")
+        XCTAssertEqual(
+            FactoryDroidQuotaFetcher.localAccount(for: try XCTUnwrap(credential)).provider,
+            .factoryDroid
+        )
+    }
+
+    func testFactoryDroidMapsStandardCoreAndExtraUsage() throws {
+        let payload = Data(#"""
+        {
+          "usesTokenRateLimitsBilling": true,
+          "limits": {
+            "standard": {
+              "fiveHour": {"usedPercent": 100, "windowEnd": "2026-07-20T17:59:00.865Z", "secondsRemaining": 5382},
+              "weekly": {"usedPercent": 63, "windowEnd": "2026-07-25T16:37:06.931Z", "secondsRemaining": 432468},
+              "monthly": {"usedPercent": 16, "windowEnd": "2026-08-17T16:37:06.931Z", "secondsRemaining": 2419668}
+            },
+            "core": {
+              "fiveHour": {"usedPercent": 100, "windowEnd": "2026-07-20T19:01:10.798Z", "secondsRemaining": 9112},
+              "weekly": {"usedPercent": 51, "windowEnd": "2026-07-27T14:01:10.798Z", "secondsRemaining": 595912},
+              "monthly": {"usedPercent": 19, "windowEnd": "2026-08-19T14:01:10.798Z", "secondsRemaining": 2583112}
+            }
+          },
+          "extraUsageBalanceCents": 0,
+          "overagePreference": "droidCore",
+          "extraUsageAllowed": true
+        }
+        """#.utf8)
+        let response = try JSONDecoder().decode(FactoryDroidQuotaResponse.self, from: payload)
+
+        let quota = FactoryDroidQuotaMapper.map(response)
+
+        XCTAssertEqual(quota.models.count, 8)
+        XCTAssertEqual(quota.models.first(where: { $0.name == "factory-standard-five-hour" })?.percentage, 0)
+        XCTAssertEqual(quota.models.first(where: { $0.name == "factory-standard-weekly" })?.percentage, 37)
+        XCTAssertEqual(quota.models.first(where: { $0.name == "factory-core-weekly" })?.percentage, 49)
+        XCTAssertEqual(
+            quota.models.first(where: { $0.name == "factory-extra-balance" })?.presentation,
+            .amount(value: 0, unit: .usd, semantics: .balance)
+        )
+        XCTAssertEqual(
+            quota.models.first(where: { $0.name == "factory-extra-usage" })?.presentation,
+            .status(text: "factory.status.extraUsageCore".localizedStatic())
+        )
+    }
+
+    func testFactoryDroidMapsLegacyBillingStatus() throws {
+        let response = try JSONDecoder().decode(
+            FactoryDroidQuotaResponse.self,
+            from: Data(#"{"usesTokenRateLimitsBilling":false}"#.utf8)
+        )
+
+        let quota = FactoryDroidQuotaMapper.map(response)
+
+        XCTAssertEqual(quota.models.first?.name, "factory-billing-mode")
+        XCTAssertTrue(quota.models.first?.isStandaloneMetric == true)
+    }
+
     func testZAIQuotaMappingClassifiesWindowsAndSearches() {
         let data = GLMQuotaData(limits: [
             GLMLimit(type: "TOKENS_LIMIT", unit: 3, number: 5, usage: 100, currentValue: 20, remaining: 80, percentage: 20, usageDetails: nil, nextResetTime: nil),
@@ -413,29 +515,31 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertTrue(forbidden.isForbidden)
     }
 
-    func testMonitorCredentialVaultAddsRotatesAndDeletesOpenRouterKey() async throws {
-        let metadataURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathComponent("accounts.json")
-        let vault = MonitorCredentialVault(metadata: MonitorMetadataStore(url: metadataURL))
-        let account = MonitorAccount.make(
-            provider: .openRouter,
-            accountKey: "Test " + UUID().uuidString,
-            source: .quotioKeychain,
-            canDelete: true
-        )
-        let first = MonitorOAuthCredential(accessToken: "first", refreshToken: nil, idToken: nil, accountID: nil, expiresAt: nil, extra: [:])
-        let second = MonitorOAuthCredential(accessToken: "second", refreshToken: nil, idToken: nil, accountID: nil, expiresAt: nil, extra: [:])
+    func testMonitorCredentialVaultAddsRotatesAndDeletesAPIKeys() async throws {
+        for provider in [AIProvider.factoryDroid, .openRouter] {
+            let metadataURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathComponent("accounts.json")
+            let vault = MonitorCredentialVault(metadata: MonitorMetadataStore(url: metadataURL))
+            let account = MonitorAccount.make(
+                provider: provider,
+                accountKey: "Test " + UUID().uuidString,
+                source: .quotioKeychain,
+                canDelete: true
+            )
+            let first = MonitorOAuthCredential(accessToken: "first", refreshToken: nil, idToken: nil, accountID: nil, expiresAt: nil, extra: [:])
+            let second = MonitorOAuthCredential(accessToken: "second", refreshToken: nil, idToken: nil, accountID: nil, expiresAt: nil, extra: [:])
 
-        try await vault.save(first, metadata: account)
-        let loadedFirst = await vault.credential(for: account.id)
-        XCTAssertEqual(loadedFirst?.accessToken, "first")
-        try await vault.save(second, metadata: account)
-        let loadedSecond = await vault.credential(for: account.id)
-        XCTAssertEqual(loadedSecond?.accessToken, "second")
-        await vault.delete(accountID: account.id)
-        let deleted = await vault.credential(for: account.id)
-        XCTAssertNil(deleted)
+            try await vault.save(first, metadata: account)
+            let loadedFirst = await vault.credential(for: account.id)
+            XCTAssertEqual(loadedFirst?.accessToken, "first")
+            try await vault.save(second, metadata: account)
+            let loadedSecond = await vault.credential(for: account.id)
+            XCTAssertEqual(loadedSecond?.accessToken, "second")
+            await vault.delete(accountID: account.id)
+            let deleted = await vault.credential(for: account.id)
+            XCTAssertNil(deleted)
+        }
     }
 
     func testMetadataRoundTripStoresOwnedAccountAndDisabledState() async throws {

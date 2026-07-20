@@ -285,6 +285,16 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         // Grok
         case "grok-weekly": return "quota.metric.weekly".localizedStatic()
         case "grok-extra-usage": return "quota.metric.extraUsage".localizedStatic()
+        // Factory Droid
+        case "factory-standard-five-hour": return "factory.quota.standardFiveHour".localizedStatic()
+        case "factory-standard-weekly": return "factory.quota.standardWeekly".localizedStatic()
+        case "factory-standard-monthly": return "factory.quota.standardMonthly".localizedStatic()
+        case "factory-core-five-hour": return "factory.quota.coreFiveHour".localizedStatic()
+        case "factory-core-weekly": return "factory.quota.coreWeekly".localizedStatic()
+        case "factory-core-monthly": return "factory.quota.coreMonthly".localizedStatic()
+        case "factory-extra-balance": return "quota.metric.extraBalance".localizedStatic()
+        case "factory-extra-usage": return "quota.metric.extraUsage".localizedStatic()
+        case "factory-billing-mode": return "factory.quota.billingMode".localizedStatic()
         // OpenRouter
         case "openrouter-credits": return "quota.metric.credits".localizedStatic()
         case "openrouter-balance": return "quota.metric.balance".localizedStatic()

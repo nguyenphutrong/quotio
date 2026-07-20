@@ -25,8 +25,8 @@ struct ProvidersScreen: View {
     @State private var editingWarpToken: WarpService.WarpToken?
     @State private var showGLMConnectionSheet = false
     @State private var editingGLMProvider: CustomProvider?
-    @State private var showOpenRouterConnectionSheet = false
-    @State private var editingOpenRouterAccount: MonitorAccount?
+    @State private var monitorAPIKeyProvider: AIProvider?
+    @State private var editingMonitorAPIKeyAccount: MonitorAccount?
     @State private var showAddProviderPopover = false
     @State private var switchingAccount: AccountRowData?
     @State private var modeManager = OperatingModeManager.shared
@@ -40,7 +40,7 @@ struct ProvidersScreen: View {
     private var addableProviders: [AIProvider] {
         if modeManager.isLocalProxyMode {
             return AIProvider.allCases.filter {
-                $0 != .openRouter && ($0.supportsManualAuth || $0 == .clinePass)
+                ![.factoryDroid, .openRouter].contains($0) && ($0.supportsManualAuth || $0 == .clinePass)
             }
         } else {
             return AIProvider.allCases.filter {
@@ -252,14 +252,22 @@ struct ProvidersScreen: View {
             }
             .environment(viewModel)
         }
-        .sheet(isPresented: $showOpenRouterConnectionSheet) {
-            OpenRouterConnectionSheet(account: editingOpenRouterAccount) { label, apiKey in
-                try await viewModel.saveOpenRouterAccount(
-                    label: label,
-                    apiKey: apiKey,
-                    existingAccountID: editingOpenRouterAccount?.id
-                )
-                editingOpenRouterAccount = nil
+        .sheet(item: $monitorAPIKeyProvider) { provider in
+            MonitorAPIKeyConnectionSheet(provider: provider, account: editingMonitorAPIKeyAccount) { label, apiKey in
+                if provider == .factoryDroid {
+                    try await viewModel.saveFactoryDroidAccount(
+                        label: label,
+                        apiKey: apiKey,
+                        existingAccountID: editingMonitorAPIKeyAccount?.id
+                    )
+                } else {
+                    try await viewModel.saveOpenRouterAccount(
+                        label: label,
+                        apiKey: apiKey,
+                        existingAccountID: editingMonitorAPIKeyAccount?.id
+                    )
+                }
+                editingMonitorAPIKeyAccount = nil
             }
         }
         .sheet(isPresented: $showAddProviderPopover) {
@@ -361,8 +369,8 @@ struct ProvidersScreen: View {
                                 handleEditClinePassAccount(account)
                             } else if provider == .warp {
                                 handleEditWarpAccount(account)
-                            } else if provider == .openRouter {
-                                handleEditOpenRouterAccount(account)
+                            } else if [.factoryDroid, .openRouter].contains(provider) {
+                                handleEditMonitorAPIKeyAccount(account)
                             }
                         },
                         onSwitchAccount: provider == .antigravity ? { account in
@@ -458,9 +466,9 @@ struct ProvidersScreen: View {
             showGLMConnectionSheet = true
             return
         }
-        if provider == .openRouter {
-            editingOpenRouterAccount = nil
-            showOpenRouterConnectionSheet = true
+        if [.factoryDroid, .openRouter].contains(provider) {
+            editingMonitorAPIKeyAccount = nil
+            monitorAPIKeyProvider = provider
             return
         }
 
@@ -560,10 +568,10 @@ struct ProvidersScreen: View {
         }
     }
 
-    private func handleEditOpenRouterAccount(_ account: AccountRowData) {
+    private func handleEditMonitorAPIKeyAccount(_ account: AccountRowData) {
         guard let monitorAccount = viewModel.monitorAccounts.first(where: { $0.id == account.id }) else { return }
-        editingOpenRouterAccount = monitorAccount
-        showOpenRouterConnectionSheet = true
+        editingMonitorAPIKeyAccount = monitorAccount
+        monitorAPIKeyProvider = monitorAccount.provider
     }
 
     private func syncCustomProvidersToConfig() {

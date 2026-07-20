@@ -22529,6 +22529,126 @@
         }
       }
     },
+    "factory.apiKey.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stored securely in Keychain and never shown again." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Được lưu an toàn trong Keychain và không hiển thị lại." } }
+      }
+    },
+    "factory.apiKey.label" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Factory API Key" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Factory API Key" } }
+      }
+    },
+    "factory.apiKey.placeholder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter your Factory API key" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập Factory API key" } }
+      }
+    },
+    "factory.apiKey.rotateHint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a replacement key. The current key is never revealed." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập key thay thế. Key hiện tại không bao giờ được hiển thị." } }
+      }
+    },
+    "factory.connection.edit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rotate Factory Droid Key" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thay Factory Droid Key" } }
+      }
+    },
+    "factory.connection.subtitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Monitor Factory Droid limits without proxy routing" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Theo dõi giới hạn Factory Droid, không dùng proxy routing" } }
+      }
+    },
+    "factory.connection.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connect Factory Droid" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kết nối Factory Droid" } }
+      }
+    },
+    "factory.label.placeholder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Account label" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhãn tài khoản" } }
+      }
+    },
+    "factory.quota.billingMode" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Mode" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chế độ thanh toán" } }
+      }
+    },
+    "factory.quota.coreFiveHour" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Core · 5-hour" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Core · 5 giờ" } }
+      }
+    },
+    "factory.quota.coreMonthly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Core · Monthly" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Core · Hàng tháng" } }
+      }
+    },
+    "factory.quota.coreWeekly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Core · Weekly" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Core · Hàng tuần" } }
+      }
+    },
+    "factory.quota.standardFiveHour" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Standard · 5-hour" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Standard · 5 giờ" } }
+      }
+    },
+    "factory.quota.standardMonthly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Standard · Monthly" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Standard · Hàng tháng" } }
+      }
+    },
+    "factory.quota.standardWeekly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Standard · Weekly" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Standard · Hàng tuần" } }
+      }
+    },
+    "factory.status.extraUsageBalance" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enabled · Extra usage balance" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã bật · Số dư dùng thêm" } }
+      }
+    },
+    "factory.status.extraUsageCore" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enabled · Droid Core" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã bật · Droid Core" } }
+      }
+    },
+    "factory.status.extraUsageDisabled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disabled" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã tắt" } }
+      }
+    },
+    "factory.status.extraUsageEnabled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enabled" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã bật" } }
+      }
+    },
+    "factory.status.legacyBilling" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Legacy billing" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thanh toán kiểu cũ" } }
+      }
+    },
     "grok.status.cap" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ cap" } },

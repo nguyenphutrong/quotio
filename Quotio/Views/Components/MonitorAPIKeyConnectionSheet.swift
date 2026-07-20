@@ -1,8 +1,9 @@
 import SwiftUI
 
-struct OpenRouterConnectionSheet: View {
+struct MonitorAPIKeyConnectionSheet: View {
     @Environment(\.dismiss) private var dismiss
 
+    let provider: AIProvider
     let account: MonitorAccount?
     let onSave: (String, String) async throws -> Void
 
@@ -12,15 +13,18 @@ struct OpenRouterConnectionSheet: View {
     @State private var isSaving = false
 
     private var isEditing: Bool { account != nil }
+    private var localizationPrefix: String {
+        provider == .factoryDroid ? "factory" : "openrouter"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 16) {
-                ProviderIcon(provider: .openRouter, size: 32)
+                ProviderIcon(provider: provider, size: 32)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(isEditing ? "openrouter.connection.edit".localized() : "openrouter.connection.title".localized())
+                    Text(localized(isEditing ? "connection.edit" : "connection.title"))
                         .font(.headline)
-                    Text("openrouter.connection.subtitle".localized())
+                    Text(localized("connection.subtitle"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -35,18 +39,18 @@ struct OpenRouterConnectionSheet: View {
                     Text("customProviders.providerName".localized())
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    TextField("openrouter.label.placeholder".localized(), text: $label)
+                    TextField(localized("label.placeholder"), text: $label)
                         .textFieldStyle(.roundedBorder)
                         .disabled(isEditing)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("openrouter.apiKey.label".localized())
+                    Text(localized("apiKey.label"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    SecureField("openrouter.apiKey.placeholder".localized(), text: $apiKey)
+                    SecureField(localized("apiKey.placeholder"), text: $apiKey)
                         .textFieldStyle(.roundedBorder)
-                    Text(isEditing ? "openrouter.apiKey.rotateHint".localized() : "openrouter.apiKey.hint".localized())
+                    Text(localized(isEditing ? "apiKey.rotateHint" : "apiKey.hint"))
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -78,6 +82,10 @@ struct OpenRouterConnectionSheet: View {
         }
         .frame(width: 450, height: 360)
         .onAppear { label = account?.accountKey ?? "" }
+    }
+
+    private func localized(_ suffix: String) -> String {
+        (localizationPrefix + "." + suffix).localized()
     }
 
     private func save() async {

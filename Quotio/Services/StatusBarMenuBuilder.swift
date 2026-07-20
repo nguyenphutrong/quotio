@@ -2450,6 +2450,7 @@ private extension AIProvider {
         case .iflow: return "iFlow"
         case .vertex: return "Vertex"
         case .kiro: return "Kiro"
+        case .factoryDroid: return "Factory Droid"
         case .devin: return "Devin"
         case .grok: return "Grok"
         case .openRouter: return "OpenRouter"
