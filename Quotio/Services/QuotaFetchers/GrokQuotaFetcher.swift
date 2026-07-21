@@ -125,7 +125,7 @@ actor GrokQuotaFetcher {
             guard let entry = raw as? [String: Any],
                   let token = trimmed(entry["key"] as? String) else { return nil }
             let entryClientID = trimmed(entry["oidc_client_id"] as? String)
-                ?? trimmed(key.split(separator: "::").last.map(String.init))
+                ?? clientID(fromEntryKey: key)
                 ?? defaultClientID
             return GrokAuthCandidate(
                 entryKey: key,
@@ -136,6 +136,11 @@ actor GrokQuotaFetcher {
                 expiresAt: expiryDate(entry: entry, token: token)
             )
         }.sorted { $0.entryKey < $1.entryKey }
+    }
+
+    private nonisolated static func clientID(fromEntryKey key: String) -> String? {
+        guard let separator = key.range(of: "::", options: .backwards) else { return nil }
+        return trimmed(String(key[separator.upperBound...]))
     }
 
     private func fetchQuota(_ original: GrokAuthCandidate) async -> ProviderQuotaData? {

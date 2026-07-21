@@ -8231,6 +8231,14 @@
         }
       }
     },
+    "glm.endpoint.zaiGlobal" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Z.ai Global" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Z.ai mondial" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Z.ai Toàn cầu" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Z.ai 全球" } }
+      }
+    },
     "glm.endpointHint" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -22532,169 +22540,225 @@
     "factory.apiKey.hint" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Stored securely in Keychain and never shown again." } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Được lưu an toàn trong Keychain và không hiển thị lại." } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Stockée en toute sécurité dans le trousseau et ne sera plus jamais affichée." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Được lưu an toàn trong Keychain và không hiển thị lại." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安全存储在钥匙串中，之后不会再次显示。" } }
       }
     },
     "factory.apiKey.label" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Factory API Key" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Factory API Key" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Clé API Factory" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Factory API Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Factory API 密钥" } }
       }
     },
     "factory.apiKey.placeholder" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter your Factory API key" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập Factory API key" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez votre clé API Factory" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập Factory API key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入您的 Factory API 密钥" } }
       }
     },
     "factory.apiKey.rotateHint" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a replacement key. The current key is never revealed." } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập key thay thế. Key hiện tại không bao giờ được hiển thị." } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez une clé de remplacement. La clé actuelle n’est jamais révélée." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập key thay thế. Key hiện tại không bao giờ được hiển thị." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入替换密钥。当前密钥绝不会显示。" } }
       }
     },
     "factory.connection.edit" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Rotate Factory Droid Key" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thay Factory Droid Key" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Remplacer la clé Factory Droid" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thay Factory Droid Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更换 Factory Droid 密钥" } }
       }
     },
     "factory.connection.subtitle" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Monitor Factory Droid limits without proxy routing" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Theo dõi giới hạn Factory Droid, không dùng proxy routing" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Surveillez les limites de Factory Droid sans routage proxy" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Theo dõi giới hạn Factory Droid, không dùng proxy routing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无需代理路由即可监控 Factory Droid 限额" } }
       }
     },
     "factory.connection.title" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Connect Factory Droid" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kết nối Factory Droid" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Connecter Factory Droid" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kết nối Factory Droid" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接 Factory Droid" } }
       }
     },
     "factory.label.placeholder" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Account label" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhãn tài khoản" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Libellé du compte" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhãn tài khoản" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账户标签" } }
       }
     },
     "factory.quota.billingMode" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Mode" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chế độ thanh toán" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Mode de facturation" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chế độ thanh toán" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计费模式" } }
       }
     },
     "factory.quota.coreFiveHour" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "5-hour" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "5 giờ" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "5 heures" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "5 giờ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "5 小时" } }
       }
     },
     "factory.quota.coreMonthly" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Monthly" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tháng" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Mensuel" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tháng" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每月" } }
       }
     },
     "factory.quota.coreWeekly" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Weekly" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tuần" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Hebdomadaire" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tuần" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每周" } }
       }
     },
     "factory.quota.group.core" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Core" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Core" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Core" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Core" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "核心" } }
       }
     },
     "factory.quota.group.standard" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Standard" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Standard" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Standard" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Standard" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标准" } }
       }
     },
     "factory.quota.standardFiveHour" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "5-hour" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "5 giờ" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "5 heures" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "5 giờ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "5 小时" } }
       }
     },
     "factory.quota.standardMonthly" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Monthly" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tháng" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Mensuel" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tháng" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每月" } }
       }
     },
     "factory.quota.standardWeekly" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Weekly" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tuần" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Hebdomadaire" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tuần" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每周" } }
       }
     },
     "factory.status.legacyBilling" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Legacy billing" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thanh toán kiểu cũ" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Facturation héritée" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thanh toán kiểu cũ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "旧版计费" } }
       }
     },
     "grok.status.cap" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ cap" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giới hạn %@" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Plafond de %@" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giới hạn %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 上限" } }
       }
     },
     "grok.status.disabled" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Disabled" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã tắt" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Désactivé" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã tắt" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已停用" } }
       }
     },
     "openrouter.apiKey.hint" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Stored securely in Keychain and never shown again." } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Được lưu an toàn trong Keychain và không hiển thị lại." } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Stockée en toute sécurité dans le trousseau et ne sera plus jamais affichée." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Được lưu an toàn trong Keychain và không hiển thị lại." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安全存储在钥匙串中，之后不会再次显示。" } }
       }
     },
     "openrouter.apiKey.label" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "OpenRouter API Key" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "OpenRouter API Key" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Clé API OpenRouter" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "OpenRouter API Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "OpenRouter API 密钥" } }
       }
     },
     "openrouter.apiKey.placeholder" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter your OpenRouter API key" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập OpenRouter API key" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez votre clé API OpenRouter" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập OpenRouter API key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入您的 OpenRouter API 密钥" } }
       }
     },
     "openrouter.apiKey.rotateHint" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a replacement key. The current key is never revealed." } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập key thay thế. Key hiện tại không bao giờ được hiển thị." } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez une clé de remplacement. La clé actuelle n’est jamais révélée." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập key thay thế. Key hiện tại không bao giờ được hiển thị." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入替换密钥。当前密钥绝不会显示。" } }
       }
     },
     "openrouter.connection.edit" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Rotate OpenRouter Key" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thay OpenRouter Key" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Remplacer la clé OpenRouter" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thay OpenRouter Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更换 OpenRouter 密钥" } }
       }
     },
     "openrouter.connection.subtitle" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Monitor credits and API-key spend without proxy routing" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Theo dõi credits và chi tiêu API key, không dùng proxy routing" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Surveillez les crédits et les dépenses de la clé API sans routage proxy" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Theo dõi credits và chi tiêu API key, không dùng proxy routing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无需代理路由即可监控额度和 API 密钥支出" } }
       }
     },
     "openrouter.connection.title" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Connect OpenRouter" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kết nối OpenRouter" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Connecter OpenRouter" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kết nối OpenRouter" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接 OpenRouter" } }
       }
     },
     "openrouter.label.placeholder" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Account label" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhãn tài khoản" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Libellé du compte" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhãn tài khoản" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账户标签" } }
       }
     },
     "openrouter.plan.freeTier" : {
@@ -22716,25 +22780,33 @@
     "quota.metric.balance" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Balance" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Số dư" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Solde" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Số dư" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "余额" } }
       }
     },
     "quota.metric.balanceValue" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ left" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Còn %@" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%@ restant" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Còn %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "剩余 %@" } }
       }
     },
     "quota.metric.credits" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Credits" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Credits" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Crédits" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Credits" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "额度" } }
       }
     },
     "quota.metric.daily" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Daily" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng ngày" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Quotidien" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng ngày" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每日" } }
       }
     },
     "quota.metric.monthly" : {
@@ -22748,49 +22820,65 @@
     "quota.metric.extraBalance" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Extra Balance" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Số dư bổ sung" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Solde supplémentaire" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Số dư bổ sung" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "额外余额" } }
       }
     },
     "quota.metric.extraUsage" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Extra Usage" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mức dùng thêm" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utilisation supplémentaire" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mức dùng thêm" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "额外用量" } }
       }
     },
     "quota.metric.keyLimit" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Key Limit" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giới hạn key" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Limite de la clé" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giới hạn key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "密钥限额" } }
       }
     },
     "quota.metric.session" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Session" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Phiên" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Session" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Phiên" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会话" } }
       }
     },
     "quota.metric.spentValue" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ spent" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã dùng %@" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%@ dépensé" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã dùng %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已花费 %@" } }
       }
     },
     "quota.metric.thisMonth" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "This Month" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tháng này" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ce mois-ci" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tháng này" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本月" } }
       }
     },
     "quota.metric.thisWeek" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "This Week" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tuần này" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Cette semaine" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tuần này" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本周" } }
       }
     },
     "quota.metric.today" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Today" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hôm nay" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aujourd’hui" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hôm nay" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "今天" } }
       }
     },
     "quota.metric.unit.credits" : {
@@ -22898,13 +22986,17 @@
     "quota.metric.webSearches" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Web Searches" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tìm kiếm web" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Recherches web" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tìm kiếm web" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "网页搜索" } }
       }
     },
     "quota.metric.weekly" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Weekly" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tuần" } }
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Hebdomadaire" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tuần" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每周" } }
       }
     },
     "warp.token.placeholder" : {

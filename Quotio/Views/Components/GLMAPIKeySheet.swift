@@ -238,7 +238,7 @@ enum GLMEndpoint: String, CaseIterable, Codable, Identifiable, Sendable {
 
     var displayName: String {
         switch self {
-        case .zai: return "Z.ai Global"
+        case .zai: return "glm.endpoint.zaiGlobal".localizedStatic()
         case .bigmodel: return "bigmodel.cn"
         }
     }

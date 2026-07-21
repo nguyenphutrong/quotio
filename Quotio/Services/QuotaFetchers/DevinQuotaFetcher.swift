@@ -170,7 +170,7 @@ actor DevinQuotaFetcher {
 
     nonisolated static func loadAppCredential(path: String = MonitorIdentity.expand(stateDBPath)) -> DevinCredential? {
         guard FileManager.default.fileExists(atPath: path) else { return nil }
-        let uri = "file://\(path)?mode=ro&immutable=1"
+        let uri = URL(fileURLWithPath: path).absoluteString + "?mode=ro"
         var db: OpaquePointer?
         guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_close(db) }

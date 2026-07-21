@@ -21,7 +21,7 @@ nonisolated enum OpenRouterQuotaMapper {
         now: Date = Date()
     ) -> ProviderQuotaData? {
         guard credits.succeeded || key.succeeded else {
-            if credits.isAuthenticationFailure && key.isAuthenticationFailure {
+            if credits.isAuthenticationFailure || key.isAuthenticationFailure {
                 return ProviderQuotaData(isForbidden: true)
             }
             return nil

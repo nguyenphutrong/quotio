@@ -506,7 +506,12 @@ final class MonitorRuntimeTests: XCTestCase {
         let path = directory.appendingPathComponent("state.vscdb").path
         var database: OpaquePointer?
         XCTAssertEqual(sqlite3_open(path, &database), SQLITE_OK)
-        defer { sqlite3_close(database) }
+        defer {
+            sqlite3_close(database)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        XCTAssertEqual(sqlite3_exec(database, "PRAGMA journal_mode=WAL", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(database, "PRAGMA wal_autocheckpoint=0", nil, nil, nil), SQLITE_OK)
         XCTAssertEqual(sqlite3_exec(database, "CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)", nil, nil, nil), SQLITE_OK)
         XCTAssertEqual(sqlite3_exec(database, "INSERT INTO ItemTable VALUES ('windsurfAuthStatus', '{\"apiKey\":\"app-token\"}')", nil, nil, nil), SQLITE_OK)
 
@@ -531,6 +536,21 @@ final class MonitorRuntimeTests: XCTestCase {
 
         XCTAssertEqual(candidates.map(\.entryKey), ["account-a::client-a", "account-b::client-b"])
         XCTAssertEqual(candidates.map(\.clientID), ["client-a", "client-b"])
+    }
+
+    func testGrokUsesDefaultClientIDWhenEntryKeyHasNoSuffix() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("auth.json")
+        let data = try JSONSerialization.data(withJSONObject: [
+            "account-without-client": ["key": "token", "refresh_token": "refresh"],
+        ])
+        try data.write(to: url)
+
+        let candidate = try XCTUnwrap(GrokQuotaFetcher.loadCandidates(path: url.path).first)
+
+        XCTAssertEqual(candidate.clientID, GrokQuotaFetcher.defaultClientID)
     }
 
     func testGrokMapsOnlyWeeklyPeriodAndStatusCap() throws {
@@ -650,9 +670,18 @@ final class MonitorRuntimeTests: XCTestCase {
 
         let forbidden = try XCTUnwrap(OpenRouterQuotaMapper.map(
             credits: OpenRouterEndpointResult(data: Data(), statusCode: 401),
-            key: OpenRouterEndpointResult(data: Data(), statusCode: 403)
+            key: OpenRouterEndpointResult(data: nil, statusCode: 503)
         ))
         XCTAssertTrue(forbidden.isForbidden)
+    }
+
+    @MainActor
+    func testZAIEndpointLabelUsesLocalization() {
+        let previousLanguage = UserDefaults.standard.string(forKey: "appLanguage")
+        UserDefaults.standard.set("vi", forKey: "appLanguage")
+        defer { UserDefaults.standard.set(previousLanguage, forKey: "appLanguage") }
+
+        XCTAssertEqual(GLMEndpoint.zai.displayName, "Z.ai Toàn cầu")
     }
 
     func testMonitorCredentialVaultAddsRotatesAndDeletesAPIKeys() async throws {
