@@ -1307,9 +1307,12 @@ actor AntigravityQuotaFetcher {
         }
         for file in files where file.hasPrefix("antigravity-") && file.hasSuffix(".json") {
             let path = (directory as NSString).appendingPathComponent(file)
-            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-                  let auth = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data),
-                  auth.email == accountKey else { continue }
+            let key = file
+                .replacingOccurrences(of: "antigravity-", with: "")
+                .replacingOccurrences(of: ".json", with: "")
+                .replacingOccurrences(of: "_", with: ".")
+                .replacingOccurrences(of: ".gmail.com", with: "@gmail.com")
+            guard key == accountKey else { continue }
             return await fetchQuotaAndSubscriptionForAuthFile(at: path)
         }
         return (nil, nil)

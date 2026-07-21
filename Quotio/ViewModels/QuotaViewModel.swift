@@ -1942,50 +1942,70 @@ final class QuotaViewModel {
     private func refreshMonitorProvider(_ provider: AIProvider) async {
         let coordinator = monitorCoordinator
         let previous = providerQuotas[provider] ?? [:]
+        let credentialProviders: Set<AIProvider> = [
+            .codex, .claude, .gemini, .copilot, .kiro, .antigravity,
+            .factoryDroid, .devin, .grok, .openRouter,
+        ]
+        let discoveredProviders = Set(await coordinator.discoverAccounts().map(\.provider))
+        let credentialAvailability: MonitorCredentialAvailability = credentialProviders.contains(provider)
+            ? (discoveredProviders.contains(provider) ? .present : .missing)
+            : .unknown
         let fresh: [String: ProviderQuotaData]
         var freshSubscriptions: [String: SubscriptionInfo] = [:]
+
+        func coordinatedRefresh(
+            _ operation: @escaping @Sendable () async -> [String: ProviderQuotaData]
+        ) async -> [String: ProviderQuotaData] {
+            await coordinator.refresh(
+                provider: provider,
+                force: true,
+                previous: previous,
+                credentialAvailability: credentialAvailability,
+                operation: operation
+            )
+        }
 
         switch provider {
         case .codex:
             let fetcher = codexCLIFetcher
-            let refreshed = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            let refreshed = await coordinatedRefresh {
                 await fetcher.fetchAsProviderQuota()
             }
             fresh = await fetcher.reconcileLegacyAliases(in: refreshed)
         case .claude:
             let fetcher = claudeCodeFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAsProviderQuota(forceRefresh: true, includeMonitorCredentials: true)
             }
         case .gemini:
             let fetcher = geminiCLIFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAsProviderQuota(includeMonitorCredentials: true)
             }
         case .copilot:
             let fetcher = copilotFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAllCopilotQuotas(includeMonitorCredentials: true)
             }
         case .kiro:
             let fetcher = kiroFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAllQuotas(includeMonitorCredentials: true)
             }
         case .glm:
             let fetcher = glmFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAllQuotas()
             }
         case .clinePass:
             let fetcher = clinePassFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAllQuotas()
             }
         case .warp:
             let fetcher = warpFetcher
             let tokens = WarpService.shared.tokens.filter(\.isEnabled)
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 var results: [String: ProviderQuotaData] = [:]
                 for entry in tokens {
                     if let quota = try? await fetcher.fetchQuota(apiKey: entry.token) {
@@ -1998,37 +2018,37 @@ final class QuotaViewModel {
             let fetcher = antigravityFetcher
             let fetched = await fetcher.fetchAllAntigravityData(includeMonitorCredentials: true)
             freshSubscriptions = fetched.subscriptions
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 fetched.quotas
             }
         case .factoryDroid:
             let fetcher = factoryDroidFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAllQuotas()
             }
         case .devin:
             let fetcher = devinFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAsProviderQuota()
             }
         case .grok:
             let fetcher = grokFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAllQuotas()
             }
         case .openRouter:
             let fetcher = openRouterFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAllQuotas()
             }
         case .cursor:
             let fetcher = cursorFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAsProviderQuota()
             }
         case .trae:
             let fetcher = traeFetcher
-            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+            fresh = await coordinatedRefresh {
                 await fetcher.fetchAsProviderQuota()
             }
         case .qwen, .iflow, .vertex:
@@ -2379,7 +2399,7 @@ final class QuotaViewModel {
 
     /// Remove menu bar items that no longer have valid quota data
     private func pruneMenuBarItems() {
-        migrateCodexMenuBarSelections()
+        migrateMenuBarSelections()
 
         var validItems: [MenuBarQuotaItem] = []
         var seen = Set<String>()
@@ -2417,37 +2437,60 @@ final class QuotaViewModel {
         menuBarSettings.pruneInvalidItems(validItems: validItems)
     }
 
-    private func migrateCodexMenuBarSelections() {
-        var canonicalKeys = Set<String>()
-        var canonicalKeysByAlias: [String: Set<String>] = [:]
+    private func migrateMenuBarSelections() {
+        var canonicalKeys: [AIProvider: Set<String>] = [:]
+        var canonicalKeysByAlias: [AIProvider: [String: Set<String>]] = [:]
 
-        func addAliases(filename: String, email: String?) {
-            let canonicalKey = filename.codexFilenameKey
+        func addAliases(provider: AIProvider, canonicalKey: String, aliases: [String?]) {
             guard !canonicalKey.isEmpty else { return }
 
-            canonicalKeys.insert(canonicalKey)
+            canonicalKeys[provider, default: []].insert(canonicalKey)
 
-            let filenameWithoutExtension = filename.hasSuffix(".json")
-                ? String(filename.dropLast(".json".count))
-                : filename
-            var aliases = [filename, filenameWithoutExtension]
-            if let email, !email.isEmpty {
-                aliases.append(email)
-            }
-
-            for alias in aliases where alias != canonicalKey {
-                canonicalKeysByAlias[alias, default: []].insert(canonicalKey)
+            for alias in aliases.compactMap({ value -> String? in
+                guard let alias = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !alias.isEmpty else { return nil }
+                return alias
+            }) where alias != canonicalKey {
+                canonicalKeysByAlias[provider, default: [:]][alias, default: []].insert(canonicalKey)
             }
         }
 
         if !modeManager.isRemoteProxyMode {
             for file in directAuthFiles where file.provider == .codex {
-                addAliases(filename: file.filename, email: file.email)
+                let filenameWithoutExtension = file.filename.hasSuffix(".json")
+                    ? String(file.filename.dropLast(".json".count))
+                    : file.filename
+                addAliases(
+                    provider: .codex,
+                    canonicalKey: file.filename.codexFilenameKey,
+                    aliases: [file.filename, filenameWithoutExtension, file.email]
+                )
+            }
+            for file in directAuthFiles where file.provider == .copilot {
+                addAliases(
+                    provider: .copilot,
+                    canonicalKey: file.menuBarAccountKey,
+                    aliases: [file.email]
+                )
             }
         }
 
         for file in authFiles where file.providerType == .codex {
-            addAliases(filename: file.name, email: file.email)
+            let filenameWithoutExtension = file.name.hasSuffix(".json")
+                ? String(file.name.dropLast(".json".count))
+                : file.name
+            addAliases(
+                provider: .codex,
+                canonicalKey: file.name.codexFilenameKey,
+                aliases: [file.name, filenameWithoutExtension, file.email]
+            )
+        }
+        for file in authFiles where file.providerType == .copilot {
+            addAliases(
+                provider: .copilot,
+                canonicalKey: file.menuBarAccountKey,
+                aliases: [file.email]
+            )
         }
 
         var migratedItems: [MenuBarQuotaItem] = []
@@ -2456,13 +2499,13 @@ final class QuotaViewModel {
         for item in menuBarSettings.selectedItems {
             var migratedItem = item
 
-            if item.aiProvider == .codex,
-               !canonicalKeys.contains(item.accountKey),
-               let candidates = canonicalKeysByAlias[item.accountKey],
+            if let provider = item.aiProvider,
+               !canonicalKeys[provider, default: []].contains(item.accountKey),
+               let candidates = canonicalKeysByAlias[provider]?[item.accountKey],
                candidates.count == 1,
                let canonicalKey = candidates.first {
                 migratedItem = MenuBarQuotaItem(
-                    provider: AIProvider.codex.rawValue,
+                    provider: provider.rawValue,
                     accountKey: canonicalKey
                 )
             }

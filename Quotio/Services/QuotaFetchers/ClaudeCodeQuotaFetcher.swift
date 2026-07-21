@@ -358,8 +358,8 @@ actor ClaudeCodeQuotaFetcher {
     func fetchQuota(accountKey: String, forceRefresh: Bool = false) async -> ProviderQuotaData? {
         if let account = await MonitorCredentialVault.shared.accounts().first(where: {
             $0.provider == .claude && !$0.isDisabled && $0.accountKey == accountKey
-        }) {
-            return await fetchOwnedQuota(account: account, forceRefresh: forceRefresh)
+        }), let quota = await fetchOwnedQuota(account: account, forceRefresh: forceRefresh) {
+            return quota
         }
 
         if nativeKeychainIdentity() == accountKey,

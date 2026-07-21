@@ -255,13 +255,19 @@ actor CopilotQuotaFetcher {
             }
         }
 
-        // Native credentials do not always store their login. A sole native credential can
-        // safely be resolved without probing any sibling account.
         let nativeTokens = loadNativeTokens()
-        if nativeTokens.count == 1,
-           let token = nativeTokens.first {
+        for token in nativeTokens {
             let login = await fetchGitHubLogin(accessToken: token)
-            guard accountKey == "GitHub Copilot" || login == accountKey else { return nil }
+            if login == accountKey {
+                return await fetchQuota(accessToken: token)
+            }
+        }
+
+        // Native credentials do not always expose a login. The placeholder identity is only
+        // unambiguous when exactly one native token exists.
+        if accountKey == "GitHub Copilot",
+           nativeTokens.count == 1,
+           let token = nativeTokens.first {
             return await fetchQuota(accessToken: token)
         }
         return nil
