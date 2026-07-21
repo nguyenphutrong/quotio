@@ -1148,6 +1148,9 @@ actor AntigravityQuotaFetcher {
                         quota = try await fetchQuota(accessToken: access)
                     }
                     quotaResults[account.accountKey] = quota
+                    if let subscription = subscriptionCache[credential.accessToken] {
+                        subscriptionResults[account.accountKey] = subscription
+                    }
                 } catch QuotaFetchError.httpError(let status) where status == 401 || status == 403 {
                     if let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id),
                        let refresh = latest.refreshToken,
@@ -1157,6 +1160,9 @@ actor AntigravityQuotaFetcher {
                         credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
                         try? await MonitorCredentialVault.shared.save(credential, metadata: account)
                         quotaResults[account.accountKey] = try? await fetchQuota(accessToken: access)
+                        if let subscription = subscriptionCache[access] {
+                            subscriptionResults[account.accountKey] = subscription
+                        }
                     }
                 } catch {
                     continue
@@ -1174,7 +1180,11 @@ actor AntigravityQuotaFetcher {
                }
            )),
            let quota = try? await fetchQuota(accessToken: accessToken) {
-            quotaResults[await nativeAccountName(accessToken: accessToken)] = quota
+            let key = await nativeAccountName(accessToken: accessToken)
+            quotaResults[key] = quota
+            if let subscription = subscriptionCache[accessToken] {
+                subscriptionResults[key] = subscription
+            }
         }
 
         if let native = loadNativeKeychainToken(),
@@ -1182,6 +1192,10 @@ actor AntigravityQuotaFetcher {
             if let quota = try? await fetchQuota(accessToken: accessToken) {
                 let key = await nativeAccountName(accessToken: accessToken)
                 if quotaResults[key] == nil { quotaResults[key] = quota }
+                if subscriptionResults[key] == nil,
+                   let subscription = subscriptionCache[accessToken] {
+                    subscriptionResults[key] = subscription
+                }
             }
         }
 
@@ -1217,6 +1231,88 @@ actor AntigravityQuotaFetcher {
         }
 
         return (quotaResults, subscriptionResults)
+    }
+
+    /// Fetches quota and subscription for exactly one canonical account key.
+    func fetchData(forAccountKey accountKey: String) async -> (
+        quota: ProviderQuotaData?,
+        subscription: SubscriptionInfo?
+    ) {
+        if let account = await MonitorCredentialVault.shared.accounts().first(where: {
+            $0.provider == .antigravity && !$0.isDisabled && $0.accountKey == accountKey
+        }), var credential = await MonitorCredentialVault.shared.credential(for: account.id) {
+            if credential.expiresAt.map({ $0.timeIntervalSinceNow < 300 }) ?? false,
+               let refresh = credential.refreshToken,
+               let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
+                credential.accessToken = access
+                credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+                try? await MonitorCredentialVault.shared.save(credential, metadata: account)
+            }
+            var quota: ProviderQuotaData?
+            do {
+                quota = try await fetchQuota(accessToken: credential.accessToken)
+            } catch QuotaFetchError.httpError(let status) where status == 401 || status == 403 {
+                quota = nil
+            } catch {
+                return (nil, subscriptionCache[credential.accessToken])
+            }
+            var didRetryCredential = false
+            if quota?.isForbidden == true,
+               let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id),
+               let refresh = latest.refreshToken,
+               let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
+                didRetryCredential = true
+                credential = latest
+                credential.accessToken = access
+                credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+                try? await MonitorCredentialVault.shared.save(credential, metadata: account)
+                quota = try? await fetchQuota(accessToken: access)
+            }
+            if quota == nil, !didRetryCredential,
+               let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id),
+               let refresh = latest.refreshToken,
+               let (access, expiresIn) = try? await refreshAccessTokenWithExpiry(refreshToken: refresh) {
+                credential = latest
+                credential.accessToken = access
+                credential.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+                try? await MonitorCredentialVault.shared.save(credential, metadata: account)
+                quota = try? await fetchQuota(accessToken: access)
+            }
+            return (quota, subscriptionCache[credential.accessToken])
+        }
+
+        if let ideToken = try? await databaseService.getCurrentTokenInfo(),
+           let access = await usableNativeAccessToken(from: NativeToken(
+               accessToken: ideToken.accessToken,
+               refreshToken: ideToken.refreshToken,
+               expiresAt: ideToken.expiry.map {
+                   let raw = TimeInterval($0)
+                   return Date(timeIntervalSince1970: raw > 10_000_000_000 ? raw / 1000 : raw)
+               }
+           )), await nativeAccountName(accessToken: access) == accountKey {
+            let quota = try? await fetchQuota(accessToken: access)
+            return (quota, subscriptionCache[access])
+        }
+
+        if let native = loadNativeKeychainToken(),
+           let access = await usableNativeAccessToken(from: native),
+           await nativeAccountName(accessToken: access) == accountKey {
+            let quota = try? await fetchQuota(accessToken: access)
+            return (quota, subscriptionCache[access])
+        }
+
+        let directory = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: directory) else {
+            return (nil, nil)
+        }
+        for file in files where file.hasPrefix("antigravity-") && file.hasSuffix(".json") {
+            let path = (directory as NSString).appendingPathComponent(file)
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  let auth = try? JSONDecoder().decode(AntigravityAuthFile.self, from: data),
+                  auth.email == accountKey else { continue }
+            return await fetchQuotaAndSubscriptionForAuthFile(at: path)
+        }
+        return (nil, nil)
     }
 
     /// Antigravity/agy stores a go-keyring wrapped JSON credential. Quotio only reads that item;

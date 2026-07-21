@@ -126,19 +126,41 @@ struct QuotaScreen: View {
                 }
                 
                 ToolbarItem(placement: .primaryAction) {
-                Button {
-                    Task {
-                        if modeManager.isMonitorMode {
-                            await viewModel.manualRefresh()
+                    Menu {
+                        if let provider = selectedProvider ?? availableProviders.first {
+                            Button {
+                                Task { await viewModel.refreshQuota(for: provider) }
+                            } label: {
+                                Label(
+                                    provider.displayName + " — " + "action.refreshQuota".localized(),
+                                    systemImage: "arrow.clockwise"
+                                )
+                            }
+                            .disabled(
+                                viewModel.isRefreshing(provider: provider)
+                                    || !viewModel.supportsScopedRefresh(for: provider)
+                            )
+
+                            Divider()
+                        }
+
+                        Button {
+                            Task { await viewModel.manualRefresh() }
+                        } label: {
+                            Label("action.refresh".localized(), systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .disabled(viewModel.isLoadingQuotas)
+                    } label: {
+                        if let provider = selectedProvider ?? availableProviders.first,
+                           viewModel.isRefreshing(provider: provider) {
+                            ProgressView()
+                                .controlSize(.small)
                         } else {
-                            await viewModel.refreshQuotasUnified()
+                            Image(systemName: "arrow.clockwise")
                         }
                     }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+                    .help("action.refreshQuota".localized())
                 }
-                .disabled(viewModel.isLoadingQuotas)
-            }
         }
         .onAppear {
             if selectedProvider == nil, let first = availableProviders.first {
@@ -172,7 +194,7 @@ struct QuotaScreen: View {
                         authFiles: viewModel.authFiles.filter { $0.providerType == provider },
                         quotaData: viewModel.providerQuotas[provider] ?? [:],
                         subscriptionInfos: viewModel.subscriptionInfos[provider] ?? [:],
-                        isLoading: viewModel.isLoadingQuotas
+                        isLoading: viewModel.refreshingProviders.contains(provider)
                     )
                     .padding(.horizontal, 24)
                     .padding(.vertical, 16)
@@ -448,9 +470,16 @@ private struct AccountQuotaCardV2: View {
     let account: AccountInfo
     let isLoading: Bool
     
-    @State private var isRefreshing = false
     @State private var showSwitchSheet = false
     @State private var showModelsDetailSheet = false
+
+    private var accountID: QuotaAccountID {
+        QuotaAccountID(provider: provider, accountKey: account.key)
+    }
+
+    private var isRefreshing: Bool {
+        viewModel.isRefreshing(account: accountID)
+    }
 
     /// Check if OAuth is in progress for this provider
     private var isReauthenticating: Bool {
@@ -660,9 +689,7 @@ private struct AccountQuotaCardV2: View {
                 
                 Button {
                     Task {
-                        isRefreshing = true
-                        await viewModel.refreshQuotaForProvider(provider)
-                        isRefreshing = false
+                        await viewModel.refreshQuota(for: accountID)
                     }
                 } label: {
                     if isRefreshing || isLoading {
@@ -674,7 +701,7 @@ private struct AccountQuotaCardV2: View {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.clockwise")
                                 .font(.caption)
-                            Text("Refresh")
+                            Text("action.refresh".localized())
                                 .font(.caption)
                                 .fontWeight(.medium)
                         }
@@ -686,7 +713,11 @@ private struct AccountQuotaCardV2: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .disabled(isRefreshing || isLoading)
+                .disabled(
+                    viewModel.isRefreshBlocked(for: accountID)
+                        || !viewModel.supportsScopedRefresh(for: provider)
+                )
+                .help("action.refreshQuota".localized())
                 
                 if let data = account.quotaData, data.isForbidden {
                     if provider == .claude {

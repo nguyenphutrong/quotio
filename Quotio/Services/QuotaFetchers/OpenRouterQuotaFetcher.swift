@@ -151,6 +151,20 @@ actor OpenRouterQuotaFetcher {
         return results
     }
 
+    /// Fetches only the vaulted credential with the matching canonical account key.
+    func fetchQuota(accountKey: String) async -> ProviderQuotaData? {
+        let disabledAccountIDs = await metadata.disabledAccountIDs()
+        guard let account = await vault.accounts().first(where: {
+            $0.provider == .openRouter
+                && $0.accountKey == accountKey
+                && !disabledAccountIDs.contains($0.id)
+        }), let credential = await vault.credential(for: account.id) else { return nil }
+
+        async let credits = fetch(creditsURL, apiKey: credential.accessToken)
+        async let key = fetch(keyURL, apiKey: credential.accessToken)
+        return OpenRouterQuotaMapper.map(credits: await credits, key: await key)
+    }
+
     private func fetch(_ url: URL, apiKey: String) async -> OpenRouterEndpointResult {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")

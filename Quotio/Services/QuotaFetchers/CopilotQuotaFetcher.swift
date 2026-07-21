@@ -234,6 +234,46 @@ actor CopilotQuotaFetcher {
             return nil
         }
     }
+
+    /// Fetches quota for one canonical account key without querying sibling credentials.
+    func fetchQuota(accountKey: String) async -> ProviderQuotaData? {
+        if let account = await MonitorCredentialVault.shared.accounts().first(where: {
+            $0.provider == .copilot && $0.accountKey == accountKey && !$0.isDisabled
+        }), let credential = await MonitorCredentialVault.shared.credential(for: account.id) {
+            return await fetchQuota(accessToken: credential.accessToken)
+        }
+
+        let authDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        if let files = try? FileManager.default.contentsOfDirectory(atPath: authDir) {
+            for file in files where file.hasPrefix("github-copilot-") && file.hasSuffix(".json") {
+                let path = (authDir as NSString).appendingPathComponent(file)
+                guard let authFile = loadAuthFile(from: path) else { continue }
+                let key = authFile.username ?? extractUsername(from: file)
+                if key == accountKey {
+                    return await fetchQuota(accessToken: authFile.accessToken)
+                }
+            }
+        }
+
+        // Native credentials do not always store their login. A sole native credential can
+        // safely be resolved without probing any sibling account.
+        let nativeTokens = loadNativeTokens()
+        if nativeTokens.count == 1,
+           let token = nativeTokens.first {
+            let login = await fetchGitHubLogin(accessToken: token)
+            guard accountKey == "GitHub Copilot" || login == accountKey else { return nil }
+            return await fetchQuota(accessToken: token)
+        }
+        return nil
+    }
+
+    private func fetchQuota(accessToken: String) async -> ProviderQuotaData? {
+        do {
+            return convertToQuotaData(entitlement: try await fetchEntitlement(accessToken: accessToken))
+        } catch {
+            return nil
+        }
+    }
     
     func fetchAllCopilotQuotas(
         authDir: String = "~/.cli-proxy-api",

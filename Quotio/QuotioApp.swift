@@ -691,7 +691,7 @@ struct ContentView: View {
                     } else {
                         // Monitor or remote mode: refresh button
                         Button {
-                            Task { await viewModel.refreshQuotasDirectly() }
+                            Task { await viewModel.manualRefresh() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
                         }

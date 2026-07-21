@@ -285,6 +285,24 @@ actor FactoryDroidQuotaFetcher {
         return results
     }
 
+    /// Fetches quota using only the local or vaulted credential matching `accountKey`.
+    func fetchQuota(accountKey: String) async -> ProviderQuotaData? {
+        let disabledAccountIDs = await metadata.disabledAccountIDs()
+        if let localCredential = FactoryDroidCredentialReader.load() {
+            let account = Self.localAccount(for: localCredential)
+            if account.accountKey == accountKey && !disabledAccountIDs.contains(account.id) {
+                return await fetch(accessToken: localCredential.accessToken)
+            }
+        }
+
+        guard let account = await vault.accounts().first(where: {
+            $0.provider == .factoryDroid
+                && $0.accountKey == accountKey
+                && !disabledAccountIDs.contains($0.id)
+        }), let credential = await vault.credential(for: account.id) else { return nil }
+        return await fetch(accessToken: credential.accessToken)
+    }
+
     nonisolated static func localAccount(for credential: FactoryDroidCredential) -> MonitorAccount {
         .make(
             provider: .factoryDroid,

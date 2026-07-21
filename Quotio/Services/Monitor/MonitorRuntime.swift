@@ -71,8 +71,8 @@ nonisolated struct MonitorAccount: Identifiable, Codable, Hashable, Sendable {
 
     static func makeLegacy(_ file: DirectAuthFile) -> MonitorAccount {
         let accountKey: String
-        if file.provider == .codex {
-            accountKey = file.filename.codexFilenameKey
+        if file.provider == .codex || file.provider == .copilot {
+            accountKey = file.menuBarAccountKey
         } else if let email = file.email, !email.isEmpty {
             accountKey = email
         } else {

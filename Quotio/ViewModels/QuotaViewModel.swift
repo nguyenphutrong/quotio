@@ -59,7 +59,38 @@ final class QuotaViewModel {
     var usageStats: UsageStats?
     var apiKeys: [String] = []
     var isLoading = false
-    var isLoadingQuotas = false
+    private(set) var refreshingProviders: Set<AIProvider> = []
+    private(set) var refreshingAccounts: Set<QuotaAccountID> = []
+    @ObservationIgnored private var activeRefreshProviders: Set<AIProvider> = []
+
+    var isLoadingQuotas: Bool {
+        !refreshingProviders.isEmpty || !refreshingAccounts.isEmpty
+    }
+
+    func isRefreshing(provider: AIProvider) -> Bool {
+        refreshingProviders.contains(provider)
+            || refreshingAccounts.contains(where: { $0.provider == provider })
+    }
+
+    func isRefreshing(account: QuotaAccountID) -> Bool {
+        refreshingAccounts.contains(account)
+    }
+
+    func isRefreshBlocked(for account: QuotaAccountID) -> Bool {
+        activeRefreshProviders.contains(account.provider)
+    }
+
+    func supportsScopedRefresh(for provider: AIProvider) -> Bool {
+        if modeManager.isRemoteProxyMode {
+            return provider == .gemini
+        }
+        switch provider {
+        case .qwen, .iflow, .vertex:
+            return false
+        default:
+            return true
+        }
+    }
     var errorMessage: String?
     var oauthState: OAuthState?
 
@@ -78,12 +109,19 @@ final class QuotaViewModel {
     var directAuthFiles: [DirectAuthFile] = []
     var monitorAccounts: [MonitorAccount] = []
     var monitorIssues: [AIProvider: MonitorRefreshIssue] = [:]
+    var monitorAccountIssues: [QuotaAccountID: MonitorRefreshIssue] = [:]
 
     func monitorStatus(for account: MonitorAccount) -> (status: String?, message: String?) {
-        if let issue = monitorIssues[account.provider] {
+        let updated = Self.monitorLastUpdated(for: account, providerQuotas: providerQuotas)
+        let accountID = QuotaAccountID(provider: account.provider, accountKey: account.accountKey)
+        if let issue = monitorAccountIssues[accountID],
+           updated == nil || updated! <= issue.occurredAt {
             return ("outdated", issue.message)
         }
-        let updated = Self.monitorLastUpdated(for: account, providerQuotas: providerQuotas)
+        if let issue = monitorIssues[account.provider],
+           updated == nil || updated! <= issue.occurredAt {
+            return ("outdated", issue.message)
+        }
         guard let updated else { return (nil, nil) }
         let staleAfter = refreshSettings.refreshCadence.intervalSeconds ?? 600
         if Date().timeIntervalSince(updated) > staleAfter {
@@ -202,6 +240,43 @@ final class QuotaViewModel {
     /// Post notification to trigger UI updates (works even when window is closed)
     private func notifyQuotaDataChanged() {
         NotificationCenter.default.post(name: Self.quotaDataDidChangeNotification, object: nil)
+    }
+
+    private func beginScopedRefresh(provider: AIProvider, account: QuotaAccountID? = nil) -> Bool {
+        guard supportsScopedRefresh(for: provider), activeRefreshProviders.insert(provider).inserted else {
+            return false
+        }
+        if let account {
+            refreshingAccounts.insert(account)
+        } else {
+            refreshingProviders.insert(provider)
+        }
+        notifyQuotaDataChanged()
+        return true
+    }
+
+    private func endScopedRefresh(provider: AIProvider, account: QuotaAccountID? = nil) {
+        activeRefreshProviders.remove(provider)
+        if let account {
+            refreshingAccounts.remove(account)
+        } else {
+            refreshingProviders.remove(provider)
+        }
+        notifyQuotaDataChanged()
+    }
+
+    private func beginBatchRefresh(providers: Set<AIProvider>) -> Bool {
+        guard activeRefreshProviders.isDisjoint(with: providers) else { return false }
+        activeRefreshProviders.formUnion(providers)
+        refreshingProviders.formUnion(providers)
+        notifyQuotaDataChanged()
+        return true
+    }
+
+    private func endBatchRefresh(providers: Set<AIProvider>) {
+        activeRefreshProviders.subtract(providers)
+        refreshingProviders.subtract(providers)
+        notifyQuotaDataChanged()
     }
 
     init() {
@@ -494,9 +569,13 @@ final class QuotaViewModel {
     /// Refresh quotas directly without proxy (for Quota-Only Mode)
     /// Note: Cursor and Trae are NOT auto-refreshed - user must use "Scan for IDEs" (issue #29)
     func refreshQuotasDirectly(force: Bool = false) async {
-        guard !isLoadingQuotas else { return }
-        
-        isLoadingQuotas = true
+        let providers: Set<AIProvider> = [
+            .codex, .claude, .gemini, .copilot, .kiro, .glm, .clinePass, .warp,
+            .antigravity, .factoryDroid, .devin, .grok, .openRouter,
+        ]
+        guard beginBatchRefresh(providers: providers) else { return }
+        defer { endBatchRefresh(providers: providers) }
+
         lastQuotaRefreshTime = Date()
         
         let previous = providerQuotas
@@ -593,15 +672,9 @@ final class QuotaViewModel {
             }
             return quotas
         }
-        async let antigravity = coordinator.refresh(
-            provider: .antigravity,
-            force: force,
-            previous: previous[.antigravity] ?? [:],
-            credentialAvailability: credentialAvailability[.antigravity] ?? .unknown
-        ) {
-            let (quotas, _) = await antigravityQuotaFetcher.fetchAllAntigravityData(includeMonitorCredentials: true)
-            return quotas
-        }
+        async let antigravityData = antigravityQuotaFetcher.fetchAllAntigravityData(
+            includeMonitorCredentials: true
+        )
         async let factoryDroid = coordinator.refresh(
             provider: .factoryDroid,
             force: force,
@@ -635,6 +708,16 @@ final class QuotaViewModel {
             await openRouterQuotaFetcher.fetchAllQuotas()
         }
 
+        let fetchedAntigravityData = await antigravityData
+        let antigravity = await coordinator.refresh(
+            provider: .antigravity,
+            force: force,
+            previous: previous[.antigravity] ?? [:],
+            credentialAvailability: credentialAvailability[.antigravity] ?? .unknown
+        ) {
+            fetchedAntigravityData.quotas
+        }
+
         providerQuotas[.codex] = await codexFetcher.reconcileLegacyAliases(in: await codex)
         providerQuotas[.claude] = await claude
         providerQuotas[.gemini] = await gemini
@@ -643,7 +726,10 @@ final class QuotaViewModel {
         providerQuotas[.glm] = await glm
         providerQuotas[.clinePass] = await clinePass
         providerQuotas[.warp] = await warp
-        providerQuotas[.antigravity] = await antigravity
+        providerQuotas[.antigravity] = antigravity
+        subscriptionInfos[.antigravity, default: [:]].merge(fetchedAntigravityData.subscriptions) {
+            _, fresh in fresh
+        }
         providerQuotas[.factoryDroid] = await factoryDroid
         providerQuotas[.devin] = await devin
         providerQuotas[.grok] = await grok
@@ -659,7 +745,6 @@ final class QuotaViewModel {
         pruneMenuBarItems()
         autoSelectMenuBarItems()
 
-        isLoadingQuotas = false
         notifyQuotaDataChanged()
     }
 
@@ -755,7 +840,7 @@ final class QuotaViewModel {
     }
     
     /// Refresh Gemini quota using CLIProxyAPI management data when available.
-    private func refreshGeminiCLIQuotasInternal() async {
+    private func refreshGeminiCLIQuotasInternal(allowLocalFallback: Bool = true) async {
         if modeManager.isMonitorMode {
             let quotas = await geminiCLIFetcher.fetchAsProviderQuota()
             if !quotas.isEmpty { providerQuotas[.gemini] = quotas }
@@ -791,7 +876,7 @@ final class QuotaViewModel {
         }
 
         let quotas: [String: ProviderQuotaData]
-        if managementQuotas.isEmpty {
+        if managementQuotas.isEmpty && allowLocalFallback {
             quotas = await geminiCLIFetcher.fetchAsProviderQuota()
         } else {
             quotas = managementQuotas
@@ -1454,7 +1539,7 @@ final class QuotaViewModel {
         refreshSettings.refreshCadence.intervalSeconds ?? 60
     }
     
-    func refreshData() async {
+    func refreshData(refreshQuotas: Bool = true) async {
         guard let client = apiClient else { return }
         
         do {
@@ -1488,14 +1573,14 @@ final class QuotaViewModel {
             // Prune menu bar items for accounts that no longer exist
             pruneMenuBarItems()
             
-            let shouldRefreshQuotas: Bool
+            let isQuotaRefreshDue: Bool
             if let lastRefresh = lastQuotaRefresh {
-                shouldRefreshQuotas = Date().timeIntervalSince(lastRefresh) >= quotaRefreshInterval
+                isQuotaRefreshDue = Date().timeIntervalSince(lastRefresh) >= quotaRefreshInterval
             } else {
-                shouldRefreshQuotas = true
+                isQuotaRefreshDue = true
             }
             
-            if shouldRefreshQuotas && !isLoadingQuotas {
+            if refreshQuotas && isQuotaRefreshDue && !isLoadingQuotas {
                 Task {
                     await refreshAllQuotas()
                 }
@@ -1510,8 +1595,12 @@ final class QuotaViewModel {
     func manualRefresh() async {
         if modeManager.isMonitorMode {
             await refreshQuotasDirectly(force: true)
+        } else if modeManager.isRemoteProxyMode {
+            await refreshData(refreshQuotas: false)
+            await refreshAllQuotas()
         } else if proxyManager.proxyStatus.running {
-            await refreshData()
+            await refreshData(refreshQuotas: false)
+            await refreshAllQuotas()
         } else {
             await refreshQuotasUnified()
         }
@@ -1523,14 +1612,19 @@ final class QuotaViewModel {
             await refreshQuotasDirectly()
             return
         }
-        guard !isLoadingQuotas else { return }
+        let providers: Set<AIProvider> = modeManager.isRemoteProxyMode
+            ? [.gemini]
+            : [.antigravity, .codex, .copilot, .claude, .glm, .warp, .kiro, .clinePass, .gemini]
+        guard beginBatchRefresh(providers: providers) else { return }
+        defer { endBatchRefresh(providers: providers) }
 
-        isLoadingQuotas = true
         lastQuotaRefresh = Date()
 
         // In remote mode, skip local filesystem fetchers — only show data from the remote proxy
         // (auth files, usage stats, API keys are already fetched by refreshData())
-        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
+        async let geminiCLI: () = refreshGeminiCLIQuotasInternal(
+            allowLocalFallback: !modeManager.isRemoteProxyMode
+        )
 
         if !modeManager.isRemoteProxyMode {
             // Note: Cursor and Trae removed from auto-refresh (issue #29)
@@ -1553,7 +1647,6 @@ final class QuotaViewModel {
         pruneMenuBarItems()
         autoSelectMenuBarItems()
 
-        isLoadingQuotas = false
         notifyQuotaDataChanged()
     }
 
@@ -1567,10 +1660,14 @@ final class QuotaViewModel {
             await refreshQuotasDirectly()
             return
         }
-        guard !isLoadingQuotas else { return }
         guard !modeManager.isRemoteProxyMode else { return }
 
-        isLoadingQuotas = true
+        let providers: Set<AIProvider> = [
+            .antigravity, .codex, .copilot, .claude, .glm, .warp, .kiro, .gemini, .clinePass,
+        ]
+        guard beginBatchRefresh(providers: providers) else { return }
+        defer { endBatchRefresh(providers: providers) }
+
         lastQuotaRefreshTime = Date()
         lastQuotaRefresh = Date()
 
@@ -1592,7 +1689,6 @@ final class QuotaViewModel {
         pruneMenuBarItems()
         autoSelectMenuBarItems()
 
-        isLoadingQuotas = false
         notifyQuotaDataChanged()
     }
 
@@ -1682,11 +1778,27 @@ final class QuotaViewModel {
         providerQuotas[.copilot] = quotas
     }
     
-    func refreshQuotaForProvider(_ provider: AIProvider) async {
-        if modeManager.isMonitorMode {
-            await refreshQuotasDirectly(force: true)
+    func refreshQuota(for provider: AIProvider) async {
+        guard beginScopedRefresh(provider: provider) else { return }
+        defer { endScopedRefresh(provider: provider) }
+
+        if modeManager.isRemoteProxyMode {
+            guard provider == .gemini, let apiClient else { return }
+            let quotas = await geminiCLIFetcher.fetchAsProviderQuota(authFiles: authFiles, apiClient: apiClient)
+            if !quotas.isEmpty {
+                providerQuotas[.gemini, default: [:]].merge(quotas) { _, fresh in fresh }
+                await finishScopedRefresh(provider: provider)
+            }
             return
         }
+
+        if modeManager.isMonitorMode {
+            await refreshMonitorProvider(provider)
+            await finishScopedRefresh(provider: provider)
+            return
+        }
+
+        let previous = providerQuotas[provider] ?? [:]
         switch provider {
         case .antigravity:
             await refreshAntigravityQuotasInternal()
@@ -1714,13 +1826,242 @@ final class QuotaViewModel {
             await refreshKiroQuotasInternal()
         case .clinePass:
             await refreshClinePassQuotasInternal()
+        case .factoryDroid:
+            providerQuotas[provider] = await factoryDroidFetcher.fetchAllQuotas()
+        case .devin:
+            providerQuotas[provider] = await devinFetcher.fetchAsProviderQuota()
+        case .grok:
+            providerQuotas[provider] = await grokFetcher.fetchAllQuotas()
+        case .openRouter:
+            providerQuotas[provider] = await openRouterFetcher.fetchAllQuotas()
         default:
-            break
+            return
         }
 
-        // Prune menu bar items after refresh to remove deleted accounts
-        pruneMenuBarItems()
+        let fresh = providerQuotas[provider] ?? [:]
+        guard !fresh.isEmpty else {
+            if !previous.isEmpty {
+                providerQuotas[provider] = previous
+            }
+            return
+        }
+        providerQuotas[provider] = previous.merging(fresh) { _, value in value }
+        await finishScopedRefresh(provider: provider)
+    }
 
+    func refreshQuota(for account: QuotaAccountID) async {
+        guard beginScopedRefresh(provider: account.provider, account: account) else { return }
+        defer { endScopedRefresh(provider: account.provider, account: account) }
+
+        let quota: ProviderQuotaData?
+        var subscription: SubscriptionInfo?
+
+        switch account.provider {
+        case .antigravity:
+            let result = await antigravityFetcher.fetchData(forAccountKey: account.accountKey)
+            quota = result.quota
+            subscription = result.subscription
+        case .codex:
+            quota = await codexCLIFetcher.fetchQuota(forAccountKey: account.accountKey)
+        case .copilot:
+            quota = await copilotFetcher.fetchQuota(accountKey: account.accountKey)
+        case .claude:
+            quota = await claudeCodeFetcher.fetchQuota(accountKey: account.accountKey, forceRefresh: true)
+        case .cursor:
+            quota = await cursorFetcher.fetchAsProviderQuota()[account.accountKey]
+        case .gemini:
+            let hasManagementAccount = authFiles.contains {
+                $0.providerType == .gemini && ($0.quotaLookupKey.isEmpty ? $0.name : $0.quotaLookupKey) == account.accountKey
+            }
+            if modeManager.isRemoteProxyMode {
+                guard let apiClient else { return }
+                quota = await geminiCLIFetcher.fetchQuota(
+                    accountKey: account.accountKey,
+                    authFiles: authFiles,
+                    apiClient: apiClient
+                )
+            } else {
+                quota = await geminiCLIFetcher.fetchQuota(
+                    accountKey: account.accountKey,
+                    authFiles: authFiles,
+                    apiClient: hasManagementAccount ? apiClient : nil
+                )
+            }
+        case .trae:
+            quota = await traeFetcher.fetchAsProviderQuota()[account.accountKey]
+        case .glm:
+            guard let customProvider = CustomProviderService.shared.providers.first(where: {
+                $0.type == .glmCompatibility && $0.isEnabled && $0.name == account.accountKey
+            }), let apiKey = customProvider.apiKeys.first?.apiKey else { return }
+            quota = try? await glmFetcher.fetchQuota(apiKey: apiKey, baseURL: customProvider.baseURL)
+        case .warp:
+            guard let entry = WarpService.shared.tokens.first(where: {
+                $0.isEnabled && $0.name == account.accountKey
+            }) else { return }
+            quota = try? await warpFetcher.fetchQuota(apiKey: entry.token)
+        case .kiro:
+            quota = await kiroFetcher.fetchQuota(accountKey: account.accountKey)
+        case .clinePass:
+            guard let customProvider = CustomProviderService.shared.providers.first(where: {
+                $0.type == .clinePass && $0.isEnabled && $0.name == account.accountKey
+            }), let apiKey = customProvider.apiKeys.first?.apiKey else { return }
+            quota = try? await clinePassFetcher.fetchQuota(apiKey: apiKey)
+        case .factoryDroid:
+            quota = await factoryDroidFetcher.fetchQuota(accountKey: account.accountKey)
+        case .devin:
+            quota = await devinFetcher.fetchAsProviderQuota()[account.accountKey]
+        case .grok:
+            quota = await grokFetcher.fetchQuota(accountKey: account.accountKey)
+        case .openRouter:
+            quota = await openRouterFetcher.fetchQuota(accountKey: account.accountKey)
+        case .qwen, .iflow, .vertex:
+            return
+        }
+
+        guard let quota else {
+            if modeManager.isMonitorMode {
+                monitorAccountIssues[account] = MonitorRefreshIssue(
+                    message: "monitor.refresh.failed".localized(),
+                    occurredAt: Date()
+                )
+            }
+            return
+        }
+        providerQuotas[account.provider, default: [:]][account.accountKey] = quota
+        if let subscription {
+            subscriptionInfos[account.provider, default: [:]][account.accountKey] = subscription
+        }
+        monitorAccountIssues.removeValue(forKey: account)
+        await finishScopedRefresh(provider: account.provider)
+    }
+
+    func refreshQuotaForProvider(_ provider: AIProvider) async {
+        await refreshQuota(for: provider)
+    }
+
+    private func refreshMonitorProvider(_ provider: AIProvider) async {
+        let coordinator = monitorCoordinator
+        let previous = providerQuotas[provider] ?? [:]
+        let fresh: [String: ProviderQuotaData]
+        var freshSubscriptions: [String: SubscriptionInfo] = [:]
+
+        switch provider {
+        case .codex:
+            let fetcher = codexCLIFetcher
+            let refreshed = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAsProviderQuota()
+            }
+            fresh = await fetcher.reconcileLegacyAliases(in: refreshed)
+        case .claude:
+            let fetcher = claudeCodeFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAsProviderQuota(forceRefresh: true, includeMonitorCredentials: true)
+            }
+        case .gemini:
+            let fetcher = geminiCLIFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAsProviderQuota(includeMonitorCredentials: true)
+            }
+        case .copilot:
+            let fetcher = copilotFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAllCopilotQuotas(includeMonitorCredentials: true)
+            }
+        case .kiro:
+            let fetcher = kiroFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAllQuotas(includeMonitorCredentials: true)
+            }
+        case .glm:
+            let fetcher = glmFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAllQuotas()
+            }
+        case .clinePass:
+            let fetcher = clinePassFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAllQuotas()
+            }
+        case .warp:
+            let fetcher = warpFetcher
+            let tokens = WarpService.shared.tokens.filter(\.isEnabled)
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                var results: [String: ProviderQuotaData] = [:]
+                for entry in tokens {
+                    if let quota = try? await fetcher.fetchQuota(apiKey: entry.token) {
+                        results[entry.name] = quota
+                    }
+                }
+                return results
+            }
+        case .antigravity:
+            let fetcher = antigravityFetcher
+            let fetched = await fetcher.fetchAllAntigravityData(includeMonitorCredentials: true)
+            freshSubscriptions = fetched.subscriptions
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                fetched.quotas
+            }
+        case .factoryDroid:
+            let fetcher = factoryDroidFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAllQuotas()
+            }
+        case .devin:
+            let fetcher = devinFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAsProviderQuota()
+            }
+        case .grok:
+            let fetcher = grokFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAllQuotas()
+            }
+        case .openRouter:
+            let fetcher = openRouterFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAllQuotas()
+            }
+        case .cursor:
+            let fetcher = cursorFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAsProviderQuota()
+            }
+        case .trae:
+            let fetcher = traeFetcher
+            fresh = await coordinator.refresh(provider: provider, force: true, previous: previous) {
+                await fetcher.fetchAsProviderQuota()
+            }
+        case .qwen, .iflow, .vertex:
+            return
+        }
+
+        if fresh.isEmpty {
+            providerQuotas.removeValue(forKey: provider)
+        } else {
+            providerQuotas[provider] = fresh
+        }
+        if provider == .antigravity {
+            subscriptionInfos[provider, default: [:]].merge(freshSubscriptions) { _, fresh in fresh }
+        }
+    }
+
+    private func finishScopedRefresh(provider: AIProvider) async {
+        lastQuotaRefreshTime = Date()
+
+        if modeManager.isMonitorMode {
+            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            removeDisabledMonitorQuotas()
+            monitorIssues = await monitorCoordinator.currentIssues()
+            await monitorCoordinator.finish(quotas: providerQuotas)
+        }
+
+        if provider == .cursor || provider == .trae {
+            savePersistedIDEQuotas()
+        }
+
+        checkQuotaNotifications()
+        pruneMenuBarItems()
+        autoSelectMenuBarItems()
         notifyQuotaDataChanged()
     }
 

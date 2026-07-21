@@ -262,6 +262,27 @@ actor GeminiCLIQuotaFetcher {
         return results
     }
 
+    /// Fetch quota for exactly one canonical Gemini account.
+    func fetchQuota(accountKey: String, authFiles: [AuthFile] = [], apiClient: ManagementAPIClient? = nil) async -> ProviderQuotaData? {
+        if let apiClient {
+            guard let file = authFiles.first(where: {
+                $0.providerType == .gemini && !$0.disabled && !$0.unavailable && $0.runtimeOnly != true &&
+                ($0.quotaLookupKey.isEmpty ? $0.name : $0.quotaLookupKey) == accountKey
+            }),
+            let authIndex = file.authIndex?.trimmingCharacters(in: .whitespacesAndNewlines), !authIndex.isEmpty,
+            let projectId = resolveProjectId(from: file) else { return nil }
+            return try? await fetchQuota(authIndex: authIndex, projectId: projectId, apiClient: apiClient)
+        }
+
+        if let account = await MonitorCredentialVault.shared.accounts().first(where: {
+            $0.provider == .gemini && !$0.isDisabled && $0.accountKey == accountKey
+        }) {
+            return await fetchOwnedQuota(account: account)
+        }
+        guard getAccountInfo()?.email == accountKey else { return nil }
+        return await fetchNativeQuota()
+    }
+
     /// Fetch Gemini quota directly from the native Gemini CLI credential.
     func fetchAsProviderQuota(includeMonitorCredentials: Bool = false) async -> [String: ProviderQuotaData] {
         var results = includeMonitorCredentials ? await fetchOwnedQuotas() : [:]
@@ -307,7 +328,13 @@ actor GeminiCLIQuotaFetcher {
     private func fetchOwnedQuotas() async -> [String: ProviderQuotaData] {
         var results: [String: ProviderQuotaData] = [:]
         for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .gemini && !$0.isDisabled }) {
-            guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
+            if let quota = await fetchOwnedQuota(account: account) { results[account.accountKey] = quota }
+        }
+        return results
+    }
+
+    private func fetchOwnedQuota(account: MonitorAccount) async -> ProviderQuotaData? {
+            guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { return nil }
             do {
                 if credential.expiresAt.map({ $0.timeIntervalSinceNow < 300 }) ?? false,
                    let refreshToken = credential.refreshToken {
@@ -319,25 +346,47 @@ actor GeminiCLIQuotaFetcher {
                     try await MonitorCredentialVault.shared.save(credential, metadata: account)
                 }
                 do {
-                    results[account.accountKey] = try await fetchDirectQuota(accessToken: credential.accessToken)
+                    return try await fetchDirectQuota(accessToken: credential.accessToken)
                 } catch DirectGeminiError.authenticationRequired {
                     if let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id) {
                         credential = latest
                     }
-                    guard let refreshToken = credential.refreshToken else { continue }
+                    guard let refreshToken = credential.refreshToken else { return nil }
                     let refreshed = try await refresh(refreshToken: refreshToken)
                     credential.accessToken = refreshed.accessToken
                     credential.refreshToken = refreshed.refreshToken ?? refreshToken
                     credential.idToken = refreshed.idToken ?? credential.idToken
                     credential.expiresAt = refreshed.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) }
                     try await MonitorCredentialVault.shared.save(credential, metadata: account)
-                    results[account.accountKey] = try await fetchDirectQuota(accessToken: credential.accessToken)
+                    return try await fetchDirectQuota(accessToken: credential.accessToken)
                 }
             } catch {
                 Log.quota("Failed to fetch Gemini quota for Quotio credential")
             }
+        return nil
+    }
+
+    private func fetchNativeQuota() async -> ProviderQuotaData? {
+        guard var auth = readAuthFile(), var accessToken = auth.accessToken else { return nil }
+        let path = NSString(string: authFilePath).expandingTildeInPath
+        if shouldRefresh(auth), let refreshToken = auth.refreshToken,
+           let refreshed = try? await refresh(refreshToken: refreshToken) {
+            accessToken = refreshed.accessToken
+            auth = applying(refreshed, to: auth)
+            try? persist(auth, expectedRefreshToken: refreshToken, path: path)
         }
-        return results
+        do {
+            return try await fetchDirectQuota(accessToken: accessToken)
+        } catch DirectGeminiError.authenticationRequired {
+            let latest = readAuthFile() ?? auth
+            guard let refreshToken = latest.refreshToken,
+                  let refreshed = try? await refresh(refreshToken: refreshToken) else { return nil }
+            let updated = applying(refreshed, to: latest)
+            try? persist(updated, expectedRefreshToken: refreshToken, path: path)
+            return try? await fetchDirectQuota(accessToken: refreshed.accessToken)
+        } catch {
+            return nil
+        }
     }
 
     private struct DirectTokenResponse: Decodable {

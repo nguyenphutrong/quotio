@@ -168,6 +168,44 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(Set(accounts.map(\.deduplicationKey)).count, 2)
     }
 
+    func testCopilotCanonicalKeyPrefersLoginOverEmail() {
+        let direct = DirectAuthFile(
+            id: "copilot",
+            provider: .copilot,
+            email: "person@example.com",
+            login: "octocat",
+            expired: nil,
+            accountType: nil,
+            filePath: "/tmp/github-copilot-octocat.json",
+            source: .cliProxyApi,
+            filename: "github-copilot-octocat.json"
+        )
+        let proxy = AuthFile(
+            id: "copilot",
+            name: "github-copilot-octocat.json",
+            provider: "github-copilot",
+            label: nil,
+            status: "ready",
+            statusMessage: nil,
+            disabled: false,
+            unavailable: false,
+            runtimeOnly: false,
+            source: nil,
+            path: nil,
+            email: "person@example.com",
+            accountType: nil,
+            account: "octocat",
+            authIndex: nil,
+            createdAt: nil,
+            updatedAt: nil,
+            lastRefresh: nil
+        )
+
+        XCTAssertEqual(direct.menuBarAccountKey, "octocat")
+        XCTAssertEqual(MonitorAccount.makeLegacy(direct).accountKey, "octocat")
+        XCTAssertEqual(proxy.quotaLookupKey, "octocat")
+    }
+
     private actor Counter {
         var value = 0
         func increment() { value += 1 }

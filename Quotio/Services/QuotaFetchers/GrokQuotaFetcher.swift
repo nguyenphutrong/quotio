@@ -103,6 +103,14 @@ actor GrokQuotaFetcher {
         return results
     }
 
+    /// Fetches the candidate identified by its stable auth-file entry key.
+    func fetchQuota(accountKey: String) async -> ProviderQuotaData? {
+        guard let candidate = Self.loadCandidates().first(where: { $0.entryKey == accountKey }) else {
+            return nil
+        }
+        return await fetchQuota(candidate)
+    }
+
     nonisolated static func quotaResult(
         data: Data,
         statusCode: Int,

@@ -53,9 +53,17 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
     }
 
     /// Stable key for menu bar selection and quota lookup
-    var menuBarAccountKey: String {
+    nonisolated var menuBarAccountKey: String {
         if provider == .codex {
             return filename.codexFilenameKey
+        }
+        if provider == .copilot {
+            if let login, !login.isEmpty {
+                return login
+            }
+            if let filenameKey = filename.copilotFilenameKey {
+                return filenameKey
+            }
         }
         if provider == .kiro {
             if let email = email, !email.isEmpty {

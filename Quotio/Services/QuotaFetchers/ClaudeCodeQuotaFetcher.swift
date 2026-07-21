@@ -354,6 +354,58 @@ actor ClaudeCodeQuotaFetcher {
         return results
     }
 
+    /// Fetch quota for exactly one canonical Claude account.
+    func fetchQuota(accountKey: String, forceRefresh: Bool = false) async -> ProviderQuotaData? {
+        if let account = await MonitorCredentialVault.shared.accounts().first(where: {
+            $0.provider == .claude && !$0.isDisabled && $0.accountKey == accountKey
+        }) {
+            return await fetchOwnedQuota(account: account, forceRefresh: forceRefresh)
+        }
+
+        if nativeKeychainIdentity() == accountKey,
+           let quota = await fetchNativeKeychainQuotas(forceRefresh: forceRefresh)[accountKey] {
+            return quota
+        }
+
+        let fileManager = FileManager.default
+        let claudeHome = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nativeBase = (claudeHome?.isEmpty == false ? claudeHome! : NSString(string: "~/.claude").expandingTildeInPath)
+        let nativePath = (nativeBase as NSString).appendingPathComponent(".credentials.json")
+        if fileManager.fileExists(atPath: nativePath), authFileIdentity(at: nativePath) == accountKey {
+            return await fetchQuotaFromAuthFile(at: nativePath, forceRefresh: forceRefresh)?.data
+        }
+
+        if accountKey == "Claude Desktop" {
+            return await fetchClaudeDesktopQuota(forceRefresh: forceRefresh)?.value
+        }
+
+        let expandedPath = NSString(string: authDir).expandingTildeInPath
+        let legacyFiles = (try? fileManager.contentsOfDirectory(atPath: expandedPath))?
+            .filter { $0.hasPrefix("claude-") && $0.hasSuffix(".json") } ?? []
+        for filename in legacyFiles {
+            let path = (expandedPath as NSString).appendingPathComponent(filename)
+            guard let identity = authFileIdentity(at: path), identity == accountKey else { continue }
+            return await fetchQuotaFromAuthFile(at: path, forceRefresh: forceRefresh)?.data
+        }
+        return nil
+    }
+
+    private func authFileIdentity(at path: String) -> String? {
+        guard let data = FileManager.default.contents(atPath: path),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let oauth = json["claudeAiOauth"] as? [String: Any]
+        guard json["access_token"] as? String != nil || oauth?["accessToken"] as? String != nil else { return nil }
+        return json["email"] as? String ?? oauth?["email"] as? String ?? "Claude Code"
+    }
+
+    private func nativeKeychainIdentity() -> String? {
+        guard let record = KeychainHelper.readExternalCredentialRecord(service: "Claude Code-credentials"),
+              let json = try? JSONSerialization.jsonObject(with: record.data) as? [String: Any],
+              let oauth = json["claudeAiOauth"] as? [String: Any],
+              oauth["accessToken"] as? String != nil else { return nil }
+        return oauth["email"] as? String ?? "Claude Code"
+    }
+
     private func fetchClaudeDesktopQuota(forceRefresh: Bool) async -> (key: String, value: ProviderQuotaData)? {
         let key = "Claude Desktop"
         if !forceRefresh, let cached = quotaCache[key], cached.isValid(ttl: cacheTTL) {
@@ -443,10 +495,17 @@ actor ClaudeCodeQuotaFetcher {
     private func fetchOwnedQuotas(forceRefresh: Bool) async -> [String: ProviderQuotaData] {
         var results: [String: ProviderQuotaData] = [:]
         for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .claude && !$0.isDisabled }) {
-            guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
+            if let data = await fetchOwnedQuota(account: account, forceRefresh: forceRefresh) {
+                results[account.accountKey] = data
+            }
+        }
+        return results
+    }
+
+    private func fetchOwnedQuota(account: MonitorAccount, forceRefresh: Bool) async -> ProviderQuotaData? {
+            guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { return nil }
             if !forceRefresh, let cached = quotaCache[account.accountKey], cached.isValid(ttl: cacheTTL) {
-                results[account.accountKey] = cached.data
-                continue
+                return cached.data
             }
             do {
                 if credential.expiresAt.map({ $0.timeIntervalSinceNow < 300 }) ?? false,
@@ -462,7 +521,7 @@ actor ClaudeCodeQuotaFetcher {
                     if let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id) {
                         credential = latest
                     }
-                    guard let refreshToken = credential.refreshToken else { continue }
+                    guard let refreshToken = credential.refreshToken else { return nil }
                     let refreshed = try await refreshAccessToken(refreshToken: refreshToken)
                     credential.accessToken = refreshed.accessToken
                     credential.refreshToken = refreshed.refreshToken ?? refreshToken
@@ -472,13 +531,12 @@ actor ClaudeCodeQuotaFetcher {
                 }
                 if case .success(let info) = response, let data = quotaData(from: info) {
                     quotaCache[account.accountKey] = CachedQuota(data: data, timestamp: Date())
-                    results[account.accountKey] = data
+                    return data
                 }
             } catch {
-                if let cached = quotaCache[account.accountKey] { results[account.accountKey] = cached.data }
+                return quotaCache[account.accountKey]?.data
             }
-        }
-        return results
+        return nil
     }
 
     private func quotaData(from info: ClaudeCodeQuotaInfo) -> ProviderQuotaData? {

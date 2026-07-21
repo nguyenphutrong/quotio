@@ -175,12 +175,38 @@ actor KiroQuotaFetcher {
         return results
     }
 
+    /// Fetch quota for exactly one canonical Kiro account.
+    func fetchQuota(accountKey: String) async -> ProviderQuotaData? {
+        if let account = await MonitorCredentialVault.shared.accounts().first(where: {
+            $0.provider == .kiro && !$0.isDisabled && $0.accountKey == accountKey
+        }) {
+            return await fetchOwnedQuota(account: account)
+        }
+
+        let authService = DirectAuthFileService()
+        for authFile in await kiroAuthFiles(using: authService) {
+            guard let tokenData = await authService.readAuthToken(from: authFile) else { continue }
+            let key = authFile.email
+                ?? tokenData.extras?["profileArn"]
+                ?? authFile.filename.replacingOccurrences(of: ".json", with: "")
+            guard key == accountKey else { continue }
+            return await fetchQuota(tokenData: tokenData, filePath: authFile.filePath)
+        }
+        return nil
+    }
+
     private func fetchOwnedQuotas() async -> [String: ProviderQuotaData] {
         var results: [String: ProviderQuotaData] = [:]
         for account in await MonitorCredentialVault.shared.accounts().filter({ $0.provider == .kiro && !$0.isDisabled }) {
-            guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
+            if let quota = await fetchOwnedQuota(account: account) { results[account.accountKey] = quota }
+        }
+        return results
+    }
+
+    private func fetchOwnedQuota(account: MonitorAccount) async -> ProviderQuotaData? {
+            guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { return nil }
             if credential.expiresAt.map({ $0.timeIntervalSinceNow < 300 }) ?? false {
-                guard await refreshOwnedCredential(&credential, account: account) else { continue }
+                guard await refreshOwnedCredential(&credential, account: account) else { return nil }
             }
             var tokenData = ownedTokenData(credential)
             let region = credential.extra["region"] ?? defaultRegion
@@ -202,9 +228,7 @@ actor KiroQuotaFetcher {
                     tokenData: tokenData
                 )
             }
-            if let quota = response.quotaData { results[account.accountKey] = quota }
-        }
-        return results
+            return response.quotaData
     }
 
     private func reloadAndRefreshOwnedCredential(

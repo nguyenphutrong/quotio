@@ -368,6 +368,88 @@ actor CodexCLIQuotaFetcher {
         return results
     }
 
+    /// Fetches only the credential represented by the canonical account key.
+    func fetchQuota(forAccountKey accountKey: String) async -> ProviderQuotaData? {
+        if let account = await MonitorCredentialVault.shared.accounts().first(where: {
+            $0.provider == .codex && !$0.isDisabled && $0.accountKey == accountKey
+        }), let quota = await fetchOwnedQuota(account) {
+            return quota
+        }
+
+        if let record = KeychainHelper.readExternalCredentialRecord(service: "Codex Auth"),
+           let auth = try? JSONDecoder().decode(CodexCLIAuthFile.self, from: record.data),
+           let tokens = auth.tokens {
+            let claims = tokens.idToken.flatMap(decodeJWT)
+            let key = canonicalLocalKey(
+                email: claims?.email,
+                accountID: tokens.accountId ?? claims?.accountId,
+                fallback: "Codex"
+            )
+            if key == accountKey, let quota = await fetchNativeKeychainQuotas().values.first {
+                return quota
+            }
+        }
+
+        for source in readAuthSources() {
+            guard let tokens = source.auth.tokens else { continue }
+            let claims = tokens.idToken.flatMap(decodeJWT)
+            let key = canonicalLocalKey(
+                email: claims?.email,
+                accountID: tokens.accountId ?? claims?.accountId,
+                fallback: "Codex User"
+            )
+            guard key == accountKey else { continue }
+            return await fetchLocalAuthQuota(source: source, claims: claims)
+        }
+
+        let directory = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        guard let filename = try? FileManager.default.contentsOfDirectory(atPath: directory).first(where: {
+            $0.hasPrefix("codex-") && $0.hasSuffix(".json") && $0.codexFilenameKey == accountKey
+        }) else { return nil }
+        let path = (directory as NSString).appendingPathComponent(filename)
+        return await fetchLegacyQuota(at: path)
+    }
+
+    private func canonicalLocalKey(email: String?, accountID: String?, fallback: String) -> String {
+        guard let accountID, !accountID.isEmpty else { return email ?? fallback }
+        let aliases = readLegacyIdentities().filter { $0.accountID == accountID }.map(\.key)
+        return Set(aliases).count == 1 ? aliases[0] : (email ?? accountID)
+    }
+
+    private func fetchLocalAuthQuota(
+        source: (path: String, auth: CodexCLIAuthFile),
+        claims: CodexJWTClaims?
+    ) async -> ProviderQuotaData? {
+        guard let tokens = source.auth.tokens, var accessToken = tokens.accessToken else { return nil }
+        var refreshToken = tokens.refreshToken
+        if isTokenExpired(accessToken: accessToken), let currentRefreshToken = refreshToken {
+            guard let refreshed = try? await refreshAccessToken(refreshToken: currentRefreshToken) else { return nil }
+            accessToken = refreshed.accessToken
+            try? self.persistRefresh(refreshed, originalRefreshToken: currentRefreshToken, path: source.path)
+            refreshToken = refreshed.refreshToken ?? currentRefreshToken
+        }
+        do {
+            return try await fetchQuota(
+                accessToken: accessToken,
+                accountId: tokens.accountId ?? claims?.accountId,
+                identity: CodexQuotaIdentity(planType: claims?.planType)
+            )
+        } catch CodexCLIQuotaError.httpError(let status) where status == 401 || status == 403 {
+            guard let latest = readAuthFile(at: source.path)?.tokens,
+                  let refresh = latest.refreshToken ?? refreshToken,
+                  let refreshed = try? await refreshAccessToken(refreshToken: refresh) else { return nil }
+            try? persistRefresh(refreshed, originalRefreshToken: refresh, path: source.path)
+            let latestClaims = latest.idToken.flatMap(decodeJWT)
+            return try? await fetchQuota(
+                accessToken: refreshed.accessToken,
+                accountId: latest.accountId ?? latestClaims?.accountId ?? claims?.accountId,
+                identity: CodexQuotaIdentity(planType: latestClaims?.planType ?? claims?.planType)
+            )
+        } catch {
+            return nil
+        }
+    }
+
     func reconcileLegacyAliases(
         in quotas: [String: ProviderQuotaData]
     ) async -> [String: ProviderQuotaData] {
@@ -510,6 +592,41 @@ actor CodexCLIQuotaFetcher {
         return results
     }
 
+    private func fetchLegacyQuota(at path: String) async -> ProviderQuotaData? {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let auth = try? JSONDecoder().decode(CodexAuthFile.self, from: data) else { return nil }
+        let claims = auth.idToken.flatMap(decodeJWT)
+        var accessToken = auth.accessToken
+        var refreshToken = auth.refreshToken
+        if isTokenExpired(accessToken: accessToken), let currentRefreshToken = refreshToken {
+            guard let refreshed = try? await refreshAccessToken(refreshToken: currentRefreshToken) else { return nil }
+            accessToken = refreshed.accessToken
+            persistLegacyRefresh(refreshed, originalRefreshToken: currentRefreshToken, path: path)
+            refreshToken = refreshed.refreshToken ?? currentRefreshToken
+        }
+        do {
+            return try await fetchQuota(
+                accessToken: accessToken,
+                accountId: auth.accountId ?? claims?.accountId,
+                identity: CodexQuotaIdentity(planType: claims?.planType)
+            )
+        } catch CodexCLIQuotaError.httpError(let status) where status == 401 || status == 403 {
+            guard let latestData = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  let latest = try? JSONDecoder().decode(CodexAuthFile.self, from: latestData),
+                  let refresh = latest.refreshToken ?? refreshToken,
+                  let refreshed = try? await refreshAccessToken(refreshToken: refresh) else { return nil }
+            persistLegacyRefresh(refreshed, originalRefreshToken: refresh, path: path)
+            let latestClaims = latest.idToken.flatMap(decodeJWT)
+            return try? await fetchQuota(
+                accessToken: refreshed.accessToken,
+                accountId: latest.accountId ?? latestClaims?.accountId ?? claims?.accountId,
+                identity: CodexQuotaIdentity(planType: latestClaims?.planType ?? claims?.planType)
+            )
+        } catch {
+            return nil
+        }
+    }
+
     private func fetchNativeKeychainQuotas() async -> [String: ProviderQuotaData] {
         guard let record = KeychainHelper.readExternalCredentialRecord(service: "Codex Auth"),
               var auth = try? JSONDecoder().decode(CodexCLIAuthFile.self, from: record.data),
@@ -624,6 +741,48 @@ actor CodexCLIQuotaFetcher {
             }
         }
         return results
+    }
+
+    private func fetchOwnedQuota(_ account: MonitorAccount) async -> ProviderQuotaData? {
+        guard var credential = await MonitorCredentialVault.shared.credential(for: account.id) else { return nil }
+        do {
+            if credential.expiresAt.map({ $0.timeIntervalSinceNow < 300 }) ?? isTokenExpired(accessToken: credential.accessToken),
+               let refresh = credential.refreshToken {
+                let refreshed = try await refreshAccessToken(refreshToken: refresh)
+                credential.accessToken = refreshed.accessToken
+                credential.refreshToken = refreshed.refreshToken ?? refresh
+                credential.idToken = refreshed.idToken ?? credential.idToken
+                credential.expiresAt = refreshed.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) }
+                try await MonitorCredentialVault.shared.save(credential, metadata: account)
+            }
+            let claims = credential.idToken.flatMap(decodeJWT)
+            do {
+                return try await fetchQuota(
+                    accessToken: credential.accessToken,
+                    accountId: credential.accountID ?? claims?.accountId,
+                    identity: CodexQuotaIdentity(planType: claims?.planType)
+                )
+            } catch CodexCLIQuotaError.httpError(let status) where status == 401 || status == 403 {
+                if let latest = await MonitorCredentialVault.shared.reloadLatest(accountID: account.id) {
+                    credential = latest
+                }
+                guard let refresh = credential.refreshToken else { return nil }
+                let refreshed = try await refreshAccessToken(refreshToken: refresh)
+                credential.accessToken = refreshed.accessToken
+                credential.refreshToken = refreshed.refreshToken ?? refresh
+                credential.idToken = refreshed.idToken ?? credential.idToken
+                credential.expiresAt = refreshed.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) }
+                try await MonitorCredentialVault.shared.save(credential, metadata: account)
+                let latestClaims = credential.idToken.flatMap(decodeJWT)
+                return try await fetchQuota(
+                    accessToken: credential.accessToken,
+                    accountId: credential.accountID ?? latestClaims?.accountId,
+                    identity: CodexQuotaIdentity(planType: latestClaims?.planType)
+                )
+            }
+        } catch {
+            return nil
+        }
     }
 
     private func persistRefresh(_ refreshed: TokenRefresh, originalRefreshToken: String, path: String) throws {

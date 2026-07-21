@@ -8,7 +8,7 @@ import SwiftUI
 
 // MARK: - Provider Types
 
-nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
+nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendable {
     case gemini = "gemini-cli"
     case claude = "claude"
     case codex = "codex"
@@ -267,6 +267,12 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+/// Stable identity for one account in the provider quota dictionary.
+nonisolated struct QuotaAccountID: Hashable, Sendable {
+    let provider: AIProvider
+    let accountKey: String
+}
+
 // MARK: - Quota Metric Presentation
 
 /// Optional typed value for quota rows that are not plain percentages.
@@ -326,6 +332,15 @@ extension String {
         }
         return key
     }
+
+    nonisolated var copilotFilenameKey: String? {
+        guard hasPrefix("github-copilot-") else { return nil }
+        var key = String(dropFirst("github-copilot-".count))
+        if key.hasSuffix(".json") {
+            key = String(key.dropLast(".json".count))
+        }
+        return key.isEmpty ? nil : key
+    }
 }
 
 nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
@@ -372,6 +387,14 @@ nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
             // Codex proxy filenames encode the concrete subscription variant,
             // so filename-based keys keep same-email Plus/Team accounts distinct.
             return name.codexFilenameKey
+        }
+        if providerType == .copilot {
+            if let account, !account.isEmpty {
+                return account
+            }
+            if let filenameKey = name.copilotFilenameKey {
+                return filenameKey
+            }
         }
         if let email = email, !email.isEmpty {
             return email

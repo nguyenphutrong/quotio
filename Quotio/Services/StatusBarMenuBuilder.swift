@@ -78,6 +78,7 @@ final class StatusBarMenuBuilder {
                 } else {
                     for account in accounts {
                         let cardItem = buildAccountCardItem(
+                            accountKey: account.accountKey,
                             email: account.email,
                             data: account.data,
                             provider: provider
@@ -220,9 +221,11 @@ final class StatusBarMenuBuilder {
         return [provider]
     }
 
-    private func accountsForProvider(_ provider: AIProvider) -> [(email: String, data: ProviderQuotaData)] {
+    private func accountsForProvider(
+        _ provider: AIProvider
+    ) -> [(accountKey: String, email: String, data: ProviderQuotaData)] {
         guard let quotas = viewModel.providerQuotas[provider] else { return [] }
-        return quotas.map { ($0.value.accountDisplayName ?? $0.key, $0.value) }
+        return quotas.map { ($0.key, $0.value.accountDisplayName ?? $0.key, $0.value) }
             .sorted { $0.email < $1.email }
     }
 
@@ -263,14 +266,16 @@ final class StatusBarMenuBuilder {
     // MARK: - Account Card Item (with submenu for Antigravity)
 
     private func buildAccountCardItem(
+        accountKey: String,
         email: String,
         data: ProviderQuotaData,
         provider: AIProvider
     ) -> NSMenuItem {
-        let subscriptionInfo = viewModel.subscriptionInfos[provider]?[email]
+        let subscriptionInfo = viewModel.subscriptionInfos[provider]?[accountKey]
         let isActiveInIDE = provider == .antigravity && viewModel.isAntigravityAccountActive(email: email)
 
         let cardView = MenuAccountCardView(
+            accountKey: accountKey,
             email: email,
             data: data,
             provider: provider,
@@ -456,6 +461,7 @@ private struct MenuHeaderView: View {
 // MARK: - Provider Section Header
 
 private struct MenuProviderSectionHeader: View {
+    @Environment(QuotaViewModel.self) private var viewModel
     let provider: AIProvider
 
     var body: some View {
@@ -465,6 +471,26 @@ private struct MenuProviderSectionHeader: View {
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
             Spacer()
+
+            Button {
+                Task { await viewModel.refreshQuota(for: provider) }
+            } label: {
+                if viewModel.refreshingProviders.contains(provider) {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 18, height: 18)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 18, height: 18)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(
+                viewModel.isRefreshing(provider: provider)
+                    || !viewModel.supportsScopedRefresh(for: provider)
+            )
+            .help("action.refreshQuota".localized())
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
@@ -750,6 +776,8 @@ private struct MenuNetworkInfoView: View {
 // MARK: Account Card View
 
 private struct MenuAccountCardView: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    let accountKey: String
     let email: String
     let data: ProviderQuotaData
     let provider: AIProvider
@@ -761,6 +789,10 @@ private struct MenuAccountCardView: View {
     @State private var isHovered = false
     @State private var isUseHovered = false
     @State private var isUsingAccount = false
+
+    private var accountID: QuotaAccountID {
+        QuotaAccountID(provider: provider, accountKey: accountKey)
+    }
     
     private var displayEmail: String {
         email.masked(if: settings.hideSensitiveInfo)
@@ -940,6 +972,27 @@ private struct MenuAccountCardView: View {
                 .lineLimit(1)
             
             Spacer()
+
+            Button {
+                Task { await viewModel.refreshQuota(for: accountID) }
+            } label: {
+                if viewModel.isRefreshing(account: accountID) {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 20, height: 20)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(
+                viewModel.isRefreshBlocked(for: accountID)
+                    || !viewModel.supportsScopedRefresh(for: provider)
+            )
+            .help("action.refreshQuota".localized())
             
             // Tier Badge
             if let config = tierConfig {
@@ -2504,7 +2557,7 @@ private struct MenuActionsView: View {
                 title: "action.refresh".localized(),
                 isLoading: viewModel.isLoadingQuotas
             ) {
-                Task { await viewModel.refreshQuotasUnified() }
+                Task { await viewModel.manualRefresh() }
             }
             .disabled(viewModel.isLoadingQuotas)
             
