@@ -332,11 +332,13 @@ final class MonitorRuntimeTests: XCTestCase {
         }
         """#.utf8)
         let response = try JSONDecoder().decode(FactoryDroidQuotaResponse.self, from: payload)
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-20T18:30:00Z"))
 
-        let quota = FactoryDroidQuotaMapper.map(response)
+        let quota = FactoryDroidQuotaMapper.map(response, now: now)
 
         XCTAssertEqual(quota.models.count, 7)
-        XCTAssertEqual(quota.models.first(where: { $0.name == "factory-standard-five-hour" })?.percentage, 0)
+        XCTAssertEqual(quota.models.first(where: { $0.name == "factory-standard-five-hour" })?.percentage, 100)
+        XCTAssertEqual(quota.models.first(where: { $0.name == "factory-core-five-hour" })?.percentage, 0)
         XCTAssertEqual(quota.models.first(where: { $0.name == "factory-standard-weekly" })?.percentage, 37)
         XCTAssertEqual(quota.models.first(where: { $0.name == "factory-core-weekly" })?.percentage, 49)
         let sections = FactoryDroidQuotaSection.sections(from: quota.models)

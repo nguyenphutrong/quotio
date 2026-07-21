@@ -193,8 +193,8 @@ nonisolated enum FactoryDroidQuotaMapper {
         }
 
         var models: [ModelQuota] = []
-        append(pool: response.limits?.standard, prefix: "factory-standard", to: &models)
-        append(pool: response.limits?.core, prefix: "factory-core", to: &models)
+        append(pool: response.limits?.standard, prefix: "factory-standard", now: now, to: &models)
+        append(pool: response.limits?.core, prefix: "factory-core", now: now, to: &models)
 
         if let cents = response.extraUsageBalanceCents {
             models.append(ModelQuota(
@@ -215,6 +215,7 @@ nonisolated enum FactoryDroidQuotaMapper {
     private static func append(
         pool: FactoryDroidLimitPool?,
         prefix: String,
+        now: Date,
         to models: inout [ModelQuota]
     ) {
         guard let pool else { return }
@@ -224,12 +225,21 @@ nonisolated enum FactoryDroidQuotaMapper {
             ("monthly", pool.monthly),
         ] {
             guard let window else { continue }
+            let usedPercent = isExpired(window.windowEnd, now: now) ? 0 : window.usedPercent
             models.append(ModelQuota(
                 name: prefix + "-" + suffix,
-                percentage: max(0, min(100, 100 - window.usedPercent)),
+                percentage: max(0, min(100, 100 - usedPercent)),
                 resetTime: window.windowEnd ?? ""
             ))
         }
+    }
+
+    private static func isExpired(_ windowEnd: String?, now: Date) -> Bool {
+        guard let windowEnd else { return false }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let endDate = fractional.date(from: windowEnd) ?? ISO8601DateFormatter().date(from: windowEnd)
+        return endDate.map { $0 < now } ?? false
     }
 
 }
