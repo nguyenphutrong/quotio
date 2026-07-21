@@ -495,9 +495,17 @@ final class MonitorRuntimeTests: XCTestCase {
         windsurf_api_key = "native-token"
         api_server_url = "http://server.codeium.test"
         """)
+        let quotedHash = DevinQuotaFetcher.parseCredentialsTOML("""
+        windsurf_api_key = "native#token" # account credential
+        api_server_url = "https://server.codeium.test/path#fragment" # API endpoint
+        """)
 
         XCTAssertEqual(native, DevinCredential(apiKey: "native-token", apiServerURL: "https://server.codeium.test"))
         XCTAssertNil(insecure?.apiServerURL)
+        XCTAssertEqual(
+            quotedHash,
+            DevinCredential(apiKey: "native#token", apiServerURL: "https://server.codeium.test/path#fragment")
+        )
     }
 
     func testDevinReadsSQLiteAppCredential() throws {

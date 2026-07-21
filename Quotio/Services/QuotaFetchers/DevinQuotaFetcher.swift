@@ -172,7 +172,10 @@ actor DevinQuotaFetcher {
         guard FileManager.default.fileExists(atPath: path) else { return nil }
         let uri = URL(fileURLWithPath: path).absoluteString + "?mode=ro"
         var db: OpaquePointer?
-        guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else { return nil }
+        guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
+            if let db { sqlite3_close(db) }
+            return nil
+        }
         defer { sqlite3_close(db) }
 
         let sql = "SELECT value FROM ItemTable WHERE key = 'windsurfAuthStatus' LIMIT 1"
@@ -194,13 +197,33 @@ actor DevinQuotaFetcher {
             guard pieces.count == 2,
                   pieces[0].trimmingCharacters(in: .whitespacesAndNewlines) == key else { continue }
             var value = pieces[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            if let comment = value.firstIndex(of: "#") { value = value[..<comment].trimmingCharacters(in: .whitespacesAndNewlines) }
+            value = tomlValueWithoutComment(value).trimmingCharacters(in: .whitespacesAndNewlines)
             if (value.first == "\"" && value.last == "\"") || (value.first == "'" && value.last == "'") {
                 value = value.dropFirst().dropLast().trimmingCharacters(in: .whitespacesAndNewlines)
             }
             return value.isEmpty ? nil : String(value)
         }
         return nil
+    }
+
+    private nonisolated static func tomlValueWithoutComment(_ value: String) -> String {
+        var activeQuote: Character?
+        var isEscaped = false
+        for index in value.indices {
+            let character = value[index]
+            if isEscaped {
+                isEscaped = false
+            } else if activeQuote == "\"" && character == "\\" {
+                isEscaped = true
+            } else if let quote = activeQuote {
+                if character == quote { activeQuote = nil }
+            } else if character == "\"" || character == "'" {
+                activeQuote = character
+            } else if character == "#" {
+                return String(value[..<index])
+            }
+        }
+        return value
     }
 
     private nonisolated static func cleanServerURL(_ value: String) -> String? {
