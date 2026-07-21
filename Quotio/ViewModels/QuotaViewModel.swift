@@ -73,7 +73,7 @@ final class QuotaViewModel {
     }
 
     func isRefreshing(account: QuotaAccountID) -> Bool {
-        refreshingAccounts.contains(account)
+        refreshingAccounts.contains(account) || refreshingProviders.contains(account.provider)
     }
 
     func isRefreshBlocked(for account: QuotaAccountID) -> Bool {
@@ -1604,7 +1604,6 @@ final class QuotaViewModel {
         } else {
             await refreshQuotasUnified()
         }
-        lastQuotaRefreshTime = Date()
     }
     
     func refreshAllQuotas() async {
@@ -1619,6 +1618,7 @@ final class QuotaViewModel {
         defer { endBatchRefresh(providers: providers) }
 
         lastQuotaRefresh = Date()
+        lastQuotaRefreshTime = Date()
 
         // In remote mode, skip local filesystem fetchers — only show data from the remote proxy
         // (auth files, usage stats, API keys are already fetched by refreshData())
@@ -1798,7 +1798,6 @@ final class QuotaViewModel {
             return
         }
 
-        let previous = providerQuotas[provider] ?? [:]
         switch provider {
         case .antigravity:
             await refreshAntigravityQuotasInternal()
@@ -1838,14 +1837,6 @@ final class QuotaViewModel {
             return
         }
 
-        let fresh = providerQuotas[provider] ?? [:]
-        guard !fresh.isEmpty else {
-            if !previous.isEmpty {
-                providerQuotas[provider] = previous
-            }
-            return
-        }
-        providerQuotas[provider] = previous.merging(fresh) { _, value in value }
         await finishScopedRefresh(provider: provider)
     }
 
