@@ -1655,6 +1655,40 @@ extension CLIProxyManager {
         }
     }
     
+    /// Manually check the latest upstream CLIProxyAPI release and install it when needed.
+    /// Version-unknown or unverifiable local installs are upgraded by default.
+    func checkAndUpdateCLIProxyIfNeeded(forceWhenVersionUnknown: Bool = true) async throws -> CLIProxyUpdateResult {
+        lastProxyUpdateCheckDate = Date()
+
+        guard selectedBinarySource == .upstream else {
+            upgradeAvailable = false
+            availableUpgrade = nil
+            return .skipped(reason: "Bundled CLIProxyAPIPlus uses a fixed local version.")
+        }
+
+        let release = try await fetchLatestGitHubRelease(source: selectedBinarySource)
+        guard let asset = findCompatibleAsset(from: release),
+              let latest = ProxyVersionInfo(from: release, asset: asset, source: selectedBinarySource) else {
+            throw ProxyUpgradeError.downloadFailed("No compatible CLIProxyAPI asset with SHA256 checksum found")
+        }
+
+        let localVersion = currentVersion ?? installedProxyVersion
+        guard shouldUpdate(latest: latest.version, current: localVersion, forceWhenVersionUnknown: forceWhenVersionUnknown) else {
+            upgradeAvailable = false
+            availableUpgrade = nil
+            AtomFeedUpdateService.shared.resetNotificationState()
+            return .alreadyUpToDate(version: localVersion)
+        }
+
+        upgradeAvailable = true
+        availableUpgrade = latest
+        try await performManagedUpgrade(to: latest)
+        upgradeAvailable = false
+        availableUpgrade = nil
+        AtomFeedUpdateService.shared.resetNotificationState()
+        return .updated(version: latest.version)
+    }
+    
     /// Stored version from UserDefaults (for legacy single-binary installs).
     /// Public accessor for the settings screen.
     var installedProxyVersion: String? {
@@ -1709,6 +1743,32 @@ extension CLIProxyManager {
     func versionInfo(from release: GitHubRelease) -> ProxyVersionInfo? {
         guard let asset = findCompatibleAsset(from: release) else { return nil }
         return ProxyVersionInfo(from: release, asset: asset, source: selectedBinarySource)
+    }
+    
+    /// Fetch the latest GitHub release info.
+    private func fetchLatestGitHubRelease(source: ProxyBinarySource) async throws -> GitHubRelease {
+        guard let githubRepo = source.githubRepo else {
+            throw ProxyError.networkError("Selected source does not provide online releases")
+        }
+
+        let urlString = "https://api.github.com/repos/\(githubRepo)/releases/latest"
+        guard let url = URL(string: urlString) else {
+            throw ProxyError.networkError("Invalid URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.addValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        request.addValue("Quotio/1.0", forHTTPHeaderField: "User-Agent")
+
+        let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 30)
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ProxyError.networkError("Failed to fetch latest release info")
+        }
+
+        return try JSONDecoder().decode(GitHubRelease.self, from: data)
     }
     
     /// Fetch GitHub release info for a specific tag.
@@ -2150,31 +2210,51 @@ extension CLIProxyManager {
         try? FileManager.default.removeItem(atPath: configPath)
     }
     
+    private func shouldUpdate(latest: String, current: String?, forceWhenVersionUnknown: Bool) -> Bool {
+        guard let current, !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return forceWhenVersionUnknown
+        }
+
+        guard current.lowercased() != "legacy" else {
+            return forceWhenVersionUnknown
+        }
+
+        guard parseVersionComponents(current) != nil else {
+            return forceWhenVersionUnknown
+        }
+
+        return isNewerVersion(latest, than: current)
+    }
+
+    /// Parse semantic versions such as "v6.6.73-0" into comparable integer components.
+    private func parseVersionComponents(_ version: String) -> [Int]? {
+        let normalized = version.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "^v", with: "", options: .regularExpression)
+        let dashParts = normalized.split(separator: "-", maxSplits: 1)
+        let mainParts = dashParts.first?.split(separator: ".") ?? []
+        var parts: [Int] = []
+
+        for part in mainParts {
+            guard let value = Int(part) else { return nil }
+            parts.append(value)
+        }
+
+        if dashParts.count > 1 {
+            guard let build = Int(dashParts[1]) else { return nil }
+            parts.append(build)
+        }
+
+        return parts.isEmpty ? nil : parts
+    }
+
     /// Compare two semantic version strings.
     /// Returns true if `newer` is greater than `older`.
     /// Handles versions like "6.6.73-0" where the suffix after "-" is a build number.
     private func isNewerVersion(_ newer: String, than older: String) -> Bool {
-        // Parse version string into (major, minor, patch, build) components
-        // Format: "6.6.73-0" -> [6, 6, 73, 0]
-        func parseVersion(_ version: String) -> [Int] {
-            // First split by "-" to separate version from build number
-            let dashParts = version.split(separator: "-")
-            let mainVersion = String(dashParts.first ?? "")
-            let buildNumber = dashParts.count > 1 ? Int(dashParts[1]) : nil
-            
-            // Split main version by "."
-            var parts = mainVersion.split(separator: ".").compactMap { Int($0) }
-            
-            // Append build number if present
-            if let build = buildNumber {
-                parts.append(build)
-            }
-            
-            return parts
+        guard let newerParts = parseVersionComponents(newer),
+              let olderParts = parseVersionComponents(older) else {
+            return false
         }
-        
-        let newerParts = parseVersion(newer)
-        let olderParts = parseVersion(older)
         
         // Pad shorter array with zeros
         let maxLength = max(newerParts.count, olderParts.count)

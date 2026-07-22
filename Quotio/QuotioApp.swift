@@ -271,9 +271,8 @@ struct QuotioApp: App {
             #if canImport(Sparkle)
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {
-                    UpdaterService.shared.checkForUpdates()
+                    UpdaterService.shared.checkForUpdatesIncludingCLIProxy()
                 }
-                .disabled(!UpdaterService.shared.canCheckForUpdates)
             }
             #endif
         }

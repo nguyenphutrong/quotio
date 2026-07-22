@@ -17851,6 +17851,24 @@
         }
       }
     },
+    "settings.proxyUpdate.alreadyLatest" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "CLIProxyAPI is already up to date" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "CLIProxyAPI is already up to date" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "CLIProxyAPI is already up to date" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "CLIProxyAPI 已是最新版本" } }
+      }
+    },
+    "settings.proxyUpdate.checkAndUpdate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Check and Update CLIProxyAPI" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Check and Update CLIProxyAPI" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Check and Update CLIProxyAPI" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查并更新 CLIProxyAPI" } }
+      }
+    },
     "settings.proxyUpdate.checkNow" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -18110,6 +18128,42 @@
             "value" : "已是最新"
           }
         }
+      }
+    },
+    "settings.proxyUpdate.skippedBundled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Bundled CLIProxyAPIPlus uses a fixed local version." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Bundled CLIProxyAPIPlus uses a fixed local version." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bundled CLIProxyAPIPlus uses a fixed local version." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内置 CLIProxyAPIPlus 使用固定本地版本。" } }
+      }
+    },
+    "settings.proxyUpdate.updateNow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Update CLIProxyAPI" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Update CLIProxyAPI" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Update CLIProxyAPI" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更新 CLIProxyAPI" } }
+      }
+    },
+    "settings.proxyUpdate.updatedTo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Updated to v%@" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Updated to v%@" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Updated to v%@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已更新到 v%@" } }
+      }
+    },
+    "settings.proxyUpdate.versionUnknownUpdating" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Current version is unknown. Updating to latest." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Current version is unknown. Updating to latest." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Current version is unknown. Updating to latest." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前版本未知，正在更新到最新版本。" } }
       }
     },
     "settings.quota.display" : {
