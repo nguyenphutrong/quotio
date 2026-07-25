@@ -1073,17 +1073,10 @@ actor AgentConfigurationService {
         let secretsPath = "\(dataDir)/secrets.json"
         let baseURL = config.proxyURL.replacingOccurrences(of: "/v1", with: "")
         
-        let settingsJSON = """
-        {
-          "amp.url": "\(baseURL)"
-        }
-        """
-        
-        let secretsJSON = """
-        {
-          "apiKey@\(baseURL)": "\(config.apiKey)"
-        }
-        """
+        let settingsData = try Self.mergedAmpJSON(existing: nil, updates: ["amp.url": baseURL])
+        let secretsData = try Self.mergedAmpJSON(existing: nil, updates: ["apiKey@\(baseURL)": config.apiKey])
+        let settingsJSON = String(decoding: settingsData, as: UTF8.self)
+        let secretsJSON = String(decoding: secretsData, as: UTF8.self)
         
         let envExports = """
         # Alternative: Environment variables for Amp CLI
@@ -1097,14 +1090,14 @@ actor AgentConfigurationService {
                 content: settingsJSON,
                 filename: "settings.json",
                 targetPath: settingsPath,
-                instructions: "Save this as ~/.config/amp/settings.json"
+                instructions: "Merge this property into ~/.config/amp/settings.json; do not replace the file"
             ),
             RawConfigOutput(
                 format: .json,
                 content: secretsJSON,
                 filename: "secrets.json",
                 targetPath: secretsPath,
-                instructions: "Save this as ~/.local/share/amp/secrets.json"
+                instructions: "Merge this property into ~/.local/share/amp/secrets.json; do not replace existing AmpCode credentials"
             ),
             RawConfigOutput(
                 format: .shellExport,
@@ -1118,9 +1111,22 @@ actor AgentConfigurationService {
         if mode == .automatic {
             try fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
             try fileManager.createDirectory(atPath: dataDir, withIntermediateDirectories: true)
-            
-            try settingsJSON.write(toFile: settingsPath, atomically: true, encoding: .utf8)
-            try secretsJSON.write(toFile: secretsPath, atomically: true, encoding: .utf8)
+
+            let existingSettings = fileManager.contents(atPath: settingsPath)
+            let existingSecrets = fileManager.contents(atPath: secretsPath)
+            let mergedSettings = try Self.mergedAmpJSON(
+                existing: existingSettings,
+                updates: ["amp.url": baseURL]
+            )
+            let mergedSecrets = try Self.mergedAmpJSON(
+                existing: existingSecrets,
+                updates: ["apiKey@\(baseURL)": config.apiKey]
+            )
+            let backupPath = try backupIfPresent(settingsPath)
+            _ = try backupIfPresent(secretsPath)
+
+            try mergedSettings.write(to: URL(fileURLWithPath: settingsPath), options: .atomic)
+            try mergedSecrets.write(to: URL(fileURLWithPath: secretsPath), options: .atomic)
             
             try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: secretsPath)
             
@@ -1132,7 +1138,8 @@ actor AgentConfigurationService {
                 shellConfig: envExports,
                 rawConfigs: rawConfigs,
                 instructions: "Configuration files created. Amp CLI is now configured to use CLIProxyAPI.",
-                modelsConfigured: 1
+                modelsConfigured: 1,
+                backupPath: backupPath
             )
         } else {
             return .success(
@@ -1142,10 +1149,36 @@ actor AgentConfigurationService {
                 authPath: secretsPath,
                 shellConfig: envExports,
                 rawConfigs: rawConfigs,
-                instructions: "Create the files below or use environment variables:",
+                instructions: "Merge only the properties below into the existing files, or use environment variables. Do not replace existing Amp settings or secrets:",
                 modelsConfigured: 1
             )
         }
+    }
+
+    nonisolated static func mergedAmpJSON(existing: Data?, updates: [String: String]) throws -> Data {
+        var object: [String: Any] = [:]
+        if let existing {
+            guard let decoded = try JSONSerialization.jsonObject(with: existing) as? [String: Any] else {
+                throw CocoaError(.propertyListReadCorrupt)
+            }
+            object = decoded
+        }
+        for (key, value) in updates {
+            object[key] = value
+        }
+        return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    private func backupIfPresent(_ path: String) throws -> String? {
+        guard fileManager.fileExists(atPath: path) else { return nil }
+        var timestamp = Int(Date().timeIntervalSince1970)
+        var backupPath = "\(path).backup.\(timestamp)"
+        while fileManager.fileExists(atPath: backupPath) {
+            timestamp += 1
+            backupPath = "\(path).backup.\(timestamp)"
+        }
+        try fileManager.copyItem(atPath: path, toPath: backupPath)
+        return backupPath
     }
     
     private func generateOpenCodeConfig(config: AgentConfiguration, mode: ConfigurationMode, availableModels: [AvailableModel]) -> AgentConfigResult {

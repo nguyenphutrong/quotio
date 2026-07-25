@@ -5,7 +5,7 @@ import XCTest
 
 final class MonitorRuntimeTests: XCTestCase {
     func testMonitorProvidersDoNotRequireInstalledCLI() {
-        let providers: Set<AIProvider> = [.codex, .claude, .factoryDroid, .devin, .grok, .openRouter]
+        let providers: Set<AIProvider> = [.codex, .claude, .factoryDroid, .devin, .grok, .openRouter, .amp]
 
         let filtered = StatusBarMenuBuilder.filterProviders(
             providers,
@@ -17,7 +17,7 @@ final class MonitorRuntimeTests: XCTestCase {
     }
 
     func testMonitorOnlyProvidersDoNotOfferLocalProxySetup() {
-        for provider in [AIProvider.factoryDroid, .devin, .grok, .openRouter, .warp] {
+        for provider in [AIProvider.factoryDroid, .devin, .grok, .openRouter, .amp, .warp] {
             XCTAssertFalse(provider.supportsLocalProxySetup)
         }
         XCTAssertTrue(AIProvider.claude.supportsLocalProxySetup)
@@ -731,7 +731,7 @@ final class MonitorRuntimeTests: XCTestCase {
     }
 
     func testMonitorCredentialVaultAddsRotatesAndDeletesAPIKeys() async throws {
-        for provider in [AIProvider.factoryDroid, .openRouter] {
+        for provider in [AIProvider.factoryDroid, .openRouter, .amp] {
             let metadataURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .appendingPathComponent("accounts.json")
@@ -755,6 +755,37 @@ final class MonitorRuntimeTests: XCTestCase {
             let deleted = await vault.credential(for: account.id)
             XCTAssertNil(deleted)
         }
+    }
+
+    func testAmpConfigurationMergePreservesNativeAndUnknownSecrets() throws {
+        let existing = try JSONSerialization.data(withJSONObject: [
+            "apiKey@https://ampcode.com/": "native-token",
+            "unrelated": "preserve-me",
+        ])
+
+        let merged = try AgentConfigurationService.mergedAmpJSON(
+            existing: existing,
+            updates: ["apiKey@http://localhost:8317": "proxy-token"]
+        )
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: merged) as? [String: String])
+
+        XCTAssertEqual(object["apiKey@https://ampcode.com/"], "native-token")
+        XCTAssertEqual(object["unrelated"], "preserve-me")
+        XCTAssertEqual(object["apiKey@http://localhost:8317"], "proxy-token")
+    }
+
+    func testAmpNativeAndNamedAccountDoNotCollide() {
+        let native = AmpQuotaFetcher.localAccount(provider: .amp)
+        let named = MonitorAccount.make(
+            provider: .amp,
+            accountKey: "Amp",
+            source: .quotioKeychain,
+            canDelete: true
+        )
+
+        XCTAssertEqual(MonitorAccountDiscovery.selectPreferred([native, named]).count, 2)
+        XCTAssertEqual(native.displayName, "Amp")
+        XCTAssertNotEqual(native.accountKey, named.accountKey)
     }
 
     func testMetadataRoundTripStoresOwnedAccountAndDisabledState() async throws {

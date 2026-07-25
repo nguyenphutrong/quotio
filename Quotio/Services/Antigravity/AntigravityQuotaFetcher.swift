@@ -303,6 +303,13 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         case "openrouter-week": return "quota.metric.thisWeek".localizedStatic()
         case "openrouter-month": return "quota.metric.thisMonth".localizedStatic()
         case "openrouter-key-limit": return "quota.metric.keyLimit".localizedStatic()
+        // Amp
+        case "amp-free": return "amp.quota.free".localizedStatic()
+        case "amp-agent-usage": return "amp.quota.agent".localizedStatic()
+        case "amp-orb-usage": return "amp.quota.orb".localizedStatic()
+        case "amp-individual-credits": return "amp.quota.individualCredits".localizedStatic()
+        case let name where name.hasPrefix("amp-workspace-"):
+            return "amp.quota.workspaceCredits".localizedStatic()
         case let name where name.hasPrefix("warp-bonus-"):
             let index = Int(String(name.dropFirst("warp-bonus-".count))) ?? 0
             return "Bonus \(index + 1)"

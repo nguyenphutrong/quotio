@@ -2537,6 +2537,7 @@ private extension AIProvider {
         case .devin: return "Devin"
         case .grok: return "Grok"
         case .openRouter: return "OpenRouter"
+        case .amp: return "Amp"
         case .glm: return "Z.ai"
         case .warp: return "Warp"
         case .clinePass: return "ClinePass"

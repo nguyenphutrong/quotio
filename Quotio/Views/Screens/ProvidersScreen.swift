@@ -39,7 +39,7 @@ struct ProvidersScreen: View {
     private var addableProviders: [AIProvider] {
         if modeManager.isLocalProxyMode {
             return AIProvider.allCases.filter {
-                ![.factoryDroid, .openRouter].contains($0) && ($0.supportsManualAuth || $0 == .clinePass)
+                ![.factoryDroid, .openRouter, .amp].contains($0) && ($0.supportsManualAuth || $0 == .clinePass)
             }
         } else {
             return AIProvider.allCases.filter {
@@ -258,6 +258,12 @@ struct ProvidersScreen: View {
                         apiKey: apiKey,
                         existingAccountID: editingMonitorAPIKeyAccount?.id
                     )
+                } else if provider == .amp {
+                    try await viewModel.saveAmpAccount(
+                        label: label,
+                        apiKey: apiKey,
+                        existingAccountID: editingMonitorAPIKeyAccount?.id
+                    )
                 } else {
                     try await viewModel.saveOpenRouterAccount(
                         label: label,
@@ -367,7 +373,7 @@ struct ProvidersScreen: View {
                                 handleEditClinePassAccount(account)
                             } else if provider == .warp {
                                 handleEditWarpAccount(account)
-                            } else if [.factoryDroid, .openRouter].contains(provider) {
+                            } else if [.factoryDroid, .openRouter, .amp].contains(provider) {
                                 handleEditMonitorAPIKeyAccount(account)
                             }
                         },
@@ -464,7 +470,7 @@ struct ProvidersScreen: View {
             showGLMConnectionSheet = true
             return
         }
-        if [.factoryDroid, .openRouter].contains(provider) {
+        if [.factoryDroid, .openRouter, .amp].contains(provider) {
             editingMonitorAPIKeyAccount = nil
             monitorAPIKeyProvider = provider
             return

@@ -419,6 +419,7 @@ actor MonitorAccountDiscovery {
         accounts.append(contentsOf: discoverCopilotFiles())
         accounts.append(contentsOf: discoverKiroFile())
         accounts.append(contentsOf: discoverFactoryDroidCredential())
+        accounts.append(contentsOf: discoverAmpCredential())
         accounts.append(contentsOf: discoverDevinCredential())
         accounts.append(contentsOf: discoverGrokCredentials())
         let antigravityDatabase = MonitorIdentity.expand("~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb")
@@ -437,6 +438,11 @@ actor MonitorAccountDiscovery {
     private func discoverFactoryDroidCredential() -> [MonitorAccount] {
         guard let credential = FactoryDroidCredentialReader.load() else { return [] }
         return [FactoryDroidQuotaFetcher.localAccount(for: credential)]
+    }
+
+    private func discoverAmpCredential() -> [MonitorAccount] {
+        guard let credential = AmpNativeCredentialReader.load() else { return [] }
+        return [AmpQuotaFetcher.localAccount(provider: .amp, sourcePath: credential.sourcePath)]
     }
 
     private func discoverDevinCredential() -> [MonitorAccount] {
@@ -584,7 +590,7 @@ actor MonitorRefreshCoordinator {
             let source: MonitorAccountSource
             switch provider {
             case .cursor, .trae: source = .localIDE
-            case .glm, .warp, .clinePass, .factoryDroid, .openRouter: source = .apiKey
+            case .glm, .warp, .clinePass, .factoryDroid, .openRouter, .amp: source = .apiKey
             default: source = .nativeCredential
             }
             for (accountKey, quota) in accountQuotas {

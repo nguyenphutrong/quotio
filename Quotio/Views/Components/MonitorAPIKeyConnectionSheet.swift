@@ -14,7 +14,11 @@ struct MonitorAPIKeyConnectionSheet: View {
 
     private var isEditing: Bool { account != nil }
     private var localizationPrefix: String {
-        provider == .factoryDroid ? "factory" : "openrouter"
+        switch provider {
+        case .factoryDroid: "factory"
+        case .amp: "amp"
+        default: "openrouter"
+        }
     }
 
     var body: some View {

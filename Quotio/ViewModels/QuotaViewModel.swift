@@ -25,6 +25,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let devinFetcher = DevinQuotaFetcher()
     @ObservationIgnored private let grokFetcher = GrokQuotaFetcher()
     @ObservationIgnored private let openRouterFetcher = OpenRouterQuotaFetcher()
+    @ObservationIgnored private let ampFetcher = AmpQuotaFetcher()
     @ObservationIgnored private let directAuthService = DirectAuthFileService()
     @ObservationIgnored private let monitorCoordinator = MonitorRefreshCoordinator()
     @ObservationIgnored private let notificationManager = NotificationManager.shared
@@ -331,6 +332,7 @@ final class QuotaViewModel {
         await devinFetcher.updateProxyConfiguration()
         await grokFetcher.updateProxyConfiguration()
         await openRouterFetcher.updateProxyConfiguration()
+        await ampFetcher.updateProxyConfiguration()
     }
 
     private func setupRefreshCadenceCallback() {
@@ -495,6 +497,15 @@ final class QuotaViewModel {
         )
     }
 
+    func saveAmpAccount(label: String, apiKey: String, existingAccountID: String? = nil) async throws {
+        try await saveMonitorAPIKeyAccount(
+            provider: .amp,
+            label: label,
+            apiKey: apiKey,
+            existingAccountID: existingAccountID
+        )
+    }
+
     func saveFactoryDroidAccount(label: String, apiKey: String, existingAccountID: String? = nil) async throws {
         try await saveMonitorAPIKeyAccount(
             provider: .factoryDroid,
@@ -513,6 +524,9 @@ final class QuotaViewModel {
         let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedLabel.isEmpty, !trimmedKey.isEmpty else { throw MonitorRuntimeError.invalidCredential }
+        guard provider != .amp || trimmedLabel.caseInsensitiveCompare(AmpQuotaFetcher.localAccountKey) != .orderedSame else {
+            throw MonitorRuntimeError.invalidCredential
+        }
 
         let account: MonitorAccount
         if let existingAccountID,
@@ -569,7 +583,7 @@ final class QuotaViewModel {
     func refreshQuotasDirectly(force: Bool = false) async {
         let providers: Set<AIProvider> = [
             .codex, .claude, .copilot, .kiro, .glm, .clinePass, .warp,
-            .antigravity, .factoryDroid, .devin, .grok, .openRouter,
+            .antigravity, .factoryDroid, .devin, .grok, .openRouter, .amp,
         ]
         guard beginBatchRefresh(providers: providers) else { return }
         defer { endBatchRefresh(providers: providers) }
@@ -583,7 +597,7 @@ final class QuotaViewModel {
         let discoveredAccountKeys = Dictionary(grouping: discoveredAccounts, by: \.provider)
             .mapValues { Set($0.map(\.accountKey)) }
         let credentialProviders: Set<AIProvider> = [
-            .codex, .claude, .copilot, .kiro, .antigravity, .factoryDroid, .devin, .grok, .openRouter,
+            .codex, .claude, .copilot, .kiro, .antigravity, .factoryDroid, .devin, .grok, .openRouter, .amp,
         ]
         let credentialAvailability = Dictionary(uniqueKeysWithValues: credentialProviders.map {
             ($0, discoveredProviders.contains($0) ? MonitorCredentialAvailability.present : .missing)
@@ -600,6 +614,7 @@ final class QuotaViewModel {
         let devinQuotaFetcher = devinFetcher
         let grokQuotaFetcher = grokFetcher
         let openRouterQuotaFetcher = openRouterFetcher
+        let ampQuotaFetcher = ampFetcher
         let warpTokens = WarpService.shared.tokens.filter { $0.isEnabled }
         let factoryDroidPrevious = previous[.factoryDroid]?.filter {
             discoveredAccountKeys[.factoryDroid]?.contains($0.key) == true
@@ -612,6 +627,9 @@ final class QuotaViewModel {
         } ?? [:]
         let openRouterPrevious = previous[.openRouter]?.filter {
             discoveredAccountKeys[.openRouter]?.contains($0.key) == true
+        } ?? [:]
+        let ampPrevious = previous[.amp]?.filter {
+            discoveredAccountKeys[.amp]?.contains($0.key) == true
         } ?? [:]
 
         async let codex = coordinator.refresh(
@@ -696,6 +714,14 @@ final class QuotaViewModel {
         ) {
             await openRouterQuotaFetcher.fetchAllQuotas()
         }
+        async let amp = coordinator.refresh(
+            provider: .amp,
+            force: force,
+            previous: ampPrevious,
+            credentialAvailability: credentialAvailability[.amp] ?? .unknown
+        ) {
+            await ampQuotaFetcher.fetchAllQuotas()
+        }
 
         let fetchedAntigravityData = await antigravityData
         let antigravity = await coordinator.refresh(
@@ -722,6 +748,7 @@ final class QuotaViewModel {
         providerQuotas[.devin] = await devin
         providerQuotas[.grok] = await grok
         providerQuotas[.openRouter] = await openRouter
+        providerQuotas[.amp] = await amp
         providerQuotas = providerQuotas.filter { !$0.value.isEmpty }
 
         monitorAccounts = await coordinator.discoverAccounts(merging: providerQuotas)
@@ -1750,6 +1777,8 @@ final class QuotaViewModel {
             providerQuotas[provider] = await grokFetcher.fetchAllQuotas()
         case .openRouter:
             providerQuotas[provider] = await openRouterFetcher.fetchAllQuotas()
+        case .amp:
+            providerQuotas[provider] = await ampFetcher.fetchAllQuotas()
         default:
             return
         }
@@ -1804,6 +1833,8 @@ final class QuotaViewModel {
             quota = await grokFetcher.fetchQuota(accountKey: account.accountKey)
         case .openRouter:
             quota = await openRouterFetcher.fetchQuota(accountKey: account.accountKey)
+        case .amp:
+            quota = await ampFetcher.fetchQuota(accountKey: account.accountKey)
         case .qwen, .iflow, .vertex:
             return
         }
@@ -1834,7 +1865,7 @@ final class QuotaViewModel {
         let previous = providerQuotas[provider] ?? [:]
         let credentialProviders: Set<AIProvider> = [
             .codex, .claude, .copilot, .kiro, .antigravity,
-            .factoryDroid, .devin, .grok, .openRouter,
+            .factoryDroid, .devin, .grok, .openRouter, .amp,
         ]
         let discoveredProviders = Set(await coordinator.discoverAccounts().map(\.provider))
         let credentialAvailability: MonitorCredentialAvailability = credentialProviders.contains(provider)
@@ -1923,6 +1954,11 @@ final class QuotaViewModel {
             }
         case .openRouter:
             let fetcher = openRouterFetcher
+            fresh = await coordinatedRefresh {
+                await fetcher.fetchAllQuotas()
+            }
+        case .amp:
+            let fetcher = ampFetcher
             fresh = await coordinatedRefresh {
                 await fetcher.fetchAllQuotas()
             }

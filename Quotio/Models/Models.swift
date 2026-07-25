@@ -22,6 +22,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     case devin = "devin"
     case grok = "grok"
     case openRouter = "openrouter"
+    case amp = "amp"
     case trae = "trae"
     case glm = "glm"
     case warp = "warp"
@@ -44,6 +45,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
         case .devin: return "Devin"
         case .grok: return "Grok"
         case .openRouter: return "OpenRouter"
+        case .amp: return "Amp"
         case .trae: return "Trae"
         case .glm: return "Z.ai"
         case .warp: return "Warp"
@@ -66,6 +68,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
         case .devin: return "bolt.horizontal.circle"
         case .grok: return "xmark.circle"
         case .openRouter: return "point.3.connected.trianglepath.dotted"
+        case .amp: return "bolt.fill"
         case .trae: return "cursorarrow.rays"
         case .glm: return "brain"
         case .warp: return "terminal.fill"
@@ -89,6 +92,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
         case .devin: return "devin"
         case .grok: return "grok"
         case .openRouter: return "openrouter"
+        case .amp: return "amp"
         case .trae: return "trae"
         case .glm: return "glm"
         case .warp: return "warp"
@@ -111,6 +115,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
         case .devin: return Color(hex: "6C5CE7") ?? .purple
         case .grok: return .primary
         case .openRouter: return Color(hex: "6B5CFF") ?? .purple
+        case .amp: return Color(hex: "FF5543") ?? .red
         case .trae: return Color(hex: "00B4D8") ?? .cyan
         case .glm: return Color(hex: "3B82F6") ?? .blue
         case .warp: return Color(hex: "01E5FF") ?? .cyan
@@ -129,7 +134,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
         case .kiro: return ""  // Uses CLI-based auth like Copilot
         case .copilot: return ""
         case .cursor: return ""  // Uses browser session
-        case .factoryDroid, .devin, .grok, .openRouter: return ""
+        case .factoryDroid, .devin, .grok, .openRouter, .amp: return ""
         case .trae: return ""  // Uses browser session
         case .glm: return ""
         case .warp: return ""
@@ -153,6 +158,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
         case .devin: return "D"
         case .grok: return "X"
         case .openRouter: return "OR"
+        case .amp: return "AM"
         case .trae: return "TR"
         case .glm: return "G"
         case .warp: return "W"
@@ -173,6 +179,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
         case .iflow: return "iflow-menubar"
         case .vertex: return "vertex-menubar"
         case .cursor: return "cursor-menubar"
+        case .amp: return "amp-menubar"
         case .factoryDroid, .devin, .grok, .openRouter: return nil
         case .trae: return "trae-menubar"
         case .glm: return "glm-menubar"
@@ -184,7 +191,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     /// Whether this provider supports quota tracking in quota-only mode
     var supportsQuotaOnlyMode: Bool {
         switch self {
-        case .claude, .codex, .cursor, .factoryDroid, .antigravity, .copilot, .devin, .grok, .openRouter, .trae, .glm, .warp, .kiro, .clinePass:
+        case .claude, .codex, .cursor, .factoryDroid, .antigravity, .copilot, .devin, .grok, .openRouter, .amp, .trae, .glm, .warp, .kiro, .clinePass:
             return true
         case .qwen, .iflow, .vertex:
             return false
@@ -235,7 +242,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     /// Whether this provider uses API key authentication
     var usesAPIKeyAuth: Bool {
         switch self {
-        case .glm, .warp, .clinePass, .factoryDroid, .openRouter:
+        case .glm, .warp, .clinePass, .factoryDroid, .openRouter, .amp:
             return true
         default:
             return false
@@ -245,7 +252,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     /// Whether this provider is quota-tracking only (not a real provider that can route requests)
     var isQuotaTrackingOnly: Bool {
         switch self {
-        case .cursor, .trae, .factoryDroid, .devin, .grok, .openRouter, .warp:
+        case .cursor, .trae, .factoryDroid, .devin, .grok, .openRouter, .amp, .warp:
             return true  // Only for tracking usage, not a provider
         default:
             return false
