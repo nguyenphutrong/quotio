@@ -806,6 +806,13 @@ final class MonitorRuntimeTests: XCTestCase {
 
         XCTAssertEqual(accounts, [codex])
         XCTAssertTrue(disabled.isEmpty)
+
+        let reloadedStore = MonitorMetadataStore(url: url)
+        let reloadedAccounts = await reloadedStore.accounts()
+        let reloadedDisabled = await reloadedStore.disabledAccountIDs()
+
+        XCTAssertEqual(reloadedAccounts, [codex])
+        XCTAssertTrue(reloadedDisabled.isEmpty)
     }
 
     @MainActor
