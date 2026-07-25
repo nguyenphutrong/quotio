@@ -81,11 +81,11 @@ struct AccountRowData: Identifiable, Hashable {
     // MARK: - Factory Methods
     
     /// Create from AuthFile (proxy mode)
-    static func from(authFile: AuthFile) -> AccountRowData {
+    static func from(authFile: AuthFile, provider: AIProvider) -> AccountRowData {
         let name = authFile.email ?? authFile.name
         return AccountRowData(
             id: authFile.id,
-            provider: authFile.providerType ?? .antigravity,
+            provider: provider,
             displayName: name,
             menuBarAccountKey: authFile.menuBarAccountKey,
             source: .proxy,

@@ -56,7 +56,7 @@ struct ProvidersScreen: View {
             // From proxy auth files (proxy running)
             for file in viewModel.authFiles {
                 guard let provider = file.providerType else { continue }
-                let data = AccountRowData.from(authFile: file)
+                let data = AccountRowData.from(authFile: file, provider: provider)
                 groups[provider, default: []].append(data)
             }
         } else if modeManager.isMonitorMode {

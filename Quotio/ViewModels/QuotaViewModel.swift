@@ -2565,7 +2565,7 @@ final class QuotaViewModel {
         
         // Scan CLI tools if opted in
         if options.scanCLITools {
-            let cliNames = ["claude", "codex", "gemini", "gh"]
+            let cliNames = ["claude", "codex", "gh"]
             for name in cliNames {
                 if await CLIExecutor.shared.isCLIInstalled(name: name) {
                     cliToolsFound.append(name)

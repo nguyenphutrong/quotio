@@ -64,11 +64,34 @@ struct FallbackEntry: Codable, Identifiable, Hashable, Sendable {
     let modelId: String
     var priority: Int
 
+    private enum CodingKeys: String, CodingKey {
+        case id, provider, modelId, priority
+    }
+
     init(id: UUID = UUID(), provider: AIProvider, modelId: String, priority: Int) {
         self.id = id
         self.provider = provider
         self.modelId = modelId
         self.priority = priority
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        let providerRaw = try container.decode(String.self, forKey: .provider)
+        if providerRaw == "gemini-cli" {
+            provider = .antigravity
+        } else if let decodedProvider = AIProvider(rawValue: providerRaw) {
+            provider = decodedProvider
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .provider,
+                in: container,
+                debugDescription: "Unsupported provider: \(providerRaw)"
+            )
+        }
+        modelId = try container.decode(String.self, forKey: .modelId)
+        priority = try container.decode(Int.self, forKey: .priority)
     }
 
     /// Display name for UI
