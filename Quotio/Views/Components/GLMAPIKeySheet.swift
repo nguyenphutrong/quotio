@@ -3,7 +3,7 @@
 //  Quotio
 //
 //  Simplified API key configuration sheet for GLM (BigModel.cn)
-//  Reference design based on Gemini CLI configuration
+//  API key configuration sheet
 //
 
 import SwiftUI

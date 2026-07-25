@@ -48,7 +48,6 @@ final class QuotaViewModel {
     @ObservationIgnored private let claudeCodeFetcher = ClaudeCodeQuotaFetcher()
     @ObservationIgnored private let cursorFetcher = CursorQuotaFetcher()
     @ObservationIgnored private let codexCLIFetcher = CodexCLIQuotaFetcher()
-    @ObservationIgnored private let geminiCLIFetcher = GeminiCLIQuotaFetcher()
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
     @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
 
@@ -82,7 +81,7 @@ final class QuotaViewModel {
 
     func supportsScopedRefresh(for provider: AIProvider) -> Bool {
         if modeManager.isRemoteProxyMode {
-            return provider == .gemini
+            return false
         }
         switch provider {
         case .qwen, .iflow, .vertex:
@@ -324,7 +323,6 @@ final class QuotaViewModel {
         await claudeCodeFetcher.updateProxyConfiguration()
         await cursorFetcher.updateProxyConfiguration()
         await codexCLIFetcher.updateProxyConfiguration()
-        await geminiCLIFetcher.updateProxyConfiguration()
         await warpFetcher.updateProxyConfiguration()
         await clinePassFetcher.updateProxyConfiguration()
         await traeFetcher.updateProxyConfiguration()
@@ -570,7 +568,7 @@ final class QuotaViewModel {
     /// Note: Cursor and Trae are NOT auto-refreshed - user must use "Scan for IDEs" (issue #29)
     func refreshQuotasDirectly(force: Bool = false) async {
         let providers: Set<AIProvider> = [
-            .codex, .claude, .gemini, .copilot, .kiro, .glm, .clinePass, .warp,
+            .codex, .claude, .copilot, .kiro, .glm, .clinePass, .warp,
             .antigravity, .factoryDroid, .devin, .grok, .openRouter,
         ]
         guard beginBatchRefresh(providers: providers) else { return }
@@ -585,14 +583,13 @@ final class QuotaViewModel {
         let discoveredAccountKeys = Dictionary(grouping: discoveredAccounts, by: \.provider)
             .mapValues { Set($0.map(\.accountKey)) }
         let credentialProviders: Set<AIProvider> = [
-            .codex, .claude, .gemini, .copilot, .kiro, .antigravity, .factoryDroid, .devin, .grok, .openRouter,
+            .codex, .claude, .copilot, .kiro, .antigravity, .factoryDroid, .devin, .grok, .openRouter,
         ]
         let credentialAvailability = Dictionary(uniqueKeysWithValues: credentialProviders.map {
             ($0, discoveredProviders.contains($0) ? MonitorCredentialAvailability.present : .missing)
         })
         let codexFetcher = codexCLIFetcher
         let claudeFetcher = claudeCodeFetcher
-        let geminiFetcher = geminiCLIFetcher
         let copilotQuotaFetcher = copilotFetcher
         let kiroQuotaFetcher = kiroFetcher
         let glmQuotaFetcher = glmFetcher
@@ -632,14 +629,6 @@ final class QuotaViewModel {
             credentialAvailability: credentialAvailability[.claude] ?? .unknown
         ) {
             await claudeFetcher.fetchAsProviderQuota(forceRefresh: force, includeMonitorCredentials: true)
-        }
-        async let gemini = coordinator.refresh(
-            provider: .gemini,
-            force: force,
-            previous: previous[.gemini] ?? [:],
-            credentialAvailability: credentialAvailability[.gemini] ?? .unknown
-        ) {
-            await geminiFetcher.fetchAsProviderQuota(includeMonitorCredentials: true)
         }
         async let copilot = coordinator.refresh(
             provider: .copilot,
@@ -720,7 +709,6 @@ final class QuotaViewModel {
 
         providerQuotas[.codex] = await codexFetcher.reconcileLegacyAliases(in: await codex)
         providerQuotas[.claude] = await claude
-        providerQuotas[.gemini] = await gemini
         providerQuotas[.copilot] = await copilot
         providerQuotas[.kiro] = await kiro
         providerQuotas[.glm] = await glm
@@ -839,60 +827,6 @@ final class QuotaViewModel {
         }
     }
     
-    /// Refresh Gemini quota using CLIProxyAPI management data when available.
-    private func refreshGeminiCLIQuotasInternal(allowLocalFallback: Bool = true) async {
-        if modeManager.isMonitorMode {
-            let quotas = await geminiCLIFetcher.fetchAsProviderQuota()
-            if !quotas.isEmpty { providerQuotas[.gemini] = quotas }
-            return
-        }
-
-        var quotaAuthFiles = authFiles
-        var quotaClient = apiClient
-        var transientClient: ManagementAPIClient?
-
-        if quotaClient == nil,
-           let config = modeManager.remoteConfig,
-           let managementKey = modeManager.remoteManagementKey {
-            let client = ManagementAPIClient(config: config, managementKey: managementKey)
-            transientClient = client
-            quotaClient = client
-
-            do {
-                quotaAuthFiles = try await client.fetchAuthFiles()
-            } catch {
-                Log.quota(
-                    "Failed to fetch Gemini CLI auth files from saved management config: \(error.localizedDescription)"
-                )
-            }
-        }
-
-        let managementQuotas = await geminiCLIFetcher.fetchAsProviderQuota(
-            authFiles: quotaAuthFiles,
-            apiClient: quotaClient
-        )
-        if let transientClient {
-            await transientClient.invalidate()
-        }
-
-        let quotas: [String: ProviderQuotaData]
-        if managementQuotas.isEmpty && allowLocalFallback {
-            quotas = await geminiCLIFetcher.fetchAsProviderQuota()
-        } else {
-            quotas = managementQuotas
-        }
-        if !quotas.isEmpty {
-            if var existing = providerQuotas[.gemini] {
-                for (email, quota) in quotas {
-                    existing[email] = quota
-                }
-                providerQuotas[.gemini] = existing
-            } else {
-                providerQuotas[.gemini] = quotas
-            }
-        }
-    }
-
     /// Refresh GLM quota using API keys from CustomProviderService
     private func refreshGlmQuotasInternal() async {
         let quotas = await glmFetcher.fetchAllQuotas()
@@ -1611,9 +1545,7 @@ final class QuotaViewModel {
             await refreshQuotasDirectly()
             return
         }
-        let providers: Set<AIProvider> = modeManager.isRemoteProxyMode
-            ? [.gemini]
-            : [.antigravity, .codex, .copilot, .claude, .glm, .warp, .kiro, .clinePass, .gemini]
+        let providers: Set<AIProvider> = [.antigravity, .codex, .copilot, .claude, .glm, .warp, .kiro, .clinePass]
         guard beginBatchRefresh(providers: providers) else { return }
         defer { endBatchRefresh(providers: providers) }
 
@@ -1622,10 +1554,6 @@ final class QuotaViewModel {
 
         // In remote mode, skip local filesystem fetchers — only show data from the remote proxy
         // (auth files, usage stats, API keys are already fetched by refreshData())
-        async let geminiCLI: () = refreshGeminiCLIQuotasInternal(
-            allowLocalFallback: !modeManager.isRemoteProxyMode
-        )
-
         if !modeManager.isRemoteProxyMode {
             // Note: Cursor and Trae removed from auto-refresh (issue #29)
             // User must use "Scan for IDEs" to detect these
@@ -1638,9 +1566,7 @@ final class QuotaViewModel {
             async let kiro: () = refreshKiroQuotasInternal()
             async let clinePass: () = refreshClinePassQuotasInternal()
 
-            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, clinePass, geminiCLI)
-        } else {
-            _ = await geminiCLI
+            _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, clinePass)
         }
 
         checkQuotaNotifications()
@@ -1663,7 +1589,7 @@ final class QuotaViewModel {
         guard !modeManager.isRemoteProxyMode else { return }
 
         let providers: Set<AIProvider> = [
-            .antigravity, .codex, .copilot, .claude, .glm, .warp, .kiro, .gemini, .clinePass,
+            .antigravity, .codex, .copilot, .claude, .glm, .warp, .kiro, .clinePass,
         ]
         guard beginBatchRefresh(providers: providers) else { return }
         defer { endBatchRefresh(providers: providers) }
@@ -1680,10 +1606,9 @@ final class QuotaViewModel {
         async let glm: () = refreshGlmQuotasInternal()
         async let warp: () = refreshWarpQuotasInternal()
         async let kiro: () = refreshKiroQuotasInternal()
-        async let geminiCLI: () = refreshGeminiCLIQuotasInternal()
         async let clinePass: () = refreshClinePassQuotasInternal()
 
-        _ = await (antigravity, codex, copilot, claudeCode, glm, warp, kiro, geminiCLI, clinePass)
+        _ = await (antigravity, codex, copilot, claudeCode, glm, warp, kiro, clinePass)
 
         checkQuotaNotifications()
         pruneMenuBarItems()
@@ -1783,12 +1708,6 @@ final class QuotaViewModel {
         defer { endScopedRefresh(provider: provider) }
 
         if modeManager.isRemoteProxyMode {
-            guard provider == .gemini, let apiClient else { return }
-            let quotas = await geminiCLIFetcher.fetchAsProviderQuota(authFiles: authFiles, apiClient: apiClient)
-            if !quotas.isEmpty {
-                providerQuotas[.gemini, default: [:]].merge(quotas) { _, fresh in fresh }
-                await finishScopedRefresh(provider: provider)
-            }
             return
         }
 
@@ -1813,8 +1732,6 @@ final class QuotaViewModel {
             await refreshClaudeCodeQuotasInternal()
         case .cursor:
             await refreshCursorQuotasInternal()
-        case .gemini:
-            await refreshGeminiCLIQuotasInternal()
         case .trae:
             await refreshTraeQuotasInternal()
         case .glm:
@@ -1860,24 +1777,6 @@ final class QuotaViewModel {
             quota = await claudeCodeFetcher.fetchQuota(accountKey: account.accountKey, forceRefresh: true)
         case .cursor:
             quota = await cursorFetcher.fetchAsProviderQuota()[account.accountKey]
-        case .gemini:
-            let hasManagementAccount = authFiles.contains {
-                $0.providerType == .gemini && ($0.quotaLookupKey.isEmpty ? $0.name : $0.quotaLookupKey) == account.accountKey
-            }
-            if modeManager.isRemoteProxyMode {
-                guard let apiClient else { return }
-                quota = await geminiCLIFetcher.fetchQuota(
-                    accountKey: account.accountKey,
-                    authFiles: authFiles,
-                    apiClient: apiClient
-                )
-            } else {
-                quota = await geminiCLIFetcher.fetchQuota(
-                    accountKey: account.accountKey,
-                    authFiles: authFiles,
-                    apiClient: hasManagementAccount ? apiClient : nil
-                )
-            }
         case .trae:
             quota = await traeFetcher.fetchAsProviderQuota()[account.accountKey]
         case .glm:
@@ -1934,7 +1833,7 @@ final class QuotaViewModel {
         let coordinator = monitorCoordinator
         let previous = providerQuotas[provider] ?? [:]
         let credentialProviders: Set<AIProvider> = [
-            .codex, .claude, .gemini, .copilot, .kiro, .antigravity,
+            .codex, .claude, .copilot, .kiro, .antigravity,
             .factoryDroid, .devin, .grok, .openRouter,
         ]
         let discoveredProviders = Set(await coordinator.discoverAccounts().map(\.provider))
@@ -1967,11 +1866,6 @@ final class QuotaViewModel {
             let fetcher = claudeCodeFetcher
             fresh = await coordinatedRefresh {
                 await fetcher.fetchAsProviderQuota(forceRefresh: true, includeMonitorCredentials: true)
-            }
-        case .gemini:
-            let fetcher = geminiCLIFetcher
-            fresh = await coordinatedRefresh {
-                await fetcher.fetchAsProviderQuota(includeMonitorCredentials: true)
             }
         case .copilot:
             let fetcher = copilotFetcher
@@ -2085,7 +1979,7 @@ final class QuotaViewModel {
         }
     }
     
-    func startOAuth(for provider: AIProvider, projectId: String? = nil, authMethod: AuthCommand? = nil, launchMode: OAuthLaunchMode = .manual) async {
+    func startOAuth(for provider: AIProvider, authMethod: AuthCommand? = nil, launchMode: OAuthLaunchMode = .manual) async {
         if modeManager.isMonitorMode {
             await startMonitorOAuth(for: provider)
             return
@@ -2111,7 +2005,7 @@ final class QuotaViewModel {
         oauthState = OAuthState(provider: provider, status: .waiting)
         
         do {
-            let response = try await client.getOAuthURL(for: provider, projectId: projectId)
+            let response = try await client.getOAuthURL(for: provider)
             
             guard response.status == "ok", let urlString = response.url, let state = response.state else {
                 oauthState = OAuthState(provider: provider, status: .error, error: response.error)

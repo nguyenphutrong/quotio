@@ -11,7 +11,6 @@ import SwiftUI
 nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable {
     case claudeCode = "claude-code"
     case codexCLI = "codex"
-    case geminiCLI = "gemini-cli"
     case ampCLI = "amp"
     case openCode = "opencode"
     case factoryDroid = "factory-droid"
@@ -22,7 +21,6 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         switch self {
         case .claudeCode: return "Claude Code"
         case .codexCLI: return "Codex CLI"
-        case .geminiCLI: return "Gemini CLI"
         case .ampCLI: return "Amp CLI"
         case .openCode: return "OpenCode"
         case .factoryDroid: return "Factory Droid"
@@ -33,7 +31,6 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         switch self {
         case .claudeCode: return "Anthropic's official CLI for Claude models"
         case .codexCLI: return "OpenAI's Codex CLI for GPT-5 models"
-        case .geminiCLI: return "Google's Gemini CLI for Gemini models"
         case .ampCLI: return "Sourcegraph's Amp coding assistant"
         case .openCode: return "The open source AI coding agent"
         case .factoryDroid: return "Factory's AI coding agent"
@@ -44,7 +41,6 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         switch self {
         case .claudeCode: return .both
         case .codexCLI: return .file
-        case .geminiCLI: return .environment
         case .ampCLI: return .both
         case .openCode: return .file
         case .factoryDroid: return .file
@@ -55,7 +51,6 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         switch self {
         case .claudeCode: return ["claude"]
         case .codexCLI: return ["codex"]
-        case .geminiCLI: return ["gemini"]
         case .ampCLI: return ["amp"]
         case .openCode: return ["opencode", "oc"]
         case .factoryDroid: return ["droid", "factory-droid"]
@@ -66,7 +61,6 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         switch self {
         case .claudeCode: return ["~/.claude/settings.json"]
         case .codexCLI: return ["~/.codex/config.toml", "~/.codex/auth.json"]
-        case .geminiCLI: return []
         case .ampCLI: return ["~/.config/amp/settings.json", "~/.local/share/amp/secrets.json"]
         case .openCode: return ["~/.config/opencode/opencode.json"]
         case .factoryDroid: return ["~/.factory/config.json"]
@@ -77,7 +71,6 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         switch self {
         case .claudeCode: return URL(string: "https://docs.anthropic.com/en/docs/claude-code")
         case .codexCLI: return URL(string: "https://github.com/openai/codex")
-        case .geminiCLI: return URL(string: "https://github.com/google-gemini/gemini-cli")
         case .ampCLI: return URL(string: "https://ampcode.com/manual")
         case .openCode: return URL(string: "https://github.com/sst/opencode")
         case .factoryDroid: return URL(string: "https://docs.factory.ai/welcome")
@@ -88,7 +81,6 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         switch self {
         case .claudeCode: return "brain.head.profile"
         case .codexCLI: return "chevron.left.forwardslash.chevron.right"
-        case .geminiCLI: return "sparkles"
         case .ampCLI: return "bolt.fill"
         case .openCode: return "terminal"
         case .factoryDroid: return "cpu"
@@ -99,7 +91,6 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         switch self {
         case .claudeCode: return Color(hex: "D97706") ?? .orange
         case .codexCLI: return Color(hex: "10A37F") ?? .green
-        case .geminiCLI: return Color(hex: "4285F4") ?? .blue
         case .ampCLI: return Color(hex: "FF5543") ?? .red
         case .openCode: return Color(hex: "8B5CF6") ?? .purple
         case .factoryDroid: return Color(hex: "238636") ?? .green
@@ -309,7 +300,7 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
         self.agent = agent
         self.proxyURL = proxyURL
         self.apiKey = apiKey
-        self.useOAuth = agent == .geminiCLI
+        self.useOAuth = false
         self.setupMode = setupMode
         self.modelSlots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
             AvailableModel.defaultModels[slot].map { (slot, $0.name) }
@@ -321,7 +312,7 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
         self.agent = agent
         self.proxyURL = proxyURL
         self.apiKey = apiKey
-        self.useOAuth = agent == .geminiCLI
+        self.useOAuth = false
         self.setupMode = setupMode
 
         // Start with defaults, then overlay saved slots

@@ -129,10 +129,6 @@ struct AgentConfigSheet: View {
                     modelSlotsSection
                 }
                 
-                if agent == .geminiCLI {
-                    oauthToggleSection
-                }
-                
                 if isManualMode {
                     manualPreviewSection
                 }

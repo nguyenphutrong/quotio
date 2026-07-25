@@ -213,8 +213,26 @@ actor MonitorMetadataStore {
     }
 
     private func load() -> Payload {
-        guard let data = try? Data(contentsOf: url),
-              let payload = try? JSONDecoder().decode(Payload.self, from: data) else { return Payload() }
+        guard let data = try? Data(contentsOf: url) else { return Payload() }
+        if let payload = try? JSONDecoder().decode(Payload.self, from: data) {
+            return payload
+        }
+
+        // Drop persisted Gemini CLI accounts after direct provider support is removed.
+        guard var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let accounts = object["accounts"] as? [[String: Any]] else { return Payload() }
+        let removedIDs = Set(accounts.compactMap { account in
+            account["provider"] as? String == "gemini-cli" ? account["id"] as? String : nil
+        })
+        guard !removedIDs.isEmpty else { return Payload() }
+
+        object["accounts"] = accounts.filter { $0["provider"] as? String != "gemini-cli" }
+        if let disabledIDs = object["disabledAccountIDs"] as? [String] {
+            object["disabledAccountIDs"] = disabledIDs.filter { !removedIDs.contains($0) }
+        }
+        guard let migratedData = try? JSONSerialization.data(withJSONObject: object),
+              let payload = try? JSONDecoder().decode(Payload.self, from: migratedData) else { return Payload() }
+        try? save(payload)
         return payload
     }
 
@@ -398,7 +416,6 @@ actor MonitorAccountDiscovery {
                 credentialReference: "claude-desktop"
             ))
         }
-        accounts.append(contentsOf: discoverGeminiFile())
         accounts.append(contentsOf: discoverCopilotFiles())
         accounts.append(contentsOf: discoverKiroFile())
         accounts.append(contentsOf: discoverFactoryDroidCredential())
@@ -484,17 +501,6 @@ actor MonitorAccountDiscovery {
               (oauth["accessToken"] as? String)?.isEmpty == false else { return [] }
         let email = (oauth["email"] as? String) ?? "Claude Code"
         return [.make(provider: .claude, accountKey: email, source: .nativeCredential, credentialReference: path)]
-    }
-
-    private func discoverGeminiFile() -> [MonitorAccount] {
-        let authPath = MonitorIdentity.expand("~/.gemini/oauth_creds.json")
-        guard let auth = MonitorIdentity.json(at: authPath),
-              (auth["access_token"] as? String)?.isEmpty == false else { return [] }
-        let accountsPath = MonitorIdentity.expand("~/.gemini/google_accounts.json")
-        let email = (MonitorIdentity.json(at: accountsPath)?["active"] as? String)
-            ?? MonitorIdentity.jwtString(auth["id_token"] as? String, claim: "email")
-            ?? "Gemini CLI"
-        return [.make(provider: .gemini, accountKey: email, source: .nativeCredential, credentialReference: authPath)]
     }
 
     private func discoverCopilotFiles() -> [MonitorAccount] {
@@ -599,7 +605,6 @@ actor MonitorRefreshCoordinator {
         let placeholders: [AIProvider: Set<String>] = [
             .copilot: ["github copilot"],
             .antigravity: ["antigravity"],
-            .gemini: ["gemini cli"],
             .claude: ["claude code"],
             .codex: ["codex", "codex user"],
             .kiro: ["kiro"],

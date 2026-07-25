@@ -17,7 +17,7 @@ actor MonitorOAuthCoordinator {
             task = Task { try await githubDeviceFlow() }
         case .kiro:
             task = Task { try await kiroDeviceFlow() }
-        case .codex, .gemini, .antigravity:
+        case .codex, .antigravity:
             task = Task { try await browserPKCEFlow(provider: provider) }
         default:
             throw MonitorOAuthError.flowNotImplemented(provider.displayName)
@@ -175,11 +175,6 @@ actor MonitorOAuthCoordinator {
                     "id_token_add_organizations": "true",
                     "originator": "codex_cli_rs",
                 ]
-            )
-        case .gemini:
-            return googleConfiguration(
-                clientID: "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com",
-                clientSecret: "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"
             )
         case .antigravity:
             return googleConfiguration(

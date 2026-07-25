@@ -35,9 +35,9 @@ Quotio 是一款原生 macOS 应用，用于管理 **CLIProxyAPI** ——为你�
 
 ## ✨ 功能特性
 
-- **🔌 多提供商支持**：通过 OAuth 或 API Key 连接 Gemini、Claude、OpenAI Codex、Qwen、Vertex AI、iFlow、Antigravity、Kiro、Trae 和 GitHub Copilot 账号。
+- **🔌 多提供商支持**：通过 OAuth 或 API Key 连接 Claude、OpenAI Codex、Qwen、Vertex AI、iFlow、Antigravity、Kiro、Trae 和 GitHub Copilot 账号。
 - **📊 独立配额模式**：无需运行代理服务器即可查看配额和账号，适合快速检查。
-- **🚀 一键 Agent 配置**：自动检测并配置 Claude Code、OpenCode、Gemini CLI 等 AI 编程工具。
+- **🚀 一键 Agent 配置**：自动检测并配置 Claude Code、OpenCode 等 AI 编程工具。
 - **📈 实时仪表盘**：实时监控请求流量、token 使用量和成功率。
 - **📉 智能配额管理**：按账号可视化配额追踪，并支持自动故障转移策略（轮询 / 先满）。
 - **🔑 API Key 管理**：为本地代理生成并管理 API Key。
@@ -51,7 +51,6 @@ Quotio 是一款原生 macOS 应用，用于管理 **CLIProxyAPI** ——为你�
 ### AI 提供商
 | 提供商 | 认证方式 |
 |----------|-------------|
-| Google Gemini | OAuth |
 | Anthropic Claude | OAuth |
 | OpenAI Codex | OAuth |
 | Qwen Code | OAuth |
@@ -73,7 +72,6 @@ Quotio 是一款原生 macOS 应用，用于管理 **CLIProxyAPI** ——为你�
 Quotio 可以自动配置以下工具使用你的集中式代理：
 - Claude Code
 - Codex CLI
-- Gemini CLI
 - Amp CLI
 - OpenCode
 - Factory Droid

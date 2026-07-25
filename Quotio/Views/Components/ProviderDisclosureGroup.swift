@@ -87,11 +87,11 @@ struct ProviderDisclosureGroup: View {
 #Preview {
     List {
         ProviderDisclosureGroup(
-            provider: .gemini,
+            provider: .antigravity,
             accounts: [
                 AccountRowData(
                     id: "1",
-                    provider: .gemini,
+                    provider: .antigravity,
                     displayName: "user@gmail.com",
                     source: .proxy,
                     status: "ready",
@@ -101,7 +101,7 @@ struct ProviderDisclosureGroup: View {
                 ),
                 AccountRowData(
                     id: "2",
-                    provider: .gemini,
+                    provider: .antigravity,
                     displayName: "work@company.com",
                     source: .proxy,
                     status: "cooling",

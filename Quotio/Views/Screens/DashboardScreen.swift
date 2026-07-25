@@ -12,7 +12,6 @@ struct DashboardScreen: View {
     @State private var modeManager = OperatingModeManager.shared
 
     @State private var selectedProvider: AIProvider?
-    @State private var projectId: String = ""
     @State private var isImporterPresented = false
     @State private var selectedAgentForConfig: CLIAgent?
     @State private var sheetPresentationID = UUID()
@@ -113,9 +112,8 @@ struct DashboardScreen: View {
             }
         }
         .sheet(item: $selectedProvider) { provider in
-            OAuthSheet(provider: provider, projectId: $projectId) {
+            OAuthSheet(provider: provider) {
                 selectedProvider = nil
-                projectId = ""
                 viewModel.oauthState = nil
                 Task {
                     if modeManager.isMonitorMode {

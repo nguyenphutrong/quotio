@@ -181,7 +181,7 @@ struct AllAccountsSection: View {
             accounts: [
                 AccountRowData(
                     id: "1",
-                    provider: .gemini,
+                    provider: .antigravity,
                     displayName: "user@gmail.com",
                     source: .proxy,
                     status: "ready",
@@ -191,7 +191,7 @@ struct AllAccountsSection: View {
                 ),
                 AccountRowData(
                     id: "2",
-                    provider: .gemini,
+                    provider: .antigravity,
                     displayName: "work@company.com",
                     source: .proxy,
                     status: "ready",

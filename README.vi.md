@@ -35,9 +35,9 @@ Quotio là ứng dụng macOS để quản lý **CLIProxyAPI** - máy chủ prox
 
 ## ✨ Tính năng
 
-- **🔌 Hỗ trợ Đa nhà cung cấp**: Kết nối tài khoản từ Gemini, Claude, OpenAI Codex, Qwen, Vertex AI, iFlow, Antigravity, Kiro, Trae, và GitHub Copilot qua OAuth hoặc API key.
+- **🔌 Hỗ trợ Đa nhà cung cấp**: Kết nối tài khoản từ Claude, OpenAI Codex, Qwen, Vertex AI, iFlow, Antigravity, Kiro, Trae, và GitHub Copilot qua OAuth hoặc API key.
 - **📊 Chế độ Quota độc lập**: Xem quota và tài khoản mà không cần chạy proxy server - hoàn hảo để kiểm tra nhanh.
-- **🚀 Cấu hình Agent Một chạm**: Tự động phát hiện và cấu hình các công cụ như Claude Code, OpenCode, Gemini CLI.
+- **🚀 Cấu hình Agent Một chạm**: Tự động phát hiện và cấu hình các công cụ như Claude Code, OpenCode.
 - **📈 Dashboard Thời gian thực**: Giám sát lưu lượng, token sử dụng và tỷ lệ thành công.
 - **📉 Quản lý Hạn mức**: Theo dõi quota từng tài khoản với chiến lược chuyển đổi tự động (Round Robin / Fill First).
 - **🔑 Quản lý API Key**: Tạo và quản lý các khóa API cho proxy.
@@ -51,7 +51,6 @@ Quotio là ứng dụng macOS để quản lý **CLIProxyAPI** - máy chủ prox
 ### Nhà cung cấp AI
 | Provider | Phương thức xác thực |
 |----------|----------------------|
-| Google Gemini | OAuth |
 | Anthropic Claude | OAuth |
 | OpenAI Codex | OAuth |
 | Qwen Code | OAuth |
@@ -73,7 +72,6 @@ Quotio là ứng dụng macOS để quản lý **CLIProxyAPI** - máy chủ prox
 Quotio có thể tự động cấu hình các công cụ sau:
 - Claude Code
 - Codex CLI
-- Gemini CLI
 - Amp CLI
 - OpenCode
 - Factory Droid

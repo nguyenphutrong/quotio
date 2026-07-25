@@ -5,7 +5,7 @@ import XCTest
 
 final class MonitorRuntimeTests: XCTestCase {
     func testMonitorProvidersDoNotRequireInstalledCLI() {
-        let providers: Set<AIProvider> = [.codex, .claude, .gemini, .factoryDroid, .devin, .grok, .openRouter]
+        let providers: Set<AIProvider> = [.codex, .claude, .factoryDroid, .devin, .grok, .openRouter]
 
         let filtered = StatusBarMenuBuilder.filterProviders(
             providers,
@@ -30,7 +30,7 @@ final class MonitorRuntimeTests: XCTestCase {
             source: .nativeCredential
         )
         var disabled = MonitorAccount.make(
-            provider: .gemini,
+            provider: .codex,
             accountKey: "disabled@example.com",
             source: .nativeCredential
         )
@@ -763,7 +763,7 @@ final class MonitorRuntimeTests: XCTestCase {
             .appendingPathComponent("accounts-v1.json")
         let store = MonitorMetadataStore(url: url)
         let account = MonitorAccount.make(
-            provider: .gemini,
+            provider: .codex,
             accountKey: "test@example.com",
             source: .quotioKeychain,
             canDelete: true
@@ -776,6 +776,36 @@ final class MonitorRuntimeTests: XCTestCase {
         let disabled = await store.disabledAccountIDs()
         XCTAssertEqual(accounts, [account])
         XCTAssertEqual(disabled, Set([account.id]))
+    }
+
+    func testMetadataLoadDropsLegacyGeminiAccountWithoutDroppingOtherProviders() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("accounts-v1.json")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let codex = MonitorAccount.make(
+            provider: .codex,
+            accountKey: "codex@example.com",
+            source: .quotioKeychain
+        )
+        let codexObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(codex)) as? [String: Any]
+        )
+        var geminiObject = codexObject
+        geminiObject["id"] = "legacy-gemini"
+        geminiObject["provider"] = "gemini-cli"
+        let payload: [String: Any] = [
+            "accounts": [codexObject, geminiObject],
+            "disabledAccountIDs": ["legacy-gemini"],
+        ]
+        try JSONSerialization.data(withJSONObject: payload).write(to: url)
+
+        let store = MonitorMetadataStore(url: url)
+        let accounts = await store.accounts()
+        let disabled = await store.disabledAccountIDs()
+
+        XCTAssertEqual(accounts, [codex])
+        XCTAssertTrue(disabled.isEmpty)
     }
 
     func testQuotaDerivedAccountPreservesDisabledState() {

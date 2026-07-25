@@ -120,18 +120,6 @@ private struct StatusBadge: View {
         
         AgentCard(
             status: AgentStatus(
-                agent: .geminiCLI,
-                installed: true,
-                configured: false,
-                binaryPath: "/opt/homebrew/bin/gemini",
-                version: nil,
-                lastConfigured: nil
-            ),
-            onConfigure: {}
-        )
-        
-        AgentCard(
-            status: AgentStatus(
                 agent: .openCode,
                 installed: true,
                 configured: false,

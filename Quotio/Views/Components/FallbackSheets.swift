@@ -170,7 +170,7 @@ struct AddFallbackEntrySheet: View {
         if modelId.contains("kiro") {
             return .kiro
         } else if modelId.contains("gemini") {
-            return .gemini
+            return .antigravity
         } else if modelId.contains("copilot") {
             return .copilot
         } else if modelId.contains("codex") {

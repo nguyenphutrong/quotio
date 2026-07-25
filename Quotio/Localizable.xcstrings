@@ -13780,7 +13780,7 @@
       }
     },
     "quota.notAvailable" : {
-      "comment" : "Message shown when quota data is not available (e.g., Gemini CLI has no public quota API)",
+      "comment" : "Message shown when quota data is not available",
       "extractionState" : "stale",
       "localizations" : {
         "en" : {

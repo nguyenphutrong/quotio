@@ -17,7 +17,6 @@ struct ProvidersScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var isImporterPresented = false
     @State private var selectedProvider: AIProvider?
-    @State private var projectId: String = ""
     @State private var showProxyRequiredAlert = false
     @State private var showIDEScanSheet = false
     @State private var customProviderSheetMode: CustomProviderSheetMode?
@@ -176,9 +175,8 @@ struct ProvidersScreen: View {
             toolbarContent
         }
         .sheet(item: $selectedProvider) { provider in
-            OAuthSheet(provider: provider, projectId: $projectId) {
+            OAuthSheet(provider: provider) {
                 selectedProvider = nil
-                projectId = ""
                 viewModel.oauthState = nil
             }
             .environment(viewModel)
@@ -851,7 +849,6 @@ struct MenuBarHintView: View {
 struct OAuthSheet: View {
     @Environment(QuotaViewModel.self) private var viewModel
     let provider: AIProvider
-    @Binding var projectId: String
     let onDismiss: () -> Void
     
     @State private var hasStartedAuth = false
@@ -888,17 +885,6 @@ struct OAuthSheet: View {
                 Text("oauth.authenticateWith".localized() + " " + provider.displayName)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-            }
-            
-            if provider == .gemini {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("oauth.projectId".localized())
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    TextField("oauth.projectIdPlaceholder".localized(), text: $projectId)
-                        .textFieldStyle(.roundedBorder)
-                }
-                .frame(maxWidth: 320)
             }
             
             if provider == .kiro {
@@ -964,7 +950,7 @@ struct OAuthSheet: View {
                     Button {
                         hasStartedAuth = false
                         Task {
-                            await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId, authMethod: provider == .kiro ? selectedKiroMethod : nil)
+                            await viewModel.startOAuth(for: provider, authMethod: provider == .kiro ? selectedKiroMethod : nil)
                         }
                     } label: {
                         Label("oauth.retry".localized(), systemImage: "arrow.clockwise")
@@ -975,7 +961,7 @@ struct OAuthSheet: View {
                     Button {
                         hasStartedAuth = true
                         Task {
-                            await viewModel.startOAuth(for: provider, projectId: projectId.isEmpty ? nil : projectId, authMethod: provider == .kiro ? selectedKiroMethod : nil)
+                            await viewModel.startOAuth(for: provider, authMethod: provider == .kiro ? selectedKiroMethod : nil)
                         }
                     } label: {
                         if isPolling {

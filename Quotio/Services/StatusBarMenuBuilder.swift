@@ -2523,7 +2523,6 @@ private struct MenuViewMoreAccountsView: View {
 private extension AIProvider {
     var shortName: String {
         switch self {
-        case .gemini: return "Gemini"
         case .claude: return "Claude"
         case .codex: return "Codex"
         case .cursor: return "Cursor"

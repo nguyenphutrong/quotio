@@ -24,7 +24,7 @@ actor AgentDetectionService {
         "~/.local/bin",
         // Package managers
         "~/.cargo/bin",          // Rust/Cargo
-        "~/.bun/bin",            // Bun (gemini-cli)
+        "~/.bun/bin",            // Bun
         "~/.deno/bin",           // Deno
         "~/.npm-global/bin",     // npm global
         // Tool-specific

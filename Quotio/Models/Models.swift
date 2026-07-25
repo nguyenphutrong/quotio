@@ -9,7 +9,6 @@ import SwiftUI
 // MARK: - Provider Types
 
 nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendable {
-    case gemini = "gemini-cli"
     case claude = "claude"
     case codex = "codex"
     case qwen = "qwen"
@@ -32,7 +31,6 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     
     var displayName: String {
         switch self {
-        case .gemini: return "Gemini CLI"
         case .claude: return "Claude Code"
         case .codex: return "Codex"
         case .qwen: return "Qwen Code"
@@ -55,7 +53,6 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     
     var iconName: String {
         switch self {
-        case .gemini: return "sparkles"
         case .claude: return "brain.head.profile"
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .qwen: return "cloud"
@@ -79,7 +76,6 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     /// Logo file name in ProviderIcons asset catalog
     var logoAssetName: String {
         switch self {
-        case .gemini: return "gemini"
         case .claude: return "claude"
         case .codex: return "openai"
         case .qwen: return "qwen"
@@ -102,7 +98,6 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     
     var color: Color {
         switch self {
-        case .gemini: return Color(hex: "4285F4") ?? .blue
         case .claude: return Color(hex: "D97706") ?? .orange
         case .codex: return Color(hex: "10A37F") ?? .green
         case .qwen: return Color(hex: "7C3AED") ?? .purple
@@ -125,7 +120,6 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     
     var oauthEndpoint: String {
         switch self {
-        case .gemini: return "/gemini-cli-auth-url"
         case .claude: return "/anthropic-auth-url"
         case .codex: return "/codex-auth-url"
         case .qwen: return "/qwen-auth-url"
@@ -146,7 +140,6 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     /// Short symbol for menu bar display
     var menuBarSymbol: String {
         switch self {
-        case .gemini: return "G"
         case .claude: return "C"
         case .codex: return "O"
         case .qwen: return "Q"
@@ -170,7 +163,6 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     /// Menu bar icon asset name (nil if should use SF Symbol fallback)
     var menuBarIconAsset: String? {
         switch self {
-        case .gemini: return "gemini-menubar"
         case .claude: return "claude-menubar"
         case .codex: return "openai-menubar"
         case .qwen: return "qwen-menubar"
@@ -192,7 +184,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     /// Whether this provider supports quota tracking in quota-only mode
     var supportsQuotaOnlyMode: Bool {
         switch self {
-        case .claude, .codex, .cursor, .factoryDroid, .gemini, .antigravity, .copilot, .devin, .grok, .openRouter, .trae, .glm, .warp, .kiro, .clinePass:
+        case .claude, .codex, .cursor, .factoryDroid, .antigravity, .copilot, .devin, .grok, .openRouter, .trae, .glm, .warp, .kiro, .clinePass:
             return true
         case .qwen, .iflow, .vertex:
             return false
@@ -212,7 +204,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     /// Whether this provider uses CLI commands for quota
     var usesCLIQuota: Bool {
         switch self {
-        case .claude, .codex, .gemini:
+        case .claude, .codex:
             return true
         default:
             return false
@@ -224,7 +216,6 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
         switch self {
         case .claude: return .claudeCode
         case .codex: return .codexCLI
-        case .gemini: return .geminiCLI
         default: return nil
         }
     }

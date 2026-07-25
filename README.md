@@ -33,9 +33,9 @@ Quotio is a native macOS application for managing **CLIProxyAPI** - a local prox
 
 ## ✨ Features
 
-- **🔌 Multi-Provider Support**: Connect accounts from Gemini, Claude, OpenAI Codex, Qwen, Vertex AI, iFlow, Antigravity, Kiro, Trae, and GitHub Copilot via OAuth or API keys.
+- **🔌 Multi-Provider Support**: Connect accounts from Claude, OpenAI Codex, Qwen, Vertex AI, iFlow, Antigravity, Kiro, Trae, and GitHub Copilot via OAuth or API keys.
 - **📊 Standalone Quota Mode**: View quota and accounts without running the proxy server - perfect for quick checks.
-- **🚀 One-Click Agent Configuration**: Auto-detect and configure AI coding tools like Claude Code, OpenCode, Gemini CLI, and more.
+- **🚀 One-Click Agent Configuration**: Auto-detect and configure AI coding tools like Claude Code, OpenCode, and more.
 - **📈 Real-time Dashboard**: Monitor request traffic, token usage, and success rates live.
 - **📉 Smart Quota Management**: Visual quota tracking per account with automatic failover strategies (Round Robin / Fill First).
 - **🔑 API Key Management**: Generate and manage API keys for your local proxy.
@@ -49,7 +49,6 @@ Quotio is a native macOS application for managing **CLIProxyAPI** - a local prox
 ### AI Providers
 | Provider | Auth Method |
 |----------|-------------|
-| Google Gemini | OAuth |
 | Anthropic Claude | OAuth |
 | OpenAI Codex | OAuth |
 | Qwen Code | OAuth |
@@ -71,7 +70,6 @@ Quotio is a native macOS application for managing **CLIProxyAPI** - a local prox
 Quotio can automatically configure these tools to use your centralized proxy:
 - Claude Code
 - Codex CLI
-- Gemini CLI
 - Amp CLI
 - OpenCode
 - Factory Droid

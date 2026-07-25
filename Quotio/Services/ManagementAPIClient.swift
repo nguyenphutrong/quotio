@@ -245,15 +245,11 @@ actor ManagementAPIClient {
         return try JSONDecoder().decode(UsageStats.self, from: data)
     }
     
-    func getOAuthURL(for provider: AIProvider, projectId: String? = nil) async throws -> OAuthURLResponse {
+    func getOAuthURL(for provider: AIProvider) async throws -> OAuthURLResponse {
         var endpoint = provider.oauthEndpoint
         var queryParams: [String] = []
         
-        if let projectId = projectId, provider == .gemini {
-            queryParams.append("project_id=\(projectId)")
-        }
-        
-        let webUIProviders: [AIProvider] = [.antigravity, .claude, .codex, .gemini, .iflow, .kiro]
+        let webUIProviders: [AIProvider] = [.antigravity, .claude, .codex, .iflow, .kiro]
         if webUIProviders.contains(provider) {
             queryParams.append("is_webui=true")
         }

@@ -50,7 +50,7 @@ enum AppMode: String, Codable, CaseIterable, Identifiable {
             return [
                 "Run local proxy server",
                 "Manage multiple AI accounts",
-                "Configure CLI agents (Claude Code, Codex, Gemini CLI)",
+                "Configure CLI agents (Claude Code, Codex)",
                 "Track quota in menu bar",
                 "API key management for clients"
             ]

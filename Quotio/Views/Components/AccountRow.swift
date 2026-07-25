@@ -85,7 +85,7 @@ struct AccountRowData: Identifiable, Hashable {
         let name = authFile.email ?? authFile.name
         return AccountRowData(
             id: authFile.id,
-            provider: authFile.providerType ?? .gemini,
+            provider: authFile.providerType ?? .antigravity,
             displayName: name,
             menuBarAccountKey: authFile.menuBarAccountKey,
             source: .proxy,
@@ -427,7 +427,7 @@ struct AccountRow: View {
         AccountRow(
             account: AccountRowData(
                 id: "1",
-                provider: .gemini,
+                provider: .antigravity,
                 displayName: "user@gmail.com",
                 source: .proxy,
                 status: "ready",

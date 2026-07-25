@@ -40,7 +40,7 @@ actor CLIExecutor {
         "~/.local/bin",
         // Package managers
         "~/.cargo/bin",          // Rust/Cargo
-        "~/.bun/bin",            // Bun (gemini-cli)
+        "~/.bun/bin",            // Bun
         "~/.deno/bin",           // Deno
         "~/.npm-global/bin",     // npm global
         // Tool-specific
@@ -350,7 +350,6 @@ nonisolated struct DetectedCLI: Identifiable, Sendable {
         "claude": "Claude Code",
         "codex": "Codex",
         "cursor": "Cursor",
-        "gemini": "Gemini CLI",
         "gh": "GitHub CLI",
         "copilot": "GitHub Copilot"
     ]
@@ -403,11 +402,6 @@ actor CLIDetectionService {
     /// Check if Codex CLI is installed
     func isCodexInstalled() async -> Bool {
         return await executor.isCLIInstalled(name: "codex")
-    }
-    
-    /// Check if Gemini CLI is installed
-    func isGeminiInstalled() async -> Bool {
-        return await executor.isCLIInstalled(name: "gemini")
     }
     
     /// Check if Cursor is installed (check for app or CLI)

@@ -203,8 +203,6 @@ actor DirectAuthFileService {
             "codex": .codex,
             "copilot": .copilot,
             "github-copilot": .copilot,
-            "gemini": .gemini,
-            "gemini-cli": .gemini,
             "qwen": .qwen,
             "iflow": .iflow,
             "kiro": .kiro,
@@ -239,7 +237,6 @@ actor DirectAuthFileService {
             ("codex-", .codex),
             ("github-copilot-", .copilot),
             ("claude-", .claude),
-            ("gemini-cli-", .gemini),
             ("qwen-", .qwen),
             ("iflow-", .iflow),
             ("kiro-", .kiro),
@@ -305,7 +302,7 @@ actor DirectAuthFileService {
         
         // Different providers store tokens differently
         switch file.provider {
-        case .antigravity, .gemini:
+        case .antigravity:
             // Google OAuth format
             if let accessToken = json["access_token"] as? String {
                 let refreshToken = json["refresh_token"] as? String

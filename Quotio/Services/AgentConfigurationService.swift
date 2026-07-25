@@ -49,8 +49,6 @@ actor AgentConfigurationService {
             return readClaudeCodeConfig()
         case .codexCLI:
             return readCodexConfig()
-        case .geminiCLI:
-            return readGeminiCLIConfig()
         case .ampCLI:
             return readAmpConfig()
         case .openCode:
@@ -186,44 +184,6 @@ actor AgentConfigurationService {
             isProxyConfigured: isProxy,
             backupFiles: listBackups(agent: .codexCLI)
         )
-    }
-    
-    private func readGeminiCLIConfig() -> SavedAgentConfig? {
-        // Gemini CLI uses environment variables, check shell profile
-        let shellPaths = ShellType.allCases.map { $0.profilePath }
-        
-        for shellPath in shellPaths {
-            guard let content = try? String(contentsOfFile: shellPath, encoding: .utf8) else { continue }
-            
-            var baseURL: String?
-            var apiKey: String?
-            var isProxy = false
-            
-            for line in content.components(separatedBy: .newlines) {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                
-                if trimmed.contains("CODE_ASSIST_ENDPOINT") || trimmed.contains("GOOGLE_GEMINI_BASE_URL") {
-                    if let value = extractExportValue(from: trimmed) {
-                        baseURL = value
-                        isProxy = value.contains("127.0.0.1") || value.contains("localhost")
-                    }
-                } else if trimmed.contains("GEMINI_API_KEY") {
-                    apiKey = extractExportValue(from: trimmed)
-                }
-            }
-            
-            if baseURL != nil || apiKey != nil {
-                return SavedAgentConfig(
-                    baseURL: baseURL,
-                    apiKey: apiKey,
-                    modelSlots: [:],
-                    isProxyConfigured: isProxy,
-                    backupFiles: []
-                )
-            }
-        }
-        
-        return nil
     }
     
     private func readAmpConfig() -> SavedAgentConfig? {
@@ -578,9 +538,6 @@ actor AgentConfigurationService {
         case .codexCLI:
             return try await generateCodexConfig(config: config, mode: mode)
 
-        case .geminiCLI:
-            return generateGeminiCLIConfig(config: config, mode: mode)
-
         case .ampCLI:
             return try await generateAmpConfig(config: config, mode: mode)
 
@@ -601,8 +558,6 @@ actor AgentConfigurationService {
             return generateClaudeCodeDefaultConfig(mode: mode)
         case .codexCLI:
             return generateCodexDefaultConfig(mode: mode)
-        case .geminiCLI:
-            return generateGeminiCLIDefaultConfig(mode: mode)
         case .ampCLI:
             return generateAmpDefaultConfig(mode: mode)
         case .openCode:
@@ -740,34 +695,6 @@ actor AgentConfigurationService {
             shellConfig: nil,
             rawConfigs: [],
             instructions: "Remove [model_providers.cliproxyapi] section from ~/.codex/config.toml",
-            modelsConfigured: 0
-        )
-    }
-    
-    private func generateGeminiCLIDefaultConfig(mode: ConfigurationMode) -> AgentConfigResult {
-        let instructions = """
-        Remove these environment variables from your shell profile:
-        - CODE_ASSIST_ENDPOINT
-        - GOOGLE_GEMINI_BASE_URL
-        - GEMINI_API_KEY (if using proxy key)
-        
-        Gemini CLI will use Google's default API endpoint.
-        """
-        
-        return .success(
-            type: .environment,
-            mode: mode,
-            configPath: nil,
-            authPath: nil,
-            shellConfig: nil,
-            rawConfigs: [RawConfigOutput(
-                format: .shellExport,
-                content: "# Remove from shell profile:\n# export CODE_ASSIST_ENDPOINT=...\n# export GOOGLE_GEMINI_BASE_URL=...",
-                filename: "remove_exports.sh",
-                targetPath: nil,
-                instructions: instructions
-            )],
-            instructions: instructions,
             modelsConfigured: 0
         )
     }
@@ -1136,49 +1063,6 @@ actor AgentConfigurationService {
                 modelsConfigured: 1
             )
         }
-    }
-    
-    private func generateGeminiCLIConfig(config: AgentConfiguration, mode: ConfigurationMode) -> AgentConfigResult {
-        let baseURL = config.proxyURL.replacingOccurrences(of: "/v1", with: "")
-        
-        let exports: String
-        let instructions: String
-        
-        if config.useOAuth {
-            exports = """
-            # CLIProxyAPI Configuration for Gemini CLI (OAuth Mode)
-            export CODE_ASSIST_ENDPOINT="\(baseURL)"
-            """
-            instructions = "Gemini CLI will use your existing OAuth authentication with the proxy endpoint."
-        } else {
-            exports = """
-            # CLIProxyAPI Configuration for Gemini CLI (API Key Mode)
-            export GOOGLE_GEMINI_BASE_URL="\(baseURL)"
-            export GEMINI_API_KEY="\(config.apiKey)"
-            """
-            instructions = "Add these environment variables to your shell profile."
-        }
-        
-        let rawConfigs = [
-            RawConfigOutput(
-                format: .shellExport,
-                content: exports,
-                filename: nil,
-                targetPath: ShellType.zsh.profilePath,
-                instructions: instructions
-            )
-        ]
-        
-        return .success(
-            type: .environment,
-            mode: mode,
-            shellConfig: exports,
-            rawConfigs: rawConfigs,
-            instructions: mode == .automatic
-                ? "Configuration added to shell profile. Restart your terminal for changes to take effect."
-                : "Copy the configuration below and add it to your shell profile:",
-            modelsConfigured: 0
-        )
     }
     
     private func generateAmpConfig(config: AgentConfiguration, mode: ConfigurationMode) async throws -> AgentConfigResult {
