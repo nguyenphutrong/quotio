@@ -1187,18 +1187,6 @@ actor AntigravityQuotaFetcher {
             }
         }
 
-        if let native = loadNativeKeychainToken(),
-           let accessToken = await usableNativeAccessToken(from: native) {
-            if let quota = try? await fetchQuota(accessToken: accessToken) {
-                let key = await nativeAccountName(accessToken: accessToken)
-                if quotaResults[key] == nil { quotaResults[key] = quota }
-                if subscriptionResults[key] == nil,
-                   let subscription = subscriptionCache[accessToken] {
-                    subscriptionResults[key] = subscription
-                }
-            }
-        }
-
         guard let files = try? fileManager.contentsOfDirectory(atPath: expandedPath) else {
             return (quotaResults, subscriptionResults)
         }
@@ -1294,13 +1282,6 @@ actor AntigravityQuotaFetcher {
             return (quota, subscriptionCache[access])
         }
 
-        if let native = loadNativeKeychainToken(),
-           let access = await usableNativeAccessToken(from: native),
-           await nativeAccountName(accessToken: access) == accountKey {
-            let quota = try? await fetchQuota(accessToken: access)
-            return (quota, subscriptionCache[access])
-        }
-
         let directory = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
         guard let files = try? FileManager.default.contentsOfDirectory(atPath: directory) else {
             return (nil, nil)
@@ -1316,30 +1297,6 @@ actor AntigravityQuotaFetcher {
             return await fetchQuotaAndSubscriptionForAuthFile(at: path)
         }
         return (nil, nil)
-    }
-
-    /// Antigravity/agy stores a go-keyring wrapped JSON credential. Quotio only reads that item;
-    /// refreshed access tokens are bound to the refresh-token fingerprint in our own cache.
-    private func loadNativeKeychainToken() -> NativeToken? {
-        guard let data = KeychainHelper.readExternalCredential(service: "gemini", account: "antigravity"),
-              var raw = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !raw.isEmpty else { return nil }
-        let prefix = "go-keyring-base64:"
-        if raw.hasPrefix(prefix) {
-            let encoded = String(raw.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let decoded = Data(base64Encoded: encoded),
-                  let text = String(data: decoded, encoding: .utf8) else { return nil }
-            raw = text
-        }
-        guard let data = raw.data(using: .utf8),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return NativeToken(accessToken: raw, refreshToken: nil, expiresAt: nil)
-        }
-        let token = (root["token"] as? [String: Any]) ?? root
-        let access = token["access_token"] as? String ?? token["accessToken"] as? String
-        let refresh = token["refresh_token"] as? String ?? token["refreshToken"] as? String
-        let expiryText = token["expiry"] as? String ?? token["expires_at"] as? String ?? token["expiresAt"] as? String
-        return NativeToken(accessToken: access, refreshToken: refresh, expiresAt: expiryText.flatMap(parseDate))
     }
 
     private func usableNativeAccessToken(from token: NativeToken) async -> String? {

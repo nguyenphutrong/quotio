@@ -542,9 +542,6 @@ actor MonitorAccountDiscovery {
            (oauth["accessToken"] as? String)?.isEmpty == false {
             accounts.append(.make(provider: .claude, accountKey: (oauth["email"] as? String) ?? "Claude Code", source: .nativeCredential, credentialReference: "keychain:Claude Code-credentials"))
         }
-        if KeychainHelper.readExternalCredential(service: "gemini", account: "antigravity") != nil {
-            accounts.append(.make(provider: .antigravity, accountKey: "Antigravity", source: .nativeCredential, credentialReference: "keychain:gemini:antigravity"))
-        }
         if KeychainHelper.readExternalCredential(service: "gh:github.com") != nil {
             accounts.append(.make(provider: .copilot, accountKey: "GitHub Copilot", source: .nativeCredential, credentialReference: "keychain:gh:github.com"))
         }
