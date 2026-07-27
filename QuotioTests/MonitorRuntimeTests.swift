@@ -235,6 +235,33 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(reconciled["same@example.com-team"]?.lastUpdated, secondDate)
     }
 
+    func testCodexQuotaReconciliationAllowsDuplicateSourcesForSameAccount() {
+        let staleDate = Date(timeIntervalSince1970: 1_000)
+        let freshDate = Date(timeIntervalSince1970: 2_000)
+        let duplicateIdentity = CodexQuotaAccountIdentity(
+            key: "same@example.com",
+            email: "same@example.com",
+            accountID: "account-1"
+        )
+        let reconciled = CodexCLIQuotaFetcher.reconcileLegacyAliases(
+            in: [
+                "same@example.com": ProviderQuotaData(models: [], lastUpdated: freshDate),
+                "same@example.com-pro": ProviderQuotaData(models: [], lastUpdated: staleDate),
+            ],
+            legacy: [
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com-pro",
+                    email: "same@example.com",
+                    accountID: "account-1"
+                ),
+            ],
+            current: [duplicateIdentity, duplicateIdentity]
+        )
+
+        XCTAssertEqual(Set(reconciled.keys), ["same@example.com-pro"])
+        XCTAssertEqual(reconciled["same@example.com-pro"]?.lastUpdated, freshDate)
+    }
+
     func testLegacyCodexAccountsUseDistinctFilenameKeysForSameEmail() {
         let plus = DirectAuthFile(
             id: "plus",
