@@ -516,10 +516,14 @@ actor CodexCLIQuotaFetcher {
             }
             for currentIdentity in matchingCurrent {
                 guard let freshQuota = reconciled[currentIdentity.key],
+                      matchingCurrent.filter({ $0.key == currentIdentity.key }).count == 1,
                       let currentAccountID = currentIdentity.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
                       !currentAccountID.isEmpty else { continue }
                 for legacyAccount in legacyAccounts where
                     legacyAccount.accountID?.trimmingCharacters(in: .whitespacesAndNewlines) == currentAccountID {
+                    guard reconciled[legacyAccount.key].map({ $0.lastUpdated <= freshQuota.lastUpdated }) ?? true else {
+                        continue
+                    }
                     reconciled[legacyAccount.key] = freshQuota
                 }
             }

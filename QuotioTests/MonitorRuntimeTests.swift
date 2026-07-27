@@ -167,6 +167,74 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(reconciled["same@example.com-pro"]?.lastUpdated, freshDate)
     }
 
+    func testCodexQuotaReconciliationPreservesNewerLegacyQuota() {
+        let staleDate = Date(timeIntervalSince1970: 1_000)
+        let freshDate = Date(timeIntervalSince1970: 2_000)
+        let reconciled = CodexCLIQuotaFetcher.reconcileLegacyAliases(
+            in: [
+                "same@example.com": ProviderQuotaData(models: [], lastUpdated: staleDate),
+                "same@example.com-pro": ProviderQuotaData(models: [], lastUpdated: freshDate),
+            ],
+            legacy: [
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com-pro",
+                    email: "same@example.com",
+                    accountID: "account-1"
+                ),
+            ],
+            current: [
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com",
+                    email: "same@example.com",
+                    accountID: "account-1"
+                ),
+            ]
+        )
+
+        XCTAssertEqual(reconciled["same@example.com-pro"]?.lastUpdated, freshDate)
+    }
+
+    func testCodexQuotaReconciliationDoesNotShareAmbiguousEmailQuota() {
+        let firstDate = Date(timeIntervalSince1970: 1_000)
+        let secondDate = Date(timeIntervalSince1970: 1_500)
+        let emailDate = Date(timeIntervalSince1970: 2_000)
+        let reconciled = CodexCLIQuotaFetcher.reconcileLegacyAliases(
+            in: [
+                "same@example.com": ProviderQuotaData(models: [], lastUpdated: emailDate),
+                "same@example.com-pro": ProviderQuotaData(models: [], lastUpdated: firstDate),
+                "same@example.com-team": ProviderQuotaData(models: [], lastUpdated: secondDate),
+            ],
+            legacy: [
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com-pro",
+                    email: "same@example.com",
+                    accountID: "account-1"
+                ),
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com-team",
+                    email: "same@example.com",
+                    accountID: "account-2"
+                ),
+            ],
+            current: [
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com",
+                    email: "same@example.com",
+                    accountID: "account-1"
+                ),
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com",
+                    email: "same@example.com",
+                    accountID: "account-2"
+                ),
+            ]
+        )
+
+        XCTAssertEqual(Set(reconciled.keys), ["same@example.com-pro", "same@example.com-team"])
+        XCTAssertEqual(reconciled["same@example.com-pro"]?.lastUpdated, firstDate)
+        XCTAssertEqual(reconciled["same@example.com-team"]?.lastUpdated, secondDate)
+    }
+
     func testLegacyCodexAccountsUseDistinctFilenameKeysForSameEmail() {
         let plus = DirectAuthFile(
             id: "plus",
