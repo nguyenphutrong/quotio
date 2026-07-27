@@ -1090,21 +1090,21 @@ actor AgentConfigurationService {
                 content: settingsJSON,
                 filename: "settings.json",
                 targetPath: settingsPath,
-                instructions: "Merge this property into ~/.config/amp/settings.json; do not replace the file"
+                instructions: "agents.amp.mergeSettings".localizedStatic()
             ),
             RawConfigOutput(
                 format: .json,
                 content: secretsJSON,
                 filename: "secrets.json",
                 targetPath: secretsPath,
-                instructions: "Merge this property into ~/.local/share/amp/secrets.json; do not replace existing AmpCode credentials"
+                instructions: "agents.amp.mergeSecrets".localizedStatic()
             ),
             RawConfigOutput(
                 format: .shellExport,
                 content: envExports,
                 filename: nil,
                 targetPath: "\(ShellType.zsh.profilePath) (alternative)",
-                instructions: "Or add these environment variables instead"
+                instructions: "agents.amp.useEnvironmentVariables".localizedStatic()
             )
         ]
         
@@ -1137,7 +1137,7 @@ actor AgentConfigurationService {
                 authPath: secretsPath,
                 shellConfig: envExports,
                 rawConfigs: rawConfigs,
-                instructions: "Configuration files created. Amp CLI is now configured to use CLIProxyAPI.",
+                instructions: "agents.amp.configSuccess".localizedStatic(),
                 modelsConfigured: 1,
                 backupPath: backupPath
             )
@@ -1149,7 +1149,7 @@ actor AgentConfigurationService {
                 authPath: secretsPath,
                 shellConfig: envExports,
                 rawConfigs: rawConfigs,
-                instructions: "Merge only the properties below into the existing files, or use environment variables. Do not replace existing Amp settings or secrets:",
+                instructions: "agents.amp.mergeAndSaveFiles".localizedStatic(),
                 modelsConfigured: 1
             )
         }

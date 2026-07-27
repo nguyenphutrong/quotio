@@ -47,7 +47,7 @@ nonisolated enum AmpQuotaParser {
         let identity = captures(
             #"(?im)^\s*Signed in as\s+([^\s(]+)(?:\s+\(([^\r\n)]+)\))?\s*$"#,
             in: text
-        )?.first
+        )
 
         let freeDollarPattern = #"(?im)^\s*Amp Free:\s*\$?([\d,]+(?:\.\d+)?)\s*/\s*\$?([\d,]+(?:\.\d+)?)\s+remaining(?:\s*\(replenishes\s*\+\$?([\d,]+(?:\.\d+)?)\s*/\s*hour\))?"#
         if let match = captures(freeDollarPattern, in: text),
@@ -78,7 +78,7 @@ nonisolated enum AmpQuotaParser {
             ))
         }
 
-        var plan: String?
+        var plan = identity.flatMap { $0[1].isEmpty ? nil : $0[1] }
         if let subscription = captures(
             #"(?im)^\s*Subscription\s+([^:\r\n]+):\s*([\d.]+)%\s+(?:other|agent)\s+usage\s+and\s+([\d.]+)%\s+orb\s+usage\s+remaining\b"#,
             in: text
@@ -121,7 +121,7 @@ nonisolated enum AmpQuotaParser {
         }
 
         guard !models.isEmpty else { return nil }
-        return ProviderQuotaData(models: models, lastUpdated: now, planType: plan, accountDisplayName: identity)
+        return ProviderQuotaData(models: models, lastUpdated: now, planType: plan, accountDisplayName: identity?.first)
     }
 
     private static func amount(name: String, value: Double) -> ModelQuota {

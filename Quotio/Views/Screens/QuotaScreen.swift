@@ -800,7 +800,7 @@ private struct AccountQuotaCardV2: View {
 
     private var isQuotaUnavailable: Bool {
         guard let data = account.quotaData else { return false }
-        return data.models.allSatisfy { $0.percentage < 0 }
+        return data.models.allSatisfy { $0.percentage < 0 && !$0.isStandaloneMetric }
     }
     
     private var displayStyle: QuotaDisplayStyle { settings.quotaDisplayStyle }

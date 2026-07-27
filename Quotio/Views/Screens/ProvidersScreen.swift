@@ -43,7 +43,9 @@ struct ProvidersScreen: View {
             }
         } else {
             return AIProvider.allCases.filter {
-                $0.supportsQuotaOnlyMode && ($0.supportsManualAuth || $0 == .glm || $0 == .clinePass)
+                $0.supportsQuotaOnlyMode
+                    && ($0.supportsManualAuth || $0 == .glm || $0 == .clinePass)
+                    && ($0 != .amp || modeManager.isMonitorMode)
             }
         }
     }

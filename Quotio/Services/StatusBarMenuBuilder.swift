@@ -1101,6 +1101,7 @@ private struct MenuAccountCardView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
+                .menuNativeTooltip(model.tooltip ?? "")
             }
         }
     }

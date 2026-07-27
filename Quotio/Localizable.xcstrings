@@ -1190,6 +1190,151 @@
         }
       }
     },
+    "agents.amp.configSuccess" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration files created. Amp CLI is now configured to use CLIProxyAPI."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les fichiers de configuration ont été créés. Amp CLI est maintenant configuré pour utiliser CLIProxyAPI."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã tạo các tệp cấu hình. Amp CLI hiện được cấu hình để sử dụng CLIProxyAPI."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置文件已创建。Amp CLI 现已配置为使用 CLIProxyAPI。"
+          }
+        }
+      }
+    },
+    "agents.amp.mergeAndSaveFiles" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge only the properties below into the existing files, or use environment variables. Do not replace existing Amp settings or secrets:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionnez uniquement les propriétés ci-dessous dans les fichiers existants, ou utilisez les variables d’environnement. Ne remplacez pas les réglages ou secrets Amp existants :"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chỉ gộp các thuộc tính bên dưới vào các tệp hiện có hoặc sử dụng biến môi trường. Không thay thế cài đặt hay thông tin bí mật Amp hiện có:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅将以下属性合并到现有文件中，或改用环境变量。请勿替换现有的 Amp 设置或密钥："
+          }
+        }
+      }
+    },
+    "agents.amp.mergeSecrets" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge this property into ~/.local/share/amp/secrets.json; do not replace existing AmpCode credentials"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionnez cette propriété dans ~/.local/share/amp/secrets.json ; ne remplacez pas les identifiants AmpCode existants"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gộp thuộc tính này vào ~/.local/share/amp/secrets.json; không thay thế thông tin đăng nhập AmpCode hiện có"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将此属性合并到 ~/.local/share/amp/secrets.json；请勿替换现有的 AmpCode 凭据"
+          }
+        }
+      }
+    },
+    "agents.amp.mergeSettings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge this property into ~/.config/amp/settings.json; do not replace the file"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionnez cette propriété dans ~/.config/amp/settings.json ; ne remplacez pas le fichier"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gộp thuộc tính này vào ~/.config/amp/settings.json; không thay thế tệp"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将此属性合并到 ~/.config/amp/settings.json；请勿替换该文件"
+          }
+        }
+      }
+    },
+    "agents.amp.useEnvironmentVariables" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Or add these environment variables instead"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ou ajoutez plutôt ces variables d’environnement"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hoặc thêm các biến môi trường này thay thế"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "或者改为添加这些环境变量"
+          }
+        }
+      }
+    },
     "agents.apiKey" : {
       "extractionState" : "stale",
       "localizations" : {

@@ -90,6 +90,16 @@ final class AmpQuotaFetcherTests: XCTestCase {
         XCTAssertEqual(orb.displayName, "Orb Usage")
     }
 
+    func testParserUsesIdentityPlanWhenSubscriptionIsMissing() throws {
+        let quota = try XCTUnwrap(AmpQuotaParser.parse(displayText: """
+        Signed in as person@example.com (Pro)
+        Amp Free: 75% remaining today (resets daily)
+        """))
+
+        XCTAssertEqual(quota.accountDisplayName, "person@example.com")
+        XCTAssertEqual(quota.planType, "Pro")
+    }
+
     func testAPIMapperHandlesDollarFreeQuotaAndAuthenticationFailures() throws {
         let body = Data(#"{"ok":true,"result":{"displayText":"Amp Free: $5/$20 remaining (replenishes +$1/hour)"}}"#.utf8)
         let quota = try XCTUnwrap(AmpQuotaParser.map(data: body, statusCode: 200))
