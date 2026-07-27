@@ -514,6 +514,15 @@ actor CodexCLIQuotaFetcher {
             let matchingCurrent = current.filter {
                 $0.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == email
             }
+            for currentIdentity in matchingCurrent {
+                guard let freshQuota = reconciled[currentIdentity.key],
+                      let currentAccountID = currentIdentity.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !currentAccountID.isEmpty else { continue }
+                for legacyAccount in legacyAccounts where
+                    legacyAccount.accountID?.trimmingCharacters(in: .whitespacesAndNewlines) == currentAccountID {
+                    reconciled[legacyAccount.key] = freshQuota
+                }
+            }
             let hasDistinctCurrentAccount = matchingCurrent.contains { identity in
                 guard let accountID = identity.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
                       !accountID.isEmpty, !legacyAccountIDs.isEmpty else { return true }
