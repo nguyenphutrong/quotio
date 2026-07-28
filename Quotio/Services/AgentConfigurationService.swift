@@ -1300,6 +1300,11 @@ actor AgentConfigurationService {
             modelConfig["limit"] = ["context": 128000, "output": 16384]
             modelConfig["attachment"] = true
             modelConfig["modalities"] = ["input": ["text", "image"], "output": ["text"]]
+        } else if modelName.lowercased().contains("minimax") {
+            // MiniMax multimodal models: 1M context with text, image, and video input
+            modelConfig["limit"] = ["context": 1000000, "output": 16384]
+            modelConfig["attachment"] = true
+            modelConfig["modalities"] = ["input": ["text", "image", "video"], "output": ["text"]]
         } else {
             // Default: text-only models
             modelConfig["limit"] = ["context": 128000, "output": 16384]
