@@ -75,6 +75,7 @@ struct SettingsScreen: View {
             // Local Proxy Server - Only in Local Proxy Mode
             if modeManager.isLocalProxyMode {
                 LocalProxyServerSection()
+                ProxyUpdateSettingsSection()
                 UnifiedProxySettingsSection()
             }
             
@@ -1065,6 +1066,7 @@ struct ProxyUpdateSettingsSection: View {
     @State private var isCheckingForUpdate = false
     @State private var isUpgrading = false
     @State private var upgradeError: String?
+    @State private var lastUpdateResultMessage: String?
     @State private var showAdvancedSheet = false
 
     private var proxyManager: CLIProxyManager {
@@ -1124,7 +1126,7 @@ struct ProxyUpdateSettingsSection: View {
             } else {
                 HStack {
                     Label {
-                        Text(proxyManager.selectedBinarySource == .plusLocal ? "Fixed local version" : "settings.proxyUpdate.upToDate".localized())
+                        Text(proxyManager.selectedBinarySource == .plusLocal ? "settings.proxyUpdate.skippedBundled".localized() : "settings.proxyUpdate.upToDate".localized())
                     } icon: {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
@@ -1137,15 +1139,15 @@ struct ProxyUpdateSettingsSection: View {
                             checkForUpdate()
                         } label: {
                             ZStack {
-                                Text("settings.proxyUpdate.checkNow".localized())
-                                    .opacity(isCheckingForUpdate ? 0 : 1)
+                                Text("settings.proxyUpdate.checkAndUpdate".localized())
+                                    .opacity((isCheckingForUpdate || isUpgrading) ? 0 : 1)
 
-                                if isCheckingForUpdate {
+                                if isCheckingForUpdate || isUpgrading {
                                     SmallProgressView()
                                 }
                             }
                         }
-                        .disabled(isCheckingForUpdate)
+                        .disabled(isCheckingForUpdate || isUpgrading)
                     } else {
                         Text("v\(ProxyBinarySource.plusLocalVersion)")
                             .font(.system(.caption, design: .monospaced))
@@ -1180,6 +1182,17 @@ struct ProxyUpdateSettingsSection: View {
                 }
             }
             
+            // Result message
+            if let message = lastUpdateResultMessage {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             // Error message
             if let error = upgradeError {
                 HStack {
@@ -1219,28 +1232,42 @@ struct ProxyUpdateSettingsSection: View {
     private func checkForUpdate() {
         isCheckingForUpdate = true
         upgradeError = nil
+        lastUpdateResultMessage = nil
 
         Task { @MainActor in
             defer {
-                // Always reset loading state
                 isCheckingForUpdate = false
+                isUpgrading = false
             }
 
-            await proxyManager.checkForUpgrade()
+            do {
+                let result = try await proxyManager.checkAndUpdateCLIProxyIfNeeded()
+                switch result {
+                case .updated(let version):
+                    lastUpdateResultMessage = String(format: "settings.proxyUpdate.updatedTo".localized(), version)
+                case .alreadyUpToDate:
+                    lastUpdateResultMessage = "settings.proxyUpdate.alreadyLatest".localized()
+                case .skipped(let reason):
+                    lastUpdateResultMessage = reason
+                }
+            } catch {
+                upgradeError = error.localizedDescription
+            }
         }
     }
     
     private func performUpgrade(to version: ProxyVersionInfo) {
         isUpgrading = true
         upgradeError = nil
+        lastUpdateResultMessage = nil
         
         Task { @MainActor in
+            defer { isUpgrading = false }
             do {
                 try await proxyManager.performManagedUpgrade(to: version)
-                isUpgrading = false
+                lastUpdateResultMessage = String(format: "settings.proxyUpdate.updatedTo".localized(), version.version)
             } catch {
                 upgradeError = error.localizedDescription
-                isUpgrading = false
             }
         }
     }

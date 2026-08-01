@@ -238,6 +238,15 @@ nonisolated struct ProxyVersionInfo: Sendable, Identifiable, Equatable {
     }
 }
 
+// MARK: - CLIProxy Update Result
+
+/// Result of a manually triggered CLIProxyAPI update check.
+nonisolated enum CLIProxyUpdateResult: Sendable {
+    case updated(version: String)
+    case alreadyUpToDate(version: String?)
+    case skipped(reason: String)
+}
+
 // MARK: - Compatibility Check Result
 
 /// Result of a compatibility check.
