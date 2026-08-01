@@ -18,6 +18,7 @@ struct ProviderDisclosureGroup: View {
     var onEditAccount: ((AccountRowData) -> Void)?
     var onSwitchAccount: ((AccountRowData) -> Void)?
     var onToggleDisabled: ((AccountRowData) -> Void)?
+    var onDownloadAccount: ((AccountRowData) -> Void)?
     var isAccountActive: ((AccountRowData) -> Bool)?
 
     @State private var isExpanded: Bool = true
@@ -36,6 +37,7 @@ struct ProviderDisclosureGroup: View {
                     onEdit: onEditAccount != nil ? { onEditAccount?(account) } : nil,
                     onSwitch: onSwitchAccount != nil ? { onSwitchAccount?(account) } : nil,
                     onToggleDisabled: onToggleDisabled != nil ? { onToggleDisabled?(account) } : nil,
+                    onDownload: onDownloadAccount != nil ? { onDownloadAccount?(account) } : nil,
                     isActiveInIDE: isAccountActive?(account) ?? false
                 )
                 .padding(.leading, 4)

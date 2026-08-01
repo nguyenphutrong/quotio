@@ -342,6 +342,15 @@ struct ProvidersScreen: View {
             .disabled(viewModel.isLoadingQuotas)
             .help("action.refresh".localized())
         }
+        
+        ToolbarItem(placement: .automatic) {
+            Button {
+                uploadAuthFile()
+            } label: {
+                Image(systemName: "arrow.up.circle")
+            }
+            .help("action.upload".localized())
+        }
     }
     
     // MARK: - Accounts Section
@@ -384,6 +393,9 @@ struct ProvidersScreen: View {
                         } : nil,
                         onToggleDisabled: { account in
                             Task { await toggleAccountDisabled(account) }
+                        },
+                        onDownloadAccount: { account in
+                            Task { await downloadAccountAuthFile(account) }
                         },
                         isAccountActive: provider == .antigravity ? { account in
                             viewModel.isAntigravityAccountActive(email: account.displayName)
@@ -552,7 +564,37 @@ struct ProvidersScreen: View {
             await viewModel.toggleAuthFileDisabled(authFile)
         }
     }
-
+    
+    private func downloadAccountAuthFile(_ account: AccountRowData) async {
+        let filename: String
+        if account.source == .direct, let directFile = viewModel.directAuthFiles.first(where: { $0.id == account.id }) {
+            filename = directFile.filename
+        } else if account.source == .proxy, let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
+            filename = authFile.name
+        } else {
+            filename = account.displayName
+        }
+        
+        do {
+            let data = try await viewModel.downloadAuthFile(name: filename)
+            
+            let savePanel = NSSavePanel()
+            savePanel.nameFieldStringValue = filename.hasSuffix(".json") ? filename : filename + ".json"
+            savePanel.allowedContentTypes = [.json]
+            savePanel.canCreateDirectories = true
+            
+            if savePanel.runModal() == .OK, let url = savePanel.url {
+                do {
+                    try data.write(to: url)
+                } catch {
+                    viewModel.errorMessage = "Failed to save file: \(error.localizedDescription)"
+                }
+            }
+        } catch {
+            viewModel.errorMessage = error.localizedDescription
+        }
+    }
+ 
     private func handleEditGlmAccount(_ account: AccountRowData) {
         if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
             editingGLMProvider = glmProvider
@@ -563,6 +605,25 @@ struct ProvidersScreen: View {
     private func handleEditClinePassAccount(_ account: AccountRowData) {
         if let provider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
             customProviderSheetMode = .edit(provider)
+        }
+    }
+    
+    private func uploadAuthFile() {
+        let openPanel = NSOpenPanel()
+        openPanel.allowsMultipleSelection = false
+        openPanel.allowedContentTypes = [.json]
+        openPanel.canChooseDirectories = false
+        
+        if openPanel.runModal() == .OK, let url = openPanel.url {
+            Task {
+                do {
+                    let data = try Data(contentsOf: url)
+                    let filename = url.lastPathComponent
+                    try await viewModel.uploadAuthFile(name: filename, content: data)
+                } catch {
+                    viewModel.errorMessage = error.localizedDescription
+                }
+            }
         }
     }
     
