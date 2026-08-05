@@ -18,11 +18,13 @@ struct LogsScreen: View {
     enum LogsTab: String, CaseIterable {
         case requests = "requests"
         case proxyLogs = "proxyLogs"
+        case tunnelLogs = "tunnelLogs"
         
         var title: String {
             switch self {
             case .requests: return "logs.tab.requests".localizedStatic()
             case .proxyLogs: return "logs.tab.proxyLogs".localizedStatic()
+            case .tunnelLogs: return "logs.tab.tunnelLogs".localizedStatic()
             }
         }
         
@@ -30,6 +32,7 @@ struct LogsScreen: View {
             switch self {
             case .requests: return "arrow.up.arrow.down"
             case .proxyLogs: return "doc.text"
+            case .tunnelLogs: return "point.3.connected.trianglepath.dotted"
             }
         }
     }
@@ -61,7 +64,9 @@ struct LogsScreen: View {
                     case .requests:
                         requestHistoryView
                     case .proxyLogs:
-                        proxyLogsView
+                        logsViewForSelectedSource
+                    case .tunnelLogs:
+                        logsViewForSelectedSource
                     }
                 }
             }
@@ -95,6 +100,8 @@ struct LogsScreen: View {
             return "logs.searchRequests".localized()
         case .proxyLogs:
             return "logs.searchLogs".localized()
+        case .tunnelLogs:
+            return "logs.searchTunnelLogs".localized()
         }
     }
     
@@ -209,8 +216,19 @@ struct LogsScreen: View {
     
     // MARK: - Proxy Logs View
     
-    var filteredLogs: [LogEntry] {
-        var logs = logsViewModel.logs
+    private var selectedLogSourceEntries: [LogEntry] {
+        switch selectedTab {
+        case .requests:
+            return []
+        case .proxyLogs:
+            return logsViewModel.logs
+        case .tunnelLogs:
+            return viewModel.tunnelManager.tunnelLogs
+        }
+    }
+
+    private var filteredLogs: [LogEntry] {
+        var logs = selectedLogSourceEntries
         
         if let level = filterLevel {
             logs = logs.filter { $0.level == level }
@@ -223,27 +241,90 @@ struct LogsScreen: View {
         return logs
     }
     
-    private var proxyLogsView: some View {
+    private var logsViewForSelectedSource: some View {
         Group {
             if filteredLogs.isEmpty {
                 ContentUnavailableView {
-                    Label("logs.noLogs".localized(), systemImage: "doc.text")
+                    Label(emptyStateTitle, systemImage: emptyStateIcon)
                 } description: {
-                    Text("logs.logsWillAppear".localized())
+                    Text(emptyStateDescription)
                 }
             } else {
-                logList
+                VStack(spacing: 0) {
+                    logsSummaryHeader
+                    Divider()
+                    logList
+                }
             }
         }
+    }
+
+    private var emptyStateTitle: String {
+        switch selectedTab {
+        case .requests:
+            return "logs.noRequests".localized()
+        case .proxyLogs:
+            return "logs.noLogs".localized()
+        case .tunnelLogs:
+            return "logs.noTunnelLogs".localized()
+        }
+    }
+
+    private var emptyStateDescription: String {
+        switch selectedTab {
+        case .requests:
+            return "logs.requestsWillAppear".localized()
+        case .proxyLogs:
+            return "logs.logsWillAppear".localized()
+        case .tunnelLogs:
+            return "logs.tunnelLogsWillAppear".localized()
+        }
+    }
+
+    private var emptyStateIcon: String {
+        switch selectedTab {
+        case .requests:
+            return "arrow.up.arrow.down"
+        case .proxyLogs:
+            return "doc.text"
+        case .tunnelLogs:
+            return "point.3.connected.trianglepath.dotted"
+        }
+    }
+
+    private var logsSummaryHeader: some View {
+        HStack(spacing: 16) {
+            StatItem(
+                title: "logs.stats.totalEntries".localized(),
+                value: "\(filteredLogs.count)"
+            )
+
+            if selectedTab == .tunnelLogs {
+                Label(viewModel.tunnelManager.tunnelState.status.displayName, systemImage: viewModel.tunnelManager.tunnelState.status.icon)
+                    .font(.caption)
+                    .foregroundStyle(viewModel.tunnelManager.tunnelState.status.color)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.quinary)
+                    .clipShape(Capsule())
+            }
+
+            Spacer()
+        }
+        .padding()
+        .background(.regularMaterial)
     }
     
     private var logList: some View {
         ScrollViewReader { proxy in
             List(filteredLogs) { entry in
-                LogRow(entry: entry)
+                LogRow(
+                    entry: entry,
+                    sourceLabel: selectedTab == .tunnelLogs ? "logs.source.tunnel".localized() : nil
+                )
                     .id(entry.id)
             }
-            .onChange(of: logsViewModel.logs.count) { _, _ in
+            .onChange(of: selectedLogSourceEntries.count) { _, _ in
                 if autoScroll, let last = filteredLogs.last {
                     withAnimation {
                         proxy.scrollTo(last.id, anchor: .bottom)
@@ -258,7 +339,7 @@ struct LogsScreen: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup {
-            if selectedTab == .proxyLogs {
+            if selectedTab != .requests {
                 Picker("Filter", selection: $filterLevel) {
                     Text("logs.all".localized()).tag(nil as LogEntry.LogLevel?)
                     Divider()
@@ -276,18 +357,21 @@ struct LogsScreen: View {
             Button {
                 if selectedTab == .requests {
                     // Refresh handled by RequestTracker automatically
-                } else {
+                } else if selectedTab == .proxyLogs {
                     Task { await logsViewModel.refreshLogs() }
                 }
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
+            .disabled(selectedTab == .tunnelLogs)
             
             Button(role: .destructive) {
                 if selectedTab == .requests {
                     viewModel.requestTracker.clearHistory()
-                } else {
+                } else if selectedTab == .proxyLogs {
                     Task { await logsViewModel.clearLogs() }
+                } else {
+                    viewModel.tunnelManager.clearLogs()
                 }
             } label: {
                 Image(systemName: "trash")
@@ -517,25 +601,42 @@ struct StatItem: View {
 
 struct LogRow: View {
     let entry: LogEntry
+    var sourceLabel: String? = nil
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(entry.timestamp, style: .time)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 70, alignment: .leading)
-            
-            Text(entry.level.rawValue.uppercased())
-                .font(.system(.caption2, design: .monospaced, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(entry.level.color)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-            
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 10) {
+                Text(entry.timestamp, style: .time)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 70, alignment: .leading)
+
+                Text(entry.level.rawValue.uppercased())
+                    .font(.system(.caption2, design: .monospaced, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(entry.level.color)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                if let sourceLabel {
+                    Text(sourceLabel)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.quinary)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+
+                Spacer(minLength: 0)
+            }
+
             Text(entry.message)
                 .font(.system(.caption, design: .monospaced))
                 .textSelection(.enabled)
+                .lineLimit(6)
         }
+        .padding(.vertical, 3)
     }
 }
