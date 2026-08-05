@@ -1087,11 +1087,11 @@ private struct MenuAccountCardView: View {
                 return antigravityGroups.map { ModelBadgeData(name: $0.name, percentage: $0.percentage, resetTime: $0.resetTime) }
             } else {
                 let meterModels = data.models.filter { !$0.isStandaloneMetric }.map {
-                    ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime)
+                    ModelBadgeData(name: $0.displayName, rawName: $0.name, percentage: $0.percentage, resetTime: $0.resetTime, usage: $0.formattedUsage, isUnlimited: $0.isUnlimitedUsage, isStandalone: $0.isStandaloneMetric)
                 }
                 guard isCardStyle else { return meterModels }
                 let standaloneModels = data.models.filter(\.isStandaloneMetric).map {
-                    ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime, usage: $0.formattedUsage)
+                    ModelBadgeData(name: $0.displayName, rawName: $0.name, percentage: $0.percentage, resetTime: $0.resetTime, usage: $0.formattedUsage, isUnlimited: $0.isUnlimitedUsage, isStandalone: $0.isStandaloneMetric)
                 }
                 return meterModels + standaloneModels
             }
@@ -1113,7 +1113,7 @@ private struct MenuAccountCardView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         FactoryDroidMenuSectionHeader(title: section.title)
                         quotaLayout(models: section.models.map {
-                            ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime)
+                            ModelBadgeData(name: $0.displayName, rawName: $0.name, percentage: $0.percentage, resetTime: $0.resetTime, usage: $0.formattedUsage, isUnlimited: $0.isUnlimitedUsage, isStandalone: $0.isStandaloneMetric)
                         })
                     }
                 }
@@ -1154,13 +1154,12 @@ private struct MenuAccountCardView: View {
 
     private var footerSection: some View {
         HStack(spacing: 12) {
-            // Reset info is now shown inside each metric, so only show last update here
-            Spacer()
-
             // Last Update
             Text(data.lastUpdated.formatted(.relative(presentation: .named)))
                 .font(.system(size: 10, design: .rounded))
                 .foregroundStyle(.secondary)
+
+            Spacer()
         }
     }
     
@@ -2131,15 +2130,38 @@ private struct ModelBadgeData: Identifiable {
     let percentage: Double
     let resetTime: String?
     let usage: String?
+    /// Raw metric identity (e.g. `five-hour-session`). Display names collide
+    /// across providers, so only this can tell us the window cadence.
+    let rawName: String
+    /// See `ModelQuota.isUnlimitedUsage`.
+    let isUnlimited: Bool
+    /// See `ModelQuota.isStandaloneMetric`. These carry the "no percentage"
+    /// sentinel deliberately; their value lives in `usage`.
+    let isStandalone: Bool
 
-    init(name: String, percentage: Double, resetTime: String?, usage: String? = nil) {
+    init(
+        name: String,
+        rawName: String = "",
+        percentage: Double,
+        resetTime: String?,
+        usage: String? = nil,
+        isUnlimited: Bool = false,
+        isStandalone: Bool = false
+    ) {
         self.name = name
+        self.rawName = rawName
         self.percentage = percentage
         self.resetTime = resetTime
         self.usage = usage
+        self.isUnlimited = isUnlimited
+        self.isStandalone = isStandalone
     }
 
     var id: String { name }
+
+    /// `ModelQuota` signals "no data yet" with a negative percentage. Treat it
+    /// as unavailable rather than clamping it into a real-looking 0%/100%.
+    var hasKnownPercentage: Bool { percentage >= 0 && percentage <= 100 }
 
     var formattedResetTime: String? {
         guard let resetTime = resetTime else { return nil }
@@ -2190,6 +2212,25 @@ private func menuDisplayPercent(remainingPercent: Double, displayMode: QuotaDisp
 private func menuPercentText(remainingPercent: Double, displayMode: QuotaDisplayMode) -> String {
     guard remainingPercent >= 0 else { return "—" }
     return "\(Int(menuDisplayPercent(remainingPercent: remainingPercent, displayMode: displayMode)))%"
+}
+
+/// The equal-weight companion to the bar: an availability placeholder when
+/// there is no data, a reset countdown when one exists, the usage fraction for
+/// metrics with no timer, "unused" only when nothing has actually been
+/// consumed, and the percentage as a last resort.
+private func menuHeroText(model: ModelBadgeData, displayMode: QuotaDisplayMode) -> String {
+    // A standalone amount or status has no percentage by design; its value is
+    // the whole point, so it must be read before the sentinel check.
+    if model.isStandalone, let usage = model.usage { return usage }
+    // A percentage outside 0...100 is the "no data" sentinel, not a measurement.
+    guard model.hasKnownPercentage else { return "—" }
+    if let resetTime = model.formattedResetTime { return resetTime }
+    // Usage before "unused": an unlimited metric sits at 100% remaining while
+    // still reporting a non-zero used count.
+    if let usage = model.usage, model.isUnlimited { return usage }
+    if model.percentage >= 100 { return "quota.state.unused".localized() }
+    if let usage = model.usage { return usage }
+    return menuPercentText(remainingPercent: model.percentage, displayMode: displayMode)
 }
 
 private func menuStatusColor(remainingPercent: Double, displayMode: QuotaDisplayMode) -> Color {
@@ -2292,97 +2333,135 @@ private struct LowestBarLayout: View {
 
 private struct RingGridLayout: View {
     let models: [ModelBadgeData]
-    
+
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
 
-    private var columnCount: Int {
-        min(max(models.count, 1), 4)
+    /// Shares `RingSlotArrangement` with the dashboard, so a metric that sits
+    /// in the second column there sits in the second column here too. When the
+    /// menu arranged positionally and the dashboard semantically, the two views
+    /// disagreed about the same account.
+    private var rows: [[ModelBadgeData?]] {
+        RingSlotArrangement.rows(
+            RingSlotArrangement.arrange(models, rawName: \.rawName)
+        )
     }
 
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible()), count: columnCount)
-    }
-
-    private var ringSize: CGFloat {
+    private func ringSize(for columnCount: Int) -> CGFloat {
         columnCount >= 4 ? 36 : 40
     }
 
     var body: some View {
         let displayMode = settings.quotaDisplayMode
-        
-        // Auto-distribute 1-4 columns, cap at 4
-        LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(models, id: \.name) { (model: ModelBadgeData) in
-                VStack(spacing: 4) {
-                    RingProgressView(percent: menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode), size: ringSize, lineWidth: 4, tint: menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode), showLabel: true)
+        let rows = self.rows
 
-                    Text(model.name)
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                let columnCount = RingSlotArrangement.columnCount(for: row)
 
-                    if let resetTime = model.formattedResetTime {
-                        Text(resetTime)
-                            .font(.system(size: 8, design: .rounded))
-                            .foregroundStyle(.tertiary)
+                HStack(spacing: 14) {
+                    ForEach(0..<columnCount, id: \.self) { index in
+                        if index < row.count, let model = row[index] {
+                            ringSlot(model, displayMode: displayMode, ringSize: ringSize(for: columnCount))
+                        } else {
+                            Color.clear.frame(maxWidth: .infinity)
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity)
             }
         }
     }
+
+    @ViewBuilder
+    private func ringSlot(
+        _ model: ModelBadgeData,
+        displayMode: QuotaDisplayMode,
+        ringSize: CGFloat
+    ) -> some View {
+        let displayPercent = menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode)
+        let statusColor = menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode)
+        let heroText = menuHeroText(model: model, displayMode: displayMode)
+
+        HStack(spacing: 12) {
+            ZStack {
+                RingProgressView(percent: displayPercent, size: ringSize, lineWidth: 6, tint: statusColor, showLabel: false)
+                // `menuDisplayPercent` preserves the -1 sentinel, so this label
+                // has to render the placeholder itself; `RingProgressView` would
+                // normally do it but is drawn here with `showLabel: false`.
+                Text(model.hasKnownPercentage ? "\(Int(displayPercent))" : "—")
+                    .font(.system(size: ringSize * 0.24, weight: .medium, design: .rounded))
+                    .foregroundStyle(model.hasKnownPercentage ? statusColor : Color.secondary)
+                    .monospacedDigit()
+            }
+
+            // The metric name is what makes a ring identifiable; without it a
+            // row of rings gives no way to tell Session from Weekly from Extra.
+            VStack(alignment: .leading, spacing: 1) {
+                Text(model.name.uppercased())
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .tracking(0.3)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Text(heroText)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(model.hasKnownPercentage || model.isStandalone ? .primary : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(menuRingAccessibilityLabel(model: model, heroText: heroText))
+    }
+}
+
+/// Spoken description for a menu ring, so VoiceOver can tell the metrics apart.
+private func menuRingAccessibilityLabel(model: ModelBadgeData, heroText: String) -> String {
+    let value = model.hasKnownPercentage
+        ? "\(Int(model.percentage))%"
+        : "quota.state.unavailable".localized()
+    return [model.name, value, heroText, QuotaMetricWindow.caption(forMetricNamed: model.rawName)]
+        .compactMap { $0 }
+        .joined(separator: ", ")
 }
 
 private struct CardGridLayout: View {
     let models: [ModelBadgeData]
-    
+
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
 
-    private var columns: [GridItem] {
-        // Single metric: full width. Multiple: 2 columns
-        if models.count == 1 {
-            return [GridItem(.flexible())]
-        } else {
-            return [GridItem(.flexible()), GridItem(.flexible())]
-        }
-    }
-    
     var body: some View {
         let displayMode = settings.quotaDisplayMode
-        
-        LazyVGrid(columns: columns, spacing: 8) {
+
+        VStack(spacing: 6) {
             ForEach(models, id: \.name) { (model: ModelBadgeData) in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(model.name)
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                HStack(spacing: 8) {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode))
+                            .frame(width: 5, height: 5)
+                        Text(model.name.uppercased())
+                            .font(.system(size: 9, weight: .semibold, design: .rounded))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                        Spacer()
-                        if let resetTime = model.formattedResetTime {
-                            Text(resetTime)
+                        if let caption = QuotaMetricWindow.caption(forMetricNamed: model.rawName) {
+                            Text(caption)
                                 .font(.system(size: 9, design: .rounded))
                                 .foregroundStyle(.tertiary)
-                        }
-                        if let usage = model.usage {
-                            Text(usage)
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(.primary)
-                        } else {
-                            Text(menuPercentText(remainingPercent: model.percentage, displayMode: displayMode))
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode))
+                                .lineLimit(1)
                         }
                     }
+                    .frame(width: 52, alignment: .leading)
 
-                    if model.usage == nil {
-                        ModernProgressBar(percentage: model.percentage, height: 4)
-                    }
+                    ModernProgressBar(percentage: model.percentage, height: 8)
+
+                    Text(menuHeroText(model: model, displayMode: displayMode))
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(model.hasKnownPercentage ? Color.primary : Color.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .frame(width: 68, alignment: .trailing)
                 }
-                .padding(8)
-                .background(Color.secondary.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
     }

@@ -196,6 +196,23 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         return "\(used) used"
     }
 
+    /// True when the metric reports consumption against no ceiling.
+    ///
+    /// Cursor's on-demand spend is the motivating case: it reports 100%
+    /// remaining because there is nothing to run out of, not because nothing
+    /// has been used. Presenting that as "unused" contradicts a non-zero used
+    /// count sitting right next to it, so callers show the usage instead.
+    var isUnlimitedUsage: Bool {
+        if let presentation {
+            switch presentation {
+            case .amount: return true
+            case .progress, .status: return false
+            }
+        }
+        guard let used, used > 0 else { return false }
+        return (limit ?? 0) <= 0
+    }
+
     var isStandaloneMetric: Bool {
         guard let presentation else { return false }
         switch presentation {
