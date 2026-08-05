@@ -476,6 +476,10 @@ final class QuotaViewModel {
 
     func setMonitorAccountDisabled(_ disabled: Bool, accountID: String) async {
         await monitorCoordinator.setDisabled(disabled, accountID: accountID)
+        if disabled, let account = monitorAccounts.first(where: { $0.id == accountID }) {
+            providerQuotas[account.provider]?.removeValue(forKey: account.accountKey)
+            await monitorCoordinator.finish(quotas: providerQuotas)
+        }
         monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
         syncMenuBarSelection()
     }
@@ -803,6 +807,22 @@ final class QuotaViewModel {
     private func removeDisabledMonitorQuotas() {
         for account in monitorAccounts where account.isDisabled {
             providerQuotas[account.provider]?.removeValue(forKey: account.accountKey)
+        }
+        removeHiddenPlaceholderQuotas()
+    }
+
+    /// `MonitorRefreshCoordinator.discoverAccounts` hides generic placeholder
+    /// accounts (e.g. "Claude Code") once a more specific credential exists for
+    /// the same provider, but the underlying quota fetch still runs for them.
+    /// Without this, their tiles keep showing on the Quota screen even though
+    /// there's no corresponding account row to disable.
+    private func removeHiddenPlaceholderQuotas() {
+        for (provider, placeholderKeys) in MonitorRefreshCoordinator.placeholderAccountKeys {
+            guard providerQuotas[provider] != nil else { continue }
+            let visibleKeys = Set(monitorAccounts.filter { $0.provider == provider }.map { $0.accountKey.lowercased() })
+            providerQuotas[provider] = providerQuotas[provider]?.filter { key, _ in
+                !placeholderKeys.contains(key.lowercased()) || visibleKeys.contains(key.lowercased())
+            }
         }
     }
     

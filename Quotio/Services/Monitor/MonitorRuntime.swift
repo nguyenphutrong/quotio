@@ -562,6 +562,20 @@ actor MonitorRefreshCoordinator {
     private var retryAfter: [AIProvider: Date] = [:]
     private(set) var issues: [AIProvider: MonitorRefreshIssue] = [:]
 
+    /// Generic account keys that represent the same underlying login as a more
+    /// specific, higher-priority credential for the same provider (e.g. a
+    /// nameless "Claude Code" native credential once "Claude Desktop" is also
+    /// discovered). `discoverAccounts` hides these from the account list to
+    /// avoid duplicate rows; `QuotaViewModel` uses the same table to keep quota
+    /// data for hidden placeholders from lingering on the Quota screen.
+    static let placeholderAccountKeys: [AIProvider: Set<String>] = [
+        .copilot: ["github copilot"],
+        .antigravity: ["antigravity"],
+        .claude: ["claude code"],
+        .codex: ["codex", "codex user"],
+        .kiro: ["kiro"],
+    ]
+
     init(
         discovery: MonitorAccountDiscovery = MonitorAccountDiscovery(),
         snapshots: MonitorSnapshotStore = MonitorSnapshotStore()
@@ -605,13 +619,7 @@ actor MonitorRefreshCoordinator {
                 accounts.append(account)
             }
         }
-        let placeholders: [AIProvider: Set<String>] = [
-            .copilot: ["github copilot"],
-            .antigravity: ["antigravity"],
-            .claude: ["claude code"],
-            .codex: ["codex", "codex user"],
-            .kiro: ["kiro"],
-        ]
+        let placeholders = Self.placeholderAccountKeys
         accounts = accounts.filter { account in
             guard placeholders[account.provider]?.contains(account.accountKey.lowercased()) == true else { return true }
             return !accounts.contains {
