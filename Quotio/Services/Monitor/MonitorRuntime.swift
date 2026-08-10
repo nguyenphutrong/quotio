@@ -301,6 +301,11 @@ actor MonitorAccountDiscovery {
     }
 
     func discover() async -> [MonitorAccount] {
+        // Copies the Claude Code CLI credential into Quotio's own keychain item
+        // on first run, so the account below comes from `vault.accounts()` from
+        // then on instead of an authorization-prompting read of the CLI's item.
+        await ClaudeCredentialAdopter.shared.adoptIfNeeded()
+
         let legacyFiles = await directAuthService.scanAllAuthFiles()
         let codexAliases = Self.codexAliases(from: legacyFiles)
         var candidates = await canonicalizeCodexAccounts(await vault.accounts(), aliases: codexAliases)
@@ -542,12 +547,10 @@ actor MonitorAccountDiscovery {
             let account = MonitorAccount.make(provider: .codex, accountKey: email, source: .nativeCredential, credentialReference: "keychain:Codex Auth")
             accounts.append(Self.canonicalizeCodexAccount(account, accountID: accountID, aliases: codexAliases))
         }
-        if let data = KeychainHelper.readExternalCredential(service: "Claude Code-credentials"),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let oauth = json["claudeAiOauth"] as? [String: Any],
-           (oauth["accessToken"] as? String)?.isEmpty == false {
-            accounts.append(.make(provider: .claude, accountKey: (oauth["email"] as? String) ?? "Claude Code", source: .nativeCredential, credentialReference: "keychain:Claude Code-credentials"))
-        }
+        // Claude Code's credential is deliberately absent here: `ClaudeCredentialAdopter`
+        // copies it into Quotio's own keychain item once, and the resulting account
+        // arrives through `vault.accounts()`. Probing the CLI's item on every
+        // discovery pass is what produced the repeated authorization prompts.
         if KeychainHelper.readExternalCredential(service: "gh:github.com") != nil {
             accounts.append(.make(provider: .copilot, accountKey: "GitHub Copilot", source: .nativeCredential, credentialReference: "keychain:gh:github.com"))
         }
