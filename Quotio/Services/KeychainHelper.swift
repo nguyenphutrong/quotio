@@ -11,6 +11,7 @@ import Security
 // MARK: - Keychain Helper
 
 enum KeychainHelper {
+    nonisolated private static let securityLock = NSRecursiveLock()
     private static let remoteService = "dev.quotio.desktop.remote-management"
     private static let localService = "dev.quotio.desktop.local-management"
     private static let warpService = "dev.quotio.desktop.warp"
@@ -165,10 +166,12 @@ enum KeychainHelper {
             kSecAttrService as String: monitorAuthService,
             kSecAttrAccount as String: account,
         ]
-        return SecItemUpdate(
-            query as CFDictionary,
-            [kSecValueData as String: data] as CFDictionary
-        ) == errSecSuccess
+        return performSecurityCall {
+            SecItemUpdate(
+                query as CFDictionary,
+                [kSecValueData as String: data] as CFDictionary
+            )
+        } == errSecSuccess
     }
 
     /// Read a credential owned by another local CLI/app without mutating it.
@@ -180,32 +183,37 @@ enum KeychainHelper {
         service: String,
         account: String? = nil
     ) -> (data: Data, account: String)? {
-        let query: [String: Any] = {
-            var value: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: service,
-                kSecReturnData as String: true,
-                kSecReturnAttributes as String: true,
-                kSecMatchLimit as String: kSecMatchLimitOne,
-            ]
-            if let account, !account.isEmpty {
-                value[kSecAttrAccount as String] = account
-            }
-            return value
-        }()
+        let query = externalCredentialQuery(service: service, account: account)
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = performSecurityCall(allowUserInteraction: false) {
+            SecItemCopyMatching(query as CFDictionary, &result)
+        }
         if status == errSecSuccess,
            let item = result as? [String: Any],
            let data = item[kSecValueData as String] as? Data,
            let resolvedAccount = item[kSecAttrAccount as String] as? String {
             return (data, resolvedAccount)
         }
-        if status != errSecItemNotFound && status != errSecInteractionNotAllowed {
+        if status != errSecItemNotFound && status != errSecInteractionNotAllowed && status != errSecAuthFailed {
             Log.keychain("External keychain read failed (service: \(service)): \(status)")
         }
         return nil
+    }
+
+    nonisolated static func externalCredentialQuery(service: String, account: String? = nil) -> [String: Any] {
+        var query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnData as String: true,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail,
+        ]
+        if let account, !account.isEmpty {
+            query[kSecAttrAccount as String] = account
+        }
+        return query
     }
 
     /// Update a known writable credential source after an OAuth refresh.
@@ -222,16 +230,23 @@ enum KeychainHelper {
         guard readExternalCredentialRecord(service: service, account: account)?.data == expectedData else {
             return false
         }
-        let query: [String: Any] = [
+        let query = externalCredentialUpdateQuery(service: service, account: account)
+        let status = performSecurityCall(allowUserInteraction: false) {
+            SecItemUpdate(
+                query as CFDictionary,
+                [kSecValueData as String: newData] as CFDictionary
+            )
+        }
+        return status == errSecSuccess
+    }
+
+    nonisolated static func externalCredentialUpdateQuery(service: String, account: String) -> [String: Any] {
+        [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
+            kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail,
         ]
-        let status = SecItemUpdate(
-            query as CFDictionary,
-            [kSecValueData as String: newData] as CFDictionary
-        )
-        return status == errSecSuccess
     }
 
     private static func migrateData(from oldServices: [String], to newService: String, account: String) -> Data? {
@@ -263,13 +278,15 @@ enum KeychainHelper {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        let updateStatus = SecItemUpdate(
-            identity as CFDictionary,
-            [
-                kSecValueData as String: data,
-                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            ] as CFDictionary
-        )
+        let updateStatus = performSecurityCall {
+            SecItemUpdate(
+                identity as CFDictionary,
+                [
+                    kSecValueData as String: data,
+                    kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+                ] as CFDictionary
+            )
+        }
         if updateStatus == errSecSuccess { return true }
         guard updateStatus == errSecItemNotFound else {
             Log.keychain("Keychain update failed (service: \(service), account: \(account)): \(updateStatus)")
@@ -282,7 +299,9 @@ enum KeychainHelper {
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
         ]) { _, new in new }
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = performSecurityCall {
+            SecItemAdd(query as CFDictionary, nil)
+        }
         if status == errSecSuccess {
             return true
         }
@@ -301,7 +320,9 @@ enum KeychainHelper {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = performSecurityCall {
+            SecItemCopyMatching(query as CFDictionary, &result)
+        }
 
         if status == errSecSuccess {
             return result as? Data
@@ -329,9 +350,31 @@ enum KeychainHelper {
             kSecAttrAccount as String: account
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = performSecurityCall {
+            SecItemDelete(query as CFDictionary)
+        }
         if status != errSecSuccess && status != errSecItemNotFound {
             Log.keychain("Keychain delete failed (service: \(service), account: \(account)): \(status)")
         }
+    }
+
+    nonisolated private static func performSecurityCall(
+        allowUserInteraction: Bool = true,
+        _ operation: () -> OSStatus
+    ) -> OSStatus {
+        securityLock.lock()
+        defer { securityLock.unlock() }
+
+        guard !allowUserInteraction else { return operation() }
+
+        var wasAllowed = DarwinBoolean(false)
+        guard SecKeychainGetUserInteractionAllowed(&wasAllowed) == errSecSuccess,
+              SecKeychainSetUserInteractionAllowed(false) == errSecSuccess else {
+            return errSecInteractionNotAllowed
+        }
+        defer {
+            _ = SecKeychainSetUserInteractionAllowed(wasAllowed.boolValue)
+        }
+        return operation()
     }
 }

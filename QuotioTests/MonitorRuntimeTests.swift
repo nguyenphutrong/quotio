@@ -1,9 +1,28 @@
 import CryptoKit
+import Security
 import SQLite3
 import XCTest
 @testable import Quotio
 
 final class MonitorRuntimeTests: XCTestCase {
+    func testExternalCredentialOperationsDoNotAllowAuthenticationUI() {
+        let readQuery = KeychainHelper.externalCredentialQuery(service: "gh:github.com", account: "github.com")
+        let updateQuery = KeychainHelper.externalCredentialUpdateQuery(service: "gh:github.com", account: "github.com")
+
+        XCTAssertEqual(readQuery[kSecAttrService as String] as? String, "gh:github.com")
+        XCTAssertEqual(readQuery[kSecAttrAccount as String] as? String, "github.com")
+        XCTAssertEqual(
+            readQuery[kSecUseAuthenticationUI as String] as? String,
+            kSecUseAuthenticationUIFail as String
+        )
+        XCTAssertEqual(updateQuery[kSecAttrService as String] as? String, "gh:github.com")
+        XCTAssertEqual(updateQuery[kSecAttrAccount as String] as? String, "github.com")
+        XCTAssertEqual(
+            updateQuery[kSecUseAuthenticationUI as String] as? String,
+            kSecUseAuthenticationUIFail as String
+        )
+    }
+
     func testMonitorProvidersDoNotRequireInstalledCLI() {
         let providers: Set<AIProvider> = [.codex, .claude, .factoryDroid, .devin, .grok, .openRouter, .amp]
 
