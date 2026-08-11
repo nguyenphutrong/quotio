@@ -80,13 +80,14 @@ nonisolated enum AmpQuotaParser {
 
         var plan = identity.flatMap { $0[1].isEmpty ? nil : $0[1] }
         if let subscription = captures(
-            #"(?im)^\s*Subscription\s+([^:\r\n]+):\s*([\d.]+)%\s+(?:other|agent)\s+usage\s+and\s+([\d.]+)%\s+orb\s+usage\s+remaining\b"#,
+            #"(?im)^\s*Subscription\s+([^:\r\n]+):\s*([\d.]+)%\s+(?:other|agent)\s+usage\s+and\s+([\d.]+)%\s+orb\s+usage\s+remaining\b(?:\s*-\s*resets\s+upon\s+renewal\s+in\s+(\d+)\s+(minutes?|hours?|days?|weeks?|months?|years?))?"#,
             in: text
         ), let agent = validPercentage(subscription[1]),
            let orb = validPercentage(subscription[2]) {
             plan = subscription[0]
-            models.append(ModelQuota(name: "amp-agent-usage", percentage: agent, resetTime: ""))
-            models.append(ModelQuota(name: "amp-orb-usage", percentage: orb, resetTime: ""))
+            let resetTime = relativeResetTime(value: subscription[3], unit: subscription[4], after: now)
+            models.append(ModelQuota(name: "amp-agent-usage", percentage: agent, resetTime: resetTime))
+            models.append(ModelQuota(name: "amp-orb-usage", percentage: orb, resetTime: resetTime))
         } else {
             for match in allCaptures(
                 #"(?im)^\s*(agent|other|orb)(?:\s+(?:usage|quota))?\s*:\s*([\d.]+)%"#,
@@ -159,6 +160,25 @@ nonisolated enum AmpQuotaParser {
         let start = calendar.startOfDay(for: date)
         let next = calendar.date(byAdding: .day, value: 1, to: start)!
         return ISO8601DateFormatter().string(from: next)
+    }
+    private static func relativeResetTime(value: String, unit: String, after date: Date) -> String {
+        guard let value = Int(value) else { return "" }
+
+        let component: Calendar.Component
+        switch unit.lowercased() {
+        case "minute", "minutes": component = .minute
+        case "hour", "hours": component = .hour
+        case "day", "days": component = .day
+        case "week", "weeks": component = .weekOfYear
+        case "month", "months": component = .month
+        case "year", "years": component = .year
+        default: return ""
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        guard let resetDate = calendar.date(byAdding: component, value: value, to: date) else { return "" }
+        return ISO8601DateFormatter().string(from: resetDate)
     }
     private static func stableID(_ value: String) -> String {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

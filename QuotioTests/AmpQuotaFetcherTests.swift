@@ -75,19 +75,23 @@ final class AmpQuotaFetcherTests: XCTestCase {
     }
 
     func testParserMapsSubscriptionOtherUsageAndRenewalSuffix() throws {
-        let quota = try XCTUnwrap(AmpQuotaParser.parse(displayText:
-            "Subscription Megawatt: 82.5% other usage and 97.25% orb usage remaining - resets upon renewal in 1 month"
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-08-11T12:00:00Z"))
+        let quota = try XCTUnwrap(AmpQuotaParser.parse(
+            displayText: "Subscription Megawatt: 64% other usage and 98% orb usage remaining - resets upon renewal in 22 days",
+            now: now
         ))
         let agent = try XCTUnwrap(quota.models.first(where: { $0.name == "amp-agent-usage" }))
         let orb = try XCTUnwrap(quota.models.first(where: { $0.name == "amp-orb-usage" }))
 
         XCTAssertEqual(quota.planType, "Megawatt")
-        XCTAssertEqual(agent.percentage, 82.5)
-        XCTAssertEqual(agent.usedPercentage, 17.5)
+        XCTAssertEqual(agent.percentage, 64)
+        XCTAssertEqual(agent.usedPercentage, 36)
         XCTAssertEqual(agent.displayName, "Agent Usage")
-        XCTAssertEqual(orb.percentage, 97.25)
-        XCTAssertEqual(orb.usedPercentage, 2.75)
+        XCTAssertEqual(agent.resetTime, "2026-09-02T12:00:00Z")
+        XCTAssertEqual(orb.percentage, 98)
+        XCTAssertEqual(orb.usedPercentage, 2)
         XCTAssertEqual(orb.displayName, "Orb Usage")
+        XCTAssertEqual(orb.resetTime, "2026-09-02T12:00:00Z")
     }
 
     func testParserUsesIdentityPlanWhenSubscriptionIsMissing() throws {
