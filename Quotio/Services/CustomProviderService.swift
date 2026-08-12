@@ -188,8 +188,9 @@ final class CustomProviderService {
         try content.write(toFile: configPath, atomically: true, encoding: .utf8)
     }
     
-    /// Remove custom provider sections from config content
-    private func removeCustomProviderSections(from content: String) -> String {
+    /// Remove custom provider sections from config content.
+    /// Internal (not private) so unit tests can verify strip/re-append round-trips.
+    func removeCustomProviderSections(from content: String) -> String {
         var result = content
         
         // Derive and deduplicate the CLIProxyAPI section keys managed by custom providers.

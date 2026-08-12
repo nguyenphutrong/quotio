@@ -4200,6 +4200,64 @@
         }
       }
     },
+    "customProviders.error.headerNameDuplicate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate custom header names are not allowed"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les noms d'en-têtes personnalisés en double ne sont pas autorisés"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không được phép trùng tên header tùy chỉnh"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义标头名称不能重复"
+          }
+        }
+      }
+    },
+    "customProviders.error.headerNameInvalid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom header names may only contain letters, digits, and the characters !#$%&'*+-.^_`|~"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les noms d'en-têtes personnalisés ne peuvent contenir que des lettres, des chiffres et les caractères !#$%&'*+-.^_`|~"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tên header tùy chỉnh chỉ được chứa chữ cái, chữ số và các ký tự !#$%&'*+-.^_`|~"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义标头名称只能包含字母、数字以及字符 !#$%&'*+-.^_`|~"
+          }
+        }
+      }
+    },
     "customProviders.fetchModels" : {
       "extractionState" : "stale",
       "localizations" : {

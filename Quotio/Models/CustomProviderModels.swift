@@ -152,12 +152,16 @@ enum CustomProviderType: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
 
-    /// Whether this provider type supports custom headers
+    /// Whether this provider type supports custom headers.
+    /// CLIProxyAPI accepts a `headers` map for `openai-compatibility` providers (provider level)
+    /// and for `claude-api-key`, `gemini-api-key`, and `codex-api-key` entries (per key).
+    /// GLM and ClinePass are excluded: `glm-api-key` has no documented headers support,
+    /// and ClinePass is a managed service with fixed authentication.
     var supportsCustomHeaders: Bool {
         switch self {
-        case .geminiCompatibility:
+        case .openaiCompatibility, .claudeCompatibility, .geminiCompatibility, .codexCompatibility:
             return true
-        case .openaiCompatibility, .claudeCompatibility, .codexCompatibility, .glmCompatibility, .clinePass:
+        case .glmCompatibility, .clinePass:
             return false
         }
     }
@@ -223,20 +227,30 @@ struct ModelMapping: Codable, Identifiable, Hashable, Sendable {
 
 // MARK: - Custom Header
 
-/// A custom HTTP header for Gemini-compatible providers
+/// A custom HTTP header sent with requests to the upstream provider
 struct CustomHeader: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
     var key: String
     var value: String
-    
+
     init(id: UUID = UUID(), key: String, value: String) {
         self.id = id
         self.key = key
         self.value = value
     }
-    
+
     enum CodingKeys: String, CodingKey {
         case id, key, value
+    }
+
+    /// Non-alphanumeric characters allowed in an HTTP header field name (RFC 7230 token)
+    private static let validNameSpecials = Set("!#$%&'*+-.^_`|~")
+
+    /// Whether the given string is a valid HTTP header field name (RFC 7230 token: ASCII letters, digits, and select punctuation)
+    static func isValidName(_ name: String) -> Bool {
+        !name.isEmpty && name.allSatisfy { character in
+            character.isASCII && (character.isLetter || character.isNumber || validNameSpecials.contains(character))
+        }
     }
 }
 
@@ -251,7 +265,7 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
     var prefix: String?
     var apiKeys: [CustomAPIKeyEntry]
     var models: [ModelMapping]
-    var headers: [CustomHeader]  // Only used for Gemini-compatible
+    var headers: [CustomHeader]  // Custom HTTP headers (types where supportsCustomHeaders is true)
     var limitToSelectedModels: Bool
     var isEnabled: Bool
     var createdAt: Date
@@ -363,7 +377,25 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         if type == .clinePass, models.isEmpty {
             errors.append("clinepass.error.modelsRequired".localizedStatic())
         }
-        
+
+        if type.supportsCustomHeaders {
+            var seenHeaderNames = Set<String>()
+            var reportedInvalidName = false
+            var reportedDuplicateName = false
+            for header in headers {
+                let name = header.key.trimmingCharacters(in: .whitespaces)
+                guard !name.isEmpty else { continue }
+                if !CustomHeader.isValidName(name), !reportedInvalidName {
+                    errors.append("customProviders.error.headerNameInvalid".localizedStatic())
+                    reportedInvalidName = true
+                }
+                if !seenHeaderNames.insert(name.lowercased()).inserted, !reportedDuplicateName {
+                    errors.append("customProviders.error.headerNameDuplicate".localizedStatic())
+                    reportedDuplicateName = true
+                }
+            }
+        }
+
         return errors
     }
     
@@ -394,6 +426,35 @@ extension CustomProvider {
         }
     }
 
+    /// Headers that are safe to emit into the YAML config:
+    /// non-empty, RFC 7230 token names only (invalid names are rejected by validation)
+    private var emittableHeaders: [CustomHeader] {
+        headers.compactMap { header in
+            let name = header.key.trimmingCharacters(in: .whitespaces)
+            guard CustomHeader.isValidName(name) else { return nil }
+            return CustomHeader(id: header.id, key: name, value: header.value)
+        }
+    }
+
+    /// Render the custom headers map at the given indentation level (in spaces)
+    private func headersYAML(indent: Int) -> String {
+        let entries = emittableHeaders
+        guard !entries.isEmpty else { return "" }
+
+        let pad = String(repeating: " ", count: indent)
+        var yaml = "\(pad)headers:\n"
+        for header in entries {
+            yaml += "\(pad)  \"\(Self.escapedYAMLString(header.key))\": \"\(Self.escapedYAMLString(header.value))\"\n"
+        }
+        return yaml
+    }
+
+    private static func escapedYAMLString(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
     private func generateOpenAICompatibilityYAML() -> String {
         var yaml = "  - name: \"\(escapedName)\"\n"
         yaml += "    base-url: \"\(baseURL)\"\n"
@@ -401,6 +462,9 @@ extension CustomProvider {
         if let prefix = prefix, !prefix.isEmpty {
             yaml += "    prefix: \"\(prefix)\"\n"
         }
+
+        // Provider-level custom headers (CLIProxyAPI OpenAICompatibility.Headers)
+        yaml += headersYAML(indent: 4)
 
         if !apiKeys.isEmpty {
             yaml += "    api-key-entries:\n"
@@ -437,10 +501,13 @@ extension CustomProvider {
                 yaml += "    prefix: \"\(prefix)\"\n"
             }
 
+            // Per-key custom headers (CLIProxyAPI ClaudeKey.Headers)
+            yaml += headersYAML(indent: 4)
+
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
                 yaml += "    proxy-url: \"\(proxyURL)\"\n"
             }
-            
+
             if !models.isEmpty {
                 yaml += "    models:\n"
                 for model in models {
@@ -451,7 +518,7 @@ extension CustomProvider {
         }
         return yaml
     }
-    
+
     private func generateGeminiCompatibilityYAML() -> String {
         var yaml = ""
         for key in apiKeys {
@@ -466,20 +533,16 @@ extension CustomProvider {
                 yaml += "    prefix: \"\(prefix)\"\n"
             }
 
-            if !headers.isEmpty {
-                yaml += "    headers:\n"
-                for header in headers {
-                    yaml += "      \(header.key): \"\(header.value)\"\n"
-                }
-            }
-            
+            // Per-key custom headers (CLIProxyAPI GeminiKey.Headers)
+            yaml += headersYAML(indent: 4)
+
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
                 yaml += "    proxy-url: \"\(proxyURL)\"\n"
             }
         }
         return yaml
     }
-    
+
     private func generateCodexCompatibilityYAML() -> String {
         var yaml = ""
         for key in apiKeys {
@@ -489,6 +552,9 @@ extension CustomProvider {
             if let prefix = prefix, !prefix.isEmpty {
                 yaml += "    prefix: \"\(prefix)\"\n"
             }
+
+            // Per-key custom headers (CLIProxyAPI CodexKey.Headers)
+            yaml += headersYAML(indent: 4)
 
             if let proxyURL = key.proxyURL, !proxyURL.isEmpty {
                 yaml += "    proxy-url: \"\(proxyURL)\"\n"

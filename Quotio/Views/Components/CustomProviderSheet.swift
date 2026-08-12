@@ -862,10 +862,12 @@ struct CustomProviderSheet: View {
         }
         
         // Add custom headers
-        for header in headers {
-            request.setValue(header.value, forHTTPHeaderField: header.key)
+        if providerType.supportsCustomHeaders {
+            for header in headers where !header.key.trimmingCharacters(in: .whitespaces).isEmpty {
+                request.setValue(header.value, forHTTPHeaderField: header.key)
+            }
         }
-        
+
         isLoadingModels = true
         modelFetchError = nil
         
@@ -936,7 +938,9 @@ struct CustomProviderSheet: View {
             prefix: prefix.trimmingCharacters(in: .whitespaces).isEmpty ? nil : prefix.trimmingCharacters(in: .whitespaces),
             apiKeys: apiKeys.filter { !$0.apiKey.trimmingCharacters(in: .whitespaces).isEmpty },
             models: limitToSelectedModels ? allModels : [],
-            headers: headers.filter { !$0.key.trimmingCharacters(in: .whitespaces).isEmpty },
+            headers: providerType.supportsCustomHeaders
+                ? headers.filter { !$0.key.trimmingCharacters(in: .whitespaces).isEmpty }
+                : [],
             limitToSelectedModels: limitToSelectedModels,
             isEnabled: isEnabled,
             createdAt: provider?.createdAt ?? Date(),
