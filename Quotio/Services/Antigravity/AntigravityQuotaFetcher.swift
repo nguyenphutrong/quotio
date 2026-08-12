@@ -546,8 +546,10 @@ nonisolated struct AntigravityAuthFile: Codable, Sendable {
     var prefix: String?
     var projectId: String?
     var proxyUrl: String?
+    /// Catch-all for fields Quotio does not model, so they survive decode → encode cycles.
+    var additionalFields: [String: JSONValue] = [:]
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case accessToken = "access_token"
         case email
         case expired
@@ -558,6 +560,38 @@ nonisolated struct AntigravityAuthFile: Codable, Sendable {
         case prefix
         case projectId = "project_id"
         case proxyUrl = "proxy_url"
+    }
+
+    private static let knownJSONKeys = Set(CodingKeys.allCases.map(\.stringValue))
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        accessToken = try container.decode(String.self, forKey: .accessToken)
+        email = try container.decode(String.self, forKey: .email)
+        expired = try container.decodeIfPresent(String.self, forKey: .expired)
+        expiresIn = try container.decodeIfPresent(Int.self, forKey: .expiresIn)
+        refreshToken = try container.decodeIfPresent(String.self, forKey: .refreshToken)
+        timestamp = try container.decodeIfPresent(Int.self, forKey: .timestamp)
+        type = try container.decodeIfPresent(String.self, forKey: .type)
+        prefix = try container.decodeIfPresent(String.self, forKey: .prefix)
+        projectId = try container.decodeIfPresent(String.self, forKey: .projectId)
+        proxyUrl = try container.decodeIfPresent(String.self, forKey: .proxyUrl)
+        additionalFields = try JSONValue.unknownFields(from: decoder, excluding: Self.knownJSONKeys)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(accessToken, forKey: .accessToken)
+        try container.encode(email, forKey: .email)
+        try container.encodeIfPresent(expired, forKey: .expired)
+        try container.encodeIfPresent(expiresIn, forKey: .expiresIn)
+        try container.encodeIfPresent(refreshToken, forKey: .refreshToken)
+        try container.encodeIfPresent(timestamp, forKey: .timestamp)
+        try container.encodeIfPresent(type, forKey: .type)
+        try container.encodeIfPresent(prefix, forKey: .prefix)
+        try container.encodeIfPresent(projectId, forKey: .projectId)
+        try container.encodeIfPresent(proxyUrl, forKey: .proxyUrl)
+        try JSONValue.encodeUnknownFields(additionalFields, to: encoder)
     }
 
     nonisolated var isExpired: Bool {

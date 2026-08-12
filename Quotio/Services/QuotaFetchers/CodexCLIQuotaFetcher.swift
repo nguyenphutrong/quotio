@@ -13,11 +13,31 @@ nonisolated struct CodexCLIAuthFile: Codable, Sendable {
     var OPENAI_API_KEY: String?
     var tokens: CodexCLITokens?
     var lastRefresh: String?
-    
-    enum CodingKeys: String, CodingKey {
+    /// Catch-all for fields Quotio does not model, so they survive decode → encode cycles.
+    var additionalFields: [String: JSONValue] = [:]
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case OPENAI_API_KEY
         case tokens
         case lastRefresh = "last_refresh"
+    }
+
+    private static let knownJSONKeys = Set(CodingKeys.allCases.map(\.stringValue))
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        OPENAI_API_KEY = try container.decodeIfPresent(String.self, forKey: .OPENAI_API_KEY)
+        tokens = try container.decodeIfPresent(CodexCLITokens.self, forKey: .tokens)
+        lastRefresh = try container.decodeIfPresent(String.self, forKey: .lastRefresh)
+        additionalFields = try JSONValue.unknownFields(from: decoder, excluding: Self.knownJSONKeys)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(OPENAI_API_KEY, forKey: .OPENAI_API_KEY)
+        try container.encodeIfPresent(tokens, forKey: .tokens)
+        try container.encodeIfPresent(lastRefresh, forKey: .lastRefresh)
+        try JSONValue.encodeUnknownFields(additionalFields, to: encoder)
     }
 }
 
@@ -26,12 +46,34 @@ nonisolated struct CodexCLITokens: Codable, Sendable {
     var accessToken: String?
     var refreshToken: String?
     var accountId: String?
-    
-    enum CodingKeys: String, CodingKey {
+    /// Catch-all for fields Quotio does not model, so they survive decode → encode cycles.
+    var additionalFields: [String: JSONValue] = [:]
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case idToken = "id_token"
         case accessToken = "access_token"
         case refreshToken = "refresh_token"
         case accountId = "account_id"
+    }
+
+    private static let knownJSONKeys = Set(CodingKeys.allCases.map(\.stringValue))
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        idToken = try container.decodeIfPresent(String.self, forKey: .idToken)
+        accessToken = try container.decodeIfPresent(String.self, forKey: .accessToken)
+        refreshToken = try container.decodeIfPresent(String.self, forKey: .refreshToken)
+        accountId = try container.decodeIfPresent(String.self, forKey: .accountId)
+        additionalFields = try JSONValue.unknownFields(from: decoder, excluding: Self.knownJSONKeys)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(idToken, forKey: .idToken)
+        try container.encodeIfPresent(accessToken, forKey: .accessToken)
+        try container.encodeIfPresent(refreshToken, forKey: .refreshToken)
+        try container.encodeIfPresent(accountId, forKey: .accountId)
+        try JSONValue.encodeUnknownFields(additionalFields, to: encoder)
     }
 }
 

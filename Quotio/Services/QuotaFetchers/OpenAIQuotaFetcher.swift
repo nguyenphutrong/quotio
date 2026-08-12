@@ -293,8 +293,10 @@ nonisolated struct CodexAuthFile: Codable, Sendable {
     // Fields preserved during token refresh (used by CLIProxyAPI)
     var prefix: String?
     var proxyUrl: String?
-    
-    enum CodingKeys: String, CodingKey {
+    /// Catch-all for fields Quotio does not model, so they survive decode → encode cycles.
+    var additionalFields: [String: JSONValue] = [:]
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case accessToken = "access_token"
         case accountId = "account_id"
         case email
@@ -305,7 +307,37 @@ nonisolated struct CodexAuthFile: Codable, Sendable {
         case prefix
         case proxyUrl = "proxy_url"
     }
-    
+
+    private static let knownJSONKeys = Set(CodingKeys.allCases.map(\.stringValue))
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        accessToken = try container.decode(String.self, forKey: .accessToken)
+        accountId = try container.decodeIfPresent(String.self, forKey: .accountId)
+        email = try container.decodeIfPresent(String.self, forKey: .email)
+        expired = try container.decodeIfPresent(String.self, forKey: .expired)
+        idToken = try container.decodeIfPresent(String.self, forKey: .idToken)
+        refreshToken = try container.decodeIfPresent(String.self, forKey: .refreshToken)
+        type = try container.decodeIfPresent(String.self, forKey: .type)
+        prefix = try container.decodeIfPresent(String.self, forKey: .prefix)
+        proxyUrl = try container.decodeIfPresent(String.self, forKey: .proxyUrl)
+        additionalFields = try JSONValue.unknownFields(from: decoder, excluding: Self.knownJSONKeys)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(accessToken, forKey: .accessToken)
+        try container.encodeIfPresent(accountId, forKey: .accountId)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encodeIfPresent(expired, forKey: .expired)
+        try container.encodeIfPresent(idToken, forKey: .idToken)
+        try container.encodeIfPresent(refreshToken, forKey: .refreshToken)
+        try container.encodeIfPresent(type, forKey: .type)
+        try container.encodeIfPresent(prefix, forKey: .prefix)
+        try container.encodeIfPresent(proxyUrl, forKey: .proxyUrl)
+        try JSONValue.encodeUnknownFields(additionalFields, to: encoder)
+    }
+
     nonisolated var isExpired: Bool {
         guard let expired = expired else { return true }
         let formatter = ISO8601DateFormatter()
