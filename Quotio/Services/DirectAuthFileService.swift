@@ -172,7 +172,9 @@ actor DirectAuthFileService {
         
         // Extract metadata
         var email = json["email"] as? String
-        let login = json["login"] as? String
+        // Copilot auth files written by CLIProxyAPI store the GitHub handle as
+        // "username"; older files may use "login".
+        let login = json["login"] as? String ?? json["username"] as? String
         let accountType = json["account_type"] as? String
         
         // For Kiro: if email is empty, try to use provider (e.g., "Google") as identifier

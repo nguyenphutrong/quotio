@@ -159,6 +159,15 @@ nonisolated struct CopilotAuthFile: Codable, Sendable {
     }
 }
 
+// MARK: - Copilot Account Identity
+
+/// Identity of one Copilot auth file: the canonical quota key plus the legacy
+/// keys older Quotio versions generated for the same file.
+nonisolated struct CopilotQuotaAccountIdentity: Sendable {
+    let canonicalKey: String
+    let aliases: [String]
+}
+
 // MARK: - Copilot API Token Response
 
 nonisolated struct CopilotAPITokenResponse: Codable, Sendable {
@@ -492,6 +501,10 @@ actor CopilotQuotaFetcher {
     }
     
     private func extractUsername(from filename: String) -> String {
+        Self.extractUsername(from: filename)
+    }
+
+    private nonisolated static func extractUsername(from filename: String) -> String {
         var name = filename
         if name.hasPrefix("github-copilot-") {
             name = String(name.dropFirst("github-copilot-".count))
@@ -500,6 +513,72 @@ actor CopilotQuotaFetcher {
             name = String(name.dropLast(".json".count))
         }
         return name
+    }
+
+    // MARK: - Legacy Alias Reconciliation
+
+    /// Collapses legacy quota keys left behind by older Quotio versions (full
+    /// filename or filename-derived suffix) onto the canonical account key, so a
+    /// single auth file yields exactly one quota entry.
+    func reconcileLegacyAliases(
+        in quotas: [String: ProviderQuotaData],
+        authDir: String = "~/.cli-proxy-api"
+    ) -> [String: ProviderQuotaData] {
+        Self.reconcileLegacyAliases(in: quotas, accounts: readAccountIdentities(authDir: authDir))
+    }
+
+    nonisolated static func reconcileLegacyAliases(
+        in quotas: [String: ProviderQuotaData],
+        accounts: [CopilotQuotaAccountIdentity]
+    ) -> [String: ProviderQuotaData] {
+        var reconciled = quotas
+        let canonicalKeys = Set(accounts.map(\.canonicalKey))
+        var canonicalKeysByAlias: [String: Set<String>] = [:]
+        for account in accounts {
+            for alias in account.aliases where alias != account.canonicalKey {
+                canonicalKeysByAlias[alias, default: []].insert(account.canonicalKey)
+            }
+        }
+
+        for (alias, candidates) in canonicalKeysByAlias {
+            guard let aliasQuota = reconciled[alias],
+                  !canonicalKeys.contains(alias),
+                  candidates.count == 1,
+                  let canonicalKey = candidates.first else { continue }
+            reconciled.removeValue(forKey: alias)
+            if reconciled[canonicalKey].map({ $0.lastUpdated <= aliasQuota.lastUpdated }) ?? true {
+                reconciled[canonicalKey] = aliasQuota
+            }
+        }
+        return reconciled
+    }
+
+    /// Canonical key and legacy aliases for one Copilot auth file. The canonical
+    /// key matches the one `fetchAllCopilotQuotas` produces: JSON `username`
+    /// first, extracted filename suffix otherwise.
+    nonisolated static func accountIdentity(filename: String, username: String?) -> CopilotQuotaAccountIdentity {
+        let filenameWithoutExtension = filename.hasSuffix(".json")
+            ? String(filename.dropLast(".json".count))
+            : filename
+        let filenameKey = extractUsername(from: filename)
+        let trimmedUsername = username?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let canonicalKey = trimmedUsername.flatMap { $0.isEmpty ? nil : $0 } ?? filenameKey
+        return CopilotQuotaAccountIdentity(
+            canonicalKey: canonicalKey,
+            aliases: [filename, filenameWithoutExtension, filenameKey]
+        )
+    }
+
+    private func readAccountIdentities(authDir: String) -> [CopilotQuotaAccountIdentity] {
+        let expandedPath = NSString(string: authDir).expandingTildeInPath
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: expandedPath) else {
+            return []
+        }
+        return files.compactMap { file in
+            guard file.hasPrefix("github-copilot-"), file.hasSuffix(".json") else { return nil }
+            let path = (expandedPath as NSString).appendingPathComponent(file)
+            return Self.accountIdentity(filename: file, username: loadAuthFile(from: path)?.username)
+        }
     }
 
     // MARK: - Copilot Available Models

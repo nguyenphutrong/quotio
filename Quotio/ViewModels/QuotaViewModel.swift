@@ -739,7 +739,7 @@ final class QuotaViewModel {
 
         providerQuotas[.codex] = await codexFetcher.reconcileLegacyAliases(in: await codex)
         providerQuotas[.claude] = await claude
-        providerQuotas[.copilot] = await copilot
+        providerQuotas[.copilot] = await copilotQuotaFetcher.reconcileLegacyAliases(in: await copilot)
         providerQuotas[.kiro] = await kiro
         providerQuotas[.glm] = await glm
         providerQuotas[.clinePass] = await clinePass
@@ -2436,10 +2436,18 @@ final class QuotaViewModel {
                 )
             }
             for file in directAuthFiles where file.provider == .copilot {
+                let filenameWithoutExtension = file.filename.hasSuffix(".json")
+                    ? String(file.filename.dropLast(".json".count))
+                    : file.filename
                 addAliases(
                     provider: .copilot,
                     canonicalKey: file.menuBarAccountKey,
-                    aliases: [file.email]
+                    aliases: [
+                        file.filename,
+                        filenameWithoutExtension,
+                        file.filename.copilotFilenameKey,
+                        file.email,
+                    ]
                 )
             }
         }
@@ -2455,10 +2463,18 @@ final class QuotaViewModel {
             )
         }
         for file in authFiles where file.providerType == .copilot {
+            let filenameWithoutExtension = file.name.hasSuffix(".json")
+                ? String(file.name.dropLast(".json".count))
+                : file.name
             addAliases(
                 provider: .copilot,
                 canonicalKey: file.menuBarAccountKey,
-                aliases: [file.email]
+                aliases: [
+                    file.name,
+                    filenameWithoutExtension,
+                    file.name.copilotFilenameKey,
+                    file.email,
+                ]
             )
         }
 

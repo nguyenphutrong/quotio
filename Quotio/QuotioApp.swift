@@ -154,8 +154,13 @@ final class AppBootstrap {
             return quotaData
         }
 
-        guard provider == .codex else { return nil }
-        return accountQuotas[selectedItem.accountKey.codexFilenameKey]
+        if provider == .codex {
+            return accountQuotas[selectedItem.accountKey.codexFilenameKey]
+        }
+        if provider == .copilot, let filenameKey = selectedItem.accountKey.copilotFilenameKey {
+            return accountQuotas[filenameKey]
+        }
+        return nil
     }
 }
 
