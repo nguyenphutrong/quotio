@@ -38,6 +38,7 @@ struct AccountRowData: Identifiable, Hashable {
     let provider: AIProvider
     let displayName: String       // Email or account identifier
     let menuBarAccountKey: String
+    let authFileName: String?
     let source: AccountSource
     let status: String?           // "ready", "cooling", "error", etc.
     let statusMessage: String?
@@ -52,6 +53,7 @@ struct AccountRowData: Identifiable, Hashable {
         provider: AIProvider,
         displayName: String,
         menuBarAccountKey: String? = nil,
+        authFileName: String? = nil,
         source: AccountSource,
         status: String?,
         statusMessage: String?,
@@ -64,6 +66,7 @@ struct AccountRowData: Identifiable, Hashable {
         self.provider = provider
         self.displayName = displayName
         self.menuBarAccountKey = menuBarAccountKey ?? displayName
+        self.authFileName = authFileName
         self.source = source
         self.status = status
         self.statusMessage = statusMessage
@@ -88,6 +91,7 @@ struct AccountRowData: Identifiable, Hashable {
             provider: provider,
             displayName: name,
             menuBarAccountKey: authFile.menuBarAccountKey,
+            authFileName: authFile.name,
             source: .proxy,
             status: authFile.status,
             statusMessage: authFile.statusMessage,
@@ -104,6 +108,7 @@ struct AccountRowData: Identifiable, Hashable {
             provider: directAuthFile.provider,
             displayName: name,
             menuBarAccountKey: directAuthFile.menuBarAccountKey,
+            authFileName: directAuthFile.filename,
             source: .direct,
             status: nil,
             statusMessage: nil,
@@ -149,12 +154,14 @@ struct AccountRowData: Identifiable, Hashable {
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(authFileName)
         hasher.combine(isDisabled)
         hasher.combine(status)
     }
 
     static func == (lhs: AccountRowData, rhs: AccountRowData) -> Bool {
         lhs.id == rhs.id &&
+        lhs.authFileName == rhs.authFileName &&
         lhs.isDisabled == rhs.isDisabled &&
         lhs.status == rhs.status
     }
@@ -168,6 +175,7 @@ struct AccountRow: View {
     var onEdit: (() -> Void)?
     var onSwitch: (() -> Void)?
     var onToggleDisabled: (() -> Void)?
+    var onDownload: (() -> Void)?
     var isActiveInIDE: Bool = false
     
     @State private var settings = MenuBarSettingsManager.shared
@@ -346,6 +354,14 @@ struct AccountRow: View {
                 Divider()
             }
             
+            if let onDownload {
+                Button {
+                    onDownload()
+                } label: {
+                    Label("action.download".localized(), systemImage: "arrow.down.circle")
+                }
+            }
+
             // Menu bar toggle
             Button {
                 handleMenuBarToggle()

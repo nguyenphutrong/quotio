@@ -342,6 +342,15 @@ struct ProvidersScreen: View {
             .disabled(viewModel.isLoadingQuotas)
             .help("action.refresh".localized())
         }
+
+        ToolbarItem(placement: .automatic) {
+            Button {
+                uploadAuthFile()
+            } label: {
+                Image(systemName: "arrow.up.circle")
+            }
+            .help("action.upload".localized())
+        }
     }
     
     // MARK: - Accounts Section
@@ -384,6 +393,9 @@ struct ProvidersScreen: View {
                         } : nil,
                         onToggleDisabled: { account in
                             Task { await toggleAccountDisabled(account) }
+                        },
+                        onDownloadAccount: { account in
+                            Task { await downloadAccountAuthFile(account) }
                         },
                         isAccountActive: provider == .antigravity ? { account in
                             viewModel.isAntigravityAccountActive(email: account.displayName)
@@ -553,6 +565,29 @@ struct ProvidersScreen: View {
         }
     }
 
+    private func downloadAccountAuthFile(_ account: AccountRowData) async {
+        guard let filename = account.authFileName else { return }
+
+        do {
+            let data = try await viewModel.downloadAuthFile(name: filename)
+
+            let savePanel = NSSavePanel()
+            savePanel.nameFieldStringValue = filename.hasSuffix(".json") ? filename : filename + ".json"
+            savePanel.allowedContentTypes = [.json]
+            savePanel.canCreateDirectories = true
+
+            if savePanel.runModal() == .OK, let url = savePanel.url {
+                do {
+                    try SecureAtomicFileWriter.write(data, to: url)
+                } catch {
+                    viewModel.errorMessage = "Failed to save file: \(error.localizedDescription)"
+                }
+            }
+        } catch {
+            viewModel.errorMessage = error.localizedDescription
+        }
+    }
+
     private func handleEditGlmAccount(_ account: AccountRowData) {
         if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
             editingGLMProvider = glmProvider
@@ -565,7 +600,26 @@ struct ProvidersScreen: View {
             customProviderSheetMode = .edit(provider)
         }
     }
-    
+
+    private func uploadAuthFile() {
+        let openPanel = NSOpenPanel()
+        openPanel.allowsMultipleSelection = false
+        openPanel.allowedContentTypes = [.json]
+        openPanel.canChooseDirectories = false
+
+        if openPanel.runModal() == .OK, let url = openPanel.url {
+            Task {
+                do {
+                    let data = try Data(contentsOf: url)
+                    let filename = url.lastPathComponent
+                    try await viewModel.uploadAuthFile(name: filename, content: data)
+                } catch {
+                    viewModel.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
     private func handleEditWarpAccount(_ account: AccountRowData) {
         // Find the Warp token by ID and open edit sheet
         if let token = warpService.tokens.first(where: { $0.id.uuidString == account.id }) {

@@ -146,15 +146,16 @@ actor ManagementAPIClient {
         let requestId = String(UUID().uuidString.prefix(6))
         let activeCount = Self.incrementActiveRequests()
         let startTime = Date()
-        
-        Self.log("[\(clientId)][\(requestId)] START \(method) \(endpoint) (active=\(activeCount), retry=\(retryCount))")
-        
+        let logEndpoint = endpoint.split(separator: "?", maxSplits: 1).first.map(String.init) ?? endpoint
+
+        Self.log("[\(clientId)][\(requestId)] START \(method) \(logEndpoint) (active=\(activeCount), retry=\(retryCount))")
+
         defer {
             let endCount = Self.decrementActiveRequests()
             let duration = Date().timeIntervalSince(startTime)
-            Self.log("[\(clientId)][\(requestId)] END \(method) \(endpoint) duration=\(String(format: "%.3f", duration))s (active=\(endCount))")
+            Self.log("[\(clientId)][\(requestId)] END \(method) \(logEndpoint) duration=\(String(format: "%.3f", duration))s (active=\(endCount))")
         }
-        
+
         guard let url = URL(string: "\(baseURL)\(endpoint)") else {
             throw APIError.invalidURL
         }
@@ -203,16 +204,26 @@ actor ManagementAPIClient {
             throw error
         }
     }
-    
+
+    private func authFileEndpoint(_ path: String, name: String) throws -> String {
+        let queryValueCharacters = CharacterSet(
+            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+        )
+        guard let encodedName = name.addingPercentEncoding(withAllowedCharacters: queryValueCharacters) else {
+            throw APIError.invalidURL
+        }
+        return path + "?name=" + encodedName
+    }
+
     func fetchAuthFiles() async throws -> [AuthFile] {
         let data = try await makeRequest("/auth-files")
         let response = try JSONDecoder().decode(AuthFilesResponse.self, from: data)
         return response.files
     }
-    
+
     func fetchAuthFileModels(name: String) async throws -> [AuthFileModelInfo] {
-        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
-        let data = try await makeRequest("/auth-files/models?name=\(encoded)")
+        let endpoint = try authFileEndpoint("/auth-files/models", name: name)
+        let data = try await makeRequest(endpoint)
         let response = try JSONDecoder().decode(AuthFileModelsResponse.self, from: data)
         return response.models
     }
@@ -224,7 +235,18 @@ actor ManagementAPIClient {
     }
     
     func deleteAuthFile(name: String) async throws {
-        _ = try await makeRequest("/auth-files?name=\(name)", method: "DELETE")
+        let endpoint = try authFileEndpoint("/auth-files", name: name)
+        _ = try await makeRequest(endpoint, method: "DELETE")
+    }
+
+    func uploadAuthFile(name: String, content: Data) async throws {
+        let endpoint = try authFileEndpoint("/auth-files", name: name)
+        _ = try await makeRequest(endpoint, method: "POST", body: content)
+    }
+
+    func downloadAuthFile(name: String) async throws -> Data {
+        let endpoint = try authFileEndpoint("/auth-files/download", name: name)
+        return try await makeRequest(endpoint)
     }
     
     func deleteAllAuthFiles() async throws {

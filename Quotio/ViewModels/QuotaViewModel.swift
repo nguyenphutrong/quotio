@@ -1552,7 +1552,7 @@ final class QuotaViewModel {
             }
         }
     }
-    
+
     func manualRefresh() async {
         if modeManager.isMonitorMode {
             await refreshQuotasDirectly(force: true)
@@ -2286,6 +2286,24 @@ final class QuotaViewModel {
             await refreshData()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func uploadAuthFile(name: String, content: Data) async throws {
+        if let client = apiClient {
+            try await client.uploadAuthFile(name: name, content: content)
+            await refreshData()
+        } else {
+            try await directAuthService.uploadAuthFile(name: name, content: content)
+            await loadDirectAuthFiles()
+        }
+    }
+
+    func downloadAuthFile(name: String) async throws -> Data {
+        if let client = apiClient {
+            return try await client.downloadAuthFile(name: name)
+        } else {
+            return try await directAuthService.downloadAuthFile(name: name)
         }
     }
 

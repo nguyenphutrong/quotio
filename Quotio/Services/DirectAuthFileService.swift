@@ -467,6 +467,76 @@ actor DirectAuthFileService {
             // Silent failure
         }
     }
+
+    // MARK: - File Upload/Download Operations
+
+    private func authFileURL(for name: String) throws -> URL {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty,
+              trimmedName == name,
+              trimmedName != ".",
+              trimmedName != "..",
+              !trimmedName.contains("/"),
+              !trimmedName.contains("\\"),
+              trimmedName.lowercased().hasSuffix(".json") else {
+            throw AuthFileError.invalidFileName
+        }
+
+        return URL(fileURLWithPath: expandPath("~/.cli-proxy-api"), isDirectory: true)
+            .appendingPathComponent(trimmedName, isDirectory: false)
+    }
+
+    /// Upload (write) an auth file to the auth directory
+    /// - Parameters:
+    ///   - name: Filename for the auth file (e.g., "claude-user@example.com.json")
+    ///   - content: JSON content as Data
+    func uploadAuthFile(name: String, content: Data) async throws {
+        let fileURL = try authFileURL(for: name)
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: content)
+        } catch {
+            throw AuthFileError.invalidJSON(error.localizedDescription)
+        }
+        guard object is [String: Any] else {
+            throw AuthFileError.invalidJSON("Content must be a JSON object")
+        }
+
+        try SecureAtomicFileWriter.write(content, to: fileURL)
+    }
+
+    /// Download (read) an auth file from the auth directory
+    /// - Parameter name: Filename to download
+    /// - Returns: File content as Data
+    func downloadAuthFile(name: String) async throws -> Data {
+        let fileURL = try authFileURL(for: name)
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: fileURL.path, isDirectory: &isDirectory),
+              !isDirectory.boolValue else {
+            throw AuthFileError.fileNotFound(name)
+        }
+
+        return try Data(contentsOf: fileURL)
+    }
+}
+
+// MARK: - Auth File Error
+
+enum AuthFileError: LocalizedError {
+    case fileNotFound(String)
+    case invalidFileName
+    case invalidJSON(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .fileNotFound(let name):
+            return "Auth file not found: \(name)"
+        case .invalidFileName:
+            return "Auth file name must be a JSON filename without directory components"
+        case .invalidJSON(let reason):
+            return "Invalid JSON: \(reason)"
+        }
+    }
 }
 
 // MARK: - Auth Token Data
