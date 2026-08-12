@@ -589,7 +589,7 @@ actor MonitorRefreshCoordinator {
         for (provider, accountQuotas) in quotas {
             let source: MonitorAccountSource
             switch provider {
-            case .cursor, .trae: source = .localIDE
+            case .cursor, .trae, .traeCn: source = .localIDE
             case .glm, .warp, .clinePass, .factoryDroid, .openRouter, .amp: source = .apiKey
             default: source = .nativeCredential
             }

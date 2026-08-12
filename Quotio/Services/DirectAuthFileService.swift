@@ -208,7 +208,8 @@ actor DirectAuthFileService {
             "kiro": .kiro,
             "vertex": .vertex,
             "cursor": .cursor,
-            "trae": .trae
+            "trae": .trae,
+            "trae-cn": .traeCn
         ]
         return typeMap[type.lowercased()]
     }

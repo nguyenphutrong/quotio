@@ -50,6 +50,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let cursorFetcher = CursorQuotaFetcher()
     @ObservationIgnored private let codexCLIFetcher = CodexCLIQuotaFetcher()
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
+    @ObservationIgnored private let traeCnFetcher = TraeQuotaFetcher(variant: .cn)
     @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
 
     @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
@@ -198,7 +199,7 @@ final class QuotaViewModel {
     // MARK: - IDE Quota Persistence Keys
 
     private static let ideQuotasKey = "persisted.ideQuotas"
-    private static let ideProvidersToSave: Set<AIProvider> = [.cursor, .trae]
+    private static let ideProvidersToSave: Set<AIProvider> = [.cursor, .trae, .traeCn]
 
     /// Key for tracking when auth files last changed (for model cache invalidation)
     static let authFilesChangedKey = "quotio.authFiles.lastChanged"
@@ -327,6 +328,7 @@ final class QuotaViewModel {
         await warpFetcher.updateProxyConfiguration()
         await clinePassFetcher.updateProxyConfiguration()
         await traeFetcher.updateProxyConfiguration()
+        await traeCnFetcher.updateProxyConfiguration()
         await kiroFetcher.updateProxyConfiguration()
         await factoryDroidFetcher.updateProxyConfiguration()
         await devinFetcher.updateProxyConfiguration()
@@ -905,6 +907,16 @@ final class QuotaViewModel {
             providerQuotas.removeValue(forKey: .trae)
         } else {
             providerQuotas[.trae] = quotas
+        }
+    }
+
+    /// Refresh Trae CN quota using its own storage.json (separate app from Trae)
+    private func refreshTraeCnQuotasInternal() async {
+        let quotas = await traeCnFetcher.fetchAsProviderQuota()
+        if quotas.isEmpty {
+            providerQuotas.removeValue(forKey: .traeCn)
+        } else {
+            providerQuotas[.traeCn] = quotas
         }
     }
     
@@ -1761,6 +1773,8 @@ final class QuotaViewModel {
             await refreshCursorQuotasInternal()
         case .trae:
             await refreshTraeQuotasInternal()
+        case .traeCn:
+            await refreshTraeCnQuotasInternal()
         case .glm:
             await refreshGlmQuotasInternal()
         case .warp:
@@ -1808,6 +1822,8 @@ final class QuotaViewModel {
             quota = await cursorFetcher.fetchAsProviderQuota()[account.accountKey]
         case .trae:
             quota = await traeFetcher.fetchAsProviderQuota()[account.accountKey]
+        case .traeCn:
+            quota = await traeCnFetcher.fetchAsProviderQuota()[account.accountKey]
         case .glm:
             guard let customProvider = CustomProviderService.shared.providers.first(where: {
                 $0.type == .glmCompatibility && $0.isEnabled && $0.name == account.accountKey
@@ -1972,6 +1988,11 @@ final class QuotaViewModel {
             fresh = await coordinatedRefresh {
                 await fetcher.fetchAsProviderQuota()
             }
+        case .traeCn:
+            let fetcher = traeCnFetcher
+            fresh = await coordinatedRefresh {
+                await fetcher.fetchAsProviderQuota()
+            }
         case .qwen, .iflow, .vertex:
             return
         }
@@ -1996,7 +2017,7 @@ final class QuotaViewModel {
             await monitorCoordinator.finish(quotas: providerQuotas)
         }
 
-        if provider == .cursor || provider == .trae {
+        if Self.ideProvidersToSave.contains(provider) {
             savePersistedIDEQuotas()
         }
 
@@ -2571,6 +2592,8 @@ final class QuotaViewModel {
         var cursorEmail: String?
         var traeFound = false
         var traeEmail: String?
+        var traeCnFound = false
+        var traeCnEmail: String?
         var cliToolsFound: [String] = []
         
         // Scan Cursor if opted in
@@ -2598,7 +2621,21 @@ final class QuotaViewModel {
                 providerQuotas.removeValue(forKey: .trae)
             }
         }
-        
+
+        // Scan Trae CN if opted in (separate app with its own storage directory)
+        if options.scanTraeCn {
+            let quotas = await traeCnFetcher.fetchAsProviderQuota()
+            if !quotas.isEmpty {
+                traeCnFound = true
+                traeCnEmail = quotas.keys.first
+                providerQuotas[.traeCn] = quotas
+            } else {
+                // Clear stale data when not found (consistent with refreshTraeCnQuotasInternal)
+                providerQuotas.removeValue(forKey: .traeCn)
+            }
+        }
+
+
         // Scan CLI tools if opted in
         if options.scanCLITools {
             let cliNames = ["claude", "codex", "gh"]
@@ -2614,6 +2651,8 @@ final class QuotaViewModel {
             cursorEmail: cursorEmail,
             traeFound: traeFound,
             traeEmail: traeEmail,
+            traeCnFound: traeCnFound,
+            traeCnEmail: traeCnEmail,
             cliToolsFound: cliToolsFound,
             timestamp: Date()
         )

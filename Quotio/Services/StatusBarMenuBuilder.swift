@@ -2529,6 +2529,7 @@ private extension AIProvider {
         case .cursor: return "Cursor"
         case .copilot: return "Copilot"
         case .trae: return "Trae"
+        case .traeCn: return "Trae CN"
         case .antigravity: return "Antigravity"
         case .qwen: return "Qwen"
         case .iflow: return "iFlow"

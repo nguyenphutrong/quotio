@@ -4,9 +4,66 @@
 //
 //  Fetches quota from Trae (ByteDance) using stored auth tokens
 //  Reads auth from Trae's storage.json file
+//  Supports both the international edition (Trae) and the China edition (Trae CN),
+//  which is a separate app with its own Application Support directory and API host.
 //
 
 import Foundation
+
+/// Describes an installable Trae edition (international or China).
+/// Both editions share the same storage.json auth blob format and quota API shape;
+/// only the install/storage paths, API host fallback, and web origin differ.
+nonisolated struct TraeVariantDescriptor: Sendable, Equatable {
+    /// Provider identity used for quota bookkeeping and persistence keys
+    let provider: AIProvider
+    /// User-facing name, e.g. "Trae" / "Trae CN"
+    let displayName: String
+    /// App bundle name inside /Applications, e.g. "Trae CN.app"
+    let appBundleName: String
+    /// Directory name under ~/Library/Application Support, e.g. "Trae CN"
+    let applicationSupportDirectory: String
+    /// API host used when the auth blob does not carry a "host" field
+    let defaultAPIHost: String
+    /// Web origin sent as Origin/Referer headers
+    let webOrigin: String
+
+    /// storage.json location holding the iCubeAuthInfo auth blob
+    var storageJsonPath: String {
+        "~/Library/Application Support/\(applicationSupportDirectory)/User/globalStorage/storage.json"
+    }
+
+    /// Candidate install locations for the app bundle
+    var appPaths: [String] {
+        [
+            "/Applications/\(appBundleName)",
+            NSString(string: "~/Applications/\(appBundleName)").expandingTildeInPath
+        ]
+    }
+
+    /// Account key used when the auth blob has no email/username/userId
+    var fallbackAccountKey: String { "\(displayName) User" }
+
+    /// International edition (trae.ai)
+    static let international = TraeVariantDescriptor(
+        provider: .trae,
+        displayName: "Trae",
+        appBundleName: "Trae.app",
+        applicationSupportDirectory: "Trae",
+        defaultAPIHost: "https://api-sg-central.trae.ai",
+        webOrigin: "https://www.trae.ai"
+    )
+
+    /// China edition (trae.com.cn) — ships as "Trae CN.app" (bundle id cn.trae.app)
+    /// with its own "~/Library/Application Support/Trae CN" directory.
+    static let cn = TraeVariantDescriptor(
+        provider: .traeCn,
+        displayName: "Trae CN",
+        appBundleName: "Trae CN.app",
+        applicationSupportDirectory: "Trae CN",
+        defaultAPIHost: "https://api.trae.cn",
+        webOrigin: "https://www.trae.com.cn"
+    )
+}
 
 /// Auth data from Trae's storage.json
 struct TraeAuthData: Sendable {
@@ -41,10 +98,11 @@ struct TraeQuotaInfo: Sendable {
 /// Fetches quota from Trae using stored auth
 actor TraeQuotaFetcher {
     private var session: URLSession
-    private let storageJsonPath = "~/Library/Application Support/Trae/User/globalStorage/storage.json"
+    private let variant: TraeVariantDescriptor
     private let authKey = "iCubeAuthInfo://icube.cloudide"
-    
-    init() {
+
+    init(variant: TraeVariantDescriptor = .international) {
+        self.variant = variant
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         config.httpAdditionalHeaders = [
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
@@ -61,32 +119,27 @@ actor TraeQuotaFetcher {
         self.session = URLSession(configuration: config)
     }
     
-    /// Check if Trae is installed
+    /// Check if this Trae edition is installed
     func isInstalled() async -> Bool {
-        let appPaths = [
-            "/Applications/Trae.app",
-            NSString(string: "~/Applications/Trae.app").expandingTildeInPath
-        ]
-        
-        for path in appPaths {
+        for path in variant.appPaths {
             if FileManager.default.fileExists(atPath: path) {
                 return true
             }
         }
-        
+
         return false
     }
-    
+
     /// Check if Trae auth exists
     func hasAuth() -> Bool {
         let authData = readAuthFromStorageJson()
         return authData?.accessToken != nil
     }
-    
-    /// Read auth data from Trae's storage.json
+
+    /// Read auth data from this edition's storage.json
     func readAuthFromStorageJson() -> TraeAuthData? {
-        let expandedPath = NSString(string: storageJsonPath).expandingTildeInPath
-        
+        let expandedPath = NSString(string: variant.storageJsonPath).expandingTildeInPath
+
         guard FileManager.default.fileExists(atPath: expandedPath) else {
             return nil
         }
@@ -139,8 +192,8 @@ actor TraeQuotaFetcher {
             return nil
         }
         
-        // Use the API host from auth data or default
-        let apiHost = authData.apiHost ?? "https://api-sg-central.trae.ai"
+        // Use the API host from auth data or the edition's default
+        let apiHost = authData.apiHost ?? variant.defaultAPIHost
         let quotaEndpoint = "\(apiHost)/trae/api/v1/pay/user_current_entitlement_list"
         
         guard let quotaURL = URL(string: quotaEndpoint) else {
@@ -152,8 +205,8 @@ actor TraeQuotaFetcher {
         request.setValue("Cloud-IDE-JWT \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue("https://www.trae.ai", forHTTPHeaderField: "Origin")
-        request.setValue("https://www.trae.ai/", forHTTPHeaderField: "Referer")
+        request.setValue(variant.webOrigin, forHTTPHeaderField: "Origin")
+        request.setValue(variant.webOrigin + "/", forHTTPHeaderField: "Referer")
         
         // Request body
         let body = ["require_usage": true]
@@ -354,7 +407,7 @@ actor TraeQuotaFetcher {
             ))
         }
         
-        let email = info.email ?? info.username ?? info.userId ?? "Trae User"
+        let email = info.email ?? info.username ?? info.userId ?? variant.fallbackAccountKey
         
         let quotaData = ProviderQuotaData(
             models: models,

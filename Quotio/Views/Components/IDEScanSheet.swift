@@ -129,7 +129,17 @@ struct IDEScanSheet: View {
                     detail: "ideScan.trae.detail".localized(),
                     isOn: $scanOptions.scanTrae
                 )
-                
+
+                // Trae CN IDE (China edition, separate app)
+                scanOptionRow(
+                    icon: "trae-menubar",
+                    iconFallback: "laptopcomputer",
+                    title: "Trae CN IDE",
+                    detail: "ideScan.traeCn.detail".localized(),
+                    isOn: $scanOptions.scanTraeCn
+                )
+
+
                 // CLI Tools
                 scanOptionRow(
                     icon: nil,
@@ -210,7 +220,14 @@ struct IDEScanSheet: View {
                     } else if scanOptions.scanTrae {
                         resultRow(icon: "xmark.circle.fill", color: .secondary, text: "Trae: " + "ideScan.notFound".localized())
                     }
-                    
+
+                    if result.traeCnFound {
+                        resultRow(icon: "checkmark.circle.fill", color: .green, text: "Trae CN: \((result.traeCnEmail ?? "Found").masked(if: settings.hideSensitiveInfo))")
+                    } else if scanOptions.scanTraeCn {
+                        resultRow(icon: "xmark.circle.fill", color: .secondary, text: "Trae CN: " + "ideScan.notFound".localized())
+                    }
+
+
                     if !result.cliToolsFound.isEmpty {
                         resultRow(icon: "checkmark.circle.fill", color: .green, text: "CLI: \(result.cliToolsFound.joined(separator: ", "))")
                     } else if scanOptions.scanCLITools {

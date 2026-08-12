@@ -17,32 +17,38 @@ struct IDEScanOptions: Sendable {
     /// Scan Trae IDE's storage for auth/quota
     /// Path: ~/Library/Application Support/Trae/User/globalStorage/storage.json
     var scanTrae: Bool = false
-    
+
+    /// Scan Trae CN IDE's storage for auth/quota (China edition, separate app)
+    /// Path: ~/Library/Application Support/Trae CN/User/globalStorage/storage.json
+    var scanTraeCn: Bool = false
+
     /// Scan for installed CLI tools (claude, codex, gemini, etc.)
     /// Uses: which command + /usr/local/bin, /opt/homebrew/bin
     var scanCLITools: Bool = true
-    
+
     /// Returns true if any IDE scan option is enabled
     var hasIDEScanEnabled: Bool {
-        scanCursor || scanTrae
+        scanCursor || scanTrae || scanTraeCn
     }
-    
+
     /// Returns true if any scan option is enabled
     var hasAnyScanEnabled: Bool {
-        scanCursor || scanTrae || scanCLITools
+        scanCursor || scanTrae || scanTraeCn || scanCLITools
     }
-    
+
     /// Default options - only CLI tools (non-invasive)
     static let defaultOptions = IDEScanOptions(
         scanCursor: false,
         scanTrae: false,
+        scanTraeCn: false,
         scanCLITools: true
     )
-    
+
     /// All options enabled
     static let allEnabled = IDEScanOptions(
         scanCursor: true,
         scanTrae: true,
+        scanTraeCn: true,
         scanCLITools: true
     )
 }
@@ -53,14 +59,18 @@ struct IDEScanResult: Sendable {
     let cursorEmail: String?
     let traeFound: Bool
     let traeEmail: String?
+    let traeCnFound: Bool
+    let traeCnEmail: String?
     let cliToolsFound: [String] // List of found CLI tool names
     let timestamp: Date
-    
+
     static let empty = IDEScanResult(
         cursorFound: false,
         cursorEmail: nil,
         traeFound: false,
         traeEmail: nil,
+        traeCnFound: false,
+        traeCnEmail: nil,
         cliToolsFound: [],
         timestamp: Date()
     )
@@ -127,7 +137,12 @@ extension IDEScanOptions {
         if scanTrae {
             paths.append("~/Library/Application Support/Trae/User/globalStorage/storage.json")
         }
-        
+
+        if scanTraeCn {
+            paths.append("~/Library/Application Support/Trae CN/User/globalStorage/storage.json")
+        }
+
+
         if scanCLITools {
             paths.append("/usr/local/bin, /opt/homebrew/bin (via 'which' command)")
         }
@@ -154,7 +169,16 @@ extension IDEScanOptions {
                 detail: "~/Library/Application Support/Trae/"
             ))
         }
-        
+
+        if scanTraeCn {
+            items.append((
+                icon: "trae",
+                title: "Trae CN IDE",
+                detail: "~/Library/Application Support/Trae CN/"
+            ))
+        }
+
+
         if scanCLITools {
             items.append((
                 icon: "terminal",
