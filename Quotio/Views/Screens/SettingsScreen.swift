@@ -989,7 +989,14 @@ struct RefreshCadenceSettingsSection: View {
             set: { refreshSettings.refreshCadence = $0 }
         )
     }
-    
+
+    private var adaptiveBinding: Binding<Bool> {
+        Binding(
+            get: { refreshSettings.adaptiveRefreshEnabled },
+            set: { refreshSettings.adaptiveRefreshEnabled = $0 }
+        )
+    }
+
     var body: some View {
         Section {
             Picker("settings.refresh.cadence".localized(), selection: cadenceBinding) {
@@ -997,7 +1004,15 @@ struct RefreshCadenceSettingsSection: View {
                     Text(cadence.localizationKey.localized()).tag(cadence)
                 }
             }
-            
+
+            if refreshSettings.refreshCadence != .manual {
+                Toggle("settings.refresh.adaptive".localized(), isOn: adaptiveBinding)
+
+                Text("settings.refresh.adaptive.help".localized())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if refreshSettings.refreshCadence == .manual {
                 Button {
                     Task {

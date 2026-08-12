@@ -380,7 +380,8 @@ final class RefreshSettingsManager {
     
     private let defaults = UserDefaults.standard
     private let refreshCadenceKey = "refreshCadence"
-    
+    private let adaptiveRefreshKey = "adaptiveRefreshEnabled"
+
     /// Current refresh cadence
     var refreshCadence: RefreshCadence {
         didSet {
@@ -388,13 +389,32 @@ final class RefreshSettingsManager {
             onRefreshCadenceChanged?(refreshCadence)
         }
     }
-    
+
+    /// Opt-in adaptive cadence: keep `refreshCadence` while usage is moving and
+    /// back off progressively while it is idle (issue #172). Off by default, so
+    /// the cadence above behaves exactly as before unless enabled.
+    var adaptiveRefreshEnabled: Bool {
+        didSet {
+            guard adaptiveRefreshEnabled != oldValue else { return }
+            defaults.set(adaptiveRefreshEnabled, forKey: adaptiveRefreshKey)
+            onRefreshCadenceChanged?(refreshCadence)
+        }
+    }
+
+    /// Backoff bounds for adaptive refresh, derived from the chosen cadence.
+    /// `nil` when there is no automatic refresh to adapt (manual cadence).
+    var adaptiveBounds: AdaptiveRefreshBounds? {
+        guard let seconds = refreshCadence.intervalSeconds else { return nil }
+        return AdaptiveRefreshBounds(cadenceInterval: seconds)
+    }
+
     /// Callback when refresh cadence changes (for ViewModel to restart timer)
     var onRefreshCadenceChanged: ((RefreshCadence) -> Void)?
     
     private init() {
         let saved = defaults.string(forKey: refreshCadenceKey) ?? RefreshCadence.tenMinutes.rawValue
         self.refreshCadence = RefreshCadence(rawValue: saved) ?? .tenMinutes
+        self.adaptiveRefreshEnabled = defaults.bool(forKey: adaptiveRefreshKey)
     }
 }
 

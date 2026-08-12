@@ -18821,6 +18821,64 @@
         }
       }
     },
+    "settings.refresh.adaptive" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adaptive refresh"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualisation adaptative"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Làm mới thích ứng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自适应刷新"
+          }
+        }
+      }
+    },
+    "settings.refresh.adaptive.help" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keeps the interval above while usage is changing, then doubles it while you are idle, up to 30 minutes. Never refreshes more often than the interval above."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conserve l’intervalle ci-dessus tant que la consommation évolue, puis le double pendant l’inactivité, jusqu’à 30 minutes. N’actualise jamais plus souvent que l’intervalle ci-dessus."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giữ nguyên khoảng thời gian ở trên khi mức sử dụng thay đổi, sau đó tăng gấp đôi khi bạn không hoạt động, tối đa 30 phút. Không bao giờ làm mới thường xuyên hơn khoảng thời gian ở trên."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量变化时保持上面的刷新间隔；闲置时按倍数退避，最长 30 分钟。刷新频率不会高于上面设置的间隔。"
+          }
+        }
+      }
+    },
     "settings.refresh.cadence" : {
       "extractionState" : "stale",
       "localizations" : {

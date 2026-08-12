@@ -123,7 +123,9 @@ final class QuotaViewModel {
             return ("outdated", issue.message)
         }
         guard let updated else { return (nil, nil) }
-        let staleAfter = refreshSettings.refreshCadence.intervalSeconds ?? 600
+        // Use the interval actually in effect: with adaptive refresh backed off,
+        // a slightly older timestamp is expected and not "outdated" (issue #172).
+        let staleAfter = effectiveRefreshInterval ?? 600
         if Date().timeIntervalSince(updated) > staleAfter {
             return (
                 "outdated",
@@ -171,6 +173,8 @@ final class QuotaViewModel {
     let antigravitySwitcher = AntigravityAccountSwitcher.shared
     
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    /// Adaptive refresh state (issue #172). `nil` while adaptive refresh is off.
+    @ObservationIgnored private var adaptiveTracker: AdaptiveRefreshTracker?
     @ObservationIgnored private var warmupTask: Task<Void, Never>?
     @ObservationIgnored private var isStartingProxyFlow = false
     @ObservationIgnored private var lastLogTimestamp: Int?
@@ -965,7 +969,8 @@ final class QuotaViewModel {
     /// Start auto-refresh for quota-only mode
     private func startQuotaOnlyAutoRefresh() {
         refreshTask?.cancel()
-        
+        resetAdaptiveRefresh()
+
         guard let intervalNs = refreshSettings.refreshCadence.intervalNanoseconds else {
             // Manual mode - no auto-refresh
             return
@@ -973,9 +978,10 @@ final class QuotaViewModel {
         
         refreshTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: intervalNs)
+                await sleepUntilNextRefresh(fixedNanoseconds: intervalNs)
                 _ = await kiroFetcher.refreshAllTokensIfNeeded()
                 await refreshQuotasDirectly()
+                recordAdaptiveObservation()
             }
         }
     }
@@ -983,17 +989,19 @@ final class QuotaViewModel {
     /// Start auto-refresh for quota when proxy is not running (Full Mode)
     private func startQuotaAutoRefreshWithoutProxy() {
         refreshTask?.cancel()
-        
+        resetAdaptiveRefresh()
+
         guard let intervalNs = refreshSettings.refreshCadence.intervalNanoseconds else {
             return
         }
         
         refreshTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: intervalNs)
+                await sleepUntilNextRefresh(fixedNanoseconds: intervalNs)
                 if !proxyManager.proxyStatus.running {
                     _ = await kiroFetcher.refreshAllTokensIfNeeded()
                     await refreshQuotasUnified()
+                    recordAdaptiveObservation()
                 }
             }
         }
@@ -1441,9 +1449,61 @@ final class QuotaViewModel {
         )
     }
     
+    // MARK: - Adaptive Refresh (issue #172)
+
+    /// Reset adaptive state. Called whenever a refresh loop (re)starts so a new
+    /// loop always begins at the user's chosen cadence instead of inheriting a
+    /// backed-off interval.
+    private func resetAdaptiveRefresh() {
+        guard refreshSettings.adaptiveRefreshEnabled,
+              let bounds = refreshSettings.adaptiveBounds else {
+            adaptiveTracker = nil
+            return
+        }
+        adaptiveTracker = AdaptiveRefreshTracker(bounds: bounds)
+    }
+
+    /// Feed the quota snapshot produced by a completed automatic refresh into
+    /// the adaptive tracker, so the next sleep either stays fast (usage moved)
+    /// or backs off (nothing changed).
+    private func recordAdaptiveObservation() {
+        guard refreshSettings.adaptiveRefreshEnabled,
+              let bounds = refreshSettings.adaptiveBounds else {
+            adaptiveTracker = nil
+            return
+        }
+        if adaptiveTracker == nil {
+            adaptiveTracker = AdaptiveRefreshTracker(bounds: bounds)
+        }
+        adaptiveTracker?.observe(quotas: providerQuotas, bounds: bounds)
+    }
+
+    /// Sleep before the next automatic refresh.
+    ///
+    /// With adaptive refresh off this is exactly the fixed cadence; with it on
+    /// the interval can only grow, never drop below the chosen cadence, so the
+    /// providers' APIs are never polled harder than in fixed mode.
+    private func sleepUntilNextRefresh(fixedNanoseconds: UInt64) async {
+        guard refreshSettings.adaptiveRefreshEnabled,
+              let interval = adaptiveTracker?.interval,
+              interval > 0 else {
+            try? await Task.sleep(nanoseconds: fixedNanoseconds)
+            return
+        }
+        try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+    }
+
+    /// Interval currently driving automatic refreshes, used for staleness copy.
+    private var effectiveRefreshInterval: TimeInterval? {
+        guard let fixed = refreshSettings.refreshCadence.intervalSeconds else { return nil }
+        guard refreshSettings.adaptiveRefreshEnabled, let tracker = adaptiveTracker else { return fixed }
+        return max(fixed, tracker.interval)
+    }
+
     private func startAutoRefresh() {
         refreshTask?.cancel()
-        
+        resetAdaptiveRefresh()
+
         guard let intervalNs = refreshSettings.refreshCadence.intervalNanoseconds else {
             return
         }
@@ -1453,10 +1513,11 @@ final class QuotaViewModel {
             let maxFailuresBeforeRecovery = max(3, Int(180_000_000_000 / intervalNs))
             
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: intervalNs)
+                await sleepUntilNextRefresh(fixedNanoseconds: intervalNs)
                 
                 await refreshData()
-                
+                recordAdaptiveObservation()
+
                 if errorMessage != nil {
                     consecutiveFailures += 1
                     Log.quota("Refresh failed, consecutive failures: \(consecutiveFailures)")
