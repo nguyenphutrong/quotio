@@ -27,9 +27,16 @@ struct ProviderDisclosureGroup: View {
         accounts.allSatisfy { $0.source == .autoDetected }
     }
 
+    /// Accounts with the ones currently in use floated to the top,
+    /// keeping the existing order as the tie-breaker.
+    private var displayedAccounts: [AccountRowData] {
+        guard let isAccountActive else { return accounts }
+        return AccountSorting.prioritizingActive(accounts, isActive: isAccountActive)
+    }
+
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            ForEach(accounts) { account in
+            ForEach(displayedAccounts) { account in
                 AccountRow(
                     account: account,
                     onDelete: onDeleteAccount != nil ? { onDeleteAccount?(account) } : nil,

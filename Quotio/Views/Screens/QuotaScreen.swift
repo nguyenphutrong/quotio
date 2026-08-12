@@ -409,7 +409,14 @@ private struct ProviderQuotaView: View {
             }
         }
         
-        return accounts.sorted { $0.email < $1.email }
+        let sorted = accounts.sorted { $0.email < $1.email }
+
+        // Float the account currently in use (Antigravity IDE) to the top,
+        // keeping the alphabetical order as the tie-breaker.
+        guard provider == .antigravity else { return sorted }
+        return AccountSorting.prioritizingActive(sorted) {
+            viewModel.isAntigravityAccountActive(email: $0.email)
+        }
     }
     
     var body: some View {
