@@ -92,6 +92,14 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
 /// Used in Quota-Only mode where proxy server is not running
 actor DirectAuthFileService {
     private let fileManager = FileManager.default
+    private let authDirectory: URL
+
+    init(authDirectory: URL? = nil) {
+        self.authDirectory = authDirectory ?? URL(
+            fileURLWithPath: NSString(string: "~/.cli-proxy-api").expandingTildeInPath,
+            isDirectory: true
+        )
+    }
     
     /// Expand tilde in path
     private func expandPath(_ path: String) -> String {
@@ -108,7 +116,7 @@ actor DirectAuthFileService {
     
     /// Scan ~/.cli-proxy-api for managed auth files
     private func scanCLIProxyAPIDirectory() async -> [DirectAuthFile] {
-        let path = expandPath("~/.cli-proxy-api")
+        let path = authDirectory.path
         guard let files = try? fileManager.contentsOfDirectory(atPath: path) else {
             return []
         }
@@ -471,6 +479,11 @@ actor DirectAuthFileService {
     // MARK: - File Upload/Download Operations
 
     private func authFileURL(for name: String) throws -> URL {
+        try validateAuthFileName(name)
+        return authDirectory.appendingPathComponent(name, isDirectory: false)
+    }
+
+    private func validateAuthFileName(_ name: String) throws {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty,
               trimmedName == name,
@@ -481,9 +494,18 @@ actor DirectAuthFileService {
               trimmedName.lowercased().hasSuffix(".json") else {
             throw AuthFileError.invalidFileName
         }
+    }
 
-        return URL(fileURLWithPath: expandPath("~/.cli-proxy-api"), isDirectory: true)
-            .appendingPathComponent(trimmedName, isDirectory: false)
+    private func validateAuthFileContent(_ content: Data) throws {
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: content)
+        } catch {
+            throw AuthFileError.invalidJSON(error.localizedDescription)
+        }
+        guard object is [String: Any] else {
+            throw AuthFileError.invalidJSON("authFile.error.jsonObjectRequired".localizedStatic())
+        }
     }
 
     /// Upload (write) an auth file to the auth directory
@@ -492,17 +514,29 @@ actor DirectAuthFileService {
     ///   - content: JSON content as Data
     func uploadAuthFile(name: String, content: Data) async throws {
         let fileURL = try authFileURL(for: name)
-        let object: Any
-        do {
-            object = try JSONSerialization.jsonObject(with: content)
-        } catch {
-            throw AuthFileError.invalidJSON(error.localizedDescription)
-        }
-        guard object is [String: Any] else {
-            throw AuthFileError.invalidJSON("Content must be a JSON object")
-        }
-
+        try validateAuthFileContent(content)
         try SecureAtomicFileWriter.write(content, to: fileURL)
+    }
+
+    func readAuthFileForImport(from url: URL) async throws -> Data {
+        try validateAuthFileName(url.lastPathComponent)
+        do {
+            let content = try Data(contentsOf: url)
+            try validateAuthFileContent(content)
+            return content
+        } catch let error as AuthFileError {
+            throw error
+        } catch {
+            throw AuthFileError.readFailed(error.localizedDescription)
+        }
+    }
+
+    func writeDownloadedAuthFile(_ content: Data, to url: URL) async throws {
+        do {
+            try SecureAtomicFileWriter.write(content, to: url)
+        } catch {
+            throw AuthFileError.saveFailed(error.localizedDescription)
+        }
     }
 
     /// Download (read) an auth file from the auth directory
@@ -526,15 +560,21 @@ enum AuthFileError: LocalizedError {
     case fileNotFound(String)
     case invalidFileName
     case invalidJSON(String)
+    case readFailed(String)
+    case saveFailed(String)
 
     var errorDescription: String? {
         switch self {
         case .fileNotFound(let name):
-            return "Auth file not found: \(name)"
+            return String(format: "authFile.error.fileNotFound".localizedStatic(), name)
         case .invalidFileName:
-            return "Auth file name must be a JSON filename without directory components"
+            return "authFile.error.invalidFileName".localizedStatic()
         case .invalidJSON(let reason):
-            return "Invalid JSON: \(reason)"
+            return String(format: "authFile.error.invalidJSON".localizedStatic(), reason)
+        case .readFailed(let reason):
+            return String(format: "authFile.error.readFailed".localizedStatic(), reason)
+        case .saveFailed(let reason):
+            return String(format: "authFile.error.saveFailed".localizedStatic(), reason)
         }
     }
 }

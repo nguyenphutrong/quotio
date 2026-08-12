@@ -81,6 +81,10 @@ struct AccountRowData: Identifiable, Hashable {
         MenuBarQuotaItem(provider: provider.rawValue, accountKey: menuBarAccountKey)
     }
 
+    var canDownloadAuthFile: Bool {
+        authFileName != nil
+    }
+
     // MARK: - Factory Methods
     
     /// Create from AuthFile (proxy mode)

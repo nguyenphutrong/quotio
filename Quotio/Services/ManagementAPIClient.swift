@@ -205,7 +205,7 @@ actor ManagementAPIClient {
         }
     }
 
-    private func authFileEndpoint(_ path: String, name: String) throws -> String {
+    nonisolated static func authFileEndpoint(_ path: String, name: String) throws -> String {
         let queryValueCharacters = CharacterSet(
             charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
         )
@@ -222,7 +222,7 @@ actor ManagementAPIClient {
     }
 
     func fetchAuthFileModels(name: String) async throws -> [AuthFileModelInfo] {
-        let endpoint = try authFileEndpoint("/auth-files/models", name: name)
+        let endpoint = try Self.authFileEndpoint("/auth-files/models", name: name)
         let data = try await makeRequest(endpoint)
         let response = try JSONDecoder().decode(AuthFileModelsResponse.self, from: data)
         return response.models
@@ -235,17 +235,17 @@ actor ManagementAPIClient {
     }
     
     func deleteAuthFile(name: String) async throws {
-        let endpoint = try authFileEndpoint("/auth-files", name: name)
+        let endpoint = try Self.authFileEndpoint("/auth-files", name: name)
         _ = try await makeRequest(endpoint, method: "DELETE")
     }
 
     func uploadAuthFile(name: String, content: Data) async throws {
-        let endpoint = try authFileEndpoint("/auth-files", name: name)
+        let endpoint = try Self.authFileEndpoint("/auth-files", name: name)
         _ = try await makeRequest(endpoint, method: "POST", body: content)
     }
 
     func downloadAuthFile(name: String) async throws -> Data {
-        let endpoint = try authFileEndpoint("/auth-files/download", name: name)
+        let endpoint = try Self.authFileEndpoint("/auth-files/download", name: name)
         return try await makeRequest(endpoint)
     }
     

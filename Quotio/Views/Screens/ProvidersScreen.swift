@@ -568,21 +568,15 @@ struct ProvidersScreen: View {
     private func downloadAccountAuthFile(_ account: AccountRowData) async {
         guard let filename = account.authFileName else { return }
 
+        let savePanel = NSSavePanel()
+        savePanel.nameFieldStringValue = filename.hasSuffix(".json") ? filename : filename + ".json"
+        savePanel.allowedContentTypes = [.json]
+        savePanel.canCreateDirectories = true
+
+        guard savePanel.runModal() == .OK, let url = savePanel.url else { return }
+
         do {
-            let data = try await viewModel.downloadAuthFile(name: filename)
-
-            let savePanel = NSSavePanel()
-            savePanel.nameFieldStringValue = filename.hasSuffix(".json") ? filename : filename + ".json"
-            savePanel.allowedContentTypes = [.json]
-            savePanel.canCreateDirectories = true
-
-            if savePanel.runModal() == .OK, let url = savePanel.url {
-                do {
-                    try SecureAtomicFileWriter.write(data, to: url)
-                } catch {
-                    viewModel.errorMessage = "Failed to save file: \(error.localizedDescription)"
-                }
-            }
+            try await viewModel.exportAuthFile(name: filename, to: url)
         } catch {
             viewModel.errorMessage = error.localizedDescription
         }
@@ -610,9 +604,7 @@ struct ProvidersScreen: View {
         if openPanel.runModal() == .OK, let url = openPanel.url {
             Task {
                 do {
-                    let data = try Data(contentsOf: url)
-                    let filename = url.lastPathComponent
-                    try await viewModel.uploadAuthFile(name: filename, content: data)
+                    try await viewModel.importAuthFile(from: url)
                 } catch {
                     viewModel.errorMessage = error.localizedDescription
                 }

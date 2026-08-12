@@ -2299,12 +2299,22 @@ final class QuotaViewModel {
         }
     }
 
+    func importAuthFile(from url: URL) async throws {
+        let content = try await directAuthService.readAuthFileForImport(from: url)
+        try await uploadAuthFile(name: url.lastPathComponent, content: content)
+    }
+
     func downloadAuthFile(name: String) async throws -> Data {
         if let client = apiClient {
             return try await client.downloadAuthFile(name: name)
         } else {
             return try await directAuthService.downloadAuthFile(name: name)
         }
+    }
+
+    func exportAuthFile(name: String, to url: URL) async throws {
+        let content = try await downloadAuthFile(name: name)
+        try await directAuthService.writeDownloadedAuthFile(content, to: url)
     }
 
     func toggleAuthFileDisabled(_ file: AuthFile) async {

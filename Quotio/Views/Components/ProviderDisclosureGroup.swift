@@ -37,7 +37,7 @@ struct ProviderDisclosureGroup: View {
                     onEdit: onEditAccount != nil ? { onEditAccount?(account) } : nil,
                     onSwitch: onSwitchAccount != nil ? { onSwitchAccount?(account) } : nil,
                     onToggleDisabled: onToggleDisabled != nil ? { onToggleDisabled?(account) } : nil,
-                    onDownload: account.authFileName != nil && onDownloadAccount != nil
+                    onDownload: account.canDownloadAuthFile && onDownloadAccount != nil
                         ? { onDownloadAccount?(account) }
                         : nil,
                     isActiveInIDE: isAccountActive?(account) ?? false
