@@ -636,11 +636,14 @@ actor MonitorRefreshCoordinator {
         source: MonitorAccountSource,
         disabledIDs: Set<String>
     ) -> MonitorAccount {
+        // Cursor/Trae accounts exist only as imported quota snapshots (no owned
+        // credential), so deleting the snapshot fully removes them (issue #213).
         var account = MonitorAccount.make(
             provider: provider,
             accountKey: accountKey,
             displayName: displayName,
-            source: source
+            source: source,
+            canDelete: provider.usesBrowserAuth
         )
         account.isDisabled = disabledIDs.contains(account.id)
         return account

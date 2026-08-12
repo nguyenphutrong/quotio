@@ -113,6 +113,8 @@ struct AccountRowData: Identifiable, Hashable {
     }
     
     /// Create from auto-detected account (Cursor, Trae)
+    /// Cursor/Trae accounts are imported from local IDE databases via "Scan for IDEs";
+    /// deleting them removes the imported quota data from Quotio (issue #213).
     static func from(provider: AIProvider, accountKey: String) -> AccountRowData {
         AccountRowData(
             id: "\(provider.rawValue)_\(accountKey)",
@@ -123,7 +125,7 @@ struct AccountRowData: Identifiable, Hashable {
             status: nil,
             statusMessage: nil,
             isDisabled: false,
-            canDelete: false
+            canDelete: provider.usesBrowserAuth
         )
     }
 

@@ -504,6 +504,15 @@ struct ProvidersScreen: View {
             return
         }
 
+        // Handle auto-detected IDE accounts (Cursor, Trae) imported via "Scan for IDEs"
+        if account.source == .autoDetected {
+            await viewModel.deleteAutoDetectedAccount(
+                provider: account.provider,
+                accountKey: account.menuBarAccountKey
+            )
+            return
+        }
+
         // Handle GLM accounts (stored in CustomProviderService)
         if account.provider == .glm {
             // GLM accounts are stored as custom providers

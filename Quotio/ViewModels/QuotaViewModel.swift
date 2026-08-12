@@ -484,8 +484,35 @@ final class QuotaViewModel {
         guard let account = monitorAccounts.first(where: { $0.id == accountID }), account.canDelete else { return }
         await monitorCoordinator.deleteOwnedAccount(accountID: accountID)
         providerQuotas[account.provider]?.removeValue(forKey: account.accountKey)
+        if providerQuotas[account.provider]?.isEmpty == true {
+            providerQuotas.removeValue(forKey: account.provider)
+        }
+        if Self.ideProvidersToSave.contains(account.provider) {
+            // Cursor/Trae quotas are also persisted to UserDefaults; clear them so
+            // the deleted account does not resurrect on next launch (issue #213).
+            savePersistedIDEQuotas()
+        }
         await monitorCoordinator.finish(quotas: providerQuotas)
         monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+        syncMenuBarSelection()
+    }
+
+    /// Delete an auto-detected IDE account (Cursor, Trae) imported via "Scan for IDEs".
+    /// These accounts exist only as imported quota data, so removing the quota entry
+    /// and its persisted copies deletes the account (issue #213).
+    func deleteAutoDetectedAccount(provider: AIProvider, accountKey: String) async {
+        guard Self.ideProvidersToSave.contains(provider) else { return }
+        providerQuotas[provider]?.removeValue(forKey: accountKey)
+        if providerQuotas[provider]?.isEmpty == true {
+            providerQuotas.removeValue(forKey: provider)
+        }
+        savePersistedIDEQuotas()
+        if modeManager.isMonitorMode {
+            await monitorCoordinator.finish(quotas: providerQuotas)
+            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+        }
+        syncMenuBarSelection()
+        notifyQuotaDataChanged()
     }
 
     func saveOpenRouterAccount(label: String, apiKey: String, existingAccountID: String? = nil) async throws {
@@ -2007,9 +2034,12 @@ final class QuotaViewModel {
     }
 
     /// Refresh all auto-detected providers (those that don't support manual auth)
+    /// Cursor and Trae are excluded: they are imported only via explicit "Scan for IDEs"
+    /// (issue #29) and re-importing here would resurrect deleted accounts (issue #213).
+    /// They can still be refreshed via their scoped refresh actions while imported.
     func refreshAutoDetectedProviders() async {
-        let autoDetectedProviders = AIProvider.allCases.filter { !$0.supportsManualAuth }
-        
+        let autoDetectedProviders = AIProvider.allCases.filter { !$0.supportsManualAuth && !$0.usesBrowserAuth }
+
         for provider in autoDetectedProviders {
             await refreshQuotaForProvider(provider)
         }

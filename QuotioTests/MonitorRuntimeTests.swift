@@ -1032,6 +1032,73 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertTrue(derived.isDisabled)
     }
 
+    func testQuotaDerivedIDEAccountsAllowDeletion() {
+        // Cursor/Trae accounts imported from local IDE databases must be deletable (issue #213).
+        for provider in [AIProvider.cursor, .trae] {
+            let account = MonitorRefreshCoordinator.makeQuotaDerivedAccount(
+                provider: provider,
+                accountKey: "user@example.com",
+                source: .localIDE,
+                disabledIDs: []
+            )
+            XCTAssertTrue(account.canDelete, "\(provider.rawValue) account should be deletable")
+        }
+
+        // Quota-derived placeholders for credential-backed providers would resurrect
+        // on the next discovery pass, so they must stay non-deletable.
+        for (provider, source) in [(AIProvider.claude, MonitorAccountSource.nativeCredential), (.amp, .apiKey)] {
+            let account = MonitorRefreshCoordinator.makeQuotaDerivedAccount(
+                provider: provider,
+                accountKey: "user@example.com",
+                source: source,
+                disabledIDs: []
+            )
+            XCTAssertFalse(account.canDelete, "\(provider.rawValue) account should not be deletable")
+        }
+    }
+
+    @MainActor
+    func testAutoDetectedAccountRowsAllowDeleteOnlyForIDEProviders() {
+        // Providers screen rows for scanned IDE accounts must offer delete (issue #213).
+        for provider in [AIProvider.cursor, .trae] {
+            let row = AccountRowData.from(provider: provider, accountKey: "user@example.com")
+            XCTAssertTrue(row.canDelete, "\(provider.rawValue) row should be deletable")
+            XCTAssertEqual(row.source, .autoDetected)
+        }
+        for provider in [AIProvider.devin, .grok] {
+            let row = AccountRowData.from(provider: provider, accountKey: "user@example.com")
+            XCTAssertFalse(row.canDelete, "\(provider.rawValue) row should not be deletable")
+        }
+    }
+
+    func testSnapshotStoreDropsDeletedIDEAccountAcrossReload() async {
+        // Mirrors deleteMonitorAccount: after the Cursor quota entry is removed and the
+        // snapshot re-persisted, a fresh load must not resurrect the account (issue #213).
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let url = directory.appendingPathComponent("snapshots-v1.json")
+        let store = MonitorSnapshotStore(url: url)
+        let quota = ProviderQuotaData(
+            models: [ModelQuota(name: "gpt", percentage: 50, resetTime: "")],
+            lastUpdated: Date(timeIntervalSince1970: 1234)
+        )
+
+        var quotas: [AIProvider: [String: ProviderQuotaData]] = [
+            .cursor: ["cursor@example.com": quota],
+            .codex: ["codex@example.com": quota],
+        ]
+        await store.store(quotas)
+
+        quotas[.cursor]?.removeValue(forKey: "cursor@example.com")
+        if quotas[.cursor]?.isEmpty == true {
+            quotas.removeValue(forKey: .cursor)
+        }
+        await store.store(quotas)
+
+        let reloaded = await MonitorSnapshotStore(url: url).load()
+        XCTAssertNil(reloaded[.cursor], "Deleted Cursor account must not survive a reload")
+        XCTAssertEqual(reloaded[.codex]?["codex@example.com"]?.models.first?.percentage, 50)
+    }
+
     func testQuotaDisplayNameEnrichmentPreservesFactoryAccountIdentity() {
         let account = MonitorAccount.make(
             provider: .factoryDroid,
