@@ -17,6 +17,8 @@ actor AgentConfigurationService {
         let modelSlots: [ModelSlot: String]
         let isProxyConfigured: Bool
         let backupFiles: [BackupFile]
+        /// Reasoning effort read from Codex CLI's `model_reasoning_effort` (Codex only).
+        var reasoningEffort: CodexReasoningEffort? = nil
     }
     
     /// Represents a backup file that can be restored
@@ -155,11 +157,12 @@ actor AgentConfigurationService {
         // Simple TOML parsing for the values we need
         var baseURL: String?
         var model: String?
+        var reasoningEffort: CodexReasoningEffort?
         var isProxy = false
-        
+
         for line in content.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            
+
             if trimmed.hasPrefix("base_url") {
                 if let value = extractTOMLValue(from: trimmed) {
                     baseURL = value
@@ -167,6 +170,10 @@ actor AgentConfigurationService {
                 }
             } else if trimmed.hasPrefix("model =") {
                 model = extractTOMLValue(from: trimmed)
+            } else if trimmed.hasPrefix("model_reasoning_effort") {
+                if let value = extractTOMLValue(from: trimmed) {
+                    reasoningEffort = CodexReasoningEffort(rawValue: value)
+                }
             } else if trimmed.contains("model_provider") && trimmed.contains("cliproxyapi") {
                 isProxy = true
             }
@@ -182,7 +189,8 @@ actor AgentConfigurationService {
             apiKey: nil,  // API key is in auth.json
             modelSlots: modelSlots,
             isProxyConfigured: isProxy,
-            backupFiles: listBackups(agent: .codexCLI)
+            backupFiles: listBackups(agent: .codexCLI),
+            reasoningEffort: reasoningEffort
         )
     }
     
@@ -337,7 +345,11 @@ actor AgentConfigurationService {
         return escaped
     }
 
-    private func buildManagedCodexTOML(model: String, proxyURL: String) -> String {
+    func buildManagedCodexTOML(
+        model: String,
+        proxyURL: String,
+        reasoningEffort: CodexReasoningEffort = .defaultEffort
+    ) -> String {
         let escapedModel = escapeTOMLString(model)
         let escapedProxyURL = escapeTOMLString(proxyURL)
 
@@ -345,7 +357,7 @@ actor AgentConfigurationService {
         # CLIProxyAPI Configuration for Codex CLI
         model_provider = "cliproxyapi"
         model = "\(escapedModel)"
-        model_reasoning_effort = "high"
+        model_reasoning_effort = "\(reasoningEffort.rawValue)"
 
         [model_providers.cliproxyapi]
         name = "cliproxyapi"
@@ -510,7 +522,7 @@ actor AgentConfigurationService {
             .trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
     }
 
-    private func mergeCodexConfig(existingContent: String, managedConfig: String) -> String {
+    func mergeCodexConfig(existingContent: String, managedConfig: String) -> String {
         let managedBanner = extractManagedCodexBanner(from: managedConfig)
         let managedParts = splitManagedCodexConfig(managedConfig)
         let filteredLines = filterExistingCodexLines(existingContent: existingContent, managedBanner: managedBanner)
@@ -989,7 +1001,8 @@ actor AgentConfigurationService {
 
         let managedConfigTOML = buildManagedCodexTOML(
             model: config.modelSlots[.sonnet] ?? "gpt-5-codex",
-            proxyURL: config.proxyURL
+            proxyURL: config.proxyURL,
+            reasoningEffort: config.codexReasoningEffort
         )
 
         let configTOML: String

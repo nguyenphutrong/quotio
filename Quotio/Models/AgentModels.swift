@@ -205,6 +205,27 @@ nonisolated enum ModelSlot: String, CaseIterable, Identifiable, Codable, Sendabl
     }
 }
 
+// MARK: - Codex Reasoning Effort
+
+/// Reasoning effort levels accepted by Codex CLI's `model_reasoning_effort`
+/// key in `~/.codex/config.toml`.
+nonisolated enum CodexReasoningEffort: String, CaseIterable, Identifiable, Codable, Sendable {
+    case minimal = "minimal"
+    case low = "low"
+    case medium = "medium"
+    case high = "high"
+    case xhigh = "xhigh"
+
+    var id: String { rawValue }
+
+    /// Default effort, matching the value Quotio has historically written.
+    static let defaultEffort: CodexReasoningEffort = .high
+
+    var displayName: String {
+        "agents.reasoningEffort.\(rawValue)".localizedStatic()
+    }
+}
+
 // MARK: - Available Models for Routing
 
 nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
@@ -295,6 +316,9 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
     var apiKey: String
     var useOAuth: Bool
     var setupMode: ConfigurationSetup
+    /// Reasoning effort written to Codex CLI's `model_reasoning_effort`.
+    /// Only used when `agent == .codexCLI`.
+    var codexReasoningEffort: CodexReasoningEffort
 
     init(agent: CLIAgent, proxyURL: String, apiKey: String, setupMode: ConfigurationSetup = .proxy) {
         self.agent = agent
@@ -302,6 +326,7 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
         self.apiKey = apiKey
         self.useOAuth = false
         self.setupMode = setupMode
+        self.codexReasoningEffort = .defaultEffort
         self.modelSlots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
             AvailableModel.defaultModels[slot].map { (slot, $0.name) }
         })
@@ -314,6 +339,7 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
         self.apiKey = apiKey
         self.useOAuth = false
         self.setupMode = setupMode
+        self.codexReasoningEffort = .defaultEffort
 
         // Start with defaults, then overlay saved slots
         var slots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in

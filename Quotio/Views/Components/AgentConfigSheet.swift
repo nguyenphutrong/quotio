@@ -128,7 +128,11 @@ struct AgentConfigSheet: View {
                 if agent == .claudeCode {
                     modelSlotsSection
                 }
-                
+
+                if agent == .codexCLI {
+                    reasoningEffortSection
+                }
+
                 if isManualMode {
                     manualPreviewSection
                 }
@@ -370,6 +374,42 @@ struct AgentConfigSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
     
+    private var reasoningEffortSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("agents.reasoningEffort".localized())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Spacer(minLength: 12)
+
+                Picker("", selection: Binding(
+                    get: { viewModel.currentConfiguration?.codexReasoningEffort ?? .defaultEffort },
+                    set: { effort in
+                        viewModel.updateReasoningEffort(effort)
+                        if isManualMode {
+                            generatePreview()
+                        }
+                    }
+                )) {
+                    ForEach(CodexReasoningEffort.allCases) { effort in
+                        Text(effort.displayName)
+                            .tag(effort)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 280)
+            }
+
+            Text("agents.reasoningEffort.info".localized())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
     private var oauthToggleSection: some View {
         Toggle(isOn: Binding(
             get: { viewModel.currentConfiguration?.useOAuth ?? true },

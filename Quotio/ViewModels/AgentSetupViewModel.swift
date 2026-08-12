@@ -142,7 +142,12 @@ final class AgentSetupViewModel {
         for (slot, model) in saved.modelSlots {
             currentConfiguration?.modelSlots[slot] = model
         }
-        
+
+        // Restore saved Codex reasoning effort
+        if let effort = saved.reasoningEffort {
+            currentConfiguration?.codexReasoningEffort = effort
+        }
+
         // Update setup mode in current configuration
         currentConfiguration?.setupMode = selectedSetupMode
     }
@@ -178,6 +183,10 @@ final class AgentSetupViewModel {
 
     func updateModelSlot(_ slot: ModelSlot, model: String) {
         currentConfiguration?.modelSlots[slot] = model
+    }
+
+    func updateReasoningEffort(_ effort: CodexReasoningEffort) {
+        currentConfiguration?.codexReasoningEffort = effort
     }
 
     func applyConfiguration() async {
