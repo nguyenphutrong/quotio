@@ -86,8 +86,9 @@ start_step_timer "github"
 TAG_NAME="v${NEW_VERSION}"
 DMG_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${NEW_VERSION}.dmg"
 ZIP_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${NEW_VERSION}.zip"
+PKG_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${NEW_VERSION}.pkg"
 
-if [ ! -f "$DMG_FILE" ] && [ ! -f "$ZIP_FILE" ]; then
+if [ ! -f "$DMG_FILE" ] && [ ! -f "$ZIP_FILE" ] && [ ! -f "$PKG_FILE" ]; then
     log_failure "No release files found"
     log_item "Expected: ${DMG_FILE}"
     log_item "Expected: ${ZIP_FILE}"
@@ -105,6 +106,7 @@ fi
 RELEASE_FILES=""
 [ -f "$DMG_FILE" ] && RELEASE_FILES="$RELEASE_FILES $DMG_FILE"
 [ -f "$ZIP_FILE" ] && RELEASE_FILES="$RELEASE_FILES $ZIP_FILE"
+[ -f "$PKG_FILE" ] && RELEASE_FILES="$RELEASE_FILES $PKG_FILE"
 [ -f "$APPCAST_PATH" ] && RELEASE_FILES="$RELEASE_FILES $APPCAST_PATH"
 
 RELEASE_FLAGS=""
@@ -120,8 +122,10 @@ log_success "GitHub release created ($(get_step_duration "github"))"
 
 DMG_SIZE="N/A"
 ZIP_SIZE="N/A"
+PKG_SIZE="N/A"
 [ -f "$DMG_FILE" ] && DMG_SIZE=$(get_file_size "$DMG_FILE")
 [ -f "$ZIP_FILE" ] && ZIP_SIZE=$(get_file_size "$ZIP_FILE")
+[ -f "$PKG_FILE" ] && PKG_SIZE=$(get_file_size "$PKG_FILE")
 
 echo ""
 print_divider "═" 55
@@ -131,6 +135,7 @@ print_header "Release Complete ${SYM_ROCKET}" 55
 
 print_summary "Artifacts" \
     "DMG" "${DMG_SIZE}" \
+    "Installer" "${PKG_SIZE}" \
     "ZIP" "${ZIP_SIZE}"
 
 print_summary "Release Details" \

@@ -16,6 +16,12 @@ print_summary "Build Configuration" \
     "Scheme" "${SCHEME}" \
     "Output" "${BUILD_DIR}"
 
+if ! security find-identity -v -p codesigning | grep -Fq "${DEVELOPER_ID_APPLICATION}"; then
+    log_failure "Developer ID Application certificate not available"
+    log_item "Expected: ${DEVELOPER_ID_APPLICATION}"
+    exit 1
+fi
+
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 mkdir -p "${RELEASE_DIR}"
@@ -40,9 +46,12 @@ xcodebuild archive \
     -destination "generic/platform=macOS" \
     SKIP_INSTALL=NO \
     BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
-    CODE_SIGN_IDENTITY="-" \
-    CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGNING_ALLOWED=NO \
+    CODE_SIGN_STYLE=Manual \
+    CODE_SIGN_IDENTITY="${DEVELOPER_ID_APPLICATION}" \
+    DEVELOPMENT_TEAM="${DEVELOPER_TEAM_ID}" \
+    CODE_SIGNING_REQUIRED=YES \
+    CODE_SIGNING_ALLOWED=YES \
+    ENABLE_HARDENED_RUNTIME=YES \
     "${POSTHOG_BUILD_SETTINGS[@]}" \
     2>&1 | tee "${BUILD_DIR}/build.log" | while read -r line; do
         if [[ "$line" == *"error:"* ]]; then
@@ -84,11 +93,21 @@ start_step_timer "verify-proxy"
 bash "${SCRIPT_DIR}/verify-bundled-proxy.sh" "${APP_PATH}"
 log_success "Bundled proxy verified ($(get_step_duration "verify-proxy"))"
 
-print_step 4 4 "Ad-hoc Signing"
+print_step 4 4 "Developer ID Signing"
 start_step_timer "sign"
 
-codesign --force --deep --sign - "${APP_PATH}" 2>/dev/null || true
-log_success "App signed ($(get_step_duration "sign"))"
+PROXY_BINARY="${APP_PATH}/Contents/Resources/Proxy/cli-proxy-api-plus"
+ENTITLEMENTS_PATH="${BUILD_DIR}/${PROJECT_NAME}.entitlements.plist"
+codesign -d --entitlements :- "${APP_PATH}" 2>/dev/null > "${ENTITLEMENTS_PATH}"
+if [ -f "${PROXY_BINARY}" ]; then
+    codesign --force --options runtime --timestamp \
+        --sign "${DEVELOPER_ID_APPLICATION}" "${PROXY_BINARY}"
+fi
+codesign --force --options runtime --timestamp \
+    --entitlements "${ENTITLEMENTS_PATH}" \
+    --sign "${DEVELOPER_ID_APPLICATION}" "${APP_PATH}"
+codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
+log_success "App Developer ID signed ($(get_step_duration "sign"))"
 
 APP_SIZE=$(get_file_size "${APP_PATH}")
 

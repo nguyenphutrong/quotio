@@ -19,6 +19,8 @@ DMG_NAME="${PROJECT_NAME}-${VERSION}.dmg"
 FINAL_DMG="${RELEASE_DIR}/${DMG_NAME}"
 ZIP_NAME="${PROJECT_NAME}-${VERSION}.zip"
 FINAL_ZIP="${RELEASE_DIR}/${ZIP_NAME}"
+PKG_NAME="${PROJECT_NAME}-${VERSION}.pkg"
+FINAL_PKG="${RELEASE_DIR}/${PKG_NAME}"
 
 print_summary "Package Configuration" \
     "Version" "${VERSION}" \
@@ -27,7 +29,13 @@ print_summary "Package Configuration" \
 
 mkdir -p "${RELEASE_DIR}"
 
-print_step 1 2 "Creating ZIP"
+if ! security find-identity -v -p basic | grep -Fq "${DEVELOPER_ID_INSTALLER}"; then
+    log_failure "Developer ID Installer certificate not available"
+    log_item "Expected: ${DEVELOPER_ID_INSTALLER}"
+    exit 1
+fi
+
+print_step 1 3 "Creating ZIP"
 start_step_timer "zip"
 
 start_spinner "Creating Sparkle ZIP..."
@@ -37,7 +45,16 @@ stop_spinner
 ZIP_SIZE=$(get_file_size "$FINAL_ZIP")
 log_success "ZIP created: ${ZIP_SIZE} ($(get_step_duration "zip"))"
 
-print_step 2 2 "Creating DMG"
+print_step 2 3 "Creating Signed Installer"
+start_step_timer "pkg"
+
+productbuild --component "${APP_TO_PACKAGE}" /Applications \
+    --sign "${DEVELOPER_ID_INSTALLER}" "${FINAL_PKG}"
+pkgutil --check-signature "${FINAL_PKG}" >/dev/null
+PKG_SIZE=$(get_file_size "${FINAL_PKG}")
+log_success "Signed installer created: ${PKG_SIZE} ($(get_step_duration "pkg"))"
+
+print_step 3 3 "Creating DMG"
 start_step_timer "dmg"
 
 if command -v create-dmg &> /dev/null; then
@@ -78,5 +95,6 @@ echo ""
 
 print_summary "Packages Created ${SYM_PACKAGE}" \
     "ZIP" "${ZIP_NAME} (${ZIP_SIZE})" \
+    "Installer" "${PKG_NAME} (${PKG_SIZE})" \
     "DMG" "${DMG_NAME} (${DMG_SIZE:-N/A})" \
     "Duration" "$(get_total_duration)"

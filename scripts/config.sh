@@ -25,8 +25,11 @@ export RELEASE_DERIVED_DATA="${BUILD_DIR}/ReleaseDerivedData"
 export DEBUG_APP_PATH="${DEBUG_DERIVED_DATA}/Build/Products/Debug/${PROJECT_NAME}.app"
 export DEBUG_APP_BINARY="${DEBUG_APP_PATH}/Contents/MacOS/${PROJECT_NAME}"
 
-# Code signing (set via environment or keychain)
-export DEVELOPER_ID="${DEVELOPER_ID:-}"
+# Developer ID signing for distributable macOS builds. Set these in the local
+# environment or an untracked developer configuration file.
+export DEVELOPER_TEAM_ID="${DEVELOPER_TEAM_ID:-}"
+export DEVELOPER_ID_APPLICATION="${DEVELOPER_ID_APPLICATION:-}"
+export DEVELOPER_ID_INSTALLER="${DEVELOPER_ID_INSTALLER:-}"
 export NOTARIZATION_KEYCHAIN_PROFILE="${NOTARIZATION_KEYCHAIN_PROFILE:-quotio-notarization}"
 
 # GitHub

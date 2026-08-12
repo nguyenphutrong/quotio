@@ -31,11 +31,14 @@ log_success "Packaging completed ($(get_step_duration "package"))"
 
 DMG_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${VERSION}.dmg"
 ZIP_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${VERSION}.zip"
+PKG_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${VERSION}.pkg"
 
 DMG_SIZE="N/A"
 ZIP_SIZE="N/A"
+PKG_SIZE="N/A"
 [ -f "$DMG_FILE" ] && DMG_SIZE=$(get_file_size "$DMG_FILE")
 [ -f "$ZIP_FILE" ] && ZIP_SIZE=$(get_file_size "$ZIP_FILE")
+[ -f "$PKG_FILE" ] && PKG_SIZE=$(get_file_size "$PKG_FILE")
 
 echo ""
 print_divider "═" 55
@@ -43,5 +46,6 @@ echo ""
 
 print_summary "Local Deployment Complete" \
     "DMG" "${DMG_FILE} (${DMG_SIZE})" \
+    "Installer" "${PKG_FILE} (${PKG_SIZE})" \
     "ZIP" "${ZIP_FILE} (${ZIP_SIZE})" \
     "Duration" "$(get_total_duration)"

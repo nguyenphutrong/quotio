@@ -10,11 +10,11 @@ Small entrypoints only. Keep shared constants and output helpers in `config.sh`.
 
 ## Build And Package
 
-- `build.sh`: create a Release archive, extract `Quotio.app`, verify the bundled proxy, and ad-hoc sign the app.
-- `package.sh`: create release ZIP and DMG artifacts from `build/Quotio.app`.
+- `build.sh`: create a hardened, timestamped Developer ID Release archive, extract `Quotio.app`, and verify the bundled proxy.
+- `package.sh`: create release ZIP, signed PKG installer, and DMG artifacts from `build/Quotio.app`.
 - `notarize.sh`: optionally notarize and staple the built app when the configured notarytool keychain profile exists.
 - `verify-bundled-proxy.sh`: verify the bundled `cli-proxy-api-plus` checksum against the app model source.
-- `deploy-local.sh`: build, optionally notarize, and create local ZIP/DMG artifacts without tagging, pushing, or creating a GitHub release.
+- `deploy-local.sh`: build, optionally notarize, and create local ZIP, signed PKG, and DMG artifacts without tagging, pushing, or creating a GitHub release.
 
 ## Release
 
