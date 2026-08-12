@@ -1417,41 +1417,20 @@ actor AgentConfigurationService {
             throw URLError(.badServerResponse)
         }
 
-        // Parse struct matching OpenAI /v1/models response
-        struct ModelsResponse: Decodable {
-            struct ModelItem: Decodable {
-                let id: String
-                let owned_by: String?
-            }
-            let data: [ModelItem]
-        }
-
-        let decoded = try JSONDecoder().decode(ModelsResponse.self, from: data)
+        // Parse OpenAI-compatible /v1/models response
+        let parsedModels = try ModelCatalog.parse(data)
 
         // Fetch available Copilot models to filter out unavailable ones
         let copilotFetcher = CopilotQuotaFetcher()
         let availableCopilotModelIds = await copilotFetcher.fetchUserAvailableModelIds()
 
-        return decoded.data.compactMap { item in
-            let provider = item.owned_by ?? "openai"
-
+        return parsedModels.filter { model in
             // Filter GitHub Copilot models - only include those actually available to the user
-            if provider == "github-copilot" {
-                // If we have Copilot accounts, filter by available models
-                if !availableCopilotModelIds.isEmpty {
-                    guard availableCopilotModelIds.contains(item.id) else {
-                        return nil
-                    }
-                }
-                // If no Copilot accounts, still show the model (user might add account later)
+            // If no Copilot accounts, still show the model (user might add account later)
+            if model.provider == "github-copilot", !availableCopilotModelIds.isEmpty {
+                return availableCopilotModelIds.contains(model.id)
             }
-
-            return AvailableModel(
-                id: item.id,
-                name: item.id,
-                provider: provider,
-                isDefault: false
-            )
+            return true
         }
     }
     

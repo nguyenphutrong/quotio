@@ -163,6 +163,7 @@ struct DashboardScreen: View {
             kpiSection
             providerSection
             endpointSection
+            AvailableModelsSection()
             tunnelSection
         }
     }
