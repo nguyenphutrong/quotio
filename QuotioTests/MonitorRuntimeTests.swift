@@ -146,6 +146,58 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertFalse(YubiKeySecretVault.isPIVToken("com.apple.pivtokenizer:1234"))
     }
 
+    /// The rollback this prevents: with the vault enabled and the key absent or
+    /// the PIN prompt dismissed, `CLIProxyManager.init` reads nil, mints a fresh
+    /// UUID and saves it — destroying the envelope holding the real management
+    /// key. Absent must still be writable, or first-time storage would break.
+    func testVaultWriteRefusesToOverwriteUnreadableEnvelope() {
+        XCTAssertFalse(KeychainHelper.allowsVaultOverwrite(.unreadable))
+        XCTAssertTrue(KeychainHelper.allowsVaultOverwrite(.absent))
+        XCTAssertTrue(KeychainHelper.allowsVaultOverwrite(.success(Data("rotated".utf8))))
+    }
+
+    /// Covers the effect through a public entry point. Honest limit: with no
+    /// identity selected the vault write would fail regardless, so this pins the
+    /// outcome but does not by itself prove the guard short-circuits first —
+    /// `allowsVaultOverwrite` above covers the decision, and separating an
+    /// unreadable envelope from a missing key needs hardware.
+    @MainActor
+    func testUnreadableEnvelopeSurvivesACredentialSave() {
+        let defaults = UserDefaults.standard
+        let fingerprintKey = "yubikeyPIVVaultFingerprint"
+        let previousFingerprint = defaults.string(forKey: fingerprintKey)
+        defaults.set("0000000000000000000000000000000000000000000000000000000000000000", forKey: fingerprintKey)
+        defer {
+            if let previousFingerprint {
+                defaults.set(previousFingerprint, forKey: fingerprintKey)
+            } else {
+                defaults.removeObject(forKey: fingerprintKey)
+            }
+        }
+        XCTAssertTrue(YubiKeySecretVault.isEnabled)
+
+        // A per-run account, so the real credentials of whoever runs the suite
+        // are never the thing being overwritten.
+        let configId = UUID().uuidString
+        let service = "dev.quotio.desktop.remote-management"
+        let account = "management-key-\(configId)"
+        let digest = SHA256.hash(data: Data("\(service)\u{0}\(account)".utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Quotio", isDirectory: true)
+            .appendingPathComponent("YubiKeyVault", isDirectory: true)
+        let envelopeURL = directory.appendingPathComponent(digest).appendingPathExtension("qsv")
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let sentinel = Data("sealed-credential-that-must-survive".utf8)
+        try? sentinel.write(to: envelopeURL)
+        defer { try? FileManager.default.removeItem(at: envelopeURL) }
+
+        XCTAssertEqual(YubiKeySecretVault.readResult(service: service, account: account), .unreadable)
+        KeychainHelper.saveManagementKey("regenerated-by-a-failed-read", for: configId)
+        XCTAssertEqual(try? Data(contentsOf: envelopeURL), sentinel)
+    }
+
     func testExternalCredentialOperationsDoNotAllowAuthenticationUI() {
         let readQuery = KeychainHelper.externalCredentialQuery(service: "gh:github.com", account: "github.com")
         let updateQuery = KeychainHelper.externalCredentialUpdateQuery(service: "gh:github.com", account: "github.com")
@@ -1016,6 +1068,17 @@ final class MonitorRuntimeTests: XCTestCase {
     }
 
     func testMonitorCredentialVaultAddsRotatesAndDeletesAPIKeys() async throws {
+        // The test host shares the app's defaults, so whoever has enabled the
+        // vault runs this against the vault: every read then needs a physical
+        // PIN entry (the slot is `--pin-policy always`), and the run stalls,
+        // prompts once per read, and fails. Skip rather than force the Keychain
+        // path -- clearing the fingerprint would switch off a real security
+        // setting, and a crash mid-test would leave it off.
+        try XCTSkipIf(
+            YubiKeySecretVault.isEnabled,
+            "Requires the Keychain backend; disable the YubiKey vault in Settings to run."
+        )
+
         for provider in [AIProvider.factoryDroid, .openRouter, .amp] {
             let metadataURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)

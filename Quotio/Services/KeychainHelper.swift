@@ -286,9 +286,27 @@ enum KeychainHelper {
 
     nonisolated private static func saveData(_ data: Data, service: String, account: String) -> Bool {
         if YubiKeySecretVault.isEnabled {
+            let existing = YubiKeySecretVault.readResult(service: service, account: account)
+            guard allowsVaultOverwrite(existing) else {
+                Log.keychain("Refusing to overwrite unreadable vault envelope (service: \(service), account: \(account))")
+                return false
+            }
             return YubiKeySecretVault.save(data, service: service, account: account)
         }
         return saveKeychainData(data, service: service, account: account)
+    }
+
+    /// Whether a vault write may proceed over whatever is already stored.
+    ///
+    /// A caller that could not read a secret cannot tell "absent" from "hardware
+    /// key unavailable", so it may regenerate one and store it -- destroying the
+    /// envelope that still holds the real value. `CLIProxyManager` does exactly
+    /// this at construction. Refuse rather than roll a live credential back.
+    /// `.absent` costs only a file-existence check, so first writes stay
+    /// prompt-free; only an overwrite pays for a decrypt.
+    nonisolated static func allowsVaultOverwrite(_ existing: YubiKeySecretVault.ReadResult) -> Bool {
+        if case .unreadable = existing { return false }
+        return true
     }
 
     nonisolated private static func saveKeychainData(_ data: Data, service: String, account: String) -> Bool {
@@ -331,16 +349,12 @@ enum KeychainHelper {
 
     nonisolated private static func readData(service: String, account: String) -> Data? {
         if YubiKeySecretVault.isEnabled {
-            switch YubiKeySecretVault.readResult(service: service, account: account) {
-            case let .success(data):
-                return data
-            case .unreadable:
-                // Never replace an existing envelope with a legacy Keychain copy
-                // when the hardware key is unavailable or the envelope is bad.
-                return nil
-            case .absent:
-                break
-            }
+            let result = YubiKeySecretVault.readResult(service: service, account: account)
+            if case let .success(data) = result { return data }
+            // Only an absent envelope may be filled from a legacy Keychain copy.
+            // An unreadable one means the hardware key is unavailable or the
+            // envelope is bad, and overwriting it would roll the credential back.
+            guard YubiKeySecretVault.shouldMigrateLegacy(result) else { return nil }
             // Move a legacy secret only after a complete encrypted write/read
             // round trip has succeeded.
             guard let legacy = readKeychainData(service: service, account: account),
