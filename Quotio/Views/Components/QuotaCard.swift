@@ -216,7 +216,7 @@ private struct QuotaSection: View {
     @State private var settings = MenuBarSettingsManager.shared
     
     private var progressWidth: Double {
-        remainingPercent / 100
+        min(1, max(0, remainingPercent / 100))
     }
     
     var body: some View {
@@ -232,7 +232,9 @@ private struct QuotaSection: View {
                 Spacer()
                 
                 HStack(spacing: 8) {
-                    Text(verbatim: "\(Int(displayPercent))% \(displayMode.suffixKey.localized())")
+                    Text(verbatim: displayPercent >= 0
+                        ? "\(Int(displayPercent))% \(displayMode.suffixKey.localized())"
+                        : "—")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
