@@ -2118,6 +2118,93 @@
         }
       }
     },
+    "agents.restoreOnQuit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore agent configs when Quotio quits"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurer les configurations des agents à la fermeture de Quotio"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khôi phục cấu hình agent khi thoát Quotio"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出 Quotio 时还原代理工具配置"
+          }
+        }
+      }
+    },
+    "agents.restoreOnQuit.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When Quotio quits, it removes its proxy settings from every agent it configured, so those agents go back to their own subscriptions. A backup is written before each change."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "À la fermeture, Quotio retire ses paramètres de proxy de chaque agent qu'il a configuré, afin que ces agents reviennent à leurs propres abonnements. Une sauvegarde est écrite avant chaque modification."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khi thoát, Quotio sẽ xóa thiết lập proxy khỏi mọi agent mà nó đã cấu hình, để các agent đó quay lại dùng gói đăng ký riêng. Một bản sao lưu được ghi trước mỗi thay đổi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出时，Quotio 会从其配置过的每个代理工具中移除代理设置，让这些工具回到各自的订阅。每次修改前都会写入备份。"
+          }
+        }
+      }
+    },
+    "agents.restoreOnQuit.limitation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off by default. A crash or a force quit cannot be intercepted, so configs stay in place after one."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactivé par défaut. Un plantage ou une fermeture forcée ne peut pas être intercepté : les configurations restent alors en place."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mặc định tắt. Không thể can thiệp khi ứng dụng gặp sự cố hoặc bị buộc thoát, nên cấu hình sẽ được giữ nguyên trong các trường hợp đó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认关闭。崩溃或强制退出无法被拦截，此时配置将保持不变。"
+          }
+        }
+      }
+    },
     "agents.saveConfig" : {
       "extractionState" : "stale",
       "localizations" : {

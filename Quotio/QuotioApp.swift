@@ -491,6 +491,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Stop background polling
         AtomFeedUpdateService.shared.stopPolling()
 
+        // Opt-in: hand agent configs back to their own subscriptions before the
+        // proxy they point at disappears.
+        restoreAgentConfigurationsIfEnabled()
+
         CLIProxyManager.terminateProxyOnShutdown()
         
         // Use semaphore to ensure tunnel cleanup completes before app terminates
@@ -508,6 +512,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Fallback: force kill orphan processes if stopTunnel timed out
             TunnelManager.cleanupOrphans()
             NSLog("[AppDelegate] Tunnel cleanup timed out, forced orphan cleanup")
+        }
+    }
+
+    /// Reverts agents Quotio configured back to their default (non-proxy) setup.
+    /// No-op unless the user opted in. Runs on a detached task while the main
+    /// thread waits, so it cannot deadlock against the main actor, and is capped
+    /// by a timeout so a slow filesystem can never hang termination.
+    private func restoreAgentConfigurationsIfEnabled() {
+        guard AgentQuitRestoreSettings().isEnabled else { return }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        let restoreTimeout: DispatchTime = .now() + .seconds(3)
+
+        Task.detached(priority: .userInitiated) {
+            let outcome = await AgentQuitRestoreService.shared.restoreConfiguredAgents()
+            NSLog("[AppDelegate] Agent config restore on quit: \(outcome.summary)")
+            semaphore.signal()
+        }
+
+        if semaphore.wait(timeout: restoreTimeout) == .timedOut {
+            NSLog("[AppDelegate] Agent config restore on quit timed out")
         }
     }
 

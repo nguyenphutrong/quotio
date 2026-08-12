@@ -7,6 +7,7 @@ import SwiftUI
 
 struct AgentSetupScreen: View {
     @Environment(QuotaViewModel.self) private var quotaViewModel
+    @AppStorage(AgentQuitRestoreSettings.storageKey) private var restoreConfigsOnQuit = false
     @State private var selectedAgentForConfig: CLIAgent?
     @State private var sheetPresentationID = UUID()
     @State private var hasLoadedOnce = false
@@ -78,6 +79,8 @@ struct AgentSetupScreen: View {
                 if !notInstalledAgents.isEmpty {
                     notInstalledSection
                 }
+
+                restoreOnQuitSection
             }
             .padding(20)
         }
@@ -109,6 +112,27 @@ struct AgentSetupScreen: View {
         .padding(.horizontal, 4)
     }
     
+    private var restoreOnQuitSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("agents.restoreOnQuit".localized(), isOn: $restoreConfigsOnQuit)
+                .toggleStyle(.switch)
+
+            Text("agents.restoreOnQuit.desc".localized())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("agents.restoreOnQuit.limitation".localized())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.secondary.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
     private var installedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("agents.installed".localized())
