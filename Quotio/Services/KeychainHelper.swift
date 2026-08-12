@@ -273,6 +273,13 @@ enum KeychainHelper {
 
 
     nonisolated private static func saveData(_ data: Data, service: String, account: String) -> Bool {
+        if YubiKeySecretVault.isEnabled {
+            return YubiKeySecretVault.save(data, service: service, account: account)
+        }
+        return saveKeychainData(data, service: service, account: account)
+    }
+
+    nonisolated private static func saveKeychainData(_ data: Data, service: String, account: String) -> Bool {
         let identity: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -311,6 +318,21 @@ enum KeychainHelper {
     }
 
     nonisolated private static func readData(service: String, account: String) -> Data? {
+        if YubiKeySecretVault.isEnabled {
+            if let data = YubiKeySecretVault.read(service: service, account: account) {
+                return data
+            }
+            // Move a legacy Quotio-owned secret only after it has been encrypted
+            // for the selected hardware key successfully.
+            guard let legacy = readKeychainData(service: service, account: account),
+                  YubiKeySecretVault.save(legacy, service: service, account: account) else { return nil }
+            deleteKeychainData(service: service, account: account)
+            return legacy
+        }
+        return readKeychainData(service: service, account: account)
+    }
+
+    nonisolated private static func readKeychainData(service: String, account: String) -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -344,6 +366,13 @@ enum KeychainHelper {
     }
 
     nonisolated private static func deleteData(service: String, account: String) {
+        if YubiKeySecretVault.isEnabled {
+            YubiKeySecretVault.delete(service: service, account: account)
+        }
+        deleteKeychainData(service: service, account: account)
+    }
+
+    nonisolated private static func deleteKeychainData(service: String, account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

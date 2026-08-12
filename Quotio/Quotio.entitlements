@@ -8,5 +8,7 @@
     <true/>
     <key>com.apple.security.network.server</key>
     <true/>
+    <key>com.apple.security.smartcard</key>
+    <true/>
 </dict>
 </plist>

@@ -71,6 +71,9 @@ struct SettingsScreen: View {
             
             // Privacy
             PrivacySettingsSection()
+
+            // Hardware-backed secret storage
+            YubiKeySettingsSection()
             
             // Local Proxy Server - Only in Local Proxy Mode
             if modeManager.isLocalProxyMode {
@@ -1864,6 +1867,84 @@ struct PrivacySettingsSection: View {
         } footer: {
             Text("settings.privacy.help".localized())
                 .font(.caption)
+        }
+    }
+}
+
+// MARK: - YubiKey Settings Section
+
+struct YubiKeySettingsSection: View {
+    @State private var identities: [YubiKeyPIVIdentity] = []
+    @State private var devices: [YubiKeyPIVDevice] = []
+    @State private var yubiKeyConnected = false
+    @State private var selectedID = ""
+    @State private var selectedDeviceID = ""
+    @State private var statusMessage: String?
+
+    var body: some View {
+        Section {
+            if identities.isEmpty {
+                Label(
+                    yubiKeyConnected
+                        ? "YubiKey detected. Add an RSA PIV certificate to use it as Quotio’s secret vault."
+                        : "Insert a YubiKey to use it as Quotio’s secret vault.",
+                    systemImage: yubiKeyConnected ? "key.badge.exclamationmark" : "key.slash"
+                )
+                    .foregroundStyle(.secondary)
+                if !devices.isEmpty {
+                    Picker("YubiKey to set up", selection: $selectedDeviceID) {
+                        ForEach(devices) { device in
+                            Text(device.name + " (" + device.serial + ")").tag(device.id)
+                        }
+                    }
+                    Button("Set up this YubiKey") {
+                        guard let device = devices.first(where: { $0.id == selectedDeviceID }) else { return }
+                        statusMessage = YubiKeySecretVault.beginProvisioning(device)
+                            ? "YubiKey Manager opened in Terminal. Complete its prompts, then refresh this section."
+                            : "Could not start YubiKey Manager. Install ykman and try again."
+                    }
+                    .disabled(selectedDeviceID.isEmpty)
+                }
+            } else {
+                        Picker("YubiKey PIV key", selection: $selectedID) {
+                            ForEach(identities) { identity in
+                                Text(identity.name + " (" + String(identity.fingerprint.prefix(12)) + ")")
+                                    .tag(identity.id)
+                            }
+                        }
+                        Button(YubiKeySecretVault.isEnabled ? "Change associated key" : "Use this YubiKey") {
+                            guard let identity = identities.first(where: { $0.id == selectedID }) else { return }
+                            if YubiKeySecretVault.select(identity) {
+                                statusMessage = "New Quotio secrets will be encrypted for this YubiKey. Existing Quotio secrets migrate when next used."
+                            } else {
+                                statusMessage = "The current YubiKey cannot be changed while it protects Quotio secrets."
+                            }
+                        }
+                        .disabled(selectedID.isEmpty)
+            }
+            if let statusMessage {
+                Text(statusMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Button("Refresh YubiKeys") { refresh() }
+        } header: {
+            Label("YubiKey secret vault", systemImage: "key.viewfinder")
+        } footer: {
+            Text("Uses an RSA PIV identity on your YubiKey. Quotio stores encrypted ciphertext locally; the private key and PIN stay on the YubiKey. Configure a PIV certificate first if no key is listed.")
+        }
+        .onAppear { refresh() }
+    }
+
+    private func refresh() {
+        yubiKeyConnected = YubiKeySecretVault.isYubiKeyConnected()
+        devices = YubiKeySecretVault.provisionableDevices()
+        if selectedDeviceID.isEmpty { selectedDeviceID = devices.first?.id ?? "" }
+        identities = YubiKeySecretVault.availableIdentities()
+        if let selected = YubiKeySecretVault.selectedIdentity {
+            selectedID = selected.id
+        } else if selectedID.isEmpty {
+            selectedID = identities.first?.id ?? ""
         }
     }
 }
