@@ -41,6 +41,9 @@ final class QuotaViewModel {
     
     /// Request tracker for monitoring API requests through ProxyBridge
     let requestTracker = RequestTracker.shared
+
+    /// Persists cumulative traffic statistics across proxy restarts/upgrades
+    @ObservationIgnored private let usageAggregator = UsageStatsAggregator.shared
     
     /// Tunnel manager for Cloudflare Tunnel integration
     let tunnelManager = TunnelManager.shared
@@ -281,6 +284,7 @@ final class QuotaViewModel {
 
     init() {
         self.proxyManager = CLIProxyManager.shared
+        self.usageStats = usageAggregator.restoredStats()
         loadPersistedIDEQuotas()
         setupRefreshCadenceCallback()
         setupWarmupCallback()
@@ -1518,7 +1522,10 @@ final class QuotaViewModel {
             self.authFiles = newAuthFiles
 
             do {
-                self.usageStats = try await client.fetchUsageStats()
+                // Fold the proxy's in-memory counters into the persisted
+                // aggregate so statistics survive proxy restarts/upgrades.
+                let sample = try await client.fetchUsageStats()
+                self.usageStats = usageAggregator.record(sample)
             } catch APIError.httpError(404) {
                 self.usageStats = nil
                 Log.quota("Usage stats endpoint is not supported by this CLIProxyAPI version")
