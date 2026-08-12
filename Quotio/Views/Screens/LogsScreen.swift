@@ -167,12 +167,12 @@ struct LogsScreen: View {
         var requests = viewModel.requestTracker.requestHistory
         
         if let provider = requestFilterProvider {
-            requests = requests.filter { $0.provider == provider }
+            requests = requests.filter { $0.effectiveProvider == provider }
         }
-        
+
         if !searchText.isEmpty {
             requests = requests.filter {
-                ($0.provider?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+                ($0.effectiveProvider?.localizedCaseInsensitiveContains(searchText) ?? false) ||
                 ($0.model?.localizedCaseInsensitiveContains(searchText) ?? false) ||
                 ($0.endpoint.localizedCaseInsensitiveContains(searchText))
             }
@@ -315,40 +315,32 @@ struct RequestRow: View {
                 // Status Badge
                 statusBadge
 
-                // Provider & Model with Fallback Route
+                // Provider Badge
+                providerBadge
+                    .frame(width: 90, alignment: .leading)
+
+                // Model with Fallback Route
                 VStack(alignment: .leading, spacing: 2) {
                     if request.hasFallbackRoute {
                         // Show fallback route: virtual model → resolved model
+                        Text(request.model ?? "unknown")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.orange)
                         HStack(spacing: 4) {
-                            Text(request.model ?? "unknown")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.orange)
                             Image(systemName: "arrow.right")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
-                            Text(request.resolvedProvider?.capitalized ?? "")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.blue)
-                        }
-                        Text(request.resolvedModel ?? "")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    } else {
-                        // Normal display
-                        if let provider = request.provider {
-                            Text(provider.capitalized)
-                                .font(.caption)
-                                .fontWeight(.medium)
-                        }
-                        if let model = request.model {
-                            Text(model)
+                            Text(request.resolvedModel ?? "")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
+                    } else if let model = request.model {
+                        Text(model)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
                 }
                 .frame(width: 180, alignment: .leading)
@@ -451,6 +443,39 @@ struct RequestRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var providerBadge: some View {
+        if let provider = request.effectiveProvider {
+            Text(provider.capitalized)
+                .font(.system(.caption2, weight: .semibold))
+                .foregroundStyle(providerColor(provider))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(providerColor(provider).opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .lineLimit(1)
+        } else {
+            Text("logs.provider.unknown".localized())
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func providerColor(_ provider: String) -> Color {
+        switch provider.lowercased() {
+        case "claude": return .orange
+        case "gemini": return .blue
+        case "openai": return .green
+        case "copilot": return .green
+        case "kiro": return .purple
+        case "qwen": return .purple
+        case "glm": return .blue
+        case "grok": return .primary
+        case "deepseek": return .indigo
+        default: return .gray
+        }
     }
 
     private var statusBadge: some View {

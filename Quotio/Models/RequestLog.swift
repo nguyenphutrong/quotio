@@ -163,6 +163,52 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
+// MARK: - Provider Derivation
+
+nonisolated extension RequestLog {
+    /// The provider that ultimately served the request.
+    /// Prefers the fallback-resolved provider, then the provider detected at request time,
+    /// then infers one from the model name so historical entries also display a provider.
+    var effectiveProvider: String? {
+        resolvedProvider ?? provider ?? Self.inferProvider(fromModel: resolvedModel ?? model)
+    }
+
+    /// Infer a provider identifier from a model name (e.g. "claude-sonnet-4-5" → "claude").
+    /// Returns nil when the model family is unknown.
+    static func inferProvider(fromModel model: String?) -> String? {
+        guard let model, !model.isEmpty else { return nil }
+        let lower = model.lowercased()
+
+        // Kiro first: resolved models like "kiro-claude-opus-4-5" must map to kiro, not claude
+        if lower.contains("kiro") || lower.contains("codewhisperer") {
+            return "kiro"
+        }
+        if ["claude", "opus", "sonnet", "haiku"].contains(where: lower.contains) {
+            return "claude"
+        }
+        if lower.hasPrefix("gemini") || lower.hasPrefix("models/gemini") {
+            return "gemini"
+        }
+        if lower.hasPrefix("gpt") || lower.hasPrefix("o1") || lower.hasPrefix("o3")
+            || lower.hasPrefix("o4") || lower.contains("codex") {
+            return "openai"
+        }
+        if lower.hasPrefix("qwen") {
+            return "qwen"
+        }
+        if lower.hasPrefix("glm") {
+            return "glm"
+        }
+        if lower.hasPrefix("grok") {
+            return "grok"
+        }
+        if lower.hasPrefix("deepseek") {
+            return "deepseek"
+        }
+        return nil
+    }
+}
+
 // MARK: - Aggregate Statistics
 
 /// Aggregated statistics for request history
@@ -296,7 +342,7 @@ nonisolated struct RequestHistoryStore: Codable, Sendable {
             }
             
             // Aggregate by provider
-            if let provider = entry.provider {
+            if let provider = entry.effectiveProvider {
                 var data = providerData[provider] ?? (0, 0, 0, 0)
                 data.count += 1
                 data.input += entry.inputTokens ?? 0

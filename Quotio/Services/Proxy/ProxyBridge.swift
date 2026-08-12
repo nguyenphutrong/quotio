@@ -634,15 +634,7 @@ final class ProxyBridge {
             
             // Infer provider from model name if not already detected
             if provider == nil {
-                if FallbackFormatConverter.isClaudeModel(modelValue) {
-                    provider = "claude"
-                } else if modelValue.hasPrefix("gemini") || modelValue.hasPrefix("models/gemini") {
-                    provider = "gemini"
-                } else if modelValue.hasPrefix("gpt") || modelValue.hasPrefix("o1") || modelValue.hasPrefix("o3") {
-                    provider = "openai"
-                } else if modelValue.contains("kiro") || modelValue.contains("codewhisperer") {
-                    provider = "kiro"
-                }
+                provider = RequestLog.inferProvider(fromModel: modelValue)
             }
         }
         
