@@ -655,15 +655,16 @@ actor AgentConfigurationService {
     private func generateCodexDefaultConfig(mode: ConfigurationMode) -> AgentConfigResult {
         let home = fileManager.homeDirectoryForCurrentUser.path
         let configPath = "\(home)/.codex/config.toml"
-        
+        let authPath = "\(home)/.codex/auth.json"
+
         if mode == .automatic && fileManager.fileExists(atPath: configPath) {
             do {
                 let content = try String(contentsOfFile: configPath, encoding: .utf8)
-                
+
                 // Create backup
                 let backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
                 try content.write(toFile: backupPath, atomically: true, encoding: .utf8)
-                
+
                 // Reuse the same TOML-aware filtering used by merge path,
                 // including managed banner removal.
                 let stubManagedConfig = buildManagedCodexTOML(model: "", proxyURL: "")
@@ -671,7 +672,19 @@ actor AgentConfigurationService {
                 let filteredLines = filterExistingCodexLines(existingContent: content, managedBanner: managedBanner)
                 let newContent = filteredLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
                 try newContent.write(toFile: configPath, atomically: true, encoding: .utf8)
-                
+
+                // Remove the Quotio-managed proxy key from auth.json while
+                // preserving native credentials (access_token, account_id, ...).
+                // Only a "quotio-" prefixed key is removed so a user's own
+                // OPENAI_API_KEY is never touched. A corrupt auth.json is left
+                // as-is rather than failing the whole revert.
+                if let authData = fileManager.contents(atPath: authPath),
+                   let cleanedAuth = (try? Self.codexAuthJSONRemovingQuotioKey(existing: authData)).flatMap({ $0 }) {
+                    _ = try backupIfPresent(authPath)
+                    try cleanedAuth.write(to: URL(fileURLWithPath: authPath), options: .atomic)
+                    try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: authPath)
+                }
+
                 return .success(
                     type: .file,
                     mode: mode,
@@ -694,7 +707,7 @@ actor AgentConfigurationService {
             authPath: nil,
             shellConfig: nil,
             rawConfigs: [],
-            instructions: "Remove [model_providers.cliproxyapi] section from ~/.codex/config.toml",
+            instructions: "Remove [model_providers.cliproxyapi] section from ~/.codex/config.toml and the Quotio-managed OPENAI_API_KEY entry from ~/.codex/auth.json",
             modelsConfigured: 0
         )
     }
@@ -1005,12 +1018,21 @@ actor AgentConfigurationService {
             configTOML = managedConfigTOML + "\n"
         }
         
-        let authJSON = """
-        {
-          "OPENAI_API_KEY": "\(config.apiKey)"
+        // Merge into the existing auth.json instead of replacing it: Codex CLI
+        // stores native credentials (access_token, account_id, tokens, ...) there,
+        // and `codex resume` filters session history by account_id. Overwriting
+        // the file wipes that history view (#367).
+        let existingAuthData = fileManager.contents(atPath: authPath)
+        let authJSON: String
+        do {
+            let mergedAuth = try Self.mergedCodexAuthJSON(existing: existingAuthData, apiKey: config.apiKey)
+            authJSON = String(decoding: mergedAuth, as: UTF8.self)
+        } catch {
+            Log.warning("Failed to parse existing Codex auth.json at \(authPath): \(error.localizedDescription). Falling back to managed-only auth.json.")
+            let managedAuth = try Self.mergedCodexAuthJSON(existing: nil, apiKey: config.apiKey)
+            authJSON = String(decoding: managedAuth, as: UTF8.self)
         }
-        """
-        
+
         let rawConfigs = [
             RawConfigOutput(
                 format: .toml,
@@ -1030,13 +1052,10 @@ actor AgentConfigurationService {
         
         if mode == .automatic {
             try fileManager.createDirectory(atPath: codexDir, withIntermediateDirectories: true)
-            
-            var backupPath: String? = nil
-            if fileManager.fileExists(atPath: configPath) {
-                backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
-                try? fileManager.copyItem(atPath: configPath, toPath: backupPath!)
-            }
-            
+
+            let backupPath = try backupIfPresent(configPath)
+            _ = try backupIfPresent(authPath)
+
             try configTOML.write(toFile: configPath, atomically: true, encoding: .utf8)
             try authJSON.write(toFile: authPath, atomically: true, encoding: .utf8)
             
@@ -1166,6 +1185,38 @@ actor AgentConfigurationService {
         for (key, value) in updates {
             object[key] = value
         }
+        return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    /// Merges the Quotio proxy key into the existing ~/.codex/auth.json content,
+    /// preserving every other field (access_token, account_id, tokens, ...) so
+    /// Codex CLI keeps its native identity and `codex resume` can still match
+    /// session history by account_id (#367). Throws if `existing` is not a JSON object.
+    nonisolated static func mergedCodexAuthJSON(existing: Data?, apiKey: String) throws -> Data {
+        var object: [String: Any] = [:]
+        if let existing {
+            guard let decoded = try JSONSerialization.jsonObject(with: existing) as? [String: Any] else {
+                throw CocoaError(.propertyListReadCorrupt)
+            }
+            object = decoded
+        }
+        object["OPENAI_API_KEY"] = apiKey
+        return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    /// Removes the Quotio-managed OPENAI_API_KEY (a "quotio-" prefixed value)
+    /// from ~/.codex/auth.json content, preserving all other fields.
+    /// Returns nil when there is nothing to remove (no key, or a user-owned key).
+    /// Throws if `existing` is not a JSON object.
+    nonisolated static func codexAuthJSONRemovingQuotioKey(existing: Data) throws -> Data? {
+        guard let decoded = try JSONSerialization.jsonObject(with: existing) as? [String: Any] else {
+            throw CocoaError(.propertyListReadCorrupt)
+        }
+        guard let key = decoded["OPENAI_API_KEY"] as? String, key.hasPrefix("quotio-") else {
+            return nil
+        }
+        var object = decoded
+        object.removeValue(forKey: "OPENAI_API_KEY")
         return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
     }
 
