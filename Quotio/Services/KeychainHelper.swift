@@ -12,9 +12,9 @@ import Security
 
 enum KeychainHelper {
     nonisolated private static let securityLock = NSRecursiveLock()
-    private static let remoteService = "dev.quotio.desktop.remote-management"
-    private static let localService = "dev.quotio.desktop.local-management"
-    private static let warpService = "dev.quotio.desktop.warp"
+    nonisolated private static let remoteService = "dev.quotio.desktop.remote-management"
+    nonisolated private static let localService = "dev.quotio.desktop.local-management"
+    nonisolated private static let warpService = "dev.quotio.desktop.warp"
     private static let localManagementAccount = "local-management-key"
     private static let warpTokensAccount = "warp-tokens"
     private static let localManagementDefaultsKey = "managementKey"
@@ -22,18 +22,51 @@ enum KeychainHelper {
     nonisolated private static let monitorAuthService = "dev.quotio.desktop.monitor-auth"
 
     // Legacy service names for keychain migration (newest first)
-    private static let legacyRemoteServices = [
+    nonisolated private static let legacyRemoteServices = [
         "proseek.io.vn.Quotio.remote-management",
         "com.quotio.remote-management",
     ]
-    private static let legacyLocalServices = [
+    nonisolated private static let legacyLocalServices = [
         "proseek.io.vn.Quotio.local-management",
         "com.quotio.local-management",
     ]
-    private static let legacyWarpServices = [
+    nonisolated private static let legacyWarpServices = [
         "proseek.io.vn.Quotio.warp",
         "com.quotio.warp",
     ]
+
+    /// Every keychain service Quotio itself writes records under, including
+    /// legacy service names from earlier releases. Used by `AppResetService`
+    /// to wipe all Quotio-owned credentials (issue #373). External services
+    /// Quotio only reads (gh, Claude, Codex CLI, ...) are deliberately absent.
+    nonisolated static var quotioOwnedServices: [String] {
+        [remoteService, localService, warpService, monitorAuthService]
+            + legacyRemoteServices + legacyLocalServices + legacyWarpServices
+    }
+
+    /// Delete every generic-password item under a service, regardless of
+    /// account name (management keys are stored per config ID and Monitor
+    /// credentials per provider account, so account names are dynamic).
+    nonisolated static func deleteAllItems(service: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+        ]
+
+        // SecItemDelete removes all matches on modern keychains, but loop
+        // defensively (with a cap) for file-based keychains that delete one
+        // item per call.
+        for _ in 0..<128 {
+            let status = performSecurityCall {
+                SecItemDelete(query as CFDictionary)
+            }
+            if status == errSecSuccess { continue }
+            if status != errSecItemNotFound {
+                Log.keychain("Keychain wipe failed (service: \(service)): \(status)")
+            }
+            return
+        }
+    }
 
     static func saveManagementKey(_ key: String, for configId: String) {
         let account = "management-key-\(configId)"

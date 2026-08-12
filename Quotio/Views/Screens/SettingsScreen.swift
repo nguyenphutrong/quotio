@@ -97,6 +97,9 @@ struct SettingsScreen: View {
             if modeManager.isLocalProxyMode {
                 LocalPathsSection()
             }
+
+            // Danger Zone
+            DangerZoneSection()
         }
         .formStyle(.grouped)
         .navigationTitle("nav.settings".localized())
@@ -837,6 +840,51 @@ struct LocalPathsSection: View {
             }
         } header: {
             Label("settings.paths".localized(), systemImage: "folder")
+        }
+    }
+}
+
+// MARK: - Danger Zone Section
+
+/// Full app reset (issue #373). Quotio keeps state in the Keychain and
+/// Application Support, which app uninstallers do not fully remove, so a
+/// corrupted state could previously survive any reinstall.
+struct DangerZoneSection: View {
+    @Environment(QuotaViewModel.self) private var viewModel
+    @State private var showResetConfirmation = false
+    @State private var isResetting = false
+
+    var body: some View {
+        Section {
+            Button(role: .destructive) {
+                showResetConfirmation = true
+            } label: {
+                if isResetting {
+                    HStack(spacing: 8) {
+                        SmallProgressView()
+                        Text("settings.reset.inProgress".localized())
+                    }
+                } else {
+                    Label("settings.reset.button".localized(), systemImage: "trash")
+                }
+            }
+            .disabled(isResetting)
+        } header: {
+            Label("settings.dangerZone".localized(), systemImage: "exclamationmark.triangle")
+        } footer: {
+            Text("settings.reset.footer".localized())
+                .font(.caption)
+        }
+        .alert("settings.reset.confirmTitle".localized(), isPresented: $showResetConfirmation) {
+            Button("settings.reset.confirmButton".localized(), role: .destructive) {
+                isResetting = true
+                Task {
+                    await AppResetService.performFullReset(using: viewModel)
+                }
+            }
+            Button("action.cancel".localized(), role: .cancel) {}
+        } message: {
+            Text("settings.reset.confirmMessage".localized())
         }
     }
 }
