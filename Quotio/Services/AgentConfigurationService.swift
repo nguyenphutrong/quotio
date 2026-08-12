@@ -758,11 +758,8 @@ actor AgentConfigurationService {
                 let backupPath = "\(configPath).backup.\(Int(Date().timeIntervalSince1970))"
                 try fileManager.copyItem(atPath: configPath, toPath: backupPath)
                 
-                // Remove quotio provider
-                if var providers = config["provider"] as? [String: Any] {
-                    providers.removeValue(forKey: "quotio")
-                    config["provider"] = providers.isEmpty ? nil : providers
-                }
+                // Remove all Quotio-managed providers (quotio and quotio-gemini)
+                config = Self.openCodeConfigRemovingQuotioProviders(config)
                 
                 let updatedData = try JSONSerialization.data(withJSONObject: config, options: [.prettyPrinted, .sortedKeys])
                 try updatedData.write(to: URL(fileURLWithPath: configPath))
@@ -774,7 +771,7 @@ actor AgentConfigurationService {
                     authPath: nil,
                     shellConfig: nil,
                     rawConfigs: [],
-                    instructions: "Removed Quotio provider. OpenCode will use its default providers.",
+                    instructions: "Removed Quotio providers. OpenCode will use its default providers.",
                     modelsConfigured: 0
                 )
             } catch {
@@ -789,7 +786,7 @@ actor AgentConfigurationService {
             authPath: nil,
             shellConfig: nil,
             rawConfigs: [],
-            instructions: "Remove 'provider.quotio' section from ~/.config/opencode/opencode.json",
+            instructions: "Remove 'provider.quotio' and 'provider.quotio-gemini' sections from ~/.config/opencode/opencode.json",
             modelsConfigured: 0
         )
     }
@@ -1181,30 +1178,123 @@ actor AgentConfigurationService {
         return backupPath
     }
     
+    // MARK: - OpenCode provider partitioning (#227)
+
+    /// Provider keys in opencode.json that are managed by Quotio.
+    nonisolated static let openCodeManagedProviderKeys = ["quotio", "quotio-gemini"]
+
+    /// True when a model is Gemini-native and should be served through
+    /// Google's protocol on the proxy's /v1beta endpoint instead of the
+    /// Anthropic-flavored /v1 endpoint. Antigravity exposes Claude models
+    /// under "gemini-claude-*" ids — those stay on the Anthropic protocol.
+    nonisolated static func isOpenCodeGeminiNativeModel(_ modelName: String) -> Bool {
+        let lowered = modelName.lowercased()
+        return lowered.contains("gemini") && !lowered.contains("claude")
+    }
+
+    /// Builds the Quotio-managed provider entries for opencode.json.
+    /// Models are deterministically partitioned by name: Gemini-native models
+    /// go into a Google-protocol "quotio-gemini" provider (emitted only when
+    /// such models exist), everything else stays in the Anthropic-flavored
+    /// "quotio" provider (#227).
+    nonisolated static func openCodeQuotioProviderEntries(
+        models: [AvailableModel],
+        apiKey: String,
+        baseURL: String
+    ) -> [String: [String: Any]] {
+        var anthropicModels: [String: [String: Any]] = [:]
+        var geminiModels: [String: [String: Any]] = [:]
+
+        for model in models {
+            if isOpenCodeGeminiNativeModel(model.name) {
+                geminiModels[model.name] = buildOpenCodeModelConfig(for: model.name)
+            } else {
+                anthropicModels[model.name] = buildOpenCodeModelConfig(for: model.name)
+            }
+        }
+
+        var entries: [String: [String: Any]] = [
+            "quotio": [
+                "models": anthropicModels,
+                "name": "Quotio",
+                "npm": "@ai-sdk/anthropic",
+                "options": [
+                    "apiKey": apiKey,
+                    "baseURL": "\(baseURL)/v1",
+                    "litellmProxy": true
+                ]
+            ]
+        ]
+
+        if !geminiModels.isEmpty {
+            entries["quotio-gemini"] = [
+                "models": geminiModels,
+                "name": "Quotio (Gemini)",
+                "npm": "@ai-sdk/google",
+                "options": [
+                    "apiKey": apiKey,
+                    "baseURL": "\(baseURL)/v1beta"
+                ]
+            ]
+        }
+
+        return entries
+    }
+
+    /// Applies the Quotio-managed provider entries onto an existing
+    /// opencode.json "provider" object, preserving all user providers.
+    /// Managed keys that are no longer emitted (e.g. "quotio-gemini" after
+    /// all Gemini models disappeared) are removed so no stale Quotio entry
+    /// lingers.
+    nonisolated static func openCodeProvidersApplyingQuotioEntries(
+        _ providers: [String: Any],
+        entries: [String: [String: Any]]
+    ) -> [String: Any] {
+        var updated = providers
+        for key in openCodeManagedProviderKeys where entries[key] == nil {
+            updated.removeValue(forKey: key)
+        }
+        for (key, value) in entries {
+            updated[key] = value
+        }
+        return updated
+    }
+
+    /// Removes every Quotio-managed provider entry from a parsed
+    /// opencode.json object, preserving all other user settings. Drops the
+    /// "provider" key entirely when no providers remain.
+    nonisolated static func openCodeConfigRemovingQuotioProviders(_ config: [String: Any]) -> [String: Any] {
+        var updated = config
+        guard var providers = updated["provider"] as? [String: Any] else {
+            return updated
+        }
+        for key in openCodeManagedProviderKeys {
+            providers.removeValue(forKey: key)
+        }
+        if providers.isEmpty {
+            updated.removeValue(forKey: "provider")
+        } else {
+            updated["provider"] = providers
+        }
+        return updated
+    }
+
     private func generateOpenCodeConfig(config: AgentConfiguration, mode: ConfigurationMode, availableModels: [AvailableModel]) -> AgentConfigResult {
         let home = fileManager.homeDirectoryForCurrentUser.path
         let configDir = "\(home)/.config/opencode"
         let configPath = "\(configDir)/opencode.json"
         let baseURL = config.proxyURL.replacingOccurrences(of: "/v1", with: "")
 
-        // Convert available models to OpenCode format dynamically
-        var quotioModels: [String: [String: Any]] = [:]
+        // Convert available models to OpenCode format dynamically.
+        // Gemini-native models get their own Google-protocol provider so they
+        // are served through /v1beta instead of the Anthropic-flavored
+        // endpoint, which confuses them (#227).
         let modelsToUse = availableModels.isEmpty ? AvailableModel.allModels : availableModels
-
-        for model in modelsToUse {
-            quotioModels[model.name] = buildOpenCodeModelConfig(for: model.name)
-        }
-
-        let quotioProvider: [String: Any] = [
-            "models": quotioModels,
-            "name": "Quotio",
-            "npm": "@ai-sdk/anthropic",
-            "options": [
-                "apiKey": config.apiKey,
-                "baseURL": "\(baseURL)/v1",
-                "litellmProxy": true
-            ]
-        ]
+        let providerEntries = Self.openCodeQuotioProviderEntries(
+            models: modelsToUse,
+            apiKey: config.apiKey,
+            baseURL: baseURL
+        )
 
         do {
             var existingConfig: [String: Any] = [:]
@@ -1219,9 +1309,8 @@ actor AgentConfigurationService {
                 existingConfig["$schema"] = "https://opencode.ai/config.json"
             }
 
-            var providers = existingConfig["provider"] as? [String: Any] ?? [:]
-            providers["quotio"] = quotioProvider
-            existingConfig["provider"] = providers
+            let providers = existingConfig["provider"] as? [String: Any] ?? [:]
+            existingConfig["provider"] = Self.openCodeProvidersApplyingQuotioEntries(providers, entries: providerEntries)
 
             let jsonData = try JSONSerialization.data(withJSONObject: existingConfig, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
             let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
@@ -1232,7 +1321,7 @@ actor AgentConfigurationService {
                     content: jsonString,
                     filename: "opencode.json",
                     targetPath: configPath,
-                    instructions: "Merge provider.quotio into ~/.config/opencode/opencode.json"
+                    instructions: "Merge provider.quotio and provider.quotio-gemini into ~/.config/opencode/opencode.json"
                 )
             ]
 
@@ -1253,7 +1342,7 @@ actor AgentConfigurationService {
                     configPath: configPath,
                     rawConfigs: rawConfigs,
                     instructions: "Configuration updated. Run 'opencode' and use /models to select a model (e.g., quotio/\(modelsToUse.first?.name ?? "model")).",
-                    modelsConfigured: quotioModels.count,
+                    modelsConfigured: modelsToUse.count,
                     backupPath: backupPath
                 )
             } else {
@@ -1262,8 +1351,8 @@ actor AgentConfigurationService {
                     mode: mode,
                     configPath: configPath,
                     rawConfigs: rawConfigs,
-                    instructions: "Merge provider.quotio section into your existing ~/.config/opencode/opencode.json:",
-                    modelsConfigured: quotioModels.count
+                    instructions: "Merge the provider.quotio and provider.quotio-gemini sections into your existing ~/.config/opencode/opencode.json:",
+                    modelsConfigured: modelsToUse.count
                 )
             }
         } catch {
@@ -1272,7 +1361,7 @@ actor AgentConfigurationService {
     }
 
     /// Build OpenCode model configuration based on model name patterns
-    private func buildOpenCodeModelConfig(for modelName: String) -> [String: Any] {
+    nonisolated private static func buildOpenCodeModelConfig(for modelName: String) -> [String: Any] {
         let displayName = modelName.split(separator: "-")
             .map { $0.capitalized }
             .joined(separator: " ")
