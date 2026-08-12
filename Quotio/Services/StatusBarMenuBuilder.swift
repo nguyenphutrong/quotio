@@ -1060,7 +1060,7 @@ private struct MenuAccountCardView: View {
                 return antigravityGroups.map { ModelBadgeData(name: $0.name, percentage: $0.percentage, resetTime: $0.resetTime) }
             } else {
                 return data.models.filter { !$0.isStandaloneMetric }.map {
-                    ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime)
+                    ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime, formattedUsage: $0.formattedUsage)
                 }
             }
         }()
@@ -1081,7 +1081,7 @@ private struct MenuAccountCardView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         FactoryDroidMenuSectionHeader(title: section.title)
                         quotaLayout(models: section.models.map {
-                            ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime)
+                            ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime, formattedUsage: $0.formattedUsage)
                         })
                     }
                 }
@@ -1122,13 +1122,12 @@ private struct MenuAccountCardView: View {
 
     private var footerSection: some View {
         HStack(spacing: 12) {
-            // Reset info is now shown inside each metric, so only show last update here
-            Spacer()
-
             // Last Update
             Text(data.lastUpdated.formatted(.relative(presentation: .named)))
                 .font(.system(size: 10, design: .rounded))
                 .foregroundStyle(.secondary)
+
+            Spacer()
         }
     }
     
@@ -2098,6 +2097,7 @@ private struct ModelBadgeData: Identifiable {
     let name: String
     let percentage: Double
     let resetTime: String?
+    var formattedUsage: String? = nil
 
     var id: String { name }
 
@@ -2143,6 +2143,27 @@ private struct AntigravityDisplayGroup: Identifiable {
 
 private func menuDisplayPercent(remainingPercent: Double, displayMode: QuotaDisplayMode) -> Double {
     displayMode.displayValue(from: remainingPercent)
+}
+
+/// The known cadence for a well-understood metric window. Unrecognized
+/// metric names simply omit this caption rather than guess.
+private func menuWindowCaption(name: String) -> String? {
+    switch name {
+    case "Session": return "quota.window.session".localized()
+    case "Weekly": return "quota.window.weekly".localized()
+    default: return nil
+    }
+}
+
+/// The equal-weight companion to the percentage: a reset countdown when one
+/// exists, "unused" when nothing has been consumed yet, or the raw usage
+/// fraction for metrics with no timer at all (e.g. a rolling pool).
+private func menuHeroText(model: ModelBadgeData, displayMode: QuotaDisplayMode) -> String {
+    let remainingPercent = max(0, min(100, model.percentage))
+    if remainingPercent >= 100 { return "quota.state.unused".localized() }
+    if let resetTime = model.formattedResetTime { return resetTime }
+    if let usage = model.formattedUsage { return usage }
+    return "\(Int(menuDisplayPercent(remainingPercent: remainingPercent, displayMode: displayMode)))%"
 }
 
 private func menuStatusColor(remainingPercent: Double, displayMode: QuotaDisplayMode) -> Color {
@@ -2244,15 +2265,15 @@ private struct LowestBarLayout: View {
 
 private struct RingGridLayout: View {
     let models: [ModelBadgeData]
-    
+
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
 
+    /// Always reserve at least 3 slots (Session/Weekly/Extra is the common
+    /// case) so an account missing one metric still lines up column-for-
+    /// column with accounts that have all three, instead of the grid
+    /// reflowing to fewer, wider columns.
     private var columnCount: Int {
-        min(max(models.count, 1), 4)
-    }
-
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible()), count: columnCount)
+        min(max(models.count, 3), 4)
     }
 
     private var ringSize: CGFloat {
@@ -2261,26 +2282,36 @@ private struct RingGridLayout: View {
 
     var body: some View {
         let displayMode = settings.quotaDisplayMode
-        
-        // Auto-distribute 1-4 columns, cap at 4
-        LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(models, id: \.name) { (model: ModelBadgeData) in
-                VStack(spacing: 4) {
-                    RingProgressView(percent: menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode), size: ringSize, lineWidth: 4, tint: menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode), showLabel: true)
 
-                    Text(model.name)
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+        // Fixed slot count (not just models.count) keeps Session/Weekly/Extra
+        // at consistent positions even when an account is missing one metric,
+        // instead of the row reflowing to fewer, wider slots.
+        HStack(spacing: 14) {
+            ForEach(0..<columnCount, id: \.self) { index in
+                if index < models.count {
+                    let model = models[index]
+                    let displayPercent = menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode)
+                    let statusColor = menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode)
 
-                    if let resetTime = model.formattedResetTime {
-                        Text(resetTime)
-                            .font(.system(size: 8, design: .rounded))
-                            .foregroundStyle(.tertiary)
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RingProgressView(percent: displayPercent, size: ringSize, lineWidth: 6, tint: statusColor, showLabel: false)
+                            Text("\(Int(displayPercent))")
+                                .font(.system(size: ringSize * 0.24, weight: .medium, design: .rounded))
+                                .foregroundStyle(statusColor)
+                                .monospacedDigit()
+                        }
+
+                        Text(menuHeroText(model: model, displayMode: displayMode))
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Color.clear.frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
             }
         }
     }
@@ -2288,45 +2319,35 @@ private struct RingGridLayout: View {
 
 private struct CardGridLayout: View {
     let models: [ModelBadgeData]
-    
+
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
 
-    private var columns: [GridItem] {
-        // Single metric: full width. Multiple: 2 columns
-        if models.count == 1 {
-            return [GridItem(.flexible())]
-        } else {
-            return [GridItem(.flexible()), GridItem(.flexible())]
-        }
-    }
-    
     var body: some View {
         let displayMode = settings.quotaDisplayMode
-        
-        LazyVGrid(columns: columns, spacing: 8) {
+
+        VStack(spacing: 6) {
             ForEach(models, id: \.name) { (model: ModelBadgeData) in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(model.name)
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                HStack(spacing: 8) {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode))
+                            .frame(width: 5, height: 5)
+                        Text(model.name.uppercased())
+                            .font(.system(size: 9, weight: .semibold, design: .rounded))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                        Spacer()
-                        if let resetTime = model.formattedResetTime {
-                            Text(resetTime)
-                                .font(.system(size: 9, design: .rounded))
-                                .foregroundStyle(.tertiary)
-                        }
-                        Text("\(Int(menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode)))%")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode))
                     }
+                    .frame(width: 52, alignment: .leading)
 
-                    ModernProgressBar(percentage: model.percentage, height: 4)
+                    ModernProgressBar(percentage: model.percentage, height: 8)
+
+                    Text(menuHeroText(model: model, displayMode: displayMode))
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .frame(width: 68, alignment: .trailing)
                 }
-                .padding(8)
-                .background(Color.secondary.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
     }

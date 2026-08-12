@@ -887,7 +887,7 @@ private struct AccountQuotaCardV2: View {
         case .ring:
             AntigravityRingLayout(groups: antigravityDisplayGroups)
         case .card:
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 ForEach(antigravityDisplayGroups) { group in
                     AntigravityGroupRow(group: group)
                 }
@@ -929,7 +929,7 @@ private struct AccountQuotaCardV2: View {
         case .ring:
             StandardRingLayout(models: models)
         case .card:
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 ForEach(models) { model in
                     UsageRowV2(
                         name: model.displayName,
@@ -1127,75 +1127,87 @@ private struct AntigravityDisplayGroup: Identifiable {
 
 private struct AntigravityGroupRow: View {
     let group: AntigravityDisplayGroup
-    
+
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
 
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
-    
+
     private var remainingPercent: Double {
         max(0, min(100, group.percentage))
     }
-    
+
     private var groupIcon: String {
         if group.name.contains("Claude") { return "brain.head.profile" }
         if group.name.contains("Image") { return "photo" }
         if group.name.contains("Flash") { return "bolt.fill" }
         return "sparkles"
     }
-    
+
+    private var firstModel: ModelQuota? { group.models.first }
+
+    private var hasResetTime: Bool {
+        guard let firstModel else { return false }
+        return firstModel.formattedResetTime != "—" && !firstModel.formattedResetTime.isEmpty
+    }
+
+    private var heroText: String {
+        if remainingPercent >= 100 { return "quota.state.unused".localized() }
+        if hasResetTime { return firstModel?.formattedResetTime ?? "—" }
+        if let usage = firstModel?.formattedUsage { return usage }
+        return String(format: "%.0f%%", displayHelper.displayPercent(remainingPercent: remainingPercent))
+    }
+
     var body: some View {
         let displayPercent = displayHelper.displayPercent(remainingPercent: remainingPercent)
         let statusColor = displayHelper.statusColor(remainingPercent: remainingPercent)
-        
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Image(systemName: groupIcon)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 16)
-                
-                Text(group.name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                
-                if group.models.count > 1 {
-                    Text(String(group.models.count))
+
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 10) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 6, height: 6)
+                    Image(systemName: groupIcon)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Color.primary.opacity(0.05))
-                        .clipShape(Capsule())
+                    Text(group.name)
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(0.3)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    if group.models.count > 1 {
+                        Text(String(group.models.count))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.primary.opacity(0.05))
+                            .clipShape(Capsule())
+                    }
                 }
-                
-                Spacer()
-                
-                Text(String(format: "%.0f%%", displayPercent))
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(statusColor)
+                .frame(width: 130, alignment: .leading)
+
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.primary.opacity(0.06))
+                        Capsule()
+                            .fill(statusColor.gradient)
+                            .frame(width: proxy.size.width * (displayPercent / 100))
+                    }
+                }
+                .frame(height: 10)
+
+                Text(heroText)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
                     .monospacedDigit()
-                
-                if let firstModel = group.models.first,
-                   firstModel.formattedResetTime != "—" && !firstModel.formattedResetTime.isEmpty {
-                    Text(firstModel.formattedResetTime)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .frame(width: 90, alignment: .trailing)
             }
-            
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.primary.opacity(0.06))
-                    Capsule()
-                        .fill(statusColor.gradient)
-                        .frame(width: proxy.size.width * (displayPercent / 100))
-                }
-            }
-            .frame(height: 6)
         }
     }
 }
@@ -1285,40 +1297,16 @@ private struct AntigravityLowestBarLayout: View {
 
 private struct AntigravityRingLayout: View {
     let groups: [AntigravityDisplayGroup]
-    
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
-    private var displayHelper: QuotaDisplayHelper {
-        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
-    }
-    
-    private var columns: [GridItem] {
-        let count = min(max(groups.count, 1), 4)
-        return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
-    }
-    
-    private func displayPercent(for remainingPercent: Double) -> Double {
-        displayHelper.displayPercent(remainingPercent: remainingPercent)
-    }
-    
+
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 12) {
-            ForEach(groups) { group in
-                VStack(spacing: 6) {
-                    RingProgressView(
-                        percent: displayPercent(for: group.percentage),
-                        size: 44,
-                        lineWidth: 5,
-                        tint: displayHelper.statusColor(remainingPercent: group.percentage),
-                        showLabel: true
-                    )
-                    
-                    Text(group.name)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-        }
+        DashboardRingGridLayout(slots: groups.map {
+            RingSlotData(
+                name: $0.name,
+                percentage: $0.percentage,
+                formattedResetTime: $0.models.first?.formattedResetTime ?? "—",
+                formattedUsage: $0.models.first?.formattedUsage
+            )
+        })
     }
 }
 
@@ -1418,44 +1406,172 @@ private struct StandardLowestBarLayout: View {
 
 private struct StandardRingLayout: View {
     let models: [ModelQuota]
-    
+
+    var body: some View {
+        DashboardRingGridLayout(slots: models.map {
+            RingSlotData(
+                name: $0.displayName,
+                percentage: $0.percentage,
+                formattedResetTime: $0.formattedResetTime,
+                formattedUsage: $0.formattedUsage
+            )
+        })
+    }
+}
+
+// MARK: - Dashboard Ring Grid Layout
+
+/// Data for one ring "slot" (Session/Weekly/Extra, or an Antigravity model
+/// group), independent of which provider produced it.
+private struct RingSlotData: Identifiable {
+    let name: String
+    let percentage: Double
+    let formattedResetTime: String
+    let formattedUsage: String?
+
+    var id: String { name }
+
+    var isUnknown: Bool { percentage < 0 || percentage > 100 }
+    var remainingPercent: Double { max(0, min(100, percentage)) }
+    var hasResetTime: Bool { formattedResetTime != "—" && !formattedResetTime.isEmpty }
+
+    var windowCaption: String? {
+        switch name {
+        case "Session": return "quota.window.session".localized()
+        case "Weekly": return "quota.window.weekly".localized()
+        default: return nil
+        }
+    }
+
+    /// The large text beside the ring: a countdown when there is one,
+    /// "unused" when the window hasn't started, nil otherwise (falls back
+    /// to the caption below for a usage fraction or "off").
+    var heroText: String? {
+        if isUnknown { return nil }
+        if remainingPercent >= 100 { return "quota.state.unused".localized() }
+        if hasResetTime { return formattedResetTime }
+        return nil
+    }
+
+    var captionText: String {
+        if isUnknown { return "quota.state.notEnabled".localized() }
+        if heroText == nil, let formattedUsage { return formattedUsage }
+        return windowCaption ?? ""
+    }
+}
+
+/// Ring style layout for the main window: a real `Grid`, not a `LazyVGrid`,
+/// so every row (label / ring / caption) shares one height and baseline
+/// across accounts. Always reserving at least 3 columns means an account
+/// missing one metric (e.g. no "Extra") still lines up column-for-column
+/// with accounts that have all three, instead of the grid reflowing to
+/// fewer, wider columns.
+private struct DashboardRingGridLayout: View {
+    let slots: [RingSlotData]
+
+    private var columnCount: Int {
+        min(max(slots.count, 3), 4)
+    }
+
+    var body: some View {
+        Grid(alignment: .leading, horizontalSpacing: 48, verticalSpacing: 8) {
+            GridRow {
+                ForEach(0..<columnCount, id: \.self) { index in
+                    if index < slots.count {
+                        RingSlotLabel(slot: slots[index])
+                    } else {
+                        Color.clear.frame(width: 1, height: 1)
+                    }
+                }
+            }
+            GridRow {
+                ForEach(0..<columnCount, id: \.self) { index in
+                    if index < slots.count {
+                        RingSlotBody(slot: slots[index])
+                    } else {
+                        Color.clear.frame(width: 1, height: 1)
+                    }
+                }
+            }
+            GridRow {
+                ForEach(0..<columnCount, id: \.self) { index in
+                    if index < slots.count, !slots[index].captionText.isEmpty {
+                        Text(slots[index].captionText)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    } else {
+                        Color.clear.frame(width: 1, height: 1)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct RingSlotLabel: View {
+    let slot: RingSlotData
+
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
-    
-    private var columns: [GridItem] {
-        let count = min(max(models.count, 1), 4)
-        return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
-    }
-    
-    private func displayPercent(for remainingPercent: Double) -> Double {
-        displayHelper.displayPercent(remainingPercent: remainingPercent)
-    }
-    
+
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 12) {
-            ForEach(models) { model in
-                VStack(spacing: 6) {
-                    RingProgressView(
-                        percent: displayPercent(for: model.percentage),
-                        size: 44,
-                        lineWidth: 5,
-                        tint: displayHelper.statusColor(remainingPercent: model.percentage),
-                        showLabel: true
-                    )
-                    
-                    Text(model.displayName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    
-                    if model.formattedResetTime != "—" && !model.formattedResetTime.isEmpty {
-                        Text(model.formattedResetTime)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+        let statusColor = slot.isUnknown ? Color.secondary : displayHelper.statusColor(remainingPercent: slot.remainingPercent)
+
+        HStack(spacing: 6) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 6, height: 6)
+            Text(slot.name.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.3)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+}
+
+private struct RingSlotBody: View {
+    let slot: RingSlotData
+
+    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    private var displayHelper: QuotaDisplayHelper {
+        QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
+    }
+
+    var body: some View {
+        let displayPercent = displayHelper.displayPercent(remainingPercent: slot.remainingPercent)
+        let statusColor = slot.isUnknown ? Color.secondary : displayHelper.statusColor(remainingPercent: slot.remainingPercent)
+
+        HStack(spacing: 14) {
+            ZStack {
+                RingProgressView(
+                    percent: slot.isUnknown ? 0 : displayPercent,
+                    size: 64,
+                    lineWidth: 9,
+                    tint: statusColor,
+                    showLabel: false
+                )
+                .opacity(slot.isUnknown ? 0.35 : 1)
+
+                Text(slot.isUnknown ? "—" : "\(Int(displayPercent))")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(slot.isUnknown ? .secondary : statusColor)
+                    .monospacedDigit()
+            }
+
+            if let heroText = slot.heroText {
+                Text(heroText)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            } else if slot.isUnknown {
+                Text("quota.state.off".localized())
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -1608,85 +1724,80 @@ private struct UsageRowV2: View {
     let formattedUsage: String?
     let resetTime: String
     let tooltip: String?
-    
+
     private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
-    
+
     private var isUnknown: Bool {
         usedPercent < 0 || usedPercent > 100
     }
-    
+
     private var remainingPercent: Double {
         max(0, min(100, 100 - usedPercent))
     }
-    
+
+    private var hasResetTime: Bool {
+        resetTime != "—" && !resetTime.isEmpty
+    }
+
+    /// The equal-weight companion to the bar: a reset countdown when one
+    /// exists, "unused" when nothing has been consumed yet (a countdown
+    /// would be meaningless), the raw usage fraction for metrics with no
+    /// timer at all (e.g. a rolling pool like "Extra"), or — only when none
+    /// of those are available — the percentage itself, so there's always
+    /// some number to read.
+    private var heroText: String {
+        if remainingPercent >= 100 { return "quota.state.unused".localized() }
+        if hasResetTime { return resetTime }
+        if let formattedUsage { return formattedUsage }
+        return String(format: "%.0f%%", displayHelper.displayPercent(remainingPercent: remainingPercent))
+    }
+
     var body: some View {
         let displayPercent = displayHelper.displayPercent(remainingPercent: remainingPercent)
-        let statusColor = displayHelper.statusColor(remainingPercent: remainingPercent)
-        
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                if let icon = icon {
+        let statusColor = isUnknown ? Color.secondary : displayHelper.statusColor(remainingPercent: remainingPercent)
+
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 6, height: 6)
+                if let icon {
                     Image(systemName: icon)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 16)
-                }
-                
-                Text(name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .help(tooltip ?? "")
-                
-                Spacer()
-                
-                if let formattedUsage {
-                    Text(formattedUsage)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .monospacedDigit()
-                } else if let used = used {
-                    if let limit = limit, limit > 0 {
-                        Text(String(used) + "/" + String(limit))
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
-                    }
-                }
-                
-                if !isUnknown {
-                    Text(String(format: "%.0f%%", displayPercent))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(statusColor)
-                        .monospacedDigit()
-                } else {
-                    Text("—")
-                        .font(.subheadline)
-                        .foregroundStyle(.tertiary)
-                }
-                
-                if resetTime != "—" && !resetTime.isEmpty {
-                    Text(resetTime)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
+                Text(name.uppercased())
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.3)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            
-            if !isUnknown {
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.primary.opacity(0.06))
+            .frame(width: 68, alignment: .leading)
+            .help(tooltip ?? "")
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.06))
+                    if !isUnknown {
                         Capsule()
                             .fill(statusColor.gradient)
                             .frame(width: proxy.size.width * (displayPercent / 100))
                     }
                 }
-                .frame(height: 6)
             }
+            .frame(height: 10)
+
+            Text(isUnknown ? "quota.state.off".localized() : heroText)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(isUnknown ? .secondary : .primary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(width: 90, alignment: .trailing)
         }
     }
 }
