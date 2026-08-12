@@ -11,6 +11,11 @@ import Security
 // MARK: - Keychain Helper
 
 enum KeychainHelper {
+    nonisolated enum MonitorCredentialBackend: Equatable {
+        case keychain
+        case vault
+    }
+
     nonisolated private static let securityLock = NSRecursiveLock()
     private static let remoteService = "dev.quotio.desktop.remote-management"
     private static let localService = "dev.quotio.desktop.local-management"
@@ -161,6 +166,9 @@ enum KeychainHelper {
               MonitorIdentity.fingerprint(current.base64EncodedString()) == expectedFingerprint else {
             return false
         }
+        if monitorCredentialBackend(vaultEnabled: YubiKeySecretVault.isEnabled) == .vault {
+            return YubiKeySecretVault.save(data, service: monitorAuthService, account: account)
+        }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: monitorAuthService,
@@ -172,6 +180,10 @@ enum KeychainHelper {
                 [kSecValueData as String: data] as CFDictionary
             )
         } == errSecSuccess
+    }
+
+    nonisolated static func monitorCredentialBackend(vaultEnabled: Bool) -> MonitorCredentialBackend {
+        vaultEnabled ? .vault : .keychain
     }
 
     /// Read a credential owned by another local CLI/app without mutating it.
@@ -319,13 +331,22 @@ enum KeychainHelper {
 
     nonisolated private static func readData(service: String, account: String) -> Data? {
         if YubiKeySecretVault.isEnabled {
-            if let data = YubiKeySecretVault.read(service: service, account: account) {
+            switch YubiKeySecretVault.readResult(service: service, account: account) {
+            case let .success(data):
                 return data
+            case .unreadable:
+                // Never replace an existing envelope with a legacy Keychain copy
+                // when the hardware key is unavailable or the envelope is bad.
+                return nil
+            case .absent:
+                break
             }
-            // Move a legacy Quotio-owned secret only after it has been encrypted
-            // for the selected hardware key successfully.
+            // Move a legacy secret only after a complete encrypted write/read
+            // round trip has succeeded.
             guard let legacy = readKeychainData(service: service, account: account),
-                  YubiKeySecretVault.save(legacy, service: service, account: account) else { return nil }
+                  YubiKeySecretVault.save(legacy, service: service, account: account),
+                  case let .success(roundTripped) = YubiKeySecretVault.readResult(service: service, account: account),
+                  roundTripped == legacy else { return nil }
             deleteKeychainData(service: service, account: account)
             return legacy
         }

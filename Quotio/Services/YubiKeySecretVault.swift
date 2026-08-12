@@ -28,9 +28,62 @@ nonisolated struct YubiKeyPIVDevice: Identifiable, Hashable, Sendable {
     var id: String { serial }
 }
 
+nonisolated enum YubiKeyPIVSlotState: Sendable, Equatable {
+    case empty
+    case occupied
+    /// The tool could not prove the slot is empty. Treated as occupied for any
+    /// destructive decision.
+    case unknown
+}
+
+/// What `ykman piv info` reports about a key before Quotio changes anything.
+nonisolated struct YubiKeyPIVPreflight: Sendable, Equatable {
+    let slot9d: YubiKeyPIVSlotState
+    let managementKeyProtected: Bool
+    let usesDefaultManagementKey: Bool
+    let pinTriesRemaining: String?
+    let report: String
+
+    var destroysExistingKey: Bool { slot9d != .empty }
+}
+
+nonisolated enum YubiKeyProvisioningError: Error, Sendable, Equatable {
+    case toolMissing
+    case timedOut
+    case deviceUnavailable(String)
+    case managementKeyRejected
+    case pinRejected(triesRemaining: Int?)
+    case pinBlocked
+    case stepFailed(String)
+
+    var message: String {
+        switch self {
+        case .toolMissing:
+            return "yubikey.error.toolMissing".localizedStatic()
+        case .timedOut:
+            return "yubikey.error.timedOut".localizedStatic()
+        case let .deviceUnavailable(detail):
+            return String(format: "yubikey.error.deviceUnavailable".localizedStatic(), detail)
+        case .managementKeyRejected:
+            return "yubikey.error.managementKey".localizedStatic()
+        case let .pinRejected(triesRemaining):
+            guard let triesRemaining else { return "yubikey.error.pin".localizedStatic() }
+            return String(format: "yubikey.error.pinTries".localizedStatic(), triesRemaining)
+        case .pinBlocked:
+            return "yubikey.error.pinBlocked".localizedStatic()
+        case let .stepFailed(detail):
+            return String(format: "yubikey.error.step".localizedStatic(), detail)
+        }
+    }
+}
+
 /// A PIV-backed vault for secrets owned by Quotio. Only encrypted envelopes
 /// are written to disk; private-key operations remain on the selected token.
 nonisolated enum YubiKeySecretVault {
+    /// Certificate subject Quotio provisions, and the name macOS then reports
+    /// for the identity.
+    static let identityName = "Quotio Secret Vault"
+
     private static let selectedFingerprintKey = "yubikeyPIVVaultFingerprint"
     private static var fileManager: FileManager { .default }
     private static let lock = NSLock()
@@ -41,13 +94,42 @@ nonisolated enum YubiKeySecretVault {
         let sealedSecret: Data
     }
 
+    enum ReadResult: Equatable {
+        case absent
+        case unreadable
+        case success(Data)
+    }
+
+    static func shouldMigrateLegacy(_ result: ReadResult) -> Bool {
+        if case .absent = result { return true }
+        return false
+    }
+
     static var isEnabled: Bool {
-        UserDefaults.standard.string(forKey: selectedFingerprintKey) != nil
+        selectedFingerprint != nil
+    }
+
+    /// The fingerprint Quotio is configured to use, whether or not that key is
+    /// currently plugged in. Settings needs this to tell "not configured" apart
+    /// from "configured but absent".
+    static var selectedFingerprint: String? {
+        UserDefaults.standard.string(forKey: selectedFingerprintKey)
     }
 
     static var selectedIdentity: YubiKeyPIVIdentity? {
-        guard let fingerprint = UserDefaults.standard.string(forKey: selectedFingerprintKey) else { return nil }
-        return availableIdentities().first { $0.fingerprint == fingerprint }
+        identity(matching: availableIdentities())
+    }
+
+    /// Resolves the configured key against an already-loaded identity list, so
+    /// callers that just enumerated identities do not enumerate them twice.
+    static func identity(matching identities: [YubiKeyPIVIdentity]) -> YubiKeyPIVIdentity? {
+        guard let fingerprint = selectedFingerprint else { return nil }
+        return identities.first { $0.fingerprint == fingerprint }
+    }
+
+    /// Number of secrets currently sealed to the configured key.
+    static var protectedSecretCount: Int {
+        envelopeURLs.count
     }
 
     /// Detects attached YubiKeys independently of PIV provisioning. This keeps
@@ -78,59 +160,128 @@ nonisolated enum YubiKeySecretVault {
     }
 
     static func provisionableDevices() -> [YubiKeyPIVDevice] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/ykman")
-        process.arguments = ["list"]
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = Pipe()
-        do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0,
-                  let listing = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) else { return [] }
-            return listing.split(separator: "\n").compactMap { line in
-                guard line.contains("CCID"), let serialRange = line.range(of: "Serial: ") else { return nil }
-                let serial = line[serialRange.upperBound...].trimmingCharacters(in: .whitespaces)
-                guard serial.allSatisfy(\.isNumber) else { return nil }
-                return YubiKeyPIVDevice(serial: serial, name: String(line[..<serialRange.lowerBound]).trimmingCharacters(in: .whitespaces))
-            }
-        } catch { return [] }
+        guard case let .completed(status, listing) = runYkman(["list"], timeout: 20), status == 0 else { return [] }
+        return listing.split(separator: "\n").compactMap { line in
+            guard line.contains("CCID"), let serialRange = line.range(of: "Serial: ") else { return nil }
+            let serial = line[serialRange.upperBound...].trimmingCharacters(in: .whitespaces)
+            guard serial.allSatisfy(\.isNumber) else { return nil }
+            return YubiKeyPIVDevice(serial: serial, name: String(line[..<serialRange.lowerBound]).trimmingCharacters(in: .whitespaces))
+        }
     }
 
-    /// Starts an interactive, local YubiKey Manager session.  Credentials are
-    /// requested by ykman in Terminal and are never passed through Quotio.
-    @discardableResult
-    static func beginProvisioning(_ device: YubiKeyPIVDevice) -> Bool {
-        let scriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("quotio-piv-\(device.serial)-\(UUID().uuidString).zsh")
-        let script = """
-        #!/bin/zsh
-        set -euo pipefail
-        ykman_bin=/opt/homebrew/bin/ykman
-        test -x \"$ykman_bin\" || ykman_bin=ykman
-        public_key=$(mktemp -t quotio-piv-public-key)
-        trap 'rm -f \"$public_key\"' EXIT
-        echo 'Quotio will create a dedicated RSA-2048 PIV key in slot 9d.'
-        echo 'YubiKey Manager may ask you to authorise PIV administration.'
-        \"$ykman_bin\" --device \(device.serial) piv access change-management-key --protect --generate
-        \"$ykman_bin\" --device \(device.serial) piv keys generate --algorithm RSA2048 --pin-policy always 9d \"$public_key\"
-        \"$ykman_bin\" --device \(device.serial) piv certificates generate --subject 'CN=Quotio Secret Vault' --valid-days 3650 9d \"$public_key\"
-        echo 'Quotio PIV identity created. Return to Quotio and choose Refresh YubiKeys.'
-        read '?Press Return to close this window.'
-        """
-        do {
-            try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)
-            let terminal = Process()
-            terminal.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            terminal.arguments = ["-e", "tell application \"Terminal\" to activate", "-e", "tell application \"Terminal\" to do script \"/bin/zsh '\(scriptURL.path)'\""]
-            try terminal.run()
-            return true
-        } catch { return false }
+    /// Reports what provisioning would overwrite, without changing anything.
+    static func preflight(_ device: YubiKeyPIVDevice) -> Result<YubiKeyPIVPreflight, YubiKeyProvisioningError> {
+        switch runYkman(["--device", device.serial, "piv", "info"], timeout: 30) {
+        case .toolMissing:
+            return .failure(.toolMissing)
+        case .timedOut:
+            return .failure(.timedOut)
+        case let .launchFailed(message):
+            return .failure(.deviceUnavailable(message))
+        case let .completed(status, output):
+            guard status == 0 else { return .failure(.deviceUnavailable(condensed(output))) }
+            return .success(parsePreflight(output))
+        }
+    }
+
+    static func parsePreflight(_ report: String) -> YubiKeyPIVPreflight {
+        let lines = report.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        let listsSlot9d = lines.contains { $0.lowercased().hasPrefix("slot 9d") }
+        let pinTries = lines.first { $0.hasPrefix("PIN tries remaining:") }
+            .map { $0.replacingOccurrences(of: "PIN tries remaining:", with: "").trimmingCharacters(in: .whitespaces) }
+
+        // `piv info` lists a slot when it holds a key or a certificate, but it can
+        // only enumerate keys through key metadata, which arrived in PIV 5.3. On
+        // older firmware a bare private key is invisible here, so "not listed" is
+        // not proof of "empty" and must never be reported as such.
+        let slot9d: YubiKeyPIVSlotState
+        if listsSlot9d {
+            slot9d = .occupied
+        } else if let version = pivVersion(in: lines), version >= (5, 3, 0) {
+            slot9d = .empty
+        } else {
+            slot9d = .unknown
+        }
+
+        return YubiKeyPIVPreflight(
+            slot9d: slot9d,
+            managementKeyProtected: lines.contains {
+                $0.hasPrefix("Management key is stored on the YubiKey")
+                    || $0.hasPrefix("Management key is derived from PIN")
+            },
+            usesDefaultManagementKey: lines.contains { $0.contains("Using default Management key") },
+            pinTriesRemaining: pinTries,
+            report: report.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    /// Creates the Quotio PIV identity in slot 9d. Destructive: the caller must
+    /// have confirmed the outcome described by `preflight`.
+    static func provision(
+        device: YubiKeyPIVDevice,
+        preflight: YubiKeyPIVPreflight,
+        pin: String,
+        managementKey: String?
+    ) -> Result<Void, YubiKeyProvisioningError> {
+        let publicKeyURL = fileManager.temporaryDirectory
+            .appendingPathComponent("quotio-piv-\(UUID().uuidString).pem")
+        defer { try? fileManager.removeItem(at: publicKeyURL) }
+
+        // ykman prompts for the current management key only when it is not already
+        // protected by the PIN. Writing a line it never reads would shift the PIN
+        // onto the following prompt and burn a PIN attempt, so the prompt count is
+        // derived from the state we just inspected.
+        var credentials: [String] = []
+        if !preflight.managementKeyProtected {
+            // Blank selects ykman's documented default management key.
+            credentials.append(managementKey?.trimmingCharacters(in: .whitespaces) ?? "")
+        }
+        credentials.append(pin)
+
+        let steps: [(step: String, arguments: [String], input: [String])] = [
+            (
+                "piv access change-management-key",
+                ["--device", device.serial, "piv", "access", "change-management-key", "--protect", "--generate"],
+                credentials
+            ),
+            // The management key is protected by the PIN from here on, so the
+            // remaining steps authenticate with the PIN alone.
+            (
+                "piv keys generate",
+                ["--device", device.serial, "piv", "keys", "generate",
+                 "--algorithm", "RSA2048", "--pin-policy", "always", "9d", publicKeyURL.path],
+                [pin]
+            ),
+            (
+                "piv certificates generate",
+                ["--device", device.serial, "piv", "certificates", "generate",
+                 "--subject", "CN=\(identityName)", "--valid-days", "3650", "9d", publicKeyURL.path],
+                [pin]
+            ),
+        ]
+
+        for step in steps {
+            if case let .failure(error) = run(step.arguments, input: step.input, step: step.step) {
+                return .failure(error)
+            }
+        }
+        return .success(())
     }
 
     /// Returns RSA PIV identities currently available through macOS securityd.
+    /// Whether a key's `kSecAttrTokenID` identifies it as living on a PIV card.
+    ///
+    /// macOS reports the token *instance*, not the driver bundle: the driver ID
+    /// with the card's UUID appended, `com.apple.pivtoken:48B9336C…`. Comparing
+    /// against a bare driver ID therefore never matches, which silently hides
+    /// every PIV identity. Both spellings of the driver are accepted; software
+    /// keys (no token) and Secure Enclave keys (`com.apple.setoken`) are not.
+    static func isPIVToken(_ tokenID: String?) -> Bool {
+        guard let tokenID else { return false }
+        let driver = tokenID.prefix { $0 != ":" }
+        return driver == "com.apple.pivtoken" || driver == "com.apple.CryptoTokenKit.pivtoken"
+    }
+
     static func availableIdentities() -> [YubiKeyPIVIdentity] {
         let query: [String: Any] = [
             kSecClass as String: kSecClassIdentity,
@@ -145,8 +296,7 @@ nonisolated enum YubiKeySecretVault {
         return identities.compactMap { identity in
             guard let privateKey = privateKey(for: identity),
                   let attributes = SecKeyCopyAttributes(privateKey) as? [String: Any],
-                  // macOS exposes PIV cards through this built-in token driver.
-                  attributes[kSecAttrTokenID as String] as? String == "com.apple.CryptoTokenKit.pivtoken",
+                  isPIVToken(attributes[kSecAttrTokenID as String] as? String),
                   let publicKey = SecKeyCopyPublicKey(privateKey),
                   SecKeyIsAlgorithmSupported(publicKey, .encrypt, .rsaEncryptionOAEPSHA256),
                   let external = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else { return nil }
@@ -192,18 +342,26 @@ nonisolated enum YubiKeySecretVault {
     }
 
     static func read(service: String, account: String) -> Data? {
+        guard case let .success(data) = readResult(service: service, account: account) else { return nil }
+        return data
+    }
+
+    static func readResult(service: String, account: String) -> ReadResult {
+        let envelopeURL = url(service: service, account: account)
+        guard fileManager.fileExists(atPath: envelopeURL.path) else { return .absent }
         guard let identity = selectedIdentity,
-              let envelopeData = try? Data(contentsOf: url(service: service, account: account)),
+              let envelopeData = try? Data(contentsOf: envelopeURL),
               let envelope = try? JSONDecoder().decode(Envelope.self, from: envelopeData),
-              envelope.version == 1, let privateKey = privateKey(for: identity.identity) else { return nil }
+              envelope.version == 1,
+              let privateKey = privateKey(for: identity.identity) else { return .unreadable }
         var error: Unmanaged<CFError>?
-        guard let keyData = SecKeyCreateDecryptedData(privateKey, .rsaEncryptionOAEPSHA256, envelope.wrappedKey as CFData, &error) as Data? else { return nil }
+        guard let keyData = SecKeyCreateDecryptedData(privateKey, .rsaEncryptionOAEPSHA256, envelope.wrappedKey as CFData, &error) as Data? else { return .unreadable }
         do {
             let key = SymmetricKey(data: keyData)
-            return try AES.GCM.open(AES.GCM.SealedBox(combined: envelope.sealedSecret), using: key)
+            return .success(try AES.GCM.open(AES.GCM.SealedBox(combined: envelope.sealedSecret), using: key))
         } catch {
             Log.keychain("YubiKey vault decrypt failed: \(error.localizedDescription)")
-            return nil
+            return .unreadable
         }
     }
 
@@ -238,13 +396,162 @@ nonisolated enum YubiKeySecretVault {
             .appendingPathComponent("YubiKeyVault", isDirectory: true)
     }
 
+    private static var envelopeURLs: [URL] {
+        let contents = (try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        return contents.filter { $0.pathExtension == "qsv" }
+    }
+
     private static var hasStoredSecrets: Bool {
-        (try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil))?.isEmpty == false
+        !envelopeURLs.isEmpty
     }
 
     private static func write(_ data: Data, service: String, account: String) throws {
         lock.lock(); defer { lock.unlock() }
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: url(service: service, account: account), options: .atomic)
+    }
+
+    // MARK: - ykman
+
+    private enum CommandOutcome {
+        case completed(status: Int32, output: String)
+        case timedOut
+        case toolMissing
+        case launchFailed(String)
+    }
+
+    /// Collects a child process's output from a background thread. Draining has
+    /// to run alongside the wait below: ykman writes its prompts while it is
+    /// still running, and a full pipe buffer would deadlock both sides.
+    private final class OutputBuffer: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data = Data()
+
+        func append(_ chunk: Data) {
+            lock.lock(); defer { lock.unlock() }
+            data.append(chunk)
+        }
+
+        var text: String {
+            lock.lock(); defer { lock.unlock() }
+            return String(decoding: data, as: UTF8.self)
+        }
+    }
+
+    private static var executableURL: URL? {
+        ["/opt/homebrew/bin/ykman", "/usr/local/bin/ykman"]
+            .first { fileManager.isExecutableFile(atPath: $0) }
+            .map { URL(fileURLWithPath: $0) }
+    }
+
+    /// Runs ykman headlessly. Secrets are written to the child's stdin rather
+    /// than passed as arguments, which would expose them to `ps` for every
+    /// process running as this user.
+    ///
+    /// ykman prompts through `click`, which reads hidden input from the
+    /// controlling terminal and falls back to stdin when there is none. A
+    /// bundled app has no controlling terminal, so the pipe below is what the
+    /// prompts read; the timeout covers the case where something else grabs
+    /// them, so a stuck prompt surfaces as an error instead of a hang.
+    private static func runYkman(
+        _ arguments: [String],
+        input: [String] = [],
+        timeout: TimeInterval = 120
+    ) -> CommandOutcome {
+        guard let executableURL else { return .toolMissing }
+
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = arguments
+        let inputPipe = Pipe()
+        let outputPipe = Pipe()
+        process.standardInput = inputPipe
+        process.standardOutput = outputPipe
+        process.standardError = outputPipe
+
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
+        do {
+            try process.run()
+        } catch {
+            return .launchFailed(error.localizedDescription)
+        }
+
+        if !input.isEmpty {
+            try? inputPipe.fileHandleForWriting.write(contentsOf: Data((input.joined(separator: "\n") + "\n").utf8))
+        }
+        try? inputPipe.fileHandleForWriting.close()
+
+        let buffer = OutputBuffer()
+        let drained = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async {
+            buffer.append(outputPipe.fileHandleForReading.readDataToEndOfFile())
+            drained.signal()
+        }
+
+        if exited.wait(timeout: .now() + timeout) == .timedOut {
+            process.terminate()
+            if exited.wait(timeout: .now() + 5) == .timedOut {
+                kill(process.processIdentifier, SIGKILL)
+                _ = exited.wait(timeout: .now() + 5)
+            }
+            _ = drained.wait(timeout: .now() + 5)
+            return .timedOut
+        }
+        _ = drained.wait(timeout: .now() + 5)
+        return .completed(status: process.terminationStatus, output: buffer.text)
+    }
+
+    private static func run(
+        _ arguments: [String],
+        input: [String],
+        step: String
+    ) -> Result<Void, YubiKeyProvisioningError> {
+        switch runYkman(arguments, input: input) {
+        case .toolMissing:
+            return .failure(.toolMissing)
+        case .timedOut:
+            return .failure(.timedOut)
+        case let .launchFailed(message):
+            return .failure(.stepFailed("\(step): \(message)"))
+        case let .completed(status, output):
+            guard status != 0 else { return .success(()) }
+            if output.contains("PIN is blocked") { return .failure(.pinBlocked) }
+            if output.contains("PIN verification failed") {
+                return .failure(.pinRejected(triesRemaining: pinTriesLeft(in: output)))
+            }
+            if output.contains("Authentication with management key failed") {
+                return .failure(.managementKeyRejected)
+            }
+            Log.keychain("YubiKey provisioning step failed (\(step)): \(condensed(output))")
+            return .failure(.stepFailed("\(step): \(condensed(output))"))
+        }
+    }
+
+    private static func pinTriesLeft(in output: String) -> Int? {
+        guard let range = output.range(of: #"(\d+) tries left"#, options: .regularExpression) else { return nil }
+        return Int(output[range].prefix { $0.isNumber })
+    }
+
+    private static func pivVersion(in lines: [String]) -> (Int, Int, Int)? {
+        guard let line = lines.first(where: { $0.hasPrefix("PIV version:") }) else { return nil }
+        let parts = line.replacingOccurrences(of: "PIV version:", with: "")
+            .trimmingCharacters(in: .whitespaces)
+            .split(separator: ".")
+            .compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return (parts[0], parts[1], parts[2])
+    }
+
+    /// Trims ykman output down to what is worth showing a user: the prompt
+    /// echoes and the no-terminal warning carry no diagnostic value.
+    private static func condensed(_ output: String) -> String {
+        let noise = ["Enter PIN", "Enter a management key", "Enter the current management key",
+                     "GetPassWarning", "Password input may be echoed"]
+        let lines = output
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { line in !line.isEmpty && !noise.contains { line.contains($0) } }
+        return lines.suffix(3).joined(separator: " ")
     }
 }
