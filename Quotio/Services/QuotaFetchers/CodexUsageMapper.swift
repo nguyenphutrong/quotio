@@ -54,9 +54,16 @@ nonisolated enum CodexUsageMapper {
         for snapshot: CodexUsageResponseV2.WindowSnapshot,
         fallback: StandardWindowKind
     ) -> StandardWindowKind {
-        guard let seconds = snapshot.limitWindowSeconds, seconds > 0 else { return fallback }
-        if seconds >= 6 * 24 * 60 * 60 { return .weekly }
-        if seconds <= 24 * 60 * 60 { return .session }
+        let day = 24 * 60 * 60
+        if let seconds = snapshot.limitWindowSeconds, seconds > 0 {
+            if seconds <= day { return .session }
+            if seconds >= 20 * day { return .monthly }
+            if seconds >= 6 * day { return .weekly }
+            return fallback
+        }
+        // Window length missing: a session (5h) window can never reset more than
+        // a day out, so a multi-day reset horizon identifies a weekly window.
+        if let resetAfter = snapshot.resetAfterSeconds, resetAfter > day { return .weekly }
         return fallback
     }
 
@@ -209,11 +216,13 @@ nonisolated enum CodexUsageMapper {
     private enum StandardWindowKind {
         case session
         case weekly
+        case monthly
 
         var id: String {
             switch self {
             case .session: "codex-session"
             case .weekly: "codex-weekly"
+            case .monthly: "codex-monthly"
             }
         }
     }
@@ -261,11 +270,13 @@ nonisolated struct CodexUsageResponseV2: Decodable {
     struct WindowSnapshot: Decodable {
         var usedPercent: Int
         var resetAt: Int?
+        var resetAfterSeconds: Int?
         var limitWindowSeconds: Int?
 
         enum CodingKeys: String, CodingKey {
             case usedPercent = "used_percent"
             case resetAt = "reset_at"
+            case resetAfterSeconds = "reset_after_seconds"
             case limitWindowSeconds = "limit_window_seconds"
         }
 
@@ -273,6 +284,7 @@ nonisolated struct CodexUsageResponseV2: Decodable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             usedPercent = (try Self.flexibleInt(container, forKey: .usedPercent)).clamped(to: 0...100)
             resetAt = try? Self.flexibleInt(container, forKey: .resetAt)
+            resetAfterSeconds = try? Self.flexibleInt(container, forKey: .resetAfterSeconds)
             limitWindowSeconds = try? Self.flexibleInt(container, forKey: .limitWindowSeconds)
         }
 

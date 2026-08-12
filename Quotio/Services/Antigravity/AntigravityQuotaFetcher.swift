@@ -235,6 +235,7 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         // Codex quota names
         case "codex-session": return "Session"
         case "codex-weekly": return "Weekly"
+        case "codex-monthly": return "Monthly"
         case "codex-spark": return "Codex Spark"
         case "codex-spark-weekly": return "Codex Spark Weekly"
         case let name where name.hasPrefix("codex-"):
