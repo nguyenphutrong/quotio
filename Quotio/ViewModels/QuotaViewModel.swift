@@ -198,7 +198,9 @@ final class QuotaViewModel {
     // MARK: - IDE Quota Persistence Keys
 
     private static let ideQuotasKey = "persisted.ideQuotas"
-    private static let ideProvidersToSave: Set<AIProvider> = [.cursor, .trae]
+    /// Providers whose quota is imported from a local IDE database and persisted
+    /// separately (Cursor, Trae). Also drives `refreshImportedIDEQuotas()`.
+    nonisolated static let ideProvidersToSave: Set<AIProvider> = [.cursor, .trae]
 
     /// Key for tracking when auth files last changed (for model cache invalidation)
     static let authFilesChangedKey = "quotio.authFiles.lastChanged"
@@ -750,6 +752,11 @@ final class QuotaViewModel {
         providerQuotas[.openRouter] = await openRouter
         providerQuotas[.amp] = await amp
         providerQuotas = providerQuotas.filter { !$0.value.isEmpty }
+
+        // Refresh (not re-import) Cursor/Trae accounts the user already scanned in,
+        // before the snapshot is persisted, so the menu bar refresh shows the same
+        // numbers as the Providers screen (#163).
+        await refreshImportedIDEQuotas()
 
         monitorAccounts = await coordinator.discoverAccounts(merging: providerQuotas)
         removeDisabledMonitorQuotas()
@@ -1594,6 +1601,10 @@ final class QuotaViewModel {
             async let clinePass: () = refreshClinePassQuotasInternal()
 
             _ = await (antigravity, openai, copilot, claudeCode, glm, warp, kiro, clinePass)
+
+            // Refresh (not re-import) Cursor/Trae accounts the user already scanned in,
+            // so the menu bar refresh shows the same numbers as the Providers screen (#163).
+            await refreshImportedIDEQuotas()
         }
 
         checkQuotaNotifications()
@@ -1636,6 +1647,10 @@ final class QuotaViewModel {
         async let clinePass: () = refreshClinePassQuotasInternal()
 
         _ = await (antigravity, codex, copilot, claudeCode, glm, warp, kiro, clinePass)
+
+        // Refresh (not re-import) Cursor/Trae accounts the user already scanned in,
+        // so the menu bar refresh shows the same numbers as the Providers screen (#163).
+        await refreshImportedIDEQuotas()
 
         checkQuotaNotifications()
         pruneMenuBarItems()
@@ -2012,6 +2027,70 @@ final class QuotaViewModel {
         
         for provider in autoDetectedProviders {
             await refreshQuotaForProvider(provider)
+        }
+    }
+    
+    /// Merge freshly read IDE quota data into the accounts that are already imported.
+    ///
+    /// Cursor and Trae accounts only exist once the user has explicitly run
+    /// "Scan for IDEs" (issue #29), and they can be deleted (issue #213). A global
+    /// refresh must therefore update the quota of the accounts that are currently
+    /// imported without importing any account key that is not already present —
+    /// otherwise a deleted account would resurrect on the next refresh.
+    ///
+    /// - Parameters:
+    ///   - fetched: everything the IDE fetcher could read from the local database.
+    ///   - existing: the account keys currently imported into `providerQuotas`.
+    /// - Returns: `existing`, with fresh data applied to the keys it already holds.
+    ///   Keys present only in `fetched` are dropped; keys the fetcher could not read
+    ///   this time keep their previous value instead of disappearing from the UI.
+    nonisolated static func mergeImportedIDEQuotas(
+        fetched: [String: ProviderQuotaData],
+        into existing: [String: ProviderQuotaData]
+    ) -> [String: ProviderQuotaData] {
+        guard !existing.isEmpty else { return existing }
+
+        var merged = existing
+        for (accountKey, quota) in fetched where existing[accountKey] != nil {
+            merged[accountKey] = quota
+        }
+        return merged
+    }
+
+    /// Refresh the quota of already-imported IDE-derived accounts (Cursor, Trae).
+    ///
+    /// This is the piece the global refresh actions were missing: `refreshAllQuotas`,
+    /// `refreshQuotasUnified` and `refreshQuotasDirectly` all skip Cursor/Trae, so the
+    /// menu bar refresh never updated them (issues #163, #257). Unlike the per-provider
+    /// re-import in `refreshQuota(for:)`, this only touches account keys that are
+    /// already imported, so it never re-imports from the IDE databases.
+    private func refreshImportedIDEQuotas() async {
+        var didRefresh = false
+
+        for provider in Self.ideProvidersToSave {
+            let existing = providerQuotas[provider] ?? [:]
+            // Nothing imported for this provider: respect the explicit-scan consent
+            // model (issue #29) and do not pull anything in.
+            guard !existing.isEmpty else { continue }
+            // A scoped refresh for this provider is already in flight; let it win.
+            guard !activeRefreshProviders.contains(provider) else { continue }
+
+            let fetched: [String: ProviderQuotaData]
+            switch provider {
+            case .cursor:
+                fetched = await cursorFetcher.fetchAsProviderQuota()
+            case .trae:
+                fetched = await traeFetcher.fetchAsProviderQuota()
+            default:
+                continue
+            }
+
+            providerQuotas[provider] = Self.mergeImportedIDEQuotas(fetched: fetched, into: existing)
+            didRefresh = true
+        }
+
+        if didRefresh {
+            savePersistedIDEQuotas()
         }
     }
     
