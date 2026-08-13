@@ -2274,15 +2274,7 @@ private struct RingGridLayout: View {
         LazyVGrid(columns: columns, spacing: 10) {
             ForEach(models, id: \.name) { (model: ModelBadgeData) in
                 VStack(spacing: 4) {
-                    ZStack {
-                        RingProgressView(percent: menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode), size: ringSize, lineWidth: 4, tint: menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode), showLabel: model.percentage >= 0)
-
-                        if model.percentage < 0 {
-                            Text("—")
-                                .font(.system(size: ringSize * 0.24, weight: .bold))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    RingProgressView(percent: menuDisplayPercent(remainingPercent: model.percentage, displayMode: displayMode), size: ringSize, lineWidth: 4, tint: menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode), showLabel: true)
 
                     Text(model.name)
                         .font(.system(size: 10, weight: .medium, design: .rounded))
@@ -2466,7 +2458,17 @@ private struct MenuModelDetailView: View {
             }
 
             if !model.isStandaloneMetric && displayStyle == .ring {
-                RingProgressView(percent: displayPercent, size: 14, lineWidth: 2, tint: statusColor)
+                if RingProgressView.isUnknown(displayPercent) {
+                    // A 14pt ring has no room for a label, so replace it with the
+                    // same placeholder the other display styles render.
+                    Text("—")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(statusColor)
+                        .accessibilityLabel("usage.ring".localized())
+                        .accessibilityValue("quota.noDataYet".localized())
+                } else {
+                    RingProgressView(percent: displayPercent, size: 14, lineWidth: 2, tint: statusColor)
+                }
             }
         }
         .padding(.horizontal, 12)

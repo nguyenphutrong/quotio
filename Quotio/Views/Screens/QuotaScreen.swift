@@ -259,6 +259,15 @@ fileprivate struct QuotaDisplayHelper {
         let clamped = max(0, min(100, remainingPercent))
         return displayMode == .used ? (100 - clamped) : clamped
     }
+
+    /// Percentage for ring rendering. Unlike `displayPercent(remainingPercent:)`
+    /// this keeps the "no data" sentinel instead of clamping it into a real
+    /// value, so `RingProgressView` can render its unknown state.
+    func ringPercent(remainingPercent: Double) -> Double {
+        remainingPercent < 0
+            ? RingProgressView.unknownPercent
+            : displayPercent(remainingPercent: remainingPercent)
+    }
 }
 
 // MARK: - Provider Segment Button
@@ -1296,16 +1305,16 @@ private struct AntigravityRingLayout: View {
         return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
     }
     
-    private func displayPercent(for remainingPercent: Double) -> Double {
-        displayHelper.displayPercent(remainingPercent: remainingPercent)
+    private func ringPercent(for remainingPercent: Double) -> Double {
+        displayHelper.ringPercent(remainingPercent: remainingPercent)
     }
-    
+
     var body: some View {
         LazyVGrid(columns: columns, spacing: 12) {
             ForEach(groups) { group in
                 VStack(spacing: 6) {
                     RingProgressView(
-                        percent: displayPercent(for: group.percentage),
+                        percent: ringPercent(for: group.percentage),
                         size: 44,
                         lineWidth: 5,
                         tint: displayHelper.statusColor(remainingPercent: group.percentage),
@@ -1429,16 +1438,16 @@ private struct StandardRingLayout: View {
         return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
     }
     
-    private func displayPercent(for remainingPercent: Double) -> Double {
-        displayHelper.displayPercent(remainingPercent: remainingPercent)
+    private func ringPercent(for remainingPercent: Double) -> Double {
+        displayHelper.ringPercent(remainingPercent: remainingPercent)
     }
-    
+
     var body: some View {
         LazyVGrid(columns: columns, spacing: 12) {
             ForEach(models) { model in
                 VStack(spacing: 6) {
                     RingProgressView(
-                        percent: displayPercent(for: model.percentage),
+                        percent: ringPercent(for: model.percentage),
                         size: 44,
                         lineWidth: 5,
                         tint: displayHelper.statusColor(remainingPercent: model.percentage),
