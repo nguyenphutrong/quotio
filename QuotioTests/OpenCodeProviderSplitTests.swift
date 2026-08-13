@@ -103,6 +103,114 @@ final class OpenCodeProviderSplitTests: XCTestCase {
         XCTAssertFalse(quotioModels.keys.contains("gemini-3-pro-preview"))
     }
 
+    // MARK: - Model selection example (#227 review)
+    //
+    // OpenCode selects models by `provider_id/model_id`, where `provider_id` is
+    // the key under `provider` in opencode.json — https://opencode.ai/docs/models/
+    // After the split a Gemini-native model lives under `quotio-gemini`, so the
+    // example shown to the user must not hardcode the `quotio` prefix.
+
+    func testModelSelectorUsesGeminiProviderForGeminiNativeModels() {
+        XCTAssertEqual(
+            AgentConfigurationService.openCodeModelSelector(for: "gemini-3-pro-preview"),
+            "quotio-gemini/gemini-3-pro-preview"
+        )
+        XCTAssertEqual(
+            AgentConfigurationService.openCodeModelSelector(for: "gemini-2.5-flash"),
+            "quotio-gemini/gemini-2.5-flash"
+        )
+    }
+
+    func testModelSelectorUsesAnthropicProviderForEverythingElse() {
+        XCTAssertEqual(
+            AgentConfigurationService.openCodeModelSelector(for: "gemini-claude-sonnet-4-5"),
+            "quotio/gemini-claude-sonnet-4-5"
+        )
+        XCTAssertEqual(
+            AgentConfigurationService.openCodeModelSelector(for: "gpt-5.1-codex"),
+            "quotio/gpt-5.1-codex"
+        )
+    }
+
+    /// Regression: a list whose first entry is Gemini-native must not be
+    /// advertised as `quotio/<model>` — that provider does not contain it.
+    func testSelectorExampleForGeminiFirstModelList() {
+        let models = [
+            AvailableModel(id: "gemini-3-pro-preview", name: "gemini-3-pro-preview", provider: "google", isDefault: false),
+            AvailableModel(id: "gpt-5.1-codex", name: "gpt-5.1-codex", provider: "openai", isDefault: false)
+        ]
+
+        XCTAssertEqual(
+            AgentConfigurationService.openCodeModelSelectorExample(models: models),
+            "quotio-gemini/gemini-3-pro-preview"
+        )
+    }
+
+    /// Regression: a Gemini-only list emits no `quotio` provider at all, so the
+    /// example must point at `quotio-gemini`.
+    func testSelectorExampleForGeminiOnlyModelList() {
+        let models = [
+            AvailableModel(id: "gemini-2.5-flash", name: "gemini-2.5-flash", provider: "google", isDefault: false),
+            AvailableModel(id: "gemini-3-pro-preview", name: "gemini-3-pro-preview", provider: "google", isDefault: false)
+        ]
+
+        XCTAssertEqual(
+            AgentConfigurationService.openCodeModelSelectorExample(models: models),
+            "quotio-gemini/gemini-2.5-flash"
+        )
+    }
+
+    func testSelectorExampleForAnthropicFirstModelList() {
+        XCTAssertEqual(
+            AgentConfigurationService.openCodeModelSelectorExample(models: mixedModels),
+            "quotio/gemini-claude-opus-4-6-thinking"
+        )
+    }
+
+    func testSelectorExampleFallsBackWhenNoModelsAreAvailable() {
+        XCTAssertEqual(
+            AgentConfigurationService.openCodeModelSelectorExample(models: []),
+            "quotio/model"
+        )
+    }
+
+    /// The advertised example must always resolve inside the config that is
+    /// actually written: the provider key must be emitted, and the model must
+    /// be one of that provider's models.
+    func testSelectorExampleAlwaysResolvesInsideGeneratedEntries() throws {
+        let geminiOnly = [
+            AvailableModel(id: "gemini-2.5-flash", name: "gemini-2.5-flash", provider: "google", isDefault: false)
+        ]
+        let anthropicOnly = [
+            AvailableModel(id: "gpt-5.1-codex", name: "gpt-5.1-codex", provider: "openai", isDefault: false)
+        ]
+        let geminiFirst = [
+            AvailableModel(id: "gemini-3-pro-preview", name: "gemini-3-pro-preview", provider: "google", isDefault: false),
+            AvailableModel(id: "gemini-claude-sonnet-4-5", name: "gemini-claude-sonnet-4-5", provider: "anthropic", isDefault: false)
+        ]
+
+        for models in [mixedModels, geminiOnly, anthropicOnly, geminiFirst, AvailableModel.allModels] {
+            let entries = AgentConfigurationService.openCodeQuotioProviderEntries(
+                models: models,
+                apiKey: apiKey,
+                baseURL: baseURL
+            )
+            let example = AgentConfigurationService.openCodeModelSelectorExample(models: models)
+            let parts = example.split(separator: "/", maxSplits: 1).map(String.init)
+            XCTAssertEqual(parts.count, 2, "Example must be provider_id/model_id, got \(example)")
+
+            let providerEntry = try XCTUnwrap(
+                entries[parts[0]],
+                "Example \(example) references provider '\(parts[0])' that is not emitted"
+            )
+            let providerModels = try XCTUnwrap(providerEntry["models"] as? [String: Any])
+            XCTAssertNotNil(
+                providerModels[parts[1]],
+                "Example \(example) references a model missing from provider '\(parts[0])'"
+            )
+        }
+    }
+
     // MARK: - openCodeProvidersApplyingQuotioEntries
 
     func testApplyingEntriesPreservesUserProviders() throws {

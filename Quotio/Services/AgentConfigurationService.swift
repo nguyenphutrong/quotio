@@ -771,7 +771,7 @@ actor AgentConfigurationService {
                     authPath: nil,
                     shellConfig: nil,
                     rawConfigs: [],
-                    instructions: "Removed Quotio providers. OpenCode will use its default providers.",
+                    instructions: "agents.opencode.default.removed".localizedStatic(),
                     modelsConfigured: 0
                 )
             } catch {
@@ -786,7 +786,7 @@ actor AgentConfigurationService {
             authPath: nil,
             shellConfig: nil,
             rawConfigs: [],
-            instructions: "Remove 'provider.quotio' and 'provider.quotio-gemini' sections from ~/.config/opencode/opencode.json",
+            instructions: "agents.opencode.default.manual".localizedStatic(),
             modelsConfigured: 0
         )
     }
@@ -1192,6 +1192,28 @@ actor AgentConfigurationService {
         return lowered.contains("gemini") && !lowered.contains("claude")
     }
 
+    /// The opencode.json provider key that emits a given model, derived from
+    /// the same partitioning rule as `openCodeQuotioProviderEntries`.
+    nonisolated static func openCodeProviderKey(for modelName: String) -> String {
+        isOpenCodeGeminiNativeModel(modelName) ? "quotio-gemini" : "quotio"
+    }
+
+    /// The full OpenCode model selector for a model. OpenCode selects models by
+    /// `provider_id/model_id`, where `provider_id` is the key under `provider`
+    /// in opencode.json (https://opencode.ai/docs/models/), so a Gemini-native
+    /// model must be referenced as `quotio-gemini/<model>`.
+    nonisolated static func openCodeModelSelector(for modelName: String) -> String {
+        "\(openCodeProviderKey(for: modelName))/\(modelName)"
+    }
+
+    /// A selector example that is guaranteed to exist in the generated config:
+    /// it is built from an actual emitted model, under the provider that
+    /// actually emits it.
+    nonisolated static func openCodeModelSelectorExample(models: [AvailableModel]) -> String {
+        guard let first = models.first else { return "quotio/model" }
+        return openCodeModelSelector(for: first.name)
+    }
+
     /// Builds the Quotio-managed provider entries for opencode.json.
     /// Models are deterministically partitioned by name: Gemini-native models
     /// go into a Google-protocol "quotio-gemini" provider (emitted only when
@@ -1321,7 +1343,7 @@ actor AgentConfigurationService {
                     content: jsonString,
                     filename: "opencode.json",
                     targetPath: configPath,
-                    instructions: "Merge provider.quotio and provider.quotio-gemini into ~/.config/opencode/opencode.json"
+                    instructions: "agents.opencode.mergeProviders".localizedStatic()
                 )
             ]
 
@@ -1341,7 +1363,10 @@ actor AgentConfigurationService {
                     mode: mode,
                     configPath: configPath,
                     rawConfigs: rawConfigs,
-                    instructions: "Configuration updated. Run 'opencode' and use /models to select a model (e.g., quotio/\(modelsToUse.first?.name ?? "model")).",
+                    instructions: String.localizedStringWithFormat(
+                        "agents.opencode.configSuccess".localizedStatic(),
+                        Self.openCodeModelSelectorExample(models: modelsToUse)
+                    ),
                     modelsConfigured: modelsToUse.count,
                     backupPath: backupPath
                 )
@@ -1351,7 +1376,7 @@ actor AgentConfigurationService {
                     mode: mode,
                     configPath: configPath,
                     rawConfigs: rawConfigs,
-                    instructions: "Merge the provider.quotio and provider.quotio-gemini sections into your existing ~/.config/opencode/opencode.json:",
+                    instructions: "agents.opencode.mergeAndSaveFiles".localizedStatic(),
                     modelsConfigured: modelsToUse.count
                 )
             }

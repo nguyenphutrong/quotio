@@ -1857,6 +1857,151 @@
         }
       }
     },
+    "agents.opencode.configSuccess" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration updated. Run 'opencode' and use /models to select a model (e.g., %@)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration mise à jour. Lancez « opencode » et utilisez /models pour sélectionner un modèle (par ex. %@)."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã cập nhật cấu hình. Chạy 'opencode' và dùng /models để chọn mô hình (ví dụ: %@)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置已更新。运行 'opencode' 并使用 /models 选择模型（例如 %@）。"
+          }
+        }
+      }
+    },
+    "agents.opencode.default.manual" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove 'provider.quotio' and 'provider.quotio-gemini' sections from ~/.config/opencode/opencode.json"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimez les sections « provider.quotio » et « provider.quotio-gemini » de ~/.config/opencode/opencode.json"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xóa các mục 'provider.quotio' và 'provider.quotio-gemini' khỏi ~/.config/opencode/opencode.json"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 ~/.config/opencode/opencode.json 中移除 'provider.quotio' 和 'provider.quotio-gemini' 部分"
+          }
+        }
+      }
+    },
+    "agents.opencode.default.removed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed Quotio providers. OpenCode will use its default providers."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fournisseurs Quotio supprimés. OpenCode utilisera ses fournisseurs par défaut."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã xóa các nhà cung cấp Quotio. OpenCode sẽ dùng các nhà cung cấp mặc định."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已移除 Quotio 提供商。OpenCode 将使用其默认提供商。"
+          }
+        }
+      }
+    },
+    "agents.opencode.mergeAndSaveFiles" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge the provider.quotio and provider.quotio-gemini sections into your existing ~/.config/opencode/opencode.json:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionnez les sections provider.quotio et provider.quotio-gemini dans votre fichier ~/.config/opencode/opencode.json existant :"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gộp các mục provider.quotio và provider.quotio-gemini vào tệp ~/.config/opencode/opencode.json hiện có:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 provider.quotio 和 provider.quotio-gemini 部分合并到您现有的 ~/.config/opencode/opencode.json："
+          }
+        }
+      }
+    },
+    "agents.opencode.mergeProviders" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge provider.quotio and provider.quotio-gemini into ~/.config/opencode/opencode.json"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionnez provider.quotio et provider.quotio-gemini dans ~/.config/opencode/opencode.json"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gộp provider.quotio và provider.quotio-gemini vào ~/.config/opencode/opencode.json"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 provider.quotio 和 provider.quotio-gemini 合并到 ~/.config/opencode/opencode.json"
+          }
+        }
+      }
+    },
     "agents.proxyRemovalWarning" : {
       "extractionState" : "stale",
       "localizations" : {
