@@ -1422,6 +1422,35 @@
         }
       }
     },
+    "agents.codex.authJSONMergeKey" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add this key to ~/.codex/auth.json, keeping any entries already in the file:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez cette clé à ~/.codex/auth.json en conservant les entrées déjà présentes dans le fichier :"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thêm khóa này vào ~/.codex/auth.json, giữ nguyên các mục đã có trong tệp:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将此密钥添加到 ~/.codex/auth.json，并保留文件中已有的条目："
+          }
+        }
+      }
+    },
     "agents.codex.mergeAndSaveFiles" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1447,6 +1476,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "合并并将以下文件保存到 ~/.codex/ 目录："
+          }
+        }
+      }
+    },
+    "agents.codex.revertManualInstructions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove the [model_providers.cliproxyapi] section from ~/.codex/config.toml, and remove the Quotio-managed OPENAI_API_KEY entry from ~/.codex/auth.json while keeping the other entries in that file."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimez la section [model_providers.cliproxyapi] de ~/.codex/config.toml, puis supprimez l'entrée OPENAI_API_KEY gérée par Quotio de ~/.codex/auth.json en conservant les autres entrées de ce fichier."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xóa phần [model_providers.cliproxyapi] khỏi ~/.codex/config.toml, và xóa mục OPENAI_API_KEY do Quotio quản lý khỏi ~/.codex/auth.json trong khi vẫn giữ các mục khác trong tệp đó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 ~/.codex/config.toml 中移除 [model_providers.cliproxyapi] 部分，并从 ~/.codex/auth.json 中移除由 Quotio 管理的 OPENAI_API_KEY 条目，同时保留该文件中的其他条目。"
           }
         }
       }
