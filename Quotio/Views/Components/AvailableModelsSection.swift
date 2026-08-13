@@ -2,8 +2,12 @@
 //  AvailableModelsSection.swift
 //  Quotio
 //
-//  Dashboard section listing the model IDs usable through the proxy,
-//  grouped by provider, with click-to-copy for pasting into configs.
+//  Dashboard section listing the model IDs the proxy reports on its
+//  OpenAI-compatible /v1/models endpoint, with click-to-copy for pasting
+//  into client configs.
+//
+//  The section shows only what that endpoint returned, and always states
+//  whether the list is live or a stale leftover from an earlier fetch.
 //
 
 import SwiftUI
@@ -11,107 +15,149 @@ import SwiftUI
 struct AvailableModelsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
 
-    @State private var isLoading = false
-    @State private var loadFailed = false
+    @State private var state = ModelCatalogState()
     @State private var copiedModelId: String?
 
     private var isProxyRunning: Bool {
         viewModel.proxyManager.proxyStatus.running
     }
 
-    private var modelGroups: [ProviderModelGroup] {
-        ModelCatalog.groupByProvider(viewModel.agentSetupViewModel.availableModels)
-    }
-
-    private var totalModelCount: Int {
-        modelGroups.reduce(0) { $0 + $1.models.count }
+    private var showsOwnerColumn: Bool {
+        state.entries.contains { $0.displayOwner != nil }
     }
 
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                if !isProxyRunning {
-                    noteRow(icon: "pause.circle", text: "availableModels.proxyStopped".localized())
-                } else if isLoading && modelGroups.isEmpty {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("availableModels.loading".localized())
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 8)
-                } else if loadFailed {
-                    noteRow(icon: "exclamationmark.triangle", text: "availableModels.error".localized())
-                } else if modelGroups.isEmpty {
-                    noteRow(icon: "tray", text: "availableModels.empty".localized())
-                } else {
-                    Text("availableModels.description".localized())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    ForEach(modelGroups) { group in
-                        providerGroupView(group)
-                    }
-                }
+                content
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
-            HStack {
-                Label("dashboard.availableModels".localized(), systemImage: "cpu")
-
-                if totalModelCount > 0 {
-                    Text(String(format: "availableModels.modelCount".localized(), totalModelCount))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    Task { await loadModels(force: true) }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.borderless)
-                .disabled(isLoading || !isProxyRunning)
-                .help("action.refresh".localized())
-            }
+            header
         }
-        .task {
-            await loadModelsIfNeeded()
+        .task(id: isProxyRunning) {
+            guard isProxyRunning else {
+                // Nothing on screen can be trusted once the proxy is down.
+                state.reset()
+                return
+            }
+            await loadIfNeeded()
         }
     }
 
     // MARK: - Subviews
 
-    private func providerGroupView(_ group: ProviderModelGroup) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(group.provider)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
+    private var header: some View {
+        HStack {
+            Label("dashboard.availableModels".localized(), systemImage: "cpu")
 
-            ForEach(group.models) { model in
-                modelRow(model)
+            if !state.entries.isEmpty {
+                Text(String(format: "availableModels.modelCount".localized(), state.entries.count))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                Task { await load() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.borderless)
+            .disabled(state.isLoading || !isProxyRunning)
+            .help("action.refresh".localized())
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if !isProxyRunning {
+            noteRow(icon: "pause.circle", text: "availableModels.proxyStopped".localized())
+        } else if state.isLoading && !state.hasCompletedFetch {
+            loadingRow
+        } else if state.entries.isEmpty && state.lastFetchFailed {
+            noteRow(icon: "exclamationmark.triangle", text: "availableModels.error".localized())
+        } else if state.isEmptyLiveResult {
+            freshnessRow
+            noteRow(icon: "tray", text: "availableModels.empty".localized())
+        } else if !state.entries.isEmpty {
+            freshnessRow
+
+            Text("availableModels.description".localized())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ForEach(state.entries) { entry in
+                modelRow(entry)
+            }
+
+            if showsOwnerColumn {
+                Text("availableModels.ownerNote".localized())
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
-    private func modelRow(_ model: AvailableModel) -> some View {
+    private var loadingRow: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text("availableModels.loading".localized())
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 8)
+    }
+
+    /// States plainly whether the list below came from the proxy just now, or is
+    /// a leftover from an earlier fetch that could no longer be refreshed.
+    @ViewBuilder
+    private var freshnessRow: some View {
+        switch state.freshness {
+        case .never:
+            EmptyView()
+
+        case .live(let fetchedAt):
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.seal")
+                Text(String(format: "availableModels.live".localized(), timestamp(fetchedAt)))
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+        case .stale(let fetchedAt):
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle")
+                Text(String(format: "availableModels.stale".localized(), timestamp(fetchedAt)))
+            }
+            .font(.caption)
+            .foregroundStyle(.orange)
+        }
+    }
+
+    private func modelRow(_ entry: ModelCatalogEntry) -> some View {
         Button {
-            copyModelId(model.id)
+            copyModelId(entry.id)
         } label: {
             HStack(spacing: 8) {
-                Text(model.id)
+                Text(entry.id)
                     .font(.system(.callout, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.middle)
 
                 Spacer()
 
-                if copiedModelId == model.id {
+                if let owner = entry.displayOwner {
+                    Text(String(format: "availableModels.owner".localized(), owner))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                if copiedModelId == entry.id {
                     Label("availableModels.copied".localized(), systemImage: "checkmark")
                         .font(.caption)
                         .foregroundStyle(.green)
@@ -141,6 +187,10 @@ struct AvailableModelsSection: View {
 
     // MARK: - Actions
 
+    private func timestamp(_ date: Date) -> String {
+        date.formatted(date: .omitted, time: .standard)
+    }
+
     private func copyModelId(_ modelId: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(modelId, forType: .string)
@@ -154,18 +204,22 @@ struct AvailableModelsSection: View {
         }
     }
 
-    private func loadModelsIfNeeded() async {
-        guard isProxyRunning else { return }
-        guard viewModel.agentSetupViewModel.availableModels.isEmpty else { return }
-        await loadModels(force: false)
+    private func loadIfNeeded() async {
+        // A completed fetch is authoritative, including one that returned nothing,
+        // so an empty catalog is not retried as if it had never been fetched.
+        guard !state.hasCompletedFetch else { return }
+        await load()
     }
 
-    private func loadModels(force: Bool) async {
-        guard isProxyRunning else { return }
-        isLoading = true
-        defer { isLoading = false }
+    private func load() async {
+        guard isProxyRunning, !state.isLoading else { return }
 
-        let loadedFromRemote = await viewModel.agentSetupViewModel.loadModels(forceRefresh: force)
-        loadFailed = !loadedFromRemote
+        state.beginLoading()
+        do {
+            let entries = try await viewModel.agentSetupViewModel.fetchModelCatalog()
+            state.apply(entries: entries, fetchedAt: Date())
+        } catch {
+            state.applyFailure()
+        }
     }
 }

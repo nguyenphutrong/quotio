@@ -349,31 +349,7 @@ final class AgentSetupViewModel {
     /// - Returns: `true` when models were fetched from remote successfully; `false` on fetch error.
     @discardableResult
     func loadModels(forceRefresh: Bool = false) async -> Bool {
-        // Create config if not exists (for FallbackScreen scenarios)
-        let config: AgentConfiguration
-        if let existingConfig = currentConfiguration {
-            config = existingConfig
-        } else {
-            guard let proxyManager = proxyManager else { return false }
-
-            // Use the first API key from the API Keys management interface
-            // If no keys exist, fall back to managementKey
-            let apiKey = quotaViewModel?.apiKeys.first ?? proxyManager.managementKey
-
-            // Use tunnel URL if active, otherwise use local proxy endpoint
-            let modelEndpoint: String
-            if let tunnelURL = TunnelManager.shared.tunnelState.publicURL {
-                modelEndpoint = tunnelURL
-            } else {
-                modelEndpoint = proxyManager.clientEndpoint
-            }
-
-            config = AgentConfiguration(
-                agent: .claudeCode,
-                proxyURL: modelEndpoint + "/v1",
-                apiKey: apiKey
-            )
-        }
+        guard let config = modelRequestConfiguration() else { return false }
 
         isFetchingModels = true
         defer { isFetchingModels = false }
@@ -399,6 +375,58 @@ final class AgentSetupViewModel {
 
         refreshVirtualModels()
         return loadedFromRemote
+    }
+
+    /// Builds the configuration used to talk to `/v1/models`.
+    ///
+    /// Returns `nil` when there is no configuration and no proxy manager to derive
+    /// one from — the same condition under which `loadModels(forceRefresh:)`
+    /// previously returned `false` without attempting a request.
+    private func modelRequestConfiguration() -> AgentConfiguration? {
+        // Reuse the sheet's configuration when one exists (agent-setup scenarios)
+        if let existingConfig = currentConfiguration {
+            return existingConfig
+        }
+
+        // Create config if not exists (for FallbackScreen scenarios)
+        guard let proxyManager = proxyManager else { return nil }
+
+        // Use the first API key from the API Keys management interface
+        // If no keys exist, fall back to managementKey
+        let apiKey = quotaViewModel?.apiKeys.first ?? proxyManager.managementKey
+
+        // Use tunnel URL if active, otherwise use local proxy endpoint
+        let modelEndpoint: String
+        if let tunnelURL = TunnelManager.shared.tunnelState.publicURL {
+            modelEndpoint = tunnelURL
+        } else {
+            modelEndpoint = proxyManager.clientEndpoint
+        }
+
+        return AgentConfiguration(
+            agent: .claudeCode,
+            proxyURL: modelEndpoint + "/v1",
+            apiKey: apiKey
+        )
+    }
+
+    /// Fetches the proxy's `/v1/models` catalog exactly as the endpoint reported it.
+    ///
+    /// This is the read-only counterpart to `loadModels(forceRefresh:)`, which is a
+    /// *picker* loader: it substitutes `AvailableModel.allModels` for an empty or
+    /// failed response, keeps the substituted list in `availableModels`, and appends
+    /// locally configured virtual fallback models. Those behaviors are right for
+    /// offering something to choose and wrong for claiming a model is usable, so a
+    /// catalog view must not go through it.
+    ///
+    /// This method performs no fallback, reads and writes no cached state, and does
+    /// not touch `availableModels`, so existing `loadModels` consumers are unaffected.
+    /// Errors propagate so the caller can distinguish a failure from an empty catalog.
+    func fetchModelCatalog() async throws -> [ModelCatalogEntry] {
+        guard let config = modelRequestConfiguration() else {
+            throw ModelCatalogError.proxyUnavailable
+        }
+        return try await configurationService.fetchModelCatalog(config: config)
     }
 
     private func processModels(_ fetchedModels: [AvailableModel]) -> [AvailableModel] {

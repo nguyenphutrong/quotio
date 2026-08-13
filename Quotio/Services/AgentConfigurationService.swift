@@ -1400,7 +1400,13 @@ actor AgentConfigurationService {
         }
     }
     
-    func fetchAvailableModels(config: AgentConfiguration) async throws -> [AvailableModel] {
+    /// Fetches the proxy's OpenAI-compatible `/v1/models` response exactly as reported.
+    ///
+    /// Nothing is substituted, cached or filtered: the result is the response body
+    /// and nothing else, and any transport/decoding problem is thrown rather than
+    /// masked. Callers that must show whether a catalog is genuinely live use this;
+    /// `fetchAvailableModels(config:)` layers agent-setup-specific filtering on top.
+    func fetchModelCatalog(config: AgentConfiguration) async throws -> [ModelCatalogEntry] {
         guard let url = URL(string: "\(config.proxyURL)/models") else {
             throw URLError(.badURL)
         }
@@ -1418,7 +1424,11 @@ actor AgentConfigurationService {
         }
 
         // Parse OpenAI-compatible /v1/models response
-        let parsedModels = try ModelCatalog.parse(data)
+        return try ModelCatalog.parse(data)
+    }
+
+    func fetchAvailableModels(config: AgentConfiguration) async throws -> [AvailableModel] {
+        let parsedModels = ModelCatalog.agentSetupModels(from: try await fetchModelCatalog(config: config))
 
         // Fetch available Copilot models to filter out unavailable ones
         let copilotFetcher = CopilotQuotaFetcher()

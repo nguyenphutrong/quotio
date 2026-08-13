@@ -3539,6 +3539,34 @@
         }
       }
     },
+    "availableModels.live" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live from the proxy · fetched at %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En direct depuis le proxy · récupéré à %@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trực tiếp từ proxy · lấy lúc %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时来自代理 · 获取于 %@"
+          }
+        }
+      }
+    },
     "availableModels.loading" : {
       "localizations" : {
         "en" : {
@@ -3595,6 +3623,62 @@
         }
       }
     },
+    "availableModels.owner" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Owner: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Propriétaire : %@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chủ sở hữu: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有者：%@"
+          }
+        }
+      }
+    },
+    "availableModels.ownerNote" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Owner is the model-owner metadata reported by /v1/models. It does not indicate which provider account will serve a request."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le propriétaire est la métadonnée de propriétaire du modèle signalée par /v1/models. Elle n'indique pas quel compte fournisseur traitera une requête."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chủ sở hữu là siêu dữ liệu về chủ sở hữu mô hình do /v1/models cung cấp. Nó không cho biết tài khoản nhà cung cấp nào sẽ xử lý yêu cầu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有者是 /v1/models 提供的模型所有者元数据，并不表示哪个提供商账户会处理请求。"
+          }
+        }
+      }
+    },
     "availableModels.proxyStopped" : {
       "localizations" : {
         "en" : {
@@ -3619,6 +3703,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启动代理以查看可用的模型。"
+          }
+        }
+      }
+    },
+    "availableModels.stale" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh failed — showing the list fetched at %@, which may be out of date."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Échec de l'actualisation — affichage de la liste récupérée à %@, qui peut être obsolète."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Làm mới thất bại — đang hiển thị danh sách lấy lúc %@, có thể đã lỗi thời."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新失败 — 显示的是 %@ 获取的列表，可能已过时。"
           }
         }
       }
