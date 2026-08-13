@@ -982,7 +982,8 @@ struct QuotaDisplaySettingsSection: View {
 struct RefreshCadenceSettingsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var refreshSettings = RefreshSettingsManager.shared
-    
+    @State private var modeManager = OperatingModeManager.shared
+
     private var cadenceBinding: Binding<RefreshCadence> {
         Binding(
             get: { refreshSettings.refreshCadence },
@@ -997,6 +998,14 @@ struct RefreshCadenceSettingsSection: View {
         )
     }
 
+    /// Adaptive refresh reads its activity signal from locally fetched quota
+    /// data. Remote mode has no local quota source — `refreshAllQuotas()` skips
+    /// the local fetchers there — so the toggle is hidden rather than offered
+    /// as a setting that would do nothing (issue #172).
+    private var supportsAdaptiveRefresh: Bool {
+        refreshSettings.refreshCadence != .manual && !modeManager.isRemoteProxyMode
+    }
+
     var body: some View {
         Section {
             Picker("settings.refresh.cadence".localized(), selection: cadenceBinding) {
@@ -1005,7 +1014,7 @@ struct RefreshCadenceSettingsSection: View {
                 }
             }
 
-            if refreshSettings.refreshCadence != .manual {
+            if supportsAdaptiveRefresh {
                 Toggle("settings.refresh.adaptive".localized(), isOn: adaptiveBinding)
 
                 Text("settings.refresh.adaptive.help".localized())

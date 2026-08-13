@@ -106,6 +106,35 @@ nonisolated enum AdaptiveRefreshPlanner {
     }
 }
 
+// MARK: - Refresh Outcome
+
+/// What one automatic quota refresh actually proved about user activity.
+///
+/// This is a *typed* result rather than something inferred from the quota
+/// values, because the three states below are indistinguishable by value: a
+/// batch refresh that returned early (another refresh already owns those
+/// providers), a provider round-trip that failed (the coordinator keeps the
+/// previous snapshot), and a mode with no local quota source all leave
+/// `providerQuotas` looking exactly like "usage did not change". Treating any
+/// of them as idleness is what makes the cadence back off - and stay backed off
+/// at 30 minutes - precisely when the app needs to retry (issue #172).
+nonisolated enum QuotaRefreshOutcome: Sendable, Equatable {
+    /// A refresh ran to completion and produced a usable quota snapshot.
+    /// This is the only outcome that is evidence about user activity.
+    case sample
+
+    /// No refresh ran: it was coalesced against an in-flight refresh, it was
+    /// not due yet, or the active mode has no local quota source. Says nothing
+    /// either way, so the cadence and the comparison baseline are left alone.
+    case skipped
+
+    /// A refresh ran but produced no usable data (transport/auth failure, or a
+    /// provider-level issue reported by the Monitor coordinator). Not evidence
+    /// of idleness: the cadence recovers to the user's interval so the app
+    /// retries promptly instead of sitting on a backed-off delay.
+    case failed
+}
+
 // MARK: - Activity Signal
 
 /// Snapshot of the usage numbers Quotio already fetches for every account.
@@ -131,13 +160,41 @@ nonisolated struct QuotaUsageSignature: Sendable, Equatable {
             for (accountKey, data) in accounts {
                 for model in data.models {
                     let key = "\(provider.rawValue)|\(accountKey)|\(model.name)"
-                    // `used` is an absolute counter where providers expose it;
-                    // otherwise fall back to the consumed percentage.
-                    entries[key] = model.used.map(Double.init) ?? model.usedPercentage
+                    entries[key] = Self.consumption(of: model)
                 }
             }
         }
         self.entries = entries
+    }
+
+    /// The number that moves when the user spends quota on one row.
+    ///
+    /// The typed `QuotaMetricPresentation` wins over the legacy `Int` fields
+    /// because several providers only populate the typed value:
+    ///
+    /// - `.amount` rows (Amp / OpenRouter balances, Factory Droid, Devin) are
+    ///   built with `percentage: -1` and no `used`, so reading the legacy
+    ///   fields collapsed every one of them to the constant `usedPercentage`
+    ///   `100 - (-1) == 101` and their real consumption was invisible.
+    ///   The value is used as-is: a `.balance` falls and a `.spent` rises, and
+    ///   the signature only tests for inequality, so either direction reads as
+    ///   activity.
+    /// - `.progress` rows carry Double-valued `used`/`limit` (dollars for Amp,
+    ///   OpenRouter and GLM) that the optional legacy `Int` does not mirror.
+    ///
+    /// `.status` rows are textual state rather than consumption, so they keep
+    /// the legacy path and contribute no activity signal of their own.
+    static func consumption(of model: ModelQuota) -> Double {
+        switch model.presentation {
+        case .progress(let used, _, _):
+            return used
+        case .amount(let value, _, _):
+            return value
+        case .status, .none:
+            // `used` is an absolute counter where providers expose it;
+            // otherwise fall back to the consumed percentage.
+            return model.used.map(Double.init) ?? model.usedPercentage
+        }
     }
 
     var isEmpty: Bool { entries.isEmpty }
@@ -175,15 +232,35 @@ nonisolated struct AdaptiveRefreshTracker: Sendable {
         signature = nil
     }
 
-    /// Feed a completed refresh into the tracker.
+    /// Feed the result of one automatic refresh into the tracker.
     ///
-    /// - Returns: `true` when usage moved since the previous snapshot.
+    /// Only `.sample` is treated as evidence about the user. A `.skipped` poll
+    /// changes nothing at all, and a `.failed` poll recovers the cadence to the
+    /// user's interval instead of backing off further - in both cases the
+    /// comparison baseline is left untouched, so the next real sample is
+    /// compared against the last real sample rather than against data that was
+    /// never refreshed (issue #172).
+    ///
+    /// - Returns: `true` when usage moved since the previous *sample*.
     @discardableResult
     mutating func observe(
+        outcome: QuotaRefreshOutcome,
         signature newSignature: QuotaUsageSignature,
         at now: Date,
         bounds: AdaptiveRefreshBounds
     ) -> Bool {
+        switch outcome {
+        case .skipped:
+            // Nothing was measured, so nothing is known.
+            return false
+        case .failed:
+            // A failure is not idleness. Retry at the user's cadence.
+            interval = max(0, bounds.fastInterval)
+            return false
+        case .sample:
+            break
+        }
+
         defer { signature = newSignature }
 
         // First observation only seeds the baseline; there is nothing to
@@ -208,12 +285,21 @@ nonisolated struct AdaptiveRefreshTracker: Sendable {
     }
 
     /// Convenience overload for the view model's quota map.
+    ///
+    /// The signature is only built for `.sample`; the other outcomes ignore it,
+    /// and building one from a map that was never refreshed would be misleading.
     @discardableResult
     mutating func observe(
+        outcome: QuotaRefreshOutcome,
         quotas: [AIProvider: [String: ProviderQuotaData]],
         at now: Date = Date(),
         bounds: AdaptiveRefreshBounds
     ) -> Bool {
-        observe(signature: QuotaUsageSignature(quotas: quotas), at: now, bounds: bounds)
+        let newSignature = outcome == .sample ? QuotaUsageSignature(quotas: quotas) : .empty
+        return observe(outcome: outcome, signature: newSignature, at: now, bounds: bounds)
     }
+
+    /// Last usage snapshot the tracker compared against, for tests and
+    /// diagnostics. `nil` until the first `.sample` observation.
+    var observedSignature: QuotaUsageSignature? { signature }
 }

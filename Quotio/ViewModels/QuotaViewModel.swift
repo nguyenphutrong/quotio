@@ -173,6 +173,10 @@ final class QuotaViewModel {
     let antigravitySwitcher = AntigravityAccountSwitcher.shared
     
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    /// Handle for the quota refresh `refreshData()` starts in the background,
+    /// so the automatic loop can await the refresh whose result it records
+    /// instead of snapshotting the previous poll's numbers (issue #172).
+    @ObservationIgnored private var quotaRefreshTask: Task<QuotaRefreshOutcome, Never>?
     /// Adaptive refresh state (issue #172). `nil` while adaptive refresh is off.
     @ObservationIgnored private var adaptiveTracker: AdaptiveRefreshTracker?
     @ObservationIgnored private var warmupTask: Task<Void, Never>?
@@ -584,12 +588,20 @@ final class QuotaViewModel {
     
     /// Refresh quotas directly without proxy (for Quota-Only Mode)
     /// Note: Cursor and Trae are NOT auto-refreshed - user must use "Scan for IDEs" (issue #29)
-    func refreshQuotasDirectly(force: Bool = false) async {
+    ///
+    /// - Returns: whether this call produced a usable quota sample. Callers that
+    ///   only want the side effect can ignore it; the automatic refresh loop
+    ///   needs it so a coalesced or failed refresh is not mistaken for the user
+    ///   being idle (issue #172).
+    @discardableResult
+    func refreshQuotasDirectly(force: Bool = false) async -> QuotaRefreshOutcome {
         let providers: Set<AIProvider> = [
             .codex, .claude, .copilot, .kiro, .glm, .clinePass, .warp,
             .antigravity, .factoryDroid, .devin, .grok, .openRouter, .amp,
         ]
-        guard beginBatchRefresh(providers: providers) else { return }
+        // Another refresh already owns these providers: this call fetches
+        // nothing, so it is not evidence about user activity.
+        guard beginBatchRefresh(providers: providers) else { return .skipped }
         defer { endBatchRefresh(providers: providers) }
 
         lastQuotaRefreshTime = Date()
@@ -765,6 +777,27 @@ final class QuotaViewModel {
         autoSelectMenuBarItems()
 
         notifyQuotaDataChanged()
+
+        // `monitorIssues` was just re-read from the coordinator above, so it
+        // describes this refresh: any provider it flags fell back to the
+        // previous snapshot, which must not be read as unchanged usage.
+        return completedRefreshOutcome(issues: monitorIssues)
+    }
+
+    /// Classify a batch refresh that ran to completion.
+    ///
+    /// A refresh that produced no quota data at all, or whose providers the
+    /// Monitor coordinator flagged as failed/partial, kept the previous
+    /// snapshot on screen. That is a failure to sample, not proof the user was
+    /// idle, so it must not feed the adaptive backoff (issue #172).
+    ///
+    /// Must be called without an intervening suspension point after the refresh
+    /// finished writing `providerQuotas`, so it classifies that write.
+    private func completedRefreshOutcome(
+        issues: [AIProvider: MonitorRefreshIssue] = [:]
+    ) -> QuotaRefreshOutcome {
+        guard issues.isEmpty else { return .failed }
+        return providerQuotas.isEmpty ? .failed : .sample
     }
 
     private func autoSelectMenuBarItems() {
@@ -980,8 +1013,10 @@ final class QuotaViewModel {
             while !Task.isCancelled {
                 await sleepUntilNextRefresh(fixedNanoseconds: intervalNs)
                 _ = await kiroFetcher.refreshAllTokensIfNeeded()
-                await refreshQuotasDirectly()
-                recordAdaptiveObservation()
+                // Record the outcome of the refresh that just completed, not a
+                // guess derived from the quota values afterwards (issue #172).
+                let outcome = await refreshQuotasDirectly()
+                recordAdaptiveObservation(outcome)
             }
         }
     }
@@ -998,10 +1033,12 @@ final class QuotaViewModel {
         refreshTask = Task {
             while !Task.isCancelled {
                 await sleepUntilNextRefresh(fixedNanoseconds: intervalNs)
+                // When the proxy is running this iteration refreshes nothing,
+                // so no observation is recorded at all (issue #172).
                 if !proxyManager.proxyStatus.running {
                     _ = await kiroFetcher.refreshAllTokensIfNeeded()
-                    await refreshQuotasUnified()
-                    recordAdaptiveObservation()
+                    let outcome = await refreshQuotasUnified()
+                    recordAdaptiveObservation(outcome)
                 }
             }
         }
@@ -1460,23 +1497,126 @@ final class QuotaViewModel {
             adaptiveTracker = nil
             return
         }
-        adaptiveTracker = AdaptiveRefreshTracker(bounds: bounds)
+        adaptiveTracker = AdaptiveRefreshTracker(bounds: bounds, now: adaptiveNow())
     }
 
-    /// Feed the quota snapshot produced by a completed automatic refresh into
-    /// the adaptive tracker, so the next sleep either stays fast (usage moved)
-    /// or backs off (nothing changed).
-    private func recordAdaptiveObservation() {
+    /// Clock the adaptive tracker is driven by. Overridable in tests so the
+    /// backoff curve can be exercised without waiting on wall-clock time.
+    @ObservationIgnored private var adaptiveNow: @Sendable () -> Date = { Date() }
+
+    /// Feed the result of a completed automatic refresh into the adaptive
+    /// tracker, so the next sleep either stays fast (usage moved) or backs off
+    /// (nothing changed).
+    ///
+    /// Deliberately synchronous and called with the outcome of a refresh that
+    /// has already finished: it reads `providerQuotas` at call time, after the
+    /// refresh has written it, rather than from a snapshot taken before an
+    /// `await`. `outcome` decides whether that read counts at all — only
+    /// `.sample` is evidence about the user (issue #172).
+    private func recordAdaptiveObservation(_ outcome: QuotaRefreshOutcome) {
         guard refreshSettings.adaptiveRefreshEnabled,
               let bounds = refreshSettings.adaptiveBounds else {
             adaptiveTracker = nil
             return
         }
+        let now = adaptiveNow()
         if adaptiveTracker == nil {
-            adaptiveTracker = AdaptiveRefreshTracker(bounds: bounds)
+            adaptiveTracker = AdaptiveRefreshTracker(bounds: bounds, now: now)
         }
-        adaptiveTracker?.observe(quotas: providerQuotas, bounds: bounds)
+        adaptiveTracker?.observe(outcome: outcome, quotas: providerQuotas, at: now, bounds: bounds)
     }
+
+    /// Start the quota refresh that `refreshData()` schedules, keeping a handle
+    /// to it.
+    ///
+    /// `refreshData()` intentionally does not await this task: the auth files,
+    /// usage stats and API keys it just fetched must reach the UI without
+    /// waiting on the slower provider round-trips, and the manual refresh path
+    /// drives `refreshAllQuotas()` itself. Only the automatic loop awaits the
+    /// handle, through `refreshDataAwaitingQuotas()` (issue #172).
+    func scheduleBackgroundQuotaRefresh() {
+        quotaRefreshTask = Task { await refreshAllQuotas() }
+    }
+
+    /// Run one automatic full-mode refresh and report what it actually sampled.
+    ///
+    /// This is the fix for the ordering bug: `refreshData()` returns as soon as
+    /// the management API round-trips are done, while the quota refresh it
+    /// scheduled is still in flight. Observing `providerQuotas` at that point
+    /// snapshots the *previous* poll's numbers, which is one poll late at best
+    /// and records a false idle observation at worst. Awaiting the handle makes
+    /// the loop observe the refresh whose result it records (issue #172).
+    private func refreshDataAwaitingQuotas() async -> QuotaRefreshOutcome {
+        #if DEBUG
+        if let hook = refreshDataHookForTesting {
+            await hook()
+            return await awaitScheduledQuotaRefresh()
+        }
+        #endif
+        // Drop any handle an earlier caller left behind, so a refresh that
+        // completed before this iteration cannot be mistaken for this one's.
+        quotaRefreshTask = nil
+        await refreshData()
+        return await awaitScheduledQuotaRefresh()
+    }
+
+    /// Await the quota refresh `refreshData()` scheduled, if it scheduled one.
+    private func awaitScheduledQuotaRefresh() async -> QuotaRefreshOutcome {
+        // Reentrancy: `refreshData()` suspends several times, so the handle and
+        // the error state are read here, after it returned, never from before.
+        guard let task = quotaRefreshTask else {
+            // No quota refresh was due, or the management API call failed
+            // before one could be scheduled. A failure is not idleness.
+            return errorMessage == nil ? .skipped : .failed
+        }
+        let outcome = await task.value
+        // Re-read after the await: a newer refresh may already own the slot.
+        if quotaRefreshTask == task {
+            quotaRefreshTask = nil
+        }
+        return outcome
+    }
+
+    /// The full body of `startAutoRefresh()`'s loop between two sleeps: refresh,
+    /// then record what that refresh proved. Factored out so the ordering can be
+    /// driven directly by the integration test (issue #172).
+    @discardableResult
+    func performAutomaticRefresh() async -> QuotaRefreshOutcome {
+        let outcome = await refreshDataAwaitingQuotas()
+        recordAdaptiveObservation(outcome)
+        return outcome
+    }
+
+    #if DEBUG
+    /// Test seam standing in for `refreshData()`, whose `ManagementAPIClient`
+    /// needs a live proxy. Like `refreshData()`, it may call
+    /// `scheduleBackgroundQuotaRefresh()`. Never set outside tests.
+    @ObservationIgnored var refreshDataHookForTesting: (@MainActor () async -> Void)?
+
+    /// Test seam replacing the provider round-trips of `refreshAllQuotas()`, so
+    /// a test can suspend *inside* the quota refresh. Never set outside tests.
+    @ObservationIgnored var quotaRefreshHookForTesting: (@MainActor () async -> QuotaRefreshOutcome)?
+
+    /// Interval the adaptive tracker would sleep for next, `nil` when adaptive
+    /// refresh is off.
+    var adaptiveIntervalForTesting: TimeInterval? { adaptiveTracker?.interval }
+
+    /// Usage snapshot the adaptive tracker last compared against.
+    var adaptiveSignatureForTesting: QuotaUsageSignature? { adaptiveTracker?.observedSignature }
+
+    /// Arm the adaptive tracker exactly as a refresh loop start would.
+    func resetAdaptiveRefreshForTesting() { resetAdaptiveRefresh() }
+
+    /// Drive adaptive observations from a test-controlled clock.
+    func setAdaptiveClockForTesting(_ clock: @escaping @Sendable () -> Date) { adaptiveNow = clock }
+
+    /// Nanoseconds `sleepUntilNextRefresh(fixedNanoseconds:)` would actually
+    /// wait for, without waiting. Lets the disabled-mode test assert timer
+    /// parity instead of only reading enum constants.
+    func nextRefreshSleepNanosecondsForTesting(fixedNanoseconds: UInt64) -> UInt64 {
+        nextRefreshSleepNanoseconds(fixed: fixedNanoseconds)
+    }
+    #endif
 
     /// Sleep before the next automatic refresh.
     ///
@@ -1484,13 +1624,18 @@ final class QuotaViewModel {
     /// the interval can only grow, never drop below the chosen cadence, so the
     /// providers' APIs are never polled harder than in fixed mode.
     private func sleepUntilNextRefresh(fixedNanoseconds: UInt64) async {
+        try? await Task.sleep(nanoseconds: nextRefreshSleepNanoseconds(fixed: fixedNanoseconds))
+    }
+
+    /// How long the next automatic refresh waits. Pure, so the disabled-mode
+    /// test can assert timer parity without waiting on wall-clock time.
+    private func nextRefreshSleepNanoseconds(fixed fixedNanoseconds: UInt64) -> UInt64 {
         guard refreshSettings.adaptiveRefreshEnabled,
               let interval = adaptiveTracker?.interval,
               interval > 0 else {
-            try? await Task.sleep(nanoseconds: fixedNanoseconds)
-            return
+            return fixedNanoseconds
         }
-        try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+        return UInt64(interval * 1_000_000_000)
     }
 
     /// Interval currently driving automatic refreshes, used for staleness copy.
@@ -1514,9 +1659,10 @@ final class QuotaViewModel {
             
             while !Task.isCancelled {
                 await sleepUntilNextRefresh(fixedNanoseconds: intervalNs)
-                
-                await refreshData()
-                recordAdaptiveObservation()
+
+                // Awaits the quota refresh `refreshData()` schedules before
+                // recording what it sampled (issue #172).
+                await performAutomaticRefresh()
 
                 if errorMessage != nil {
                     consecutiveFailures += 1
@@ -1603,9 +1749,7 @@ final class QuotaViewModel {
             }
             
             if refreshQuotas && isQuotaRefreshDue && !isLoadingQuotas {
-                Task {
-                    await refreshAllQuotas()
-                }
+                scheduleBackgroundQuotaRefresh()
             }
         } catch {
             if !Task.isCancelled {
@@ -1628,13 +1772,21 @@ final class QuotaViewModel {
         }
     }
     
-    func refreshAllQuotas() async {
+    /// - Returns: whether this call produced a usable quota sample, for the
+    ///   automatic refresh loop's adaptive cadence (issue #172).
+    @discardableResult
+    func refreshAllQuotas() async -> QuotaRefreshOutcome {
+        #if DEBUG
+        if let hook = quotaRefreshHookForTesting {
+            return await hook()
+        }
+        #endif
         if modeManager.isMonitorMode {
-            await refreshQuotasDirectly()
-            return
+            return await refreshQuotasDirectly()
         }
         let providers: Set<AIProvider> = [.antigravity, .codex, .copilot, .claude, .glm, .warp, .kiro, .clinePass]
-        guard beginBatchRefresh(providers: providers) else { return }
+        // Another refresh already owns these providers: nothing is fetched here.
+        guard beginBatchRefresh(providers: providers) else { return .skipped }
         defer { endBatchRefresh(providers: providers) }
 
         lastQuotaRefresh = Date()
@@ -1642,7 +1794,8 @@ final class QuotaViewModel {
 
         // In remote mode, skip local filesystem fetchers — only show data from the remote proxy
         // (auth files, usage stats, API keys are already fetched by refreshData())
-        if !modeManager.isRemoteProxyMode {
+        let hasLocalQuotaSource = !modeManager.isRemoteProxyMode
+        if hasLocalQuotaSource {
             // Note: Cursor and Trae removed from auto-refresh (issue #29)
             // User must use "Scan for IDEs" to detect these
             async let antigravity: () = refreshAntigravityQuotasInternal()
@@ -1662,6 +1815,11 @@ final class QuotaViewModel {
         autoSelectMenuBarItems()
 
         notifyQuotaDataChanged()
+
+        // Remote mode has no local quota source here: the block above is
+        // skipped and `providerQuotas` is not populated by `refreshData()`
+        // either, so this poll says nothing about the user (issue #172).
+        return hasLocalQuotaSource ? completedRefreshOutcome() : .skipped
     }
 
     /// Unified quota refresh - works in both Full Mode and Quota-Only Mode
@@ -1669,17 +1827,22 @@ final class QuotaViewModel {
     /// In Quota-Only Mode: uses direct fetchers + CLI fetchers
     /// In Remote Mode: skips local fetchers (data comes from remote proxy)
     /// Note: Cursor and Trae require explicit user scan (issue #29)
-    func refreshQuotasUnified() async {
+    ///
+    /// - Returns: whether this call produced a usable quota sample, for the
+    ///   automatic refresh loop's adaptive cadence (issue #172).
+    @discardableResult
+    func refreshQuotasUnified() async -> QuotaRefreshOutcome {
         if modeManager.isMonitorMode {
-            await refreshQuotasDirectly()
-            return
+            return await refreshQuotasDirectly()
         }
-        guard !modeManager.isRemoteProxyMode else { return }
+        // Remote mode fetches nothing locally, so there is no sample to take.
+        guard !modeManager.isRemoteProxyMode else { return .skipped }
 
         let providers: Set<AIProvider> = [
             .antigravity, .codex, .copilot, .claude, .glm, .warp, .kiro, .clinePass,
         ]
-        guard beginBatchRefresh(providers: providers) else { return }
+        // Another refresh already owns these providers: nothing is fetched here.
+        guard beginBatchRefresh(providers: providers) else { return .skipped }
         defer { endBatchRefresh(providers: providers) }
 
         lastQuotaRefreshTime = Date()
@@ -1703,6 +1866,8 @@ final class QuotaViewModel {
         autoSelectMenuBarItems()
 
         notifyQuotaDataChanged()
+
+        return completedRefreshOutcome()
     }
 
     private func refreshAntigravityQuotasInternal() async {

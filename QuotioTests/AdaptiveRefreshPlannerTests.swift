@@ -114,14 +114,14 @@ final class AdaptiveRefreshPlannerTests: XCTestCase {
         var tracker = AdaptiveRefreshTracker(bounds: bounds, now: start)
 
         // Seed the baseline.
-        XCTAssertTrue(tracker.observe(quotas: quotas(used: 10), at: start, bounds: bounds))
+        XCTAssertTrue(tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: start, bounds: bounds))
         XCTAssertEqual(tracker.interval, oneMinute)
 
         var now = start
         var observed: [TimeInterval] = []
         for _ in 0..<6 {
             now = now.addingTimeInterval(tracker.interval)
-            XCTAssertFalse(tracker.observe(quotas: quotas(used: 10), at: now, bounds: bounds))
+            XCTAssertFalse(tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: now, bounds: bounds))
             observed.append(tracker.interval)
         }
 
@@ -133,18 +133,18 @@ final class AdaptiveRefreshPlannerTests: XCTestCase {
         let start = Date(timeIntervalSince1970: 0)
         var tracker = AdaptiveRefreshTracker(bounds: bounds, now: start)
 
-        tracker.observe(quotas: quotas(used: 10), at: start, bounds: bounds)
+        tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: start, bounds: bounds)
 
         var now = start
         for _ in 0..<5 {
             now = now.addingTimeInterval(tracker.interval)
-            tracker.observe(quotas: quotas(used: 10), at: now, bounds: bounds)
+            tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: now, bounds: bounds)
         }
         XCTAssertGreaterThan(tracker.interval, oneMinute)
 
         // The user starts coding again: usage moves, cadence snaps back immediately.
         now = now.addingTimeInterval(tracker.interval)
-        XCTAssertTrue(tracker.observe(quotas: quotas(used: 42), at: now, bounds: bounds))
+        XCTAssertTrue(tracker.observe(outcome: .sample, quotas: quotas(used: 42), at: now, bounds: bounds))
         XCTAssertEqual(tracker.interval, oneMinute)
         XCTAssertEqual(tracker.lastActivityAt, now)
     }
@@ -154,11 +154,11 @@ final class AdaptiveRefreshPlannerTests: XCTestCase {
         let start = Date(timeIntervalSince1970: 0)
         var tracker = AdaptiveRefreshTracker(bounds: bounds, now: start)
 
-        tracker.observe(quotas: quotas(used: 10), at: start, bounds: bounds)
+        tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: start, bounds: bounds)
         var now = start
         for _ in 0..<4 {
             now = now.addingTimeInterval(tracker.interval)
-            tracker.observe(quotas: quotas(used: 10), at: now, bounds: bounds)
+            tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: now, bounds: bounds)
         }
         XCTAssertGreaterThan(tracker.interval, oneMinute)
 
@@ -211,13 +211,184 @@ final class AdaptiveRefreshPlannerTests: XCTestCase {
         XCTAssertNotEqual(single, QuotaUsageSignature(quotas: expanded))
     }
 
+    // MARK: - Typed metric values (issue #172 review, blocker 3)
+
+    private func amountQuota(_ value: Double) -> [AIProvider: [String: ProviderQuotaData]] {
+        // Built exactly like AmpQuotaFetcher / OpenRouterQuotaFetcher /
+        // DevinQuotaFetcher build a balance row: percentage -1, no legacy `used`.
+        [
+            .amp: ["key": ProviderQuotaData(
+                models: [ModelQuota(
+                    name: "amp-balance",
+                    percentage: -1,
+                    resetTime: "",
+                    presentation: .amount(value: value, unit: .usd, semantics: .balance)
+                )]
+            )]
+        ]
+    }
+
+    /// Regression: `.amount` rows carry `percentage == -1`, so reading only the
+    /// legacy fields turned every balance into the constant `100 - (-1) == 101`
+    /// and a user burning through credits looked permanently idle.
+    func testSignatureTracksAmountMetricValues() {
+        let before = QuotaUsageSignature(quotas: amountQuota(20))
+        let after = QuotaUsageSignature(quotas: amountQuota(12.5))
+
+        XCTAssertNotEqual(before, after)
+        XCTAssertEqual(before.entries["amp|key|amp-balance"], 20)
+        XCTAssertEqual(after.entries["amp|key|amp-balance"], 12.5)
+        // The legacy path would have produced 101 for both.
+        XCTAssertNotEqual(before.entries["amp|key|amp-balance"], 101)
+    }
+
+    /// A backed-off tracker must snap back when a `.amount` balance moves.
+    func testTrackerReactsToAmountMetricMovement() {
+        let bounds = self.bounds(fast: oneMinute)
+        let start = Date(timeIntervalSince1970: 0)
+        var tracker = AdaptiveRefreshTracker(bounds: bounds, now: start)
+
+        tracker.observe(outcome: .sample, quotas: amountQuota(20), at: start, bounds: bounds)
+        var now = start
+        for _ in 0..<5 {
+            now = now.addingTimeInterval(tracker.interval)
+            tracker.observe(outcome: .sample, quotas: amountQuota(20), at: now, bounds: bounds)
+        }
+        XCTAssertGreaterThan(tracker.interval, oneMinute)
+
+        now = now.addingTimeInterval(tracker.interval)
+        XCTAssertTrue(tracker.observe(outcome: .sample, quotas: amountQuota(19), at: now, bounds: bounds))
+        XCTAssertEqual(tracker.interval, oneMinute)
+    }
+
+    /// Regression: `.progress` rows carry Double-valued used/limit that the
+    /// optional legacy `Int` does not mirror, so sub-unit spend (dollars for
+    /// Amp/OpenRouter/GLM) has to come from the typed presentation.
+    func testSignatureTracksProgressMetricValues() {
+        func progressQuota(used: Double) -> [AIProvider: [String: ProviderQuotaData]] {
+            [
+                .openRouter: ["key": ProviderQuotaData(
+                    models: [ModelQuota(
+                        name: "openrouter-credits",
+                        percentage: 50,
+                        resetTime: "",
+                        presentation: .progress(used: used, limit: 10, unit: .usd)
+                    )]
+                )]
+            ]
+        }
+
+        let before = QuotaUsageSignature(quotas: progressQuota(used: 4.25))
+        let after = QuotaUsageSignature(quotas: progressQuota(used: 4.75))
+
+        XCTAssertEqual(before.entries["openrouter|key|openrouter-credits"], 4.25)
+        XCTAssertEqual(after.entries["openrouter|key|openrouter-credits"], 4.75)
+        // Both rows report percentage 50, so the legacy path saw no movement.
+        XCTAssertNotEqual(before, after)
+    }
+
+    // MARK: - Outcome gating (issue #172 review, blocker 2)
+
+    /// A refresh that never ran (coalesced against an in-flight refresh, not
+    /// due, or a mode with no local quota source) must leave the cadence and
+    /// the comparison baseline exactly as they were.
+    func testSkippedRefreshChangesNothing() {
+        let bounds = self.bounds(fast: oneMinute)
+        let start = Date(timeIntervalSince1970: 0)
+        var tracker = AdaptiveRefreshTracker(bounds: bounds, now: start)
+
+        tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: start, bounds: bounds)
+        let baseline = tracker.observedSignature
+
+        var now = start
+        for _ in 0..<10 {
+            now = now.addingTimeInterval(oneMinute)
+            XCTAssertFalse(tracker.observe(outcome: .skipped, quotas: [:], at: now, bounds: bounds))
+        }
+
+        XCTAssertEqual(tracker.interval, oneMinute, "a skipped poll must not back off")
+        XCTAssertEqual(tracker.lastActivityAt, start)
+        XCTAssertEqual(tracker.observedSignature, baseline, "baseline must survive a skipped poll")
+    }
+
+    /// Skipped polls must not be able to hide real activity: the next sample is
+    /// compared against the last *sample*, not against an empty snapshot.
+    func testSkippedRefreshDoesNotCorruptTheBaseline() {
+        let bounds = self.bounds(fast: oneMinute)
+        let start = Date(timeIntervalSince1970: 0)
+        var tracker = AdaptiveRefreshTracker(bounds: bounds, now: start)
+
+        tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: start, bounds: bounds)
+        tracker.observe(outcome: .skipped, quotas: [:], at: start.addingTimeInterval(60), bounds: bounds)
+
+        // Same usage as the last real sample: still idle, despite the empty
+        // snapshot that the skipped poll carried.
+        XCTAssertFalse(tracker.observe(
+            outcome: .sample,
+            quotas: quotas(used: 10),
+            at: start.addingTimeInterval(120),
+            bounds: bounds
+        ))
+    }
+
+    /// A failed refresh keeps the previous snapshot on screen, which looks
+    /// exactly like "unchanged usage". It must not back off, and it must pull a
+    /// previously backed-off cadence back to the user's interval so the app
+    /// retries promptly.
+    func testFailedRefreshRecoversToTheFastCadence() {
+        let bounds = self.bounds(fast: oneMinute)
+        let start = Date(timeIntervalSince1970: 0)
+        var tracker = AdaptiveRefreshTracker(bounds: bounds, now: start)
+
+        tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: start, bounds: bounds)
+        var now = start
+        for _ in 0..<6 {
+            now = now.addingTimeInterval(tracker.interval)
+            tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: now, bounds: bounds)
+        }
+        XCTAssertEqual(tracker.interval, 1800, "precondition: backed off to the ceiling")
+
+        now = now.addingTimeInterval(tracker.interval)
+        XCTAssertFalse(tracker.observe(outcome: .failed, quotas: quotas(used: 10), at: now, bounds: bounds))
+        XCTAssertEqual(tracker.interval, oneMinute, "a failure must not keep the 30 minute delay")
+
+        // Repeated failures stay at the retry cadence rather than growing.
+        for _ in 0..<5 {
+            now = now.addingTimeInterval(tracker.interval)
+            tracker.observe(outcome: .failed, quotas: [:], at: now, bounds: bounds)
+            XCTAssertEqual(tracker.interval, oneMinute)
+        }
+    }
+
+    /// A failure must not overwrite the baseline with data that was never
+    /// refreshed, or the first sample after it would look like a change.
+    func testFailedRefreshKeepsTheComparisonBaseline() {
+        let bounds = self.bounds(fast: oneMinute)
+        let start = Date(timeIntervalSince1970: 0)
+        var tracker = AdaptiveRefreshTracker(bounds: bounds, now: start)
+
+        tracker.observe(outcome: .sample, quotas: quotas(used: 10), at: start, bounds: bounds)
+        tracker.observe(outcome: .failed, quotas: [:], at: start.addingTimeInterval(60), bounds: bounds)
+
+        XCTAssertFalse(tracker.observe(
+            outcome: .sample,
+            quotas: quotas(used: 10),
+            at: start.addingTimeInterval(120),
+            bounds: bounds
+        ))
+        XCTAssertTrue(tracker.observe(
+            outcome: .sample,
+            quotas: quotas(used: 11),
+            at: start.addingTimeInterval(180),
+            bounds: bounds
+        ))
+    }
+
     // MARK: - Opt-out parity
 
+    /// The fixed cadences themselves are untouched by this feature.
     @MainActor
-    func testDisabledAdaptiveModeUsesExactlyTheFixedCadence() {
-        // When adaptive refresh is off the view model sleeps on
-        // `RefreshCadence.intervalNanoseconds`; assert those values are the
-        // untouched fixed cadences.
+    func testFixedCadenceConstantsAreUnchanged() {
         XCTAssertNil(RefreshCadence.manual.intervalSeconds)
         XCTAssertEqual(RefreshCadence.oneMinute.intervalSeconds, 60)
         XCTAssertEqual(RefreshCadence.twoMinutes.intervalSeconds, 120)
