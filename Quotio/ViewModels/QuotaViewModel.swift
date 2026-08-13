@@ -282,9 +282,33 @@ final class QuotaViewModel {
         notifyQuotaDataChanged()
     }
 
+    /// Which persisted usage bucket the currently configured proxy writes to.
+    /// The local managed proxy, and each distinct remote server, keep separate
+    /// totals so switching between them never merges unrelated counters.
+    private var usageStatsSource: UsageStatsSource {
+        if modeManager.isRemoteProxyMode, let config = modeManager.remoteConfig {
+            return .remote(endpoint: config.managementBaseURL)
+        }
+        return .localProxy
+    }
+
+    /// Let CLIProxyManager fold a final counter sample before it tears the
+    /// managed proxy down, so requests served since the last poll are kept.
+    /// The mode is re-checked inside the closure because it is invoked later,
+    /// during shutdown, not at wiring time.
+    private func setupUsageSessionRecorder() {
+        proxyManager.usageSessionRecorder.finalSampleProvider = { [weak self] in
+            guard let self,
+                  !self.modeManager.isRemoteProxyMode,
+                  let client = self.apiClient else { return nil }
+            return try? await client.fetchUsageStats()
+        }
+    }
+
     init() {
         self.proxyManager = CLIProxyManager.shared
-        self.usageStats = usageAggregator.restoredStats()
+        self.usageStats = usageAggregator.restoredStats(for: usageStatsSource)
+        setupUsageSessionRecorder()
         loadPersistedIDEQuotas()
         setupRefreshCadenceCallback()
         setupWarmupCallback()
@@ -378,6 +402,12 @@ final class QuotaViewModel {
     // MARK: - Mode-Aware Initialization
 
     func initialize() async {
+        // Every mode switch routes through here, so re-scope the displayed
+        // traffic statistics to the proxy this mode targets. Without this a
+        // switch would keep showing the previous proxy's totals until (and
+        // unless) the first refresh against the new one succeeds.
+        usageStats = usageAggregator.restoredStats(for: usageStatsSource)
+
         if modeManager.isRemoteProxyMode {
             await initializeRemoteMode()
         } else if modeManager.isMonitorMode {
@@ -1506,7 +1536,13 @@ final class QuotaViewModel {
     
     func refreshData(refreshQuotas: Bool = true) async {
         guard let client = apiClient else { return }
-        
+
+        // Resolve the statistics bucket together with the client it belongs to.
+        // Reentrancy: a mode switch during the awaits below swaps `apiClient`,
+        // so re-reading the source afterwards would file this client's counters
+        // under a different proxy.
+        let usageSource = usageStatsSource
+
         do {
             // Serialize requests to avoid connection contention (issue #37)
             // This reduces pressure on the connection pool
@@ -1525,7 +1561,7 @@ final class QuotaViewModel {
                 // Fold the proxy's in-memory counters into the persisted
                 // aggregate so statistics survive proxy restarts/upgrades.
                 let sample = try await client.fetchUsageStats()
-                self.usageStats = usageAggregator.record(sample)
+                self.usageStats = usageAggregator.record(sample, source: usageSource)
             } catch APIError.httpError(404) {
                 self.usageStats = nil
                 Log.quota("Usage stats endpoint is not supported by this CLIProxyAPI version")

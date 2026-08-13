@@ -17,6 +17,12 @@ final class CLIProxyManager {
     /// This solves the stale connection issue by forcing "Connection: close" on all requests
     let proxyBridge = ProxyBridge()
     
+    /// Closes the persistent traffic-statistics session whenever this manager
+    /// tears the proxy down, so CLIProxyAPI's in-memory counters restarting from
+    /// zero does not discard what the previous process served.
+    /// Driven from stop(), stopAndWait(), restartProxyIfRunning(), promote() and rollback().
+    @ObservationIgnored let usageSessionRecorder = ProxyUsageSessionRecorder()
+
     /// When enabled: clients connect to userPort, ProxyBridge forwards to internalPort
     /// When disabled: clients connect directly to userPort where CLIProxyAPI runs
     var useBridgeMode: Bool {
@@ -258,6 +264,12 @@ final class CLIProxyManager {
 
         Task {
             NSLog("[CLIProxyManager] Restarting proxy to apply configuration changes...")
+            // Fold a final usage snapshot before the process goes down.
+            // Reentrancy: this Task body runs after the guard above, so the
+            // running state is re-read here rather than reused from it.
+            if proxyStatus.running {
+                await usageSessionRecorder.proxyWillStop()
+            }
             stop()
             // Wait 0.5s for ports to clear
             try? await Task.sleep(nanoseconds: 500_000_000)
@@ -956,6 +968,11 @@ final class CLIProxyManager {
     }
     
     func stop() {
+        // Close the traffic-statistics session for the process being torn down.
+        // This path is synchronous, so no final counter sample can be fetched;
+        // callers that can await run proxyWillStop() first, which folds one.
+        usageSessionRecorder.proxyDidStop()
+
         terminateAuthProcess()
         stopHealthMonitor()
         cancelCrashRestart()
@@ -1009,6 +1026,13 @@ final class CLIProxyManager {
     /// Used by recovery paths that immediately restart, so the detached cleanup in stop()
     /// cannot race with and kill the newly started process by port.
     func stopAndWait() async {
+        // Fold a final usage snapshot and close the statistics session before
+        // the process is signalled. Deliberately the first statement: it
+        // suspends, so every piece of state captured below is read afterwards.
+        if proxyStatus.running {
+            await usageSessionRecorder.proxyWillStop()
+        }
+
         terminateAuthProcess()
         stopHealthMonitor()
         cancelCrashRestart()
@@ -1974,13 +1998,20 @@ extension CLIProxyManager {
             testConfigPath = nil
         }
         testManagementKey = nil
-        
+
+        // Fold a final usage snapshot before the old binary is torn down, so an
+        // upgrade does not reset the dashboard traffic statistics (issue #359).
+        // Reentrancy: this suspends, so `wasRunning` is read after it, not before.
+        if proxyStatus.running {
+            await usageSessionRecorder.proxyWillStop()
+        }
+
         // Stop the current active proxy if running
         let wasRunning = proxyStatus.running
         if wasRunning {
             stop()
         }
-        
+
         // Update the current symlink
         try storageManager.setCurrentVersion(version, source: source)
         activeVersion = version
@@ -2002,7 +2033,13 @@ extension CLIProxyManager {
         }
         
         managerState = .rollingBack
-        
+
+        // Fold a final usage snapshot before the process goes down.
+        // Reentrancy: this suspends, so `wasRunning` is read after it, not before.
+        if proxyStatus.running {
+            await usageSessionRecorder.proxyWillStop()
+        }
+
         // Stop current proxy
         let wasRunning = proxyStatus.running
         if wasRunning {
