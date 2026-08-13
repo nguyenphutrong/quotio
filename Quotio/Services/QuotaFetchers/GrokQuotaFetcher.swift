@@ -27,10 +27,13 @@ nonisolated enum GrokQuotaMapper {
            let endString = period["end"] as? String,
            parseDate(endString) != nil {
             let used = number(config["creditUsagePercent"]) ?? 0
+            // Guarded above on `config.currentPeriod.type == USAGE_PERIOD_TYPE_WEEKLY`.
             models.append(ModelQuota(
                 name: "grok-weekly",
                 percentage: max(0, min(100, 100 - used)),
-                resetTime: ISO8601DateFormatter().string(from: parseDate(endString)!)
+                resetTime: ISO8601DateFormatter().string(from: parseDate(endString)!),
+                window: .weekly,
+                billing: .subscription
             ))
         }
 
@@ -38,11 +41,13 @@ nonisolated enum GrokQuotaMapper {
         let status = cap > 0
             ? String(format: "grok.status.cap".localizedStatic(), formatUnits(cap))
             : "grok.status.disabled".localizedStatic()
+        // `config.onDemandCap` is the paid on-demand allowance beyond the plan.
         models.append(ModelQuota(
             name: "grok-extra-usage",
             percentage: -1,
             resetTime: "",
-            presentation: .status(text: status)
+            presentation: .status(text: status),
+            billing: .paidOverage
         ))
         return ProviderQuotaData(models: models, lastUpdated: Date(), planType: plan)
     }

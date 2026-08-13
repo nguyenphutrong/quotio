@@ -177,11 +177,15 @@ actor GLMQuotaFetcher {
                let percentage = limit.percentage,
                let unit = limit.unit,
                let number = limit.number,
-               let windowName = tokenWindowName(unit: unit, number: number) {
+               let window = tokenWindow(unit: unit, number: number) {
+                // Both the name and the window come from the API's `unit`/`number`
+                // pair, so the window is derived from the payload, not the name.
                 models.append(ModelQuota(
-                    name: windowName,
+                    name: window.modelName,
                     percentage: max(0, min(100, 100 - percentage)),
-                    resetTime: resetTime
+                    resetTime: resetTime,
+                    window: window.quotaWindow,
+                    billing: .subscription
                 ))
             } else if kind == "TIME_LIMIT",
                       let used = limit.currentValue,
@@ -199,7 +203,8 @@ actor GLMQuotaFetcher {
                         unit: .searches
                     ),
                     used: Int(used),
-                    limit: Int(quotaLimit)
+                    limit: Int(quotaLimit),
+                    billing: .subscription
                 ))
             }
         }
@@ -207,18 +212,43 @@ actor GLMQuotaFetcher {
         return ProviderQuotaData(models: models, lastUpdated: Date(), planType: planName)
     }
 
-    private nonisolated static func tokenWindowName(unit: Double, number: Double) -> String? {
+    nonisolated enum GLMTokenWindow {
+        case session
+        case daily
+        case weekly
+        case monthly
+
+        var modelName: String {
+            switch self {
+            case .session: "zai-session"
+            case .daily: "zai-daily"
+            case .weekly: "zai-weekly"
+            case .monthly: "zai-monthly"
+            }
+        }
+
+        var quotaWindow: QuotaWindow {
+            switch self {
+            case .session: .session
+            case .daily: .daily
+            case .weekly: .weekly
+            case .monthly: .monthly
+            }
+        }
+    }
+
+    nonisolated static func tokenWindow(unit: Double, number: Double) -> GLMTokenWindow? {
         guard number > 0 else { return nil }
         switch unit {
         case 3:
-            return number < 24 ? "zai-session" : "zai-daily"
+            return number < 24 ? .session : .daily
         case 4:
-            if number <= 1 { return "zai-daily" }
-            return number < 28 ? "zai-weekly" : "zai-monthly"
+            if number <= 1 { return .daily }
+            return number < 28 ? .weekly : .monthly
         case 5:
-            return "zai-monthly"
+            return .monthly
         case 6:
-            return number < 4 ? "zai-weekly" : "zai-monthly"
+            return number < 4 ? .weekly : .monthly
         default: return nil
         }
     }

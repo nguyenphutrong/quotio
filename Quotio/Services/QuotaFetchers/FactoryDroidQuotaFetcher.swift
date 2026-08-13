@@ -197,6 +197,7 @@ nonisolated enum FactoryDroidQuotaMapper {
         append(pool: response.limits?.core, prefix: "factory-core", now: now, to: &models)
 
         if let cents = response.extraUsageBalanceCents {
+            // `extra_usage_balance_cents` is prepaid spend on top of the plan.
             models.append(ModelQuota(
                 name: "factory-extra-balance",
                 percentage: -1,
@@ -205,7 +206,8 @@ nonisolated enum FactoryDroidQuotaMapper {
                     value: max(0, cents) / 100,
                     unit: .usd,
                     semantics: .balance
-                )
+                ),
+                billing: .paidOverage
             ))
         }
 
@@ -219,17 +221,20 @@ nonisolated enum FactoryDroidQuotaMapper {
         to models: inout [ModelQuota]
     ) {
         guard let pool else { return }
-        for (suffix, window) in [
-            ("five-hour", pool.fiveHour),
-            ("weekly", pool.weekly),
-            ("monthly", pool.monthly),
+        // The window is the pool field the entry came from, not the name suffix.
+        for (suffix, quotaWindow, window) in [
+            ("five-hour", QuotaWindow.session, pool.fiveHour),
+            ("weekly", QuotaWindow.weekly, pool.weekly),
+            ("monthly", QuotaWindow.monthly, pool.monthly),
         ] {
             guard let window else { continue }
             let usedPercent = isExpired(window.windowEnd, now: now) ? 0 : window.usedPercent
             models.append(ModelQuota(
                 name: prefix + "-" + suffix,
                 percentage: max(0, min(100, 100 - usedPercent)),
-                resetTime: window.windowEnd ?? ""
+                resetTime: window.windowEnd ?? "",
+                window: quotaWindow,
+                billing: .subscription
             ))
         }
     }

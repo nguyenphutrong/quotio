@@ -106,7 +106,9 @@ actor ClinePassQuotaFetcher {
             modelsByName[name] = ModelQuota(
                 name: name,
                 percentage: 100 - usedPercentage,
-                resetTime: try normalizedResetTime(limit.resetsAt)
+                resetTime: try normalizedResetTime(limit.resetsAt),
+                window: window(for: limit.type),
+                billing: .subscription
             )
         }
 
@@ -120,6 +122,16 @@ actor ClinePassQuotaFetcher {
         case "five_hour": return "clinepass-five-hour"
         case "weekly": return "clinepass-weekly"
         case "monthly": return "clinepass-monthly"
+        default: return nil
+        }
+    }
+
+    /// The window comes from the API's own `type` discriminator.
+    private func window(for limitType: String) -> QuotaWindow? {
+        switch limitType {
+        case "five_hour": return .session
+        case "weekly": return .weekly
+        case "monthly": return .monthly
         default: return nil
         }
     }

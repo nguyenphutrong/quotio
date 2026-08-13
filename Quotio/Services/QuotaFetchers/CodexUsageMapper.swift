@@ -26,12 +26,19 @@ nonisolated enum CodexUsageMapper {
         )
     }
 
-    private static func modelQuota(name: String, from snapshot: CodexUsageResponseV2.WindowSnapshot?) -> ModelQuota? {
+    private static func modelQuota(
+        name: String,
+        from snapshot: CodexUsageResponseV2.WindowSnapshot?,
+        window: QuotaWindow?,
+        billing: QuotaBilling?
+    ) -> ModelQuota? {
         guard let snapshot else { return nil }
         return ModelQuota(
             name: name,
             percentage: Double(100 - snapshot.usedPercent),
-            resetTime: snapshot.resetDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
+            resetTime: snapshot.resetDate.map { ISO8601DateFormatter().string(from: $0) } ?? "",
+            window: window,
+            billing: billing
         )
     }
 
@@ -46,7 +53,8 @@ nonisolated enum CodexUsageMapper {
             guard let snapshot else { return nil }
             let kind = standardWindowKind(for: snapshot, fallback: fallbackKind)
             guard usedKinds.insert(kind).inserted else { return nil }
-            return modelQuota(name: kind.id, from: snapshot)
+            // `rate_limit` is the plan's own rate limit, so the billing kind is known.
+            return modelQuota(name: kind.id, from: snapshot, window: kind.window, billing: .subscription)
         }
     }
 
@@ -74,12 +82,27 @@ nonisolated enum CodexUsageMapper {
             else {
                 return []
             }
+            // An `additional_rate_limits` entry carries no billing signal: the same
+            // collection holds model-specific *subscription* limits (Spark is one).
+            // Billing therefore stays nil (unknown, i.e. not paid overage) and the
+            // window comes only from the declared `limit_window_seconds`.
             return [ModelQuota(
                 name: id,
                 percentage: Double(100 - snapshot.usedPercent),
-                resetTime: snapshot.resetDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
+                resetTime: snapshot.resetDate.map { ISO8601DateFormatter().string(from: $0) } ?? "",
+                window: declaredWindow(for: snapshot),
+                billing: nil
             )]
         }
+    }
+
+    /// Window implied by the API's own `limit_window_seconds`, using the same
+    /// thresholds as `standardWindowKind`. Nil when the field is absent.
+    private static func declaredWindow(for snapshot: CodexUsageResponseV2.WindowSnapshot) -> QuotaWindow? {
+        guard let seconds = snapshot.limitWindowSeconds, seconds > 0 else { return nil }
+        if seconds >= 6 * 24 * 60 * 60 { return .weekly }
+        if seconds <= 24 * 60 * 60 { return .session }
+        return nil
     }
 
     private static func sparkModels(
@@ -91,10 +114,13 @@ nonisolated enum CodexUsageMapper {
             (limit.rateLimit?.secondaryWindow, sparkKind(for: limit.rateLimit?.secondaryWindow, fallback: .weekly))
         ].compactMap { snapshot, kind in
             guard let snapshot, usedIDs.insert(kind.id).inserted else { return nil }
+            // Spark is a model-specific limit included in the plan, not paid overage.
             return ModelQuota(
                 name: kind.id,
                 percentage: Double(100 - snapshot.usedPercent),
-                resetTime: snapshot.resetDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
+                resetTime: snapshot.resetDate.map { ISO8601DateFormatter().string(from: $0) } ?? "",
+                window: kind.window,
+                billing: .subscription
             )
         }
     }
@@ -204,6 +230,13 @@ nonisolated enum CodexUsageMapper {
             case .weekly: "codex-spark-weekly"
             }
         }
+
+        var window: QuotaWindow {
+            switch self {
+            case .fiveHour: .session
+            case .weekly: .weekly
+            }
+        }
     }
 
     private enum StandardWindowKind {
@@ -214,6 +247,13 @@ nonisolated enum CodexUsageMapper {
             switch self {
             case .session: "codex-session"
             case .weekly: "codex-weekly"
+            }
+        }
+
+        var window: QuotaWindow {
+            switch self {
+            case .session: .session
+            case .weekly: .weekly
             }
         }
     }

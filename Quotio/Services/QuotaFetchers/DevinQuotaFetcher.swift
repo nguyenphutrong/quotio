@@ -24,23 +24,30 @@ nonisolated enum DevinQuotaMapper {
             models.append(ModelQuota(
                 name: "devin-daily",
                 percentage: clamp(dailyRemaining),
-                resetTime: dailyReset
+                resetTime: dailyReset,
+                window: .daily,
+                billing: .subscription
             ))
         }
         if let weeklyRemaining {
             models.append(ModelQuota(
                 name: "devin-weekly",
                 percentage: clamp(weeklyRemaining),
-                resetTime: weeklyReset
+                resetTime: weeklyReset,
+                window: .weekly,
+                billing: .subscription
             ))
         } else if hideDaily, let dailyRemaining {
             models.append(ModelQuota(
                 name: "devin-weekly",
                 percentage: clamp(dailyRemaining),
-                resetTime: weeklyReset
+                resetTime: weeklyReset,
+                window: .weekly,
+                billing: .subscription
             ))
         }
         if let micros = number(planStatus["overageBalanceMicros"]) {
+            // `overageBalanceMicros` is spend billed beyond the plan.
             models.append(ModelQuota(
                 name: "devin-extra-balance",
                 percentage: -1,
@@ -49,7 +56,8 @@ nonisolated enum DevinQuotaMapper {
                     value: max(0, micros) / 1_000_000,
                     unit: .usd,
                     semantics: .balance
-                )
+                ),
+                billing: .paidOverage
             ))
         }
 

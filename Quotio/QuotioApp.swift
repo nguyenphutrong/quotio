@@ -120,8 +120,7 @@ final class AppBootstrap {
                ) {
                 isForbidden = quotaData.isForbidden
                 if !quotaData.models.isEmpty {
-                    let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
-                    displayPercent = menuBarSettings.totalUsagePercent(models: models)
+                    displayPercent = menuBarSettings.totalUsagePercent(models: quotaData.models)
                 }
             }
 
