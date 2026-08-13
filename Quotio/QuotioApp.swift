@@ -111,7 +111,7 @@ final class AppBootstrap {
 
             var displayPercent: Double = -1
             var isForbidden = false
-            var quotaWindows: MenuBarQuotaWindows?
+            var quotaPair: MenuBarQuotaPair?
 
             if let accountQuotas = viewModel.providerQuotas[provider],
                let quotaData = resolveQuotaData(
@@ -123,8 +123,8 @@ final class AppBootstrap {
                 if !quotaData.models.isEmpty {
                     let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
                     displayPercent = menuBarSettings.totalUsagePercent(models: models)
-                    if provider == .claude && menuBarSettings.stackClaudeQuotaWindows {
-                        quotaWindows = MenuBarQuotaWindows.claude(from: quotaData.models)
+                    if menuBarSettings.stackPairedQuotaMetrics {
+                        quotaPair = MenuBarQuotaPair.resolve(for: provider, from: quotaData.models)
                     }
                 }
             }
@@ -136,7 +136,7 @@ final class AppBootstrap {
                 percentage: displayPercent,
                 provider: provider,
                 isForbidden: isForbidden,
-                quotaWindows: quotaWindows
+                quotaPair: quotaPair
             ))
         }
 
@@ -223,6 +223,7 @@ struct QuotioApp: App {
                     }
                     .onChange(of: languageManager.currentLanguage) { _, _ in
                         // Rebuild menu bar when language changes
+                        bootstrap.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: menuBarSettings.showQuotaInMenuBar) {
@@ -237,7 +238,7 @@ struct QuotioApp: App {
                     .onChange(of: menuBarSettings.colorMode) {
                         bootstrap.updateStatusBar()
                     }
-                    .onChange(of: menuBarSettings.stackClaudeQuotaWindows) {
+                    .onChange(of: menuBarSettings.stackPairedQuotaMetrics) {
                         bootstrap.updateStatusBar()
                     }
                     .onChange(of: menuBarSettings.totalUsageMode) {

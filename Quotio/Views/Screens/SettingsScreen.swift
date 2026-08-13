@@ -1727,10 +1727,10 @@ struct MenuBarSettingsSection: View {
         )
     }
 
-    private var stackClaudeQuotaWindowsBinding: Binding<Bool> {
+    private var stackPairedQuotaMetricsBinding: Binding<Bool> {
         Binding(
-            get: { settings.stackClaudeQuotaWindows },
-            set: { settings.stackClaudeQuotaWindows = $0 }
+            get: { settings.stackPairedQuotaMetrics },
+            set: { settings.stackPairedQuotaMetrics = $0 }
         )
     }
     
@@ -1763,8 +1763,8 @@ struct MenuBarSettingsSection: View {
                 
                 if settings.showQuotaInMenuBar {
                     Toggle(
-                        "settings.menubar.stackClaudeQuotaWindows".localized(),
-                        isOn: stackClaudeQuotaWindowsBinding
+                        "settings.menubar.stackPairedQuotaMetrics".localized(),
+                        isOn: stackPairedQuotaMetricsBinding
                     )
 
                     HStack {

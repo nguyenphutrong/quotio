@@ -405,21 +405,106 @@ final class RefreshSettingsManager {
 
 // MARK: - Menu Bar Quota Display Item
 
-/// Claude quota windows rendered together in the compact menu bar layout.
-nonisolated struct MenuBarQuotaWindows: Equatable, Sendable {
-    let fiveHourPercentage: Double
-    let weeklyPercentage: Double
+/// A semantic quota metric rendered as one row of a compact menu bar pair.
+nonisolated struct MenuBarQuotaMetric: Equatable, Sendable {
+    let labelKey: String
+    let remainingPercentage: Double
+}
 
-    static func claude(from models: [ModelQuota]) -> MenuBarQuotaWindows? {
-        let fiveHour = models.first { $0.name == "five-hour-session" }?.percentage
-        let weekly = models.first { $0.name == "seven-day-weekly" }?.percentage
+/// Two related quota metrics rendered together in the compact menu bar layout.
+nonisolated struct MenuBarQuotaPair: Equatable, Sendable {
+    let top: MenuBarQuotaMetric
+    let bottom: MenuBarQuotaMetric
 
-        guard fiveHour != nil || weekly != nil else { return nil }
+    static func resolve(for provider: AIProvider, from models: [ModelQuota]) -> MenuBarQuotaPair? {
+        switch provider {
+        case .claude:
+            return makePair(
+                from: models,
+                topNames: ["five-hour-session"],
+                topLabelKey: "quota.metric.fiveHour",
+                bottomNames: ["seven-day-weekly", "seven-day-sonnet", "seven-day-opus"],
+                bottomLabelKey: "quota.metric.weekly"
+            )
+        case .codex:
+            return makePair(
+                from: models,
+                topNames: ["codex-session", "codex-spark"],
+                topLabelKey: "quota.metric.session",
+                bottomNames: ["codex-weekly", "codex-spark-weekly"],
+                bottomLabelKey: "quota.metric.weekly"
+            )
+        case .amp:
+            return makePair(
+                from: models,
+                topNames: ["amp-agent-usage"],
+                topLabelKey: "amp.quota.agent",
+                bottomNames: ["amp-orb-usage"],
+                bottomLabelKey: "amp.quota.orb"
+            )
+        case .antigravity:
+            return makePair(
+                from: models,
+                topNames: ["antigravity-gemini-session", "antigravity-claude-gpt-session"],
+                topLabelKey: "quota.metric.session",
+                bottomNames: ["antigravity-gemini-weekly", "antigravity-claude-gpt-weekly"],
+                bottomLabelKey: "quota.metric.weekly"
+            )
+        case .devin:
+            return makePair(
+                from: models,
+                topNames: ["devin-daily"],
+                topLabelKey: "quota.metric.daily",
+                bottomNames: ["devin-weekly"],
+                bottomLabelKey: "quota.metric.weekly"
+            )
+        case .cursor:
+            return makePair(
+                from: models,
+                topNames: ["plan-usage"],
+                topLabelKey: "quota.metric.planUsage",
+                bottomNames: ["on-demand"],
+                bottomLabelKey: "quota.metric.onDemand",
+                requiresBoth: true
+            )
+        default:
+            return nil
+        }
+    }
 
-        return MenuBarQuotaWindows(
-            fiveHourPercentage: fiveHour ?? -1,
-            weeklyPercentage: weekly ?? -1
+    private static func makePair(
+        from models: [ModelQuota],
+        topNames: Set<String>,
+        topLabelKey: String,
+        bottomNames: Set<String>,
+        bottomLabelKey: String,
+        requiresBoth: Bool = false
+    ) -> MenuBarQuotaPair? {
+        let topPercentage = minimumPercentage(in: models, named: topNames)
+        let bottomPercentage = minimumPercentage(in: models, named: bottomNames)
+
+        if requiresBoth {
+            guard topPercentage != nil, bottomPercentage != nil else { return nil }
+        } else {
+            guard topPercentage != nil || bottomPercentage != nil else { return nil }
+        }
+
+        return MenuBarQuotaPair(
+            top: MenuBarQuotaMetric(
+                labelKey: topLabelKey,
+                remainingPercentage: topPercentage ?? -1
+            ),
+            bottom: MenuBarQuotaMetric(
+                labelKey: bottomLabelKey,
+                remainingPercentage: bottomPercentage ?? -1
+            )
         )
+    }
+
+    private static func minimumPercentage(in models: [ModelQuota], named names: Set<String>) -> Double? {
+        let matching = models.filter { names.contains($0.name) }
+        guard !matching.isEmpty else { return nil }
+        return matching.lazy.map(\.percentage).filter { $0 >= 0 }.min() ?? -1
     }
 }
 
@@ -431,7 +516,7 @@ struct MenuBarQuotaDisplayItem: Identifiable {
     let percentage: Double
     let provider: AIProvider
     var isForbidden: Bool = false
-    var quotaWindows: MenuBarQuotaWindows? = nil
+    var quotaPair: MenuBarQuotaPair? = nil
     
     var statusColor: Color {
         statusColor(for: percentage)
@@ -461,7 +546,8 @@ final class MenuBarSettingsManager {
     private let menuBarMaxItemsKey = "menuBarMaxItems"
     private let quotaDisplayModeKey = "quotaDisplayMode"
     private let quotaDisplayStyleKey = "quotaDisplayStyle"
-    private let stackClaudeQuotaWindowsKey = "menuBarStackClaudeQuotaWindows"
+    // Retain the key introduced by #493 so existing user preferences carry forward.
+    private let stackPairedQuotaMetricsKey = "menuBarStackClaudeQuotaWindows"
     private let hideSensitiveInfoKey = "hideSensitiveInfo"
     private let totalUsageModeKey = "totalUsageMode"
     private let modelAggregationModeKey = "modelAggregationMode"
@@ -509,9 +595,9 @@ final class MenuBarSettingsManager {
         didSet { defaults.set(quotaDisplayStyle.rawValue, forKey: quotaDisplayStyleKey) }
     }
 
-    /// Whether Claude's 5-hour and weekly windows are stacked in the menu bar.
-    var stackClaudeQuotaWindows: Bool {
-        didSet { defaults.set(stackClaudeQuotaWindows, forKey: stackClaudeQuotaWindowsKey) }
+    /// Whether providers with a stable metric pair use the compact stacked layout.
+    var stackPairedQuotaMetrics: Bool {
+        didSet { defaults.set(stackPairedQuotaMetrics, forKey: stackPairedQuotaMetricsKey) }
     }
     
     /// Whether to hide sensitive information (emails, account names)
@@ -567,10 +653,10 @@ final class MenuBarSettingsManager {
         self.colorMode = MenuBarColorMode(rawValue: defaults.string(forKey: colorModeKey) ?? "") ?? .colored
         self.quotaDisplayMode = QuotaDisplayMode(rawValue: defaults.string(forKey: quotaDisplayModeKey) ?? "") ?? .used
         self.quotaDisplayStyle = QuotaDisplayStyle(rawValue: defaults.string(forKey: quotaDisplayStyleKey) ?? "") ?? .card
-        if defaults.object(forKey: stackClaudeQuotaWindowsKey) == nil {
-            defaults.set(true, forKey: stackClaudeQuotaWindowsKey)
+        if defaults.object(forKey: stackPairedQuotaMetricsKey) == nil {
+            defaults.set(true, forKey: stackPairedQuotaMetricsKey)
         }
-        self.stackClaudeQuotaWindows = defaults.bool(forKey: stackClaudeQuotaWindowsKey)
+        self.stackPairedQuotaMetrics = defaults.bool(forKey: stackPairedQuotaMetricsKey)
         self.selectedItems = Self.loadSelectedItems(from: defaults, key: selectedItemsKey)
 
         // Load and clamp menuBarMaxItems, then persist the clamped value

@@ -17963,31 +17963,31 @@
         }
       }
     },
-    "settings.menubar.stackClaudeQuotaWindows" : {
+    "settings.menubar.stackPairedQuotaMetrics" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stack Claude 5h and weekly quota"
+            "value" : "Stack paired quota metrics"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Empiler les quotas Claude sur 5 h et hebdomadaire"
+            "value" : "Empiler les indicateurs de quota associés"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Xếp chồng quota Claude 5 giờ và hàng tuần"
+            "value" : "Xếp chồng các chỉ số quota theo cặp"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "堆叠显示 Claude 5 小时和每周配额"
+            "value" : "堆叠显示成对的配额指标"
           }
         }
       }
@@ -24240,12 +24240,36 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每日" } }
       }
     },
+    "quota.metric.fiveHour" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "5-hour" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "5 heures" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "5 giờ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "5 小时" } }
+      }
+    },
     "quota.metric.monthly" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Monthly" } },
         "fr" : { "stringUnit" : { "state" : "translated", "value" : "Mensuel" } },
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hàng tháng" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每月" } }
+      }
+    },
+    "quota.metric.onDemand" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "On-Demand" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "À la demande" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Theo nhu cầu" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按需用量" } }
+      }
+    },
+    "quota.metric.planUsage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Plan Usage" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utilisation du forfait" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mức dùng gói" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "套餐用量" } }
       }
     },
     "quota.metric.extraBalance" : {
