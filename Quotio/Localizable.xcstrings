@@ -1857,6 +1857,296 @@
         }
       }
     },
+    "agents.opencode.notConfigured" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Quotio provider found in opencode.json. OpenCode already uses its default providers."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun fournisseur Quotio trouvé dans opencode.json. OpenCode utilise déjà ses fournisseurs par défaut."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không tìm thấy nhà cung cấp Quotio trong opencode.json. OpenCode đang dùng các nhà cung cấp mặc định."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 opencode.json 中未找到 Quotio 提供商。OpenCode 已在使用其默认提供商。"
+          }
+        }
+      }
+    },
+    "agents.opencode.parseError.duplicateKey" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The key \"%@\" appears more than once."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clé « %@ » apparaît plusieurs fois."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khóa \"%@\" xuất hiện nhiều lần."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "键“%@”出现了多次。"
+          }
+        }
+      }
+    },
+    "agents.opencode.parseError.notObject" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file is not a JSON object."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier n’est pas un objet JSON."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tệp không phải là một đối tượng JSON."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该文件不是 JSON 对象。"
+          }
+        }
+      }
+    },
+    "agents.opencode.parseError.notUTF8" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file is not valid UTF-8 text."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier n’est pas un texte UTF-8 valide."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tệp không phải là văn bản UTF-8 hợp lệ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该文件不是有效的 UTF-8 文本。"
+          }
+        }
+      }
+    },
+    "agents.opencode.parseError.providerNotObject" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The \"provider\" field is not a JSON object."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le champ « provider » n’est pas un objet JSON."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trường \"provider\" không phải là một đối tượng JSON."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“provider” 字段不是 JSON 对象。"
+          }
+        }
+      }
+    },
+    "agents.opencode.parseError.syntax" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unexpected character at line %1$@, column %2$@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caractère inattendu à la ligne %1$@, colonne %2$@."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ký tự không hợp lệ tại dòng %1$@, cột %2$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %1$@ 行第 %2$@ 列存在意外字符。"
+          }
+        }
+      }
+    },
+    "agents.opencode.parseError.unterminatedComment" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A block comment (/* …) is never closed."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un commentaire de bloc (/* …) n’est jamais fermé."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Một chú thích khối (/* …) chưa được đóng."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "块注释（/* …）未闭合。"
+          }
+        }
+      }
+    },
+    "agents.opencode.parseError.unterminatedString" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A text value is missing its closing quote."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une valeur texte n’a pas de guillemet fermant."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Một giá trị văn bản thiếu dấu nháy đóng."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文本值缺少结束引号。"
+          }
+        }
+      }
+    },
+    "agents.opencode.parseError.verification" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The edited file did not match the expected result, so nothing was written."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier modifié ne correspond pas au résultat attendu ; rien n’a été écrit."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tệp sau khi chỉnh sửa không khớp với kết quả mong đợi nên không có gì được ghi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑后的文件与预期结果不符，因此未写入任何内容。"
+          }
+        }
+      }
+    },
+    "agents.opencode.parseFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not parse %1$@: %2$@ The file was left untouched — fix its syntax and try again, or use manual mode."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d’analyser %1$@ : %2$@ Le fichier n’a pas été modifié — corrigez sa syntaxe puis réessayez, ou utilisez le mode manuel."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể phân tích %1$@: %2$@ Tệp được giữ nguyên — hãy sửa cú pháp rồi thử lại, hoặc dùng chế độ thủ công."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法解析 %1$@：%2$@ 文件未被修改 — 请修正其语法后重试，或使用手动模式。"
+          }
+        }
+      }
+    },
     "agents.proxyRemovalWarning" : {
       "extractionState" : "stale",
       "localizations" : {

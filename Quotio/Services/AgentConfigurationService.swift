@@ -215,7 +215,7 @@ actor AgentConfigurationService {
         
         guard fileManager.fileExists(atPath: configPath),
               let data = fileManager.contents(atPath: configPath),
-              let json = try? Self.parseOpenCodeJSONObject(data) else {
+              let json = try? OpenCodeConfigEditor.parseObject(data) else {
             return nil
         }
 
@@ -754,9 +754,9 @@ actor AgentConfigurationService {
                 let data = try Data(contentsOf: URL(fileURLWithPath: configPath))
 
                 // Remove only the Quotio-managed provider entry, preserving
-                // every other user setting (#176). When there is nothing to
-                // remove, leave the file completely untouched.
-                guard let updatedData = try Self.openCodeJSONRemovingQuotioProvider(existing: data) else {
+                // every other user setting — comments included (#176). When
+                // there is nothing to remove, leave the file untouched.
+                guard let updatedData = try OpenCodeConfigEditor.removingProviders(existing: data, keys: ["quotio"]) else {
                     return .success(
                         type: .file,
                         mode: mode,
@@ -764,7 +764,7 @@ actor AgentConfigurationService {
                         authPath: nil,
                         shellConfig: nil,
                         rawConfigs: [],
-                        instructions: "No Quotio provider found in opencode.json. OpenCode already uses its default providers.",
+                        instructions: "agents.opencode.notConfigured".localizedStatic(),
                         modelsConfigured: 0
                     )
                 }
@@ -1216,14 +1216,24 @@ actor AgentConfigurationService {
 
             let jsonData: Data
             do {
-                jsonData = try Self.mergedOpenCodeJSON(existing: existingData, quotioProvider: quotioProvider)
+                jsonData = try OpenCodeConfigEditor.merging(
+                    existing: existingData,
+                    providers: ["quotio": quotioProvider]
+                )
             } catch {
                 if mode == .automatic && existingData != nil {
                     // Never fall back to overwriting a file we could not parse:
                     // that wipes user settings like `plugin` and other providers (#176).
-                    return .failure(error: "Could not parse existing opencode.json at \(configPath): \(error.localizedDescription). The file was left untouched — fix its syntax and try again, or use manual mode.")
+                    return .failure(error: String(
+                        format: "agents.opencode.parseFailed".localizedStatic(),
+                        configPath,
+                        error.localizedDescription
+                    ))
                 }
-                jsonData = try Self.mergedOpenCodeJSON(existing: nil, quotioProvider: quotioProvider)
+                jsonData = try OpenCodeConfigEditor.merging(
+                    existing: nil,
+                    providers: ["quotio": quotioProvider]
+                )
             }
             let jsonString = String(decoding: jsonData, as: UTF8.self)
 
@@ -1325,135 +1335,6 @@ actor AgentConfigurationService {
         }
 
         return modelConfig
-    }
-
-    // MARK: - OpenCode JSON(C) helpers
-
-    /// Parses opencode.json content into a JSON object. OpenCode configs are
-    /// JSONC (comments and trailing commas are allowed), so a strict parse is
-    /// attempted first and, on failure, the content is re-parsed after a
-    /// comment/trailing-comma stripping pre-pass. Throws when the content is
-    /// not a JSON object even after that pre-pass.
-    nonisolated static func parseOpenCodeJSONObject(_ data: Data) throws -> [String: Any] {
-        if let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
-            return object
-        }
-        let sanitized = strippingJSONCSyntax(from: String(decoding: data, as: UTF8.self))
-        guard let object = try JSONSerialization.jsonObject(with: Data(sanitized.utf8)) as? [String: Any] else {
-            throw CocoaError(.propertyListReadCorrupt)
-        }
-        return object
-    }
-
-    /// Merges the Quotio provider entry into existing opencode.json content,
-    /// preserving every other field (plugin, mcp, other providers, ...).
-    /// Throws when `existing` cannot be parsed even with the JSONC pre-pass —
-    /// callers must not fall back to overwriting the file in that case (#176).
-    /// Note: the object is re-serialized, so JSONC comments in the existing
-    /// file are not carried into the rewritten output (the pre-write backup
-    /// keeps the original).
-    nonisolated static func mergedOpenCodeJSON(existing: Data?, quotioProvider: [String: Any]) throws -> Data {
-        var object: [String: Any] = [:]
-        if let existing {
-            object = try parseOpenCodeJSONObject(existing)
-        }
-        if object["$schema"] == nil {
-            object["$schema"] = "https://opencode.ai/config.json"
-        }
-        var providers = object["provider"] as? [String: Any] ?? [:]
-        providers["quotio"] = quotioProvider
-        object["provider"] = providers
-        return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    }
-
-    /// Removes only the Quotio-managed provider entry from opencode.json
-    /// content, preserving all other fields. Returns nil when there is nothing
-    /// to remove so callers can leave the file untouched. Throws when
-    /// `existing` cannot be parsed even with the JSONC pre-pass.
-    nonisolated static func openCodeJSONRemovingQuotioProvider(existing: Data) throws -> Data? {
-        var object = try parseOpenCodeJSONObject(existing)
-        guard var providers = object["provider"] as? [String: Any], providers["quotio"] != nil else {
-            return nil
-        }
-        providers.removeValue(forKey: "quotio")
-        if providers.isEmpty {
-            object.removeValue(forKey: "provider")
-        } else {
-            object["provider"] = providers
-        }
-        return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    }
-
-    /// Strips `//` and `/* */` comments and trailing commas from JSONC text.
-    /// String literals (including escapes) are left untouched, so values like
-    /// "https://opencode.ai/config.json" survive intact.
-    nonisolated static func strippingJSONCSyntax(from text: String) -> String {
-        let chars = Array(text)
-        var withoutComments: [Character] = []
-        var i = 0
-        var inString = false
-        while i < chars.count {
-            let c = chars[i]
-            if inString {
-                withoutComments.append(c)
-                if c == "\\", i + 1 < chars.count {
-                    withoutComments.append(chars[i + 1])
-                    i += 2
-                    continue
-                }
-                if c == "\"" { inString = false }
-                i += 1
-            } else if c == "\"" {
-                inString = true
-                withoutComments.append(c)
-                i += 1
-            } else if c == "/", i + 1 < chars.count, chars[i + 1] == "/" {
-                while i < chars.count, chars[i] != "\n" { i += 1 }
-            } else if c == "/", i + 1 < chars.count, chars[i + 1] == "*" {
-                i += 2
-                while i + 1 < chars.count, !(chars[i] == "*" && chars[i + 1] == "/") { i += 1 }
-                i = min(i + 2, chars.count)
-            } else {
-                withoutComments.append(c)
-                i += 1
-            }
-        }
-
-        // Second string-aware pass: drop commas whose next non-whitespace
-        // character closes an object or array (trailing commas).
-        var result: [Character] = []
-        i = 0
-        inString = false
-        while i < withoutComments.count {
-            let c = withoutComments[i]
-            if inString {
-                result.append(c)
-                if c == "\\", i + 1 < withoutComments.count {
-                    result.append(withoutComments[i + 1])
-                    i += 2
-                    continue
-                }
-                if c == "\"" { inString = false }
-                i += 1
-            } else if c == "\"" {
-                inString = true
-                result.append(c)
-                i += 1
-            } else if c == "," {
-                var j = i + 1
-                while j < withoutComments.count, withoutComments[j].isWhitespace { j += 1 }
-                if j < withoutComments.count, withoutComments[j] == "}" || withoutComments[j] == "]" {
-                    i += 1
-                } else {
-                    result.append(c)
-                    i += 1
-                }
-            } else {
-                result.append(c)
-                i += 1
-            }
-        }
-        return String(result)
     }
 
     private func generateFactoryDroidConfig(config: AgentConfiguration, mode: ConfigurationMode, availableModels: [AvailableModel]) -> AgentConfigResult {
