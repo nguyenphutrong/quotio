@@ -93,9 +93,9 @@ final class CodexUsageMapperTests: XCTestCase {
         XCTAssertEqual(quota.models[0].usedPercentage, 25)
     }
 
-    /// When `limit_window_seconds` is missing, a multi-day `reset_after_seconds`
-    /// still identifies a weekly window: a 5h session window can never reset
-    /// days in the future.
+    /// Heuristic fallback: when `limit_window_seconds` is missing, a multi-day
+    /// `reset_after_seconds` rules out the 5h session window, which cannot reset
+    /// days in the future. This is a lower bound on the window, not its length.
     func testMissingWindowSecondsClassifiesByResetHorizon() throws {
         let quota = try map("""
         {
@@ -116,8 +116,9 @@ final class CodexUsageMapperTests: XCTestCase {
         XCTAssertEqual(quota.models.map(\.name), ["codex-weekly"])
     }
 
-    /// Without any duration signal the mapper keeps the positional fallback so
-    /// existing paid-account responses are unaffected.
+    /// The heuristic's known blind spot: a window less than a day from resetting
+    /// carries no usable duration signal, so the mapper keeps the positional
+    /// fallback and existing paid-account responses are unaffected.
     func testMissingDurationSignalsFallBackToPositionalLabels() throws {
         let quota = try map("""
         {
@@ -139,28 +140,6 @@ final class CodexUsageMapperTests: XCTestCase {
         """)
 
         XCTAssertEqual(quota.models.map(\.name), ["codex-session", "codex-weekly"])
-    }
-
-    /// A ~30-day window is labeled Monthly instead of being folded into Weekly.
-    func testMonthlyWindowIsClassifiedAsMonthly() throws {
-        let quota = try map("""
-        {
-          "plan_type": "free",
-          "rate_limit": {
-            "allowed": true,
-            "limit_reached": false,
-            "primary_window": {
-              "used_percent": 60,
-              "limit_window_seconds": 2592000,
-              "reset_at": 1773507681
-            },
-            "secondary_window": null
-          }
-        }
-        """)
-
-        XCTAssertEqual(quota.models.map(\.name), ["codex-monthly"])
-        XCTAssertEqual(quota.models[0].displayName, "Monthly")
     }
 
     /// Two windows resolving to the same kind are deduplicated instead of

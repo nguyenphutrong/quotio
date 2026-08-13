@@ -56,13 +56,17 @@ nonisolated enum CodexUsageMapper {
     ) -> StandardWindowKind {
         let day = 24 * 60 * 60
         if let seconds = snapshot.limitWindowSeconds, seconds > 0 {
-            if seconds <= day { return .session }
-            if seconds >= 20 * day { return .monthly }
             if seconds >= 6 * day { return .weekly }
+            if seconds <= day { return .session }
             return fallback
         }
-        // Window length missing: a session (5h) window can never reset more than
-        // a day out, so a multi-day reset horizon identifies a weekly window.
+        // Heuristic, used only when the authoritative `limit_window_seconds` is
+        // absent. `reset_after_seconds` is the time REMAINING in the window, not
+        // the window's length, so it is only ever a lower bound: a horizon of
+        // more than a day rules out the 5h session window, but it cannot tell how
+        // long the window actually is, and a weekly window that is less than a day
+        // from resetting is indistinguishable from a session one and falls through
+        // to the positional fallback below.
         if let resetAfter = snapshot.resetAfterSeconds, resetAfter > day { return .weekly }
         return fallback
     }
@@ -216,13 +220,11 @@ nonisolated enum CodexUsageMapper {
     private enum StandardWindowKind {
         case session
         case weekly
-        case monthly
 
         var id: String {
             switch self {
             case .session: "codex-session"
             case .weekly: "codex-weekly"
-            case .monthly: "codex-monthly"
             }
         }
     }
