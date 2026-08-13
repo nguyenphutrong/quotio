@@ -386,13 +386,11 @@ nonisolated struct AuthFile: Codable, Identifiable, Hashable, Sendable {
             // so filename-based keys keep same-email Plus/Team accounts distinct.
             return name.codexFilenameKey
         }
-        if providerType == .copilot {
-            if let account, !account.isEmpty {
-                return account
-            }
-            if let filenameKey = name.copilotFilenameKey {
-                return filenameKey
-            }
+        if providerType == .copilot,
+           let key = CopilotQuotaFetcher.canonicalAccountKey(filename: name, username: account) {
+            // Same canonical rule as CopilotQuotaFetcher / DirectAuthFileService (#404):
+            // identity field first, `github-copilot-*` filename suffix otherwise.
+            return key
         }
         if let email = email, !email.isEmpty {
             return email

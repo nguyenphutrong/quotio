@@ -1880,6 +1880,31 @@ final class QuotaViewModel {
         await refreshQuota(for: provider)
     }
 
+    /// Runs a provider-scoped Copilot refresh and reconciles the result.
+    ///
+    /// `MonitorRefreshCoordinator.refresh` merges `previous` into the fetcher
+    /// output, so reconciling only the fetcher output is not enough: a Copilot-only
+    /// refresh would re-store the stale filename key that the merge carried over.
+    /// The reconciliation therefore runs on the *merged* dictionary, matching what
+    /// `refreshQuotasDirectly` does for the full refresh (#404).
+    nonisolated static func refreshCopilotThroughCoordinator(
+        coordinator: MonitorRefreshCoordinator,
+        fetcher: CopilotQuotaFetcher,
+        previous: [String: ProviderQuotaData],
+        credentialAvailability: MonitorCredentialAvailability,
+        authDir: String = "~/.cli-proxy-api",
+        operation: @escaping @Sendable () async -> [String: ProviderQuotaData]
+    ) async -> [String: ProviderQuotaData] {
+        let merged = await coordinator.refresh(
+            provider: .copilot,
+            force: true,
+            previous: previous,
+            credentialAvailability: credentialAvailability,
+            operation: operation
+        )
+        return await fetcher.reconcileLegacyAliases(in: merged, authDir: authDir)
+    }
+
     private func refreshMonitorProvider(_ provider: AIProvider) async {
         let coordinator = monitorCoordinator
         let previous = providerQuotas[provider] ?? [:]
@@ -1920,7 +1945,12 @@ final class QuotaViewModel {
             }
         case .copilot:
             let fetcher = copilotFetcher
-            fresh = await coordinatedRefresh {
+            fresh = await Self.refreshCopilotThroughCoordinator(
+                coordinator: coordinator,
+                fetcher: fetcher,
+                previous: previous,
+                credentialAvailability: credentialAvailability
+            ) {
                 await fetcher.fetchAllCopilotQuotas(includeMonitorCredentials: true)
             }
         case .kiro:
@@ -2447,7 +2477,7 @@ final class QuotaViewModel {
                         filenameWithoutExtension,
                         file.filename.copilotFilenameKey,
                         file.email,
-                    ]
+                    ] + file.legacyIdentityKeys.map { $0 as String? }
                 )
             }
         }

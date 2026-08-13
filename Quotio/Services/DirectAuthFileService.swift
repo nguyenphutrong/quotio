@@ -21,7 +21,11 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
     let filePath: String
     let source: AuthFileSource
     let filename: String
-    
+    /// Identity fields this file also matches, but which are not the canonical
+    /// key. Older Quotio versions keyed Copilot files by the JSON `login` field;
+    /// those keys must still migrate onto the canonical key (#404).
+    nonisolated var legacyIdentityKeys: [String] = []
+
     /// Source location of the auth file
     enum AuthFileSource: String, Sendable {
         case cliProxyApi = "~/.cli-proxy-api"
@@ -57,13 +61,9 @@ struct DirectAuthFile: Identifiable, Sendable, Hashable {
         if provider == .codex {
             return filename.codexFilenameKey
         }
-        if provider == .copilot {
-            if let login, !login.isEmpty {
-                return login
-            }
-            if let filenameKey = filename.copilotFilenameKey {
-                return filenameKey
-            }
+        if provider == .copilot,
+           let key = CopilotQuotaFetcher.canonicalAccountKey(filename: filename, username: login) {
+            return key
         }
         if provider == .kiro {
             if let email = email, !email.isEmpty {
@@ -172,9 +172,25 @@ actor DirectAuthFileService {
         
         // Extract metadata
         var email = json["email"] as? String
-        // Copilot auth files written by CLIProxyAPI store the GitHub handle as
-        // "username"; older files may use "login".
-        let login = json["login"] as? String ?? json["username"] as? String
+        var login = json["login"] as? String
+        var legacyIdentityKeys: [String] = []
+        if provider == .copilot {
+            // Copilot auth files written by CLIProxyAPI store the GitHub handle as
+            // "username"; older files use "login". The precedence must match
+            // CopilotQuotaFetcher, otherwise the direct-auth item and the quota
+            // result key the same file differently and #404 comes back.
+            let rawLogin = json["login"] as? String
+            login = CopilotQuotaFetcher.canonicalIdentityField(
+                username: json["username"] as? String,
+                login: rawLogin
+            )
+            // Releases before this fix keyed the file by `login`; keep that value
+            // as a migration alias when `username` now wins.
+            if let rawLogin = rawLogin?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !rawLogin.isEmpty, rawLogin != login {
+                legacyIdentityKeys.append(rawLogin)
+            }
+        }
         let accountType = json["account_type"] as? String
         
         // For Kiro: if email is empty, try to use provider (e.g., "Google") as identifier
@@ -201,7 +217,8 @@ actor DirectAuthFileService {
             accountType: accountType,
             filePath: filePath,
             source: .cliProxyApi,
-            filename: filename
+            filename: filename,
+            legacyIdentityKeys: legacyIdentityKeys
         )
     }
     
