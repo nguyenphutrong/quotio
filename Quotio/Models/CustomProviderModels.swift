@@ -246,10 +246,91 @@ struct CustomHeader: Codable, Identifiable, Hashable, Sendable {
     /// Non-alphanumeric characters allowed in an HTTP header field name (RFC 7230 token)
     private static let validNameSpecials = Set("!#$%&'*+-.^_`|~")
 
+    /// RFC 7230 optional whitespace: the only characters stripped when normalizing.
+    /// Deliberately narrower than `CharacterSet.whitespaces` (which also covers
+    /// U+00A0 and friends) so normalization never silently rewrites a value that
+    /// validation would otherwise reject.
+    private static let optionalWhitespace = CharacterSet(charactersIn: " \t")
+
     /// Whether the given string is a valid HTTP header field name (RFC 7230 token: ASCII letters, digits, and select punctuation)
     static func isValidName(_ name: String) -> Bool {
         !name.isEmpty && name.allSatisfy { character in
             character.isASCII && (character.isLetter || character.isNumber || validNameSpecials.contains(character))
+        }
+    }
+
+    /// Whether the given string is a valid HTTP header field value (RFC 7230 `field-value`:
+    /// horizontal tab, space, and visible US-ASCII).
+    ///
+    /// CR/LF and other control characters must be rejected rather than escaped: CFNetwork
+    /// either drops such a header or folds it into the previous one, Go's outbound HTTP
+    /// stack refuses to send it, and a literal newline inside a YAML scalar is folded into
+    /// a space when CLIProxyAPI parses the config back — silently changing the secret.
+    /// Non-ASCII is rejected because its wire encoding is not interoperable (RFC 9110 §5.5).
+    static func isValidValue(_ value: String) -> Bool {
+        value.unicodeScalars.allSatisfy { scalar in
+            scalar.value == 0x09 || (scalar.value >= 0x20 && scalar.value <= 0x7E)
+        }
+    }
+
+    /// This header in canonical form: surrounding RFC 7230 optional whitespace removed
+    /// from both the name and the value.
+    var normalized: CustomHeader {
+        CustomHeader(
+            id: id,
+            key: key.trimmingCharacters(in: Self.optionalWhitespace),
+            value: value.trimmingCharacters(in: Self.optionalWhitespace)
+        )
+    }
+
+    /// The canonical representation of an editor-entered header list: every entry
+    /// normalized, entries without a name dropped.
+    ///
+    /// This is the single form that may be persisted, validated, emitted into the
+    /// CLIProxyAPI config, or attached to a `URLRequest` — see `CustomProvider.effectiveHeaders`.
+    static func canonicalized(_ headers: [CustomHeader]) -> [CustomHeader] {
+        headers.map(\.normalized).filter { !$0.key.isEmpty }
+    }
+
+    /// Validation errors for a canonical header list (as produced by `canonicalized(_:)`).
+    /// Each problem is reported at most once so the alert stays readable.
+    static func validationErrors(in headers: [CustomHeader]) -> [String] {
+        var errors: [String] = []
+        var seenNames = Set<String>()
+        var reportedInvalidName = false
+        var reportedInvalidValue = false
+        var reportedDuplicateName = false
+
+        for header in headers {
+            if !isValidName(header.key), !reportedInvalidName {
+                errors.append("customProviders.error.headerNameInvalid".localizedStatic())
+                reportedInvalidName = true
+            }
+            if !isValidValue(header.value), !reportedInvalidValue {
+                errors.append("customProviders.error.headerValueInvalid".localizedStatic())
+                reportedInvalidValue = true
+            }
+            if !seenNames.insert(header.key.lowercased()).inserted, !reportedDuplicateName {
+                errors.append("customProviders.error.headerNameDuplicate".localizedStatic())
+                reportedDuplicateName = true
+            }
+        }
+
+        return errors
+    }
+}
+
+extension URLRequest {
+    /// Attach a canonical custom header list to this request.
+    ///
+    /// Both outgoing request paths in the provider editor (Fetch Models and the mandatory
+    /// pre-save connection test) go through here, so neither can drift from the header set
+    /// that is validated, persisted, and written to the CLIProxyAPI config.
+    /// - Parameter headers: headers already normalized via `CustomHeader.canonicalized(_:)`
+    ///   or read from `CustomProvider.effectiveHeaders`.
+    mutating func applyCustomHeaders(_ headers: [CustomHeader]) {
+        for header in headers {
+            setValue(header.value, forHTTPHeaderField: header.key)
         }
     }
 }
@@ -379,21 +460,9 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
         }
 
         if type.supportsCustomHeaders {
-            var seenHeaderNames = Set<String>()
-            var reportedInvalidName = false
-            var reportedDuplicateName = false
-            for header in headers {
-                let name = header.key.trimmingCharacters(in: .whitespaces)
-                guard !name.isEmpty else { continue }
-                if !CustomHeader.isValidName(name), !reportedInvalidName {
-                    errors.append("customProviders.error.headerNameInvalid".localizedStatic())
-                    reportedInvalidName = true
-                }
-                if !seenHeaderNames.insert(name.lowercased()).inserted, !reportedDuplicateName {
-                    errors.append("customProviders.error.headerNameDuplicate".localizedStatic())
-                    reportedDuplicateName = true
-                }
-            }
+            // Validate the canonical form, not the raw form: normalization happens once
+            // and every consumer (YAML, model fetch, connection test) sees that same set.
+            errors.append(contentsOf: CustomHeader.validationErrors(in: CustomHeader.canonicalized(headers)))
         }
 
         return errors
@@ -402,6 +471,23 @@ struct CustomProvider: Codable, Identifiable, Hashable, Sendable {
     /// Check if provider is valid
     var isValid: Bool {
         validate().isEmpty
+    }
+
+    /// The one representation of this provider's custom headers that any consumer may use:
+    /// the generated CLIProxyAPI YAML, the pre-save connection test, and the Fetch Models
+    /// request all read this property, so the editor, the outgoing requests, the persisted
+    /// provider, and the proxy config always agree on the exact header set.
+    ///
+    /// Entries are canonicalized (surrounding optional whitespace stripped, unnamed entries
+    /// dropped) and then filtered to wire-safe name/value pairs. The filter is defence in
+    /// depth: `validate()` refuses to save anything it would drop, but a provider decoded
+    /// from storage that predates that validation must still not produce a corrupt request
+    /// or an invalid config.
+    var effectiveHeaders: [CustomHeader] {
+        guard type.supportsCustomHeaders else { return [] }
+        return CustomHeader.canonicalized(headers).filter {
+            CustomHeader.isValidName($0.key) && CustomHeader.isValidValue($0.value)
+        }
     }
 }
 
@@ -426,19 +512,9 @@ extension CustomProvider {
         }
     }
 
-    /// Headers that are safe to emit into the YAML config:
-    /// non-empty, RFC 7230 token names only (invalid names are rejected by validation)
-    private var emittableHeaders: [CustomHeader] {
-        headers.compactMap { header in
-            let name = header.key.trimmingCharacters(in: .whitespaces)
-            guard CustomHeader.isValidName(name) else { return nil }
-            return CustomHeader(id: header.id, key: name, value: header.value)
-        }
-    }
-
     /// Render the custom headers map at the given indentation level (in spaces)
     private func headersYAML(indent: Int) -> String {
-        let entries = emittableHeaders
+        let entries = effectiveHeaders
         guard !entries.isEmpty else { return "" }
 
         let pad = String(repeating: " ", count: indent)
@@ -449,10 +525,46 @@ extension CustomProvider {
         return yaml
     }
 
-    private static func escapedYAMLString(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
+    /// Escape a string for a YAML double-quoted scalar.
+    ///
+    /// Covers the complete double-quoted escape set rather than just `\` and `"`, so the
+    /// emitted config round-trips to the exact input string. Without this a literal CR/LF
+    /// is folded into a space by the YAML parser (silently changing a secret) and other C0
+    /// controls make the generated CLIProxyAPI config unparseable. Header names and values
+    /// carrying such characters are already rejected before persistence; this keeps the
+    /// emitter correct on its own for any string it is handed.
+    static func escapedYAMLString(_ value: String) -> String {
+        var escaped = ""
+        escaped.reserveCapacity(value.unicodeScalars.count)
+
+        for scalar in value.unicodeScalars {
+            switch scalar {
+            case "\\": escaped += "\\\\"
+            case "\"": escaped += "\\\""
+            case "\u{00}": escaped += "\\0"
+            case "\u{07}": escaped += "\\a"
+            case "\u{08}": escaped += "\\b"
+            case "\u{09}": escaped += "\\t"
+            case "\u{0A}": escaped += "\\n"
+            case "\u{0B}": escaped += "\\v"
+            case "\u{0C}": escaped += "\\f"
+            case "\u{0D}": escaped += "\\r"
+            case "\u{1B}": escaped += "\\e"
+            case "\u{85}": escaped += "\\N"
+            case "\u{A0}": escaped += "\\_"
+            case "\u{2028}": escaped += "\\L"
+            case "\u{2029}": escaped += "\\P"
+            default:
+                // Remaining C0/C1 controls and DEL have no dedicated escape.
+                if scalar.value < 0x20 || scalar.value == 0x7F || (0x80...0x9F).contains(scalar.value) {
+                    escaped += String(format: "\\x%02X", scalar.value)
+                } else {
+                    escaped.unicodeScalars.append(scalar)
+                }
+            }
+        }
+
+        return escaped
     }
 
     private func generateOpenAICompatibilityYAML() -> String {

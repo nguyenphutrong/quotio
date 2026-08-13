@@ -4258,6 +4258,35 @@
         }
       }
     },
+    "customProviders.error.headerValueInvalid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom header values must be printable ASCII, without line breaks or control characters"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les valeurs d'en-têtes personnalisés doivent être en ASCII imprimable, sans saut de ligne ni caractère de contrôle"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giá trị header tùy chỉnh phải là ký tự ASCII in được, không có ký tự xuống dòng hoặc ký tự điều khiển"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义标头值必须为可打印的 ASCII 字符，不能包含换行符或控制字符"
+          }
+        }
+      }
+    },
     "customProviders.fetchModels" : {
       "extractionState" : "stale",
       "localizations" : {
