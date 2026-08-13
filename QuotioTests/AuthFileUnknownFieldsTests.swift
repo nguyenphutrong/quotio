@@ -177,6 +177,144 @@ final class AuthFileUnknownFieldsTests: XCTestCase {
         assertUnknownFieldsPreserved(in: output)
     }
 
+    // MARK: - Numeric fidelity on the native Codex Keychain refresh path
+
+    /// Mirrors `CodexCLIQuotaFetcher.persistNativeKeychainRefresh`: decode the whole
+    /// credential blob, swap the rotated tokens, re-encode the whole blob.
+    private func simulateNativeKeychainRefresh(_ record: Data) throws -> Data {
+        var auth = try JSONDecoder().decode(CodexCLIAuthFile.self, from: record)
+        var tokens = try XCTUnwrap(auth.tokens)
+        tokens.accessToken = "new-access"
+        tokens.refreshToken = "new-refresh"
+        tokens.idToken = "new-id"
+        auth.tokens = tokens
+        return try JSONEncoder().encode(auth)
+    }
+
+    /// An unknown integer larger than `Int64.max` must survive the refresh unchanged.
+    /// Narrowing to `Double` would rewrite it as `9.223372036854776e+18`.
+    func testNativeKeychainRefreshPreservesIntegerBeyondInt64() throws {
+        let json = """
+        {
+            "OPENAI_API_KEY": "sk-test",
+            "last_refresh": "2026-01-01T00:00:00Z",
+            "tokens": {
+                "id_token": "old-id",
+                "access_token": "old-access",
+                "refresh_token": "old-refresh",
+                "account_id": "acct-1",
+                "token_serial": 9223372036854775809
+            },
+            "install_id": 9223372036854775809,
+            "ratio": 0.1
+        }
+        """.data(using: .utf8)!
+
+        let refreshed = try simulateNativeKeychainRefresh(json)
+        let text = String(decoding: refreshed, as: UTF8.self)
+
+        XCTAssertTrue(text.contains("\"install_id\":9223372036854775809"), text)
+        XCTAssertTrue(text.contains("\"token_serial\":9223372036854775809"), text)
+        XCTAssertFalse(text.contains("9.223372036854776e+18"), text)
+        // Base-10 fractions keep their literal form too.
+        XCTAssertTrue(text.contains("\"ratio\":0.1"), text)
+
+        // The refresh itself still did its job.
+        let output = try jsonObject(refreshed)
+        XCTAssertEqual(output["OPENAI_API_KEY"] as? String, "sk-test")
+        XCTAssertEqual(output["last_refresh"] as? String, "2026-01-01T00:00:00Z")
+        let tokens = try XCTUnwrap(output["tokens"] as? NSDictionary)
+        XCTAssertEqual(tokens["access_token"] as? String, "new-access")
+        XCTAssertEqual(tokens["refresh_token"] as? String, "new-refresh")
+        XCTAssertEqual(tokens["id_token"] as? String, "new-id")
+        XCTAssertEqual(tokens["account_id"] as? String, "acct-1")
+    }
+
+    /// A literal such as `1e400` overflows every numeric type Foundation can build.
+    /// It must not abort the decode — token refresh has to keep working, and every
+    /// other unknown field has to survive.
+    func testNativeKeychainRefreshSurvivesUnrepresentableExponent() throws {
+        let json = """
+        {
+            "OPENAI_API_KEY": "sk-test",
+            "last_refresh": "2026-01-01T00:00:00Z",
+            "tokens": {
+                "id_token": "old-id",
+                "access_token": "old-access",
+                "refresh_token": "old-refresh",
+                "account_id": "acct-1",
+                "overflowing_token_field": 1e400,
+                "kept_token_field": "keep-me"
+            },
+            "overflowing": 1e400,
+            "underflowing": 1e-400,
+            "kept": "still-here",
+            "install_id": 9223372036854775809
+        }
+        """.data(using: .utf8)!
+
+        let refreshed = try simulateNativeKeychainRefresh(json)
+        let output = try jsonObject(refreshed)
+
+        // Refresh completed and unrelated fields are untouched.
+        XCTAssertEqual(output["OPENAI_API_KEY"] as? String, "sk-test")
+        XCTAssertEqual(output["last_refresh"] as? String, "2026-01-01T00:00:00Z")
+        XCTAssertEqual(output["kept"] as? String, "still-here")
+        XCTAssertTrue(
+            String(decoding: refreshed, as: UTF8.self).contains("\"install_id\":9223372036854775809"),
+            String(decoding: refreshed, as: UTF8.self)
+        )
+
+        let tokens = try XCTUnwrap(output["tokens"] as? NSDictionary)
+        XCTAssertEqual(tokens["access_token"] as? String, "new-access")
+        XCTAssertEqual(tokens["refresh_token"] as? String, "new-refresh")
+        XCTAssertEqual(tokens["id_token"] as? String, "new-id")
+        XCTAssertEqual(tokens["kept_token_field"] as? String, "keep-me")
+
+        // Values Foundation cannot represent are dropped, never fatal.
+        XCTAssertNil(output["overflowing"])
+        XCTAssertNil(output["underflowing"])
+        XCTAssertNil(tokens["overflowing_token_field"])
+    }
+
+    // MARK: - JSONValue numeric representation
+
+    func testJSONValueRepresentsNumbersAsDecimalWithoutNarrowing() throws {
+        let json = """
+        {
+            "beyond_int64": 9223372036854775809,
+            "beyond_uint64": 18446744073709551616,
+            "fraction": 0.1,
+            "integral": 3,
+            "beyond_decimal_exponent": 1e308,
+            "numeric_string": "123",
+            "flag": true
+        }
+        """.data(using: .utf8)!
+
+        let values = try JSONDecoder().decode([String: JSONValue].self, from: json)
+
+        XCTAssertEqual(values["beyond_int64"], .number(Decimal(string: "9223372036854775809")!))
+        XCTAssertEqual(values["beyond_uint64"], .number(Decimal(string: "18446744073709551616")!))
+        XCTAssertEqual(values["fraction"], .number(Decimal(string: "0.1")!))
+        XCTAssertEqual(values["integral"], .number(3))
+        // Outside Decimal's exponent range but finite: Double keeps it rather than dropping it.
+        XCTAssertEqual(values["beyond_decimal_exponent"], .double(1e308))
+        // Numbers must not swallow string/bool literals.
+        XCTAssertEqual(values["numeric_string"], .string("123"))
+        XCTAssertEqual(values["flag"], .bool(true))
+    }
+
+    func testJSONValueReportsUnrepresentableNumbersDistinctly() throws {
+        let json = "{\"v\":1e400}".data(using: .utf8)!
+        XCTAssertThrowsError(try JSONDecoder().decode([String: JSONValue].self, from: json)) { error in
+            XCTAssertTrue(
+                error is JSONValue.UnrepresentableNumberError,
+                "expected UnrepresentableNumberError, got \(error)"
+            )
+        }
+    }
+
     // MARK: - Full-fidelity round trip
 
     func testRoundTripWithoutModificationIsLossless() throws {

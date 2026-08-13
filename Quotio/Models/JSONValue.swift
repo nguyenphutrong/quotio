@@ -15,12 +15,29 @@ import Foundation
 /// decode → modify → encode cycle instead of being silently dropped.
 nonisolated indirect enum JSONValue: Codable, Equatable, Sendable {
     case string(String)
-    case int(Int)
+    /// Any JSON number Foundation can materialize exactly.
+    ///
+    /// `Decimal` is used rather than `Int`/`Double` because it is a base-10 type:
+    /// it keeps integers larger than `Int64.max` (e.g. `9223372036854775809`) and
+    /// decimal fractions (e.g. `0.1`) byte-identical across a decode → encode cycle,
+    /// where `Double` would round them to the nearest binary value.
+    case number(Decimal)
+    /// Finite literals outside `Decimal`'s exponent range (roughly |exponent| > 128)
+    /// but still representable as `Double`, e.g. `1e308`.
     case double(Double)
     case bool(Bool)
     case object([String: JSONValue])
     case array([JSONValue])
     case null
+
+    /// Thrown when a JSON number literal falls outside every numeric type Foundation
+    /// can materialize (e.g. `1e400`, which overflows both `Decimal` and `Double`).
+    ///
+    /// RFC 8259 §6 explicitly allows a parser to limit the range it accepts, and
+    /// Foundation does: `JSONDecoder` reports "not representable in Swift" and
+    /// `JSONSerialization` rejects the whole document. Unknown fields carrying such a
+    /// literal are therefore skipped instead of aborting the auth-file decode.
+    nonisolated struct UnrepresentableNumberError: Error, Equatable {}
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -28,9 +45,9 @@ nonisolated indirect enum JSONValue: Codable, Equatable, Sendable {
             self = .null
         } else if let value = try? container.decode(Bool.self) {
             self = .bool(value)
-        } else if let value = try? container.decode(Int.self) {
-            self = .int(value)
-        } else if let value = try? container.decode(Double.self) {
+        } else if let value = try? container.decode(Decimal.self) {
+            self = .number(value)
+        } else if let value = try? container.decode(Double.self), value.isFinite {
             self = .double(value)
         } else if let value = try? container.decode(String.self) {
             self = .string(value)
@@ -39,10 +56,7 @@ nonisolated indirect enum JSONValue: Codable, Equatable, Sendable {
         } else if let value = try? container.decode([JSONValue].self) {
             self = .array(value)
         } else {
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Unsupported JSON value"
-            )
+            throw UnrepresentableNumberError()
         }
     }
 
@@ -50,7 +64,7 @@ nonisolated indirect enum JSONValue: Codable, Equatable, Sendable {
         var container = encoder.singleValueContainer()
         switch self {
         case .string(let value): try container.encode(value)
-        case .int(let value): try container.encode(value)
+        case .number(let value): try container.encode(value)
         case .double(let value): try container.encode(value)
         case .bool(let value): try container.encode(value)
         case .object(let value): try container.encode(value)
@@ -79,11 +93,19 @@ nonisolated extension JSONValue {
     ///
     /// Call from a custom `init(from:)` after decoding the typed fields to
     /// capture unrecognized fields so they can be re-emitted on encode.
+    ///
+    /// A field carrying a number literal Foundation cannot represent is skipped
+    /// rather than propagated, so one exotic unknown value can never make an auth
+    /// file undecodable and break token refresh.
     static func unknownFields(from decoder: Decoder, excluding knownKeys: Set<String>) throws -> [String: JSONValue] {
         let container = try decoder.container(keyedBy: JSONCodingKey.self)
         var fields: [String: JSONValue] = [:]
         for key in container.allKeys where !knownKeys.contains(key.stringValue) {
-            fields[key.stringValue] = try container.decode(JSONValue.self, forKey: key)
+            do {
+                fields[key.stringValue] = try container.decode(JSONValue.self, forKey: key)
+            } catch is UnrepresentableNumberError {
+                continue
+            }
         }
         return fields
     }
