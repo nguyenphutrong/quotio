@@ -297,12 +297,12 @@ nonisolated enum YubiKeySecretVault {
             guard let privateKey = privateKey(for: identity),
                   let attributes = SecKeyCopyAttributes(privateKey) as? [String: Any],
                   isPIVToken(attributes[kSecAttrTokenID as String] as? String),
-                  let publicKey = SecKeyCopyPublicKey(privateKey),
+                  let certificate = certificate(for: identity),
+                  // Export the certificate's public key, not one derived from the
+                  // token's private key, which makes macOS request authorization.
+                  let publicKey = SecCertificateCopyKey(certificate),
                   SecKeyIsAlgorithmSupported(publicKey, .encrypt, .rsaEncryptionOAEPSHA256),
                   let external = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else { return nil }
-            var certificate: SecCertificate?
-            guard SecIdentityCopyCertificate(identity, &certificate) == errSecSuccess,
-                  let certificate else { return nil }
             let summary = SecCertificateCopySubjectSummary(certificate) as String? ?? "PIV key"
             let fingerprint = SHA256.hash(data: external).map { String(format: "%02x", $0) }.joined()
             return YubiKeyPIVIdentity(id: fingerprint, name: summary, fingerprint: fingerprint, identity: identity)
@@ -375,9 +375,13 @@ nonisolated enum YubiKeySecretVault {
     }
 
     private static func publicKey(for identity: SecIdentity) -> SecKey? {
-        var key: SecKey?
-        guard SecIdentityCopyPrivateKey(identity, &key) == errSecSuccess, let key else { return nil }
-        return SecKeyCopyPublicKey(key)
+        guard let certificate = certificate(for: identity) else { return nil }
+        return SecCertificateCopyKey(certificate)
+    }
+
+    private static func certificate(for identity: SecIdentity) -> SecCertificate? {
+        var certificate: SecCertificate?
+        return SecIdentityCopyCertificate(identity, &certificate) == errSecSuccess ? certificate : nil
     }
 
     private static func privateKey(for identity: SecIdentity) -> SecKey? {
