@@ -853,6 +853,7 @@ struct DangerZoneSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @State private var showResetConfirmation = false
     @State private var isResetting = false
+    @State private var resetFailures: [String] = []
 
     var body: some View {
         Section {
@@ -879,12 +880,42 @@ struct DangerZoneSection: View {
             Button("settings.reset.confirmButton".localized(), role: .destructive) {
                 isResetting = true
                 Task {
-                    await AppResetService.performFullReset(using: viewModel)
+                    // A complete reset never returns: it relaunches and exits.
+                    // Reaching this line means part of the wipe failed, so the
+                    // app stays open and reports what is still on the machine
+                    // instead of presenting a dirty install as a fresh one.
+                    let report = await AppResetService.performFullReset(using: viewModel)
+                    isResetting = false
+                    resetFailures = report.failures
                 }
             }
             Button("action.cancel".localized(), role: .cancel) {}
         } message: {
             Text("settings.reset.confirmMessage".localized())
+        }
+        .alert(
+            "settings.reset.failedTitle".localized(),
+            isPresented: Binding(
+                get: { !resetFailures.isEmpty },
+                set: { if !$0 { resetFailures = [] } }
+            )
+        ) {
+            Button("settings.reset.confirmButton".localized(), role: .destructive) {
+                resetFailures = []
+                isResetting = true
+                Task {
+                    let report = await AppResetService.performFullReset(using: viewModel)
+                    isResetting = false
+                    resetFailures = report.failures
+                }
+            }
+            Button("action.ok".localized(), role: .cancel) {}
+        } message: {
+            Text(
+                "settings.reset.failedMessage".localized()
+                    + "\n\n"
+                    + resetFailures.joined(separator: "\n")
+            )
         }
     }
 }

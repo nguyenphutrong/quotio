@@ -570,6 +570,20 @@ actor MonitorRefreshCoordinator {
         self.snapshots = snapshots
     }
 
+    /// Cancels and awaits every in-flight provider refresh.
+    ///
+    /// Refreshes persist to `Quotio/Monitor/snapshots-v1.json`; a full app reset
+    /// must let them finish (or be cancelled) before deleting that file,
+    /// otherwise a late write re-creates the state the reset removed (#373).
+    func quiesce() async {
+        let running = Array(inFlight.values)
+        inFlight.removeAll()
+        for task in running { task.cancel() }
+        for task in running { _ = await task.value }
+        retryAfter.removeAll()
+        issues.removeAll()
+    }
+
     func bootstrap() async -> MonitorRefreshBatch {
         let quotas = await snapshots.load()
         return MonitorRefreshBatch(

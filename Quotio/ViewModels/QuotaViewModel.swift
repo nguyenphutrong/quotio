@@ -177,6 +177,10 @@ final class QuotaViewModel {
     @ObservationIgnored private var isWarmupRunning = false
     @ObservationIgnored private var warmupRunningAccounts: Set<WarmupAccountKey> = []
 
+    /// Latched by `quiesceForReset()`. Once set, every scheduler restart path is
+    /// a no-op so nothing can re-arm itself between the quiesce and the wipe.
+    @ObservationIgnored private(set) var isQuiescedForReset = false
+
     struct WarmupStatus: Sendable {
         var isRunning: Bool = false
         var lastRun: Date?
@@ -297,6 +301,9 @@ final class QuotaViewModel {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
+                // A reset removes the whole defaults domain, which fires this
+                // notification; reacting would re-configure fetchers mid-wipe.
+                guard !self.isQuiescedForReset else { return }
                 let currentProxyURL = self.normalizedProxyURL(UserDefaults.standard.string(forKey: "proxyURL"))
                 guard currentProxyURL != self.lastProxyURL else { return }
                 self.lastProxyURL = currentProxyURL
@@ -362,6 +369,7 @@ final class QuotaViewModel {
     }
     
     private func restartAutoRefresh() {
+        guard !isQuiescedForReset else { return }
         if modeManager.isMonitorMode {
             startQuotaOnlyAutoRefresh()
         } else if proxyManager.proxyStatus.running {
@@ -1049,7 +1057,8 @@ final class QuotaViewModel {
 
     private func restartWarmupScheduler() {
         warmupTask?.cancel()
-        
+
+        guard !isQuiescedForReset else { return }
         guard !warmupSettings.enabledAccountIds.isEmpty else { return }
         
         let now = Date()
@@ -1426,6 +1435,42 @@ final class QuotaViewModel {
         }
     }
     
+    /// Shuts every Quotio writer down and waits for it, for `AppResetService`.
+    ///
+    /// `stopProxy()` is deliberately not reused: it is normal runtime behaviour
+    /// and re-arms the warmup scheduler, fires the tunnel stop and the API
+    /// client invalidation as detached tasks it never awaits. A reset then
+    /// deletes the stores those tasks still hold, and relaunches a second
+    /// process on top. This path instead latches `isQuiescedForReset` (so no
+    /// scheduler can re-arm), then cancels and awaits every writer before
+    /// returning, so nothing can rewrite state during the wipe/handoff.
+    func quiesceForReset() async {
+        isQuiescedForReset = true
+
+        // 1. Cancel and await the periodic quota/warmup schedulers.
+        refreshTask?.cancel()
+        warmupTask?.cancel()
+        await refreshTask?.value
+        await warmupTask?.value
+        refreshTask = nil
+        warmupTask = nil
+
+        // 2. Stop the proxy process and drop the management client, awaiting
+        //    the URLSession invalidation instead of leaving it detached.
+        proxyManager.stop()
+        let clientToInvalidate = _apiClient
+        _apiClient = nil
+        await clientToInvalidate?.invalidate()
+
+        // 3. Stop request tracking and drain its pending disk writes
+        //    (request-history.json lives inside a directory the reset removes).
+        requestTracker.stop()
+        await requestTracker.drainPendingWrites()
+
+        // 4. Await in-flight Monitor refreshes, which persist snapshots-v1.json.
+        await monitorCoordinator.quiesce()
+    }
+
     func toggleProxy() async {
         if proxyManager.proxyStatus.running {
             stopProxy()

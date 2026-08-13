@@ -42,6 +42,27 @@ final class TelemetryService {
         }
     }
 
+    /// Stops PostHog before a full app reset deletes its on-disk store.
+    ///
+    /// PostHog 3.64.1 persists the anonymous/device identity, config and the
+    /// pending event queues under
+    /// `~/Library/Application Support/<bundle-id>/<project-token>` and flushes
+    /// them on a background timer. Without closing the SDK first, that timer can
+    /// re-create the directory after `AppResetService` removed it, so the
+    /// "fresh install" would keep the old anonymous identity (issue #373).
+    ///
+    /// `close()` tears down the queues and timers; the in-memory identity is
+    /// dropped first so no further event can be written while shutting down.
+    func shutdownForReset() {
+        guard isConfigured || isStarted else { return }
+
+        PostHogSDK.shared.optOut()
+        PostHogSDK.shared.reset()
+        PostHogSDK.shared.close()
+        isStarted = false
+        isConfigured = false
+    }
+
     private func startIfPossible() {
         guard let config = makeConfiguration() else { return }
         let installID = settings.ensureAnonymousInstallID()

@@ -44,10 +44,25 @@ enum KeychainHelper {
             + legacyRemoteServices + legacyLocalServices + legacyWarpServices
     }
 
+    /// Outcome of wiping one keychain service. `AppResetService` aggregates
+    /// these so an incomplete wipe is reported instead of silently relaunching
+    /// into a "fresh" install that still carries credentials (issue #373).
+    nonisolated enum ServiceWipeResult: Equatable {
+        /// No item under the service remains.
+        case cleared
+        /// Deletion or the post-deletion verification failed.
+        case failed(OSStatus)
+    }
+
     /// Delete every generic-password item under a service, regardless of
     /// account name (management keys are stored per config ID and Monitor
     /// credentials per provider account, so account names are dynamic).
-    nonisolated static func deleteAllItems(service: String) {
+    ///
+    /// Always verifies afterwards that the service holds no items, so neither a
+    /// silent `SecItemDelete` failure nor exhausting the defensive loop can be
+    /// mistaken for a completed wipe.
+    @discardableResult
+    nonisolated static func deleteAllItems(service: String) -> ServiceWipeResult {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -56,16 +71,38 @@ enum KeychainHelper {
         // SecItemDelete removes all matches on modern keychains, but loop
         // defensively (with a cap) for file-based keychains that delete one
         // item per call.
+        var deleteStatus: OSStatus = errSecSuccess
         for _ in 0..<128 {
             let status = performSecurityCall {
                 SecItemDelete(query as CFDictionary)
             }
             if status == errSecSuccess { continue }
             if status != errSecItemNotFound {
+                deleteStatus = status
                 Log.keychain("Keychain wipe failed (service: \(service)): \(status)")
             }
-            return
+            break
         }
+
+        // The loop above can also fall through after 128 successful deletes, so
+        // emptiness is asserted rather than assumed.
+        let remaining = performSecurityCall {
+            SecItemCopyMatching(
+                [
+                    kSecClass as String: kSecClassGenericPassword,
+                    kSecAttrService as String: service,
+                    kSecMatchLimit as String: kSecMatchLimitOne,
+                ] as CFDictionary,
+                nil
+            )
+        }
+
+        guard remaining == errSecItemNotFound, deleteStatus == errSecSuccess else {
+            let status = deleteStatus == errSecSuccess ? remaining : deleteStatus
+            Log.keychain("Keychain service not empty after wipe (service: \(service)): \(status)")
+            return .failed(status)
+        }
+        return .cleared
     }
 
     static func saveManagementKey(_ key: String, for configId: String) {

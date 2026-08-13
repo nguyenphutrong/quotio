@@ -93,7 +93,19 @@ final class RequestTracker {
         isActive = false
         NSLog("[RequestTracker] Stopped tracking")
     }
-    
+
+    /// Waits until every `saveToDisk` job already queued has finished.
+    ///
+    /// `saveToDisk` hands the write to a serial background queue and returns
+    /// immediately, so a reset that deletes `request-history.json` right after
+    /// `stop()` could be overtaken by an in-flight write that re-creates it.
+    /// Enqueuing a barrier on the same serial queue drains whatever is pending.
+    func drainPendingWrites() async {
+        await withCheckedContinuation { continuation in
+            fileQueue.async { continuation.resume() }
+        }
+    }
+
     /// Add a request from ProxyBridge callback
     func addRequest(from metadata: ProxyBridge.RequestMetadata) {
         let attempts = metadata.fallbackAttempts.isEmpty ? nil : metadata.fallbackAttempts

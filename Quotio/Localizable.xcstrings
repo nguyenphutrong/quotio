@@ -110,25 +110,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This permanently deletes all Quotio settings and data: preferences, onboarding state, imported IDE quotas, Monitor account snapshots, Quotio's Keychain records (management keys, Warp tokens, Monitor sign-ins), the managed proxy binary, and its config. Provider auth files in ~/.cli-proxy-api and credentials owned by your CLI tools are kept. Quotio will relaunch as a fresh install."
+            "value" : "This permanently deletes all Quotio settings and data: preferences, onboarding state, imported IDE quotas, Monitor account snapshots, request history, Quotio's Keychain records (management keys, Warp tokens, Monitor sign-ins), the managed proxy binary and its config, the anonymous usage-analytics identity, and the Antigravity device profiles in ~/.quotio. Launch at Login is turned off. Provider auth files in ~/.cli-proxy-api, the Antigravity app's own database, and credentials owned by your CLI tools are kept. Quotio will relaunch as a fresh install."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cette action supprime définitivement tous les réglages et données de Quotio : préférences, état d'intégration, quotas IDE importés, instantanés des comptes Monitor, enregistrements Trousseau de Quotio (clés de gestion, jetons Warp, connexions Monitor), le binaire du proxy géré et sa configuration. Les fichiers d'authentification des fournisseurs dans ~/.cli-proxy-api et les identifiants de vos outils CLI sont conservés. Quotio redémarrera comme une nouvelle installation."
+            "value" : "Cette action supprime définitivement tous les réglages et données de Quotio : préférences, état d'intégration, quotas IDE importés, instantanés des comptes Monitor, historique des requêtes, enregistrements Trousseau de Quotio (clés de gestion, jetons Warp, connexions Monitor), le binaire du proxy géré et sa configuration, l'identifiant anonyme d'analyse d'utilisation, ainsi que les profils d'appareil Antigravity dans ~/.quotio. Le lancement à l'ouverture de session est désactivé. Les fichiers d'authentification des fournisseurs dans ~/.cli-proxy-api, la base de données de l'app Antigravity et les identifiants de vos outils CLI sont conservés. Quotio redémarrera comme une nouvelle installation."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Thao tác này xóa vĩnh viễn toàn bộ cài đặt và dữ liệu của Quotio: tùy chọn, trạng thái onboarding, hạn mức IDE đã nhập, ảnh chụp tài khoản Monitor, các bản ghi Keychain của Quotio (khóa quản lý, token Warp, đăng nhập Monitor), tệp nhị phân proxy được quản lý và cấu hình của nó. Tệp xác thực nhà cung cấp trong ~/.cli-proxy-api và thông tin đăng nhập của các công cụ CLI của bạn được giữ nguyên. Quotio sẽ khởi động lại như một bản cài đặt mới."
+            "value" : "Thao tác này xóa vĩnh viễn toàn bộ cài đặt và dữ liệu của Quotio: tùy chọn, trạng thái onboarding, hạn mức IDE đã nhập, ảnh chụp tài khoản Monitor, lịch sử yêu cầu, các bản ghi Keychain của Quotio (khóa quản lý, token Warp, đăng nhập Monitor), tệp nhị phân proxy được quản lý và cấu hình của nó, danh tính phân tích sử dụng ẩn danh, cùng các hồ sơ thiết bị Antigravity trong ~/.quotio. Tùy chọn khởi động cùng đăng nhập sẽ được tắt. Tệp xác thực nhà cung cấp trong ~/.cli-proxy-api, cơ sở dữ liệu riêng của ứng dụng Antigravity và thông tin đăng nhập của các công cụ CLI của bạn được giữ nguyên. Quotio sẽ khởi động lại như một bản cài đặt mới."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此操作将永久删除 Quotio 的所有设置和数据：偏好设置、引导状态、已导入的 IDE 配额、Monitor 账户快照、Quotio 的钥匙串记录（管理密钥、Warp 令牌、Monitor 登录信息）、托管的代理二进制文件及其配置。~/.cli-proxy-api 中的提供商认证文件和您 CLI 工具自己的凭据将被保留。Quotio 将以全新安装状态重新启动。"
+            "value" : "此操作将永久删除 Quotio 的所有设置和数据：偏好设置、引导状态、已导入的 IDE 配额、Monitor 账户快照、请求历史、Quotio 的钥匙串记录（管理密钥、Warp 令牌、Monitor 登录信息）、托管的代理二进制文件及其配置、匿名使用分析标识，以及 ~/.quotio 中的 Antigravity 设备配置文件。登录时启动将被关闭。~/.cli-proxy-api 中的提供商认证文件、Antigravity 应用自身的数据库以及您 CLI 工具自己的凭据将被保留。Quotio 将以全新安装状态重新启动。"
           }
         }
       }
@@ -161,30 +161,86 @@
         }
       }
     },
-    "settings.reset.footer" : {
+    "settings.reset.failedMessage" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Completely resets Quotio to a fresh install: removes all settings, Quotio's Keychain records, and local app data, then relaunches. Your provider auth files (~/.cli-proxy-api) and other tools' credentials are not touched."
+            "value" : "Quotio could not remove everything, so it did not relaunch and this install is not clean. Try again, or remove the items below manually and then reset."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Réinitialise complètement Quotio comme une nouvelle installation : supprime tous les réglages, les enregistrements Trousseau de Quotio et les données locales de l'app, puis relance. Vos fichiers d'authentification des fournisseurs (~/.cli-proxy-api) et les identifiants des autres outils ne sont pas modifiés."
+            "value" : "Quotio n'a pas pu tout supprimer ; il n'a donc pas redémarré et cette installation n'est pas propre. Réessayez, ou supprimez manuellement les éléments ci-dessous puis relancez la réinitialisation."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Đặt lại hoàn toàn Quotio về trạng thái cài đặt mới: xóa mọi cài đặt, bản ghi Keychain của Quotio và dữ liệu ứng dụng cục bộ, sau đó khởi động lại. Tệp xác thực nhà cung cấp (~/.cli-proxy-api) và thông tin đăng nhập của các công cụ khác không bị ảnh hưởng."
+            "value" : "Quotio không thể xóa hết mọi thứ nên đã không khởi động lại và bản cài đặt này chưa sạch. Hãy thử lại, hoặc xóa thủ công các mục bên dưới rồi đặt lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将 Quotio 完全重置为全新安装状态：删除所有设置、Quotio 的钥匙串记录和本地应用数据，然后重新启动。您的提供商认证文件（~/.cli-proxy-api）及其他工具的凭据不会受到影响。"
+            "value" : "Quotio 未能删除全部内容，因此没有重新启动，此安装并不干净。请重试，或先手动删除以下项目再执行重置。"
+          }
+        }
+      }
+    },
+    "settings.reset.failedTitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Incomplete"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réinitialisation incomplète"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đặt lại chưa hoàn tất"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置未完成"
+          }
+        }
+      }
+    },
+    "settings.reset.footer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completely resets Quotio to a fresh install: removes all settings, Quotio's Keychain records, local app data and the anonymous analytics identity, turns off Launch at Login, then relaunches. Your provider auth files (~/.cli-proxy-api) and other tools' credentials are not touched."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réinitialise complètement Quotio comme une nouvelle installation : supprime tous les réglages, les enregistrements Trousseau de Quotio, les données locales de l'app et l'identifiant d'analyse anonyme, désactive le lancement à l'ouverture de session, puis relance. Vos fichiers d'authentification des fournisseurs (~/.cli-proxy-api) et les identifiants des autres outils ne sont pas modifiés."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đặt lại hoàn toàn Quotio về trạng thái cài đặt mới: xóa mọi cài đặt, bản ghi Keychain của Quotio, dữ liệu ứng dụng cục bộ và danh tính phân tích ẩn danh, tắt khởi động cùng đăng nhập, sau đó khởi động lại. Tệp xác thực nhà cung cấp (~/.cli-proxy-api) và thông tin đăng nhập của các công cụ khác không bị ảnh hưởng."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 Quotio 完全重置为全新安装状态：删除所有设置、Quotio 的钥匙串记录、本地应用数据和匿名分析标识，关闭登录时启动，然后重新启动。您的提供商认证文件（~/.cli-proxy-api）及其他工具的凭据不会受到影响。"
           }
         }
       }
