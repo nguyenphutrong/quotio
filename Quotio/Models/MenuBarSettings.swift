@@ -400,6 +400,24 @@ final class RefreshSettingsManager {
 
 // MARK: - Menu Bar Quota Display Item
 
+/// Claude quota windows rendered together in the compact menu bar layout.
+nonisolated struct MenuBarQuotaWindows: Equatable, Sendable {
+    let fiveHourPercentage: Double
+    let weeklyPercentage: Double
+
+    static func claude(from models: [ModelQuota]) -> MenuBarQuotaWindows? {
+        let fiveHour = models.first { $0.name == "five-hour-session" }?.percentage
+        let weekly = models.first { $0.name == "seven-day-weekly" }?.percentage
+
+        guard fiveHour != nil || weekly != nil else { return nil }
+
+        return MenuBarQuotaWindows(
+            fiveHourPercentage: fiveHour ?? -1,
+            weeklyPercentage: weekly ?? -1
+        )
+    }
+}
+
 /// Data for displaying a single quota item in menu bar
 struct MenuBarQuotaDisplayItem: Identifiable {
     let id: String
@@ -408,8 +426,13 @@ struct MenuBarQuotaDisplayItem: Identifiable {
     let percentage: Double
     let provider: AIProvider
     var isForbidden: Bool = false
+    var quotaWindows: MenuBarQuotaWindows? = nil
     
     var statusColor: Color {
+        statusColor(for: percentage)
+    }
+
+    func statusColor(for percentage: Double) -> Color {
         if isForbidden { return .orange }
         if percentage > 50 { return .green }
         if percentage > 20 { return .orange }
@@ -433,6 +456,7 @@ final class MenuBarSettingsManager {
     private let menuBarMaxItemsKey = "menuBarMaxItems"
     private let quotaDisplayModeKey = "quotaDisplayMode"
     private let quotaDisplayStyleKey = "quotaDisplayStyle"
+    private let stackClaudeQuotaWindowsKey = "menuBarStackClaudeQuotaWindows"
     private let hideSensitiveInfoKey = "hideSensitiveInfo"
     private let totalUsageModeKey = "totalUsageMode"
     private let modelAggregationModeKey = "modelAggregationMode"
@@ -478,6 +502,11 @@ final class MenuBarSettingsManager {
     /// Visual style for quota display
     var quotaDisplayStyle: QuotaDisplayStyle {
         didSet { defaults.set(quotaDisplayStyle.rawValue, forKey: quotaDisplayStyleKey) }
+    }
+
+    /// Whether Claude's 5-hour and weekly windows are stacked in the menu bar.
+    var stackClaudeQuotaWindows: Bool {
+        didSet { defaults.set(stackClaudeQuotaWindows, forKey: stackClaudeQuotaWindowsKey) }
     }
     
     /// Whether to hide sensitive information (emails, account names)
@@ -533,6 +562,10 @@ final class MenuBarSettingsManager {
         self.colorMode = MenuBarColorMode(rawValue: defaults.string(forKey: colorModeKey) ?? "") ?? .colored
         self.quotaDisplayMode = QuotaDisplayMode(rawValue: defaults.string(forKey: quotaDisplayModeKey) ?? "") ?? .used
         self.quotaDisplayStyle = QuotaDisplayStyle(rawValue: defaults.string(forKey: quotaDisplayStyleKey) ?? "") ?? .card
+        if defaults.object(forKey: stackClaudeQuotaWindowsKey) == nil {
+            defaults.set(true, forKey: stackClaudeQuotaWindowsKey)
+        }
+        self.stackClaudeQuotaWindows = defaults.bool(forKey: stackClaudeQuotaWindowsKey)
         self.selectedItems = Self.loadSelectedItems(from: defaults, key: selectedItemsKey)
 
         // Load and clamp menuBarMaxItems, then persist the clamped value

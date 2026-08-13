@@ -16828,6 +16828,35 @@
         }
       }
     },
+    "settings.menubar.stackClaudeQuotaWindows" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stack Claude 5h and weekly quota"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empiler les quotas Claude sur 5 h et hebdomadaire"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xếp chồng quota Claude 5 giờ và hàng tuần"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "堆叠显示 Claude 5 小时和每周配额"
+          }
+        }
+      }
+    },
     "settings.networkAccess" : {
       "extractionState" : "stale",
       "localizations" : {

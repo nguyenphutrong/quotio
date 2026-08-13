@@ -1723,6 +1723,13 @@ struct MenuBarSettingsSection: View {
             set: { settings.colorMode = $0 }
         )
     }
+
+    private var stackClaudeQuotaWindowsBinding: Binding<Bool> {
+        Binding(
+            get: { settings.stackClaudeQuotaWindows },
+            set: { settings.stackClaudeQuotaWindows = $0 }
+        )
+    }
     
     private var maxItemsBinding: Binding<Int> {
         Binding(
@@ -1752,6 +1759,11 @@ struct MenuBarSettingsSection: View {
                 Toggle("settings.menubar.showQuota".localized(), isOn: showQuotaBinding)
                 
                 if settings.showQuotaInMenuBar {
+                    Toggle(
+                        "settings.menubar.stackClaudeQuotaWindows".localized(),
+                        isOn: stackClaudeQuotaWindowsBinding
+                    )
+
                     HStack {
                         Text("settings.menubar.maxItems".localized())
                         Spacer()

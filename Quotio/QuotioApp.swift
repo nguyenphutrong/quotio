@@ -111,6 +111,7 @@ final class AppBootstrap {
 
             var displayPercent: Double = -1
             var isForbidden = false
+            var quotaWindows: MenuBarQuotaWindows?
 
             if let accountQuotas = viewModel.providerQuotas[provider],
                let quotaData = resolveQuotaData(
@@ -122,6 +123,9 @@ final class AppBootstrap {
                 if !quotaData.models.isEmpty {
                     let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
                     displayPercent = menuBarSettings.totalUsagePercent(models: models)
+                    if provider == .claude && menuBarSettings.stackClaudeQuotaWindows {
+                        quotaWindows = MenuBarQuotaWindows.claude(from: quotaData.models)
+                    }
                 }
             }
 
@@ -131,7 +135,8 @@ final class AppBootstrap {
                 accountShort: selectedItem.accountKey,
                 percentage: displayPercent,
                 provider: provider,
-                isForbidden: isForbidden
+                isForbidden: isForbidden,
+                quotaWindows: quotaWindows
             ))
         }
 
@@ -225,6 +230,9 @@ struct QuotioApp: App {
                         bootstrap.updateStatusBar()
                     }
                     .onChange(of: menuBarSettings.colorMode) {
+                        bootstrap.updateStatusBar()
+                    }
+                    .onChange(of: menuBarSettings.stackClaudeQuotaWindows) {
                         bootstrap.updateStatusBar()
                     }
                     .onChange(of: menuBarSettings.totalUsageMode) {
