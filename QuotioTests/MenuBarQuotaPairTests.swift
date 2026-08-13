@@ -83,15 +83,12 @@ final class MenuBarQuotaPairTests: XCTestCase {
         XCTAssertNil(MenuBarQuotaPair.resolve(for: .cursor, from: Array(models.prefix(1))))
     }
 
-    func testMissingStableMetricUsesUnknownSentinel() throws {
+    func testCodexWithoutSessionDoesNotUseStackedLayout() {
         let models = [
             ModelQuota(name: "codex-weekly", percentage: 42, resetTime: ""),
         ]
 
-        let pair = try XCTUnwrap(MenuBarQuotaPair.resolve(for: .codex, from: models))
-
-        XCTAssertEqual(pair.top.remainingPercentage, -1)
-        XCTAssertEqual(pair.bottom.remainingPercentage, 42)
+        XCTAssertNil(MenuBarQuotaPair.resolve(for: .codex, from: models))
     }
 
     func testUnknownValuesDoNotOverrideKnownMinimum() throws {

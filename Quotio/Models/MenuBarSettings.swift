@@ -427,9 +427,14 @@ nonisolated struct MenuBarQuotaPair: Equatable, Sendable {
                 bottomLabelKey: "quota.metric.weekly"
             )
         case .codex:
+            let sessionNames: Set<String> = ["codex-session", "codex-spark"]
+            guard let sessionPercentage = minimumPercentage(in: models, named: sessionNames),
+                  sessionPercentage >= 0 else {
+                return nil
+            }
             return makePair(
                 from: models,
-                topNames: ["codex-session", "codex-spark"],
+                topNames: sessionNames,
                 topLabelKey: "quota.metric.session",
                 bottomNames: ["codex-weekly", "codex-spark-weekly"],
                 bottomLabelKey: "quota.metric.weekly"
