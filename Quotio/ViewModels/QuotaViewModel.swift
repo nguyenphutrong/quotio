@@ -2475,7 +2475,8 @@ final class QuotaViewModel {
                let canonicalKey = candidates.first {
                 migratedItem = MenuBarQuotaItem(
                     provider: provider.rawValue,
-                    accountKey: canonicalKey
+                    accountKey: canonicalKey,
+                    bucketSelection: item.bucketSelection
                 )
             }
 

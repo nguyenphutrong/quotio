@@ -1742,6 +1742,34 @@ struct MenuBarSettingsSection: View {
         )
     }
     
+    /// Selections offered for an item: automatic plus whatever this account's
+    /// buckets actually declare. The stored selection is always included so a
+    /// choice made while the account was loaded does not vanish during a refresh.
+    private func bucketOptions(for item: MenuBarQuotaItem) -> [MenuBarBucketSelection] {
+        let models = viewModel.menuBarQuotaData(for: item)?.models ?? []
+        var options = MenuBarBucketResolver.options(for: models)
+        let current = item.resolvedBucketSelection
+        if !options.contains(current) {
+            options.append(current)
+        }
+        return options
+    }
+
+    private func bucketOptionLabel(_ option: MenuBarBucketSelection) -> String {
+        if let key = option.localizationKey {
+            return key.localized()
+        }
+        guard case .bucket(let name) = option else { return "" }
+        return ModelQuota(name: name, percentage: 0, resetTime: "").displayName
+    }
+
+    private func bucketSelectionBinding(for item: MenuBarQuotaItem) -> Binding<MenuBarBucketSelection> {
+        Binding(
+            get: { settings.bucketSelection(for: item) },
+            set: { settings.setBucketSelection($0, for: item) }
+        )
+    }
+
     var body: some View {
         Section {
             Toggle("settings.showInDock".localized(), isOn: showInDockBinding)
@@ -1772,6 +1800,31 @@ struct MenuBarSettingsSection: View {
                         Text("settings.menubar.monochrome".localized()).tag(MenuBarColorMode.monochrome)
                     }
                     .pickerStyle(.segmented)
+
+                    if !settings.selectedItems.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("settings.menubar.bucket.title".localized())
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+
+                            ForEach(settings.selectedItems) { item in
+                                Picker(
+                                    selection: bucketSelectionBinding(for: item)
+                                ) {
+                                    ForEach(bucketOptions(for: item), id: \.self) { option in
+                                        Text(bucketOptionLabel(option)).tag(option)
+                                    }
+                                } label: {
+                                    Text(item.accountKey.masked(if: settings.hideSensitiveInfo))
+                                }
+                            }
+
+                            Text("settings.menubar.bucket.help".localized())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
             }
         } header: {

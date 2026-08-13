@@ -228,7 +228,7 @@ actor CopilotQuotaFetcher {
         
         do {
             let entitlement = try await fetchEntitlement(accessToken: authFile.accessToken)
-            return convertToQuotaData(entitlement: entitlement)
+            return Self.convertToQuotaData(entitlement: entitlement)
         } catch {
             Log.quota("Copilot quota fetch error: \(error)")
             return nil
@@ -275,7 +275,7 @@ actor CopilotQuotaFetcher {
 
     private func fetchQuota(accessToken: String) async -> ProviderQuotaData? {
         do {
-            return convertToQuotaData(entitlement: try await fetchEntitlement(accessToken: accessToken))
+            return Self.convertToQuotaData(entitlement: try await fetchEntitlement(accessToken: accessToken))
         } catch {
             return nil
         }
@@ -291,7 +291,7 @@ actor CopilotQuotaFetcher {
                 guard let credential = await MonitorCredentialVault.shared.credential(for: account.id) else { continue }
                 do {
                     let entitlement = try await fetchEntitlement(accessToken: credential.accessToken)
-                    results[account.accountKey] = convertToQuotaData(entitlement: entitlement)
+                    results[account.accountKey] = Self.convertToQuotaData(entitlement: entitlement)
                 } catch {
                     continue
                 }
@@ -304,7 +304,7 @@ actor CopilotQuotaFetcher {
                 let entitlement = try await fetchEntitlement(accessToken: token)
                 let key = await fetchGitHubLogin(accessToken: token) ?? "GitHub Copilot"
                 if results[key] == nil {
-                    results[key] = convertToQuotaData(entitlement: entitlement)
+                    results[key] = Self.convertToQuotaData(entitlement: entitlement)
                 }
             } catch {
                 continue
@@ -427,7 +427,9 @@ actor CopilotQuotaFetcher {
         return try JSONDecoder().decode(CopilotEntitlement.self, from: data)
     }
     
-    private func convertToQuotaData(entitlement: CopilotEntitlement) -> ProviderQuotaData {
+    /// Pure mapping from the entitlement payload to quota buckets.
+    /// `nonisolated static` so it can be exercised directly from tests.
+    nonisolated static func convertToQuotaData(entitlement: CopilotEntitlement) -> ProviderQuotaData {
         var models: [ModelQuota] = []
         let resetTimeString = entitlement.resetDate?.ISO8601Format() ?? ""
 

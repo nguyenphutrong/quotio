@@ -112,15 +112,16 @@ final class AppBootstrap {
             var displayPercent: Double = -1
             var isForbidden = false
 
-            if let accountQuotas = viewModel.providerQuotas[provider],
-               let quotaData = resolveQuotaData(
-                   for: selectedItem,
-                   provider: provider,
-                   accountQuotas: accountQuotas
-               ) {
+            if let quotaData = viewModel.menuBarQuotaData(for: selectedItem) {
                 isForbidden = quotaData.isForbidden
                 if !quotaData.models.isEmpty {
-                    displayPercent = menuBarSettings.totalUsagePercent(models: quotaData.models)
+                    // The item's chosen bucket wins; the aggregate total is the
+                    // fallback when that bucket is absent for this account.
+                    displayPercent = MenuBarBucketResolver.percent(
+                        models: quotaData.models,
+                        selection: selectedItem.resolvedBucketSelection,
+                        aggregation: menuBarSettings.modelAggregationMode
+                    ) ?? menuBarSettings.totalUsagePercent(models: quotaData.models)
                 }
             }
 
@@ -137,25 +138,6 @@ final class AppBootstrap {
         return items
     }
 
-    private func resolveQuotaData(
-        for selectedItem: MenuBarQuotaItem,
-        provider: AIProvider,
-        accountQuotas: [String: ProviderQuotaData]
-    ) -> ProviderQuotaData? {
-        if let quotaData = accountQuotas[selectedItem.accountKey] {
-            return quotaData
-        }
-
-        let cleanKey = selectedItem.accountKey.hasSuffix(".json")
-            ? String(selectedItem.accountKey.dropLast(".json".count))
-            : selectedItem.accountKey
-        if let quotaData = accountQuotas[cleanKey] {
-            return quotaData
-        }
-
-        guard provider == .codex else { return nil }
-        return accountQuotas[selectedItem.accountKey.codexFilenameKey]
-    }
 }
 
 @main

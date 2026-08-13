@@ -46,8 +46,17 @@ extension String {
 struct MenuBarQuotaItem: Codable, Identifiable, Hashable {
     let provider: String      // AIProvider.rawValue
     let accountKey: String    // email or account identifier
-    
+
+    /// Which quota bucket this item shows. Absent in selections persisted before
+    /// the bucket selector existed, which read as `.auto`.
+    var bucketSelection: MenuBarBucketSelection?
+
     var id: String { "\(provider)_\(accountKey)" }
+
+    /// The effective selection, defaulting to the aggregate value.
+    var resolvedBucketSelection: MenuBarBucketSelection {
+        bucketSelection ?? .auto
+    }
     
     /// Get the AIProvider enum value
     var aiProvider: AIProvider? {
@@ -524,7 +533,9 @@ final class MenuBarSettingsManager {
     }
     
     func addItem(_ item: MenuBarQuotaItem) {
-        guard !selectedItems.contains(item) else { return }
+        // Compare by identity: the bucket selection is an attribute of the item,
+        // not part of which account it points at.
+        guard !selectedItems.contains(where: { $0.id == item.id }) else { return }
         guard selectedItems.count < menuBarMaxItems else { return }
         if !showQuotaInMenuBar {
             showQuotaInMenuBar = true
@@ -543,7 +554,7 @@ final class MenuBarSettingsManager {
 
     /// Check if item is selected
     func isSelected(_ item: MenuBarQuotaItem) -> Bool {
-        selectedItems.contains(item)
+        selectedItems.contains { $0.id == item.id }
     }
 
     /// Toggle item selection (marks as user-modified to prevent auto-add)
@@ -556,6 +567,18 @@ final class MenuBarSettingsManager {
         }
     }
     
+    /// Read the bucket selection stored for an item
+    func bucketSelection(for item: MenuBarQuotaItem) -> MenuBarBucketSelection {
+        selectedItems.first { $0.id == item.id }?.resolvedBucketSelection ?? .auto
+    }
+
+    /// Store the bucket a menu bar item should display
+    func setBucketSelection(_ selection: MenuBarBucketSelection, for item: MenuBarQuotaItem) {
+        guard let index = selectedItems.firstIndex(where: { $0.id == item.id }) else { return }
+        guard selectedItems[index].resolvedBucketSelection != selection else { return }
+        selectedItems[index].bucketSelection = selection == .auto ? nil : selection
+    }
+
     /// Remove items that no longer exist in quota data
     func pruneInvalidItems(validItems: [MenuBarQuotaItem]) {
         let validIds = Set(validItems.map(\.id))
