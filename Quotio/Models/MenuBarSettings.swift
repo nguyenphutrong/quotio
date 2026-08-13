@@ -445,7 +445,8 @@ nonisolated struct MenuBarQuotaPair: Equatable, Sendable {
                 topNames: ["amp-agent-usage"],
                 topLabelKey: "amp.quota.agent",
                 bottomNames: ["amp-orb-usage"],
-                bottomLabelKey: "amp.quota.orb"
+                bottomLabelKey: "amp.quota.orb",
+                requiresBoth: true
             )
         case .antigravity:
             return makePair(
@@ -461,9 +462,18 @@ nonisolated struct MenuBarQuotaPair: Equatable, Sendable {
                 topNames: ["devin-daily"],
                 topLabelKey: "quota.metric.daily",
                 bottomNames: ["devin-weekly"],
-                bottomLabelKey: "quota.metric.weekly"
+                bottomLabelKey: "quota.metric.weekly",
+                requiresBoth: true
             )
         case .cursor:
+            guard models.contains(where: {
+                $0.name == "on-demand"
+                    && ($0.limit ?? 0) > 0
+                    && $0.remaining != nil
+                    && $0.percentage >= 0
+            }) else {
+                return nil
+            }
             return makePair(
                 from: models,
                 topNames: ["plan-usage"],

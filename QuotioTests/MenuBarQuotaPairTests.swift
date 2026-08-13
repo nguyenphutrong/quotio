@@ -44,6 +44,14 @@ final class MenuBarQuotaPairTests: XCTestCase {
         XCTAssertEqual(pair.bottom, MenuBarQuotaMetric(labelKey: "amp.quota.orb", remainingPercentage: 98))
     }
 
+    func testAmpWithOneMetricDoesNotUseStackedLayout() {
+        let models = [
+            ModelQuota(name: "amp-agent-usage", percentage: 64, resetTime: ""),
+        ]
+
+        XCTAssertNil(MenuBarQuotaPair.resolve(for: .amp, from: models))
+    }
+
     func testAntigravityUsesLowestProviderLimitForEachWindow() throws {
         let models = [
             ModelQuota(name: "antigravity-gemini-session", percentage: 72, resetTime: ""),
@@ -70,10 +78,18 @@ final class MenuBarQuotaPairTests: XCTestCase {
         XCTAssertEqual(pair.bottom, MenuBarQuotaMetric(labelKey: "quota.metric.weekly", remainingPercentage: 49))
     }
 
-    func testCursorRequiresPlanAndOnDemandUsage() throws {
+    func testDevinWithoutDailyDoesNotUseStackedLayout() {
         let models = [
-            ModelQuota(name: "plan-usage", percentage: 80, resetTime: ""),
-            ModelQuota(name: "on-demand", percentage: 25, resetTime: ""),
+            ModelQuota(name: "devin-weekly", percentage: 49, resetTime: ""),
+        ]
+
+        XCTAssertNil(MenuBarQuotaPair.resolve(for: .devin, from: models))
+    }
+
+    func testCursorRequiresBoundedOnDemandUsage() throws {
+        let models = [
+            ModelQuota(name: "plan-usage", percentage: 80, resetTime: "", used: 20, limit: 100, remaining: 80),
+            ModelQuota(name: "on-demand", percentage: 25, resetTime: "", used: 75, limit: 100, remaining: 25),
         ]
 
         let pair = try XCTUnwrap(MenuBarQuotaPair.resolve(for: .cursor, from: models))
@@ -81,6 +97,12 @@ final class MenuBarQuotaPairTests: XCTestCase {
         XCTAssertEqual(pair.top, MenuBarQuotaMetric(labelKey: "quota.metric.planUsage", remainingPercentage: 80))
         XCTAssertEqual(pair.bottom, MenuBarQuotaMetric(labelKey: "quota.metric.onDemand", remainingPercentage: 25))
         XCTAssertNil(MenuBarQuotaPair.resolve(for: .cursor, from: Array(models.prefix(1))))
+
+        let unboundedModels = [
+            models[0],
+            ModelQuota(name: "on-demand", percentage: 100, resetTime: "", used: 75),
+        ]
+        XCTAssertNil(MenuBarQuotaPair.resolve(for: .cursor, from: unboundedModels))
     }
 
     func testCodexWithoutSessionDoesNotUseStackedLayout() {
