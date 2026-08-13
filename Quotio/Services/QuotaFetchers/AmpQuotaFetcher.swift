@@ -71,10 +71,13 @@ nonisolated enum AmpQuotaParser {
             #"(?im)^\s*Amp Free:\s*([\d.]+)%\s+remaining(?:\s+today)?(?:\s*\(resets\s+daily\))?"#,
             in: text
         ), let remaining = validPercentage(match[0]) {
+            // This shape is the "resets daily" free allowance.
             models.append(ModelQuota(
                 name: "amp-free",
                 percentage: remaining,
-                resetTime: nextMidnightUTC(after: now)
+                resetTime: nextMidnightUTC(after: now),
+                window: .daily,
+                billing: .subscription
             ))
         }
 
@@ -85,9 +88,10 @@ nonisolated enum AmpQuotaParser {
         ), let agent = validPercentage(subscription[1]),
            let orb = validPercentage(subscription[2]) {
             plan = subscription[0]
+            // Matched from the CLI's "Subscription <plan>: ..." line.
             let resetTime = relativeResetTime(value: subscription[3], unit: subscription[4], after: now)
-            models.append(ModelQuota(name: "amp-agent-usage", percentage: agent, resetTime: resetTime))
-            models.append(ModelQuota(name: "amp-orb-usage", percentage: orb, resetTime: resetTime))
+            models.append(ModelQuota(name: "amp-agent-usage", percentage: agent, resetTime: resetTime, billing: .subscription))
+            models.append(ModelQuota(name: "amp-orb-usage", percentage: orb, resetTime: resetTime, billing: .subscription))
         } else {
             for match in allCaptures(
                 #"(?im)^\s*(agent|other|orb)(?:\s+(?:usage|quota))?\s*:\s*([\d.]+)%"#,

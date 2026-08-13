@@ -284,52 +284,18 @@ enum ModelAggregationMode: String, CaseIterable, Identifiable, Codable {
 // MARK: - Usage Calculation Helpers
 
 extension MenuBarSettingsManager {
-    /// Compute total usage percentage using session/extra logic
-    /// Treats extra-usage, codex-extra, on-demand as extra models; all others as session
-    func totalUsagePercent(models: [(name: String, percentage: Double)]) -> Double {
-        let extraModelNames: Set<String> = ["extra-usage", "codex-extra", "on-demand"]
-        
-        var sessionPercentages: [Double] = []
-        var extraPercentages: [Double] = []
-        
-        for model in models {
-            if extraModelNames.contains(model.name) {
-                extraPercentages.append(model.percentage)
-            } else {
-                sessionPercentages.append(model.percentage)
-            }
-        }
-        
-        let sessionRemaining = aggregateModelPercentages(sessionPercentages)
-        let extraRemaining = aggregateModelPercentages(extraPercentages)
-        
-        let hasExtraModels = !extraPercentages.isEmpty
-        
-        switch totalUsageMode {
-        case .sessionOnly:
-            if sessionRemaining >= 0 {
-                return sessionRemaining
-            }
-            if hasExtraModels {
-                return extraRemaining
-            }
-            return -1
-            
-        case .combined:
-            let session = sessionRemaining >= 0 ? sessionRemaining : -1
-            let extra = extraRemaining >= 0 ? extraRemaining : -1
-            
-            if session < 0 && extra < 0 {
-                return -1
-            }
-            if session < 0 {
-                return extra
-            }
-            if extra < 0 {
-                return session
-            }
-            return max(session, extra)
-        }
+    /// Compute total usage percentage using session/extra logic.
+    ///
+    /// A bucket counts as paid extra usage only when the fetcher that produced it
+    /// declared `billing == .paidOverage`. Buckets with no declared billing kind
+    /// stay in the subscription group, so an unclassified bucket is never dropped
+    /// from `.sessionOnly` totals.
+    func totalUsagePercent(models: [ModelQuota]) -> Double {
+        QuotaUsageCalculator.totalUsagePercent(
+            models: models,
+            totalMode: totalUsageMode,
+            aggregation: modelAggregationMode
+        )
     }
     
     func calculateTotalUsagePercent(sessionPercent: Double?, extraPercent: Double?) -> Double {
@@ -358,15 +324,7 @@ extension MenuBarSettingsManager {
     }
     
     func aggregateModelPercentages(_ percentages: [Double]) -> Double {
-        let validPercentages = percentages.filter { $0 >= 0 }
-        guard !validPercentages.isEmpty else { return -1 }
-        
-        switch modelAggregationMode {
-        case .lowest:
-            return validPercentages.min() ?? -1
-        case .average:
-            return validPercentages.reduce(0, +) / Double(validPercentages.count)
-        }
+        QuotaUsageCalculator.aggregate(percentages, mode: modelAggregationMode)
     }
 }
 

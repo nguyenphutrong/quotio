@@ -341,10 +341,13 @@ actor CursorQuotaFetcher {
                 resetTimeStr = ""
             }
             
+            // Cursor states no window length, only a billing cycle boundary, so the
+            // window stays unknown. The billing kind is known: this is plan quota.
             var planModel = ModelQuota(
                 name: "plan-usage",
                 percentage: plan.remainingPercentage,
-                resetTime: resetTimeStr
+                resetTime: resetTimeStr,
+                billing: .subscription
             )
             planModel.used = plan.used
             planModel.limit = plan.limit
@@ -362,10 +365,12 @@ actor CursorQuotaFetcher {
                 percentage = 100 // Unlimited or no limit set
             }
             
+            // `individualUsage.onDemand` is spend billed on top of the plan.
             var onDemandModel = ModelQuota(
                 name: "on-demand",
                 percentage: percentage,
-                resetTime: ""
+                resetTime: "",
+                billing: .paidOverage
             )
             onDemandModel.used = onDemand.used
             onDemandModel.limit = onDemand.limit
@@ -378,7 +383,8 @@ actor CursorQuotaFetcher {
             models.append(ModelQuota(
                 name: "cursor-usage",
                 percentage: info.isUnlimited ? 100 : -1,
-                resetTime: ""
+                resetTime: "",
+                billing: .subscription
             ))
         }
         

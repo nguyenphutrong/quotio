@@ -140,6 +140,16 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
     // Optional tooltip message (e.g., Warp bonus userFacingMessage)
     var tooltip: String?
 
+    /// Recurring window this bucket refills on, declared by the producing fetcher.
+    /// `nil` means the provider payload states no window (or the value was cached
+    /// by a build that predates this field). Never inferred from `name`.
+    var window: QuotaWindow?
+
+    /// How this bucket is paid for, declared by the producing fetcher.
+    /// `nil` means the provider payload gives no billing signal; it is treated as
+    /// "not paid overage". Never inferred from `name`.
+    var billing: QuotaBilling?
+
     init(
         name: String,
         percentage: Double,
@@ -148,7 +158,9 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         used: Int? = nil,
         limit: Int? = nil,
         remaining: Int? = nil,
-        tooltip: String? = nil
+        tooltip: String? = nil,
+        window: QuotaWindow? = nil,
+        billing: QuotaBilling? = nil
     ) {
         self.name = name
         self.percentage = percentage
@@ -158,6 +170,8 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
         self.limit = limit
         self.remaining = remaining
         self.tooltip = tooltip
+        self.window = window
+        self.billing = billing
     }
 
     var id: String { name }
@@ -734,7 +748,13 @@ actor AntigravityQuotaFetcher {
                         // Clamp to 0-100 range (API can return remainingFraction > 1.0)
                         let percentage = min(100, max(0, (quotaInfo.remainingFraction ?? 0) * 100))
                         let resetTime = quotaInfo.resetTime ?? ""
-                        models.append(ModelQuota(name: name, percentage: percentage, resetTime: resetTime))
+                        // Per-model pools: the endpoint states no window, so it stays unknown.
+                        models.append(ModelQuota(
+                            name: name,
+                            percentage: percentage,
+                            resetTime: resetTime,
+                            billing: .subscription
+                        ))
                     }
                 }
 
@@ -819,10 +839,14 @@ actor AntigravityQuotaFetcher {
                     continue
                 }
 
+                // The period is parsed once here, from the provider's own bucket
+                // descriptor, and carried explicitly so no consumer re-parses the name.
                 models.append(ModelQuota(
                     name: "antigravity-\(groupID)-\(period.id)",
                     percentage: (remainingFraction.clamped(to: 0...1) * 100).clamped(to: 0...100),
-                    resetTime: trimmedString(bucket["resetTime"] ?? bucket["reset_time"] ?? bucket["resetAt"] ?? bucket["reset_at"]) ?? ""
+                    resetTime: trimmedString(bucket["resetTime"] ?? bucket["reset_time"] ?? bucket["resetAt"] ?? bucket["reset_at"]) ?? "",
+                    window: period.window,
+                    billing: .subscription
                 ))
             }
         }
@@ -867,13 +891,13 @@ actor AntigravityQuotaFetcher {
         return nil
     }
 
-    private static func quotaSummaryPeriod(from label: String) -> (id: String, displayName: String)? {
+    private static func quotaSummaryPeriod(from label: String) -> (id: String, displayName: String, window: QuotaWindow)? {
         let lower = label.lowercased()
         if lower.contains("week") || lower.contains("7d") || lower.contains("seven") {
-            return ("weekly", "Weekly")
+            return ("weekly", "Weekly", .weekly)
         }
         if lower.contains("session") || lower.contains("5") || lower.contains("hour") {
-            return ("session", "Session")
+            return ("session", "Session", .session)
         }
         return nil
     }

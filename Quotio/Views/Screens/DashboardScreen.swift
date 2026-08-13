@@ -54,8 +54,7 @@ struct DashboardScreen: View {
         
         for (_, accountQuotas) in viewModel.providerQuotas {
             for (_, quotaData) in accountQuotas {
-                let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
-                let total = settings.totalUsagePercent(models: models)
+                let total = settings.totalUsagePercent(models: quotaData.models)
                 if total >= 0 {
                     allTotals.append(total)
                 }

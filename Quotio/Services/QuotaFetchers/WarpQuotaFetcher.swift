@@ -188,13 +188,16 @@ actor WarpQuotaFetcher {
                 percentage = 0
             }
 
+            // Warp reports only `nextRefreshTime`, never the refresh period, so the
+            // window stays unknown; the billing kind is known (plan request quota).
             models.append(ModelQuota(
                 name: "warp-usage",
                 percentage: percentage,
                 resetTime: stripMilliseconds(from: info.nextRefreshTime) ?? "",
                 used: used,
                 limit: limit,
-                remaining: remaining
+                remaining: remaining,
+                billing: .subscription
             ))
 
             let dateFormatter = ISO8601DateFormatter()

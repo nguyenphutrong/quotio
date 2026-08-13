@@ -541,20 +541,53 @@ actor ClaudeCodeQuotaFetcher {
 
     private func quotaData(from info: ClaudeCodeQuotaInfo) -> ProviderQuotaData? {
         var models: [ModelQuota] = []
+        // Window/billing come from which field of the Anthropic payload produced the
+        // bucket (`five_hour`, `seven_day*`, `extra_usage`), not from the bucket name.
         if let value = info.fiveHour {
-            models.append(ModelQuota(name: "five-hour-session", percentage: value.remaining, resetTime: value.resetsAt))
+            models.append(ModelQuota(
+                name: "five-hour-session",
+                percentage: value.remaining,
+                resetTime: value.resetsAt,
+                window: .session,
+                billing: .subscription
+            ))
         }
         if let value = info.sevenDay {
-            models.append(ModelQuota(name: "seven-day-weekly", percentage: value.remaining, resetTime: value.resetsAt))
+            models.append(ModelQuota(
+                name: "seven-day-weekly",
+                percentage: value.remaining,
+                resetTime: value.resetsAt,
+                window: .weekly,
+                billing: .subscription
+            ))
         }
         if let value = info.sevenDaySonnet {
-            models.append(ModelQuota(name: "seven-day-sonnet", percentage: value.remaining, resetTime: value.resetsAt))
+            models.append(ModelQuota(
+                name: "seven-day-sonnet",
+                percentage: value.remaining,
+                resetTime: value.resetsAt,
+                window: .weekly,
+                billing: .subscription
+            ))
         }
         if let value = info.sevenDayOpus {
-            models.append(ModelQuota(name: "seven-day-opus", percentage: value.remaining, resetTime: value.resetsAt))
+            models.append(ModelQuota(
+                name: "seven-day-opus",
+                percentage: value.remaining,
+                resetTime: value.resetsAt,
+                window: .weekly,
+                billing: .subscription
+            ))
         }
         if let extra = info.extraUsage, let remaining = extra.remaining {
-            var model = ModelQuota(name: "extra-usage", percentage: remaining, resetTime: "")
+            // `extra_usage` is the paid credit pool, capped by `monthly_limit`.
+            var model = ModelQuota(
+                name: "extra-usage",
+                percentage: remaining,
+                resetTime: "",
+                window: .monthly,
+                billing: .paidOverage
+            )
             if let used = extra.usedCredits, let limit = extra.monthlyLimit {
                 model.used = Int(used)
                 model.limit = Int(limit)

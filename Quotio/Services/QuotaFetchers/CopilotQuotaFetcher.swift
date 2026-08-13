@@ -431,13 +431,17 @@ actor CopilotQuotaFetcher {
         var models: [ModelQuota] = []
         let resetTimeString = entitlement.resetDate?.ISO8601Format() ?? ""
 
+        // Copilot entitlement quotas are monthly: both shapes are capped by
+        // `monthly_quotas` and reset on `quota_reset_date` / `quota_reset_date_utc`.
         // Method 1: Parse quota_snapshots (used by some plans)
         if let snapshots = entitlement.quotaSnapshots {
             if let chat = snapshots.chat, chat.unlimited != true {
                 models.append(ModelQuota(
                     name: "copilot-chat",
                     percentage: chat.calculatePercent(defaultTotal: 50),
-                    resetTime: resetTimeString
+                    resetTime: resetTimeString,
+                    window: .monthly,
+                    billing: .subscription
                 ))
             }
 
@@ -445,7 +449,9 @@ actor CopilotQuotaFetcher {
                 models.append(ModelQuota(
                     name: "copilot-completions",
                     percentage: completions.calculatePercent(defaultTotal: 2000),
-                    resetTime: resetTimeString
+                    resetTime: resetTimeString,
+                    window: .monthly,
+                    billing: .subscription
                 ))
             }
 
@@ -453,7 +459,9 @@ actor CopilotQuotaFetcher {
                 models.append(ModelQuota(
                     name: "copilot-premium",
                     percentage: premium.calculatePercent(defaultTotal: 50),
-                    resetTime: resetTimeString
+                    resetTime: resetTimeString,
+                    window: .monthly,
+                    billing: .subscription
                 ))
             }
         }
@@ -468,7 +476,9 @@ actor CopilotQuotaFetcher {
                 models.append(ModelQuota(
                     name: "copilot-chat",
                     percentage: percentage,
-                    resetTime: resetTimeString
+                    resetTime: resetTimeString,
+                    window: .monthly,
+                    billing: .subscription
                 ))
             }
 
@@ -478,7 +488,9 @@ actor CopilotQuotaFetcher {
                 models.append(ModelQuota(
                     name: "copilot-completions",
                     percentage: percentage,
-                    resetTime: resetTimeString
+                    resetTime: resetTimeString,
+                    window: .monthly,
+                    billing: .subscription
                 ))
             }
         }

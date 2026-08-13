@@ -57,8 +57,7 @@ struct QuotaScreen: View {
         
         var allTotals: [Double] = []
         for (_, quotaData) in accounts {
-            let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
-            let total = settings.totalUsagePercent(models: models)
+            let total = settings.totalUsagePercent(models: quotaData.models)
             if total >= 0 {
                 allTotals.append(total)
             }
