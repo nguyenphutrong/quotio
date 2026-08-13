@@ -9659,6 +9659,34 @@
         }
       }
     },
+    "logs.provider.tooltip" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Served by %1$@ · request protocol: %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Servi par %1$@ · protocole de requête : %2$@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Được phục vụ bởi %1$@ · giao thức yêu cầu: %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由 %1$@ 提供服务 · 请求协议：%2$@"
+          }
+        }
+      }
+    },
     "logs.provider.unknown" : {
       "localizations" : {
         "en" : {

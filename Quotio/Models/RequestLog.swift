@@ -163,26 +163,198 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
+// MARK: - Request Protocol
+
+/// The wire protocol (API shape) a request was made in, derived from its endpoint path.
+///
+/// This is deliberately *not* the provider. `/v1/chat/completions` is the OpenAI-compatible
+/// protocol, and Qwen, GLM, DeepSeek, Grok and every `openai-compatibility` custom provider
+/// speak it too, so the path alone says nothing about which account served the request.
+nonisolated enum RequestProtocol: String, Codable, Hashable, Sendable {
+    case anthropic
+    case openai
+    case gemini
+
+    var displayName: String {
+        switch self {
+        case .anthropic: return "Anthropic"
+        case .openai: return "OpenAI"
+        case .gemini: return "Gemini"
+        }
+    }
+
+    /// The provider label recorded when the protocol is the only available signal.
+    /// These match the values historic logs already contain, so persisted rows keep rendering.
+    var providerLabel: String {
+        switch self {
+        case .anthropic: return "claude"
+        case .openai: return "openai"
+        case .gemini: return "gemini"
+        }
+    }
+
+    /// Detect the protocol from a request path.
+    static func detect(fromPath path: String) -> RequestProtocol? {
+        let lower = path.lowercased()
+
+        // Gemini first: its markers are the most specific, and a Gemini path embeds the model
+        // id (`/v1beta/models/claude-…:generateContent`), which would otherwise trip the
+        // Anthropic check below.
+        if lower.contains("/gemini/") || lower.contains("/google/")
+            || lower.contains("/v1beta/") || lower.contains(":generatecontent") {
+            return .gemini
+        }
+        if lower.contains("/anthropic/") || lower.contains("/claude") || lower.contains("/messages") {
+            return .anthropic
+        }
+        if lower.contains("/openai/") || lower.contains("/chat/completions")
+            || lower.contains("/responses") {
+            return .openai
+        }
+        return nil
+    }
+}
+
 // MARK: - Provider Derivation
 
 nonisolated extension RequestLog {
-    /// The provider that ultimately served the request.
-    /// Prefers the fallback-resolved provider, then the provider detected at request time,
-    /// then infers one from the model name so historical entries also display a provider.
-    var effectiveProvider: String? {
-        resolvedProvider ?? provider ?? Self.inferProvider(fromModel: resolvedModel ?? model)
+    /// Provider labels that only identify the request *protocol*, not who served it.
+    ///
+    /// `ProxyBridge` derives these from the endpoint path, so a stored `openai` may really be
+    /// Qwen, GLM, DeepSeek, Grok or any `openai-compatibility` provider sharing
+    /// `/v1/chat/completions`. Every other label (`kiro`, `github-copilot`, `antigravity`, …)
+    /// names a real provider and outranks model-name inference.
+    static let protocolOnlyProviderLabels: Set<String> = ["claude", "openai", "gemini"]
+
+    /// The protocol this request was made in, derived from its endpoint.
+    var requestProtocol: RequestProtocol? {
+        RequestProtocol.detect(fromPath: endpoint)
     }
 
-    /// Infer a provider identifier from a model name (e.g. "claude-sonnet-4-5" → "claude").
-    /// Returns nil when the model family is unknown.
-    static func inferProvider(fromModel model: String?) -> String? {
-        guard let model, !model.isEmpty else { return nil }
-        let lower = model.lowercased()
-
-        // Kiro first: resolved models like "kiro-claude-opus-4-5" must map to kiro, not claude
-        if lower.contains("kiro") || lower.contains("codewhisperer") {
-            return "kiro"
+    /// The provider that ultimately served the request.
+    ///
+    /// Precedence, applied identically here and in `ProxyBridge.extractMetadata` via
+    /// `deriveProvider(path:model:)`:
+    /// 1. `resolvedProvider` — the fallback chain records the `AIProvider` it actually dialled.
+    /// 2. A stored label that names a real provider or hosting aggregator. Copilot, Kiro and
+    ///    Antigravity serve other vendors' model families, so a model name cannot override them.
+    /// 3. The model family, the only signal that separates Qwen/GLM/DeepSeek/Grok from plain
+    ///    OpenAI on a shared `/v1/chat/completions` endpoint.
+    /// 4. The stored protocol label, so unclassifiable models still read as they did before.
+    var effectiveProvider: String? {
+        if let resolvedProvider, !resolvedProvider.isEmpty {
+            return Self.canonicalProviderID(resolvedProvider)
         }
+
+        let stored = provider.map(Self.canonicalProviderID).flatMap { $0.isEmpty ? nil : $0 }
+
+        if let stored, !Self.protocolOnlyProviderLabels.contains(stored) {
+            return stored
+        }
+        if let inferred = Self.inferProvider(fromModel: resolvedModel ?? model) {
+            return inferred
+        }
+        return stored
+    }
+
+    /// The provider recorded at capture time for a request, from its path and body model.
+    /// Single source of truth shared with `ProxyBridge.extractMetadata`.
+    static func deriveProvider(path: String, model: String?) -> String? {
+        // A provider-scoped path segment names the host outright; a model name cannot
+        // contradict it because aggregators serve other vendors' model families.
+        if let hosted = hostingProvider(fromPath: path) {
+            return hosted
+        }
+        if let inferred = inferProvider(fromModel: model) {
+            return inferred
+        }
+        // Nothing better than the protocol the endpoint speaks.
+        return RequestProtocol.detect(fromPath: path)?.providerLabel
+    }
+
+    /// Providers that can be identified from the path itself rather than from the API shape.
+    private static func hostingProvider(fromPath path: String) -> String? {
+        let lower = path.lowercased()
+        if lower.contains("/copilot/") {
+            return AIProvider.copilot.rawValue
+        }
+        if lower.contains("codewhisperer") || lower.contains("/kiro") {
+            return AIProvider.kiro.rawValue
+        }
+        return nil
+    }
+
+    /// Collapse the two vocabularies this field has historically carried — path labels such as
+    /// `copilot` and `AIProvider` raw values such as `github-copilot` — onto one identifier so
+    /// badge, filter, search and stats group the same requests together.
+    static func canonicalProviderID(_ raw: String) -> String {
+        let lower = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch lower {
+        case "copilot", "github-copilot": return AIProvider.copilot.rawValue
+        case "anthropic": return "claude"
+        case "google": return "gemini"
+        case "cline-pass", "clinepass": return AIProvider.clinePass.rawValue
+        case "factory-droid", "factorydroid": return AIProvider.factoryDroid.rawValue
+        default: return lower
+        }
+    }
+
+    /// Compact display label for a provider identifier.
+    static func displayName(forProvider provider: String) -> String {
+        let id = canonicalProviderID(provider)
+        switch id {
+        case "claude": return "Claude"
+        case "openai": return "OpenAI"
+        case "gemini": return "Gemini"
+        case "github-copilot": return "Copilot"
+        case "kiro": return "Kiro"
+        case "antigravity": return "Antigravity"
+        case "qwen": return "Qwen"
+        case "glm": return "GLM"
+        case "grok": return "Grok"
+        case "deepseek": return "DeepSeek"
+        case "kimi": return "Kimi"
+        case "minimax": return "MiniMax"
+        case "mimo": return "MiMo"
+        case "clinepass": return "ClinePass"
+        case "factory-droid": return "Factory"
+        default: return AIProvider(rawValue: id)?.displayName ?? id.capitalized
+        }
+    }
+
+    /// Infer the serving provider from a model id (e.g. "qwen3-coder-plus" → "qwen").
+    /// Returns nil when the model family is unknown — a guess would be worse than "Unknown".
+    static func inferProvider(fromModel model: String?) -> String? {
+        guard let model else { return nil }
+        let lower = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !lower.isEmpty else { return nil }
+
+        // 1. Hosting aggregators first — they serve other vendors' families under their own
+        //    prefix, so the family suffix must not win. Prefixes verified against the model
+        //    ids this app actually emits: CustomProviderSheet.clinePassModels ("cline-pass/…"),
+        //    FallbackModels docs and FallbackSheets.providerFromModel ("kiro-claude-…",
+        //    "gemini-claude-…" = Antigravity-hosted Claude).
+        if lower.hasPrefix("cline-pass/") || lower.hasPrefix("clinepass/") {
+            return AIProvider.clinePass.rawValue
+        }
+        if lower.contains("codewhisperer") {
+            return AIProvider.kiro.rawValue
+        }
+        if lower.hasPrefix("gemini-claude") {
+            return AIProvider.antigravity.rawValue
+        }
+
+        // 2. Explicit provider prefix, the same rule FallbackSheets.providerFromModel uses
+        //    for icons (e.g. "kiro-claude-opus-4-6-agentic" → kiro, "claude-sonnet-4-5" → claude).
+        for provider in AIProvider.allCases {
+            let key = provider.rawValue
+            if lower.hasPrefix(key + "-") || lower.hasPrefix(key + "_") || lower.hasPrefix(key + "/") {
+                return key
+            }
+        }
+
+        // 3. Model families. Anthropic and Gemini names, then the OpenAI-compatible families
+        //    that share `/v1/chat/completions` and are indistinguishable by endpoint.
         if ["claude", "opus", "sonnet", "haiku"].contains(where: lower.contains) {
             return "claude"
         }
@@ -193,17 +365,10 @@ nonisolated extension RequestLog {
             || lower.hasPrefix("o4") || lower.contains("codex") {
             return "openai"
         }
-        if lower.hasPrefix("qwen") {
-            return "qwen"
-        }
-        if lower.hasPrefix("glm") {
-            return "glm"
-        }
-        if lower.hasPrefix("grok") {
-            return "grok"
-        }
-        if lower.hasPrefix("deepseek") {
-            return "deepseek"
+        // Families seen in AvailableModel / CustomProviderSheet model lists.
+        for family in ["qwen", "glm", "grok", "deepseek", "kimi", "minimax", "mimo"]
+        where lower.hasPrefix(family) {
+            return family
         }
         return nil
     }
@@ -353,7 +518,7 @@ nonisolated struct RequestHistoryStore: Codable, Sendable {
             
             // Aggregate by model
             if let model = entry.model {
-                var data = modelData[model] ?? (entry.provider, 0, 0, 0, 0)
+                var data = modelData[model] ?? (entry.effectiveProvider, 0, 0, 0, 0)
                 data.count += 1
                 data.input += entry.inputTokens ?? 0
                 data.output += entry.outputTokens ?? 0

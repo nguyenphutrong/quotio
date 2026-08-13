@@ -137,7 +137,8 @@ final class RequestTracker {
     
     /// Get requests filtered by provider
     func requests(for provider: String) -> [RequestLog] {
-        requestHistory.filter { $0.provider == provider }
+        let target = RequestLog.canonicalProviderID(provider)
+        return requestHistory.filter { $0.effectiveProvider == target }
     }
     
     /// Get requests from last N minutes
