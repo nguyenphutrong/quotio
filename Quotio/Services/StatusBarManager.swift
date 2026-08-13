@@ -82,8 +82,9 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
         
-        // Add horizontal padding to align with native status bar spacing
-        let horizontalPadding: CGFloat = 4
+        // Keep the status item close to neighboring macOS menu bar icons.
+        // StatusBarQuotaView already sizes its content, so only a small click-edge inset is needed.
+        let horizontalPadding: CGFloat = 1
         let contentSize = hostingView.intrinsicContentSize
         let containerSize = NSSize(
             width: contentSize.width + horizontalPadding * 2,
@@ -218,7 +219,6 @@ struct StatusBarQuotaView: View {
                 StatusBarQuotaItemView(item: item, colorMode: colorMode)
             }
         }
-        .padding(.horizontal, 4)
         .frame(height: 22)
         .fixedSize()
     }

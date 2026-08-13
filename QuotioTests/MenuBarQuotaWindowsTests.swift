@@ -56,6 +56,6 @@ final class MenuBarQuotaWindowsTests: XCTestCase {
         hostingView.layoutSubtreeIfNeeded()
 
         XCTAssertLessThanOrEqual(hostingView.fittingSize.height, 22)
-        XCTAssertLessThan(hostingView.fittingSize.width, 50)
+        XCTAssertLessThan(hostingView.fittingSize.width, 40)
     }
 }
