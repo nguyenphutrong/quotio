@@ -50,7 +50,7 @@ final class QuotaViewModel {
     @ObservationIgnored private let cursorFetcher = CursorQuotaFetcher()
     @ObservationIgnored private let codexCLIFetcher = CodexCLIQuotaFetcher()
     @ObservationIgnored private let traeFetcher = TraeQuotaFetcher()
-    @ObservationIgnored private let traeCnFetcher = TraeQuotaFetcher(variant: .cn)
+    @ObservationIgnored private var traeCnFetcher = TraeQuotaFetcher(variant: .cn)
     @ObservationIgnored private let kiroFetcher = KiroQuotaFetcher()
 
     @ObservationIgnored private var lastKnownAccountStatuses: [String: String] = [:]
@@ -910,8 +910,37 @@ final class QuotaViewModel {
         }
     }
 
-    /// Refresh Trae CN quota using its own storage.json (separate app from Trae)
+    #if DEBUG
+    /// Test seam: points the Trae CN scan at a fixture storage.json so the consent tests
+    /// can prove an ordinary refresh never opens it. Never set outside tests.
+    func setTraeCnFetcherForTesting(_ fetcher: TraeQuotaFetcher) {
+        traeCnFetcher = fetcher
+    }
+    #endif
+
+    /// Whether a general refresh may read a scan-gated IDE provider's local files.
+    ///
+    /// `IDEScanSettingsManager` documents an explicit-consent contract (issue #29): the
+    /// only thing that may import an IDE-derived account is a "Scan for IDEs" run in which
+    /// the user ticked that source. `refreshAutoDetectedProviders()` however iterates every
+    /// provider with `supportsManualAuth == false`, which now includes `.traeCn` — so
+    /// without this gate an ordinary refresh would read
+    /// `~/Library/Application Support/Trae CN/User/globalStorage/storage.json` before the
+    /// user ever enabled `scanTraeCn`.
+    ///
+    /// An already-imported account is proof the user consented, so a refresh may update it;
+    /// with nothing imported the local files are not touched at all.
+    nonisolated static func mayRefreshScanGatedProvider(
+        imported: [String: ProviderQuotaData]?
+    ) -> Bool {
+        imported?.isEmpty == false
+    }
+
+    /// Refresh Trae CN quota using its own storage.json (separate app from Trae).
+    ///
+    /// Gated on a prior explicit scan — see `mayRefreshScanGatedProvider(imported:)`.
     private func refreshTraeCnQuotasInternal() async {
+        guard Self.mayRefreshScanGatedProvider(imported: providerQuotas[.traeCn]) else { return }
         let quotas = await traeCnFetcher.fetchAsProviderQuota()
         if quotas.isEmpty {
             providerQuotas.removeValue(forKey: .traeCn)
@@ -1747,6 +1776,15 @@ final class QuotaViewModel {
         defer { endScopedRefresh(provider: provider) }
 
         if modeManager.isRemoteProxyMode {
+            return
+        }
+
+        // Trae CN is import-on-explicit-scan only (issue #29). This is the choke point for
+        // both the monitor and the normal path, so `refreshAutoDetectedProviders()` — which
+        // iterates every `supportsManualAuth == false` provider — cannot reach the local
+        // storage.json before the user opted in. See `mayRefreshScanGatedProvider`.
+        if provider == .traeCn,
+           !Self.mayRefreshScanGatedProvider(imported: providerQuotas[.traeCn]) {
             return
         }
 

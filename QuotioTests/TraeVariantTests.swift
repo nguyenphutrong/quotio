@@ -33,7 +33,10 @@ final class TraeVariantTests: XCTestCase {
             "~/Library/Application Support/Trae CN/User/globalStorage/storage.json"
         )
         XCTAssertTrue(variant.appPaths.contains("/Applications/Trae CN.app"))
-        XCTAssertEqual(variant.defaultAPIHost, "https://api.trae.cn")
+        // No public source confirms Trae CN's API host, so none is hardcoded: the host is
+        // taken from the auth blob (see TraeCnScanTests). The web origin is the cask's
+        // documented homepage.
+        XCTAssertNil(variant.defaultAPIHost)
         XCTAssertEqual(variant.webOrigin, "https://www.trae.com.cn")
         XCTAssertEqual(variant.fallbackAccountKey, "Trae CN User")
     }

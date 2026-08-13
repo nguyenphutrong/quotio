@@ -134,7 +134,7 @@ struct IDEScanSheet: View {
                 scanOptionRow(
                     icon: "trae-menubar",
                     iconFallback: "laptopcomputer",
-                    title: "Trae CN IDE",
+                    title: "ideScan.traeCn.title".localized(),
                     detail: "ideScan.traeCn.detail".localized(),
                     isOn: $scanOptions.scanTraeCn
                 )
@@ -222,9 +222,11 @@ struct IDEScanSheet: View {
                     }
 
                     if result.traeCnFound {
-                        resultRow(icon: "checkmark.circle.fill", color: .green, text: "Trae CN: \((result.traeCnEmail ?? "Found").masked(if: settings.hideSensitiveInfo))")
+                        let account = (result.traeCnEmail ?? "ideScan.found".localized())
+                            .masked(if: settings.hideSensitiveInfo)
+                        resultRow(icon: "checkmark.circle.fill", color: .green, text: String(format: "ideScan.traeCn.result".localized(), account))
                     } else if scanOptions.scanTraeCn {
-                        resultRow(icon: "xmark.circle.fill", color: .secondary, text: "Trae CN: " + "ideScan.notFound".localized())
+                        resultRow(icon: "xmark.circle.fill", color: .secondary, text: String(format: "ideScan.traeCn.result".localized(), "ideScan.notFound".localized()))
                     }
 
 
