@@ -2205,6 +2205,35 @@
         }
       }
     },
+    "agents.restoreOnQuit.ownership" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only configs Quotio can verify it wrote are reverted. A config edited outside Quotio, or one pointing at a different local proxy, is left untouched. Apply an agent's setup once from here so Quotio can record it."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seules les configurations dont Quotio peut vérifier qu'il les a écrites sont restaurées. Une configuration modifiée en dehors de Quotio, ou pointant vers un autre proxy local, reste intacte. Appliquez une fois la configuration d'un agent depuis cet écran pour que Quotio puisse l'enregistrer."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chỉ những cấu hình mà Quotio xác minh được là do chính nó ghi mới được hoàn nguyên. Cấu hình bị chỉnh sửa bên ngoài Quotio, hoặc trỏ tới một proxy cục bộ khác, sẽ được giữ nguyên. Hãy áp dụng thiết lập của agent một lần tại đây để Quotio ghi nhận."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅还原 Quotio 能够确认由自己写入的配置。在 Quotio 之外被修改的配置，或指向其他本地代理的配置，将保持不变。请在此处应用一次代理工具的设置，以便 Quotio 记录归属。"
+          }
+        }
+      }
+    },
     "agents.saveConfig" : {
       "extractionState" : "stale",
       "localizations" : {

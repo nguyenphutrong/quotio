@@ -210,6 +210,8 @@ final class AgentSetupViewModel {
                     )
                 }
 
+                recordConfigOwnership(agent: agent, config: config, result: result)
+
                 await detectionService.markAsConfigured(agent)
                 await refreshAgentStatuses()
             }
@@ -223,6 +225,30 @@ final class AgentSetupViewModel {
             errorMessage = error.localizedDescription
             configResult = .failure(error: error.localizedDescription)
         }
+    }
+
+    /// Records what Quotio just wrote so a later quit-time revert can prove it
+    /// owns the file instead of guessing from a `localhost` base URL. Reverting
+    /// to the agent's own default drops the receipt, since Quotio no longer owns
+    /// anything there.
+    private func recordConfigOwnership(agent: CLIAgent, config: AgentConfiguration, result: AgentConfigResult) {
+        let store = AgentConfigOwnershipStore()
+
+        guard config.setupMode != .defaultSetup else {
+            store.clear(agent: agent)
+            return
+        }
+
+        store.save(
+            AgentConfigOwnershipRecord(
+                agent: agent,
+                baseURL: config.proxyURL,
+                apiKey: config.apiKey,
+                // Setup only takes a backup when a config file was already
+                // there, so its absence means Quotio created the file itself.
+                primaryConfigExisted: result.backupPath != nil
+            )
+        )
     }
 
     func addToShellProfile() async {

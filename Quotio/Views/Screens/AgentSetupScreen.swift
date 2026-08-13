@@ -122,6 +122,11 @@ struct AgentSetupScreen: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            Text("agents.restoreOnQuit.ownership".localized())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
             Text("agents.restoreOnQuit.limitation".localized())
                 .font(.caption)
                 .foregroundStyle(.secondary)

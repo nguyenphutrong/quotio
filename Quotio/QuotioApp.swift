@@ -487,13 +487,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && window.level == .normal
     }
 
+    /// Opt-in: hand agent configs back to their own subscriptions *before* AppKit
+    /// starts tearing the app down.
+    ///
+    /// The revert touches several files per agent, so it cannot be squeezed into
+    /// `applicationWillTerminate` - that callback has no way to hold termination
+    /// open, and a revert still running when the process dies leaves a partially
+    /// restored set of configs. `.terminateLater` defers the decision instead,
+    /// and `AgentQuitRestoreTerminationCoordinator` guarantees the matching
+    /// `reply(toApplicationShouldTerminate:)` is delivered exactly once - on
+    /// completion, or on a deadline if the revert wedges. Returning
+    /// `.terminateLater` without ever replying would hang the app, which is
+    /// worse than skipping the revert.
+    ///
+    /// Not reached when `AppResetService` relaunches the app: that path calls
+    /// `exit(0)` and bypasses the termination handlers entirely, which is the
+    /// behaviour we want - Quotio is coming straight back up, so its agent
+    /// configs should stay in place.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard AgentQuitRestoreSettings().isEnabled else { return .terminateNow }
+
+        // A second quit while the first is still restoring means the user is
+        // waiting on us; stop deferring and let AppKit through.
+        guard agentRestoreCoordinator == nil else { return .terminateNow }
+
+        let coordinator = AgentQuitRestoreTerminationCoordinator(
+            restore: { progress in
+                await AgentQuitRestoreService.shared.restoreConfiguredAgents(progress: progress)
+            },
+            onResolved: { result in
+                switch result {
+                case .completed(let outcome):
+                    NSLog("[AppDelegate] Agent config restore on quit: \(outcome.summary)")
+                case .timedOut(let partial):
+                    NSLog("[AppDelegate] Agent config restore on quit timed out; completed so far: \(partial.summary)")
+                }
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
+        )
+        agentRestoreCoordinator = coordinator
+        coordinator.begin()
+
+        return .terminateLater
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         // Stop background polling
         AtomFeedUpdateService.shared.stopPolling()
-
-        // Opt-in: hand agent configs back to their own subscriptions before the
-        // proxy they point at disappears.
-        restoreAgentConfigurationsIfEnabled()
 
         CLIProxyManager.terminateProxyOnShutdown()
         
@@ -515,26 +555,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Reverts agents Quotio configured back to their default (non-proxy) setup.
-    /// No-op unless the user opted in. Runs on a detached task while the main
-    /// thread waits, so it cannot deadlock against the main actor, and is capped
-    /// by a timeout so a slow filesystem can never hang termination.
-    private func restoreAgentConfigurationsIfEnabled() {
-        guard AgentQuitRestoreSettings().isEnabled else { return }
-
-        let semaphore = DispatchSemaphore(value: 0)
-        let restoreTimeout: DispatchTime = .now() + .seconds(3)
-
-        Task.detached(priority: .userInitiated) {
-            let outcome = await AgentQuitRestoreService.shared.restoreConfiguredAgents()
-            NSLog("[AppDelegate] Agent config restore on quit: \(outcome.summary)")
-            semaphore.signal()
-        }
-
-        if semaphore.wait(timeout: restoreTimeout) == .timedOut {
-            NSLog("[AppDelegate] Agent config restore on quit timed out")
-        }
-    }
+    /// Retains the in-flight quit-time restore so its reply is guaranteed to be
+    /// delivered, and marks that termination is already being deferred.
+    private var agentRestoreCoordinator: AgentQuitRestoreTerminationCoordinator?
 
     func applicationDidBecomeActive(_ notification: Notification) {
         let keyWindowIsDashboardCandidate = NSApp.keyWindow.map(isDashboardWindowCandidate) ?? false
