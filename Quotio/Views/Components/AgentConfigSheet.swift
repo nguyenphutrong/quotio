@@ -374,6 +374,17 @@ struct AgentConfigSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
     
+    /// Named efforts plus, when the existing config holds a value Quotio does
+    /// not name, that value — so it stays selected and survives a save.
+    private var reasoningEffortOptions: [CodexReasoningEffort] {
+        let current = viewModel.currentConfiguration?.codexReasoningEffort ?? .defaultEffort
+        var options = CodexReasoningEffort.allCases
+        if !options.contains(current) {
+            options.append(current)
+        }
+        return options
+    }
+
     private var reasoningEffortSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -392,7 +403,7 @@ struct AgentConfigSheet: View {
                         }
                     }
                 )) {
-                    ForEach(CodexReasoningEffort.allCases) { effort in
+                    ForEach(reasoningEffortOptions) { effort in
                         Text(effort.displayName)
                             .tag(effort)
                     }

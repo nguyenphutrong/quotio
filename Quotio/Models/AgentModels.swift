@@ -207,14 +207,65 @@ nonisolated enum ModelSlot: String, CaseIterable, Identifiable, Codable, Sendabl
 
 // MARK: - Codex Reasoning Effort
 
-/// Reasoning effort levels accepted by Codex CLI's `model_reasoning_effort`
-/// key in `~/.codex/config.toml`.
-nonisolated enum CodexReasoningEffort: String, CaseIterable, Identifiable, Codable, Sendable {
-    case minimal = "minimal"
-    case low = "low"
-    case medium = "medium"
-    case high = "high"
-    case xhigh = "xhigh"
+/// Reasoning effort accepted by Codex CLI's `model_reasoning_effort` key in
+/// `~/.codex/config.toml`.
+///
+/// Codex treats this key as an **open** set. `ReasoningEffort` in
+/// `codex-rs/protocol/src/openai_models.rs` names `none`, `minimal`, `low`,
+/// `medium`, `high`, `xhigh`, `max` and `ultra`, and its hand-written
+/// `FromStr` maps every other non-empty string to `ReasoningEffort::Custom`;
+/// only the empty string is rejected. `custom` mirrors that escape hatch so a
+/// value Quotio does not know is round-tripped verbatim instead of being
+/// silently replaced.
+nonisolated enum CodexReasoningEffort: RawRepresentable, CaseIterable, Identifiable, Codable, Hashable, Sendable {
+    case none
+    case minimal
+    case low
+    case medium
+    case high
+    case xhigh
+    case max
+    case ultra
+    /// A valid Codex value Quotio does not have a named case for.
+    /// Never produced for a value that maps to a named case — see `init(rawValue:)`.
+    case custom(String)
+
+    /// Fails only for the empty string, which Codex itself rejects with
+    /// "reasoning_effort must not be empty".
+    init?(rawValue: String) {
+        switch rawValue {
+        case "none": self = .none
+        case "minimal": self = .minimal
+        case "low": self = .low
+        case "medium": self = .medium
+        case "high": self = .high
+        case "xhigh": self = .xhigh
+        case "max": self = .max
+        case "ultra": self = .ultra
+        case "": return nil
+        default: self = .custom(rawValue)
+        }
+    }
+
+    var rawValue: String {
+        switch self {
+        case .none: return "none"
+        case .minimal: return "minimal"
+        case .low: return "low"
+        case .medium: return "medium"
+        case .high: return "high"
+        case .xhigh: return "xhigh"
+        case .max: return "max"
+        case .ultra: return "ultra"
+        case .custom(let value): return value
+        }
+    }
+
+    /// The named values Quotio offers in the picker, ordered by effort.
+    /// A `custom` value read from the user's config is offered alongside these.
+    static let allCases: [CodexReasoningEffort] = [
+        .none, .minimal, .low, .medium, .high, .xhigh, .max, .ultra
+    ]
 
     var id: String { rawValue }
 
@@ -222,7 +273,24 @@ nonisolated enum CodexReasoningEffort: String, CaseIterable, Identifiable, Codab
     static let defaultEffort: CodexReasoningEffort = .high
 
     var displayName: String {
-        "agents.reasoningEffort.\(rawValue)".localizedStatic()
+        if case .custom(let value) = self {
+            return String.localizedStringWithFormat(
+                "agents.reasoningEffort.custom".localizedStatic(),
+                value
+            )
+        }
+        return "agents.reasoningEffort.\(rawValue)".localizedStatic()
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = CodexReasoningEffort(rawValue: rawValue) ?? .defaultEffort
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 

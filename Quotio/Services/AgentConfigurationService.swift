@@ -157,7 +157,7 @@ actor AgentConfigurationService {
         // Simple TOML parsing for the values we need
         var baseURL: String?
         var model: String?
-        var reasoningEffort: CodexReasoningEffort?
+        let reasoningEffort = parseTopLevelCodexReasoningEffort(from: content)
         var isProxy = false
 
         for line in content.components(separatedBy: .newlines) {
@@ -170,10 +170,6 @@ actor AgentConfigurationService {
                 }
             } else if trimmed.hasPrefix("model =") {
                 model = extractTOMLValue(from: trimmed)
-            } else if trimmed.hasPrefix("model_reasoning_effort") {
-                if let value = extractTOMLValue(from: trimmed) {
-                    reasoningEffort = CodexReasoningEffort(rawValue: value)
-                }
             } else if trimmed.contains("model_provider") && trimmed.contains("cliproxyapi") {
                 isProxy = true
             }
@@ -352,12 +348,14 @@ actor AgentConfigurationService {
     ) -> String {
         let escapedModel = escapeTOMLString(model)
         let escapedProxyURL = escapeTOMLString(proxyURL)
+        // A `custom` effort carries a literal value read from the user's file.
+        let escapedReasoningEffort = escapeTOMLString(reasoningEffort.rawValue)
 
         return """
         # CLIProxyAPI Configuration for Codex CLI
         model_provider = "cliproxyapi"
         model = "\(escapedModel)"
-        model_reasoning_effort = "\(reasoningEffort.rawValue)"
+        model_reasoning_effort = "\(escapedReasoningEffort)"
 
         [model_providers.cliproxyapi]
         name = "cliproxyapi"
@@ -391,6 +389,180 @@ actor AgentConfigurationService {
         return key == "model_provider" || key == "model" || key == "model_reasoning_effort"
     }
 
+    /// Tracks TOML multi-line string state (`"""` / `'''`) across a line-by-line
+    /// scan so that text inside a string body is never mistaken for a table
+    /// header or a key/value pair.
+    private struct CodexTOMLScanner {
+        /// Quote character of the multi-line string currently open, or `nil`
+        /// when the scanner is at TOML structure level.
+        private var openMultilineQuote: Character?
+
+        /// Feeds one line to the scanner.
+        /// - Returns: `true` when the line is TOML structure, `false` when it is
+        ///   part of a multi-line string body (including its closing delimiter).
+        mutating func isStructuralLine(_ line: String) -> Bool {
+            let characters = Array(line)
+            let startedInsideMultiline = openMultilineQuote != nil
+            var index = 0
+
+            while index < characters.count {
+                let character = characters[index]
+
+                if let quote = openMultilineQuote {
+                    if character == quote, Self.isTriple(characters, at: index, quote: quote) {
+                        openMultilineQuote = nil
+                        index += 3
+                    } else {
+                        index += 1
+                    }
+                    continue
+                }
+
+                switch character {
+                case "#":
+                    // A comment runs to the end of the line.
+                    index = characters.count
+                case "\"", "'":
+                    if Self.isTriple(characters, at: index, quote: character) {
+                        openMultilineQuote = character
+                        index += 3
+                    } else {
+                        index = Self.endOfSingleLineString(characters, from: index, quote: character)
+                    }
+                default:
+                    index += 1
+                }
+            }
+
+            return !startedInsideMultiline
+        }
+
+        private static func isTriple(_ characters: [Character], at index: Int, quote: Character) -> Bool {
+            guard index + 2 < characters.count else { return false }
+            return characters[index + 1] == quote && characters[index + 2] == quote
+        }
+
+        private static func endOfSingleLineString(
+            _ characters: [Character],
+            from index: Int,
+            quote: Character
+        ) -> Int {
+            var cursor = index + 1
+            while cursor < characters.count {
+                let character = characters[cursor]
+                // Literal strings ('...') do not support escapes.
+                if quote == "\"", character == "\\" {
+                    cursor += 2
+                    continue
+                }
+                if character == quote {
+                    return cursor + 1
+                }
+                cursor += 1
+            }
+            return characters.count
+        }
+    }
+
+    /// Reads the **top-level** `model_reasoning_effort` from a Codex `config.toml`.
+    ///
+    /// `model_reasoning_effort` is a top-level key, but the same key is also legal
+    /// under `[profiles.*]` and other tables. Table headers are tracked so a
+    /// profile's value is never reported as — and then used to overwrite — the
+    /// top-level setting. Returns `nil` when the top-level key is absent, so the
+    /// caller keeps its default.
+    func parseTopLevelCodexReasoningEffort(from content: String) -> CodexReasoningEffort? {
+        var scanner = CodexTOMLScanner()
+        var effort: CodexReasoningEffort?
+
+        for line in content.components(separatedBy: .newlines) {
+            guard scanner.isStructuralLine(line) else { continue }
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            // Everything from the first table header on belongs to that table.
+            if parseTOMLSectionName(from: trimmed) != nil {
+                return effort
+            }
+
+            if let value = extractCodexTOMLStringValue(from: trimmed, key: "model_reasoning_effort") {
+                effort = CodexReasoningEffort(rawValue: value)
+            }
+        }
+
+        return effort
+    }
+
+    /// Reads the value of a TOML assignment to `key`, tolerating quoted keys,
+    /// literal strings and trailing comments. Returns `nil` unless the line is
+    /// an assignment to exactly `key` with a value this parser can round-trip.
+    private func extractCodexTOMLStringValue(from line: String, key: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.hasPrefix("#"), let equalIndex = trimmed.firstIndex(of: "=") else { return nil }
+
+        var lineKey = String(trimmed[..<equalIndex]).trimmingCharacters(in: .whitespaces)
+        if lineKey.count >= 2, let first = lineKey.first, lineKey.last == first, first == "\"" || first == "'" {
+            lineKey = String(lineKey.dropFirst().dropLast())
+        }
+        guard lineKey == key else { return nil }
+
+        let value = String(trimmed[trimmed.index(after: equalIndex)...])
+            .trimmingCharacters(in: .whitespaces)
+        return parseCodexTOMLScalarString(value)
+    }
+
+    private func parseCodexTOMLScalarString(_ value: String) -> String? {
+        let characters = Array(value)
+        guard let first = characters.first else { return nil }
+
+        // Multi-line strings are not a value Quotio can safely round-trip.
+        if characters.count >= 3, characters[1] == first, characters[2] == first,
+           first == "\"" || first == "'" {
+            return nil
+        }
+
+        if first == "\"" {
+            var result = ""
+            var index = 1
+            while index < characters.count {
+                let character = characters[index]
+                if character == "\\" {
+                    index += 1
+                    guard index < characters.count else { return nil }
+                    switch characters[index] {
+                    case "n": result.append("\n")
+                    case "t": result.append("\t")
+                    case "r": result.append("\r")
+                    case "\"": result.append("\"")
+                    case "\\": result.append("\\")
+                    // Don't guess at \u / \b / \f — leave the value untouched.
+                    default: return nil
+                    }
+                    index += 1
+                    continue
+                }
+                if character == "\"" {
+                    return result.isEmpty ? nil : result
+                }
+                result.append(character)
+                index += 1
+            }
+            return nil  // Unterminated string.
+        }
+
+        if first == "'" {
+            guard let closingIndex = value.dropFirst().firstIndex(of: "'") else { return nil }
+            let literal = String(value[value.index(after: value.startIndex)..<closingIndex])
+            return literal.isEmpty ? nil : literal
+        }
+
+        // Bare value: invalid TOML for a string, but read it leniently rather
+        // than discarding what the user wrote.
+        let bare = value
+            .split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0]
+            .trimmingCharacters(in: .whitespaces)
+        return bare.isEmpty ? nil : bare
+    }
+
     private typealias ManagedCodexConfigParts = (topLevel: [String], section: [String])
 
     private func splitManagedCodexConfig(_ managedConfig: String) -> ManagedCodexConfigParts {
@@ -415,11 +587,14 @@ actor AgentConfigurationService {
         var filteredLines: [String] = []
         var skippingCliproxySection = false
         var hasSeenAnySection = false
+        var scanner = CodexTOMLScanner()
 
         for line in lines {
+            // Lines inside a multi-line string body are content, never structure.
+            let isStructural = scanner.isStructuralLine(line)
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            if let sectionName = parseTOMLSectionName(from: trimmed) {
+            if isStructural, let sectionName = parseTOMLSectionName(from: trimmed) {
                 let cliproxySection = "model_providers.cliproxyapi"
                 if sectionName == cliproxySection || sectionName.hasPrefix(cliproxySection + ".") {
                     skippingCliproxySection = true
@@ -433,11 +608,11 @@ actor AgentConfigurationService {
                 continue
             }
 
-            if let managedBanner, !hasSeenAnySection && trimmed == managedBanner {
+            if let managedBanner, isStructural, !hasSeenAnySection && trimmed == managedBanner {
                 continue
             }
 
-            if !hasSeenAnySection && isCodexManagedTopLevelKey(trimmed) {
+            if isStructural, !hasSeenAnySection && isCodexManagedTopLevelKey(trimmed) {
                 continue
             }
 
@@ -453,8 +628,13 @@ actor AgentConfigurationService {
 
     private func composeMergedCodexConfig(filteredLines: [String], managedParts: ManagedCodexConfigParts) -> String {
         var firstSectionIndex = filteredLines.count
-        if let sectionIndex = filteredLines.firstIndex(where: { parseTOMLSectionName(from: $0) != nil }) {
-            firstSectionIndex = sectionIndex
+        var scanner = CodexTOMLScanner()
+        for (index, line) in filteredLines.enumerated() {
+            guard scanner.isStructuralLine(line) else { continue }
+            if parseTOMLSectionName(from: line) != nil {
+                firstSectionIndex = index
+                break
+            }
         }
 
         var topLevelLines = Array(filteredLines[..<firstSectionIndex])
