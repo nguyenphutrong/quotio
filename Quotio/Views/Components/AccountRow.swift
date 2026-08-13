@@ -125,7 +125,7 @@ struct AccountRowData: Identifiable, Hashable {
             status: nil,
             statusMessage: nil,
             isDisabled: false,
-            canDelete: provider.usesBrowserAuth
+            canDelete: provider.isImportedFromLocalIDE
         )
     }
 

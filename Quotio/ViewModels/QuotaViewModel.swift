@@ -483,36 +483,80 @@ final class QuotaViewModel {
     func deleteMonitorAccount(accountID: String) async {
         guard let account = monitorAccounts.first(where: { $0.id == accountID }), account.canDelete else { return }
         await monitorCoordinator.deleteOwnedAccount(accountID: accountID)
-        providerQuotas[account.provider]?.removeValue(forKey: account.accountKey)
-        if providerQuotas[account.provider]?.isEmpty == true {
-            providerQuotas.removeValue(forKey: account.provider)
+        removeQuotaEntry(provider: account.provider, accountKey: account.accountKey)
+
+        // Drop the entry from the persisted Monitor snapshot directly. Rewriting the
+        // whole snapshot from `providerQuotas` below is only correct while Monitor mode
+        // is active, so the targeted removal is what makes the deletion stick in every
+        // mode (issue #213).
+        await monitorCoordinator.forgetSnapshotAccount(
+            provider: account.provider,
+            accountKey: account.accountKey
+        )
+        // Re-read the state after the suspension: a concurrent refresh may have written
+        // the account back into `providerQuotas` while this task was suspended.
+        removeQuotaEntry(provider: account.provider, accountKey: account.accountKey)
+
+        if modeManager.isMonitorMode {
+            await monitorCoordinator.finish(quotas: providerQuotas)
+            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
         }
-        if Self.ideProvidersToSave.contains(account.provider) {
-            // Cursor/Trae quotas are also persisted to UserDefaults; clear them so
-            // the deleted account does not resurrect on next launch (issue #213).
-            savePersistedIDEQuotas()
-        }
-        await monitorCoordinator.finish(quotas: providerQuotas)
-        monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
         syncMenuBarSelection()
     }
 
-    /// Delete an auto-detected IDE account (Cursor, Trae) imported via "Scan for IDEs".
-    /// These accounts exist only as imported quota data, so removing the quota entry
-    /// and its persisted copies deletes the account (issue #213).
+    /// Delete an account imported from a local IDE (Cursor, Trae) via "Scan for IDEs".
+    ///
+    /// These accounts own no credential — they exist only as imported quota data — so
+    /// deleting one means clearing every copy of that data: the in-memory quotas, the
+    /// `persisted.ideQuotas` UserDefaults mirror, the Monitor snapshot, any Monitor
+    /// disabled flag, and the menu bar selection (issue #213).
+    ///
+    /// The Monitor state is cleared in **every** mode, not only Monitor mode: these rows
+    /// are only shown outside Monitor mode (Monitor rows are dispatched to
+    /// `deleteMonitorAccount` first), while `initializeQuotaOnlyMode()` bootstraps from
+    /// the Monitor snapshot, so a stale entry would restore the account on the next
+    /// switch back into Monitor mode. The removal is targeted rather than a
+    /// `finish(quotas:)` rewrite because outside Monitor mode `providerQuotas` holds
+    /// that mode's quota data, which must not overwrite the Monitor snapshot.
     func deleteAutoDetectedAccount(provider: AIProvider, accountKey: String) async {
-        guard Self.ideProvidersToSave.contains(provider) else { return }
-        providerQuotas[provider]?.removeValue(forKey: accountKey)
-        if providerQuotas[provider]?.isEmpty == true {
-            providerQuotas.removeValue(forKey: provider)
-        }
-        savePersistedIDEQuotas()
+        guard provider.isImportedFromLocalIDE else { return }
+        removeQuotaEntry(provider: provider, accountKey: accountKey)
+
+        await monitorCoordinator.forgetSnapshotAccount(provider: provider, accountKey: accountKey)
+        // Re-read the state after the suspension rather than trusting the pre-await
+        // snapshot: a concurrent refresh may have re-added the account meanwhile.
+        removeQuotaEntry(provider: provider, accountKey: accountKey)
+
         if modeManager.isMonitorMode {
             await monitorCoordinator.finish(quotas: providerQuotas)
             monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
         }
         syncMenuBarSelection()
         notifyQuotaDataChanged()
+    }
+
+    /// Remove one account's quota entry from the in-memory map and, for IDE-imported
+    /// providers, from the `persisted.ideQuotas` UserDefaults mirror.
+    ///
+    /// Deliberately synchronous so it can be re-applied after a suspension point without
+    /// introducing another one.
+    ///
+    /// - Returns: `true` when an entry was actually removed.
+    @discardableResult
+    private func removeQuotaEntry(provider: AIProvider, accountKey: String) -> Bool {
+        guard var quotas = providerQuotas[provider],
+              quotas.removeValue(forKey: accountKey) != nil else { return false }
+        if quotas.isEmpty {
+            providerQuotas.removeValue(forKey: provider)
+        } else {
+            providerQuotas[provider] = quotas
+        }
+        if Self.ideProvidersToSave.contains(provider) {
+            // Cursor/Trae quotas are mirrored into UserDefaults; rewrite the mirror so
+            // the deleted account does not resurrect on the next launch (issue #213).
+            savePersistedIDEQuotas()
+        }
+        return true
     }
 
     func saveOpenRouterAccount(label: String, apiKey: String, existingAccountID: String? = nil) async throws {
@@ -2038,7 +2082,7 @@ final class QuotaViewModel {
     /// (issue #29) and re-importing here would resurrect deleted accounts (issue #213).
     /// They can still be refreshed via their scoped refresh actions while imported.
     func refreshAutoDetectedProviders() async {
-        let autoDetectedProviders = AIProvider.allCases.filter { !$0.supportsManualAuth && !$0.usesBrowserAuth }
+        let autoDetectedProviders = AIProvider.allCases.filter { !$0.supportsManualAuth && !$0.isImportedFromLocalIDE }
 
         for provider in autoDetectedProviders {
             await refreshQuotaForProvider(provider)

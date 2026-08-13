@@ -217,7 +217,19 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
             return false
         }
     }
-    
+
+    /// Whether this provider's accounts are imported from a local IDE database by the
+    /// explicit "Scan for IDEs" flow (issue #29) instead of being authenticated inside
+    /// Quotio. Such an account owns no Quotio credential, so it exists only as imported
+    /// quota data and deleting that data deletes the account (issue #213).
+    ///
+    /// Derived from the existing traits rather than listing cases again, so a new IDE
+    /// edition only has to opt into `usesBrowserAuth` / `supportsManualAuth` to inherit
+    /// the same import and delete behaviour.
+    var isImportedFromLocalIDE: Bool {
+        usesBrowserAuth && !supportsManualAuth
+    }
+
     /// Map provider to CLI agent (if applicable)
     var cliAgent: CLIAgent? {
         switch self {

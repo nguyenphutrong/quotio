@@ -1071,32 +1071,168 @@ final class MonitorRuntimeTests: XCTestCase {
         }
     }
 
-    func testSnapshotStoreDropsDeletedIDEAccountAcrossReload() async {
-        // Mirrors deleteMonitorAccount: after the Cursor quota entry is removed and the
-        // snapshot re-persisted, a fresh load must not resurrect the account (issue #213).
+    private func ideQuota(_ percentage: Double) -> ProviderQuotaData {
+        ProviderQuotaData(
+            models: [ModelQuota(name: "gpt", percentage: percentage, resetTime: "")],
+            lastUpdated: Date(timeIntervalSince1970: 1234)
+        )
+    }
+
+    /// A credential vault with nothing in it, so Monitor discovery in these tests depends
+    /// only on the injected snapshot/metadata files and never on the host Keychain.
+    private struct EmptyCredentialVault: MonitorCredentialStore {
+        func accounts() async -> [MonitorAccount] { [] }
+        func credential(for accountID: String) async -> MonitorOAuthCredential? { nil }
+        func reloadLatest(accountID: String) async -> MonitorOAuthCredential? { nil }
+        func save(_ credential: MonitorOAuthCredential, metadata: MonitorAccount) async throws {}
+        func delete(accountID: String) async {}
+    }
+
+    private func makeIsolatedCoordinator(
+        snapshots: URL,
+        metadata: URL
+    ) -> MonitorRefreshCoordinator {
+        MonitorRefreshCoordinator(
+            discovery: MonitorAccountDiscovery(
+                vault: EmptyCredentialVault(),
+                metadata: MonitorMetadataStore(url: metadata)
+            ),
+            snapshots: MonitorSnapshotStore(url: snapshots)
+        )
+    }
+
+    /// Reproduces the exact resurrection sequence from issue #213: import Cursor in
+    /// Monitor mode, delete the auto-detected row while a different mode is active, then
+    /// re-enter Monitor mode. `initializeQuotaOnlyMode()` bootstraps from the snapshot, so
+    /// the deletion only sticks if it cleared the snapshot outside Monitor mode too.
+    func testDeletingIDEAccountOutsideMonitorModeSurvivesMonitorBootstrap() async {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let snapshots = directory.appendingPathComponent("snapshots-v1.json")
+        let metadata = directory.appendingPathComponent("accounts-v1.json")
+
+        // 1. Monitor mode imports Cursor and persists it in the Monitor snapshot, next to
+        //    an unrelated Monitor-only account.
+        await makeIsolatedCoordinator(snapshots: snapshots, metadata: metadata).finish(quotas: [
+            .cursor: ["cursor@example.com": ideQuota(50)],
+            .codex: ["codex@example.com": ideQuota(42)],
+        ])
+
+        let imported = await makeIsolatedCoordinator(snapshots: snapshots, metadata: metadata).bootstrap()
+        XCTAssertNotNil(imported.quotas[.cursor]?["cursor@example.com"])
+        XCTAssertTrue(
+            imported.accounts.contains { $0.provider == .cursor && $0.accountKey == "cursor@example.com" },
+            "Precondition: the Monitor snapshot restores the imported Cursor account"
+        )
+
+        // 2. Local Proxy mode: deleting the auto-detected Cursor row. This is the call
+        //    `QuotaViewModel.deleteAutoDetectedAccount` makes, and it runs regardless of
+        //    the active mode.
+        await makeIsolatedCoordinator(snapshots: snapshots, metadata: metadata)
+            .forgetSnapshotAccount(provider: .cursor, accountKey: "cursor@example.com")
+
+        // 3. Back in Monitor mode: `initializeQuotaOnlyMode()` calls `bootstrap()`.
+        let rebootstrapped = await makeIsolatedCoordinator(snapshots: snapshots, metadata: metadata).bootstrap()
+        XCTAssertNil(
+            rebootstrapped.quotas[.cursor],
+            "Deleted Cursor account must not come back from the Monitor snapshot"
+        )
+        XCTAssertFalse(
+            rebootstrapped.accounts.contains { $0.provider == .cursor },
+            "Deleted Cursor account must not reappear as a Monitor account"
+        )
+        // The delete must not take the rest of the Monitor snapshot with it, and must not
+        // replace it with the quota data of whichever mode performed the deletion.
+        XCTAssertEqual(rebootstrapped.quotas[.codex]?["codex@example.com"]?.models.first?.percentage, 42)
+    }
+
+    /// The targeted removal must not rewrite the snapshot from the deleting mode's quota
+    /// data: entries for other providers, and other accounts of the same provider, stay
+    /// exactly as they were written by Monitor mode.
+    func testForgettingIDEAccountLeavesUnrelatedSnapshotEntriesIntact() async {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let snapshots = directory.appendingPathComponent("snapshots-v1.json")
+        let metadata = directory.appendingPathComponent("accounts-v1.json")
+
+        await makeIsolatedCoordinator(snapshots: snapshots, metadata: metadata).finish(quotas: [
+            .cursor: ["gone@example.com": ideQuota(10), "kept@example.com": ideQuota(20)],
+            .trae: ["trae@example.com": ideQuota(30)],
+        ])
+
+        await makeIsolatedCoordinator(snapshots: snapshots, metadata: metadata)
+            .forgetSnapshotAccount(provider: .cursor, accountKey: "gone@example.com")
+
+        let reloaded = await MonitorSnapshotStore(url: snapshots).load()
+        XCTAssertNil(reloaded[.cursor]?["gone@example.com"])
+        XCTAssertEqual(reloaded[.cursor]?["kept@example.com"]?.models.first?.percentage, 20)
+        XCTAssertEqual(reloaded[.trae]?["trae@example.com"]?.models.first?.percentage, 30)
+    }
+
+    /// The Monitor row carries a trimmed account key while the snapshot stores the key
+    /// verbatim, so the removal has to match on the identity Monitor dedupes on rather
+    /// than on an exact string.
+    func testSnapshotRemovalMatchesMonitorAccountIdentity() async {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let url = directory.appendingPathComponent("snapshots-v1.json")
         let store = MonitorSnapshotStore(url: url)
-        let quota = ProviderQuotaData(
-            models: [ModelQuota(name: "gpt", percentage: 50, resetTime: "")],
-            lastUpdated: Date(timeIntervalSince1970: 1234)
+
+        await store.store([.cursor: [" Cursor@Example.com ": ideQuota(50)]])
+        let account = MonitorAccount.make(
+            provider: .cursor,
+            accountKey: " Cursor@Example.com ",
+            source: .localIDE
         )
 
-        var quotas: [AIProvider: [String: ProviderQuotaData]] = [
-            .cursor: ["cursor@example.com": quota],
-            .codex: ["codex@example.com": quota],
-        ]
-        await store.store(quotas)
+        let removed = await store.removeAccount(provider: .cursor, accountKey: account.accountKey)
 
-        quotas[.cursor]?.removeValue(forKey: "cursor@example.com")
-        if quotas[.cursor]?.isEmpty == true {
-            quotas.removeValue(forKey: .cursor)
-        }
-        await store.store(quotas)
-
+        XCTAssertTrue(removed)
         let reloaded = await MonitorSnapshotStore(url: url).load()
         XCTAssertNil(reloaded[.cursor], "Deleted Cursor account must not survive a reload")
-        XCTAssertEqual(reloaded[.codex]?["codex@example.com"]?.models.first?.percentage, 50)
+    }
+
+    /// Deleting an imported IDE account must also drop the Monitor disabled flag it left
+    /// in `accounts-v1.json`; otherwise a later re-scan brings the account back disabled.
+    func testForgettingIDEAccountClearsItsMonitorDisabledFlag() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let snapshots = directory.appendingPathComponent("snapshots-v1.json")
+        let metadataURL = directory.appendingPathComponent("accounts-v1.json")
+        let metadata = MonitorMetadataStore(url: metadataURL)
+
+        let account = MonitorAccount.make(
+            provider: .cursor,
+            accountKey: "cursor@example.com",
+            source: .localIDE,
+            canDelete: true
+        )
+        try await metadata.setDisabled(true, accountID: account.id)
+        await makeIsolatedCoordinator(snapshots: snapshots, metadata: metadataURL)
+            .finish(quotas: [.cursor: [account.accountKey: ideQuota(50)]])
+
+        await makeIsolatedCoordinator(snapshots: snapshots, metadata: metadataURL)
+            .forgetSnapshotAccount(provider: .cursor, accountKey: account.accountKey)
+
+        let disabled = await MonitorMetadataStore(url: metadataURL).disabledAccountIDs()
+        XCTAssertFalse(disabled.contains(account.id), "Deleted account must not keep a disabled flag")
+    }
+
+    /// The delete affordance keys off a named IDE-import capability rather than
+    /// `usesBrowserAuth` doubling as "is deletable"; it is derived from the existing
+    /// traits so a new IDE edition inherits it automatically.
+    func testImportedFromLocalIDECapabilityStaysDerivedFromProviderTraits() {
+        for provider in AIProvider.allCases {
+            XCTAssertEqual(
+                provider.isImportedFromLocalIDE,
+                provider.usesBrowserAuth && !provider.supportsManualAuth,
+                "\(provider.rawValue) IDE-import capability must stay derived from the existing traits"
+            )
+        }
+        for provider in [AIProvider.cursor, .trae] {
+            XCTAssertTrue(provider.isImportedFromLocalIDE, "\(provider.rawValue) is scanned from a local IDE")
+        }
+        // Providers that also refuse manual auth but are added from their own storage
+        // must not become deletable through this path.
+        for provider in [AIProvider.devin, .grok, .glm, .clinePass] {
+            XCTAssertFalse(provider.isImportedFromLocalIDE, "\(provider.rawValue) is not an IDE import")
+        }
     }
 
     func testQuotaDisplayNameEnrichmentPreservesFactoryAccountIdentity() {

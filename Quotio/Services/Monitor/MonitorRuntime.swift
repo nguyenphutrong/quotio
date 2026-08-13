@@ -283,6 +283,41 @@ actor MonitorSnapshotStore {
             Log.quota("Failed to persist Monitor snapshot: \(error.localizedDescription)")
         }
     }
+
+    /// Drop a single account from the persisted snapshot, leaving every other entry as
+    /// it is on disk.
+    ///
+    /// `store(_:)` replaces the whole file with the caller's in-memory quotas, which is
+    /// only correct while Monitor mode is active. Deleting an imported IDE account is
+    /// reachable from the other modes too, where the in-memory quotas belong to that
+    /// mode, so the delete path needs this targeted removal instead (issue #213).
+    ///
+    /// - Returns: `true` when an entry was found and the file was rewritten.
+    @discardableResult
+    func removeAccount(provider: AIProvider, accountKey: String) -> Bool {
+        var quotas = load()
+        guard var accountQuotas = quotas[provider] else { return false }
+
+        // Match the identity Monitor itself dedupes on (`MonitorAccount.deduplicationKey`):
+        // the Monitor row carries a trimmed account key while the snapshot key is stored
+        // verbatim, so an exact-only match could leave the entry behind.
+        let normalized = accountKey.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let matchingKeys = accountQuotas.keys.filter {
+            $0 == accountKey || $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalized
+        }
+        guard !matchingKeys.isEmpty else { return false }
+
+        for key in matchingKeys {
+            accountQuotas.removeValue(forKey: key)
+        }
+        if accountQuotas.isEmpty {
+            quotas.removeValue(forKey: provider)
+        } else {
+            quotas[provider] = accountQuotas
+        }
+        store(quotas)
+        return true
+    }
 }
 
 actor MonitorAccountDiscovery {
@@ -636,14 +671,15 @@ actor MonitorRefreshCoordinator {
         source: MonitorAccountSource,
         disabledIDs: Set<String>
     ) -> MonitorAccount {
-        // Cursor/Trae accounts exist only as imported quota snapshots (no owned
-        // credential), so deleting the snapshot fully removes them (issue #213).
+        // Accounts imported from a local IDE (Cursor, Trae) exist only as imported quota
+        // data with no owned credential, so removing that data fully deletes them and
+        // they will not reappear on the next discovery pass (issue #213).
         var account = MonitorAccount.make(
             provider: provider,
             accountKey: accountKey,
             displayName: displayName,
             source: source,
-            canDelete: provider.usesBrowserAuth
+            canDelete: provider.isImportedFromLocalIDE
         )
         account.isDisabled = disabledIDs.contains(account.id)
         return account
@@ -727,6 +763,29 @@ actor MonitorRefreshCoordinator {
 
     func finish(quotas: [AIProvider: [String: ProviderQuotaData]]) async {
         await snapshots.store(quotas)
+    }
+
+    /// Forget every Monitor-owned trace of a single account: its persisted snapshot
+    /// entry (`Monitor/snapshots-v1.json`) and any disabled flag it left behind in
+    /// `Monitor/accounts-v1.json`.
+    ///
+    /// Unlike `finish(quotas:)` this never rewrites unrelated entries, so it is safe to
+    /// call from whichever mode is active. Deleting an account imported from Cursor or
+    /// Trae has to run in every mode: the account row is shown outside Monitor mode, but
+    /// `bootstrap()` reads the snapshot back when Monitor mode is entered, which would
+    /// otherwise resurrect the deleted account (issue #213).
+    func forgetSnapshotAccount(provider: AIProvider, accountKey: String) async {
+        await snapshots.removeAccount(provider: provider, accountKey: accountKey)
+
+        // `MonitorAccount.make` derives the id from provider + normalized account key, so
+        // this resolves the same id the Monitor row used when it was disabled.
+        let accountID = MonitorAccount.make(
+            provider: provider,
+            accountKey: accountKey,
+            source: .localIDE
+        ).id
+        guard await discovery.disabledAccountIDs().contains(accountID) else { return }
+        await discovery.setDisabled(false, accountID: accountID)
     }
 
     func currentIssues() -> [AIProvider: MonitorRefreshIssue] {
