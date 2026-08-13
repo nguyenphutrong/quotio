@@ -225,8 +225,28 @@ final class StatusBarMenuBuilder {
         _ provider: AIProvider
     ) -> [(accountKey: String, email: String, data: ProviderQuotaData)] {
         guard let quotas = viewModel.providerQuotas[provider] else { return [] }
-        return quotas.map { ($0.key, $0.value.accountDisplayName ?? $0.key, $0.value) }
+        return Self.orderedAccounts(quotas, provider: provider) {
+            viewModel.isAntigravityAccountActive(email: $0)
+        }
+    }
+
+    /// Orders the menu-bar account rows for `provider`: alphabetical by email, with the
+    /// account currently in use floated to the top.
+    ///
+    /// `isActiveInIDE` is only consulted for Antigravity, the single provider that exposes
+    /// an "in use" signal, so the ordering is driven by exactly the same predicate that
+    /// `buildAccountCardItem` uses to render the active badge on the same row.
+    nonisolated static func orderedAccounts(
+        _ quotas: [String: ProviderQuotaData],
+        provider: AIProvider,
+        isActiveInIDE: (String) -> Bool
+    ) -> [(accountKey: String, email: String, data: ProviderQuotaData)] {
+        let sorted = quotas
+            .map { (accountKey: $0.key, email: $0.value.accountDisplayName ?? $0.key, data: $0.value) }
             .sorted { $0.email < $1.email }
+
+        guard provider == .antigravity else { return sorted }
+        return AccountSorting.prioritizingActive(sorted) { isActiveInIDE($0.email) }
     }
 
     // MARK: - Header Item
