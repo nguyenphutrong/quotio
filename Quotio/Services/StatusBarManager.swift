@@ -68,32 +68,34 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         button.title = ""
         button.image = nil
         
-        let contentView: AnyView
         if !showQuota || !isRunning || items.isEmpty {
-            contentView = AnyView(
-                StatusBarDefaultView(isRunning: isRunning)
-            )
-        } else {
-            contentView = AnyView(
-                StatusBarQuotaView(items: items, colorMode: colorMode)
-            )
+            let imageName = isRunning ? "gauge.with.dots.needle.67percent" : "gauge.with.dots.needle.0percent"
+            if let image = NSImage(systemSymbolName: imageName, accessibilityDescription: "Quotio") {
+                image.isTemplate = true
+                button.image = image
+                button.imagePosition = .imageOnly
+            }
+            statusItem?.length = NSStatusItem.variableLength
+            return
         }
+        
+        let contentView = AnyView(
+            StatusBarQuotaView(items: items, colorMode: colorMode)
+        )
         
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
         
-        // Add horizontal padding to align with native status bar spacing
-        let horizontalPadding: CGFloat = 4
         let contentSize = hostingView.intrinsicContentSize
         let containerSize = NSSize(
-            width: contentSize.width + horizontalPadding * 2,
+            width: contentSize.width,
             height: max(22, contentSize.height)
         )
         
         let containerView = StatusBarContainerView(frame: NSRect(origin: .zero, size: containerSize))
         containerView.addSubview(hostingView)
         hostingView.frame = NSRect(
-            x: horizontalPadding,
+            x: 0,
             y: (containerSize.height - contentSize.height) / 2,
             width: contentSize.width,
             height: contentSize.height
@@ -218,7 +220,6 @@ struct StatusBarQuotaView: View {
                 StatusBarQuotaItemView(item: item, colorMode: colorMode)
             }
         }
-        .padding(.horizontal, 4)
         .frame(height: 22)
         .fixedSize()
     }
