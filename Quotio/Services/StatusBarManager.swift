@@ -34,6 +34,11 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         MenuActionHandler.shared.viewModel = viewModel
     }
     
+    /// Highest backing scale factor across all active screens to ensure sharp rendering in multi-monitor setups
+    private var targetBackingScaleFactor: CGFloat {
+        NSScreen.screens.map(\.backingScaleFactor).max() ?? 2.0
+    }
+    
     func updateStatusBar(
         items: [MenuBarQuotaDisplayItem],
         colorMode: MenuBarColorMode,
@@ -68,39 +73,35 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         button.title = ""
         button.image = nil
         
-        let contentView: AnyView
         if !showQuota || !isRunning || items.isEmpty {
-            contentView = AnyView(
-                StatusBarDefaultView(isRunning: isRunning)
-            )
-        } else {
-            contentView = AnyView(
-                StatusBarQuotaView(items: items, colorMode: colorMode)
-            )
+            let imageName = isRunning ? "gauge.with.dots.needle.67percent" : "gauge.with.dots.needle.0percent"
+            if let image = NSImage(systemSymbolName: imageName, accessibilityDescription: "Quotio") {
+                image.isTemplate = true
+                button.image = image
+                button.imagePosition = .imageOnly
+            }
+            statusItem?.length = NSStatusItem.variableLength
+            return
         }
         
-        let hostingView = NSHostingView(rootView: contentView)
-        hostingView.setFrameSize(hostingView.intrinsicContentSize)
+        let quotaView = StatusBarQuotaView(items: items, colorMode: colorMode)
+        let renderer = ImageRenderer(content: quotaView)
+        let scale = targetBackingScaleFactor
+        renderer.scale = scale
+        renderer.isOpaque = false
         
-        // Add horizontal padding to align with native status bar spacing
-        let horizontalPadding: CGFloat = 4
-        let contentSize = hostingView.intrinsicContentSize
-        let containerSize = NSSize(
-            width: contentSize.width + horizontalPadding * 2,
-            height: max(22, contentSize.height)
-        )
-        
-        let containerView = StatusBarContainerView(frame: NSRect(origin: .zero, size: containerSize))
-        containerView.addSubview(hostingView)
-        hostingView.frame = NSRect(
-            x: horizontalPadding,
-            y: (containerSize.height - contentSize.height) / 2,
-            width: contentSize.width,
-            height: contentSize.height
-        )
-        
-        button.addSubview(containerView)
-        statusItem?.length = containerSize.width
+        if let cgImage = renderer.cgImage {
+            let width = CGFloat(cgImage.width) / scale
+            let height = CGFloat(cgImage.height) / scale
+            let size = NSSize(width: width, height: height)
+            let image = NSImage(cgImage: cgImage, size: size)
+            if colorMode == .monochrome {
+                image.isTemplate = true
+            }
+            button.image = image
+            button.imagePosition = .imageOnly
+            statusItem?.length = width
+        }
     }
     
     // MARK: - NSMenuDelegate
@@ -180,20 +181,6 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     }
 }
 
-// MARK: - Status Bar Container View
-
-final class StatusBarContainerView: NSView {
-    override var allowsVibrancy: Bool { true }
-    
-    override func mouseDown(with event: NSEvent) {
-        superview?.mouseDown(with: event)
-    }
-    
-    override func mouseUp(with event: NSEvent) {
-        superview?.mouseUp(with: event)
-    }
-}
-
 // MARK: - Status Bar Default View
 
 struct StatusBarDefaultView: View {
@@ -218,7 +205,6 @@ struct StatusBarQuotaView: View {
                 StatusBarQuotaItemView(item: item, colorMode: colorMode)
             }
         }
-        .padding(.horizontal, 4)
         .frame(height: 22)
         .fixedSize()
     }
@@ -231,6 +217,19 @@ struct StatusBarQuotaItemView: View {
     let colorMode: MenuBarColorMode
     
     @State private var settings = MenuBarSettingsManager.shared
+    
+    private var defaultTextColor: Color {
+        .primary
+    }
+    
+    private var symbolColor: Color {
+        colorMode == .colored ? item.provider.color : defaultTextColor
+    }
+    
+    private func textColor(for remainingPercentage: Double) -> Color {
+        guard colorMode == .colored else { return defaultTextColor }
+        return remainingPercentage < 0 ? Color(nsColor: .secondaryLabelColor) : item.statusColor(for: remainingPercentage)
+    }
     
     var body: some View {
         let displayMode = settings.quotaDisplayMode
@@ -245,7 +244,7 @@ struct StatusBarQuotaItemView: View {
             } else {
                 Text(item.provider.menuBarSymbol)
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(colorMode == .colored ? item.provider.color : .primary)
+                    .foregroundStyle(symbolColor)
                     .fixedSize()
             }
             
@@ -254,7 +253,7 @@ struct StatusBarQuotaItemView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.orange)
             } else if let quotaPair = item.quotaPair {
-                VStack(alignment: .trailing, spacing: -1) {
+                VStack(alignment: .trailing, spacing: 0) {
                     compactQuotaText(quotaPair.top.remainingPercentage)
                     compactQuotaText(quotaPair.bottom.remainingPercentage)
                 }
@@ -264,7 +263,7 @@ struct StatusBarQuotaItemView: View {
             } else if item.percentage >= 0 {
                 Text(formatPercentage(displayPercent))
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(colorMode == .colored ? item.statusColor : .primary)
+                    .foregroundStyle(textColor(for: item.percentage))
                     .fixedSize()
             }
         }
@@ -282,13 +281,10 @@ struct StatusBarQuotaItemView: View {
         let displayedValue = remainingValue < 0
             ? -1
             : settings.quotaDisplayMode.displayValue(from: remainingValue)
-        let quotaColor: Color = remainingValue < 0
-            ? .secondary
-            : item.statusColor(for: remainingValue)
 
         return Text(formatPercentage(displayedValue))
             .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
-            .foregroundStyle(colorMode == .colored ? quotaColor : .primary)
+            .foregroundStyle(textColor(for: remainingValue))
             .fixedSize()
     }
 
