@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 
 nonisolated struct FactoryDroidCredential: Sendable, Equatable {
@@ -72,44 +73,45 @@ nonisolated enum FactoryDroidCredentialReader {
            values.isSymbolicLink == true {
             throw MonitorRuntimeError.symbolicLinkRefused
         }
-        let storedData = try Data(contentsOf: credentialsURL)
-        let keyData: Data? = if credentialsURL.lastPathComponent == "auth.v2.file" {
-            try? Data(contentsOf: credentialsURL.deletingLastPathComponent().appendingPathComponent("auth.v2.key"))
-        } else {
-            KeychainHelper.readExternalCredential(service: "Factory CLI", account: "auth-encryption-key")
-        }
+        return try withDroidCredentialWriteLock(directory: credentialsURL.deletingLastPathComponent()) {
+            let storedData = try Data(contentsOf: credentialsURL)
+            let keyData: Data? = if credentialsURL.lastPathComponent == "auth.v2.file" {
+                try? Data(contentsOf: credentialsURL.deletingLastPathComponent().appendingPathComponent("auth.v2.key"))
+            } else {
+                KeychainHelper.readExternalCredential(service: "Factory CLI", account: "auth-encryption-key")
+            }
 
-        let cleartext: Data
-        let encryptionKey: Data?
-        let encrypted = String(data: storedData, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let json = try? JSONSerialization.jsonObject(with: storedData) as? [String: Any],
-           json["access_token"] != nil {
-            cleartext = storedData
-            encryptionKey = nil
-        } else if let encrypted,
-                  let key = normalizedKey(keyData),
-                  let decrypted = decrypt(encrypted, key: key) {
-            cleartext = decrypted
-            encryptionKey = key
-        } else {
-            throw MonitorRuntimeError.invalidCredential
-        }
+            let cleartext: Data
+            let encryptionKey: Data?
+            let encrypted = String(data: storedData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let json = try? JSONSerialization.jsonObject(with: storedData) as? [String: Any],
+               json["access_token"] != nil {
+                cleartext = storedData
+                encryptionKey = nil
+            } else if let encrypted,
+                      let key = normalizedKey(keyData),
+                      let decrypted = decrypt(encrypted, key: key) {
+                cleartext = decrypted
+                encryptionKey = key
+            } else {
+                throw MonitorRuntimeError.invalidCredential
+            }
 
-        guard var json = try JSONSerialization.jsonObject(with: cleartext) as? [String: Any],
-              trimmed(json["refresh_token"] as? String) == expectedRefreshToken else { return false }
-        json["access_token"] = accessToken
-        json["refresh_token"] = refreshToken ?? expectedRefreshToken
-        let updated = try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys])
-        let output = if let key = encryptionKey {
-            try encrypt(updated, key: key)
-        } else {
-            updated
-        }
+            guard var json = try JSONSerialization.jsonObject(with: cleartext) as? [String: Any],
+                  trimmed(json["refresh_token"] as? String) == expectedRefreshToken else { return false }
+            json["access_token"] = accessToken
+            json["refresh_token"] = refreshToken ?? expectedRefreshToken
+            let updated = try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys])
+            let output = if let key = encryptionKey {
+                try encrypt(updated, key: key)
+            } else {
+                updated
+            }
 
-        guard (try? Data(contentsOf: credentialsURL)) == storedData else { return false }
-        try SecureAtomicFileWriter.write(output, to: credentialsURL)
-        return true
+            try SecureAtomicFileWriter.write(output, to: credentialsURL)
+            return true
+        }
     }
 
     static func canPersistRefresh(sourcePath: String, expectedRefreshToken: String) -> Bool {
@@ -144,6 +146,43 @@ nonisolated enum FactoryDroidCredentialReader {
             keyData: keyData,
             sourcePath: credentialsURL.path
         )
+    }
+
+    private static func withDroidCredentialWriteLock<T>(directory: URL, operation: () throws -> T) throws -> T {
+        let manager = FileManager.default
+        let lockURL = directory.appendingPathComponent("auth.v2.write.lock", isDirectory: true)
+        let token = UUID().uuidString
+        let pendingURL = directory.appendingPathComponent("auth.v2.write.lock.\(token).pending", isDirectory: true)
+        try manager.createDirectory(
+            at: pendingURL,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
+        )
+        defer { try? manager.removeItem(at: pendingURL) }
+        let ownerData = try JSONSerialization.data(withJSONObject: [
+            "token": token,
+            "pid": ProcessInfo.processInfo.processIdentifier,
+        ])
+        let ownerURL = pendingURL.appendingPathComponent("owner.json")
+        try ownerData.write(to: ownerURL, options: .withoutOverwriting)
+        try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: ownerURL.path)
+
+        let deadline = Date().addingTimeInterval(2)
+        while rename(pendingURL.path, lockURL.path) != 0 {
+            guard [EEXIST, ENOTEMPTY, ENOTDIR, EISDIR].contains(errno), Date() < deadline else {
+                throw MonitorRuntimeError.credentialWriteFailed
+            }
+            Thread.sleep(forTimeInterval: 0.015)
+        }
+
+        defer {
+            if let data = try? Data(contentsOf: lockURL.appendingPathComponent("owner.json")),
+               let owner = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               owner["token"] as? String == token {
+                try? manager.removeItem(at: lockURL)
+            }
+        }
+        return try operation()
     }
 
     private static func normalizedKey(_ data: Data?) -> Data? {

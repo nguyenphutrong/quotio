@@ -734,12 +734,49 @@ final class MonitorRuntimeTests: XCTestCase {
         let updatedCleartext = try AES.GCM.open(updatedBox, using: SymmetricKey(data: keyData))
         let updatedJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: updatedCleartext) as? [String: String])
         XCTAssertEqual(updatedJSON["unknown"], "keep")
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: directory.appendingPathComponent("auth.v2.write.lock").path
+        ))
         XCTAssertFalse(try FactoryDroidCredentialReader.persistRefresh(
             sourcePath: credentialsURL.path,
             expectedRefreshToken: "old-refresh",
             accessToken: "stale-token",
             refreshToken: nil
         ))
+    }
+
+    func testFactoryDroidCoordinatesCredentialReplacementWithDroidWriteLock() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let credentialsURL = directory.appendingPathComponent("auth.encrypted")
+        let lockURL = directory.appendingPathComponent("auth.v2.write.lock")
+        try Data(#"{"access_token":"old-token","refresh_token":"old-refresh"}"#.utf8).write(to: credentialsURL)
+        try FileManager.default.createDirectory(at: lockURL, withIntermediateDirectories: false)
+        let owner = try JSONSerialization.data(withJSONObject: [
+            "token": "droid-writer",
+            "pid": ProcessInfo.processInfo.processIdentifier,
+        ])
+        try owner.write(to: lockURL.appendingPathComponent("owner.json"))
+
+        let writerFinished = expectation(description: "Droid writer finished")
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) {
+            try? Data(#"{"access_token":"droid-token","refresh_token":"droid-refresh"}"#.utf8)
+                .write(to: credentialsURL)
+            try? FileManager.default.removeItem(at: lockURL)
+            writerFinished.fulfill()
+        }
+
+        XCTAssertFalse(try FactoryDroidCredentialReader.persistRefresh(
+            sourcePath: credentialsURL.path,
+            expectedRefreshToken: "old-refresh",
+            accessToken: "quotio-token",
+            refreshToken: "quotio-refresh"
+        ))
+        wait(for: [writerFinished], timeout: 1)
+        let stored = try JSONSerialization.jsonObject(with: Data(contentsOf: credentialsURL)) as? [String: String]
+        XCTAssertEqual(stored?["access_token"], "droid-token")
+        XCTAssertEqual(stored?["refresh_token"], "droid-refresh")
     }
 
     func testFactoryDroidRefusesRefreshWhenCredentialDestinationIsSymbolicLink() throws {
