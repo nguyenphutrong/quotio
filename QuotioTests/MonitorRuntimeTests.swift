@@ -653,6 +653,7 @@ final class MonitorRuntimeTests: XCTestCase {
 
         XCTAssertEqual(credential, FactoryDroidCredential(
             accessToken: "local-token",
+            refreshToken: "refresh",
             activeOrganizationID: "org-123",
             sourcePath: "/tmp/auth.v2.file"
         ))
@@ -677,11 +678,82 @@ final class MonitorRuntimeTests: XCTestCase {
         let credential = FactoryDroidCredentialReader.load(directory: directory)
 
         XCTAssertEqual(credential?.accessToken, "directory-token")
+        XCTAssertNil(credential?.refreshToken)
         XCTAssertEqual(credential?.accountKey, "org-directory")
         XCTAssertEqual(
             FactoryDroidQuotaFetcher.localAccount(for: try XCTUnwrap(credential)).provider,
             .factoryDroid
         )
+    }
+
+    func testFactoryDroidPersistsRotatedEncryptedCredentialWithoutDroppingFields() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let keyData = Data(repeating: 9, count: 32)
+        let nonce = try AES.GCM.Nonce(data: Data(repeating: 10, count: 16))
+        let cleartext = Data(#"{"access_token":"old-token","refresh_token":"old-refresh","active_organization_id":"org-123","unknown":"keep"}"#.utf8)
+        let sealed = try AES.GCM.seal(cleartext, using: SymmetricKey(data: keyData), nonce: nonce)
+        let encrypted = [
+            Data(nonce).base64EncodedString(),
+            sealed.tag.base64EncodedString(),
+            sealed.ciphertext.base64EncodedString(),
+        ].joined(separator: ":")
+        let credentialsURL = directory.appendingPathComponent("auth.v2.file")
+        try Data(encrypted.utf8).write(to: credentialsURL)
+        try Data(keyData.base64EncodedString().utf8).write(to: directory.appendingPathComponent("auth.v2.key"))
+
+        XCTAssertTrue(try FactoryDroidCredentialReader.persistRefresh(
+            sourcePath: credentialsURL.path,
+            expectedRefreshToken: "old-refresh",
+            accessToken: "new-token",
+            refreshToken: "new-refresh"
+        ))
+
+        let updated = try String(contentsOf: credentialsURL, encoding: .utf8)
+        let decrypted = try XCTUnwrap(FactoryDroidCredentialReader.decryptCredential(
+            encrypted: updated,
+            keyData: keyData,
+            sourcePath: credentialsURL.path
+        ))
+        XCTAssertEqual(decrypted.accessToken, "new-token")
+        XCTAssertEqual(decrypted.refreshToken, "new-refresh")
+        let pieces = updated.split(separator: ":")
+        let updatedNonce = try AES.GCM.Nonce(data: XCTUnwrap(Data(base64Encoded: String(pieces[0]))))
+        let updatedTag = try XCTUnwrap(Data(base64Encoded: String(pieces[1])))
+        let updatedCiphertext = try XCTUnwrap(Data(base64Encoded: String(pieces[2])))
+        let updatedBox = try AES.GCM.SealedBox(
+            nonce: updatedNonce,
+            ciphertext: updatedCiphertext,
+            tag: updatedTag
+        )
+        let updatedCleartext = try AES.GCM.open(updatedBox, using: SymmetricKey(data: keyData))
+        let updatedJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: updatedCleartext) as? [String: String])
+        XCTAssertEqual(updatedJSON["unknown"], "keep")
+        XCTAssertFalse(try FactoryDroidCredentialReader.persistRefresh(
+            sourcePath: credentialsURL.path,
+            expectedRefreshToken: "old-refresh",
+            accessToken: "stale-token",
+            refreshToken: nil
+        ))
+    }
+
+    func testFactoryDroidBuildsDroidCompatibleRefreshRequest() throws {
+        let request = FactoryDroidQuotaFetcher.makeRefreshRequest(
+            refreshToken: "refresh + token",
+            organizationID: "org-123"
+        )
+        let body = try XCTUnwrap(request.httpBody)
+        var components = URLComponents()
+        components.percentEncodedQuery = String(decoding: body, as: UTF8.self)
+        let values = Dictionary(uniqueKeysWithValues: try XCTUnwrap(components.queryItems).map { ($0.name, $0.value) })
+
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/x-www-form-urlencoded")
+        XCTAssertEqual(values["grant_type"], "refresh_token")
+        XCTAssertEqual(values["refresh_token"], "refresh + token")
+        XCTAssertEqual(values["client_id"], "client_01HNM792M5G5G1A2THWPXKFMXB")
+        XCTAssertEqual(values["organization_id"], "org-123")
     }
 
     func testFactoryDroidMapsStandardCoreAndExtraUsage() throws {

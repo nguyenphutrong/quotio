@@ -3,6 +3,7 @@ import Foundation
 
 nonisolated struct FactoryDroidCredential: Sendable, Equatable {
     let accessToken: String
+    let refreshToken: String?
     let activeOrganizationID: String?
     let sourcePath: String
 
@@ -59,6 +60,54 @@ nonisolated enum FactoryDroidCredentialReader {
         return parseCredential(decrypted, sourcePath: sourcePath)
     }
 
+    @discardableResult
+    static func persistRefresh(
+        sourcePath: String,
+        expectedRefreshToken: String,
+        accessToken: String,
+        refreshToken: String?
+    ) throws -> Bool {
+        let credentialsURL = URL(fileURLWithPath: sourcePath)
+        let storedData = try Data(contentsOf: credentialsURL)
+        let keyData: Data? = if credentialsURL.lastPathComponent == "auth.v2.file" {
+            try? Data(contentsOf: credentialsURL.deletingLastPathComponent().appendingPathComponent("auth.v2.key"))
+        } else {
+            KeychainHelper.readExternalCredential(service: "Factory CLI", account: "auth-encryption-key")
+        }
+
+        let cleartext: Data
+        let encryptionKey: Data?
+        let encrypted = String(data: storedData, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let json = try? JSONSerialization.jsonObject(with: storedData) as? [String: Any],
+           json["access_token"] != nil {
+            cleartext = storedData
+            encryptionKey = nil
+        } else if let encrypted,
+                  let key = normalizedKey(keyData),
+                  let decrypted = decrypt(encrypted, key: key) {
+            cleartext = decrypted
+            encryptionKey = key
+        } else {
+            throw MonitorRuntimeError.invalidCredential
+        }
+
+        guard var json = try JSONSerialization.jsonObject(with: cleartext) as? [String: Any],
+              trimmed(json["refresh_token"] as? String) == expectedRefreshToken else { return false }
+        json["access_token"] = accessToken
+        json["refresh_token"] = refreshToken ?? expectedRefreshToken
+        let updated = try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys])
+        let output = if let key = encryptionKey {
+            try encrypt(updated, key: key)
+        } else {
+            updated
+        }
+
+        guard (try? Data(contentsOf: credentialsURL)) == storedData else { return false }
+        try SecureAtomicFileWriter.write(output, to: credentialsURL)
+        return true
+    }
+
     private static func loadEncrypted(credentialsURL: URL, keyData: Data?) -> FactoryDroidCredential? {
         guard let encrypted = try? String(contentsOf: credentialsURL, encoding: .utf8),
               let keyData else { return nil }
@@ -92,11 +141,22 @@ nonisolated enum FactoryDroidCredentialReader {
         return try? AES.GCM.open(sealedBox, using: SymmetricKey(data: key))
     }
 
+    private static func encrypt(_ cleartext: Data, key: Data) throws -> Data {
+        let nonce = try AES.GCM.Nonce(data: Data((0..<16).map { _ in UInt8.random(in: .min ... .max) }))
+        let sealed = try AES.GCM.seal(cleartext, using: SymmetricKey(data: key), nonce: nonce)
+        return Data([
+            Data(nonce).base64EncodedString(),
+            sealed.tag.base64EncodedString(),
+            sealed.ciphertext.base64EncodedString(),
+        ].joined(separator: ":").utf8)
+    }
+
     private static func parseCredential(_ data: Data, sourcePath: String) -> FactoryDroidCredential? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let accessToken = trimmed(json["access_token"] as? String) else { return nil }
         return FactoryDroidCredential(
             accessToken: accessToken,
+            refreshToken: trimmed(json["refresh_token"] as? String),
             activeOrganizationID: trimmed(json["active_organization_id"] as? String),
             sourcePath: sourcePath
         )
@@ -126,6 +186,16 @@ nonisolated struct FactoryDroidAuthMeResponse: Decodable, Sendable {
         guard let email = userProfile?.email?.trimmingCharacters(in: .whitespacesAndNewlines),
               !email.isEmpty else { return nil }
         return email
+    }
+}
+
+nonisolated struct FactoryDroidTokenRefreshResponse: Decodable, Sendable {
+    let accessToken: String
+    let refreshToken: String?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
     }
 }
 
@@ -245,11 +315,14 @@ nonisolated enum FactoryDroidQuotaMapper {
 }
 
 actor FactoryDroidQuotaFetcher {
+    private static let workOSClientID = "client_01HNM792M5G5G1A2THWPXKFMXB"
+
     private let vault: MonitorCredentialStore
     private let metadata: MonitorMetadataStore
     private var session: URLSession
     private let limitsURL = URL(string: "https://api.factory.ai/api/billing/limits")!
     private let profileURL = URL(string: "https://api.factory.ai/api/app/auth/me")!
+    private let refreshURL = URL(string: "https://api.workos.com/user_management/authenticate")!
 
     init(
         vault: MonitorCredentialStore = MonitorCredentialVault.shared,
@@ -271,7 +344,7 @@ actor FactoryDroidQuotaFetcher {
         if let localCredential = FactoryDroidCredentialReader.load() {
             let account = Self.localAccount(for: localCredential)
             if !disabledAccountIDs.contains(account.id),
-               let quota = await fetch(accessToken: localCredential.accessToken) {
+               let quota = await fetch(localCredential: localCredential) {
                 results[account.accountKey] = quota
             }
         }
@@ -291,7 +364,7 @@ actor FactoryDroidQuotaFetcher {
         if let localCredential = FactoryDroidCredentialReader.load() {
             let account = Self.localAccount(for: localCredential)
             if account.accountKey == accountKey && !disabledAccountIDs.contains(account.id) {
-                return await fetch(accessToken: localCredential.accessToken)
+                return await fetch(localCredential: localCredential)
             }
         }
 
@@ -311,6 +384,90 @@ actor FactoryDroidQuotaFetcher {
             source: .nativeCredential,
             credentialReference: credential.sourcePath
         )
+    }
+
+    nonisolated static func makeRefreshRequest(
+        refreshToken: String,
+        organizationID: String?,
+        url: URL = URL(string: "https://api.workos.com/user_management/authenticate")!
+    ) -> URLRequest {
+        var items = [
+            URLQueryItem(name: "grant_type", value: "refresh_token"),
+            URLQueryItem(name: "refresh_token", value: refreshToken),
+            URLQueryItem(name: "client_id", value: workOSClientID),
+        ]
+        if let organizationID { items.append(URLQueryItem(name: "organization_id", value: organizationID)) }
+        var components = URLComponents()
+        components.queryItems = items
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = Data((components.percentEncodedQuery ?? "").utf8)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
+    private func fetch(localCredential: FactoryDroidCredential) async -> ProviderQuotaData? {
+        var credential = localCredential
+        var didRefresh = false
+        if Self.isExpiring(accessToken: credential.accessToken),
+           let refreshed = await refresh(credential) {
+            credential = refreshed
+            didRefresh = true
+        }
+
+        var quota = await fetch(accessToken: credential.accessToken)
+        if quota?.isForbidden == true, !didRefresh,
+           let refreshed = await refresh(credential) {
+            quota = await fetch(accessToken: refreshed.accessToken)
+        }
+        return quota
+    }
+
+    private func refresh(_ credential: FactoryDroidCredential) async -> FactoryDroidCredential? {
+        guard let refreshToken = credential.refreshToken else { return nil }
+        let request = Self.makeRefreshRequest(
+            refreshToken: refreshToken,
+            organizationID: credential.activeOrganizationID,
+            url: refreshURL
+        )
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse,
+              200...299 ~= http.statusCode,
+              let refreshed = try? JSONDecoder().decode(FactoryDroidTokenRefreshResponse.self, from: data) else {
+            return nil
+        }
+
+        do {
+            try FactoryDroidCredentialReader.persistRefresh(
+                sourcePath: credential.sourcePath,
+                expectedRefreshToken: refreshToken,
+                accessToken: refreshed.accessToken,
+                refreshToken: refreshed.refreshToken
+            )
+        } catch {
+            Log.quota("Failed to persist refreshed Factory Droid credential")
+        }
+        return FactoryDroidCredential(
+            accessToken: refreshed.accessToken,
+            refreshToken: refreshed.refreshToken ?? refreshToken,
+            activeOrganizationID: credential.activeOrganizationID,
+            sourcePath: credential.sourcePath
+        )
+    }
+
+    private nonisolated static func isExpiring(accessToken: String, leeway: TimeInterval = 60) -> Bool {
+        let pieces = accessToken.split(separator: ".", omittingEmptySubsequences: false)
+        guard pieces.count == 3 else { return true }
+        var payload = String(pieces[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let expiry = json["exp"] as? NSNumber else { return true }
+        return Date().addingTimeInterval(leeway).timeIntervalSince1970 >= expiry.doubleValue
     }
 
     private func fetch(accessToken: String) async -> ProviderQuotaData? {
