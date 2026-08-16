@@ -68,6 +68,10 @@ nonisolated enum FactoryDroidCredentialReader {
         refreshToken: String?
     ) throws -> Bool {
         let credentialsURL = URL(fileURLWithPath: sourcePath)
+        if let values = try? credentialsURL.resourceValues(forKeys: [.isSymbolicLinkKey]),
+           values.isSymbolicLink == true {
+            throw MonitorRuntimeError.symbolicLinkRefused
+        }
         let storedData = try Data(contentsOf: credentialsURL)
         let keyData: Data? = if credentialsURL.lastPathComponent == "auth.v2.file" {
             try? Data(contentsOf: credentialsURL.deletingLastPathComponent().appendingPathComponent("auth.v2.key"))
@@ -106,6 +110,30 @@ nonisolated enum FactoryDroidCredentialReader {
         guard (try? Data(contentsOf: credentialsURL)) == storedData else { return false }
         try SecureAtomicFileWriter.write(output, to: credentialsURL)
         return true
+    }
+
+    static func canPersistRefresh(sourcePath: String, expectedRefreshToken: String) -> Bool {
+        let credentialsURL = URL(fileURLWithPath: sourcePath)
+        if let values = try? credentialsURL.resourceValues(forKeys: [.isSymbolicLinkKey]),
+           values.isSymbolicLink == true {
+            return false
+        }
+        guard FileManager.default.isWritableFile(atPath: credentialsURL.path),
+              let storedData = try? Data(contentsOf: credentialsURL) else { return false }
+        if let json = try? JSONSerialization.jsonObject(with: storedData) as? [String: Any] {
+            return trimmed(json["refresh_token"] as? String) == expectedRefreshToken
+        }
+
+        let keyData: Data? = if credentialsURL.lastPathComponent == "auth.v2.file" {
+            try? Data(contentsOf: credentialsURL.deletingLastPathComponent().appendingPathComponent("auth.v2.key"))
+        } else {
+            KeychainHelper.readExternalCredential(service: "Factory CLI", account: "auth-encryption-key")
+        }
+        guard let encrypted = String(data: storedData, encoding: .utf8),
+              let key = normalizedKey(keyData),
+              let cleartext = decrypt(encrypted.trimmingCharacters(in: .whitespacesAndNewlines), key: key),
+              let json = try? JSONSerialization.jsonObject(with: cleartext) as? [String: Any] else { return false }
+        return trimmed(json["refresh_token"] as? String) == expectedRefreshToken
     }
 
     private static func loadEncrypted(credentialsURL: URL, keyData: Data?) -> FactoryDroidCredential? {
@@ -320,6 +348,7 @@ actor FactoryDroidQuotaFetcher {
     private let vault: MonitorCredentialStore
     private let metadata: MonitorMetadataStore
     private var session: URLSession
+    private var pendingLocalCredentials: [String: (credential: FactoryDroidCredential, replacedRefreshToken: String)] = [:]
     private let limitsURL = URL(string: "https://api.factory.ai/api/billing/limits")!
     private let profileURL = URL(string: "https://api.factory.ai/api/app/auth/me")!
     private let refreshURL = URL(string: "https://api.workos.com/user_management/authenticate")!
@@ -352,7 +381,7 @@ actor FactoryDroidQuotaFetcher {
         for account in await vault.accounts()
         where account.provider == .factoryDroid && !disabledAccountIDs.contains(account.id) {
             guard let credential = await vault.credential(for: account.id),
-                  let quota = await fetch(accessToken: credential.accessToken) else { continue }
+                  let quota = await fetch(accessToken: credential.accessToken).quota else { continue }
             results[account.accountKey] = quota
         }
         return results
@@ -373,7 +402,7 @@ actor FactoryDroidQuotaFetcher {
                 && $0.accountKey == accountKey
                 && !disabledAccountIDs.contains($0.id)
         }), let credential = await vault.credential(for: account.id) else { return nil }
-        return await fetch(accessToken: credential.accessToken)
+        return await fetch(accessToken: credential.accessToken).quota
     }
 
     nonisolated static func localAccount(for credential: FactoryDroidCredential) -> MonitorAccount {
@@ -397,19 +426,39 @@ actor FactoryDroidQuotaFetcher {
             URLQueryItem(name: "client_id", value: workOSClientID),
         ]
         if let organizationID { items.append(URLQueryItem(name: "organization_id", value: organizationID)) }
-        var components = URLComponents()
-        components.queryItems = items
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.httpBody = Data((components.percentEncodedQuery ?? "").utf8)
+        request.httpBody = Data(items.map {
+            formEncoded($0.name) + "=" + formEncoded($0.value ?? "")
+        }.joined(separator: "&").utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return request
     }
 
+    private nonisolated static func formEncoded(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+    }
+
     private func fetch(localCredential: FactoryDroidCredential) async -> ProviderQuotaData? {
         var credential = localCredential
+        if let pending = pendingLocalCredentials[credential.sourcePath] {
+            if credential.refreshToken == pending.replacedRefreshToken {
+                credential = pending.credential
+                if (try? FactoryDroidCredentialReader.persistRefresh(
+                    sourcePath: credential.sourcePath,
+                    expectedRefreshToken: pending.replacedRefreshToken,
+                    accessToken: credential.accessToken,
+                    refreshToken: credential.refreshToken
+                )) == true {
+                    pendingLocalCredentials.removeValue(forKey: credential.sourcePath)
+                }
+            } else {
+                pendingLocalCredentials.removeValue(forKey: credential.sourcePath)
+            }
+        }
         var didRefresh = false
         if Self.isExpiring(accessToken: credential.accessToken),
            let refreshed = await refresh(credential) {
@@ -417,16 +466,24 @@ actor FactoryDroidQuotaFetcher {
             didRefresh = true
         }
 
-        var quota = await fetch(accessToken: credential.accessToken)
-        if quota?.isForbidden == true, !didRefresh,
+        var response = await fetch(accessToken: credential.accessToken)
+        if Self.shouldRefresh(statusCode: response.statusCode, didRefresh: didRefresh),
            let refreshed = await refresh(credential) {
-            quota = await fetch(accessToken: refreshed.accessToken)
+            response = await fetch(accessToken: refreshed.accessToken)
         }
-        return quota
+        return response.quota
+    }
+
+    nonisolated static func shouldRefresh(statusCode: Int?, didRefresh: Bool) -> Bool {
+        statusCode == 401 && !didRefresh
     }
 
     private func refresh(_ credential: FactoryDroidCredential) async -> FactoryDroidCredential? {
-        guard let refreshToken = credential.refreshToken else { return nil }
+        guard let refreshToken = credential.refreshToken,
+              FactoryDroidCredentialReader.canPersistRefresh(
+                sourcePath: credential.sourcePath,
+                expectedRefreshToken: refreshToken
+              ) else { return nil }
         let request = Self.makeRefreshRequest(
             refreshToken: refreshToken,
             organizationID: credential.activeOrganizationID,
@@ -439,22 +496,27 @@ actor FactoryDroidQuotaFetcher {
             return nil
         }
 
-        do {
-            try FactoryDroidCredentialReader.persistRefresh(
-                sourcePath: credential.sourcePath,
-                expectedRefreshToken: refreshToken,
-                accessToken: refreshed.accessToken,
-                refreshToken: refreshed.refreshToken
-            )
-        } catch {
-            Log.quota("Failed to persist refreshed Factory Droid credential")
-        }
-        return FactoryDroidCredential(
+        let updatedCredential = FactoryDroidCredential(
             accessToken: refreshed.accessToken,
             refreshToken: refreshed.refreshToken ?? refreshToken,
             activeOrganizationID: credential.activeOrganizationID,
             sourcePath: credential.sourcePath
         )
+        do {
+            let persisted = try FactoryDroidCredentialReader.persistRefresh(
+                sourcePath: credential.sourcePath,
+                expectedRefreshToken: refreshToken,
+                accessToken: refreshed.accessToken,
+                refreshToken: refreshed.refreshToken
+            )
+            if !persisted {
+                pendingLocalCredentials[credential.sourcePath] = (updatedCredential, refreshToken)
+            }
+        } catch {
+            Log.quota("Failed to persist refreshed Factory Droid credential")
+            pendingLocalCredentials[credential.sourcePath] = (updatedCredential, refreshToken)
+        }
+        return updatedCredential
     }
 
     private nonisolated static func isExpiring(accessToken: String, leeway: TimeInterval = 60) -> Bool {
@@ -470,24 +532,24 @@ actor FactoryDroidQuotaFetcher {
         return Date().addingTimeInterval(leeway).timeIntervalSince1970 >= expiry.doubleValue
     }
 
-    private func fetch(accessToken: String) async -> ProviderQuotaData? {
+    private func fetch(accessToken: String) async -> (quota: ProviderQuotaData?, statusCode: Int?) {
         async let profile = fetchProfile(accessToken: accessToken)
 
         var request = URLRequest(url: limitsURL)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await session.data(for: request),
-              let http = response as? HTTPURLResponse else { return nil }
+              let http = response as? HTTPURLResponse else { return (nil, nil) }
         if http.statusCode == 401 || http.statusCode == 403 {
-            return ProviderQuotaData(isForbidden: true)
+            return (ProviderQuotaData(isForbidden: true), http.statusCode)
         }
         guard 200...299 ~= http.statusCode,
               let decoded = try? JSONDecoder().decode(FactoryDroidQuotaResponse.self, from: data) else {
-            return nil
+            return (nil, http.statusCode)
         }
         var quota = FactoryDroidQuotaMapper.map(decoded)
         quota.accountDisplayName = await profile?.email
-        return quota
+        return (quota, http.statusCode)
     }
 
     private func fetchProfile(accessToken: String) async -> FactoryDroidAuthMeResponse? {

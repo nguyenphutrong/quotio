@@ -703,6 +703,10 @@ final class MonitorRuntimeTests: XCTestCase {
         try Data(encrypted.utf8).write(to: credentialsURL)
         try Data(keyData.base64EncodedString().utf8).write(to: directory.appendingPathComponent("auth.v2.key"))
 
+        XCTAssertTrue(FactoryDroidCredentialReader.canPersistRefresh(
+            sourcePath: credentialsURL.path,
+            expectedRefreshToken: "old-refresh"
+        ))
         XCTAssertTrue(try FactoryDroidCredentialReader.persistRefresh(
             sourcePath: credentialsURL.path,
             expectedRefreshToken: "old-refresh",
@@ -738,6 +742,21 @@ final class MonitorRuntimeTests: XCTestCase {
         ))
     }
 
+    func testFactoryDroidRefusesRefreshWhenCredentialDestinationIsSymbolicLink() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let target = directory.appendingPathComponent("target.json")
+        let link = directory.appendingPathComponent("auth.encrypted")
+        try Data(#"{"access_token":"old-token","refresh_token":"old-refresh"}"#.utf8).write(to: target)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        XCTAssertFalse(FactoryDroidCredentialReader.canPersistRefresh(
+            sourcePath: link.path,
+            expectedRefreshToken: "old-refresh"
+        ))
+    }
+
     func testFactoryDroidBuildsDroidCompatibleRefreshRequest() throws {
         let request = FactoryDroidQuotaFetcher.makeRefreshRequest(
             refreshToken: "refresh + token",
@@ -750,10 +769,17 @@ final class MonitorRuntimeTests: XCTestCase {
 
         XCTAssertEqual(request.httpMethod, "POST")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/x-www-form-urlencoded")
+        XCTAssertTrue(String(decoding: body, as: UTF8.self).contains("refresh_token=refresh%20%2B%20token"))
         XCTAssertEqual(values["grant_type"], "refresh_token")
         XCTAssertEqual(values["refresh_token"], "refresh + token")
         XCTAssertEqual(values["client_id"], "client_01HNM792M5G5G1A2THWPXKFMXB")
         XCTAssertEqual(values["organization_id"], "org-123")
+    }
+
+    func testFactoryDroidOnlyRetriesUnauthorizedResponses() {
+        XCTAssertTrue(FactoryDroidQuotaFetcher.shouldRefresh(statusCode: 401, didRefresh: false))
+        XCTAssertFalse(FactoryDroidQuotaFetcher.shouldRefresh(statusCode: 403, didRefresh: false))
+        XCTAssertFalse(FactoryDroidQuotaFetcher.shouldRefresh(statusCode: 401, didRefresh: true))
     }
 
     func testFactoryDroidMapsStandardCoreAndExtraUsage() throws {
