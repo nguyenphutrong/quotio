@@ -779,6 +779,49 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(stored?["refresh_token"], "droid-refresh")
     }
 
+    func testFactoryDroidPreflightRequiresWritableCredentialDirectory() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let credentialsURL = directory.appendingPathComponent("auth.encrypted")
+        try Data(#"{"access_token":"old-token","refresh_token":"old-refresh"}"#.utf8).write(to: credentialsURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+
+        XCTAssertFalse(FactoryDroidCredentialReader.canPersistRefresh(
+            sourcePath: credentialsURL.path,
+            expectedRefreshToken: "old-refresh"
+        ))
+    }
+
+    func testFactoryDroidReclaimsWriteLockFromTerminatedOwner() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let credentialsURL = directory.appendingPathComponent("auth.encrypted")
+        let lockURL = directory.appendingPathComponent("auth.v2.write.lock")
+        try Data(#"{"access_token":"old-token","refresh_token":"old-refresh"}"#.utf8).write(to: credentialsURL)
+        try FileManager.default.createDirectory(at: lockURL, withIntermediateDirectories: false)
+        let owner = try JSONSerialization.data(withJSONObject: [
+            "token": "abandoned-writer",
+            "pid": Int32.max,
+        ])
+        try owner.write(to: lockURL.appendingPathComponent("owner.json"))
+
+        XCTAssertTrue(try FactoryDroidCredentialReader.persistRefresh(
+            sourcePath: credentialsURL.path,
+            expectedRefreshToken: "old-refresh",
+            accessToken: "new-token",
+            refreshToken: "new-refresh"
+        ))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: lockURL.path))
+        let stored = try JSONSerialization.jsonObject(with: Data(contentsOf: credentialsURL)) as? [String: String]
+        XCTAssertEqual(stored?["access_token"], "new-token")
+        XCTAssertEqual(stored?["refresh_token"], "new-refresh")
+    }
+
     func testFactoryDroidRefusesRefreshWhenCredentialDestinationIsSymbolicLink() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

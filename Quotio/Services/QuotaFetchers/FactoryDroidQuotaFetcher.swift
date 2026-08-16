@@ -116,11 +116,13 @@ nonisolated enum FactoryDroidCredentialReader {
 
     static func canPersistRefresh(sourcePath: String, expectedRefreshToken: String) -> Bool {
         let credentialsURL = URL(fileURLWithPath: sourcePath)
+        let credentialsDirectory = credentialsURL.deletingLastPathComponent()
         if let values = try? credentialsURL.resourceValues(forKeys: [.isSymbolicLinkKey]),
            values.isSymbolicLink == true {
             return false
         }
-        guard FileManager.default.isWritableFile(atPath: credentialsURL.path),
+        guard FileManager.default.isWritableFile(atPath: credentialsDirectory.path),
+              FileManager.default.isWritableFile(atPath: credentialsURL.path),
               let storedData = try? Data(contentsOf: credentialsURL) else { return false }
         if let json = try? JSONSerialization.jsonObject(with: storedData) as? [String: Any] {
             return trimmed(json["refresh_token"] as? String) == expectedRefreshToken
@@ -172,6 +174,9 @@ nonisolated enum FactoryDroidCredentialReader {
             guard [EEXIST, ENOTEMPTY, ENOTDIR, EISDIR].contains(errno), Date() < deadline else {
                 throw MonitorRuntimeError.credentialWriteFailed
             }
+            if try reclaimAbandonedDroidCredentialWriteLock(at: lockURL, manager: manager) {
+                continue
+            }
             Thread.sleep(forTimeInterval: 0.015)
         }
 
@@ -183,6 +188,76 @@ nonisolated enum FactoryDroidCredentialReader {
             }
         }
         return try operation()
+    }
+
+    private static func reclaimAbandonedDroidCredentialWriteLock(
+        at lockURL: URL,
+        manager: FileManager
+    ) throws -> Bool {
+        guard let initial = droidCredentialWriteLockSnapshot(at: lockURL, manager: manager),
+              initial.isAbandoned else { return false }
+
+        let reclaimURL = URL(fileURLWithPath: lockURL.path + ".reclaim", isDirectory: true)
+        let token = UUID().uuidString
+        let pendingURL = URL(fileURLWithPath: reclaimURL.path + ".\(token).pending", isDirectory: true)
+        try manager.createDirectory(
+            at: pendingURL,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
+        )
+        defer { try? manager.removeItem(at: pendingURL) }
+        let ownerData = try JSONSerialization.data(withJSONObject: [
+            "token": token,
+            "pid": ProcessInfo.processInfo.processIdentifier,
+        ])
+        let ownerURL = pendingURL.appendingPathComponent("owner.json")
+        try ownerData.write(to: ownerURL, options: .withoutOverwriting)
+        try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: ownerURL.path)
+
+        guard rename(pendingURL.path, reclaimURL.path) == 0 else {
+            if let abandonedReclaim = droidCredentialWriteLockSnapshot(at: reclaimURL, manager: manager),
+               abandonedReclaim.isAbandoned,
+               droidCredentialWriteLockSnapshot(at: reclaimURL, manager: manager) == abandonedReclaim {
+                try? manager.removeItem(at: reclaimURL)
+            }
+            return false
+        }
+        defer {
+            if droidCredentialWriteLockSnapshot(at: reclaimURL, manager: manager)?.token == token {
+                try? manager.removeItem(at: reclaimURL)
+            }
+        }
+        guard droidCredentialWriteLockSnapshot(at: lockURL, manager: manager) == initial else { return false }
+        try manager.removeItem(at: lockURL)
+        return true
+    }
+
+    private static func droidCredentialWriteLockSnapshot(
+        at lockURL: URL,
+        manager: FileManager
+    ) -> DroidCredentialWriteLockSnapshot? {
+        guard let attributes = try? manager.attributesOfItem(atPath: lockURL.path),
+              let modificationDate = attributes[.modificationDate] as? Date else { return nil }
+        let ownerData = try? Data(contentsOf: lockURL.appendingPathComponent("owner.json"))
+        let owner = ownerData.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        return DroidCredentialWriteLockSnapshot(
+            token: owner?["token"] as? String,
+            pid: (owner?["pid"] as? NSNumber)?.int32Value,
+            modificationDate: modificationDate
+        )
+    }
+
+    private struct DroidCredentialWriteLockSnapshot: Equatable {
+        let token: String?
+        let pid: Int32?
+        let modificationDate: Date
+
+        var isAbandoned: Bool {
+            if let pid {
+                return kill(pid, 0) != 0 && errno == ESRCH
+            }
+            return Date().timeIntervalSince(modificationDate) >= 10
+        }
     }
 
     private static func normalizedKey(_ data: Data?) -> Data? {
