@@ -14,14 +14,20 @@ RELEASE_DIR="${BUILD_DIR}/release"
 APPCAST_PATH="${RELEASE_DIR}/appcast.xml"
 RELEASE_VERSION=""
 GENERATE_APPCAST=false
+DISTRIBUTION=false
 SIGN_UPDATE=""
 TEMP_ROOT=""
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-Developer ID Application}"
+NOTARYTOOL_KEYCHAIN_PROFILE="${NOTARYTOOL_KEYCHAIN_PROFILE:-}"
+NOTARYTOOL_KEYCHAIN="${NOTARYTOOL_KEYCHAIN:-}"
+NOTARYTOOL_AUTH_ARGS=()
 
 usage() {
-    echo "Usage: $0 [--version VERSION] [--generate-appcast]"
+    echo "Usage: $0 [--version VERSION] [--distribution] [--generate-appcast]"
     echo ""
     echo "Build the Release app and create DMG and ZIP artifacts."
     echo "  --version VERSION      update the Xcode version and CHANGELOG before building"
+    echo "  --distribution         require Developer ID signing and Apple notarization"
     echo "  --generate-appcast     sign the ZIP and create appcast.xml using SPARKLE_PRIVATE_KEY"
 }
 
@@ -103,6 +109,137 @@ verify_bundled_proxy() {
     [ "${actual_sha256}" = "${expected_sha256}" ] \
         || fail "bundled proxy checksum mismatch"
     log "Verified bundled proxy checksum"
+}
+
+configure_distribution() {
+    [ -n "${NOTARYTOOL_KEYCHAIN_PROFILE}" ] \
+        || fail "NOTARYTOOL_KEYCHAIN_PROFILE is required for --distribution"
+
+    NOTARYTOOL_AUTH_ARGS=(--keychain-profile "${NOTARYTOOL_KEYCHAIN_PROFILE}")
+    if [ -n "${NOTARYTOOL_KEYCHAIN}" ]; then
+        NOTARYTOOL_AUTH_ARGS+=(--keychain "${NOTARYTOOL_KEYCHAIN}")
+    fi
+
+    security find-identity -v -p codesigning | grep -F "${SIGNING_IDENTITY}" >/dev/null \
+        || fail "code-signing identity not found: ${SIGNING_IDENTITY}"
+}
+
+sign_macho_files() {
+    local binary_path
+
+    while IFS= read -r binary_path; do
+        if file "${binary_path}" | grep -q "Mach-O"; then
+            codesign \
+                --force \
+                --sign "${SIGNING_IDENTITY}" \
+                --options runtime \
+                --timestamp \
+                --preserve-metadata=identifier,entitlements \
+                "${binary_path}"
+        fi
+    done < <(find "${APP_PATH}/Contents" -type f)
+}
+
+sign_nested_code_bundles() {
+    local code_path
+
+    while IFS= read -r code_path; do
+        codesign \
+            --force \
+            --sign "${SIGNING_IDENTITY}" \
+            --options runtime \
+            --timestamp \
+            --preserve-metadata=identifier,entitlements \
+            "${code_path}"
+    done < <(
+        find "${APP_PATH}/Contents" -type d \( \
+            -name "*.framework" -o \
+            -name "*.xpc" -o \
+            -name "*.appex" -o \
+            -name "*.app" \
+        \) \
+            | awk '{ print gsub("/", "/"), $0 }' \
+            | sort -rn \
+            | cut -d' ' -f2-
+    )
+}
+
+record_signed_proxy_checksum() {
+    local resources_dir="${APP_PATH}/Contents/Resources"
+    local binary_path=""
+    local signed_sha256
+    local info_plist="${APP_PATH}/Contents/Info.plist"
+
+    if [ -f "${resources_dir}/Proxy/cli-proxy-api-plus" ]; then
+        binary_path="${resources_dir}/Proxy/cli-proxy-api-plus"
+    elif [ -f "${resources_dir}/cli-proxy-api-plus" ]; then
+        binary_path="${resources_dir}/cli-proxy-api-plus"
+    else
+        fail "cli-proxy-api-plus is missing from the app bundle"
+    fi
+
+    signed_sha256="$(shasum -a 256 "${binary_path}" | awk '{print $1}')"
+    /usr/libexec/PlistBuddy \
+        -c "Delete :QuotioBundledProxySHA256" \
+        "${info_plist}" >/dev/null 2>&1 || true
+    /usr/libexec/PlistBuddy \
+        -c "Add :QuotioBundledProxySHA256 string ${signed_sha256}" \
+        "${info_plist}"
+}
+
+sign_app_for_distribution() {
+    local team_identifier
+
+    log "Signing nested code with Developer ID"
+    sign_macho_files
+    record_signed_proxy_checksum
+    sign_nested_code_bundles
+
+    codesign \
+        --force \
+        --sign "${SIGNING_IDENTITY}" \
+        --options runtime \
+        --timestamp \
+        --entitlements "${PROJECT_DIR}/Quotio/Quotio.entitlements" \
+        "${APP_PATH}"
+    codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
+
+    team_identifier="$(
+        codesign -dv --verbose=4 "${APP_PATH}" 2>&1 \
+            | sed -n 's/^TeamIdentifier=//p' \
+            | head -n 1
+    )"
+    [ -n "${team_identifier}" ] && [ "${team_identifier}" != "not set" ] \
+        || fail "Developer ID signature has no TeamIdentifier"
+    log "Signed app with TeamIdentifier ${team_identifier}"
+}
+
+notarize_app() {
+    local submission_zip="${TEMP_ROOT}/${PROJECT_NAME}-notarization.zip"
+
+    log "Submitting app for notarization"
+    ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" "${submission_zip}"
+    xcrun notarytool submit "${submission_zip}" "${NOTARYTOOL_AUTH_ARGS[@]}" --wait
+    xcrun stapler staple "${APP_PATH}"
+    xcrun stapler validate "${APP_PATH}"
+    spctl --assess --type execute --verbose=2 "${APP_PATH}"
+}
+
+notarize_dmg() {
+    local dmg_file="$1"
+
+    log "Signing and notarizing ${dmg_file}"
+    codesign --force --sign "${SIGNING_IDENTITY}" --timestamp "${dmg_file}"
+    codesign --verify --strict --verbose=2 "${dmg_file}"
+    xcrun notarytool submit "${dmg_file}" "${NOTARYTOOL_AUTH_ARGS[@]}" --wait
+    xcrun stapler staple "${dmg_file}"
+    xcrun stapler validate "${dmg_file}"
+    spctl \
+        --assess \
+        --type open \
+        --context context:primary-signature \
+        --verbose=2 \
+        "${dmg_file}"
 }
 
 install_sparkle_tools() {
@@ -216,6 +353,10 @@ while [ "$#" -gt 0 ]; do
             GENERATE_APPCAST=true
             shift
             ;;
+        --distribution)
+            DISTRIBUTION=true
+            shift
+            ;;
         -h|--help)
             usage
             exit 0
@@ -232,6 +373,14 @@ require_command ditto
 require_command codesign
 require_command shasum
 require_command hdiutil
+
+if [ "${DISTRIBUTION}" = true ]; then
+    require_command security
+    require_command file
+    require_command xcrun
+    require_command spctl
+    configure_distribution
+fi
 
 if [ -n "${RELEASE_VERSION}" ]; then
     prepare_release_version "${RELEASE_VERSION}"
@@ -278,12 +427,17 @@ ARCHIVED_APP="${ARCHIVE_PATH}/Products/Applications/${PROJECT_NAME}.app"
 [ -d "${ARCHIVED_APP}" ] || fail "archive did not contain ${PROJECT_NAME}.app"
 cp -R "${ARCHIVED_APP}" "${APP_PATH}"
 verify_bundled_proxy
-codesign --force --deep --sign - "${APP_PATH}"
+if [ "${DISTRIBUTION}" = true ]; then
+    sign_app_for_distribution
+    notarize_app
+else
+    codesign --force --deep --sign - "${APP_PATH}"
+fi
 
 ZIP_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${VERSION}.zip"
 DMG_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${VERSION}.dmg"
 log "Creating ${ZIP_FILE}"
-ditto -c -k --keepParent "${APP_PATH}" "${ZIP_FILE}"
+ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" "${ZIP_FILE}"
 
 mkdir -p "${DMG_STAGING}"
 cp -R "${APP_PATH}" "${DMG_STAGING}/"
@@ -314,6 +468,10 @@ fi
 
 [ -f "${ZIP_FILE}" ] || fail "ZIP artifact was not created"
 [ -f "${DMG_FILE}" ] || fail "DMG artifact was not created"
+
+if [ "${DISTRIBUTION}" = true ]; then
+    notarize_dmg "${DMG_FILE}"
+fi
 
 if [ "${GENERATE_APPCAST}" = true ]; then
     generate_appcast "${VERSION}" "${BUILD_NUMBER}" "${ZIP_FILE}"

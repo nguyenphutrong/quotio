@@ -91,10 +91,7 @@ brew install --cask quotio
 ### Tải xuống
 Tải file `.dmg` mới nhất từ trang [Releases](https://github.com/nguyenphutrong/quotio/releases).
 
-> ⚠️ **Lưu ý**: Ứng dụng chưa được ký bằng chứng chỉ Apple Developer. Nếu macOS chặn ứng dụng, chạy lệnh sau:
-> ```bash
-> xattr -cr /Applications/Quotio.app
-> ```
+Các bản phát hành chính thức được ký bằng Developer ID và được Apple công chứng, vì vậy không cần bỏ qua Gatekeeper.
 
 ### Build từ source
 

@@ -18,28 +18,36 @@ enum KeychainHelper {
     }
 
     nonisolated private static let securityLock = NSRecursiveLock()
-    private static let remoteService = "dev.quotio.desktop.remote-management"
-    private static let localService = "dev.quotio.desktop.local-management"
-    private static let warpService = "dev.quotio.desktop.warp"
+    nonisolated private static var remoteService: String {
+        AppIdentity.keychainService(suffix: "remote-management")
+    }
+    nonisolated private static var localService: String {
+        AppIdentity.keychainService(suffix: "local-management")
+    }
+    nonisolated private static var warpService: String {
+        AppIdentity.keychainService(suffix: "warp")
+    }
     private static let localManagementAccount = "local-management-key"
     private static let warpTokensAccount = "warp-tokens"
     private static let localManagementDefaultsKey = "managementKey"
     private static let warpTokensDefaultsKey = "warpTokens"
-    nonisolated private static let monitorAuthService = "dev.quotio.desktop.monitor-auth"
+    nonisolated private static var monitorAuthService: String {
+        AppIdentity.keychainService(suffix: "monitor-auth")
+    }
 
     // Legacy service names for keychain migration (newest first)
-    private static let legacyRemoteServices = [
-        "proseek.io.vn.Quotio.remote-management",
-        "com.quotio.remote-management",
-    ]
-    private static let legacyLocalServices = [
-        "proseek.io.vn.Quotio.local-management",
-        "com.quotio.local-management",
-    ]
-    private static let legacyWarpServices = [
-        "proseek.io.vn.Quotio.warp",
-        "com.quotio.warp",
-    ]
+    nonisolated private static var legacyRemoteServices: [String] {
+        AppIdentity.legacyKeychainServices(suffix: "remote-management")
+    }
+    nonisolated private static var legacyLocalServices: [String] {
+        AppIdentity.legacyKeychainServices(suffix: "local-management")
+    }
+    nonisolated private static var legacyWarpServices: [String] {
+        AppIdentity.legacyKeychainServices(suffix: "warp")
+    }
+    nonisolated private static var legacyMonitorAuthServices: [String] {
+        AppIdentity.legacyKeychainServices(suffix: "monitor-auth")
+    }
 
     static func saveManagementKey(_ key: String, for configId: String) {
         let account = "management-key-\(configId)"
@@ -54,14 +62,17 @@ enum KeychainHelper {
         if let key = readString(service: remoteService, account: account) {
             return key
         }
+        guard AppIdentity.isProduction else { return nil }
         return migrateString(from: legacyRemoteServices, to: remoteService, account: account)
     }
 
     static func deleteManagementKey(for configId: String) {
         let account = "management-key-\(configId)"
         deleteData(service: remoteService, account: account)
-        for legacy in legacyRemoteServices {
-            deleteData(service: legacy, account: account)
+        if AppIdentity.isProduction {
+            for legacy in legacyRemoteServices {
+                deleteData(service: legacy, account: account)
+            }
         }
     }
 
@@ -84,7 +95,8 @@ enum KeychainHelper {
         }
 
         // Migrate from legacy keychain service name
-        if let legacyKey = migrateString(from: legacyLocalServices, to: localService, account: localManagementAccount) {
+        if AppIdentity.isProduction,
+           let legacyKey = migrateString(from: legacyLocalServices, to: localService, account: localManagementAccount) {
             return legacyKey
         }
 
@@ -102,8 +114,10 @@ enum KeychainHelper {
 
     static func deleteLocalManagementKey() {
         deleteData(service: localService, account: localManagementAccount)
-        for legacy in legacyLocalServices {
-            deleteData(service: legacy, account: localManagementAccount)
+        if AppIdentity.isProduction {
+            for legacy in legacyLocalServices {
+                deleteData(service: legacy, account: localManagementAccount)
+            }
         }
         UserDefaults.standard.removeObject(forKey: localManagementDefaultsKey)
     }
@@ -121,7 +135,8 @@ enum KeychainHelper {
             return data
         }
 
-        if let legacyData = migrateData(from: legacyWarpServices, to: warpService, account: warpTokensAccount) {
+        if AppIdentity.isProduction,
+           let legacyData = migrateData(from: legacyWarpServices, to: warpService, account: warpTokensAccount) {
             return legacyData
         }
 
@@ -138,8 +153,10 @@ enum KeychainHelper {
 
     static func deleteWarpTokens() {
         deleteData(service: warpService, account: warpTokensAccount)
-        for legacy in legacyWarpServices {
-            deleteData(service: legacy, account: warpTokensAccount)
+        if AppIdentity.isProduction {
+            for legacy in legacyWarpServices {
+                deleteData(service: legacy, account: warpTokensAccount)
+            }
         }
         UserDefaults.standard.removeObject(forKey: warpTokensDefaultsKey)
     }
@@ -151,11 +168,20 @@ enum KeychainHelper {
     }
 
     nonisolated static func getMonitorCredential(account: String) -> Data? {
-        readData(service: monitorAuthService, account: account)
+        if let data = readData(service: monitorAuthService, account: account) {
+            return data
+        }
+        guard AppIdentity.isProduction else { return nil }
+        return migrateData(from: legacyMonitorAuthServices, to: monitorAuthService, account: account)
     }
 
     nonisolated static func deleteMonitorCredential(account: String) {
         deleteData(service: monitorAuthService, account: account)
+        if AppIdentity.isProduction {
+            for legacy in legacyMonitorAuthServices {
+                deleteData(service: legacy, account: account)
+            }
+        }
     }
 
     nonisolated static func compareAndSwapMonitorCredential(
@@ -266,7 +292,7 @@ enum KeychainHelper {
         ]
     }
 
-    private static func migrateData(from oldServices: [String], to newService: String, account: String) -> Data? {
+    nonisolated private static func migrateData(from oldServices: [String], to newService: String, account: String) -> Data? {
         for oldService in oldServices {
             guard let data = readData(service: oldService, account: account) else { continue }
             if saveData(data, service: newService, account: account) {
@@ -277,7 +303,7 @@ enum KeychainHelper {
         return nil
     }
 
-    private static func migrateString(from oldServices: [String], to newService: String, account: String) -> String? {
+    nonisolated private static func migrateString(from oldServices: [String], to newService: String, account: String) -> String? {
         // Non-destructive read: validate UTF-8 before committing the destructive migration
         for oldService in oldServices {
             guard let data = readData(service: oldService, account: account) else { continue }

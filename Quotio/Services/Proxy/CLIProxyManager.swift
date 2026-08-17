@@ -2197,7 +2197,7 @@ extension CLIProxyManager {
         return ProxyVersionInfo(
             source: .plusLocal,
             version: ProxyBinarySource.plusLocalVersion,
-            sha256: ProxyBinarySource.plusLocalSHA256,
+            sha256: ProxyBinarySource.bundledPlusLocalSHA256,
             localFilePath: bundledBinaryPath,
             releaseNotes: "Fixed local CLIProxyAPIPlus binary for legacy compatibility."
         )

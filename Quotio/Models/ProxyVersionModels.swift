@@ -17,8 +17,23 @@ nonisolated enum ProxyBinarySource: String, Codable, CaseIterable, Identifiable,
     static let explicitSelectionDefaultsKey = "hasExplicitProxyBinarySourceSelection"
     static let plusLocalVersion = "6.9.28-0"
     static let plusLocalSHA256 = "a722885ab3c0cea5535ee69a86220d35c4f95ee7656e009d872d24de2910acf0"
+    static let plusLocalSHA256InfoKey = "QuotioBundledProxySHA256"
     static let plusLocalBinaryName = "cli-proxy-api-plus"
     static let plusLocalResourceSubdirectory = "Proxy"
+
+    static var bundledPlusLocalSHA256: String {
+        resolvedPlusLocalSHA256(
+            bundleValue: Bundle.main.object(forInfoDictionaryKey: plusLocalSHA256InfoKey) as? String
+        )
+    }
+
+    static func resolvedPlusLocalSHA256(bundleValue: String?) -> String {
+        guard let value = bundleValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              value.range(of: "^[0-9a-fA-F]{64}$", options: .regularExpression) != nil else {
+            return plusLocalSHA256
+        }
+        return value.lowercased()
+    }
 
     var id: String { rawValue }
 

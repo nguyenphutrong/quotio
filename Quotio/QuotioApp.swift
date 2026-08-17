@@ -171,6 +171,10 @@ final class AppBootstrap {
 
 @main
 struct QuotioApp: App {
+    private let userDefaultsMigration: Void = {
+        guard !isRunningUnitTests else { return }
+        AppIdentity.migrateLegacyUserDefaults()
+    }()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     // Use shared bootstrap instance for viewModel
     private var bootstrap: AppBootstrap { AppBootstrap.shared }

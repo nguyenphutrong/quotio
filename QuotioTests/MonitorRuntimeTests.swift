@@ -180,7 +180,7 @@ final class MonitorRuntimeTests: XCTestCase {
         // A per-run account, so the real credentials of whoever runs the suite
         // are never the thing being overwritten.
         let configId = UUID().uuidString
-        let service = "dev.quotio.desktop.remote-management"
+        let service = AppIdentity.keychainService(suffix: "remote-management")
         let account = "management-key-\(configId)"
         let digest = SHA256.hash(data: Data("\(service)\u{0}\(account)".utf8))
             .map { String(format: "%02x", $0) }

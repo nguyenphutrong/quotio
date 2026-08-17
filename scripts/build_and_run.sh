@@ -8,7 +8,7 @@ BUILD_DIR="${PROJECT_DIR}/build"
 DERIVED_DATA="${BUILD_DIR}/DebugDerivedData"
 APP_PATH="${DERIVED_DATA}/Build/Products/Debug/${PROJECT_NAME}.app"
 APP_BINARY="${APP_PATH}/Contents/MacOS/${PROJECT_NAME}"
-BUNDLE_ID="dev.quotio.desktop"
+BUNDLE_ID="app.bytrong.quotio"
 MODE="run"
 
 usage() {
@@ -47,9 +47,6 @@ xcodebuild \
     -destination "platform=macOS" \
     -derivedDataPath "${DERIVED_DATA}" \
     build \
-    CODE_SIGN_IDENTITY="-" \
-    CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGNING_ALLOWED=NO \
     2>&1 | tee "${BUILD_DIR}/debug-build.log"
 
 if [ ! -d "${APP_PATH}" ]; then

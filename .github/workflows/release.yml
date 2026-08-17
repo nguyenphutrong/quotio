@@ -66,12 +66,143 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
 
+      - name: Configure Developer ID signing and notarization
+        id: signing
+        env:
+          DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+
+          required_secrets=(
+            DEVELOPER_ID_CERTIFICATE_BASE64
+            DEVELOPER_ID_CERTIFICATE_PASSWORD
+            APP_STORE_CONNECT_API_KEY_BASE64
+            APP_STORE_CONNECT_KEY_ID
+            APP_STORE_CONNECT_ISSUER_ID
+          )
+
+          configured_secret_count=0
+          for secret_name in "${required_secrets[@]}"; do
+            if [[ -n "${!secret_name}" ]]; then
+              configured_secret_count=$((configured_secret_count + 1))
+            fi
+          done
+
+          if [[ "${configured_secret_count}" -eq 0 ]]; then
+            echo "enabled=false" >> "${GITHUB_OUTPUT}"
+            echo "Apple signing secrets are not configured; building ad-hoc artifacts."
+            exit 0
+          fi
+
+          if [[ "${configured_secret_count}" -ne "${#required_secrets[@]}" ]]; then
+            echo "Developer ID signing is only enabled when all Apple signing secrets are configured." >&2
+            for secret_name in "${required_secrets[@]}"; do
+              if [[ -z "${!secret_name}" ]]; then
+                echo "Missing GitHub secret: ${secret_name}" >&2
+              fi
+            done
+            exit 1
+          fi
+
+          KEYCHAIN_PATH="${RUNNER_TEMP}/quotio-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          CERTIFICATE_PATH="${RUNNER_TEMP}/developer-id-application.p12"
+          API_KEY_PATH="${RUNNER_TEMP}/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          NOTARY_PROFILE="quotio-notarization-${GITHUB_RUN_ID}"
+          ORIGINAL_KEYCHAINS_PATH="${RUNNER_TEMP}/quotio-original-keychains.txt"
+
+          security list-keychains -d user > "${ORIGINAL_KEYCHAINS_PATH}"
+          {
+            echo "SIGNING_KEYCHAIN_PATH=${KEYCHAIN_PATH}"
+            echo "SIGNING_CERTIFICATE_PATH=${CERTIFICATE_PATH}"
+            echo "NOTARY_API_KEY_PATH=${API_KEY_PATH}"
+            echo "SIGNING_ORIGINAL_KEYCHAINS_PATH=${ORIGINAL_KEYCHAINS_PATH}"
+          } >> "${GITHUB_ENV}"
+
+          printf '%s' "${DEVELOPER_ID_CERTIFICATE_BASE64}" | base64 --decode > "${CERTIFICATE_PATH}"
+          printf '%s' "${APP_STORE_CONNECT_API_KEY_BASE64}" | base64 --decode > "${API_KEY_PATH}"
+
+          security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+          security set-keychain-settings -lut 21600 "${KEYCHAIN_PATH}"
+          security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+
+          existing_keychains=()
+          while IFS= read -r keychain; do
+            existing_keychains+=("${keychain//\"/}")
+          done < <(security list-keychains -d user)
+          security list-keychains -d user -s "${KEYCHAIN_PATH}" "${existing_keychains[@]}"
+
+          security import "${CERTIFICATE_PATH}" \
+            -k "${KEYCHAIN_PATH}" \
+            -P "${DEVELOPER_ID_CERTIFICATE_PASSWORD}" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "${KEYCHAIN_PASSWORD}" \
+            "${KEYCHAIN_PATH}"
+
+          SIGNING_IDENTITY="$(
+            security find-identity -v -p codesigning "${KEYCHAIN_PATH}" \
+              | awk '/Developer ID Application/ && !identity {identity=$2} END {print identity}'
+          )"
+          if [[ -z "${SIGNING_IDENTITY}" ]]; then
+            echo "The imported certificate is not a valid Developer ID Application identity." >&2
+            exit 1
+          fi
+
+          xcrun notarytool store-credentials "${NOTARY_PROFILE}" \
+            --key "${API_KEY_PATH}" \
+            --key-id "${APP_STORE_CONNECT_KEY_ID}" \
+            --issuer "${APP_STORE_CONNECT_ISSUER_ID}" \
+            --keychain "${KEYCHAIN_PATH}"
+
+          {
+            echo "SIGNING_IDENTITY=${SIGNING_IDENTITY}"
+            echo "NOTARYTOOL_KEYCHAIN_PROFILE=${NOTARY_PROFILE}"
+            echo "NOTARYTOOL_KEYCHAIN=${KEYCHAIN_PATH}"
+          } >> "${GITHUB_ENV}"
+          echo "enabled=true" >> "${GITHUB_OUTPUT}"
+
       - name: Build DMG, ZIP, and appcast
         env:
           POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
           POSTHOG_HOST: ${{ vars.POSTHOG_HOST || 'https://us.i.posthog.com' }}
+          SIGNING_ENABLED: ${{ steps.signing.outputs.enabled }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-        run: ./scripts/build_dmg.sh --version "${{ steps.version.outputs.VERSION }}" --generate-appcast
+        run: |
+          args=(--version "${{ steps.version.outputs.VERSION }}" --generate-appcast)
+          if [[ "${SIGNING_ENABLED}" == "true" ]]; then
+            args+=(--distribution)
+          fi
+          ./scripts/build_dmg.sh "${args[@]}"
+
+      - name: Remove signing credentials
+        if: always()
+        run: |
+          if [[ -n "${SIGNING_ORIGINAL_KEYCHAINS_PATH:-}" && -f "${SIGNING_ORIGINAL_KEYCHAINS_PATH}" ]]; then
+            original_keychains=()
+            while IFS= read -r keychain; do
+              original_keychains+=("${keychain//\"/}")
+            done < "${SIGNING_ORIGINAL_KEYCHAINS_PATH}"
+            security list-keychains -d user -s "${original_keychains[@]}" || true
+          fi
+          if [[ -n "${SIGNING_KEYCHAIN_PATH:-}" && -f "${SIGNING_KEYCHAIN_PATH}" ]]; then
+            security delete-keychain "${SIGNING_KEYCHAIN_PATH}" || true
+          fi
+          for credential_file in \
+            "${SIGNING_CERTIFICATE_PATH:-}" \
+            "${NOTARY_API_KEY_PATH:-}" \
+            "${SIGNING_ORIGINAL_KEYCHAINS_PATH:-}"; do
+            if [[ -n "${credential_file}" ]]; then
+              rm -f "${credential_file}"
+            fi
+          done
 
       # ===========================================
       # 5. Create tag (for workflow_dispatch)
@@ -105,10 +236,7 @@ jobs:
 
             Download `Quotio-${{ steps.version.outputs.VERSION }}.dmg` or `Quotio-${{ steps.version.outputs.VERSION }}.zip` below.
 
-            > ⚠️ **Note**: The app is not signed with an Apple Developer certificate. If macOS blocks the app, run:
-            > ```bash
-            > xattr -cr /Applications/Quotio.app
-            > ```
+            ${{ steps.signing.outputs.enabled == 'true' && 'The app is signed with Developer ID and notarized by Apple.' || 'This artifact was built without Developer ID signing because Apple signing secrets were not configured.' }}
           prerelease: ${{ steps.version.outputs.IS_PRERELEASE == 'true' }}
 
       # ===========================================

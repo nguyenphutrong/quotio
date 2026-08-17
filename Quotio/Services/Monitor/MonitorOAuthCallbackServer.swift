@@ -38,7 +38,7 @@ nonisolated final class MonitorOAuthCallbackServer: @unchecked Sendable {
                     break
                 }
             }
-            listener.start(queue: DispatchQueue(label: "dev.quotio.monitor-oauth"))
+            listener.start(queue: DispatchQueue(label: "\(AppIdentity.bundleIdentifier).monitor-oauth"))
         }
     }
 
@@ -100,7 +100,7 @@ nonisolated final class MonitorOAuthCallbackServer: @unchecked Sendable {
     }
 
     private func handle(_ connection: NWConnection) {
-        connection.start(queue: DispatchQueue(label: "dev.quotio.monitor-oauth.connection"))
+        connection.start(queue: DispatchQueue(label: "\(AppIdentity.bundleIdentifier).monitor-oauth.connection"))
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] data, _, _, _ in
             guard let self,
                   let data,

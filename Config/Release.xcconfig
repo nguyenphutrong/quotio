@@ -6,7 +6,8 @@
 // to ensure consistent production builds
 
 // Production settings (DO NOT override these locally)
-PRODUCT_BUNDLE_IDENTIFIER = dev.quotio.desktop
+PRODUCT_BUNDLE_IDENTIFIER = app.bytrong.quotio
 PRODUCT_NAME = Quotio
+ENABLE_HARDENED_RUNTIME = YES
 POSTHOG_PROJECT_TOKEN =
 POSTHOG_HOST = https:/$()/us.i.posthog.com

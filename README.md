@@ -89,10 +89,7 @@ brew install --cask quotio
 ### Download
 Download the latest `.dmg` from the [Releases](https://github.com/nguyenphutrong/quotio/releases) page.
 
-> ⚠️ **Note**: The app is not signed with an Apple Developer certificate yet. If macOS blocks the app, run:
-> ```bash
-> xattr -cr /Applications/Quotio.app
-> ```
+Official release artifacts are signed with Developer ID and notarized by Apple, so no Gatekeeper bypass is required.
 
 ### Building from Source
 
