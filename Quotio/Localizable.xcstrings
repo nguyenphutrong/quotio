@@ -14,7 +14,7 @@
     "amp.label.placeholder" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Account label" } }, "fr" : { "stringUnit" : { "state" : "translated", "value" : "Libellé du compte" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhãn tài khoản" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账户标签" } } } },
     "amp.quota.agent" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Agent Usage" } }, "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utilisation Agent" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mức dùng Agent" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 用量" } } } },
     "amp.quota.free" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Amp Free" } }, "fr" : { "stringUnit" : { "state" : "translated", "value" : "Amp Gratuit" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Amp Miễn phí" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Amp 免费额度" } } } },
-    "amp.quota.individualCredits" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Individual Credits" } }, "fr" : { "stringUnit" : { "state" : "translated", "value" : "Crédits individuels" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Số dư cá nhân" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个人余额" } } } },
+    "amp.quota.individualCredits" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Balance" } }, "fr" : { "stringUnit" : { "state" : "translated", "value" : "Solde" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Số dư" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "余额" } } } },
     "amp.quota.orb" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Orb Usage" } }, "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utilisation Orb" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mức dùng Orb" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Orb 用量" } } } },
     "amp.quota.workspaceCredits" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Workspace Credits" } }, "fr" : { "stringUnit" : { "state" : "translated", "value" : "Crédits de l’espace de travail" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Số dư không gian làm việc" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "工作区余额" } } } },
     "-" : {
@@ -24218,10 +24218,10 @@
     },
     "quota.metric.balanceValue" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ left" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%@ restant" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Còn %@" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "剩余 %@" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%@" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@" } }
       }
     },
     "quota.metric.credits" : {
