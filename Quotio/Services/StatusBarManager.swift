@@ -42,6 +42,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     func updateStatusBar(
         items: [MenuBarQuotaDisplayItem],
         colorMode: MenuBarColorMode,
+        quotaDisplayMode: QuotaDisplayMode,
         isRunning: Bool,
         showMenuBarIcon: Bool,
         showQuota: Bool
@@ -80,11 +81,20 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
                 button.image = image
                 button.imagePosition = .imageOnly
             }
+            button.setAccessibilityLabel("Quotio")
             statusItem?.length = NSStatusItem.variableLength
             return
         }
         
-        let quotaView = StatusBarQuotaView(items: items, colorMode: colorMode)
+        let colorScheme: ColorScheme = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
+        
+        let quotaView = StatusBarQuotaView(
+            items: items,
+            colorMode: colorMode,
+            quotaDisplayMode: quotaDisplayMode
+        )
+        .environment(\.colorScheme, colorScheme)
+        
         let renderer = ImageRenderer(content: quotaView)
         let scale = targetBackingScaleFactor
         renderer.scale = scale
@@ -98,10 +108,37 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             if colorMode == .monochrome {
                 image.isTemplate = true
             }
+            
+            let description = accessibilityDescription(for: items, displayMode: quotaDisplayMode)
+            image.accessibilityDescription = description
+            button.setAccessibilityLabel(description)
+            
             button.image = image
             button.imagePosition = .imageOnly
             statusItem?.length = width
         }
+    }
+    
+    private func accessibilityDescription(for items: [MenuBarQuotaDisplayItem], displayMode: QuotaDisplayMode) -> String {
+        let itemDescriptions = items.map { item -> String in
+            let providerName = item.provider.displayName
+            if item.isForbidden {
+                return "\(providerName): \("status.error".localized())"
+            }
+            if let pair = item.quotaPair {
+                let topDesc = "\(pair.top.labelKey.localized()): \(StatusBarQuotaItemView.accessibilityValue(for: pair.top, displayMode: displayMode))"
+                let bottomDesc = "\(pair.bottom.labelKey.localized()): \(StatusBarQuotaItemView.accessibilityValue(for: pair.bottom, displayMode: displayMode))"
+                return "\(providerName): \(topDesc), \(bottomDesc)"
+            }
+            if item.percentage >= 0 {
+                let displayedValue = displayMode.displayValue(from: item.percentage)
+                let clamped = min(100, max(0, displayedValue))
+                let percentString = String(format: "%lld percent".localized(), Int64(clamped.rounded()))
+                return "\(providerName): \(percentString)"
+            }
+            return "\(providerName): \("quota.noDataYet".localized())"
+        }
+        return "Quotio, " + itemDescriptions.joined(separator: ", ")
     }
     
     // MARK: - NSMenuDelegate
@@ -198,13 +235,19 @@ struct StatusBarDefaultView: View {
 struct StatusBarQuotaView: View {
     let items: [MenuBarQuotaDisplayItem]
     let colorMode: MenuBarColorMode
+    let quotaDisplayMode: QuotaDisplayMode
     
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             ForEach(items) { item in
-                StatusBarQuotaItemView(item: item, colorMode: colorMode)
+                StatusBarQuotaItemView(
+                    item: item,
+                    colorMode: colorMode,
+                    quotaDisplayMode: quotaDisplayMode
+                )
             }
         }
+        .padding(.horizontal, 4)
         .frame(height: 22)
         .fixedSize()
     }
@@ -215,25 +258,10 @@ struct StatusBarQuotaView: View {
 struct StatusBarQuotaItemView: View {
     let item: MenuBarQuotaDisplayItem
     let colorMode: MenuBarColorMode
-    
-    @State private var settings = MenuBarSettingsManager.shared
-    
-    private var defaultTextColor: Color {
-        .primary
-    }
-    
-    private var symbolColor: Color {
-        colorMode == .colored ? item.provider.color : defaultTextColor
-    }
-    
-    private func textColor(for remainingPercentage: Double) -> Color {
-        guard colorMode == .colored else { return defaultTextColor }
-        return remainingPercentage < 0 ? Color(nsColor: .secondaryLabelColor) : item.statusColor(for: remainingPercentage)
-    }
+    var quotaDisplayMode: QuotaDisplayMode = .used
     
     var body: some View {
-        let displayMode = settings.quotaDisplayMode
-        let displayPercent = displayMode.displayValue(from: item.percentage)
+        let displayPercent = quotaDisplayMode.displayValue(from: item.percentage)
         
         HStack(spacing: 2) {
             if let assetName = item.provider.menuBarIconAsset {
@@ -244,7 +272,7 @@ struct StatusBarQuotaItemView: View {
             } else {
                 Text(item.provider.menuBarSymbol)
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(symbolColor)
+                    .foregroundStyle(colorMode == .colored ? item.provider.color : .primary)
                     .fixedSize()
             }
             
@@ -258,12 +286,10 @@ struct StatusBarQuotaItemView: View {
                     compactQuotaText(quotaPair.bottom.remainingPercentage)
                 }
                 .frame(height: 18)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(quotaPairAccessibilityLabel(quotaPair))
             } else if item.percentage >= 0 {
                 Text(formatPercentage(displayPercent))
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(textColor(for: item.percentage))
+                    .foregroundStyle(colorMode == .colored ? item.statusColor : .primary)
                     .fixedSize()
             }
         }
@@ -280,17 +306,15 @@ struct StatusBarQuotaItemView: View {
     private func compactQuotaText(_ remainingValue: Double) -> some View {
         let displayedValue = remainingValue < 0
             ? -1
-            : settings.quotaDisplayMode.displayValue(from: remainingValue)
+            : quotaDisplayMode.displayValue(from: remainingValue)
+        let quotaColor: Color = remainingValue < 0
+            ? .secondary
+            : item.statusColor(for: remainingValue)
 
         return Text(formatPercentage(displayedValue))
             .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
-            .foregroundStyle(textColor(for: remainingValue))
+            .foregroundStyle(colorMode == .colored ? quotaColor : .primary)
             .fixedSize()
-    }
-
-    private func quotaPairAccessibilityLabel(_ pair: MenuBarQuotaPair) -> String {
-        "\(pair.top.labelKey.localized()): \(Self.accessibilityValue(for: pair.top, displayMode: settings.quotaDisplayMode)), "
-            + "\(pair.bottom.labelKey.localized()): \(Self.accessibilityValue(for: pair.bottom, displayMode: settings.quotaDisplayMode))"
     }
 
     static func accessibilityValue(for metric: MenuBarQuotaMetric, displayMode: QuotaDisplayMode) -> String {

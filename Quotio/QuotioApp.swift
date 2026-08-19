@@ -95,6 +95,7 @@ final class AppBootstrap {
         statusBarManager.updateStatusBar(
             items: quotaItems,
             colorMode: menuBarSettings.colorMode,
+            quotaDisplayMode: menuBarSettings.quotaDisplayMode,
             isRunning: hasQuotaData,
             showMenuBarIcon: menuBarSettings.showMenuBarIcon,
             showQuota: menuBarSettings.showQuotaInMenuBar
@@ -237,6 +238,10 @@ struct QuotioApp: App {
                     }
                     .onChange(of: menuBarSettings.colorMode) {
                         bootstrap.updateStatusBar()
+                    }
+                    .onChange(of: menuBarSettings.quotaDisplayMode) {
+                        bootstrap.updateStatusBar()
+                        statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: menuBarSettings.stackPairedQuotaMetrics) {
                         bootstrap.updateStatusBar()
