@@ -17,35 +17,38 @@ nonisolated enum FactoryDroidCredentialReader {
     static let credentialsDirectory = "~/.factory"
 
     static func load(directory: URL? = nil) -> FactoryDroidCredential? {
+        load(directory: directory, keychainKey: factoryCLIEncryptionKey())
+    }
+
+    static func load(directory: URL?, keychainKey: Data?) -> FactoryDroidCredential? {
         let directory = directory ?? URL(
             fileURLWithPath: MonitorIdentity.expand(credentialsDirectory),
             isDirectory: true
         )
 
-        let keyFileCredentials = directory.appendingPathComponent("auth.v2.file")
-        let keyFileKey = directory.appendingPathComponent("auth.v2.key")
-        if let credential = loadEncrypted(
-            credentialsURL: keyFileCredentials,
-            keyData: try? Data(contentsOf: keyFileKey)
-        ) {
-            return credential
+        let candidates: [(url: URL, keyData: Data?)] = [
+            (directory.appendingPathComponent("auth.v2.loginkeychain"), keychainKey),
+            (directory.appendingPathComponent("auth.v2.file"), try? Data(contentsOf: directory.appendingPathComponent("auth.v2.key"))),
+            (directory.appendingPathComponent("auth.v2.keyring"), keychainKey),
+        ]
+        var newest: (date: Date, credential: FactoryDroidCredential)?
+        for candidate in candidates {
+            guard let date = (try? candidate.url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate,
+                let credential = loadEncrypted(credentialsURL: candidate.url, keyData: candidate.keyData)
+            else { continue }
+            if newest == nil || date > newest!.date {
+                newest = (date, credential)
+            }
         }
-
-        let keyringCredentials = directory.appendingPathComponent("auth.v2.keyring")
-        let keyringKey = KeychainHelper.readExternalCredential(
-            service: "Factory CLI",
-            account: "auth-encryption-key"
-        )
-        if let credential = loadEncrypted(credentialsURL: keyringCredentials, keyData: keyringKey) {
-            return credential
-        }
+        if let newest { return newest.credential }
 
         let legacyURL = directory.appendingPathComponent("auth.encrypted")
         guard let legacyData = try? Data(contentsOf: legacyURL) else { return nil }
         if let credential = parseCredential(legacyData, sourcePath: legacyURL.path) {
             return credential
         }
-        guard let key = normalizedKey(keyringKey),
+        guard let key = normalizedKey(keychainKey),
               let encrypted = String(data: legacyData, encoding: .utf8),
               let decrypted = decrypt(encrypted, key: key) else { return nil }
         return parseCredential(decrypted, sourcePath: legacyURL.path)
@@ -78,7 +81,7 @@ nonisolated enum FactoryDroidCredentialReader {
             let keyData: Data? = if credentialsURL.lastPathComponent == "auth.v2.file" {
                 try? Data(contentsOf: credentialsURL.deletingLastPathComponent().appendingPathComponent("auth.v2.key"))
             } else {
-                KeychainHelper.readExternalCredential(service: "Factory CLI", account: "auth-encryption-key")
+                factoryCLIEncryptionKey()
             }
 
             let cleartext: Data
@@ -131,7 +134,7 @@ nonisolated enum FactoryDroidCredentialReader {
         let keyData: Data? = if credentialsURL.lastPathComponent == "auth.v2.file" {
             try? Data(contentsOf: credentialsURL.deletingLastPathComponent().appendingPathComponent("auth.v2.key"))
         } else {
-            KeychainHelper.readExternalCredential(service: "Factory CLI", account: "auth-encryption-key")
+            factoryCLIEncryptionKey()
         }
         guard let encrypted = String(data: storedData, encoding: .utf8),
               let key = normalizedKey(keyData),
@@ -258,6 +261,12 @@ nonisolated enum FactoryDroidCredentialReader {
             }
             return Date().timeIntervalSince(modificationDate) >= 10
         }
+    }
+
+    private static func factoryCLIEncryptionKey() -> Data? {
+        KeychainHelper.readExternalCredential(service: "Factory CLI", account: "auth-encryption-key-security-cli")
+            ?? KeychainHelper.readExternalCredential(service: "Factory CLI")
+            ?? KeychainHelper.readExternalCredential(service: "Factory CLI", account: "auth-encryption-key")
     }
 
     private static func normalizedKey(_ data: Data?) -> Data? {

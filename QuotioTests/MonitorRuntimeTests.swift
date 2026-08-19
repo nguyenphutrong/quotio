@@ -686,6 +686,56 @@ final class MonitorRuntimeTests: XCTestCase {
         )
     }
 
+    func testFactoryDroidLoadsNewestCredentialAcrossFormats() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let fileKeyData = Data(repeating: 7, count: 32)
+        try Data(fileKeyData.base64EncodedString().utf8).write(to: directory.appendingPathComponent("auth.v2.key"))
+        let staleNonce = try AES.GCM.Nonce(data: Data(repeating: 1, count: 16))
+        let staleSealed = try AES.GCM.seal(
+            Data(#"{"access_token":"stale-token","refresh_token":"stale-refresh","active_organization_id":"org-123"}"#.utf8),
+            using: SymmetricKey(data: fileKeyData),
+            nonce: staleNonce
+        )
+        let fileURL = directory.appendingPathComponent("auth.v2.file")
+        try Data([
+            Data(staleNonce).base64EncodedString(),
+            staleSealed.tag.base64EncodedString(),
+            staleSealed.ciphertext.base64EncodedString(),
+        ].joined(separator: ":").utf8).write(to: fileURL)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 0)],
+            ofItemAtPath: fileURL.path
+        )
+
+        let keychainKeyData = Data(repeating: 9, count: 32)
+        let liveNonce = try AES.GCM.Nonce(data: Data(repeating: 2, count: 16))
+        let liveSealed = try AES.GCM.seal(
+            Data(#"{"access_token":"live-token","refresh_token":"live-refresh","active_organization_id":"org-123"}"#.utf8),
+            using: SymmetricKey(data: keychainKeyData),
+            nonce: liveNonce
+        )
+        try Data([
+            Data(liveNonce).base64EncodedString(),
+            liveSealed.tag.base64EncodedString(),
+            liveSealed.ciphertext.base64EncodedString(),
+        ].joined(separator: ":").utf8).write(to: directory.appendingPathComponent("auth.v2.loginkeychain"))
+
+        let credential = FactoryDroidCredentialReader.load(
+            directory: directory,
+            keychainKey: Data(keychainKeyData.base64EncodedString().utf8)
+        )
+
+        XCTAssertEqual(credential?.accessToken, "live-token")
+        XCTAssertEqual(credential?.refreshToken, "live-refresh")
+        XCTAssertEqual(
+            credential?.sourcePath,
+            directory.appendingPathComponent("auth.v2.loginkeychain").path
+        )
+    }
+
     func testFactoryDroidPersistsRotatedEncryptedCredentialWithoutDroppingFields() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
