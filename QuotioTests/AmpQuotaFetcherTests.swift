@@ -105,6 +105,7 @@ final class AmpQuotaFetcherTests: XCTestCase {
         """
         let quota = try XCTUnwrap(AmpQuotaParser.parse(displayText: text))
         XCTAssertEqual(quota.planType, "Megawatt")
+        XCTAssertEqual(quota.models.map(\.name), ["amp-agent-usage", "amp-orb-usage", "amp-free", "amp-individual-credits"])
         XCTAssertEqual(quota.models.first(where: { $0.name == "amp-free" })?.percentage, 0)
         XCTAssertEqual(quota.models.first(where: { $0.name == "amp-agent-usage" })?.percentage, 100)
         XCTAssertEqual(quota.models.first(where: { $0.name == "amp-orb-usage" })?.percentage, 100)

@@ -49,6 +49,7 @@ nonisolated enum AmpQuotaParser {
             in: text
         )
 
+        var freeModel: ModelQuota?
         let freeDollarPattern = #"(?im)^\s*Amp Free:\s*\$?([\d,]+(?:\.\d+)?)\s*/\s*\$?([\d,]+(?:\.\d+)?)\s+remaining(?:\s*\(replenishes\s*\+\$?([\d,]+(?:\.\d+)?)\s*/\s*hour\))?"#
         if let match = captures(freeDollarPattern, in: text),
            let remaining = dollars(match[0]),
@@ -61,21 +62,21 @@ nonisolated enum AmpQuotaParser {
             let reset = hourly > 0
                 ? ISO8601DateFormatter().string(from: now.addingTimeInterval(used / hourly * 3600))
                 : ""
-            models.append(ModelQuota(
+            freeModel = ModelQuota(
                 name: "amp-free",
                 percentage: remaining / limit * 100,
                 resetTime: reset,
                 presentation: .progress(used: used, limit: limit, unit: .usd)
-            ))
+            )
         } else if let match = captures(
             #"(?im)^\s*Amp Free:\s*([\d.]+)%\s+remaining(?:\s+today)?(?:\s*\(resets\s+daily\))?"#,
             in: text
         ), let remaining = validPercentage(match[0]) {
-            models.append(ModelQuota(
+            freeModel = ModelQuota(
                 name: "amp-free",
                 percentage: remaining,
                 resetTime: nextMidnightUTC(after: now)
-            ))
+            )
         }
 
         var plan = identity.flatMap { $0[1].isEmpty ? nil : $0[1] }
@@ -100,6 +101,8 @@ nonisolated enum AmpQuotaParser {
                 }
             }
         }
+
+        if let freeModel { models.append(freeModel) }
 
         if let match = captures(
             #"(?im)^\s*Individual credits:\s*\$?([\d,]+(?:\.\d+)?)\s+remaining"#,
