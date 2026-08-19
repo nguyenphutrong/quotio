@@ -58,7 +58,7 @@ final class AmpQuotaFetcherTests: XCTestCase {
         let text = """
         Signed in as person@example.com (Pro)
         Amp Free: 75% remaining today (resets daily)
-        Subscription Megawatt: 40% agent usage and 60% orb usage remaining
+        Amp Megawatt Subscription: 40% agent usage and 60% orb usage remaining
         Individual credits: $12.50 remaining
         Workspace Acme: $8.25 remaining
         """
@@ -77,7 +77,7 @@ final class AmpQuotaFetcherTests: XCTestCase {
     func testParserMapsSubscriptionOtherUsageAndRenewalSuffix() throws {
         let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-08-11T12:00:00Z"))
         let quota = try XCTUnwrap(AmpQuotaParser.parse(
-            displayText: "Subscription Megawatt: 64% other usage and 98% orb usage remaining - resets upon renewal in 22 days",
+            displayText: "Amp Megawatt Subscription: 64% other usage and 98% orb usage remaining - resets upon renewal in 22 days",
             now: now
         ))
         let agent = try XCTUnwrap(quota.models.first(where: { $0.name == "amp-agent-usage" }))
@@ -92,6 +92,23 @@ final class AmpQuotaFetcherTests: XCTestCase {
         XCTAssertEqual(orb.usedPercentage, 2)
         XCTAssertEqual(orb.displayName, "Orb Usage")
         XCTAssertEqual(orb.resetTime, "2026-09-02T12:00:00Z")
+    }
+
+    func testParserMapsRealBalanceOutputWithFreeAndSubscription() throws {
+        let text = """
+        Signed in as nguyenphutrong.dev@gmail.com (trng)
+        Amp Free: 0% remaining today (resets daily) - https://ampcode.com/settings#amp-free
+        Amp Megawatt Subscription: 100% other usage and 100% orb usage remaining - resets upon renewal in 1 month
+        Individual credits: $21.57 remaining (set up auto-reload to avoid running out) - https://ampcode.com/settings
+
+        Run amp usage --details for more detailed information.
+        """
+        let quota = try XCTUnwrap(AmpQuotaParser.parse(displayText: text))
+        XCTAssertEqual(quota.planType, "Megawatt")
+        XCTAssertEqual(quota.models.first(where: { $0.name == "amp-free" })?.percentage, 0)
+        XCTAssertEqual(quota.models.first(where: { $0.name == "amp-agent-usage" })?.percentage, 100)
+        XCTAssertEqual(quota.models.first(where: { $0.name == "amp-orb-usage" })?.percentage, 100)
+        XCTAssertEqual(quota.models.first(where: { $0.name == "amp-individual-credits" })?.presentation, .amount(value: 21.57, unit: .usd, semantics: .balance))
     }
 
     func testParserUsesIdentityPlanWhenSubscriptionIsMissing() throws {

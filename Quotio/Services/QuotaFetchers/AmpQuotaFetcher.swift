@@ -80,7 +80,7 @@ nonisolated enum AmpQuotaParser {
 
         var plan = identity.flatMap { $0[1].isEmpty ? nil : $0[1] }
         if let subscription = captures(
-            #"(?im)^\s*Subscription\s+([^:\r\n]+):\s*([\d.]+)%\s+(?:other|agent)\s+usage\s+and\s+([\d.]+)%\s+orb\s+usage\s+remaining\b(?:\s*-\s*resets\s+upon\s+renewal\s+in\s+(\d+)\s+(minutes?|hours?|days?|weeks?|months?|years?))?"#,
+            #"(?im)^\s*Amp\s+([^:\r\n]+?)\s+Subscription:\s*([\d.]+)%\s+(?:other|agent)\s+usage\s+and\s+([\d.]+)%\s+orb\s+usage\s+remaining\b(?:\s*-\s*resets\s+upon\s+renewal\s+in\s+(\d+)\s+(minutes?|hours?|days?|weeks?|months?|years?))?"#,
             in: text
         ), let agent = validPercentage(subscription[1]),
            let orb = validPercentage(subscription[2]) {
