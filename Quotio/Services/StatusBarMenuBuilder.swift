@@ -1075,16 +1075,22 @@ private struct MenuAccountCardView: View {
     // MARK: - Quota Content
     
     private var quotaContentSection: some View {
+        let isCardStyle = displayStyle == .card
         let models: [ModelBadgeData] = {
             if isAntigravity {
                 return antigravityGroups.map { ModelBadgeData(name: $0.name, percentage: $0.percentage, resetTime: $0.resetTime) }
             } else {
-                return data.models.filter { !$0.isStandaloneMetric }.map {
+                let meterModels = data.models.filter { !$0.isStandaloneMetric }.map {
                     ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime)
                 }
+                guard isCardStyle else { return meterModels }
+                let standaloneModels = data.models.filter(\.isStandaloneMetric).map {
+                    ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime, usage: $0.formattedUsage)
+                }
+                return meterModels + standaloneModels
             }
         }()
-        let standaloneModels = isAntigravity ? [] : data.models.filter(\.isStandaloneMetric)
+        let standaloneModels = isAntigravity || isCardStyle ? [] : data.models.filter(\.isStandaloneMetric)
         let factorySections = provider == .factoryDroid
             ? FactoryDroidQuotaSection.sections(from: data.models.filter { !$0.isStandaloneMetric })
             : []
@@ -2118,6 +2124,14 @@ private struct ModelBadgeData: Identifiable {
     let name: String
     let percentage: Double
     let resetTime: String?
+    let usage: String?
+
+    init(name: String, percentage: Double, resetTime: String?, usage: String? = nil) {
+        self.name = name
+        self.percentage = percentage
+        self.resetTime = resetTime
+        self.usage = usage
+    }
 
     var id: String { name }
 
@@ -2345,12 +2359,20 @@ private struct CardGridLayout: View {
                                 .font(.system(size: 9, design: .rounded))
                                 .foregroundStyle(.tertiary)
                         }
-                        Text(menuPercentText(remainingPercent: model.percentage, displayMode: displayMode))
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode))
+                        if let usage = model.usage {
+                            Text(usage)
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.primary)
+                        } else {
+                            Text(menuPercentText(remainingPercent: model.percentage, displayMode: displayMode))
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundStyle(menuStatusColor(remainingPercent: model.percentage, displayMode: displayMode))
+                        }
                     }
 
-                    ModernProgressBar(percentage: model.percentage, height: 4)
+                    if model.usage == nil {
+                        ModernProgressBar(percentage: model.percentage, height: 4)
+                    }
                 }
                 .padding(8)
                 .background(Color.secondary.opacity(0.05))

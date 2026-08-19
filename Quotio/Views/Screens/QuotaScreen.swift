@@ -913,6 +913,7 @@ private struct AccountQuotaCardV2: View {
     
     @ViewBuilder
     private func standardContentByStyle(data: ProviderQuotaData) -> some View {
+        let isCard = displayStyle == .card
         let meterModels = data.models.filter { !$0.isStandaloneMetric }
         let standaloneModels = data.models.filter(\.isStandaloneMetric)
         let factorySections = provider == .factoryDroid
@@ -931,8 +932,12 @@ private struct AccountQuotaCardV2: View {
                 meterContentByStyle(models: meterModels)
             }
 
-            ForEach(standaloneModels) { model in
-                StandaloneMetricRow(model: model)
+            if isCard {
+                meterContentByStyle(models: standaloneModels)
+            } else {
+                ForEach(standaloneModels) { model in
+                    StandaloneMetricRow(model: model)
+                }
             }
         }
     }
