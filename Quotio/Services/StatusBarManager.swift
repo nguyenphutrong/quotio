@@ -13,12 +13,22 @@ import SwiftUI
 @Observable
 final class StatusBarManager: NSObject, NSMenuDelegate {
     static let shared = StatusBarManager()
+
+    private struct Configuration {
+        let items: [MenuBarQuotaDisplayItem]
+        let colorMode: MenuBarColorMode
+        let quotaDisplayMode: QuotaDisplayMode
+        let isRunning: Bool
+        let showQuota: Bool
+    }
     
     private var statusItem: NSStatusItem?
     private var menu: NSMenu?
     private var menuContentVersion: Int = 0
     private var isRebuildingMenu = false
     private var hasPendingMenuRebuild = false
+    private var configuration: Configuration?
+    private var appearanceObservation: NSKeyValueObservation?
     
     // Native menu builder
     private var menuBuilder: StatusBarMenuBuilder?
@@ -51,12 +61,26 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             removeStatusItem()
             return
         }
+
+        configuration = Configuration(
+            items: items,
+            colorMode: colorMode,
+            quotaDisplayMode: quotaDisplayMode,
+            isRunning: isRunning,
+            showQuota: showQuota
+        )
+        menuContentVersion += 1
+
+        renderStatusBar()
+    }
+
+    private func renderStatusBar() {
+        guard let configuration else { return }
         
         if statusItem == nil {
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            observeStatusBarAppearance()
         }
-        
-        self.menuContentVersion += 1
         
         // Create or update menu
         if menu == nil {
@@ -74,8 +98,8 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         button.title = ""
         button.image = nil
         
-        if !showQuota || !isRunning || items.isEmpty {
-            let imageName = isRunning ? "gauge.with.dots.needle.67percent" : "gauge.with.dots.needle.0percent"
+        if !configuration.showQuota || !configuration.isRunning || configuration.items.isEmpty {
+            let imageName = configuration.isRunning ? "gauge.with.dots.needle.67percent" : "gauge.with.dots.needle.0percent"
             if let image = NSImage(systemSymbolName: imageName, accessibilityDescription: "Quotio") {
                 image.isTemplate = true
                 button.image = image
@@ -86,12 +110,14 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             return
         }
         
-        let colorScheme: ColorScheme = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
+        let usesDarkColorScheme = button.isHighlighted
+            || button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let colorScheme: ColorScheme = usesDarkColorScheme ? .dark : .light
         
         let quotaView = StatusBarQuotaView(
-            items: items,
-            colorMode: colorMode,
-            quotaDisplayMode: quotaDisplayMode
+            items: configuration.items,
+            colorMode: configuration.colorMode,
+            quotaDisplayMode: configuration.quotaDisplayMode
         )
         .environment(\.colorScheme, colorScheme)
         
@@ -105,17 +131,30 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             let height = CGFloat(cgImage.height) / scale
             let size = NSSize(width: width, height: height)
             let image = NSImage(cgImage: cgImage, size: size)
-            if colorMode == .monochrome {
+            if configuration.colorMode == .monochrome {
                 image.isTemplate = true
             }
             
-            let description = accessibilityDescription(for: items, displayMode: quotaDisplayMode)
+            let description = accessibilityDescription(
+                for: configuration.items,
+                displayMode: configuration.quotaDisplayMode
+            )
             image.accessibilityDescription = description
             button.setAccessibilityLabel(description)
             
             button.image = image
             button.imagePosition = .imageOnly
             statusItem?.length = width
+        }
+    }
+
+    private func observeStatusBarAppearance() {
+        guard let button = statusItem?.button else { return }
+
+        appearanceObservation = button.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                self?.renderStatusBar()
+            }
         }
     }
     
@@ -145,11 +184,14 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     
     func menuWillOpen(_ menu: NSMenu) {
         hasPendingMenuRebuild = false
+        renderStatusBar()
         performMenuRebuild(using: menu)
     }
     
     func menuDidClose(_ menu: NSMenu) {
-        // Cleanup
+        DispatchQueue.main.async { [weak self] in
+            self?.renderStatusBar()
+        }
     }
     
     /// Force rebuild menu while it's open (e.g., when provider changes)
@@ -210,11 +252,13 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     }
     
     func removeStatusItem() {
+        appearanceObservation = nil
         if let item = statusItem {
             NSStatusBar.system.removeStatusItem(item)
             statusItem = nil
         }
         menu = nil
+        configuration = nil
     }
 }
 
