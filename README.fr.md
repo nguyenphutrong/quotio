@@ -222,18 +222,18 @@ Rejoignez notre communauté Discord pour obtenir de l'aide, partager vos comment
   <source
     media="(prefers-color-scheme: dark)"
     srcset="
-      https://api.star-history.com/svg?repos=nguyenphutrong/quotio&type=Date&theme=dark
+      https://star-history.dera.page/svg?repos=nguyenphutrong/quotio&type=Date&theme=dark
     "
   />
   <source
     media="(prefers-color-scheme: light)"
     srcset="
-      https://api.star-history.com/svg?repos=nguyenphutrong/quotio&type=Date
+      https://star-history.dera.page/svg?repos=nguyenphutrong/quotio&type=Date
     "
   />
   <img
     alt="Graphique Historique des Étoiles"
-    src="https://api.star-history.com/svg?repos=nguyenphutrong/quotio&type=Date"
+    src="https://star-history.dera.page/svg?repos=nguyenphutrong/quotio&type=Date"
   />
 </picture>
 
