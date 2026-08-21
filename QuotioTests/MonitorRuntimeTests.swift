@@ -147,6 +147,19 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertFalse(YubiKeySecretVault.isPIVToken("com.apple.pivtokenizer:1234"))
     }
 
+    func testPIVIdentityQueryOnlyReturnsExternalTokenMetadataAndReferences() {
+        let query = YubiKeySecretVault.availableIdentityQuery()
+
+        XCTAssertEqual(query[kSecClass as String] as? String, kSecClassIdentity as String)
+        XCTAssertEqual(query[kSecAttrAccessGroup as String] as? String, kSecAttrAccessGroupToken as String)
+        XCTAssertEqual(query[kSecReturnAttributes as String] as? Bool, true)
+        XCTAssertEqual(query[kSecReturnRef as String] as? Bool, true)
+        XCTAssertNil(query[kSecReturnData as String])
+        XCTAssertTrue(
+            (query[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true
+        )
+    }
+
     /// The rollback this prevents: with the vault enabled and the key absent or
     /// the PIN prompt dismissed, `CLIProxyManager.init` reads nil, mints a fresh
     /// UUID and saves it — destroying the envelope holding the real management

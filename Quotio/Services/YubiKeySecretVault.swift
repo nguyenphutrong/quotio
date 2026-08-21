@@ -283,26 +283,32 @@ nonisolated enum YubiKeySecretVault {
         return driver == "com.apple.pivtoken" || driver == "com.apple.CryptoTokenKit.pivtoken"
     }
 
-    static func availableIdentities() -> [YubiKeyPIVIdentity] {
+    static func availableIdentityQuery() -> [String: Any] {
         let context = LAContext()
         context.interactionNotAllowed = true
-        let query: [String: Any] = [
+        return [
             kSecClass as String: kSecClassIdentity,
+            kSecAttrAccessGroup as String: kSecAttrAccessGroupToken,
+            kSecReturnAttributes as String: true,
             kSecReturnRef as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll,
             kSecUseAuthenticationContext as String: context,
         ]
+    }
+
+    static func availableIdentities() -> [YubiKeyPIVIdentity] {
+        let query = availableIdentityQuery()
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let identities = result as? [SecIdentity] else { return [] }
+              let items = result as? [[String: Any]] else { return [] }
 
-        return identities.compactMap { identity in
-            guard let privateKey = privateKey(for: identity),
-                  let attributes = SecKeyCopyAttributes(privateKey) as? [String: Any],
-                  isPIVToken(attributes[kSecAttrTokenID as String] as? String),
-                  let certificate = certificate(for: identity),
-                  // Export the certificate's public key, not one derived from the
-                  // token's private key, which makes macOS request authorization.
+        return items.compactMap { item in
+            guard isPIVToken(item[kSecAttrTokenID as String] as? String),
+                  let reference = item[kSecValueRef as String] else { return nil }
+            let cfReference = reference as CFTypeRef
+            guard CFGetTypeID(cfReference) == SecIdentityGetTypeID() else { return nil }
+            let identity = reference as! SecIdentity
+            guard let certificate = certificate(for: identity),
                   let publicKey = SecCertificateCopyKey(certificate),
                   SecKeyIsAlgorithmSupported(publicKey, .encrypt, .rsaEncryptionOAEPSHA256),
                   let external = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else { return nil }
