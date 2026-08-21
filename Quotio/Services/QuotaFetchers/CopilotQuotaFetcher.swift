@@ -366,12 +366,6 @@ actor CopilotQuotaFetcher {
                 if !token.isEmpty { tokens.append(token) }
             }
         }
-
-        if let data = KeychainHelper.readExternalCredential(service: "gh:github.com"),
-           let token = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !token.isEmpty {
-            tokens.append(token)
-        }
         return Array(Set(tokens))
     }
 

@@ -200,16 +200,16 @@ final class MonitorRuntimeTests: XCTestCase {
     }
 
     func testExternalCredentialOperationsDoNotAllowAuthenticationUI() {
-        let readQuery = KeychainHelper.externalCredentialQuery(service: "gh:github.com", account: "github.com")
-        let updateQuery = KeychainHelper.externalCredentialUpdateQuery(service: "gh:github.com", account: "github.com")
+        let readQuery = KeychainHelper.externalCredentialQuery(service: "fixture.external", account: "fixture-account")
+        let updateQuery = KeychainHelper.externalCredentialUpdateQuery(service: "fixture.external", account: "fixture-account")
 
-        XCTAssertEqual(readQuery[kSecAttrService as String] as? String, "gh:github.com")
-        XCTAssertEqual(readQuery[kSecAttrAccount as String] as? String, "github.com")
+        XCTAssertEqual(readQuery[kSecAttrService as String] as? String, "fixture.external")
+        XCTAssertEqual(readQuery[kSecAttrAccount as String] as? String, "fixture-account")
         XCTAssertTrue(
             (readQuery[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true
         )
-        XCTAssertEqual(updateQuery[kSecAttrService as String] as? String, "gh:github.com")
-        XCTAssertEqual(updateQuery[kSecAttrAccount as String] as? String, "github.com")
+        XCTAssertEqual(updateQuery[kSecAttrService as String] as? String, "fixture.external")
+        XCTAssertEqual(updateQuery[kSecAttrAccount as String] as? String, "fixture-account")
         XCTAssertTrue(
             (updateQuery[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true
         )
