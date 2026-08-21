@@ -163,13 +163,6 @@ Go to **Agents** tab → Select an installed agent → Click **Configure** → C
   <img alt="Quota Monitoring" src="screenshots/quota.png" />
 </picture>
 
-### Fallback Configuration
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/fallback_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/fallback.png" />
-  <img alt="Fallback Configuration" src="screenshots/fallback.png" />
-</picture>
-
 ### API Keys
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/api_keys_dark.png" />

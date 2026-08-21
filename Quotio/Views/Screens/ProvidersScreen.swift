@@ -969,12 +969,11 @@ struct OAuthSheet: View {
             }
 
             if !modeManager.isMonitorMode,
-               viewModel.proxyManager.isLegacyAuthWarningNeeded(for: provider),
-               let warning = viewModel.proxyManager.selectedBinarySourceWarning {
+               viewModel.proxyManager.isLegacyAuthWarningNeeded(for: provider) {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                    Text(warning)
+                    Text(viewModel.proxyManager.upstreamCompatibilityWarning)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

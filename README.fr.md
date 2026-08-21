@@ -165,13 +165,6 @@ Allez dans l'onglet **Agents** → Sélectionnez un agent installé → Cliquez 
   <img alt="Surveillance des Quotas" src="screenshots/quota.png" />
 </picture>
 
-### Configuration de Secours
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/fallback_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/fallback.png" />
-  <img alt="Configuration de Secours" src="screenshots/fallback.png" />
-</picture>
-
 ### Clés API
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/api_keys_dark.png" />

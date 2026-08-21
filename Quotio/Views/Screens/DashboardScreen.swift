@@ -479,16 +479,16 @@ struct DashboardScreen: View {
     
     private var installBinarySection: some View {
         ContentUnavailableView {
-            Label(viewModel.proxyManager.selectedBinarySource.notInstalledTitle, systemImage: "arrow.down.circle")
+            Label("dashboard.cliNotInstalled".localized(), systemImage: "arrow.down.circle")
         } description: {
-            Text(viewModel.proxyManager.selectedBinarySource.installDescription)
+            Text("dashboard.clickToInstall".localized())
         } actions: {
             if viewModel.proxyManager.isDownloading {
                 ProgressView(value: viewModel.proxyManager.downloadProgress)
                     .progressViewStyle(.linear)
                     .frame(width: 200)
             } else {
-                Button(viewModel.proxyManager.selectedBinarySource.installActionTitle) {
+                Button("dashboard.installCLI".localized()) {
                     Task {
                         do {
                             try await viewModel.proxyManager.downloadAndInstallBinary()

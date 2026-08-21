@@ -157,7 +157,7 @@ nonisolated enum ModelCatalog {
     ///
     /// Preserves the historical `owned_by ?? "openai"` provider default that
     /// `AgentConfigurationService.fetchAvailableModels(config:)` — and through it
-    /// the agent-config sheet, the warmup sheet and the fallback screen — rely on
+    /// the agent-config sheet and warmup sheet rely on
     /// (the GitHub Copilot filter matches on `provider == "github-copilot"`).
     static func agentSetupModels(from entries: [ModelCatalogEntry]) -> [AvailableModel] {
         entries.map { entry in

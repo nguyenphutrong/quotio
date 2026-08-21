@@ -7,151 +7,6 @@
 
 import Foundation
 
-// MARK: - Proxy Binary Source
-
-nonisolated enum ProxyBinarySource: String, Codable, CaseIterable, Identifiable, Sendable {
-    case plusLocal
-    case upstream
-
-    static let userDefaultsKey = "selectedProxyBinarySource"
-    static let explicitSelectionDefaultsKey = "hasExplicitProxyBinarySourceSelection"
-    static let plusLocalVersion = "6.9.28-0"
-    static let plusLocalSHA256 = "a722885ab3c0cea5535ee69a86220d35c4f95ee7656e009d872d24de2910acf0"
-    static let plusLocalSHA256InfoKey = "QuotioBundledProxySHA256"
-    static let plusLocalBinaryName = "cli-proxy-api-plus"
-    static let plusLocalResourceSubdirectory = "Proxy"
-
-    static var bundledPlusLocalSHA256: String {
-        resolvedPlusLocalSHA256(
-            bundleValue: Bundle.main.object(forInfoDictionaryKey: plusLocalSHA256InfoKey) as? String
-        )
-    }
-
-    static func resolvedPlusLocalSHA256(bundleValue: String?) -> String {
-        guard let value = bundleValue?.trimmingCharacters(in: .whitespacesAndNewlines),
-              value.range(of: "^[0-9a-fA-F]{64}$", options: .regularExpression) != nil else {
-            return plusLocalSHA256
-        }
-        return value.lowercased()
-    }
-
-    var id: String { rawValue }
-
-    var storageDirectoryName: String {
-        switch self {
-        case .plusLocal: return "plus"
-        case .upstream: return "upstream"
-        }
-    }
-
-    var displayName: String {
-        switch self {
-        case .plusLocal:
-            return "CLIProxyAPIPlus"
-        case .upstream:
-            return "CLIProxyAPI"
-        }
-    }
-
-    var shortDescription: String {
-        switch self {
-        case .plusLocal:
-            return "Bundled 6.9.28-0 with legacy compatibility"
-        case .upstream:
-            return "Latest maintained upstream releases"
-        }
-    }
-
-    var selectionDescription: String {
-        switch self {
-        case .plusLocal:
-            return "CLIProxyAPIPlus (bundled 6.9.28-0)"
-        case .upstream:
-            return "CLIProxyAPI (latest upstream)"
-        }
-    }
-
-    var detailDescription: String {
-        switch self {
-        case .plusLocal:
-            return "Preserves legacy Copilot and Kiro compatibility."
-        case .upstream:
-            return "Actively maintained upstream releases."
-        }
-    }
-
-    var installActionTitle: String {
-        switch self {
-        case .plusLocal:
-            return "Install CLIProxyAPIPlus"
-        case .upstream:
-            return "Install CLIProxyAPI"
-        }
-    }
-
-    var notInstalledTitle: String {
-        switch self {
-        case .plusLocal:
-            return "CLIProxyAPIPlus Not Installed"
-        case .upstream:
-            return "CLIProxyAPI Not Installed"
-        }
-    }
-
-    var installDescription: String {
-        switch self {
-        case .plusLocal:
-            return "Install the bundled CLIProxyAPIPlus binary to continue."
-        case .upstream:
-            return "Install CLIProxyAPI to continue."
-        }
-    }
-
-    var githubRepo: String? {
-        switch self {
-        case .plusLocal:
-            return nil
-        case .upstream:
-            return "router-for-me/CLIProxyAPI"
-        }
-    }
-
-    var releasesFeedURL: String? {
-        switch self {
-        case .plusLocal:
-            return nil
-        case .upstream:
-            return "https://github.com/router-for-me/CLIProxyAPI/releases.atom"
-        }
-    }
-
-    var installedVersionDefaultsKey: String {
-        "installedProxyVersion_\(rawValue)"
-    }
-
-    var notificationVersionKey: String {
-        "notifiedCLIProxyVersion_\(rawValue)"
-    }
-
-    var legacyAuthWarning: String? {
-        switch self {
-        case .plusLocal:
-            return nil
-        case .upstream:
-            return "Copilot and Kiro auth flows may not work with the upstream CLIProxyAPI binary."
-        }
-    }
-
-    var installHint: String {
-        switch self {
-        case .plusLocal:
-            return "CLIProxyAPIPlus bundled binary is unavailable. Reinstall Quotio or restore the bundled proxy resource."
-        case .upstream:
-            return "CLIProxyAPI upstream binary is not installed. Open Settings and install a release."
-        }
-    }
-}
-
 // MARK: - GitHub Release Models
 
 /// GitHub release information.
@@ -205,7 +60,6 @@ nonisolated struct GitHubAsset: Codable, Sendable {
 
 /// Information about a specific proxy version (simplified).
 nonisolated struct ProxyVersionInfo: Sendable, Identifiable, Equatable {
-    let source: ProxyBinarySource
     /// Semantic version string (e.g., "6.6.68-0")
     let version: String
     
@@ -223,16 +77,15 @@ nonisolated struct ProxyVersionInfo: Sendable, Identifiable, Equatable {
     
     let localFilePath: String?
 
-    var id: String { "\(source.rawValue):\(version)" }
+    var id: String { version }
     
     /// Create from GitHub release and compatible asset.
     /// Note: Returns nil if no valid SHA256 checksum is available.
-    init?(from release: GitHubRelease, asset: GitHubAsset, source: ProxyBinarySource) {
+    init?(from release: GitHubRelease, asset: GitHubAsset) {
         guard let checksum = asset.sha256Checksum,
               !checksum.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
-        self.source = source
         self.version = release.versionString
         self.sha256 = checksum
         self.downloadURL = asset.browserDownloadUrl
@@ -242,8 +95,7 @@ nonisolated struct ProxyVersionInfo: Sendable, Identifiable, Equatable {
     }
     
     /// Create manually.
-    init(source: ProxyBinarySource, version: String, sha256: String, downloadURL: String? = nil, localFilePath: String? = nil, releaseNotes: String? = nil, size: Int? = nil) {
-        self.source = source
+    init(version: String, sha256: String, downloadURL: String? = nil, localFilePath: String? = nil, releaseNotes: String? = nil, size: Int? = nil) {
         self.version = version
         self.sha256 = sha256
         self.downloadURL = downloadURL
@@ -303,13 +155,12 @@ nonisolated enum ProxyManagerState: String, Sendable {
 
 /// Information about an installed proxy version.
 nonisolated struct InstalledProxyVersion: Sendable, Identifiable, Equatable {
-    let source: ProxyBinarySource
     let version: String
     let path: String
     let installedAt: Date
     let isCurrent: Bool
     
-    var id: String { "\(source.rawValue):\(version)" }
+    var id: String { version }
 }
 
 // MARK: - Upgrade Errors

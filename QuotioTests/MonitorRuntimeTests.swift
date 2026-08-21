@@ -1434,31 +1434,6 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertTrue(reloadedDisabled.isEmpty)
     }
 
-    @MainActor
-    func testLegacyGeminiFallbackEntryMigratesWithoutDroppingConfiguration() throws {
-        let modelID = UUID()
-        let data = try JSONSerialization.data(withJSONObject: [
-            "isEnabled": true,
-            "isRouteCachingEnabled": false,
-            "virtualModels": [[
-                "id": modelID.uuidString,
-                "name": "fast-model",
-                "fallbackEntries": [
-                    ["id": UUID().uuidString, "provider": "gemini-cli", "modelId": "gemini-3-flash-preview", "priority": 1],
-                    ["id": UUID().uuidString, "provider": "codex", "modelId": "gpt-5", "priority": 2],
-                ],
-                "isEnabled": true,
-            ]],
-        ])
-
-        let configuration = try JSONDecoder().decode(FallbackConfiguration.self, from: data)
-
-        XCTAssertTrue(configuration.isEnabled)
-        XCTAssertFalse(configuration.isRouteCachingEnabled)
-        XCTAssertEqual(configuration.virtualModels.first?.id, modelID)
-        XCTAssertEqual(configuration.virtualModels.first?.fallbackEntries.map(\.provider), [.antigravity, .codex])
-    }
-
     func testQuotaDerivedAccountPreservesDisabledState() {
         let account = MonitorAccount.make(
             provider: .cursor,

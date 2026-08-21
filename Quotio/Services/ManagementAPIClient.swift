@@ -310,12 +310,12 @@ actor ManagementAPIClient {
     func setRoutingStrategy(_ strategy: String) async throws {
         let body = try JSONEncoder().encode(["value": strategy])
 
-        // Try new endpoint first (CLIProxyAPIPlus v6.6.92+)
+        // Try the current endpoint first.
         do {
             _ = try await makeRequest("/routing/strategy", method: "PUT", body: body)
             return
         } catch APIError.httpError(404) {
-            // Fall back to legacy endpoint for older CLIProxyAPI versions
+            // Support older CLIProxyAPI versions.
             let legacyBody = try JSONEncoder().encode(["strategy": strategy])
             _ = try await makeRequest("/routing", method: "PUT", body: legacyBody)
         }
@@ -323,13 +323,13 @@ actor ManagementAPIClient {
     
     /// Get routing strategy
     func getRoutingStrategy() async throws -> String {
-        // Try new endpoint first (CLIProxyAPIPlus v6.6.92+)
+        // Try the current endpoint first.
         do {
             let data = try await makeRequest("/routing/strategy")
             let response = try JSONDecoder().decode(RoutingStrategyResponse.self, from: data)
             return response.strategy
         } catch APIError.httpError(404) {
-            // Fall back to legacy endpoint for older CLIProxyAPI versions
+            // Support older CLIProxyAPI versions.
             let data = try await makeRequest("/routing")
             let response = try JSONDecoder().decode(RoutingStrategyResponse.self, from: data)
             return response.strategy

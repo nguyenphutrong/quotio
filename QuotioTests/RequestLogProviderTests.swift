@@ -61,8 +61,7 @@ final class RequestLogProviderTests: XCTestCase {
         )
     }
 
-    /// Antigravity hosts Claude under a `gemini-claude-` prefix
-    /// (Quotio/Models/AgentModels.swift, Quotio/Views/Components/FallbackSheets.swift).
+    /// Antigravity hosts Claude under a `gemini-claude-` prefix.
     func testAntigravityHostedClaudeModelIsNotReportedAsClaude() {
         XCTAssertEqual(
             deriveProvider(path: "/v1/chat/completions", model: "gemini-claude-opus-4-6-thinking"),
@@ -130,8 +129,8 @@ final class RequestLogProviderTests: XCTestCase {
 
     // MARK: - Effective Provider
 
-    func testEffectiveProviderPrefersResolvedProvider() {
-        let log = makeLog(provider: "claude", model: "quotio-auto", resolvedModel: "kiro-claude-opus-4-5", resolvedProvider: "kiro")
+    func testEffectiveProviderPrefersStoredHostingProvider() {
+        let log = makeLog(provider: "kiro", model: "claude-opus-4-5")
         XCTAssertEqual(log.effectiveProvider, "kiro")
     }
 
@@ -145,8 +144,8 @@ final class RequestLogProviderTests: XCTestCase {
         XCTAssertEqual(log.effectiveProvider, "qwen")
     }
 
-    func testEffectiveProviderInfersFromResolvedModelFirst() {
-        let log = makeLog(provider: nil, model: "unknown-virtual", resolvedModel: "gemini-2.5-pro")
+    func testEffectiveProviderInfersFromModel() {
+        let log = makeLog(provider: nil, model: "gemini-2.5-pro")
         XCTAssertEqual(log.effectiveProvider, "gemini")
     }
 
@@ -184,6 +183,27 @@ final class RequestLogProviderTests: XCTestCase {
 
         XCTAssertEqual(decoded.provider, "openai", "raw stored value is untouched")
         XCTAssertEqual(decoded.effectiveProvider, "glm", "display value re-ranks on read")
+    }
+
+    func testPersistedRowIgnoresRemovedFallbackFields() throws {
+        let stored = makeLog(provider: "openai", model: "virtual-model", endpoint: "/v1/chat/completions")
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(stored)) as? [String: Any]
+        )
+        object["resolvedModel"] = "gpt-5.2"
+        object["resolvedProvider"] = "openai"
+        object["fallbackAttempts"] = [
+            ["provider": "OpenAI", "modelId": "gpt-5.2", "outcome": "success"]
+        ]
+        object["fallbackStartedFromCache"] = false
+
+        let decoded = try JSONDecoder().decode(
+            RequestLog.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+
+        XCTAssertEqual(decoded.model, "virtual-model")
+        XCTAssertEqual(decoded.provider, "openai")
     }
 
     // MARK: - Badge, Filter, Search, Stats
@@ -244,8 +264,6 @@ final class RequestLogProviderTests: XCTestCase {
     private func makeLog(
         provider: String?,
         model: String?,
-        resolvedModel: String? = nil,
-        resolvedProvider: String? = nil,
         endpoint: String = "/v1/messages"
     ) -> RequestLog {
         RequestLog(
@@ -253,8 +271,6 @@ final class RequestLogProviderTests: XCTestCase {
             endpoint: endpoint,
             provider: provider,
             model: model,
-            resolvedModel: resolvedModel,
-            resolvedProvider: resolvedProvider,
             durationMs: 100,
             statusCode: 200
         )

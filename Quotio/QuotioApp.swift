@@ -186,7 +186,6 @@ struct QuotioApp: App {
     @State private var appearanceManagerStorage: AppearanceManager? = isRunningUnitTests ? nil : .shared
     @State private var languageManagerStorage: LanguageManager? = isRunningUnitTests ? nil : .shared
     @State private var showOnboarding = false
-    @State private var showProxyBinarySourceSelection = false
     @Environment(\.openWindow) private var openWindow
 
     private var viewModel: QuotaViewModel { bootstrap.viewModel }
@@ -214,8 +213,6 @@ struct QuotioApp: App {
                         // Show onboarding if needed
                         if bootstrap.needsOnboarding {
                             showOnboarding = true
-                        } else if viewModel.proxyManager.shouldPromptForBinarySourceSelection {
-                            showProxyBinarySourceSelection = true
                         }
                     }
                     .onChange(of: viewModel.proxyManager.proxyStatus.running) {
@@ -273,17 +270,8 @@ struct QuotioApp: App {
                         OnboardingFlow {
                             Task {
                                 await bootstrap.completeOnboarding()
-                                if viewModel.proxyManager.shouldPromptForBinarySourceSelection {
-                                    showProxyBinarySourceSelection = true
-                                }
                             }
                         }
-                    }
-                    .sheet(isPresented: $showProxyBinarySourceSelection) {
-                        ProxyBinarySourceSelectionSheet {
-                            showProxyBinarySourceSelection = false
-                        }
-                        .environment(viewModel)
                     }
             }
         }
@@ -347,7 +335,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Start background polling for CLIProxyAPI updates (every 5 minutes)
             // Uses Atom feed with ETag caching for efficiency
             AtomFeedUpdateService.shared.startPolling(
-                getCurrentSource: { CLIProxyManager.shared.selectedBinarySource },
                 getCurrentVersion: { CLIProxyManager.shared.currentVersion ?? CLIProxyManager.shared.installedProxyVersion }
             )
         }
@@ -643,12 +630,6 @@ struct ContentView: View {
                         
                         // Proxy mode only (local or remote)
                         if modeManager.isProxyMode {
-                            HStack(spacing: 6) {
-                                Label("nav.fallback".localized(), systemImage: "arrow.triangle.branch")
-                                ExperimentalBadge()
-                            }
-                            .tag(NavigationPage.fallback)
-
                             if modeManager.currentMode.supportsAgentConfig {
                                 Label("nav.agents".localized(), systemImage: "terminal")
                                     .tag(NavigationPage.agents)
@@ -731,8 +712,6 @@ struct ContentView: View {
                 QuotaScreen()
             case .providers:
                 ProvidersScreen()
-            case .fallback:
-                FallbackScreen()
             case .agents:
                 AgentSetupScreen()
             case .apiKeys:

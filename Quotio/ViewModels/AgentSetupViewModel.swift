@@ -14,7 +14,6 @@ final class AgentSetupViewModel {
     private let detectionService = AgentDetectionService()
     private let configurationService = AgentConfigurationService()
     private let shellManager = ShellProfileManager()
-    private let fallbackSettings = FallbackSettingsManager.shared
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Quotio", category: "AgentSetup")
 
     var agentStatuses: [AgentStatus] = []
@@ -382,7 +381,6 @@ final class AgentSetupViewModel {
             }
         }
 
-        refreshVirtualModels()
         return loadedFromRemote
     }
 
@@ -397,7 +395,7 @@ final class AgentSetupViewModel {
             return existingConfig
         }
 
-        // Create config if not exists (for FallbackScreen scenarios)
+        // Create a config when loading models outside the agent setup sheet.
         guard let proxyManager = proxyManager else { return nil }
 
         // Use the first API key from the API Keys management interface
@@ -423,10 +421,9 @@ final class AgentSetupViewModel {
     ///
     /// This is the read-only counterpart to `loadModels(forceRefresh:)`, which is a
     /// *picker* loader: it substitutes `AvailableModel.allModels` for an empty or
-    /// failed response, keeps the substituted list in `availableModels`, and appends
-    /// locally configured virtual fallback models. Those behaviors are right for
-    /// offering something to choose and wrong for claiming a model is usable, so a
-    /// catalog view must not go through it.
+    /// failed response and keeps the substituted list in `availableModels`. That
+    /// behavior is right for offering something to choose and wrong for claiming a
+    /// model is usable, so a catalog view must not go through it.
     ///
     /// This method performs no fallback, reads and writes no cached state, and does
     /// not touch `availableModels`, so existing `loadModels` consumers are unaffected.
@@ -447,25 +444,6 @@ final class AgentSetupViewModel {
         return AvailableModel.allModels.sorted { $0.displayName < $1.displayName }
     }
 
-    /// Refresh virtual models - removes old ones and adds current ones
-    private func refreshVirtualModels() {
-        // First remove any existing virtual models (provider == "fallback")
-        availableModels.removeAll { $0.provider.lowercased() == "fallback" }
-
-        // Then add current virtual models
-        guard fallbackSettings.isEnabled else { return }
-
-        for virtualModel in fallbackSettings.virtualModels where virtualModel.isEnabled {
-            let model = AvailableModel(
-                id: virtualModel.name,
-                name: virtualModel.name,
-                provider: "fallback",
-                isDefault: false
-            )
-            availableModels.append(model)
-        }
-    }
-
     /// Check if a provider has available quota for a specific model
     func checkProviderQuota(provider: AIProvider, modelId: String) -> Bool {
         guard let quotaVM = quotaViewModel else { return true }
@@ -482,12 +460,5 @@ final class AgentSetupViewModel {
         }
 
         return false
-    }
-
-    /// Resolve a virtual model to a real provider + model combination
-    /// Returns nil if the model is not a virtual model or no fallback is available
-    /// Note: Actual fallback resolution happens at request time in ProxyBridge
-    func isVirtualModel(_ modelName: String) -> Bool {
-        return fallbackSettings.isVirtualModel(modelName)
     }
 }

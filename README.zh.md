@@ -165,13 +165,6 @@ brew install --cask quotio
   <img alt="Quota Monitoring" src="screenshots/quota.png" />
 </picture>
 
-### 备用配置
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/fallback_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/fallback.png" />
-  <img alt="Fallback Configuration" src="screenshots/fallback.png" />
-</picture>
-
 ### API 密钥
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/api_keys_dark.png" />

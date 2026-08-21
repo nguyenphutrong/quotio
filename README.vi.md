@@ -165,13 +165,6 @@ Vào tab **Agents** → Chọn agent đã cài → Nhấn **Configure** → Ch�
   <img alt="Giám sát Hạn mức" src="screenshots/quota.png" />
 </picture>
 
-### Cấu hình Fallback
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/fallback_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/fallback.png" />
-  <img alt="Cấu hình Fallback" src="screenshots/fallback.png" />
-</picture>
-
 ### API Keys
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/api_keys_dark.png" />

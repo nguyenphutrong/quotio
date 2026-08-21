@@ -13,7 +13,6 @@ struct LogsScreen: View {
     @State private var filterLevel: LogEntry.LogLevel? = nil
     @State private var searchText = ""
     @State private var requestFilterProvider: String? = nil
-    @State private var expandedTraces: Set<UUID> = []
     
     enum LogsTab: String, CaseIterable {
         case requests = "requests"
@@ -184,18 +183,8 @@ struct LogsScreen: View {
     private var requestList: some View {
         ScrollViewReader { proxy in
             List(filteredRequests) { request in
-                RequestRow(
-                    request: request,
-                    isTraceExpanded: expandedTraces.contains(request.id),
-                    onToggleTrace: {
-                        if expandedTraces.contains(request.id) {
-                            expandedTraces.remove(request.id)
-                        } else {
-                            expandedTraces.insert(request.id)
-                        }
-                    }
-                )
-                .id("\(request.id)-\(expandedTraces.contains(request.id))")
+                RequestRow(request: request)
+                    .id(request.id)
             }
             .onChange(of: viewModel.requestTracker.requestHistory.count) { _, _ in
                 if autoScroll, let first = filteredRequests.first {
@@ -300,147 +289,69 @@ struct LogsScreen: View {
 
 struct RequestRow: View {
     let request: RequestLog
-    let isTraceExpanded: Bool
-    let onToggleTrace: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 12) {
-                // Timestamp
-                Text(request.formattedTimestamp)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 70, alignment: .leading)
+        HStack(alignment: .center, spacing: 12) {
+            // Timestamp
+            Text(request.formattedTimestamp)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 70, alignment: .leading)
 
-                // Status Badge
-                statusBadge
+            // Status Badge
+            statusBadge
 
-                // Provider Badge
-                providerBadge
-                    .frame(width: 104, alignment: .leading)
+            // Provider Badge
+            providerBadge
+                .frame(width: 104, alignment: .leading)
 
-                // Model with Fallback Route
-                VStack(alignment: .leading, spacing: 2) {
-                    if request.hasFallbackRoute {
-                        // Show fallback route: virtual model → resolved model
-                        Text(request.model ?? "unknown")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.orange)
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.right")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(request.resolvedModel ?? "")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    } else if let model = request.model {
-                        Text(model)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                .frame(width: 180, alignment: .leading)
-
-                // Tokens
-                if let tokens = request.formattedTokens {
-                    HStack(spacing: 4) {
-                        Image(systemName: "text.word.spacing")
-                            .font(.caption2)
-                        Text(tokens)
-                            .font(.system(.caption, design: .monospaced))
-                    }
-                    .foregroundStyle(.secondary)
-                    .frame(width: 70, alignment: .trailing)
-                } else {
-                    Text("-")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 70, alignment: .trailing)
-                }
-
-                // Duration
-                Text(request.formattedDuration)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 60, alignment: .trailing)
-
-                Spacer()
-
-                // Size
-                HStack(spacing: 4) {
-                    Text("\(request.requestSize.formatted())B")
-                        .foregroundStyle(.secondary)
-                    Image(systemName: "arrow.right")
+            // Model
+            Group {
+                if let model = request.model {
+                    Text(model)
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    Text("\(request.responseSize.formatted())B")
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                .font(.system(.caption2, design: .monospaced))
+            }
+            .frame(width: 180, alignment: .leading)
+
+            // Tokens
+            if let tokens = request.formattedTokens {
+                HStack(spacing: 4) {
+                    Image(systemName: "text.word.spacing")
+                        .font(.caption2)
+                    Text(tokens)
+                        .font(.system(.caption, design: .monospaced))
+                }
+                .foregroundStyle(.secondary)
+                .frame(width: 70, alignment: .trailing)
+            } else {
+                Text("-")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 70, alignment: .trailing)
             }
 
-            if let attempts = request.fallbackAttempts, !attempts.isEmpty {
-                Button {
-                    onToggleTrace()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: isTraceExpanded ? "chevron.down" : "chevron.right")
-                            .font(.caption2)
-                        Text("logs.fallbackTrace".localized())
-                            .font(.caption2)
-                        Spacer()
-                    }
+            // Duration
+            Text(request.formattedDuration)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 60, alignment: .trailing)
+
+            Spacer()
+
+            // Size
+            HStack(spacing: 4) {
+                Text("\(request.requestSize.formatted())B")
                     .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                if isTraceExpanded {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(attempts.enumerated()), id: \.offset) { index, attempt in
-                            HStack(spacing: 6) {
-                                Text("\(index + 1).")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 18, alignment: .trailing)
-
-                                Text("\(attempt.provider) → \(attempt.modelId)")
-                                    .font(.caption2)
-                                    .lineLimit(1)
-
-                                Text(attemptOutcomeLabel(attempt.outcome))
-                                    .font(.caption2)
-                                    .foregroundStyle(attemptOutcomeColor(attempt.outcome))
-
-                                if let reason = attempt.reason {
-                                    Text(reason.displayValue)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-
-                        if let errorMessage = request.errorMessage, !errorMessage.isEmpty {
-                            HStack(spacing: 6) {
-                                Text("logs.fallbackBackendResponse".localized())
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text(errorMessage)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(3)
-                                    .textSelection(.enabled)
-                            }
-                        }
-                    }
-                    .padding(.leading, 24)
-                    .padding(.top, 4)
-                }
+                Image(systemName: "arrow.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Text("\(request.responseSize.formatted())B")
+                    .foregroundStyle(.secondary)
             }
+            .font(.system(.caption2, design: .monospaced))
         }
         .padding(.vertical, 4)
     }
@@ -506,27 +417,6 @@ struct RequestRow: View {
         }
     }
 
-    private func attemptOutcomeLabel(_ outcome: FallbackAttemptOutcome) -> String {
-        switch outcome {
-        case .failed:
-            return "logs.fallbackAttempt.failed".localized()
-        case .success:
-            return "logs.fallbackAttempt.success".localized()
-        case .skipped:
-            return "logs.fallbackAttempt.skipped".localized()
-        }
-    }
-
-    private func attemptOutcomeColor(_ outcome: FallbackAttemptOutcome) -> Color {
-        switch outcome {
-        case .failed:
-            return .orange
-        case .success:
-            return .green
-        case .skipped:
-            return .secondary
-        }
-    }
 }
 
 // MARK: - Stat Item

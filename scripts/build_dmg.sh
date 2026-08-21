@@ -7,7 +7,6 @@ GITHUB_REPO="nguyenphutrong/quotio"
 PROJECT_FILE="${PROJECT_DIR}/${PROJECT_NAME}.xcodeproj"
 PBXPROJ="${PROJECT_FILE}/project.pbxproj"
 CHANGELOG="${PROJECT_DIR}/CHANGELOG.md"
-MODEL_SOURCE="${PROJECT_DIR}/Quotio/Models/ProxyVersionModels.swift"
 BUILD_DIR="${PROJECT_DIR}/build"
 APP_PATH="${BUILD_DIR}/${PROJECT_NAME}.app"
 RELEASE_DIR="${BUILD_DIR}/release"
@@ -86,31 +85,6 @@ prepare_release_version() {
     log "Updated Xcode project to ${version} (build ${next_build})"
 }
 
-verify_bundled_proxy() {
-    local expected_sha256
-    local resources_dir="${APP_PATH}/Contents/Resources"
-    local binary_path=""
-    local actual_sha256
-
-    expected_sha256="$(
-        sed -n 's/.*static let plusLocalSHA256 = "\([0-9a-fA-F]\{64\}\)".*/\1/p' "${MODEL_SOURCE}" | head -n 1
-    )"
-    [ -n "${expected_sha256}" ] || fail "plusLocalSHA256 not found in ${MODEL_SOURCE}"
-
-    if [ -f "${resources_dir}/Proxy/cli-proxy-api-plus" ]; then
-        binary_path="${resources_dir}/Proxy/cli-proxy-api-plus"
-    elif [ -f "${resources_dir}/cli-proxy-api-plus" ]; then
-        binary_path="${resources_dir}/cli-proxy-api-plus"
-    else
-        fail "cli-proxy-api-plus is missing from the app bundle"
-    fi
-
-    actual_sha256="$(shasum -a 256 "${binary_path}" | awk '{print $1}')"
-    [ "${actual_sha256}" = "${expected_sha256}" ] \
-        || fail "bundled proxy checksum mismatch"
-    log "Verified bundled proxy checksum"
-}
-
 configure_distribution() {
     [ -n "${NOTARYTOOL_KEYCHAIN_PROFILE}" ] \
         || fail "NOTARYTOOL_KEYCHAIN_PROFILE is required for --distribution"
@@ -164,35 +138,11 @@ sign_nested_code_bundles() {
     )
 }
 
-record_signed_proxy_checksum() {
-    local resources_dir="${APP_PATH}/Contents/Resources"
-    local binary_path=""
-    local signed_sha256
-    local info_plist="${APP_PATH}/Contents/Info.plist"
-
-    if [ -f "${resources_dir}/Proxy/cli-proxy-api-plus" ]; then
-        binary_path="${resources_dir}/Proxy/cli-proxy-api-plus"
-    elif [ -f "${resources_dir}/cli-proxy-api-plus" ]; then
-        binary_path="${resources_dir}/cli-proxy-api-plus"
-    else
-        fail "cli-proxy-api-plus is missing from the app bundle"
-    fi
-
-    signed_sha256="$(shasum -a 256 "${binary_path}" | awk '{print $1}')"
-    /usr/libexec/PlistBuddy \
-        -c "Delete :QuotioBundledProxySHA256" \
-        "${info_plist}" >/dev/null 2>&1 || true
-    /usr/libexec/PlistBuddy \
-        -c "Add :QuotioBundledProxySHA256 string ${signed_sha256}" \
-        "${info_plist}"
-}
-
 sign_app_for_distribution() {
     local team_identifier
 
     log "Signing nested code with Developer ID"
     sign_macho_files
-    record_signed_proxy_checksum
     sign_nested_code_bundles
 
     codesign \
@@ -426,7 +376,6 @@ xcodebuild "${ARCHIVE_ARGS[@]}" 2>&1 | tee "${BUILD_DIR}/release-build.log"
 ARCHIVED_APP="${ARCHIVE_PATH}/Products/Applications/${PROJECT_NAME}.app"
 [ -d "${ARCHIVED_APP}" ] || fail "archive did not contain ${PROJECT_NAME}.app"
 cp -R "${ARCHIVED_APP}" "${APP_PATH}"
-verify_bundled_proxy
 if [ "${DISTRIBUTION}" = true ]; then
     sign_app_for_distribution
     notarize_app

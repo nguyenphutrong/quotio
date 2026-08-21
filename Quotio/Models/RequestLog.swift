@@ -10,50 +10,6 @@ import Foundation
 
 // MARK: - Request Log Entry
 
-nonisolated enum FallbackAttemptOutcome: String, Codable, Hashable, Sendable {
-    case failed
-    case success
-    case skipped
-}
-
-nonisolated enum FallbackTriggerReason: Codable, Hashable, Sendable {
-    case httpStatus(Int)
-    case pattern(String)
-    case cachedRoute
-    case unknown
-
-    var displayValue: String {
-        switch self {
-        case .httpStatus(let code):
-            return "HTTP \(code)"
-        case .pattern(let pattern):
-            return "pattern: \(pattern)"
-        case .cachedRoute:
-            return "cached route"
-        case .unknown:
-            return "unknown"
-        }
-    }
-}
-
-nonisolated struct FallbackAttempt: Codable, Hashable, Sendable {
-    let provider: String
-    let modelId: String
-    let outcome: FallbackAttemptOutcome
-    let reason: FallbackTriggerReason?
-
-    init(provider: String, modelId: String, outcome: FallbackAttemptOutcome, reason: FallbackTriggerReason? = nil) {
-        self.provider = provider
-        self.modelId = modelId
-        self.outcome = outcome
-        self.reason = reason
-    }
-
-    init(entry: FallbackEntry, outcome: FallbackAttemptOutcome, reason: FallbackTriggerReason? = nil) {
-        self.init(provider: entry.provider.displayName, modelId: entry.modelId, outcome: outcome, reason: reason)
-    }
-}
-
 /// Represents a single API request/response pair with associated metadata
 nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
@@ -70,12 +26,6 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
 
     /// Model used (e.g., "claude-sonnet-4", "gemini-2.0-flash")
     let model: String?
-
-    /// Resolved model after fallback (e.g., "kiro-claude-opus-4-5-agentic")
-    let resolvedModel: String?
-
-    /// Resolved provider after fallback (e.g., "kiro")
-    let resolvedProvider: String?
 
     /// Number of input tokens (from API response)
     let inputTokens: Int?
@@ -106,21 +56,10 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
     /// Error message if request failed
     let errorMessage: String?
 
-    /// Fallback attempt trace for virtual model routing
-    let fallbackAttempts: [FallbackAttempt]?
-
-    /// Whether routing started from a cached fallback entry
-    let fallbackStartedFromCache: Bool
-
     /// Whether the request was successful (2xx status)
     var isSuccess: Bool {
         guard let code = statusCode else { return false }
         return code >= 200 && code < 300
-    }
-
-    /// Whether this request used fallback routing
-    var hasFallbackRoute: Bool {
-        resolvedModel != nil && resolvedModel != model
     }
 
     /// Default initializer
@@ -131,17 +70,13 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
         endpoint: String,
         provider: String? = nil,
         model: String? = nil,
-        resolvedModel: String? = nil,
-        resolvedProvider: String? = nil,
         inputTokens: Int? = nil,
         outputTokens: Int? = nil,
         durationMs: Int,
         statusCode: Int? = nil,
         requestSize: Int = 0,
         responseSize: Int = 0,
-        errorMessage: String? = nil,
-        fallbackAttempts: [FallbackAttempt]? = nil,
-        fallbackStartedFromCache: Bool = false
+        errorMessage: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -149,8 +84,6 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
         self.endpoint = endpoint
         self.provider = provider
         self.model = model
-        self.resolvedModel = resolvedModel
-        self.resolvedProvider = resolvedProvider
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.durationMs = durationMs
@@ -158,8 +91,6 @@ nonisolated struct RequestLog: Identifiable, Codable, Hashable, Sendable {
         self.requestSize = requestSize
         self.responseSize = responseSize
         self.errorMessage = errorMessage
-        self.fallbackAttempts = fallbackAttempts
-        self.fallbackStartedFromCache = fallbackStartedFromCache
     }
 }
 
@@ -235,23 +166,18 @@ nonisolated extension RequestLog {
     ///
     /// Precedence, applied identically here and in `ProxyBridge.extractMetadata` via
     /// `deriveProvider(path:model:)`:
-    /// 1. `resolvedProvider` — the fallback chain records the `AIProvider` it actually dialled.
-    /// 2. A stored label that names a real provider or hosting aggregator. Copilot, Kiro and
+    /// 1. A stored label that names a real provider or hosting aggregator. Copilot, Kiro and
     ///    Antigravity serve other vendors' model families, so a model name cannot override them.
-    /// 3. The model family, the only signal that separates Qwen/GLM/DeepSeek/Grok from plain
+    /// 2. The model family, the only signal that separates Qwen/GLM/DeepSeek/Grok from plain
     ///    OpenAI on a shared `/v1/chat/completions` endpoint.
-    /// 4. The stored protocol label, so unclassifiable models still read as they did before.
+    /// 3. The stored protocol label, so unclassifiable models still read as they did before.
     var effectiveProvider: String? {
-        if let resolvedProvider, !resolvedProvider.isEmpty {
-            return Self.canonicalProviderID(resolvedProvider)
-        }
-
         let stored = provider.map(Self.canonicalProviderID).flatMap { $0.isEmpty ? nil : $0 }
 
         if let stored, !Self.protocolOnlyProviderLabels.contains(stored) {
             return stored
         }
-        if let inferred = Self.inferProvider(fromModel: resolvedModel ?? model) {
+        if let inferred = Self.inferProvider(fromModel: model) {
             return inferred
         }
         return stored
@@ -332,7 +258,7 @@ nonisolated extension RequestLog {
         // 1. Hosting aggregators first — they serve other vendors' families under their own
         //    prefix, so the family suffix must not win. Prefixes verified against the model
         //    ids this app actually emits: CustomProviderSheet.clinePassModels ("cline-pass/…"),
-        //    FallbackModels docs and FallbackSheets.providerFromModel ("kiro-claude-…",
+        //    plus Kiro and Antigravity model prefixes ("kiro-claude-…",
         //    "gemini-claude-…" = Antigravity-hosted Claude).
         if lower.hasPrefix("cline-pass/") || lower.hasPrefix("clinepass/") {
             return AIProvider.clinePass.rawValue
@@ -344,8 +270,8 @@ nonisolated extension RequestLog {
             return AIProvider.antigravity.rawValue
         }
 
-        // 2. Explicit provider prefix, the same rule FallbackSheets.providerFromModel uses
-        //    for icons (e.g. "kiro-claude-opus-4-6-agentic" → kiro, "claude-sonnet-4-5" → claude).
+        // 2. Explicit provider prefix (e.g. "kiro-claude-opus-4-6-agentic" → kiro,
+        //    "claude-sonnet-4-5" → claude).
         for provider in AIProvider.allCases {
             let key = provider.rawValue
             if lower.hasPrefix(key + "-") || lower.hasPrefix(key + "_") || lower.hasPrefix(key + "/") {

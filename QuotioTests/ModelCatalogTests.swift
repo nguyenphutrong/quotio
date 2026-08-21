@@ -227,7 +227,7 @@ final class ModelCatalogTests: XCTestCase {
 
     func testAgentSetupMappingPreservesHistoricalOpenAIProviderDefault() {
         // AgentConfigurationService.fetchAvailableModels - and through it the agent
-        // config sheet, warmup sheet and fallback screen - depends on `owned_by`
+        // config sheet and warmup sheet depend on `owned_by`
         // defaulting to "openai" and on the "github-copilot" value being preserved
         // verbatim for its Copilot availability filter.
         let mapped = ModelCatalog.agentSetupModels(from: [

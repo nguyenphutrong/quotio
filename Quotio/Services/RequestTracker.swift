@@ -96,24 +96,19 @@ final class RequestTracker {
     
     /// Add a request from ProxyBridge callback
     func addRequest(from metadata: ProxyBridge.RequestMetadata) {
-        let attempts = metadata.fallbackAttempts.isEmpty ? nil : metadata.fallbackAttempts
         let entry = RequestLog(
             timestamp: metadata.timestamp,
             method: metadata.method,
             endpoint: metadata.path,
             provider: metadata.provider,
             model: metadata.model,
-            resolvedModel: metadata.resolvedModel,
-            resolvedProvider: metadata.resolvedProvider,
             inputTokens: nil,
             outputTokens: nil,
             durationMs: metadata.durationMs,
             statusCode: metadata.statusCode,
             requestSize: metadata.requestSize,
             responseSize: metadata.responseSize,
-            errorMessage: metadata.responseSnippet,
-            fallbackAttempts: attempts,
-            fallbackStartedFromCache: metadata.fallbackStartedFromCache
+            errorMessage: metadata.responseSnippet
         )
 
         addEntry(entry)

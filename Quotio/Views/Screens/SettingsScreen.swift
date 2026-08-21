@@ -1092,7 +1092,7 @@ struct ProxyUpdateSettingsSection: View {
             }
             
             // Upgrade status
-            if proxyManager.selectedBinarySource == .upstream, proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
+            if proxyManager.upgradeAvailable, let upgrade = proxyManager.availableUpgrade {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Label {
@@ -1127,7 +1127,7 @@ struct ProxyUpdateSettingsSection: View {
             } else {
                 HStack {
                     Label {
-                        Text(proxyManager.selectedBinarySource == .plusLocal ? "Fixed local version" : "settings.proxyUpdate.upToDate".localized())
+                        Text("settings.proxyUpdate.upToDate".localized())
                     } icon: {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
@@ -1135,29 +1135,23 @@ struct ProxyUpdateSettingsSection: View {
                     
                     Spacer()
 
-                    if proxyManager.selectedBinarySource == .upstream {
-                        Button {
-                            checkForUpdate()
-                        } label: {
-                            ZStack {
-                                Text("settings.proxyUpdate.checkNow".localized())
-                                    .opacity(isCheckingForUpdate ? 0 : 1)
+                    Button {
+                        checkForUpdate()
+                    } label: {
+                        ZStack {
+                            Text("settings.proxyUpdate.checkNow".localized())
+                                .opacity(isCheckingForUpdate ? 0 : 1)
 
-                                if isCheckingForUpdate {
-                                    SmallProgressView()
-                                }
+                            if isCheckingForUpdate {
+                                SmallProgressView()
                             }
                         }
-                        .disabled(isCheckingForUpdate)
-                    } else {
-                        Text("v\(ProxyBinarySource.plusLocalVersion)")
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
                     }
+                    .disabled(isCheckingForUpdate)
                 }
 
                 // Last checked time
-                if proxyManager.selectedBinarySource == .upstream, let lastCheck = atomFeedService.lastCLIProxyCheck {
+                if let lastCheck = atomFeedService.lastCLIProxyCheck {
                     HStack {
                         Text("Last checked")
                             .font(.caption)
@@ -1294,9 +1288,6 @@ struct ProxyVersionManagerSheet: View {
                     Text("settings.proxyUpdate.advanced.description".localized())
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text(proxyManager.selectedBinarySource.selectionDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
                 
                 Spacer()
@@ -1409,9 +1400,6 @@ struct ProxyVersionManagerSheet: View {
         .task {
             await loadReleases()
         }
-        .onChange(of: proxyManager.selectedBinarySource) { _, _ in
-            Task { await loadReleases() }
-        }
         .alert("settings.proxyUpdate.deleteWarning.title".localized(), isPresented: $showDeleteWarning) {
             Button("action.cancel".localized(), role: .cancel) {
                 pendingInstallVersion = nil
@@ -1468,7 +1456,7 @@ struct ProxyVersionManagerSheet: View {
     
     private func installVersion(_ versionInfo: ProxyVersionInfo) {
         // Check if installing will delete old versions
-        let toDelete = proxyManager.storageManager.versionsToBeDeleted(source: proxyManager.selectedBinarySource, keepLast: AppConstants.maxInstalledVersions)
+        let toDelete = proxyManager.storageManager.versionsToBeDeleted(keepLast: AppConstants.maxInstalledVersions)
         if !toDelete.isEmpty {
             versionsToDelete = toDelete
             pendingInstallVersion = versionInfo
@@ -1502,7 +1490,7 @@ struct ProxyVersionManagerSheet: View {
                 if wasRunning {
                     proxyManager.stop()
                 }
-                try proxyManager.storageManager.setCurrentVersion(version, source: proxyManager.selectedBinarySource)
+                try proxyManager.storageManager.setCurrentVersion(version)
                 if wasRunning {
                     try await proxyManager.start()
                 }
@@ -1515,7 +1503,7 @@ struct ProxyVersionManagerSheet: View {
     
     private func deleteVersion(_ version: String) {
         do {
-            try proxyManager.storageManager.deleteVersion(version, source: proxyManager.selectedBinarySource)
+            try proxyManager.storageManager.deleteVersion(version)
             refreshInstalledVersions()
         } catch {
             installError = error.localizedDescription
@@ -1608,16 +1596,7 @@ private struct AvailableVersionRow: View {
                         .font(.system(.body, design: .monospaced))
                         .fontWeight(.medium)
                     
-                    if versionInfo.source == .plusLocal {
-                        Text("Local")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.secondary.opacity(0.15))
-                            .clipShape(Capsule())
-                    } else if versionInfo.version.contains("-rc") {
+                    if versionInfo.version.contains("-rc") {
                         Text("settings.proxyUpdate.advanced.prerelease".localized())
                             .font(.caption2)
                             .fontWeight(.medium)
@@ -1640,9 +1619,6 @@ private struct AvailableVersionRow: View {
                     }
                 }
                 
-                Text(versionInfo.source.shortDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
             
             Spacer()
@@ -2559,12 +2535,6 @@ struct AboutProxyUpdateCard: View {
     }
 
     private var statusText: String {
-        if proxyManager.selectedBinarySource == .plusLocal {
-            return proxyManager.currentVersion == nil && proxyManager.installedProxyVersion == nil
-                ? "Local install required"
-                : "Fixed local version"
-        }
-
         if proxyManager.currentVersion == nil && proxyManager.installedProxyVersion == nil {
             return "Install required"
         }
@@ -2580,7 +2550,7 @@ struct AboutProxyUpdateCard: View {
         if upgradeError != nil {
             return .orange
         }
-        if proxyManager.selectedBinarySource == .upstream && proxyManager.upgradeAvailable {
+        if proxyManager.upgradeAvailable {
             return .green
         }
         return .secondary
@@ -2593,31 +2563,6 @@ struct AboutProxyUpdateCard: View {
                 systemImage: "shippingbox.and.arrow.backward",
                 color: .purple
             )
-
-            VStack(spacing: 10) {
-                ForEach(proxyManager.availableBinarySources) { source in
-                    ProxyBinarySourceOptionBlock(
-                        source: source,
-                        isSelected: proxyManager.selectedBinarySource == source
-                    ) {
-                        proxyManager.confirmBinarySourceSelection(source)
-                    }
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(proxyManager.selectedBinarySource.detailDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if let warning = proxyManager.selectedBinarySourceWarning {
-                    Text(warning)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-            }
-
-            Divider()
 
             HStack {
                 Text("settings.proxyUpdate.currentVersion".localized())
@@ -2638,7 +2583,7 @@ struct AboutProxyUpdateCard: View {
                     .foregroundStyle(statusColor == .secondary ? .secondary : .primary)
             }
 
-            if proxyManager.selectedBinarySource == .upstream, let lastCheck = atomFeedService.lastCLIProxyCheck {
+            if let lastCheck = atomFeedService.lastCLIProxyCheck {
                 HStack {
                     Text("Last checked")
                         .font(.caption)
@@ -2661,54 +2606,38 @@ struct AboutProxyUpdateCard: View {
             }
 
             HStack {
-                if proxyManager.selectedBinarySource == .upstream {
+                Button {
+                    checkForUpdate()
+                } label: {
+                    ZStack {
+                        Text("settings.proxyUpdate.checkNow".localized())
+                            .opacity(isCheckingForUpdate ? 0 : 1)
+
+                        if isCheckingForUpdate {
+                            SmallProgressView()
+                        }
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isCheckingForUpdate)
+
+                if let upgrade = proxyManager.availableUpgrade {
                     Button {
-                        checkForUpdate()
+                        performUpgrade(to: upgrade)
                     } label: {
                         ZStack {
-                            Text("settings.proxyUpdate.checkNow".localized())
-                                .opacity(isCheckingForUpdate ? 0 : 1)
+                            Text("action.update".localized())
+                                .opacity(isUpgrading ? 0 : 1)
 
-                            if isCheckingForUpdate {
+                            if isUpgrading {
                                 SmallProgressView()
                             }
                         }
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(isCheckingForUpdate)
-
-                    if let upgrade = proxyManager.availableUpgrade {
-                        Button {
-                            performUpgrade(to: upgrade)
-                        } label: {
-                            ZStack {
-                                Text("action.update".localized())
-                                    .opacity(isUpgrading ? 0 : 1)
-
-                                if isUpgrading {
-                                    SmallProgressView()
-                                }
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(isUpgrading)
-                    }
-                } else if currentVersionText == "Not installed" {
-                    Button {
-                        Task {
-                            do {
-                                try await proxyManager.downloadAndInstallBinary()
-                            } catch {
-                                upgradeError = error.localizedDescription
-                            }
-                        }
-                    } label: {
-                        Text(proxyManager.selectedBinarySource.installActionTitle)
-                    }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .disabled(isUpgrading)
                 }
 
                 Spacer()
@@ -2774,113 +2703,6 @@ struct AboutProxyUpdateCard: View {
                 upgradeError = error.localizedDescription
                 isUpgrading = false
             }
-        }
-    }
-}
-
-private struct ProxyBinarySourceOptionBlock: View {
-    let source: ProxyBinarySource
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(source.selectionDescription)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.primary)
-
-                    Text(source.detailDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.45) : Color.secondary.opacity(0.15), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-struct ProxyBinarySourceSelectionSheet: View {
-    @Environment(QuotaViewModel.self) private var viewModel
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var selectedSource: ProxyBinarySource = .upstream
-
-    private var proxyManager: CLIProxyManager {
-        viewModel.proxyManager
-    }
-
-    var onDismiss: (() -> Void)?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Choose Your Proxy")
-                    .font(.title2)
-                    .fontWeight(.bold)
-
-                Text("Select which proxy family Quotio should use by default. You can change this later in About > Proxy Updates.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(spacing: 10) {
-                ForEach(proxyManager.availableBinarySources) { source in
-                    ProxyBinarySourceOptionBlock(
-                        source: source,
-                        isSelected: selectedSource == source
-                    ) {
-                        selectedSource = source
-                    }
-                }
-            }
-
-            if selectedSource == .upstream, let warning = selectedSource.legacyAuthWarning {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    Text(warning)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(12)
-                .background(Color.orange.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-
-            HStack {
-                Spacer()
-
-                Button("Continue") {
-                    proxyManager.confirmBinarySourceSelection(selectedSource)
-                    onDismiss?()
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(24)
-        .frame(width: 520)
-        .interactiveDismissDisabled()
-        .onAppear {
-            selectedSource = proxyManager.selectedBinarySource
         }
     }
 }
