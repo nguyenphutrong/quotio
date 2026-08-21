@@ -170,13 +170,6 @@ Go to **Agents** tab → Select an installed agent → Click **Configure** → C
   <img alt="API Keys" src="screenshots/api_keys.png" />
 </picture>
 
-### Logs
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/logs_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/logs.png" />
-  <img alt="Logs" src="screenshots/logs.png" />
-</picture>
-
 ### Settings
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/settings_dark.png" />

@@ -8,31 +8,10 @@ import SwiftUI
 struct LogsScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
     @Environment(LogsViewModel.self) private var logsViewModel
-    @State private var selectedTab: LogsTab = .requests
     @State private var autoScroll = true
     @State private var filterLevel: LogEntry.LogLevel? = nil
     @State private var searchText = ""
-    @State private var requestFilterProvider: String? = nil
-    
-    enum LogsTab: String, CaseIterable {
-        case requests = "requests"
-        case proxyLogs = "proxyLogs"
-        
-        var title: String {
-            switch self {
-            case .requests: return "logs.tab.requests".localizedStatic()
-            case .proxyLogs: return "logs.tab.proxyLogs".localizedStatic()
-            }
-        }
-        
-        var icon: String {
-            switch self {
-            case .requests: return "arrow.up.arrow.down"
-            case .proxyLogs: return "doc.text"
-            }
-        }
-    }
-    
+
     var body: some View {
         Group {
             if !viewModel.proxyManager.proxyStatus.running {
@@ -42,176 +21,43 @@ struct LogsScreen: View {
                     await viewModel.startProxy()
                 }
             } else {
-                VStack(spacing: 0) {
-                    // Tab Picker
-                    Picker("Tab", selection: $selectedTab) {
-                        ForEach(LogsTab.allCases, id: \.self) { tab in
-                            Label(tab.title, systemImage: tab.icon)
-                                .tag(tab)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding()
-                    
-                    Divider()
-                    
-                    // Tab Content
-                    switch selectedTab {
-                    case .requests:
-                        requestHistoryView
-                    case .proxyLogs:
-                        proxyLogsView
-                    }
-                }
+                proxyLogsView
             }
         }
         .navigationTitle("nav.logs".localized())
-        .searchable(text: $searchText, prompt: searchPrompt)
+        .searchable(text: $searchText, prompt: "logs.searchLogs".localized())
         .toolbar {
             toolbarContent
         }
         .task {
-            // Configure LogsViewModel with proxy connection when screen appears
             if !logsViewModel.isConfigured {
                 logsViewModel.configure(
                     baseURL: viewModel.proxyManager.managementURL,
                     authKey: viewModel.proxyManager.managementKey
                 )
             }
-            
+
             while !Task.isCancelled {
-                if selectedTab == .proxyLogs {
-                    await logsViewModel.refreshLogs()
-                }
+                await logsViewModel.refreshLogs()
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
     }
-    
-    private var searchPrompt: String {
-        switch selectedTab {
-        case .requests:
-            return "logs.searchRequests".localized()
-        case .proxyLogs:
-            return "logs.searchLogs".localized()
-        }
-    }
-    
-    // MARK: - Request History View
-    
-    private var requestHistoryView: some View {
-        Group {
-            if viewModel.requestTracker.requestHistory.isEmpty {
-                ContentUnavailableView {
-                    Label("logs.noRequests".localized(), systemImage: "arrow.up.arrow.down")
-                } description: {
-                    Text("logs.requestsWillAppear".localized())
-                }
-            } else {
-                VStack(spacing: 0) {
-                    // Stats Header
-                    requestStatsHeader
-                    
-                    Divider()
-                    
-                    // Request List
-                    requestList
-                }
-            }
-        }
-    }
-    
-    private var requestStatsHeader: some View {
-        let stats = viewModel.requestTracker.stats
-        
-        return HStack(spacing: 24) {
-            StatItem(
-                title: "logs.stats.totalRequests".localized(),
-                value: "\(stats.totalRequests)"
-            )
-            
-            StatItem(
-                title: "logs.stats.successRate".localized(),
-                value: String(format: "%.0f%%", stats.successRate)
-            )
-            
-            StatItem(
-                title: "logs.stats.totalTokens".localized(),
-                value: stats.totalTokens.formattedTokenCount
-            )
-            
-            StatItem(
-                title: "logs.stats.avgDuration".localized(),
-                value: "\(stats.averageDurationMs)ms"
-            )
-            
-            Spacer()
-            
-            // Provider Filter
-            Picker("Provider", selection: $requestFilterProvider) {
-                Text("logs.filter.allProviders".localized()).tag(nil as String?)
-                Divider()
-                ForEach(Array(stats.byProvider.keys.sorted()), id: \.self) { provider in
-                    Text(RequestLog.displayName(forProvider: provider)).tag(provider as String?)
-                }
-            }
-            .pickerStyle(.menu)
-            .frame(width: 140)
-        }
-        .padding()
-        .background(.regularMaterial)
-    }
-    
-    private var filteredRequests: [RequestLog] {
-        var requests = viewModel.requestTracker.requestHistory
-        
-        if let provider = requestFilterProvider {
-            requests = requests.filter { $0.effectiveProvider == provider }
-        }
 
-        if !searchText.isEmpty {
-            requests = requests.filter {
-                ($0.effectiveProvider?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-                ($0.model?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-                ($0.endpoint.localizedCaseInsensitiveContains(searchText))
-            }
-        }
-        
-        return requests
-    }
-    
-    private var requestList: some View {
-        ScrollViewReader { proxy in
-            List(filteredRequests) { request in
-                RequestRow(request: request)
-                    .id(request.id)
-            }
-            .onChange(of: viewModel.requestTracker.requestHistory.count) { _, _ in
-                if autoScroll, let first = filteredRequests.first {
-                    withAnimation {
-                        proxy.scrollTo(first.id, anchor: .top)
-                    }
-                }
-            }
-        }
-    }
-    
-    // MARK: - Proxy Logs View
-    
-    var filteredLogs: [LogEntry] {
+    private var filteredLogs: [LogEntry] {
         var logs = logsViewModel.logs
-        
+
         if let level = filterLevel {
             logs = logs.filter { $0.level == level }
         }
-        
+
         if !searchText.isEmpty {
             logs = logs.filter { $0.message.localizedCaseInsensitiveContains(searchText) }
         }
-        
+
         return logs
     }
-    
+
     private var proxyLogsView: some View {
         Group {
             if filteredLogs.isEmpty {
@@ -225,7 +71,7 @@ struct LogsScreen: View {
             }
         }
     }
-    
+
     private var logList: some View {
         ScrollViewReader { proxy in
             List(filteredLogs) { entry in
@@ -241,43 +87,31 @@ struct LogsScreen: View {
             }
         }
     }
-    
-    // MARK: - Toolbar
-    
+
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup {
-            if selectedTab == .proxyLogs {
-                Picker("Filter", selection: $filterLevel) {
-                    Text("logs.all".localized()).tag(nil as LogEntry.LogLevel?)
-                    Divider()
-                    Text("logs.info".localized()).tag(LogEntry.LogLevel.info as LogEntry.LogLevel?)
-                    Text("logs.warn".localized()).tag(LogEntry.LogLevel.warn as LogEntry.LogLevel?)
-                    Text("logs.error".localized()).tag(LogEntry.LogLevel.error as LogEntry.LogLevel?)
-                }
-                .pickerStyle(.menu)
+            Picker("Filter", selection: $filterLevel) {
+                Text("logs.all".localized()).tag(nil as LogEntry.LogLevel?)
+                Divider()
+                Text("logs.info".localized()).tag(LogEntry.LogLevel.info as LogEntry.LogLevel?)
+                Text("logs.warn".localized()).tag(LogEntry.LogLevel.warn as LogEntry.LogLevel?)
+                Text("logs.error".localized()).tag(LogEntry.LogLevel.error as LogEntry.LogLevel?)
             }
-            
+            .pickerStyle(.menu)
+
             Toggle(isOn: $autoScroll) {
                 Label("logs.autoScroll".localized(), systemImage: "arrow.down.to.line")
             }
-            
+
             Button {
-                if selectedTab == .requests {
-                    // Refresh handled by RequestTracker automatically
-                } else {
-                    Task { await logsViewModel.refreshLogs() }
-                }
+                Task { await logsViewModel.refreshLogs() }
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
-            
+
             Button(role: .destructive) {
-                if selectedTab == .requests {
-                    viewModel.requestTracker.clearHistory()
-                } else {
-                    Task { await logsViewModel.clearLogs() }
-                }
+                Task { await logsViewModel.clearLogs() }
             } label: {
                 Image(systemName: "trash")
             }
@@ -285,169 +119,16 @@ struct LogsScreen: View {
     }
 }
 
-// MARK: - Request Row
-
-struct RequestRow: View {
-    let request: RequestLog
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            // Timestamp
-            Text(request.formattedTimestamp)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 70, alignment: .leading)
-
-            // Status Badge
-            statusBadge
-
-            // Provider Badge
-            providerBadge
-                .frame(width: 104, alignment: .leading)
-
-            // Model
-            Group {
-                if let model = request.model {
-                    Text(model)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            .frame(width: 180, alignment: .leading)
-
-            // Tokens
-            if let tokens = request.formattedTokens {
-                HStack(spacing: 4) {
-                    Image(systemName: "text.word.spacing")
-                        .font(.caption2)
-                    Text(tokens)
-                        .font(.system(.caption, design: .monospaced))
-                }
-                .foregroundStyle(.secondary)
-                .frame(width: 70, alignment: .trailing)
-            } else {
-                Text("-")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 70, alignment: .trailing)
-            }
-
-            // Duration
-            Text(request.formattedDuration)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 60, alignment: .trailing)
-
-            Spacer()
-
-            // Size
-            HStack(spacing: 4) {
-                Text("\(request.requestSize.formatted())B")
-                    .foregroundStyle(.secondary)
-                Image(systemName: "arrow.right")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                Text("\(request.responseSize.formatted())B")
-                    .foregroundStyle(.secondary)
-            }
-            .font(.system(.caption2, design: .monospaced))
-        }
-        .padding(.vertical, 4)
-    }
-
-    @ViewBuilder
-    private var providerBadge: some View {
-        if let provider = request.effectiveProvider {
-            Text(RequestLog.displayName(forProvider: provider))
-                .font(.system(.caption2, weight: .semibold))
-                .foregroundStyle(providerColor(provider))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(providerColor(provider).opacity(0.15))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                .lineLimit(1)
-                .help(providerTooltip(for: provider))
-        } else {
-            Text("logs.provider.unknown".localized())
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    /// Spells out that the badge is the serving provider while the endpoint only fixes the
-    /// protocol — the two differ whenever a non-OpenAI model uses `/v1/chat/completions`.
-    private func providerTooltip(for provider: String) -> String {
-        let name = RequestLog.displayName(forProvider: provider)
-        guard let requestProtocol = request.requestProtocol else { return name }
-        return String(format: "logs.provider.tooltip".localized(), name, requestProtocol.displayName)
-    }
-
-    private func providerColor(_ provider: String) -> Color {
-        let id = RequestLog.canonicalProviderID(provider)
-        if let known = AIProvider(rawValue: id) {
-            return known.color
-        }
-        switch id {
-        case "openai": return .green
-        case "gemini": return .blue
-        case "deepseek": return .indigo
-        case "kimi", "minimax", "mimo": return .teal
-        default: return .gray
-        }
-    }
-
-    private var statusBadge: some View {
-        Text(request.statusBadge)
-            .font(.system(.caption2, design: .monospaced, weight: .bold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(statusColor)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-    }
-
-    private var statusColor: Color {
-        guard let code = request.statusCode else { return .gray }
-        switch code {
-        case 200..<300: return .green
-        case 400..<500: return .orange
-        case 500..<600: return .red
-        default: return .gray
-        }
-    }
-
-}
-
-// MARK: - Stat Item
-
-struct StatItem: View {
-    let title: String
-    let value: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.system(.body, design: .rounded, weight: .semibold))
-        }
-    }
-}
-
-// MARK: - Log Row
-
 struct LogRow: View {
     let entry: LogEntry
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Text(entry.timestamp, style: .time)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .frame(width: 70, alignment: .leading)
-            
+
             Text(entry.level.rawValue.uppercased())
                 .font(.system(.caption2, design: .monospaced, weight: .bold))
                 .foregroundStyle(.white)
@@ -455,7 +136,7 @@ struct LogRow: View {
                 .padding(.vertical, 2)
                 .background(entry.level.color)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
-            
+
             Text(entry.message)
                 .font(.system(.caption, design: .monospaced))
                 .textSelection(.enabled)

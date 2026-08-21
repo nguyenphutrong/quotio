@@ -172,13 +172,6 @@ Vào tab **Agents** → Chọn agent đã cài → Nhấn **Configure** → Ch�
   <img alt="API Keys" src="screenshots/api_keys.png" />
 </picture>
 
-### Nhật ký
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/logs_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/logs.png" />
-  <img alt="Nhật ký" src="screenshots/logs.png" />
-</picture>
-
 ### Cài đặt
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/settings_dark.png" />

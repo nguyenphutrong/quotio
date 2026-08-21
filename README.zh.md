@@ -172,13 +172,6 @@ brew install --cask quotio
   <img alt="API Keys" src="screenshots/api_keys.png" />
 </picture>
 
-### 日志
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/logs_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/logs.png" />
-  <img alt="Logs" src="screenshots/logs.png" />
-</picture>
-
 ### 设置
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/settings_dark.png" />

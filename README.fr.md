@@ -172,13 +172,6 @@ Allez dans l'onglet **Agents** → Sélectionnez un agent installé → Cliquez 
   <img alt="Clés API" src="screenshots/api_keys.png" />
 </picture>
 
-### Journaux
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/logs_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="screenshots/logs.png" />
-  <img alt="Journaux" src="screenshots/logs.png" />
-</picture>
-
 ### Paramètres
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/settings_dark.png" />

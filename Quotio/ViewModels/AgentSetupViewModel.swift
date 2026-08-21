@@ -96,7 +96,7 @@ final class AgentSetupViewModel {
         if let tunnelURL = TunnelManager.shared.tunnelState.publicURL {
             endpoint = tunnelURL
         } else {
-            endpoint = proxyManager.clientEndpoint
+            endpoint = proxyManager.baseURL
         }
 
         // Create configuration with defaults first
@@ -407,7 +407,7 @@ final class AgentSetupViewModel {
         if let tunnelURL = TunnelManager.shared.tunnelState.publicURL {
             modelEndpoint = tunnelURL
         } else {
-            modelEndpoint = proxyManager.clientEndpoint
+            modelEndpoint = proxyManager.baseURL
         }
 
         return AgentConfiguration(

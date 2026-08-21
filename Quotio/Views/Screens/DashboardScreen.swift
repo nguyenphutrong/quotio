@@ -696,8 +696,7 @@ struct DashboardScreen: View {
 
     /// The display endpoint for clients to connect to
     private var displayEndpoint: String {
-        // Always use client endpoint - all traffic should go through Quotio's proxy
-        return viewModel.proxyManager.clientEndpoint + "/v1"
+        viewModel.proxyManager.baseURL + "/v1"
     }
 
     private var endpointSection: some View {

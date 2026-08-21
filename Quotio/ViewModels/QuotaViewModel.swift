@@ -39,9 +39,6 @@ final class QuotaViewModel {
     @ObservationIgnored private let warmupModelCacheTTL: TimeInterval = 28800
     @ObservationIgnored private var lastProxyURL: String?
     
-    /// Request tracker for monitoring API requests through ProxyBridge
-    let requestTracker = RequestTracker.shared
-    
     /// Tunnel manager for Cloudflare Tunnel integration
     let tunnelManager = TunnelManager.shared
     
@@ -1460,18 +1457,10 @@ final class QuotaViewModel {
         }
 
         do {
-            // Wire up ProxyBridge callback to RequestTracker before starting
-            proxyManager.proxyBridge.onRequestCompleted = { [weak self] metadata in
-                self?.requestTracker.addRequest(from: metadata)
-            }
-            
             try await proxyManager.start()
             setupAPIClient()
             startAutoRefresh()
             restartWarmupScheduler()
-
-            // Start RequestTracker
-            requestTracker.start()
 
             await refreshData()
 
@@ -1504,9 +1493,6 @@ final class QuotaViewModel {
                 await tunnelManager.stopTunnel()
             }
         }
-        
-        // Stop RequestTracker
-        requestTracker.stop()
         
         proxyManager.stop()
         restartWarmupScheduler()
@@ -1581,7 +1567,6 @@ final class QuotaViewModel {
             // Stop and restart
             refreshTask?.cancel()
             refreshTask = nil
-            requestTracker.stop()
 
             Log.quota("Attempting proxy recovery...")
             await proxyManager.stopAndWait()
