@@ -12,9 +12,6 @@ actor ManagementAPIClient {
     private let sessionDelegate: SessionDelegate
     private let clientId: String
     
-    /// Whether this client is connected to a remote server (vs localhost)
-    let isRemote: Bool
-    
     /// Timeout configuration used for this client
     let timeoutConfig: TimeoutConfig
     
@@ -33,18 +30,6 @@ actor ManagementAPIClient {
             resourceTimeout: 45,
             maxRetries: 4  // Was: 1. Now: 4 retries with exponential backoff = ~6.5s total wait
         )
-
-        /// Timeouts for remote connections (slower, needs more patience)
-        static let remote = TimeoutConfig(
-            requestTimeout: 30,
-            resourceTimeout: 90,
-            maxRetries: 5  // Was: 2. Remote connections may need more retries
-        )
-        
-        /// Custom timeout configuration
-        static func custom(requestTimeout: TimeInterval, resourceTimeout: TimeInterval, maxRetries: Int = 1) -> TimeoutConfig {
-            TimeoutConfig(requestTimeout: requestTimeout, resourceTimeout: resourceTimeout, maxRetries: maxRetries)
-        }
     }
     
     // MARK: - Diagnostic Logging
@@ -79,7 +64,6 @@ actor ManagementAPIClient {
         self.baseURL = baseURL
         self.authKey = authKey
         self.clientId = String(UUID().uuidString.prefix(6))
-        self.isRemote = false
         self.timeoutConfig = .local
         
         let config = URLSessionConfiguration.default
@@ -93,48 +77,6 @@ actor ManagementAPIClient {
         self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
         
         Self.log("[\(clientId)] Local client created, timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s")
-    }
-    
-    /// Initialize for remote connection with custom timeout
-    /// - Warning: Setting `verifySSL: false` disables certificate validation, making the connection
-    ///   vulnerable to man-in-the-middle attacks. Only use for self-signed certificates in trusted networks.
-    init(baseURL: String, authKey: String, timeoutConfig: TimeoutConfig, verifySSL: Bool = true) {
-        self.baseURL = baseURL
-        self.authKey = authKey
-        self.clientId = String(UUID().uuidString.prefix(6))
-        self.isRemote = true
-        self.timeoutConfig = timeoutConfig
-        
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = timeoutConfig.requestTimeout
-        config.timeoutIntervalForResource = timeoutConfig.resourceTimeout
-        config.httpMaximumConnectionsPerHost = 4
-        config.urlCache = nil
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        
-        self.sessionDelegate = SessionDelegate(clientId: clientId, verifySSL: verifySSL)
-        self.session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
-        
-        Self.log("[\(clientId)] Remote client created, timeout=\(Int(timeoutConfig.requestTimeout))/\(Int(timeoutConfig.resourceTimeout))s, verifySSL=\(verifySSL)")
-        
-        if !verifySSL {
-            Log.warning("SSL verification disabled for \(baseURL). Connection is vulnerable to MITM attacks.")
-        }
-    }
-    
-    /// Convenience initializer for remote connection with RemoteConnectionConfig
-    init(config: RemoteConnectionConfig, managementKey: String) {
-        let timeout = TimeoutConfig.custom(
-            requestTimeout: TimeInterval(config.timeoutSeconds),
-            resourceTimeout: TimeInterval(config.timeoutSeconds * 3),
-            maxRetries: 2
-        )
-        self.init(
-            baseURL: config.managementBaseURL,
-            authKey: managementKey,
-            timeoutConfig: timeout,
-            verifySSL: config.verifySSL
-        )
     }
     
     func invalidate() {
@@ -351,12 +293,12 @@ actor ManagementAPIClient {
         _ = try await makeRequest("/request-retry", method: "PUT", body: body)
     }
     
-    // MARK: - Remote Configuration Getters
+    // MARK: - Configuration Getters
     
-    /// Fetch the full configuration from the remote server
-    func fetchConfig() async throws -> RemoteProxyConfig {
+    /// Fetch the full proxy configuration.
+    func fetchConfig() async throws -> ProxyConfig {
         let data = try await makeRequest("/config")
-        return try JSONDecoder().decode(RemoteProxyConfig.self, from: data)
+        return try JSONDecoder().decode(ProxyConfig.self, from: data)
     }
     
     /// Get debug mode status
@@ -521,11 +463,9 @@ nonisolated struct LatestVersionResponse: Codable, Sendable {
 
 private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
     private let clientId: String
-    private let verifySSL: Bool
     
-    init(clientId: String, verifySSL: Bool = true) {
+    init(clientId: String) {
         self.clientId = clientId
-        self.verifySSL = verifySSL
         super.init()
     }
     
@@ -543,16 +483,6 @@ private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTas
             let durationStr = String(format: "%.3f", durationSec)
             Log.api("[\(clientId)] Connection: \(connectionType), duration=\(durationStr)s")
         }
-    }
-    
-    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        if !verifySSL && challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
-            if let serverTrust = challenge.protectionSpace.serverTrust {
-                completionHandler(.useCredential, URLCredential(trust: serverTrust))
-                return
-            }
-        }
-        completionHandler(.performDefaultHandling, nil)
     }
 }
 
@@ -627,9 +557,9 @@ nonisolated enum APIError: LocalizedError {
     }
 }
 
-// MARK: - Remote Configuration Response Types
+// MARK: - Configuration Response Types
 
-nonisolated struct RemoteProxyConfig: Codable, Sendable {
+nonisolated struct ProxyConfig: Codable, Sendable {
     let debug: Bool?
     let proxyURL: String?
     let routingStrategy: String?
@@ -637,7 +567,7 @@ nonisolated struct RemoteProxyConfig: Codable, Sendable {
     let maxRetryInterval: Int?
     let loggingToFile: Bool?
     let requestLog: Bool?
-    let quotaExceeded: RemoteProxyQuotaExceededConfig?
+    let quotaExceeded: ProxyQuotaExceededConfig?
     
     enum CodingKeys: String, CodingKey {
         case debug
@@ -651,7 +581,7 @@ nonisolated struct RemoteProxyConfig: Codable, Sendable {
     }
 }
 
-nonisolated struct RemoteProxyQuotaExceededConfig: Codable, Sendable {
+nonisolated struct ProxyQuotaExceededConfig: Codable, Sendable {
     let switchProject: Bool?
     let switchPreviewModel: Bool?
     

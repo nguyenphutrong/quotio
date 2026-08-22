@@ -17,12 +17,6 @@ struct SettingsScreen: View {
         Form {
             // Operating Mode
             OperatingModeSection()
-            
-            // Remote Server Configuration - Only in Remote Proxy Mode
-            if modeManager.isRemoteProxyMode {
-                RemoteServerSection()
-                UnifiedProxySettingsSection()
-            }
 
             // General Settings
             Section {
@@ -78,7 +72,7 @@ struct SettingsScreen: View {
             // Local Proxy Server - Only in Local Proxy Mode
             if modeManager.isLocalProxyMode {
                 LocalProxyServerSection()
-                UnifiedProxySettingsSection()
+                ProxySettingsSection()
             }
             
             // Notifications
@@ -116,7 +110,6 @@ struct OperatingModeSection: View {
     @State private var modeManager = OperatingModeManager.shared
     @State private var showModeChangeConfirmation = false
     @State private var pendingMode: OperatingMode?
-    @State private var showRemoteConfigSheet = false
     
     var body: some View {
         Section {
@@ -150,17 +143,6 @@ struct OperatingModeSection: View {
         } message: {
             Text("settings.appMode.switchConfirmMessage".localized())
         }
-        .sheet(isPresented: $showRemoteConfigSheet) {
-            RemoteConnectionSheet(
-                existingConfig: modeManager.remoteConfig
-            ) { config, managementKey in
-                modeManager.switchToRemote(config: config, managementKey: managementKey)
-                Task {
-                    await viewModel.initialize()
-                }
-            }
-            .environment(viewModel)
-        }
     }
     
     @ViewBuilder
@@ -168,9 +150,6 @@ struct OperatingModeSection: View {
         switch modeManager.currentMode {
         case .monitor:
             Label("settings.appMode.quotaOnlyNote".localized(), systemImage: "info.circle")
-                .font(.caption)
-        case .remoteProxy:
-            Label("settings.appMode.remoteNote".localized(), systemImage: "info.circle")
                 .font(.caption)
         case .localProxy:
             EmptyView()
@@ -180,14 +159,8 @@ struct OperatingModeSection: View {
     private func handleModeSelection(_ mode: OperatingMode) {
         guard mode != modeManager.currentMode else { return }
         
-        // If switching to remote and no config exists, show config sheet
-        if mode == .remoteProxy && modeManager.remoteConfig == nil {
-            showRemoteConfigSheet = true
-            return
-        }
-        
         // Confirm when switching FROM local proxy mode (stops the local proxy)
-        if modeManager.currentMode == .localProxy && (mode == .monitor || mode == .remoteProxy) {
+        if modeManager.currentMode == .localProxy && mode == .monitor {
             pendingMode = mode
             showModeChangeConfirmation = true
         } else {
@@ -208,154 +181,11 @@ struct OperatingModeSection: View {
     }
 }
 
-// MARK: - Remote Server Section
-
-struct RemoteServerSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
-    @State private var showRemoteConfigSheet = false
-    @State private var isReconnecting = false
-    @State private var modeManager = OperatingModeManager.shared
-
-    var body: some View {
-        Section {
-            // Remote configuration row
-            remoteConfigRow
-            
-            // Connection status
-            connectionStatusRow
-        } header: {
-            HStack(spacing: 8) {
-                Label("settings.remoteServer.title".localized(), systemImage: "network")
-                ExperimentalBadge()
-            }
-        } footer: {
-            Text("settings.remoteServer.help".localized())
-                .font(.caption)
-        }
-        .sheet(isPresented: $showRemoteConfigSheet) {
-            RemoteConnectionSheet(
-                existingConfig: modeManager.remoteConfig
-            ) { config, managementKey in
-                saveRemoteConfig(config, managementKey: managementKey)
-            }
-            .environment(viewModel)
-        }
-    }
-    
-    // MARK: - Remote Config Row
-    
-    private var remoteConfigRow: some View {
-        HStack {
-            if let config = modeManager.remoteConfig {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(config.displayName)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    Text(config.endpointURL)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            } else {
-                Text("settings.remoteServer.notConfigured".localized())
-                    .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-            
-            Button("settings.remoteServer.configure".localized()) {
-                showRemoteConfigSheet = true
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-        }
-    }
-    
-    // MARK: - Connection Status Row
-    
-    private var connectionStatusRow: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
-            
-            Text(statusText)
-                .font(.subheadline)
-            
-            Spacer()
-            
-            if shouldShowReconnectButton {
-                Button {
-                    reconnect()
-                } label: {
-                    if isReconnecting {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Label("action.reconnect".localized(), systemImage: "arrow.clockwise")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(isReconnecting)
-            }
-        }
-    }
-    
-    private var shouldShowReconnectButton: Bool {
-        switch modeManager.connectionStatus {
-        case .disconnected, .error:
-            return true
-        default:
-            return false
-        }
-    }
-    
-    private var statusColor: Color {
-        switch modeManager.connectionStatus {
-        case .connected: return .green
-        case .connecting: return .orange
-        case .disconnected: return .gray
-        case .error: return .red
-        }
-    }
-    
-    private var statusText: String {
-        switch modeManager.connectionStatus {
-        case .connected: return "status.connected".localized()
-        case .connecting: return "status.connecting".localized()
-        case .disconnected: return "status.disconnected".localized()
-        case .error(let message): return message
-        }
-    }
-    
-    // MARK: - Actions
-    
-    private func saveRemoteConfig(_ config: RemoteConnectionConfig, managementKey: String) {
-        modeManager.switchToRemote(config: config, managementKey: managementKey)
-        
-        Task {
-            await viewModel.initialize()
-        }
-    }
-    
-    private func reconnect() {
-        isReconnecting = true
-        
-        Task {
-            await viewModel.reconnectRemote()
-            isReconnecting = false
-        }
-    }
-}
-
-// MARK: - Unified Proxy Settings Section
-// Works for both Local Proxy and Remote Proxy modes
+// MARK: - Proxy Settings Section
 // Uses ManagementAPIClient for hot-reload settings
 
-struct UnifiedProxySettingsSection: View {
+struct ProxySettingsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var modeManager = OperatingModeManager.shared
     
     @State private var isLoading = true
     @State private var loadError: String?
@@ -373,25 +203,8 @@ struct UnifiedProxySettingsSection: View {
     
     @State private var proxyURLValidation: ProxyURLValidationResult = .empty
     
-    /// Check if API is available (proxy running for local, or connected for remote)
     private var isAPIAvailable: Bool {
-        if modeManager.isLocalProxyMode {
-            return viewModel.proxyManager.proxyStatus.running && viewModel.apiClient != nil
-        } else {
-            // For remote mode, check both connection status AND apiClient
-            // connectionStatus is observable, apiClient is not (@ObservationIgnored)
-            if case .connected = modeManager.connectionStatus {
-                return viewModel.apiClient != nil
-            }
-            return false
-        }
-    }
-    
-    /// Header title based on mode
-    private var sectionTitle: String {
-        modeManager.isLocalProxyMode 
-            ? "settings.proxySettings".localized()
-            : "settings.remoteProxySettings".localized()
+        viewModel.proxyManager.proxyStatus.running && viewModel.apiClient != nil
     }
     
     var body: some View {
@@ -401,24 +214,22 @@ struct UnifiedProxySettingsSection: View {
                 HStack {
                     Image(systemName: "network.slash")
                         .foregroundStyle(.secondary)
-                    Text(modeManager.isLocalProxyMode 
-                         ? "settings.proxy.startToConfigureAdvanced".localized()
-                         : "settings.remote.noConnection".localized())
+                    Text("settings.proxy.startToConfigureAdvanced".localized())
                         .foregroundStyle(.secondary)
                 }
             } header: {
-                Label(sectionTitle, systemImage: "slider.horizontal.3")
+                Label("settings.proxySettings".localized(), systemImage: "slider.horizontal.3")
             }
         } else if isLoading {
             Section {
                 HStack {
                     ProgressView()
                         .scaleEffect(0.8)
-                    Text("settings.remote.loading".localized())
+                    Text("settings.proxy.loading".localized())
                         .foregroundStyle(.secondary)
                 }
             } header: {
-                Label(sectionTitle, systemImage: "slider.horizontal.3")
+                Label("settings.proxySettings".localized(), systemImage: "slider.horizontal.3")
             }
             .onAppear {
                 Task {
@@ -440,7 +251,7 @@ struct UnifiedProxySettingsSection: View {
                     }
                 }
             } header: {
-                Label(sectionTitle, systemImage: "slider.horizontal.3")
+                Label("settings.proxySettings".localized(), systemImage: "slider.horizontal.3")
             }
         } else {
             upstreamProxySection
@@ -580,9 +391,7 @@ struct UnifiedProxySettingsSection: View {
         loadError = nil
         
         guard let apiClient = viewModel.apiClient else {
-            loadError = modeManager.isLocalProxyMode
-                ? "settings.proxy.startToConfigureAdvanced".localized()
-                : "settings.remote.noConnection".localized()
+            loadError = "settings.proxy.startToConfigureAdvanced".localized()
             isLoading = false
             isLoadingConfig = false
             return
@@ -635,7 +444,7 @@ struct UnifiedProxySettingsSection: View {
                 try await apiClient.setProxyURL(ProxyURLValidator.sanitize(proxyURL))
             }
         } catch {
-            NSLog("[RemoteSettings] Failed to save proxy URL: \(error)")
+            NSLog("[ProxySettings] Failed to save proxy URL: \(error)")
         }
     }
     
@@ -644,7 +453,7 @@ struct UnifiedProxySettingsSection: View {
         do {
             try await apiClient.setRoutingStrategy(strategy)
         } catch {
-            NSLog("[RemoteSettings] Failed to save routing strategy: \(error)")
+            NSLog("[ProxySettings] Failed to save routing strategy: \(error)")
         }
     }
     
@@ -653,7 +462,7 @@ struct UnifiedProxySettingsSection: View {
         do {
             try await apiClient.setQuotaExceededSwitchProject(enabled)
         } catch {
-            NSLog("[RemoteSettings] Failed to save switch project: \(error)")
+            NSLog("[ProxySettings] Failed to save switch project: \(error)")
         }
     }
     
@@ -662,7 +471,7 @@ struct UnifiedProxySettingsSection: View {
         do {
             try await apiClient.setQuotaExceededSwitchPreviewModel(enabled)
         } catch {
-            NSLog("[RemoteSettings] Failed to save switch preview model: \(error)")
+            NSLog("[ProxySettings] Failed to save switch preview model: \(error)")
         }
     }
     
@@ -671,7 +480,7 @@ struct UnifiedProxySettingsSection: View {
         do {
             try await apiClient.setRequestRetry(count)
         } catch {
-            NSLog("[RemoteSettings] Failed to save request retry: \(error)")
+            NSLog("[ProxySettings] Failed to save request retry: \(error)")
         }
     }
     
@@ -680,7 +489,7 @@ struct UnifiedProxySettingsSection: View {
         do {
             try await apiClient.setMaxRetryInterval(seconds)
         } catch {
-            NSLog("[RemoteSettings] Failed to save max retry interval: \(error)")
+            NSLog("[ProxySettings] Failed to save max retry interval: \(error)")
         }
     }
     
@@ -689,7 +498,7 @@ struct UnifiedProxySettingsSection: View {
         do {
             try await apiClient.setLoggingToFile(enabled)
         } catch {
-            NSLog("[RemoteSettings] Failed to save logging to file: \(error)")
+            NSLog("[ProxySettings] Failed to save logging to file: \(error)")
         }
     }
     
@@ -698,7 +507,7 @@ struct UnifiedProxySettingsSection: View {
         do {
             try await apiClient.setRequestLog(enabled)
         } catch {
-            NSLog("[RemoteSettings] Failed to save request log: \(error)")
+            NSLog("[ProxySettings] Failed to save request log: \(error)")
         }
     }
     
@@ -707,7 +516,7 @@ struct UnifiedProxySettingsSection: View {
         do {
             try await apiClient.setDebug(enabled)
         } catch {
-            NSLog("[RemoteSettings] Failed to save debug mode: \(error)")
+            NSLog("[ProxySettings] Failed to save debug mode: \(error)")
         }
     }
 }

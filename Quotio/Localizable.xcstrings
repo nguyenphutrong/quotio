@@ -18615,7 +18615,7 @@
         }
       }
     },
-    "settings.remote.loading" : {
+    "settings.proxy.loading" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {

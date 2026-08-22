@@ -18,9 +18,6 @@ enum KeychainHelper {
     }
 
     nonisolated private static let securityLock = NSRecursiveLock()
-    nonisolated private static var remoteService: String {
-        AppIdentity.keychainService(suffix: "remote-management")
-    }
     nonisolated private static var localService: String {
         AppIdentity.keychainService(suffix: "local-management")
     }
@@ -36,9 +33,6 @@ enum KeychainHelper {
     }
 
     // Legacy service names for keychain migration (newest first)
-    nonisolated private static var legacyRemoteServices: [String] {
-        AppIdentity.legacyKeychainServices(suffix: "remote-management")
-    }
     nonisolated private static var legacyLocalServices: [String] {
         AppIdentity.legacyKeychainServices(suffix: "local-management")
     }
@@ -47,37 +41,6 @@ enum KeychainHelper {
     }
     nonisolated private static var legacyMonitorAuthServices: [String] {
         AppIdentity.legacyKeychainServices(suffix: "monitor-auth")
-    }
-
-    static func saveManagementKey(_ key: String, for configId: String) {
-        let account = "management-key-\(configId)"
-        guard let data = key.data(using: .utf8) else { return }
-        if !saveData(data, service: remoteService, account: account) {
-            Log.keychain("Failed to save management key for config \(configId)")
-        }
-    }
-
-    static func getManagementKey(for configId: String) -> String? {
-        let account = "management-key-\(configId)"
-        if let key = readString(service: remoteService, account: account) {
-            return key
-        }
-        guard AppIdentity.isProduction else { return nil }
-        return migrateString(from: legacyRemoteServices, to: remoteService, account: account)
-    }
-
-    static func deleteManagementKey(for configId: String) {
-        let account = "management-key-\(configId)"
-        deleteData(service: remoteService, account: account)
-        if AppIdentity.isProduction {
-            for legacy in legacyRemoteServices {
-                deleteData(service: legacy, account: account)
-            }
-        }
-    }
-
-    static func hasManagementKey(for configId: String) -> Bool {
-        getManagementKey(for: configId) != nil
     }
 
     static func saveLocalManagementKey(_ key: String) -> Bool {
