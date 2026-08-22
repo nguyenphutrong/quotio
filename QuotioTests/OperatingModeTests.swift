@@ -1,6 +1,7 @@
 import XCTest
 @testable import Quotio
 
+@MainActor
 final class OperatingModeTests: XCTestCase {
     func testRemoteModeIsNoLongerAvailable() {
         XCTAssertNil(OperatingMode(rawValue: "remote"))
