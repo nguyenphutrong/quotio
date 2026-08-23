@@ -14,12 +14,18 @@ import SwiftUI
 final class StatusBarManager: NSObject, NSMenuDelegate {
     static let shared = StatusBarManager()
 
-    private struct Configuration {
+    private struct Configuration: Equatable {
         let items: [MenuBarQuotaDisplayItem]
         let colorMode: MenuBarColorMode
         let quotaDisplayMode: QuotaDisplayMode
         let isRunning: Bool
         let showQuota: Bool
+    }
+
+    private struct RenderSignature: Equatable {
+        let configuration: Configuration
+        let usesDarkColorScheme: Bool
+        let backingScaleFactor: CGFloat
     }
     
     private var statusItem: NSStatusItem?
@@ -28,6 +34,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     private var isRebuildingMenu = false
     private var hasPendingMenuRebuild = false
     private var configuration: Configuration?
+    private var lastRenderSignature: RenderSignature?
     private var appearanceObservation: NSKeyValueObservation?
     
     // Native menu builder
@@ -93,6 +100,16 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         statusItem?.menu = menu
         
         guard let button = statusItem?.button else { return }
+
+        let usesDarkColorScheme = button.isHighlighted
+            || button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let scale = targetBackingScaleFactor
+        let signature = RenderSignature(
+            configuration: configuration,
+            usesDarkColorScheme: usesDarkColorScheme,
+            backingScaleFactor: scale
+        )
+        guard signature != lastRenderSignature else { return }
         
         button.subviews.forEach { $0.removeFromSuperview() }
         button.title = ""
@@ -107,11 +124,10 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             }
             button.setAccessibilityLabel("Quotio")
             statusItem?.length = NSStatusItem.variableLength
+            lastRenderSignature = signature
             return
         }
         
-        let usesDarkColorScheme = button.isHighlighted
-            || button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let colorScheme: ColorScheme = usesDarkColorScheme ? .dark : .light
         
         let quotaView = StatusBarQuotaView(
@@ -122,7 +138,6 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         .environment(\.colorScheme, colorScheme)
         
         let renderer = ImageRenderer(content: quotaView)
-        let scale = targetBackingScaleFactor
         renderer.scale = scale
         renderer.isOpaque = false
         
@@ -145,6 +160,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             button.image = image
             button.imagePosition = .imageOnly
             statusItem?.length = width
+            lastRenderSignature = signature
         }
     }
 
@@ -259,6 +275,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         }
         menu = nil
         configuration = nil
+        lastRenderSignature = nil
     }
 }
 

@@ -524,7 +524,7 @@ nonisolated struct MenuBarQuotaPair: Equatable, Sendable {
 }
 
 /// Data for displaying a single quota item in menu bar
-struct MenuBarQuotaDisplayItem: Identifiable {
+struct MenuBarQuotaDisplayItem: Identifiable, Equatable {
     let id: String
     let providerSymbol: String
     let accountShort: String
