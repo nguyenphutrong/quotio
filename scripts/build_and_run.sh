@@ -6,6 +6,7 @@ PROJECT_NAME="Quotio"
 PROJECT_FILE="${PROJECT_DIR}/${PROJECT_NAME}.xcodeproj"
 BUILD_DIR="${PROJECT_DIR}/build"
 DERIVED_DATA="${BUILD_DIR}/DebugDerivedData"
+CACHE_OWNER_FILE="${DERIVED_DATA}/.project-path"
 APP_PATH="${DERIVED_DATA}/Build/Products/Debug/${PROJECT_NAME}.app"
 APP_BINARY="${APP_PATH}/Contents/MacOS/${PROJECT_NAME}"
 BUNDLE_ID="app.bytrong.quotio"
@@ -38,6 +39,16 @@ case "${1:-}" in
 esac
 
 mkdir -p "${BUILD_DIR}"
+
+if [ -d "${DERIVED_DATA}" ] && {
+    [ ! -f "${CACHE_OWNER_FILE}" ] || [ "$(cat "${CACHE_OWNER_FILE}")" != "${PROJECT_DIR}" ]
+}; then
+    echo "==> Resetting DerivedData from another checkout"
+    rm -rf "${DERIVED_DATA}"
+fi
+
+mkdir -p "${DERIVED_DATA}"
+printf '%s\n' "${PROJECT_DIR}" > "${CACHE_OWNER_FILE}"
 
 echo "==> Building ${PROJECT_NAME} (Debug)"
 xcodebuild \
