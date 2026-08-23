@@ -26,6 +26,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         let configuration: Configuration
         let usesDarkColorScheme: Bool
         let backingScaleFactor: CGFloat
+        let language: AppLanguage
     }
     
     private var statusItem: NSStatusItem?
@@ -107,7 +108,8 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         let signature = RenderSignature(
             configuration: configuration,
             usesDarkColorScheme: usesDarkColorScheme,
-            backingScaleFactor: scale
+            backingScaleFactor: scale,
+            language: LanguageManager.shared.currentLanguage
         )
         guard signature != lastRenderSignature else { return }
         
