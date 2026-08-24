@@ -129,6 +129,7 @@ final class UpdaterService: NSObject {
         guard let iconImage = NSImage(named: iconName) else {
             NSApplication.shared.applicationIconImage = nil
             currentAppIcon = NSApplication.shared.applicationIconImage
+                ?? NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
             return
         }
         
