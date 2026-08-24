@@ -123,9 +123,14 @@ final class UpdaterService: NSObject {
     // MARK: - Icon Management
     
     func updateAppIcon() {
-        let iconName = updateChannel == .beta ? "AppIconBetaImage" : "AppIconImage"
+        let channel = updateChannel
+        let iconName = channel == .beta ? "AppIconBetaImage" : "AppIconImage"
         
-        guard let iconImage = NSImage(named: iconName) else { return }
+        guard let iconImage = NSImage(named: iconName) else {
+            NSApplication.shared.applicationIconImage = nil
+            currentAppIcon = NSApplication.shared.applicationIconImage
+            return
+        }
         
         let displaySize = NSSize(width: 256, height: 256)
         let roundedIcon = NSImage(size: displaySize, flipped: false) { rect in
@@ -136,7 +141,13 @@ final class UpdaterService: NSObject {
         }
         
         self.currentAppIcon = roundedIcon
-        NSApplication.shared.applicationIconImage = roundedIcon
+
+        if channel == .beta {
+            NSApplication.shared.applicationIconImage = roundedIcon
+        } else {
+            // Restore the bundle icon so macOS can apply the system icon appearance.
+            NSApplication.shared.applicationIconImage = nil
+        }
     }
 }
 
