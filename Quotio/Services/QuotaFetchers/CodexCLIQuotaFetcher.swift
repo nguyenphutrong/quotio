@@ -488,13 +488,16 @@ actor CodexCLIQuotaFetcher {
         let currentByKey = Dictionary(grouping: current, by: \.key)
 
         for (key, quota) in quotas {
-            let accountIDs = Set(currentByKey[key, default: []].compactMap { identity -> String? in
+            let identities = currentByKey[key, default: []]
+            let accountIDs = identities.compactMap { identity -> String? in
                 guard let accountID = identity.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
                       !accountID.isEmpty else { return nil }
                 return accountID
-            })
-            guard accountIDs.count == 1,
-                  let accountID = accountIDs.first,
+            }
+            let distinctAccountIDs = Set(accountIDs)
+            guard accountIDs.count == identities.count,
+                  distinctAccountIDs.count == 1,
+                  let accountID = distinctAccountIDs.first,
                   let legacyIdentity = uniqueLegacyByAccountID[accountID],
                   legacyIdentity.key != key else { continue }
             if promoted[legacyIdentity.key].map({ $0.lastUpdated <= quota.lastUpdated }) ?? true {

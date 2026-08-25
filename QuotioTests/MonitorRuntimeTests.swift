@@ -407,6 +407,37 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertNil(promoted["same@example.com-team"])
     }
 
+    func testCodexFreshQuotaPromotionRejectsIdentityWithoutAccountID() {
+        let freshDate = Date(timeIntervalSince1970: 2_000)
+        let promoted = CodexCLIQuotaFetcher.promoteFreshLegacyAliases(
+            in: [
+                "same@example.com": ProviderQuotaData(models: [], lastUpdated: freshDate),
+            ],
+            legacy: [
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com-pro",
+                    email: "same@example.com",
+                    accountID: "account-1"
+                ),
+            ],
+            current: [
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com",
+                    email: "same@example.com",
+                    accountID: nil
+                ),
+                CodexQuotaAccountIdentity(
+                    key: "same@example.com",
+                    email: "same@example.com",
+                    accountID: "account-1"
+                ),
+            ]
+        )
+
+        XCTAssertEqual(Set(promoted.keys), ["same@example.com"])
+        XCTAssertNil(promoted["same@example.com-pro"])
+    }
+
     func testCodexFailedRefreshDoesNotPromoteStaleQuotaToCurrentIdentity() {
         let staleDate = Date(timeIntervalSince1970: 1_000)
         let staleSnapshot = [
