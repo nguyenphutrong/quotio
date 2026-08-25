@@ -1876,9 +1876,14 @@ final class QuotaViewModel {
             }
             return
         }
-        providerQuotas[account.provider, default: [:]][account.accountKey] = quota
-        if account.provider == .codex, let quotas = providerQuotas[.codex] {
+        if account.provider == .codex {
+            let fresh = await codexCLIFetcher.promoteFreshLegacyAliases(in: [account.accountKey: quota])
+            var quotas = providerQuotas[.codex, default: [:]]
+            quotas.removeValue(forKey: account.accountKey)
+            quotas.merge(fresh) { _, fresh in fresh }
             providerQuotas[.codex] = await codexCLIFetcher.reconcileLegacyAliases(in: quotas)
+        } else {
+            providerQuotas[account.provider, default: [:]][account.accountKey] = quota
         }
         if let subscription {
             subscriptionInfos[account.provider, default: [:]][account.accountKey] = subscription
