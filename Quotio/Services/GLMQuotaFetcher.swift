@@ -173,7 +173,7 @@ actor GLMQuotaFetcher {
             } ?? ""
             let kind = limit.type ?? limit.name
 
-            if kind == "TOKENS_LIMIT",
+            if (kind == "TOKENS_LIMIT" || kind == "CREDIT_LIMIT"),
                let percentage = limit.percentage,
                let unit = limit.unit,
                let number = limit.number,
