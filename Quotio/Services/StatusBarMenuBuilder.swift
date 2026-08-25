@@ -38,8 +38,7 @@ final class StatusBarMenuBuilder {
     // MARK: - Build Menu
     
     func buildMenu() -> NSMenu {
-        let menu = NSMenu()
-        menu.autoenablesItems = false
+        let menu = makeMenu()
 
         // 1. Header
         menu.addItem(buildHeaderItem())
@@ -322,8 +321,7 @@ final class StatusBarMenuBuilder {
     }
 
     private func buildCodexAnalyticsSubmenu(analytics: QuotaAnalytics) -> NSMenu {
-        let submenu = NSMenu()
-        submenu.autoenablesItems = false
+        let submenu = makeMenu()
         submenu.addItem(viewItem(for: AnalyticsDetailSection(analytics: analytics), width: 640))
         return submenu
     }
@@ -331,8 +329,7 @@ final class StatusBarMenuBuilder {
     // MARK: - Antigravity Submenu
 
     private func buildAntigravitySubmenu(data: ProviderQuotaData) -> NSMenu {
-        let submenu = NSMenu()
-        submenu.autoenablesItems = false
+        let submenu = makeMenu()
 
         let hasSummary = data.models.contains { $0.name.hasPrefix("antigravity-") }
         let allModels = hasSummary ? data.models : data.models.sorted { $0.name < $1.name }
@@ -390,13 +387,23 @@ final class StatusBarMenuBuilder {
     }
     
     // MARK: - Helpers
+
+    private func makeMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.appearance = AppearanceManager.shared.appearanceMode.appKitAppearance
+        return menu
+    }
     
     private func viewItem<V: View>(for view: V, width: CGFloat? = nil) -> NSMenuItem {
         let effectiveWidth = width ?? menuWidth
+        let appearanceMode = AppearanceManager.shared.appearanceMode
         let rootView = view
             .frame(width: effectiveWidth)
             .environment(viewModel)
+            .preferredColorScheme(appearanceMode.preferredColorScheme)
         let hostingView = NSHostingView(rootView: rootView)
+        hostingView.appearance = appearanceMode.appKitAppearance
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
         
         let item = NSMenuItem()

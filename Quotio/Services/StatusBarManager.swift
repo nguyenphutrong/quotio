@@ -95,6 +95,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             menu = NSMenu()
             menu?.autoenablesItems = false
             menu?.delegate = self
+            menu?.appearance = AppearanceManager.shared.appearanceMode.appKitAppearance
         }
         
         // Attach menu to status item
@@ -229,6 +230,11 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         performMenuRebuild(using: menu)
     }
 
+    func refreshMenuAppearance() {
+        menu?.appearance = AppearanceManager.shared.appearanceMode.appKitAppearance
+        rebuildMenuInPlace()
+    }
+
     /// Close the menu programmatically
     func closeMenu() {
         menu?.cancelTracking()
@@ -251,6 +257,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             }
         }
 
+        menu.appearance = AppearanceManager.shared.appearanceMode.appKitAppearance
         menu.removeAllItems()
 
         guard let builder = menuBuilder else { return }
