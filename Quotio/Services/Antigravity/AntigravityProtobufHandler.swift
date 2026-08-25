@@ -50,23 +50,47 @@ nonisolated enum AntigravityProtobufHandler {
     /// Read a varint from data at offset, returns (value, newOffset)
     static func readVarint(_ data: Data, offset: Int) throws -> (UInt64, Int) {
         var result: UInt64 = 0
-        var shift: UInt64 = 0
         var pos = offset
         
-        while true {
-            guard pos < data.count else {
+        for byteIndex in 0..<10 {
+            guard pos >= 0, pos < data.count else {
                 throw ProtobufError.incompleteData
             }
             let byte = data[pos]
-            result |= UInt64(byte & 0x7F) << shift
+            let value = byte & 0x7F
+
+            guard byteIndex < 9 || value <= 1 else {
+                throw ProtobufError.incompleteData
+            }
+
+            result |= UInt64(value) << UInt64(byteIndex * 7)
             pos += 1
             if byte & 0x80 == 0 {
-                break
+                return (result, pos)
             }
-            shift += 7
         }
         
-        return (result, pos)
+        throw ProtobufError.incompleteData
+    }
+
+    /// Return a range only when its length fits entirely within the available data.
+    private static func lengthDelimitedRange(_ data: Data, offset: Int) throws -> Range<Int> {
+        let (length, contentOffset) = try readVarint(data, offset: offset)
+        let remainingCount = data.count - contentOffset
+
+        guard length <= UInt64(remainingCount) else {
+            throw ProtobufError.incompleteData
+        }
+
+        return contentOffset..<(contentOffset + Int(length))
+    }
+
+    private static func endOffset(_ data: Data, offset: Int, byteCount: Int) throws -> Int {
+        guard offset >= 0, offset <= data.count, byteCount <= data.count - offset else {
+            throw ProtobufError.incompleteData
+        }
+
+        return offset + byteCount
     }
     
     // MARK: - Field Operations
@@ -78,12 +102,11 @@ nonisolated enum AntigravityProtobufHandler {
             let (_, newOffset) = try readVarint(data, offset: offset)
             return newOffset
         case 1: // 64-bit
-            return offset + 8
+            return try endOffset(data, offset: offset, byteCount: 8)
         case 2: // Length-delimited
-            let (length, contentOffset) = try readVarint(data, offset: offset)
-            return contentOffset + Int(length)
+            return try lengthDelimitedRange(data, offset: offset).upperBound
         case 5: // 32-bit
-            return offset + 4
+            return try endOffset(data, offset: offset, byteCount: 4)
         default:
             throw ProtobufError.unknownWireType(wireType)
         }
@@ -127,8 +150,8 @@ nonisolated enum AntigravityProtobufHandler {
             let fieldNum = UInt32(tag >> 3)
             
             if fieldNum == targetField && wireType == 2 {
-                let (length, contentOffset) = try readVarint(data, offset: newOffset)
-                return Data(data[contentOffset..<(contentOffset + Int(length))])
+                let range = try lengthDelimitedRange(data, offset: newOffset)
+                return Data(data[range])
             }
             
             offset = try skipField(data, offset: newOffset, wireType: wireType)
@@ -341,16 +364,14 @@ nonisolated enum AntigravityProtobufHandler {
         // Field 6 contains: field 1 (access_token), field 2 (token_type "Bearer"), field 3 (refresh_token), field 4 (expiry)
         var offset = 0
         
-        while offset < data.count - 10 {
+        while offset + 10 < data.count {
             // Look for field 6 tag (0x32 = (6 << 3) | 2)
             if data[offset] == 0x32 {
                 // Try to read length
-                if let (length, contentOffset) = try? readVarint(data, offset: offset + 1) {
-                    let endOffset = contentOffset + Int(length)
-                    
+                if let range = try? lengthDelimitedRange(data, offset: offset + 1) {
                     // Sanity check
-                    if endOffset <= data.count && length > 100 && length < 2000 {
-                        let potentialOAuth = Data(data[contentOffset..<endOffset])
+                    if range.count > 100 && range.count < 2000 {
+                        let potentialOAuth = Data(data[range])
                         
                         // Check if this looks like OAuth data (should have field 1 with access_token)
                         if let tokenData = try? findField(potentialOAuth, targetField: 1),
