@@ -229,7 +229,7 @@ struct QuotioApp: App {
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: appearanceManager.appearanceMode) {
-                        statusBarManager.refreshMenuAppearance()
+                        statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: menuBarSettings.showQuotaInMenuBar) {
                         bootstrap.updateStatusBar()

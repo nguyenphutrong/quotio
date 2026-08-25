@@ -401,7 +401,6 @@ final class StatusBarMenuBuilder {
         let rootView = view
             .frame(width: effectiveWidth)
             .environment(viewModel)
-            .preferredColorScheme(appearanceMode.preferredColorScheme)
         let hostingView = NSHostingView(rootView: rootView)
         hostingView.appearance = appearanceMode.appKitAppearance
         hostingView.setFrameSize(hostingView.intrinsicContentSize)

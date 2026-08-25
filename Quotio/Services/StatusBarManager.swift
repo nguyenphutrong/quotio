@@ -230,11 +230,6 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         performMenuRebuild(using: menu)
     }
 
-    func refreshMenuAppearance() {
-        menu?.appearance = AppearanceManager.shared.appearanceMode.appKitAppearance
-        rebuildMenuInPlace()
-    }
-
     /// Close the menu programmatically
     func closeMenu() {
         menu?.cancelTracking()
