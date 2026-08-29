@@ -44,10 +44,19 @@ actor CompatibilityChecker {
     ///   - port: The port to check
     ///   - host: The host (defaults to 127.0.0.1)
     /// - Returns: true if the proxy responds
-    func isHealthy(port: UInt16, host: String = "127.0.0.1", managementKey: String) async -> Bool {
+    func isHealthy(
+        port: UInt16,
+        host: String = "127.0.0.1",
+        managementKey: String,
+        requestTimeout: TimeInterval = 3
+    ) async -> Bool {
         let baseURL = "http://\(host):\(port)"
         
-        guard let request = makeManagementRequest(baseURL: baseURL, managementKey: managementKey) else {
+        guard let request = makeManagementRequest(
+            baseURL: baseURL,
+            managementKey: managementKey,
+            timeoutInterval: requestTimeout
+        ) else {
             return false
         }
         
@@ -81,14 +90,18 @@ actor CompatibilityChecker {
     
     // MARK: - Private Helpers
     
-    private func makeManagementRequest(baseURL: String, managementKey: String) -> URLRequest? {
+    private func makeManagementRequest(
+        baseURL: String,
+        managementKey: String,
+        timeoutInterval: TimeInterval = 3
+    ) -> URLRequest? {
         guard let url = URL(string: "\(baseURL)/v0/management/debug") else {
             return nil
         }
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.timeoutInterval = 3
+        request.timeoutInterval = timeoutInterval
         request.addValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
         return request

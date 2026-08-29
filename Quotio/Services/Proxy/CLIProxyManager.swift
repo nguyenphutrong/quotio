@@ -1735,18 +1735,27 @@ extension CLIProxyManager {
         
         testProcess = process
         
-        // Wait for startup
-        try await Task.sleep(nanoseconds: 2_000_000_000)
-        
-        // Check if process is still running
-        guard process.isRunning else {
-            throw ProxyUpgradeError.dryRunFailed("Test proxy exited immediately")
-        }
-        
-        // Verify health
-        let isHealthy = await compatibilityChecker.isHealthy(port: port, managementKey: managementKey)
-        guard isHealthy else {
-            throw ProxyUpgradeError.dryRunFailed("Test proxy health check failed")
+        // Slow machines can take longer than a fixed startup delay to bind the
+        // management endpoint. Poll with a bounded request timeout instead of
+        // rejecting an otherwise healthy proxy after one early connection.
+        let startupOutcome = try await ProxyStartupHealthPoller().waitUntilReady(
+            isProcessRunning: { process.isRunning },
+            checkHealth: {
+                await self.compatibilityChecker.isHealthy(
+                    port: port,
+                    managementKey: managementKey,
+                    requestTimeout: 1
+                )
+            }
+        )
+
+        switch startupOutcome {
+        case .ready:
+            break
+        case .processExited:
+            throw ProxyUpgradeError.dryRunFailed("Test proxy exited before becoming healthy")
+        case .timedOut:
+            throw ProxyUpgradeError.dryRunFailed("Test proxy did not become healthy before startup timeout")
         }
         
         // Mark success - defer block will not cleanup
