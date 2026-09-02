@@ -7,12 +7,15 @@ import Foundation
 import AppKit
 import Observation
 import QuotioDomain
+import QuotioPresentation
 import SwiftUI
 
 @MainActor
 @Observable
 final class QuotaViewModel {
-    let proxyManager: CLIProxyManager
+    let proxyManager: ProxyScreenModel
+    @ObservationIgnored private let proxyAuthService: LegacyProxyAuthService
+    @ObservationIgnored private let authWorkaroundService = LegacyAntigravityAuthWorkaroundService()
     @ObservationIgnored private var _apiClient: ManagementAPIClient?
     
     var apiClient: ManagementAPIClient? { _apiClient }
@@ -275,8 +278,9 @@ final class QuotaViewModel {
         notifyQuotaDataChanged()
     }
 
-    init() {
-        self.proxyManager = CLIProxyManager.shared
+    init(proxyManager: ProxyScreenModel) {
+        self.proxyManager = proxyManager
+        self.proxyAuthService = LegacyProxyAuthService(proxy: proxyManager)
         loadPersistedIDEQuotas()
         setupRefreshCadenceCallback()
         setupWarmupCallback()
@@ -378,6 +382,8 @@ final class QuotaViewModel {
     }
 
     private func initializeFullMode() async {
+        await proxyManager.initialize()
+
         // Always refresh quotas directly first (works without proxy)
         await refreshQuotasUnified()
         
@@ -415,6 +421,32 @@ final class QuotaViewModel {
         
         // Start auto-refresh for quota-only mode
         startQuotaOnlyAutoRefresh()
+    }
+
+    var upstreamCompatibilityWarning: String {
+        "Copilot and Kiro auth flows may not work with the upstream CLIProxyAPI binary."
+    }
+
+    func isLegacyAuthWarningNeeded(for provider: AIProvider) -> Bool {
+        provider == .copilot || provider == .kiro
+    }
+
+    func applyBaseURLWorkaround() {
+        Task {
+            await authWorkaroundService.apply(in: proxyManager.authDir)
+            if proxyManager.proxyStatus.running {
+                try? await proxyManager.restart()
+            }
+        }
+    }
+
+    func removeBaseURLWorkaround() {
+        Task {
+            await authWorkaroundService.remove(in: proxyManager.authDir)
+            if proxyManager.proxyStatus.running {
+                try? await proxyManager.restart()
+            }
+        }
     }
     
     // MARK: - Direct Auth File Management (Quota-Only Mode)
@@ -1434,11 +1466,12 @@ final class QuotaViewModel {
                 await tunnelManager.startTunnel(port: proxyManager.port)
             }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = proxyManager.errorMessage(for: error)
         }
     }
     
     func stopProxy() {
+        proxyAuthService.terminate()
         refreshTask?.cancel()
         refreshTask = nil
 
@@ -2299,7 +2332,7 @@ final class QuotaViewModel {
     private func startCopilotAuth() async {
         oauthState = OAuthState(provider: .copilot, status: .waiting)
         
-        let result = await proxyManager.runAuthCommand(.copilotLogin)
+        let result = await proxyAuthService.run(.copilotLogin)
         
         if result.success {
             if let deviceCode = result.deviceCode {
@@ -2317,7 +2350,7 @@ final class QuotaViewModel {
     private func startKiroAuth(method: AuthCommand) async {
         oauthState = OAuthState(provider: .kiro, status: .waiting)
         
-        let result = await proxyManager.runAuthCommand(method)
+        let result = await proxyAuthService.run(method)
         
         if result.success {
             // Check if it's an import - simply wait and refresh, don't poll for new files (files might already exist)

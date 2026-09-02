@@ -18,7 +18,7 @@ enum CompositionRoot {
             AppIdentity.migrateLegacyUserDefaults()
         }
 
-        let viewModel = QuotaViewModel()
+        let viewModel = makeQuotaViewModel()
         let logRepository = QuotioInfrastructure.ManagementAPIClient(
             connectionProvider: { [proxyManager = viewModel.proxyManager] in
                 await MainActor.run {
@@ -43,7 +43,7 @@ enum CompositionRoot {
             tunnelRepository: UserDefaultsTunnelPreferencesRepository(),
             appShellRepository: UserDefaultsAppShellPreferencesRepository(),
             applyNetworkAccess: { [proxyManager = viewModel.proxyManager] enabled in
-                proxyManager.allowNetworkAccess = enabled
+                proxyManager.setNetworkAccess(enabled)
             },
             applyAutomaticUpdateChecks: { [updaterService] enabled in
                 updaterService.automaticallyChecksForUpdates = enabled
@@ -52,6 +52,10 @@ enum CompositionRoot {
                 NSApp.setActivationPolicy(enabled ? .regular : .accessory)
             }
         )
+        let tunnelManager = TunnelManager.shared
+        tunnelManager.configureProxyRemoteAccess { [proxyManager = viewModel.proxyManager] enabled in
+            await proxyManager.updateConfigAllowRemote(enabled)
+        }
         let services = LegacyAppRuntimeServices(
             viewModel: viewModel,
             logsScreenModel: logsScreenModel,
@@ -70,9 +74,115 @@ enum CompositionRoot {
             telemetryService: .shared,
             updaterService: updaterService,
             updatePollingService: .shared,
-            tunnelManager: .shared
+            tunnelManager: tunnelManager
         )
         return AppRuntime(services: services)
+    }
+
+    static func makeQuotaViewModel() -> QuotaViewModel {
+        let paths = FileProxyConfigurationRepository.defaultPaths()
+        let configurationRepository = FileProxyConfigurationRepository(paths: paths)
+        let preferencesRepository = UserDefaultsProxyPreferencesRepository()
+        let controller = ProxyLifecycleController(
+            paths: paths,
+            processController: ProxyProcessController(),
+            versionRepository: FileProxyVersionRepository(),
+            releaseRepository: GitHubProxyReleaseRepository(),
+            updateFeed: LegacyProxyUpdateFeed(service: .shared),
+            configurationRepository: configurationRepository,
+            binaryDownloader: URLSessionProxyBinaryDownloader(),
+            checksumVerifier: SHA256ProxyChecksumVerifier(),
+            managementChecker: LocalProxyManagementClient(),
+            metadataRepository: UserDefaultsProxyRuntimeMetadataRepository(),
+            preferencesRepository: preferencesRepository,
+            keyVault: LegacyProxyManagementKeyVault(),
+            configurationSupplement: LegacyCustomProviderConfigurationSupplement(
+                service: .shared
+            ),
+            notificationDelivery: LegacyProxyNotificationDelivery(service: .shared),
+            sleeper: ContinuousSleeper(),
+            dateProvider: SystemDateProvider(),
+            installedVersionLimit: AppConstants.maxInstalledVersions
+        )
+        let initialState = ProxySnapshot(
+            status: ProxyStatus(
+                port: UserDefaultsProxyRuntimeMetadataRepository().loadPort()
+            ),
+            paths: paths
+        )
+        let proxyScreenModel = ProxyScreenModel(
+            controller: controller,
+            initialState: initialState
+        )
+        return QuotaViewModel(proxyManager: proxyScreenModel)
+    }
+}
+
+private struct LegacyProxyManagementKeyVault: ProxyManagementKeyVault {
+    func loadManagementKey() async -> String? {
+        await MainActor.run { KeychainHelper.getLocalManagementKey() }
+    }
+
+    func saveManagementKey(_ key: String) async -> Bool {
+        await MainActor.run { KeychainHelper.saveLocalManagementKey(key) }
+    }
+}
+
+private final class LegacyProxyUpdateFeed: ProxyUpdateFeedChecking, @unchecked Sendable {
+    private let service: AtomFeedUpdateService
+
+    init(service: AtomFeedUpdateService) {
+        self.service = service
+    }
+
+    func latestVersion(comparedTo currentVersion: String?) async -> String? {
+        let result = await service.checkForCLIProxyUpdate(currentVersion: currentVersion)
+        return result.isNewRelease ? result.latestVersion : nil
+    }
+}
+
+private final class LegacyCustomProviderConfigurationSupplement:
+    ProxyConfigurationSupplementing,
+    @unchecked Sendable
+{
+    private let service: CustomProviderService
+
+    init(service: CustomProviderService) {
+        self.service = service
+    }
+
+    func synchronize(configurationPath: String) async {
+        await MainActor.run {
+            try? service.syncToConfigFile(configPath: configurationPath)
+        }
+    }
+}
+
+private final class LegacyProxyNotificationDelivery:
+    ProxyNotificationDelivering,
+    @unchecked Sendable
+{
+    private let service: NotificationManager
+
+    init(service: NotificationManager) {
+        self.service = service
+    }
+
+    func deliver(_ notification: ProxyNotification) async {
+        await MainActor.run {
+            switch notification {
+            case .crashed(let exitCode):
+                service.notifyProxyCrashed(exitCode: exitCode)
+            case .upgradeSucceeded(let version):
+                service.notifyUpgradeSuccess(version: version)
+            case .upgradeFailed(let version, let reason):
+                service.notifyUpgradeFailed(version: version, reason: reason)
+            case .rolledBack(let version):
+                service.notifyRollback(toVersion: version)
+            case .suppressUpgrade(let version):
+                service.suppressUpgradeNotification(version: version)
+            }
+        }
     }
 }
 
@@ -203,8 +313,8 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         await tunnelManager.stopTunnel()
     }
 
-    nonisolated func terminateProxyOnShutdown() {
-        CLIProxyManager.terminateProxyOnShutdown()
+    func terminateProxyOnShutdown() async {
+        await viewModel.proxyManager.shutdown()
     }
 
     nonisolated func cleanupTunnelOrphans() {

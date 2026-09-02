@@ -262,5 +262,5 @@ struct SwitchAccountSheet: View {
         accountEmail: "user@gmail.com",
         onDismiss: {}
     )
-    .environment(QuotaViewModel())
+    .environment(CompositionRoot.makeQuotaViewModel())
 }

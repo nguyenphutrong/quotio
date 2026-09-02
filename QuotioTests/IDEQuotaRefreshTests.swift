@@ -140,7 +140,7 @@ final class IDEQuotaRefreshReentrancyTests: XCTestCase {
     @MainActor
     func testGlobalRefreshDoesNotResurrectAccountDeletedWhileFetchIsSuspended() async {
         await withPersistedIDEQuotasRestored {
-            let viewModel = QuotaViewModel()
+            let viewModel = CompositionRoot.makeQuotaViewModel()
             let kept = "kept@example.com"
             let deleted = "deleted@example.com"
             let stale = quota(10, lastUpdated: Date(timeIntervalSince1970: 1_000))
@@ -189,7 +189,7 @@ final class IDEQuotaRefreshReentrancyTests: XCTestCase {
     @MainActor
     func testGlobalRefreshDoesNotRestoreProviderRemovedWhileFetchIsSuspended() async {
         await withPersistedIDEQuotasRestored {
-            let viewModel = QuotaViewModel()
+            let viewModel = CompositionRoot.makeQuotaViewModel()
             let account = "only@example.com"
             viewModel.providerQuotas = [
                 .cursor: [account: quota(10, lastUpdated: Date(timeIntervalSince1970: 1_000))]
@@ -221,7 +221,7 @@ final class IDEQuotaRefreshReentrancyTests: XCTestCase {
     @MainActor
     func testCancelledGlobalRefreshDoesNotApplyStaleIDEQuota() async {
         await withPersistedIDEQuotasRestored {
-            let viewModel = QuotaViewModel()
+            let viewModel = CompositionRoot.makeQuotaViewModel()
             let account = "user@example.com"
             let stale = quota(10, lastUpdated: Date(timeIntervalSince1970: 1_000))
             let fresh = quota(90, lastUpdated: Date(timeIntervalSince1970: 2_000))
@@ -258,7 +258,7 @@ final class IDEQuotaRefreshReentrancyTests: XCTestCase {
     @MainActor
     func testScopedRefreshIsBlockedWhileImportedIDEFetchIsSuspended() async {
         await withPersistedIDEQuotasRestored {
-            let viewModel = QuotaViewModel()
+            let viewModel = CompositionRoot.makeQuotaViewModel()
             let account = "user@example.com"
             let stale = quota(10, lastUpdated: Date(timeIntervalSince1970: 1_000))
             let fresh = quota(60, lastUpdated: Date(timeIntervalSince1970: 2_000))
@@ -312,7 +312,7 @@ final class IDEQuotaRefreshReentrancyTests: XCTestCase {
     @MainActor
     func testGlobalRefreshDoesNotFetchWhenNothingIsImported() async {
         await withPersistedIDEQuotasRestored {
-            let viewModel = QuotaViewModel()
+            let viewModel = CompositionRoot.makeQuotaViewModel()
             viewModel.providerQuotas = [:]
 
             var fetchCount = 0

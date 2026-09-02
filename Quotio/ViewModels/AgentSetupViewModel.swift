@@ -7,6 +7,7 @@ import Foundation
 import SwiftUI
 import AppKit
 import os.log
+import QuotioPresentation
 
 @MainActor
 @Observable
@@ -48,14 +49,14 @@ final class AgentSetupViewModel {
     /// Task reference for cancellation when switching agents quickly
     private var configurationLoadTask: Task<Void, Never>?
 
-    weak var proxyManager: CLIProxyManager?
+    weak var proxyManager: ProxyScreenModel?
 
     /// Reference to QuotaViewModel for quota checking
     weak var quotaViewModel: QuotaViewModel?
 
     init() {}
 
-    func setup(proxyManager: CLIProxyManager, quotaViewModel: QuotaViewModel? = nil) {
+    func setup(proxyManager: ProxyScreenModel, quotaViewModel: QuotaViewModel? = nil) {
         self.proxyManager = proxyManager
         self.quotaViewModel = quotaViewModel
     }

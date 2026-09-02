@@ -3,6 +3,7 @@
 //  Quotio - Main agent setup screen
 //
 
+import QuotioPresentation
 import SwiftUI
 
 struct AgentSetupScreen: View {
@@ -195,6 +196,6 @@ private struct NotInstalledAgentCard: View {
 
 #Preview {
     AgentSetupScreen()
-        .environment(QuotaViewModel())
+        .environment(CompositionRoot.makeQuotaViewModel())
         .frame(width: 700, height: 600)
 }

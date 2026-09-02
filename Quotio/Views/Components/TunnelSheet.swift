@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import QuotioPresentation
 
 struct TunnelSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -385,6 +386,6 @@ struct TunnelSheet: View {
 
 #Preview {
     TunnelSheet()
-        .environment(QuotaViewModel())
+        .environment(CompositionRoot.makeQuotaViewModel())
         .frame(width: 520, height: 450)
 }

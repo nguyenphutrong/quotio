@@ -6,6 +6,7 @@
 //
 
 import QuotioDomain
+import QuotioPresentation
 import SwiftUI
 
 /// Compact badge showing current mode in sidebar, clickable to open settings
@@ -104,7 +105,7 @@ struct CurrentModeBadge: View {
 
 #Preview {
     CurrentModeBadge()
-        .environment(QuotaViewModel())
+        .environment(CompositionRoot.makeQuotaViewModel())
         .padding()
         .frame(width: 200)
 }

@@ -50,11 +50,11 @@ struct SettingsScreen: View {
             // Troubleshooting
             Section {
                 Button("troubleshooting.applyWorkaround".localized()) {
-                    viewModel.proxyManager.applyBaseURLWorkaround()
+                    viewModel.applyBaseURLWorkaround()
                 }
 
                 Button("troubleshooting.restoreOriginal".localized()) {
-                    viewModel.proxyManager.removeBaseURLWorkaround()
+                    viewModel.removeBaseURLWorkaround()
                 }
             } header: {
                 Label("troubleshooting.title".localized(), systemImage: "hammer.fill")
@@ -430,7 +430,7 @@ struct ProxySettingsSection: View {
     /// Persists the upstream proxy URL to both app preferences and the running proxy instance.
     ///
     /// The URL is first saved to app preferences so it survives app restarts (used by
-    /// `CLIProxyManager.syncProxyURLInConfig()` during proxy startup), then sent to the
+    /// the proxy lifecycle controller during startup), then sent to the
     /// proxy API to take effect immediately. Only valid or empty URLs are saved.
     private func saveProxyURL() async {
         if proxyURL.isEmpty {
@@ -572,7 +572,7 @@ struct LocalProxyServerSection: View {
                     .onChange(of: portText) { _, newValue in
                         guard !isLoadingConfig else { return }
                         if let port = UInt16(newValue), port > 0 {
-                            viewModel.proxyManager.port = port
+                            viewModel.proxyManager.setPort(port)
                         }
                     }
             }
@@ -909,7 +909,7 @@ struct ProxyUpdateSettingsSection: View {
     @State private var upgradeError: String?
     @State private var showAdvancedSheet = false
 
-    private var proxyManager: CLIProxyManager {
+    private var proxyManager: ProxyScreenModel {
         viewModel.proxyManager
     }
 
@@ -1071,7 +1071,7 @@ struct ProxyUpdateSettingsSection: View {
                 try await proxyManager.performManagedUpgrade(to: version)
                 isUpgrading = false
             } catch {
-                upgradeError = error.localizedDescription
+                upgradeError = proxyManager.errorMessage(for: error)
                 isUpgrading = false
             }
         }
@@ -1096,7 +1096,7 @@ struct ProxyVersionManagerSheet: View {
     @State private var pendingInstallVersion: ProxyVersionInfo?
     @State private var versionsToDelete: [String] = []
     
-    private var proxyManager: CLIProxyManager {
+    private var proxyManager: ProxyScreenModel {
         viewModel.proxyManager
     }
 
@@ -1284,22 +1284,25 @@ struct ProxyVersionManagerSheet: View {
             refreshInstalledVersions()
             isLoading = false
         } catch {
-            loadError = error.localizedDescription
+            loadError = proxyManager.errorMessage(for: error)
             isLoading = false
         }
     }
     
     private func installVersion(_ versionInfo: ProxyVersionInfo) {
-        // Check if installing will delete old versions
-        let toDelete = proxyManager.storageManager.versionsToBeDeleted(keepLast: AppConstants.maxInstalledVersions)
-        if !toDelete.isEmpty {
-            versionsToDelete = toDelete
-            pendingInstallVersion = versionInfo
-            showDeleteWarning = true
-            return
+        Task { @MainActor in
+            let toDelete = await proxyManager.versionsToBeDeleted(
+                keeping: AppConstants.maxInstalledVersions
+            )
+            if !toDelete.isEmpty {
+                versionsToDelete = toDelete
+                pendingInstallVersion = versionInfo
+                showDeleteWarning = true
+                return
+            }
+
+            performInstall(versionInfo)
         }
-        
-        performInstall(versionInfo)
     }
     
     private func performInstall(_ versionInfo: ProxyVersionInfo) {
@@ -1312,7 +1315,7 @@ struct ProxyVersionManagerSheet: View {
                 installingVersion = nil
                 refreshInstalledVersions()
             } catch {
-                installError = error.localizedDescription
+                installError = proxyManager.errorMessage(for: error)
                 installingVersion = nil
             }
         }
@@ -1321,27 +1324,22 @@ struct ProxyVersionManagerSheet: View {
     private func activateVersion(_ version: String) {
         Task { @MainActor in
             do {
-                let wasRunning = proxyManager.proxyStatus.running
-                if wasRunning {
-                    proxyManager.stop()
-                }
-                try proxyManager.storageManager.setCurrentVersion(version)
-                if wasRunning {
-                    try await proxyManager.start()
-                }
+                try await proxyManager.activateVersion(version)
                 refreshInstalledVersions()
             } catch {
-                installError = error.localizedDescription
+                installError = proxyManager.errorMessage(for: error)
             }
         }
     }
     
     private func deleteVersion(_ version: String) {
-        do {
-            try proxyManager.storageManager.deleteVersion(version)
-            refreshInstalledVersions()
-        } catch {
-            installError = error.localizedDescription
+        Task { @MainActor in
+            do {
+                try await proxyManager.deleteVersion(version)
+                refreshInstalledVersions()
+            } catch {
+                installError = proxyManager.errorMessage(for: error)
+            }
         }
     }
 }
@@ -2361,7 +2359,7 @@ struct AboutProxyUpdateCard: View {
     @State private var isUpgrading = false
     @State private var upgradeError: String?
 
-    private var proxyManager: CLIProxyManager {
+    private var proxyManager: ProxyScreenModel {
         viewModel.proxyManager
     }
 
@@ -2538,7 +2536,7 @@ struct AboutProxyUpdateCard: View {
                 try await proxyManager.performManagedUpgrade(to: version)
                 isUpgrading = false
             } catch {
-                upgradeError = error.localizedDescription
+                upgradeError = proxyManager.errorMessage(for: error)
                 isUpgrading = false
             }
         }
@@ -2716,7 +2714,7 @@ struct ManagementKeyRow: View {
                     do {
                         try await viewModel.proxyManager.regenerateManagementKey()
                     } catch {
-                        regenerateError = error.localizedDescription
+                        regenerateError = viewModel.proxyManager.errorMessage(for: error)
                     }
                 }
             }

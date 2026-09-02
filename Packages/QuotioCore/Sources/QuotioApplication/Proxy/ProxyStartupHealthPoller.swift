@@ -1,27 +1,19 @@
-//
-//  ProxyStartupHealthPoller.swift
-//  Quotio - CLIProxyAPI GUI Wrapper
-//
-
 import Foundation
 
-/// Polls a newly launched proxy without assuming that every machine reaches
-/// the management endpoint within a fixed startup delay.
-@MainActor
-struct ProxyStartupHealthPoller {
-    enum Outcome: Equatable {
+public struct ProxyStartupHealthPoller: Sendable {
+    public enum Outcome: Equatable, Sendable {
         case ready
         case processExited
         case timedOut
     }
 
-    nonisolated static let defaultTimeoutNanoseconds: UInt64 = 10_000_000_000
-    nonisolated static let defaultRetryDelayNanoseconds: UInt64 = 250_000_000
+    public static let defaultTimeoutNanoseconds: UInt64 = 10_000_000_000
+    public static let defaultRetryDelayNanoseconds: UInt64 = 250_000_000
 
-    let timeoutNanoseconds: UInt64
-    let retryDelayNanoseconds: UInt64
+    public let timeoutNanoseconds: UInt64
+    public let retryDelayNanoseconds: UInt64
 
-    init(
+    public init(
         timeoutNanoseconds: UInt64 = Self.defaultTimeoutNanoseconds,
         retryDelayNanoseconds: UInt64 = Self.defaultRetryDelayNanoseconds
     ) {
@@ -29,8 +21,8 @@ struct ProxyStartupHealthPoller {
         self.retryDelayNanoseconds = max(1, retryDelayNanoseconds)
     }
 
-    func waitUntilReady(
-        isProcessRunning: () -> Bool,
+    public func waitUntilReady(
+        isProcessRunning: () async -> Bool,
         checkHealth: () async -> Bool,
         sleep: (UInt64) async throws -> Void = { nanoseconds in
             try await Task.sleep(nanoseconds: nanoseconds)
@@ -43,7 +35,7 @@ struct ProxyStartupHealthPoller {
         var isFirstAttempt = true
 
         while true {
-            guard isProcessRunning() else {
+            guard await isProcessRunning() else {
                 return .processExited
             }
 
@@ -57,7 +49,7 @@ struct ProxyStartupHealthPoller {
 
             try Task.checkCancellation()
 
-            guard isProcessRunning() else {
+            guard await isProcessRunning() else {
                 return .processExited
             }
 

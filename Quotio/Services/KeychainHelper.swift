@@ -294,8 +294,8 @@ enum KeychainHelper {
     ///
     /// A caller that could not read a secret cannot tell "absent" from "hardware
     /// key unavailable", so it may regenerate one and store it -- destroying the
-    /// envelope that still holds the real value. `CLIProxyManager` does exactly
-    /// this at construction. Refuse rather than roll a live credential back.
+    /// envelope that still holds the real value. Proxy initialization can do this
+    /// when no key is returned. Refuse rather than roll a live credential back.
     /// `.absent` costs only a file-existence check, so first writes stay
     /// prompt-free; only an overwrite pays for a decrypt.
     nonisolated static func allowsVaultOverwrite(_ existing: YubiKeySecretVault.ReadResult) -> Bool {

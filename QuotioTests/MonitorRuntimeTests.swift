@@ -183,7 +183,7 @@ final class MonitorRuntimeTests: XCTestCase {
     }
 
     /// The rollback this prevents: with the vault enabled and the key absent or
-    /// the PIN prompt dismissed, `CLIProxyManager.init` reads nil, mints a fresh
+    /// the PIN prompt dismissed, proxy initialization reads nil, mints a fresh
     /// UUID and saves it — destroying the envelope holding the real management
     /// key. Absent must still be writable, or first-time storage would break.
     func testVaultWriteRefusesToOverwriteUnreadableEnvelope() {

@@ -1767,6 +1767,6 @@ private struct QuotaLoadingView: View {
 
 #Preview {
     QuotaScreen()
-        .environment(QuotaViewModel())
+        .environment(CompositionRoot.makeQuotaViewModel())
         .frame(width: 600, height: 500)
 }

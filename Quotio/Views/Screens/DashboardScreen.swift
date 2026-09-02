@@ -333,7 +333,7 @@ struct DashboardScreen: View {
                         do {
                             try await viewModel.proxyManager.downloadAndInstallBinary()
                         } catch {
-                            viewModel.errorMessage = error.localizedDescription
+                            viewModel.errorMessage = viewModel.proxyManager.errorMessage(for: error)
                         }
                     }
                 }

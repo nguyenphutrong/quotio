@@ -11,6 +11,8 @@
 
 import SwiftUI
 import AppKit
+import QuotioDomain
+import QuotioPresentation
 import UniformTypeIdentifiers
 
 struct ProvidersScreen: View {
@@ -968,11 +970,11 @@ struct OAuthSheet: View {
             }
 
             if !modeManager.isMonitorMode,
-               viewModel.proxyManager.isLegacyAuthWarningNeeded(for: provider) {
+               viewModel.isLegacyAuthWarningNeeded(for: provider) {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                    Text(viewModel.proxyManager.upstreamCompatibilityWarning)
+                    Text(viewModel.upstreamCompatibilityWarning)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

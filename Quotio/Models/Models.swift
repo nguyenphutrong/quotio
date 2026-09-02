@@ -318,17 +318,6 @@ nonisolated enum QuotaMetricPresentation: Codable, Sendable, Equatable {
     case status(text: String)
 }
 
-// MARK: - Proxy Status
-
-nonisolated struct ProxyStatus: Codable {
-    var running: Bool = false
-    var port: UInt16 = 8317
-    
-    var endpoint: String {
-        "http://localhost:\(port)/v1"
-    }
-}
-
 // MARK: - Auth File (from Management API)
 
 extension String {

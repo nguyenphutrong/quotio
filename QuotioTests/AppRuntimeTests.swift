@@ -91,7 +91,7 @@ final class AppRuntimeTests: XCTestCase {
 
 @MainActor
 private final class FakeAppRuntimeServices: AppRuntimeServices {
-    let viewModel = QuotaViewModel()
+    let viewModel = CompositionRoot.makeQuotaViewModel()
     let logsScreenModel: LogsScreenModel
     let menuBarSettings = MenuBarSettingsManager.shared
     let statusBarManager = StatusBarManager.shared
@@ -204,7 +204,7 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
         try? await Task.sleep(for: tunnelStopDelay)
     }
 
-    nonisolated func terminateProxyOnShutdown() {
+    nonisolated func terminateProxyOnShutdown() async {
         proxyTerminations.increment()
     }
 

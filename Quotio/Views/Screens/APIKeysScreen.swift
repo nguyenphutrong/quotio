@@ -5,6 +5,8 @@
 
 import SwiftUI
 import AppKit
+import QuotioDomain
+import QuotioPresentation
 
 struct APIKeysScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel

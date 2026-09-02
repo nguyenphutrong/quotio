@@ -36,7 +36,7 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     func startUpdatePolling()
     func stopUpdatePolling()
     func stopTunnel() async
-    nonisolated func terminateProxyOnShutdown()
+    func terminateProxyOnShutdown() async
     nonisolated func cleanupTunnelOrphans()
 }
 
@@ -205,12 +205,10 @@ final class AppRuntime {
         let (events, continuation) = AsyncStream<Bool>.makeStream()
         let services = services
         let cleanupTask = Task { @MainActor in
-            let proxyTask = Task.detached(priority: .utility) {
-                services.terminateProxyOnShutdown()
-            }
+            async let proxy: Void = services.terminateProxyOnShutdown()
             async let tunnel: Void = services.stopTunnel()
+            await proxy
             await tunnel
-            await proxyTask.value
             guard !Task.isCancelled else { return }
             continuation.yield(true)
         }

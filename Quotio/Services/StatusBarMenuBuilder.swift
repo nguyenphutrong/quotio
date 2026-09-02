@@ -12,6 +12,7 @@
 
 import AppKit
 import QuotioDomain
+import QuotioPresentation
 import SwiftUI
 
 // MARK: - Status Bar Menu Builder

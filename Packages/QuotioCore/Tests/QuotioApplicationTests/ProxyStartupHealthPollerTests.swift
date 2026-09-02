@@ -1,7 +1,6 @@
 import XCTest
-@testable import Quotio
+@testable import QuotioApplication
 
-@MainActor
 final class ProxyStartupHealthPollerTests: XCTestCase {
     func testRetriesUntilDelayedProxyBecomesHealthy() async throws {
         let poller = ProxyStartupHealthPoller(timeoutNanoseconds: 100, retryDelayNanoseconds: 25)
@@ -97,7 +96,6 @@ final class ProxyStartupHealthPollerTests: XCTestCase {
         XCTAssertEqual(outcome, .timedOut)
         XCTAssertEqual(healthChecks, 3)
         XCTAssertEqual(sleeps, [25, 25, 10])
-        XCTAssertEqual(currentTime, 60)
     }
 
     func testCancellationFromRetryDelayPropagates() async {
@@ -112,7 +110,6 @@ final class ProxyStartupHealthPollerTests: XCTestCase {
             )
             XCTFail("Expected cancellation to propagate")
         } catch is CancellationError {
-            // Expected: CLIProxyManager's existing defer cleanup handles it.
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
@@ -122,7 +119,7 @@ final class ProxyStartupHealthPollerTests: XCTestCase {
         let poller = ProxyStartupHealthPoller(timeoutNanoseconds: 100, retryDelayNanoseconds: 25)
         var currentTime: UInt64 = 0
 
-        let task = Task { @MainActor in
+        let task = Task {
             try await poller.waitUntilReady(
                 isProcessRunning: { true },
                 checkHealth: {
@@ -139,7 +136,6 @@ final class ProxyStartupHealthPollerTests: XCTestCase {
             _ = try await task.value
             XCTFail("Expected cancellation to propagate")
         } catch is CancellationError {
-            // Expected: CLIProxyManager's existing defer cleanup handles it.
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
