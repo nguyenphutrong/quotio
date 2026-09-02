@@ -2156,6 +2156,7 @@ final class QuotaViewModel {
         defer { endBatchRefresh(providers: [provider]) }
 
         let fetched = await fetchImportedIDEQuotas(for: provider)
+        guard !Task.isCancelled else { return }
 
         // Re-read after the suspension point: the account may have been deleted, or the
         // whole provider removed, while the fetch was in flight.
