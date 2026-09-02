@@ -320,7 +320,13 @@ actor MonitorSnapshotStore {
     }
 }
 
-actor MonitorAccountDiscovery {
+nonisolated protocol MonitorAccountDiscovering: Sendable {
+    func discover() async -> [MonitorAccount]
+    func setDisabled(_ disabled: Bool, accountID: String) async
+    func disabledAccountIDs() async -> Set<String>
+}
+
+actor MonitorAccountDiscovery: MonitorAccountDiscovering {
     private let vault: MonitorCredentialStore
     private let directAuthService: DirectAuthFileService
     private let metadata: MonitorMetadataStore
@@ -588,7 +594,7 @@ actor MonitorAccountDiscovery {
 }
 
 actor MonitorRefreshCoordinator {
-    private let discovery: MonitorAccountDiscovery
+    private let discovery: any MonitorAccountDiscovering
     private let snapshots: MonitorSnapshotStore
     private var inFlight: [AIProvider: Task<[String: ProviderQuotaData], Never>] = [:]
     private var retryAfter: [AIProvider: Date] = [:]
@@ -609,7 +615,7 @@ actor MonitorRefreshCoordinator {
     ]
 
     init(
-        discovery: MonitorAccountDiscovery = MonitorAccountDiscovery(),
+        discovery: any MonitorAccountDiscovering = MonitorAccountDiscovery(),
         snapshots: MonitorSnapshotStore = MonitorSnapshotStore()
     ) {
         self.discovery = discovery

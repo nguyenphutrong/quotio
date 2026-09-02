@@ -1630,14 +1630,22 @@ final class MonitorRuntimeTests: XCTestCase {
         )
     }
 
-    /// A credential vault with nothing in it, so Monitor discovery in these tests depends
-    /// only on the injected snapshot/metadata files and never on the host Keychain.
-    private struct EmptyCredentialVault: MonitorCredentialStore {
-        func accounts() async -> [MonitorAccount] { [] }
-        func credential(for accountID: String) async -> MonitorOAuthCredential? { nil }
-        func reloadLatest(accountID: String) async -> MonitorOAuthCredential? { nil }
-        func save(_ credential: MonitorOAuthCredential, metadata: MonitorAccount) async throws {}
-        func delete(accountID: String) async {}
+    private actor IsolatedAccountDiscovery: MonitorAccountDiscovering {
+        private let metadata: MonitorMetadataStore
+
+        init(metadataURL: URL) {
+            metadata = MonitorMetadataStore(url: metadataURL)
+        }
+
+        func discover() -> [MonitorAccount] { [] }
+
+        func setDisabled(_ disabled: Bool, accountID: String) async {
+            try? await metadata.setDisabled(disabled, accountID: accountID)
+        }
+
+        func disabledAccountIDs() async -> Set<String> {
+            await metadata.disabledAccountIDs()
+        }
     }
 
     private func makeIsolatedCoordinator(
@@ -1645,10 +1653,7 @@ final class MonitorRuntimeTests: XCTestCase {
         metadata: URL
     ) -> MonitorRefreshCoordinator {
         MonitorRefreshCoordinator(
-            discovery: MonitorAccountDiscovery(
-                vault: EmptyCredentialVault(),
-                metadata: MonitorMetadataStore(url: metadata)
-            ),
+            discovery: IsolatedAccountDiscovery(metadataURL: metadata),
             snapshots: MonitorSnapshotStore(url: snapshots)
         )
     }
