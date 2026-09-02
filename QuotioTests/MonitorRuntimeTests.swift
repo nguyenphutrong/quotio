@@ -1914,6 +1914,7 @@ final class MonitorRuntimeTests: XCTestCase {
         }
         async let second = coordinator.refresh(provider: .codex, force: true, previous: [:]) {
             await counter.increment()
+            try? await Task.sleep(for: .milliseconds(50))
             return ["other": ProviderQuotaData(models: [], lastUpdated: Date())]
         }
 
