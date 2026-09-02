@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.1'
+
+      - name: Test core package
+        run: swift test --package-path Packages/QuotioCore
+
+      - name: Check architecture boundaries
+        run: ./scripts/check_architecture.sh
+
+      - name: Test app
+        run: >-
+          xcodebuild -project Quotio.xcodeproj -scheme Quotio
+          -configuration Debug -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO test
+
+      - name: Build app
+        run: >-
+          xcodebuild -project Quotio.xcodeproj -scheme Quotio
+          -configuration Debug -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO build

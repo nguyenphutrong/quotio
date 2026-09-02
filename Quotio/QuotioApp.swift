@@ -4,6 +4,10 @@
 //
 
 import AppKit
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
+import QuotioPresentation
 import SwiftUI
 import ServiceManagement
 #if canImport(Sparkle)
