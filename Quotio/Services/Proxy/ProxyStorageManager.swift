@@ -21,11 +21,18 @@ import Foundation
 final class ProxyStorageManager {
     static let shared = ProxyStorageManager()
     
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
     private let proxyDir: URL
     private static let binaryName = "CLIProxyAPI"
     
-    private init() {
+    init(proxyDirectory: URL? = nil, fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+        if let proxyDirectory {
+            self.proxyDir = proxyDirectory
+            try? fileManager.createDirectory(at: proxyDirectory, withIntermediateDirectories: true)
+            return
+        }
+
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             fatalError("Application Support directory not found")
         }

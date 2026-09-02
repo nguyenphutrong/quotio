@@ -35,6 +35,15 @@ final class CLIProxyManager {
         let port = (savedPort > 0 && savedPort < 65536) ? UInt16(savedPort) : 8080
         killProcessOnPort(port)
     }
+
+    nonisolated static func processIDsToTerminate(from output: String, ownPID: Int32) -> [Int32] {
+        output.components(separatedBy: .newlines).compactMap { line in
+            guard let pid = Int32(line.trimmingCharacters(in: .whitespaces)), pid != ownPID else {
+                return nil
+            }
+            return pid
+        }
+    }
     
     nonisolated private static func killProcessOnPort(_ port: UInt16) {
         let lsofProcess = Process()
@@ -55,14 +64,13 @@ final class CLIProxyManager {
             guard let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !output.isEmpty else { return }
 
-            for pidString in output.components(separatedBy: .newlines) {
-                if let pid = Int32(pidString.trimmingCharacters(in: .whitespaces)) {
-                    if pid == ownPid {
-                        NSLog("[CLIProxyManager] Skipping kill of own PID \(pid) on port \(port) during shutdown")
-                        continue
-                    }
-                    kill(pid, SIGKILL)
-                }
+            if output.components(separatedBy: .newlines).contains(where: {
+                Int32($0.trimmingCharacters(in: .whitespaces)) == ownPid
+            }) {
+                NSLog("[CLIProxyManager] Skipping kill of own PID \(ownPid) on port \(port) during shutdown")
+            }
+            for pid in processIDsToTerminate(from: output, ownPID: ownPid) {
+                kill(pid, SIGKILL)
             }
         } catch {
         }
@@ -166,9 +174,13 @@ final class CLIProxyManager {
     }
     
     private static let binaryName = "CLIProxyAPI"
+
+    nonisolated static func managementBaseURL(port: UInt16) -> String {
+        "http://127.0.0.1:\(port)"
+    }
     
     var baseURL: String {
-        "http://127.0.0.1:\(proxyStatus.port)"
+        Self.managementBaseURL(port: proxyStatus.port)
     }
     
     var managementURL: String {
@@ -1127,14 +1139,13 @@ final class CLIProxyManager {
             guard let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !output.isEmpty else { return }
 
-            for pidString in output.components(separatedBy: .newlines) {
-                if let pid = Int32(pidString.trimmingCharacters(in: .whitespaces)) {
-                    if pid == ownPid {
-                        NSLog("[CLIProxyManager] Skipping kill of own PID \(pid) on port \(port)")
-                        continue
-                    }
-                    kill(pid, SIGKILL)
-                }
+            if output.components(separatedBy: .newlines).contains(where: {
+                Int32($0.trimmingCharacters(in: .whitespaces)) == ownPid
+            }) {
+                NSLog("[CLIProxyManager] Skipping kill of own PID \(ownPid) on port \(port)")
+            }
+            for pid in processIDsToTerminate(from: output, ownPID: ownPid) {
+                kill(pid, SIGKILL)
             }
         } catch {
             // Silent failure - process may not exist

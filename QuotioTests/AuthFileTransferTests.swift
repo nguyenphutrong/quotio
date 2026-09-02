@@ -45,9 +45,38 @@ final class AuthFileTransferTests: XCTestCase {
 
         let fileURL = directory.appendingPathComponent("claude-person@example.com.json")
         let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let directoryAttributes = try FileManager.default.attributesOfItem(atPath: directory.path)
         let downloadedContent = try await service.downloadAuthFile(name: fileURL.lastPathComponent)
         XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        XCTAssertEqual((directoryAttributes[.posixPermissions] as? NSNumber)?.intValue, 0o700)
         XCTAssertEqual(downloadedContent, content)
+    }
+
+    func testDirectUploadRefusesSymbolicLinkAndPreservesTarget() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let target = directory.appendingPathComponent("target.json")
+        let link = directory.appendingPathComponent("credentials.json")
+        let original = Data(#"{"token":"original"}"#.utf8)
+        try original.write(to: target)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        let service = DirectAuthFileService(authDirectory: directory)
+
+        do {
+            try await service.uploadAuthFile(
+                name: link.lastPathComponent,
+                content: Data(#"{"token":"replacement"}"#.utf8)
+            )
+            XCTFail("Expected a symbolic-link destination to be rejected")
+        } catch MonitorRuntimeError.symbolicLinkRefused {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertEqual(try Data(contentsOf: target), original)
+        XCTAssertTrue(try link.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true)
     }
 
     func testImportRejectsJSONThatIsNotAnObject() async throws {
