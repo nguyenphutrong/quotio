@@ -3,280 +3,96 @@
 //  Quotio - CLIProxyAPI GUI Wrapper
 //
 
-import AppKit
 import QuotioApplication
 import QuotioDomain
 import QuotioInfrastructure
 import QuotioPresentation
 import SwiftUI
-import ServiceManagement
-#if canImport(Sparkle)
-import Sparkle
-#endif
-
-private var isRunningUnitTests: Bool {
-    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-}
-
-// MARK: - App Bootstrap (Singleton for headless initialization)
-
-/// Manages app-wide initialization that must happen regardless of window visibility.
-/// This ensures the app works correctly when launched at login without opening a window.
-@MainActor
-final class AppBootstrap {
-    static let shared = AppBootstrap()
-
-    let viewModel = QuotaViewModel()
-    let logsViewModel = LogsViewModel()
-
-    private(set) var hasInitialized = false
-    private(set) var needsOnboarding = false
-
-    private let modeManager = OperatingModeManager.shared
-    private let appearanceManager = AppearanceManager.shared
-    private let statusBarManager = StatusBarManager.shared
-    private let menuBarSettings = MenuBarSettingsManager.shared
-
-    private init() {}
-
-    /// Initialize core app services. Safe to call multiple times - only runs once.
-    /// Called from AppDelegate.applicationDidFinishLaunching for headless launch support.
-    func initializeIfNeeded() async {
-        guard !hasInitialized else { return }
-        hasInitialized = true
-
-        appearanceManager.applyAppearance()
-
-        // Check if onboarding is needed - if so, defer full initialization until after onboarding
-        if !modeManager.hasCompletedOnboarding {
-            needsOnboarding = true
-            return
-        }
-
-        await performFullInitialization()
-    }
-
-    /// Called after onboarding completes to finish initialization
-    func completeOnboarding() async {
-        needsOnboarding = false
-        await performFullInitialization()
-    }
-
-    private func performFullInitialization() async {
-        // Scan auth files immediately (fast filesystem scan)
-        // This allows menu bar to show providers before quota API calls complete
-        await viewModel.loadDirectAuthFiles()
-
-        // Setup menu bar immediately so user can open it while data loads
-        statusBarManager.setViewModel(viewModel)
-        updateStatusBar()
-
-        // Listen for quota data changes to update menu bar even when window is closed
-        NotificationCenter.default.addObserver(
-            forName: QuotaViewModel.quotaDataDidChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.updateStatusBar()
-                StatusBarManager.shared.rebuildMenuInPlace()
-            }
-        }
-
-        // Load data in background (includes proxy auto-start if enabled)
-        await viewModel.initialize()
-
-        #if canImport(Sparkle)
-        UpdaterService.shared.checkForUpdatesInBackground()
-        #endif
-    }
-
-    func updateStatusBar() {
-        // Menu bar should show quota data regardless of proxy status
-        // The quota is fetched directly and doesn't need proxy
-        let hasQuotaData = !viewModel.providerQuotas.isEmpty
-
-        statusBarManager.updateStatusBar(
-            items: quotaItems,
-            colorMode: menuBarSettings.colorMode,
-            quotaDisplayMode: menuBarSettings.quotaDisplayMode,
-            isRunning: hasQuotaData,
-            showMenuBarIcon: menuBarSettings.showMenuBarIcon,
-            showQuota: menuBarSettings.showQuotaInMenuBar
-        )
-    }
-
-    private var quotaItems: [MenuBarQuotaDisplayItem] {
-        guard menuBarSettings.showQuotaInMenuBar else { return [] }
-
-        var items: [MenuBarQuotaDisplayItem] = []
-
-        for selectedItem in menuBarSettings.selectedItems {
-            guard let provider = selectedItem.aiProvider else { continue }
-
-            var displayPercent: Double = -1
-            var isForbidden = false
-            var quotaPair: MenuBarQuotaPair?
-
-            if let accountQuotas = viewModel.providerQuotas[provider],
-               let quotaData = resolveQuotaData(
-                   for: selectedItem,
-                   provider: provider,
-                   accountQuotas: accountQuotas
-               ) {
-                isForbidden = quotaData.isForbidden
-                if !quotaData.models.isEmpty {
-                    let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
-                    displayPercent = menuBarSettings.totalUsagePercent(models: models)
-                    if menuBarSettings.stackPairedQuotaMetrics {
-                        quotaPair = MenuBarQuotaPair.resolve(for: provider, from: quotaData.models)
-                    }
-                }
-            }
-
-            items.append(MenuBarQuotaDisplayItem(
-                id: selectedItem.id,
-                providerSymbol: provider.menuBarSymbol,
-                accountShort: selectedItem.accountKey,
-                percentage: displayPercent,
-                provider: provider,
-                isForbidden: isForbidden,
-                quotaPair: quotaPair
-            ))
-        }
-
-        return items
-    }
-
-    private func resolveQuotaData(
-        for selectedItem: MenuBarQuotaItem,
-        provider: AIProvider,
-        accountQuotas: [String: ProviderQuotaData]
-    ) -> ProviderQuotaData? {
-        if let quotaData = accountQuotas[selectedItem.accountKey] {
-            return quotaData
-        }
-
-        let cleanKey = selectedItem.accountKey.hasSuffix(".json")
-            ? String(selectedItem.accountKey.dropLast(".json".count))
-            : selectedItem.accountKey
-        if let quotaData = accountQuotas[cleanKey] {
-            return quotaData
-        }
-
-        if provider == .codex {
-            return accountQuotas[selectedItem.accountKey.codexFilenameKey]
-        }
-        if provider == .copilot, let filenameKey = selectedItem.accountKey.copilotFilenameKey {
-            return accountQuotas[filenameKey]
-        }
-        return nil
-    }
-}
 
 @main
 struct QuotioApp: App {
-    private let userDefaultsMigration: Void = {
-        guard !isRunningUnitTests else { return }
-        AppIdentity.migrateLegacyUserDefaults()
-    }()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    // Use shared bootstrap instance for viewModel
-    private var bootstrap: AppBootstrap { AppBootstrap.shared }
-    @State private var logsViewModel = LogsViewModel()
-    @State private var menuBarSettingsStorage: MenuBarSettingsManager? = isRunningUnitTests ? nil : .shared
-    @State private var statusBarManager = StatusBarManager.shared
-    @State private var modeManagerStorage: OperatingModeManager? = isRunningUnitTests ? nil : .shared
-    @State private var appearanceManagerStorage: AppearanceManager? = isRunningUnitTests ? nil : .shared
-    @State private var languageManagerStorage: LanguageManager? = isRunningUnitTests ? nil : .shared
     @State private var showOnboarding = false
-    @Environment(\.openWindow) private var openWindow
 
-    private var viewModel: QuotaViewModel { bootstrap.viewModel }
-    private var menuBarSettings: MenuBarSettingsManager { menuBarSettingsStorage! }
-    private var modeManager: OperatingModeManager { modeManagerStorage! }
-    private var appearanceManager: AppearanceManager { appearanceManagerStorage! }
-    private var languageManager: LanguageManager { languageManagerStorage! }
-
+    private var runtime: AppRuntime { appDelegate.runtime }
+    private var viewModel: QuotaViewModel { runtime.viewModel }
+    private var menuBarSettings: MenuBarSettingsManager { runtime.menuBarSettings }
+    private var statusBarManager: StatusBarManager { runtime.statusBarManager }
+    private var modeManager: OperatingModeManager { runtime.modeManager }
+    private var appearanceManager: AppearanceManager { runtime.appearanceManager }
+    private var languageManager: LanguageManager { runtime.languageManager }
 
     var body: some Scene {
         Window("Quotio", id: "main") {
-            if isRunningUnitTests {
+            if AppEnvironment.isRunningUnitTests {
                 EmptyView()
             } else {
-                ContentView()
-                    .id(languageManager.currentLanguage) // Force re-render on language change
+                RootNavigationView()
+                    .id(languageManager.currentLanguage)
                     .environment(viewModel)
-                    .environment(logsViewModel)
+                    .environment(runtime.logsViewModel)
+                    .environment(modeManager)
                     .environment(\.locale, languageManager.locale)
                     .task {
-                        // Initialize via bootstrap (idempotent - safe to call multiple times)
-                        // This handles the case where window opens before AppDelegate finishes
-                        await bootstrap.initializeIfNeeded()
-
-                        // Show onboarding if needed
-                        if bootstrap.needsOnboarding {
-                            showOnboarding = true
-                        }
+                        await runtime.initializeIfNeeded()
+                        showOnboarding = runtime.needsOnboarding
                     }
                     .onChange(of: viewModel.proxyManager.proxyStatus.running) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                     }
                     .onChange(of: viewModel.isLoadingQuotas) {
-                        bootstrap.updateStatusBar()
-                        // Rebuild menu when loading state changes so loader updates
+                        runtime.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: languageManager.currentLanguage) { _, _ in
-                        // Rebuild menu bar when language changes
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: appearanceManager.appearanceMode) {
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: menuBarSettings.showQuotaInMenuBar) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                     }
                     .onChange(of: menuBarSettings.showMenuBarIcon) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                     }
                     .onChange(of: menuBarSettings.selectedItems) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                     }
                     .onChange(of: menuBarSettings.colorMode) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                     }
                     .onChange(of: menuBarSettings.quotaDisplayMode) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: menuBarSettings.stackPairedQuotaMetrics) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                     }
                     .onChange(of: menuBarSettings.totalUsageMode) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: menuBarSettings.modelAggregationMode) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: modeManager.currentMode) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                     }
                     .onChange(of: viewModel.providerQuotas.count) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: viewModel.directAuthFiles.count) {
-                        bootstrap.updateStatusBar()
+                        runtime.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .sheet(isPresented: $showOnboarding) {
                         OnboardingFlow {
                             Task {
-                                await bootstrap.completeOnboarding()
+                                await runtime.completeOnboarding()
                             }
                         }
                     }
@@ -286,507 +102,12 @@ struct QuotioApp: App {
         .commands {
             CommandGroup(replacing: .newItem) { }
 
-            #if canImport(Sparkle)
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {
-                    UpdaterService.shared.checkForUpdates()
+                    runtime.checkForUpdates()
                 }
-                .disabled(!UpdaterService.shared.canCheckForUpdates)
+                .disabled(!runtime.canCheckForUpdates)
             }
-            #endif
-        }
-    }
-}
-
-@MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    private nonisolated(unsafe) var windowWillCloseObserver: NSObjectProtocol?
-    private nonisolated(unsafe) var windowDidBecomeKeyObserver: NSObjectProtocol?
-    private nonisolated(unsafe) var windowDidBecomeMainObserver: NSObjectProtocol?
-    private nonisolated(unsafe) var appDidResignActiveObserver: NSObjectProtocol?
-    private var pendingForegroundReassert = false
-    private weak var trackedDashboardWindow: NSWindow?
-    private var lastDashboardActivationDate: Date?
-    private var hasTriggeredAntiDropForCurrentActivation = false
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        guard !isRunningUnitTests else { return }
-
-        // Move orphan cleanup off main thread to avoid blocking app launch
-        DispatchQueue.global(qos: .utility).async {
-            TunnelManager.cleanupOrphans()
-        }
-
-        UserDefaults.standard.register(defaults: [
-            "showInDock": true,
-            "totalUsageMode": TotalUsageMode.sessionOnly.rawValue,
-            "modelAggregationMode": ModelAggregationMode.lowest.rawValue
-        ])
-
-        TelemetryService.shared.configureIfAllowed()
-
-        // Apply initial dock visibility based on saved preference
-        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
-        NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
-
-        // CRITICAL: Initialize app services immediately on launch.
-        // This ensures proxy auto-start works even when launched at login
-        // without opening a window (e.g., when showInDock=false).
-        // The bootstrap.initializeIfNeeded() is idempotent and safe to call
-        // multiple times - the window's .task will also call it but it's a no-op
-        // if already initialized.
-        Task { @MainActor in
-            await AppBootstrap.shared.initializeIfNeeded()
-
-            // Start background polling for CLIProxyAPI updates (every 5 minutes)
-            // Uses Atom feed with ETag caching for efficiency
-            AtomFeedUpdateService.shared.startPolling(
-                getCurrentVersion: { CLIProxyManager.shared.currentVersion ?? CLIProxyManager.shared.installedProxyVersion }
-            )
-        }
-
-        windowWillCloseObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            let closingWindow = notification.object as? NSWindow
-            MainActor.assumeIsolated {
-                self?.handleWindowWillClose(closingWindow)
-            }
-        }
-
-        windowDidBecomeKeyObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didBecomeKeyNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.handleWindowDidBecomeKey()
-            }
-        }
-
-        windowDidBecomeMainObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didBecomeMainNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            let mainWindow = notification.object as? NSWindow
-            MainActor.assumeIsolated {
-                self?.handleWindowDidBecomeMain(mainWindow)
-            }
-        }
-
-        appDidResignActiveObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.handleApplicationDidResignActive()
-            }
-        }
-    }
-    
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        false
-    }
-
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        _ = bringMainWindowToFront(in: sender)
-        return true
-    }
-
-    private var shouldUseAccessoryPolicy: Bool {
-        !UserDefaults.standard.bool(forKey: "showInDock")
-    }
-
-    private func ensureRegularPolicyForMainWindowForeground(in app: NSApplication) -> Bool {
-        guard shouldUseAccessoryPolicy else { return true }
-
-        if app.activationPolicy() == .regular {
-            return true
-        }
-
-        guard app.setActivationPolicy(.regular) else {
-            return false
-        }
-
-        return true
-    }
-
-    private func promoteToRegularPolicyIfNeeded() -> Bool {
-        guard shouldUseAccessoryPolicy else { return true }
-
-        if NSApp.activationPolicy() == .regular {
-            return true
-        }
-
-        _ = NSApp.setActivationPolicy(.regular)
-        return NSApp.activationPolicy() == .regular
-    }
-
-    private func promoteToRegularPolicyWithRetry(reason: String, remainingAttempts: Int = 3) {
-        guard remainingAttempts > 0 else { return }
-
-        if promoteToRegularPolicyIfNeeded() {
-            if let window = mainWindow(in: NSApp) {
-                NSApp.activate(ignoringOtherApps: true)
-                window.makeKeyAndOrderFront(nil)
-            }
-            return
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            self.promoteToRegularPolicyWithRetry(reason: reason, remainingAttempts: remainingAttempts - 1)
-        }
-    }
-
-    private func restoreAccessoryPolicyIfNeeded(in app: NSApplication) {
-        guard shouldUseAccessoryPolicy else { return }
-
-        let hasVisibleMainCapableWindow = app.windows.contains { window in
-            window.canBecomeMain && window.isVisible && !window.isMiniaturized
-        }
-
-        if !hasVisibleMainCapableWindow && app.activationPolicy() != .accessory {
-            app.setActivationPolicy(.accessory)
-        }
-    }
-
-    private func bringMainWindowToFront(in app: NSApplication) -> Bool {
-        guard let window = mainWindow(in: app) else { return false }
-        guard ensureRegularPolicyForMainWindowForeground(in: app) else { return false }
-
-        trackedDashboardWindow = window
-        pendingForegroundReassert = true
-
-        if window.isMiniaturized {
-            window.deminiaturize(nil)
-        }
-
-        window.makeKeyAndOrderFront(nil)
-
-        DispatchQueue.main.async {
-            app.activate(ignoringOtherApps: true)
-            NSRunningApplication.current.activate(options: [.activateAllWindows])
-
-            if let refreshedWindow = self.mainWindow(in: app) {
-                self.trackedDashboardWindow = refreshedWindow
-                refreshedWindow.makeKeyAndOrderFront(nil)
-            }
-
-            if !app.isActive {
-                window.orderFrontRegardless()
-            } else {
-                self.pendingForegroundReassert = false
-            }
-
-        }
-
-        return true
-    }
-
-    private func mainWindow(in app: NSApplication) -> NSWindow? {
-        if let trackedDashboardWindow,
-           app.windows.contains(where: { $0 === trackedDashboardWindow }),
-           isDashboardWindowCandidate(trackedDashboardWindow) {
-            return trackedDashboardWindow
-        }
-
-        let dashboardCandidates = app.windows.filter { isDashboardWindowCandidate($0) }
-        return dashboardCandidates.first
-    }
-
-    private func isDashboardWindowCandidate(_ window: NSWindow) -> Bool {
-        window.canBecomeMain
-            && window.level == .normal
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        // Stop background polling
-        AtomFeedUpdateService.shared.stopPolling()
-
-        CLIProxyManager.terminateProxyOnShutdown()
-        
-        // Use semaphore to ensure tunnel cleanup completes before app terminates
-        // with a timeout to prevent hanging termination
-        let semaphore = DispatchSemaphore(value: 0)
-        let cleanupTimeout: DispatchTime = .now() + .milliseconds(1500)
-        
-        Task { @MainActor in
-            await TunnelManager.shared.stopTunnel()
-            semaphore.signal()
-        }
-        
-        let result = semaphore.wait(timeout: cleanupTimeout)
-        if result == .timedOut {
-            // Fallback: force kill orphan processes if stopTunnel timed out
-            TunnelManager.cleanupOrphans()
-            NSLog("[AppDelegate] Tunnel cleanup timed out, forced orphan cleanup")
-        }
-    }
-
-    func applicationDidBecomeActive(_ notification: Notification) {
-        let keyWindowIsDashboardCandidate = NSApp.keyWindow.map(isDashboardWindowCandidate) ?? false
-
-        if keyWindowIsDashboardCandidate {
-            promoteToRegularPolicyWithRetry(reason: "didBecomeActive")
-            lastDashboardActivationDate = Date()
-            hasTriggeredAntiDropForCurrentActivation = false
-        }
-
-        guard pendingForegroundReassert else { return }
-        guard let window = mainWindow(in: NSApp) else {
-            pendingForegroundReassert = false
-            return
-        }
-
-        window.makeKeyAndOrderFront(nil)
-        pendingForegroundReassert = false
-    }
-
-    private func handleWindowDidBecomeMain(_ window: NSWindow?) {
-        guard let window else { return }
-        guard isDashboardWindowCandidate(window) else { return }
-
-        trackedDashboardWindow = window
-    }
-
-    private func handleApplicationDidResignActive() {
-        guard !hasTriggeredAntiDropForCurrentActivation else { return }
-        guard let activationDate = lastDashboardActivationDate else { return }
-
-        let elapsedSinceActivation = Date().timeIntervalSince(activationDate)
-        guard elapsedSinceActivation <= 0.5 else { return }
-        guard let dashboardWindow = mainWindow(in: NSApp), dashboardWindow.isVisible else { return }
-
-        hasTriggeredAntiDropForCurrentActivation = true
-
-        DispatchQueue.main.async {
-            NSApp.activate(ignoringOtherApps: true)
-            dashboardWindow.makeKeyAndOrderFront(nil)
-        }
-    }
-
-    private func handleWindowDidBecomeKey() {
-        guard let keyWindow = NSApp.keyWindow else { return }
-        guard let appMainWindow = mainWindow(in: NSApp), keyWindow === appMainWindow else { return }
-
-        promoteToRegularPolicyWithRetry(reason: "didBecomeKey")
-        guard ensureRegularPolicyForMainWindowForeground(in: NSApp) else { return }
-
-        if !NSApp.isActive {
-            pendingForegroundReassert = true
-            NSApp.activate(ignoringOtherApps: true)
-            keyWindow.makeKeyAndOrderFront(nil)
-        }
-    }
-
-    private func handleWindowWillClose(_ closingWindow: NSWindow?) {
-        let isClosingDashboardWindow = closingWindow.map {
-            ($0 === trackedDashboardWindow) || isDashboardWindowCandidate($0)
-        } ?? false
-
-        guard isClosingDashboardWindow else { return }
-
-        DispatchQueue.main.async {
-            self.restoreAccessoryPolicyIfNeeded(in: NSApp)
-        }
-    }
-    
-    deinit {
-        if let observer = windowWillCloseObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        if let observer = windowDidBecomeKeyObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        if let observer = windowDidBecomeMainObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        if let observer = appDidResignActiveObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
-    }
-}
-
-struct ContentView: View {
-    @Environment(QuotaViewModel.self) private var viewModel
-    @AppStorage("loggingToFile") private var loggingToFile = true
-    @State private var modeManager = OperatingModeManager.shared
-    
-    var body: some View {
-        @Bindable var vm = viewModel
-        
-        NavigationSplitView {
-            VStack(spacing: 0) {
-                List(selection: $vm.currentPage) {
-                    Section {
-                        // Always visible
-                        Label("nav.dashboard".localized(), systemImage: "gauge.with.dots.needle.33percent")
-                            .tag(NavigationPage.dashboard)
-                        
-                        Label("nav.quota".localized(), systemImage: "chart.bar.fill")
-                            .tag(NavigationPage.quota)
-                        
-                        Label(modeManager.isMonitorMode ? "nav.accounts".localized() : "nav.providers".localized(), 
-                              systemImage: "person.2.badge.key")
-                            .tag(NavigationPage.providers)
-                        
-                        if modeManager.isLocalProxyMode {
-                            Label("nav.agents".localized(), systemImage: "terminal")
-                                .tag(NavigationPage.agents)
-                            
-                            Label("nav.apiKeys".localized(), systemImage: "key.horizontal")
-                                .tag(NavigationPage.apiKeys)
-                            
-                            if loggingToFile {
-                                Label("nav.logs".localized(), systemImage: "doc.text")
-                                    .tag(NavigationPage.logs)
-                            }
-                        }
-                        
-                        Label("nav.settings".localized(), systemImage: "gearshape")
-                            .tag(NavigationPage.settings)
-                        
-                        Label("nav.about".localized(), systemImage: "info.circle")
-                            .tag(NavigationPage.about)
-                    }
-                }
-                
-                // Control section at bottom - current mode badge + status
-                VStack(spacing: 0) {
-                    Divider()
-                    
-                    // Current Mode Badge (replaces ModeSwitcherRow)
-                    CurrentModeBadge()
-                        .padding(.horizontal, 16)
-                        .padding(.top, 10)
-                        .padding(.bottom, 6)
-                    
-                    // Status row - different per mode
-                    Group {
-                        if modeManager.isLocalProxyMode {
-                            ProxyStatusRow(viewModel: viewModel)
-                        } else {
-                            QuotaRefreshStatusRow(viewModel: viewModel)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 10)
-                }
-                .background(.regularMaterial)
-            }
-            .navigationTitle("Quotio")
-            .toolbar {
-                ToolbarItem {
-                    if modeManager.isLocalProxyMode {
-                        // Local proxy mode: proxy controls
-                        if viewModel.proxyManager.isStarting {
-                            SmallProgressView()
-                        } else {
-                            Button {
-                                Task { await viewModel.toggleProxy() }
-                            } label: {
-                                Image(systemName: viewModel.proxyManager.proxyStatus.running ? "stop.fill" : "play.fill")
-                            }
-                            .help(viewModel.proxyManager.proxyStatus.running ? "action.stopProxy".localized() : "action.startProxy".localized())
-                        }
-                    } else {
-                        Button {
-                            Task { await viewModel.manualRefresh() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        .help("action.refreshQuota".localized())
-                        .disabled(viewModel.isLoadingQuotas)
-                    }
-                }
-            }
-        } detail: {
-            switch viewModel.currentPage {
-            case .dashboard:
-                DashboardScreen()
-            case .quota:
-                QuotaScreen()
-            case .providers:
-                ProvidersScreen()
-            case .agents:
-                AgentSetupScreen()
-            case .apiKeys:
-                APIKeysScreen()
-            case .logs:
-                LogsScreen()
-            case .settings:
-                SettingsScreen()
-            case .about:
-                AboutScreen()
-            }
-        }
-    }
-}
-
-// MARK: - Sidebar Status Rows
-
-/// Proxy status row for Local Proxy Mode
-struct ProxyStatusRow: View {
-    let viewModel: QuotaViewModel
-    
-    var body: some View {
-        HStack {
-            if viewModel.proxyManager.isStarting {
-                SmallProgressView(size: 8)
-            } else {
-                Circle()
-                    .fill(viewModel.proxyManager.proxyStatus.running ? .green : .gray)
-                    .frame(width: 8, height: 8)
-            }
-            
-            if viewModel.proxyManager.isStarting {
-                Text("status.starting".localized())
-                    .font(.caption)
-            } else {
-                Text(viewModel.proxyManager.proxyStatus.running ? "status.running".localized() : "status.stopped".localized())
-                    .font(.caption)
-            }
-            
-            Spacer()
-            
-            Text(":" + String(viewModel.proxyManager.port))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
-/// Quota refresh status row for Quota-Only Mode
-struct QuotaRefreshStatusRow: View {
-    let viewModel: QuotaViewModel
-    
-    var body: some View {
-        HStack {
-            if viewModel.isLoadingQuotas {
-                SmallProgressView(size: 8)
-                Text("status.refreshing".localized())
-                    .font(.caption)
-            } else {
-                Image(systemName: "clock")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                
-                if let lastRefresh = viewModel.lastQuotaRefreshTime {
-                    Text("status.updatedAgo \(lastRefresh, style: .relative)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("status.notRefreshed".localized())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
-            Spacer()
         }
     }
 }

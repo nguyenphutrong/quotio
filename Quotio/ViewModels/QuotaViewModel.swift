@@ -96,8 +96,7 @@ final class QuotaViewModel {
         case autoOpen
     }
 
-    /// Notification name for quota data updates (used for menu bar refresh)
-    static let quotaDataDidChangeNotification = Notification.Name("QuotaViewModel.quotaDataDidChange")
+    @ObservationIgnored var quotaDataDidChangeHandler: (@MainActor () -> Void)?
     
     /// Direct auth files for quota-only mode
     var directAuthFiles: [DirectAuthFile] = []
@@ -233,9 +232,9 @@ final class QuotaViewModel {
         }
     }
 
-    /// Post notification to trigger UI updates (works even when window is closed)
+    /// Notify the app runtime so menu bar state remains current without a window.
     private func notifyQuotaDataChanged() {
-        NotificationCenter.default.post(name: Self.quotaDataDidChangeNotification, object: nil)
+        quotaDataDidChangeHandler?()
     }
 
     private func beginScopedRefresh(provider: AIProvider, account: QuotaAccountID? = nil) -> Bool {
