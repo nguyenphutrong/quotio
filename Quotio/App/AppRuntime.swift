@@ -1,9 +1,10 @@
 import Foundation
+import QuotioPresentation
 
 @MainActor
 protocol AppRuntimeServices: AnyObject, Sendable {
     var viewModel: QuotaViewModel { get }
-    var logsViewModel: LogsViewModel { get }
+    var logsScreenModel: LogsScreenModel { get }
     var menuBarSettings: MenuBarSettingsManager { get }
     var statusBarManager: StatusBarManager { get }
     var modeManager: OperatingModeManager { get }
@@ -46,7 +47,7 @@ final class AppRuntime {
     private(set) var hasShutDown = false
 
     var viewModel: QuotaViewModel { services.viewModel }
-    var logsViewModel: LogsViewModel { services.logsViewModel }
+    var logsScreenModel: LogsScreenModel { services.logsScreenModel }
     var menuBarSettings: MenuBarSettingsManager { services.menuBarSettings }
     var statusBarManager: StatusBarManager { services.statusBarManager }
     var modeManager: OperatingModeManager { services.modeManager }

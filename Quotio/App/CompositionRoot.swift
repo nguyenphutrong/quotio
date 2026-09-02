@@ -1,4 +1,7 @@
 import Foundation
+import QuotioApplication
+import QuotioInfrastructure
+import QuotioPresentation
 
 enum AppEnvironment {
     static var isRunningUnitTests: Bool {
@@ -14,9 +17,27 @@ enum CompositionRoot {
         }
 
         let viewModel = QuotaViewModel()
+        let logRepository = QuotioInfrastructure.ManagementAPIClient(
+            connectionProvider: { [proxyManager = viewModel.proxyManager] in
+                await MainActor.run {
+                    QuotioInfrastructure.ManagementAPIClient.Connection(
+                        baseURL: proxyManager.managementURL,
+                        authKey: proxyManager.managementKey
+                    )
+                }
+            }
+        )
+        let logsScreenModel = LogsScreenModel(
+            loadLogs: LoadProxyLogsUseCase(
+                repository: logRepository,
+                timeProvider: SystemDateProvider()
+            ),
+            clearLogs: ClearProxyLogsUseCase(repository: logRepository),
+            sleeper: ContinuousSleeper()
+        )
         let services = LegacyAppRuntimeServices(
             viewModel: viewModel,
-            logsViewModel: LogsViewModel(),
+            logsScreenModel: logsScreenModel,
             modeManager: .shared,
             appearanceManager: .shared,
             statusBarManager: .shared,
@@ -34,7 +55,7 @@ enum CompositionRoot {
 @MainActor
 private final class LegacyAppRuntimeServices: AppRuntimeServices {
     let viewModel: QuotaViewModel
-    let logsViewModel: LogsViewModel
+    let logsScreenModel: LogsScreenModel
     let modeManager: OperatingModeManager
     let appearanceManager: AppearanceManager
     let statusBarManager: StatusBarManager
@@ -52,7 +73,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
 
     init(
         viewModel: QuotaViewModel,
-        logsViewModel: LogsViewModel,
+        logsScreenModel: LogsScreenModel,
         modeManager: OperatingModeManager,
         appearanceManager: AppearanceManager,
         statusBarManager: StatusBarManager,
@@ -64,7 +85,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         tunnelManager: TunnelManager
     ) {
         self.viewModel = viewModel
-        self.logsViewModel = logsViewModel
+        self.logsScreenModel = logsScreenModel
         self.modeManager = modeManager
         self.appearanceManager = appearanceManager
         self.statusBarManager = statusBarManager

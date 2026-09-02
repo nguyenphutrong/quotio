@@ -1,6 +1,9 @@
+import QuotioPresentation
 import SwiftUI
 
 struct RootNavigationView: View {
+    let logsScreenModel: LogsScreenModel
+
     @Environment(QuotaViewModel.self) private var viewModel
     @Environment(OperatingModeManager.self) private var modeManager
     @AppStorage("loggingToFile") private var loggingToFile = true
@@ -111,7 +114,16 @@ struct RootNavigationView: View {
             case .apiKeys:
                 APIKeysScreen()
             case .logs:
-                LogsScreen()
+                if viewModel.proxyManager.proxyStatus.running {
+                    QuotioPresentation.LogsScreen(model: logsScreenModel)
+                } else {
+                    ProxyRequiredView(
+                        description: "logs.startProxy".localized()
+                    ) {
+                        await viewModel.startProxy()
+                    }
+                    .navigationTitle("nav.logs".localized())
+                }
             case .settings:
                 SettingsScreen()
             case .about:

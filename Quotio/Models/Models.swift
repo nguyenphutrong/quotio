@@ -592,28 +592,6 @@ nonisolated struct RemoteManagementConfig: Codable {
     }
 }
 
-// MARK: - Log Entry
-
-nonisolated struct LogEntry: Identifiable {
-    let id = UUID()
-    let timestamp: Date
-    let level: LogLevel
-    let message: String
-    
-    enum LogLevel: String {
-        case info, warn, error, debug
-        
-        var color: Color {
-            switch self {
-            case .info: return .primary
-            case .warn: return .orange
-            case .error: return .red
-            case .debug: return .gray
-            }
-        }
-    }
-}
-
 // MARK: - Navigation
 
 nonisolated enum NavigationPage: String, CaseIterable, Identifiable {

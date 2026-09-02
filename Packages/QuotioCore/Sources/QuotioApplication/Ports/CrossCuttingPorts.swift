@@ -15,6 +15,10 @@ public protocol Sleeping: Sendable {
     func sleep(for duration: Duration) async throws
 }
 
+public protocol DateProviding: Sendable {
+    func now() -> Date
+}
+
 @MainActor
 public protocol URLOpening: Sendable {
     @discardableResult

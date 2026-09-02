@@ -231,19 +231,6 @@ actor ManagementAPIClient {
         return try JSONDecoder().decode(OAuthStatusResponse.self, from: data)
     }
     
-    func fetchLogs(after: Int? = nil) async throws -> LogsResponse {
-        var endpoint = "/logs"
-        if let after = after {
-            endpoint += "?after=\(after)"
-        }
-        let data = try await makeRequest(endpoint)
-        return try JSONDecoder().decode(LogsResponse.self, from: data)
-    }
-    
-    func clearLogs() async throws {
-        _ = try await makeRequest("/logs", method: "DELETE")
-    }
-    
     func setDebug(_ enabled: Bool) async throws {
         let body = try JSONEncoder().encode(["value": enabled])
         _ = try await makeRequest("/debug", method: "PUT", body: body)
@@ -487,18 +474,6 @@ private final class SessionDelegate: NSObject, URLSessionDelegate, URLSessionTas
 }
 
 // MARK: - Response Types
-
-nonisolated struct LogsResponse: Codable, Sendable {
-    let lines: [String]?
-    let lineCount: Int?
-    let latestTimestamp: Int?
-    
-    enum CodingKeys: String, CodingKey {
-        case lines
-        case lineCount = "line-count"
-        case latestTimestamp = "latest-timestamp"
-    }
-}
 
 nonisolated struct AuthFileModelsResponse: Codable, Sendable {
     let models: [AuthFileModelInfo]

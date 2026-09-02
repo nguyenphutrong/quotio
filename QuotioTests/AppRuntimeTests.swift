@@ -1,4 +1,7 @@
 import Foundation
+import QuotioApplication
+import QuotioInfrastructure
+import QuotioPresentation
 import XCTest
 @testable import Quotio
 
@@ -88,7 +91,7 @@ final class AppRuntimeTests: XCTestCase {
 @MainActor
 private final class FakeAppRuntimeServices: AppRuntimeServices {
     let viewModel = QuotaViewModel()
-    let logsViewModel = LogsViewModel()
+    let logsScreenModel: LogsScreenModel
     let menuBarSettings = MenuBarSettingsManager.shared
     let statusBarManager = StatusBarManager.shared
     let modeManager = OperatingModeManager.shared
@@ -117,6 +120,18 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
 
     private let proxyTerminations = LockedCounter()
     private let orphanCleanups = LockedCounter()
+
+    init() {
+        let logRepository = AppRuntimeTestProxyLogRepository()
+        logsScreenModel = LogsScreenModel(
+            loadLogs: LoadProxyLogsUseCase(
+                repository: logRepository,
+                timeProvider: SystemDateProvider()
+            ),
+            clearLogs: ClearProxyLogsUseCase(repository: logRepository),
+            sleeper: ContinuousSleeper()
+        )
+    }
 
     nonisolated var proxyTerminationCount: Int { proxyTerminations.value }
     nonisolated var orphanCleanupCount: Int { orphanCleanups.value }
@@ -182,6 +197,14 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
     nonisolated func cleanupTunnelOrphans() {
         orphanCleanups.increment()
     }
+}
+
+private actor AppRuntimeTestProxyLogRepository: ProxyLogRepository {
+    func fetchLogs(after timestamp: Int?) -> ProxyLogPage {
+        ProxyLogPage(lines: [], latestTimestamp: nil)
+    }
+
+    func clearLogs() {}
 }
 
 private final class LockedCounter: @unchecked Sendable {

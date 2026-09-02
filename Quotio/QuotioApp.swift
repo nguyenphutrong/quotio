@@ -27,10 +27,9 @@ struct QuotioApp: App {
             if AppEnvironment.isRunningUnitTests {
                 EmptyView()
             } else {
-                RootNavigationView()
+                RootNavigationView(logsScreenModel: runtime.logsScreenModel)
                     .id(languageManager.currentLanguage)
                     .environment(viewModel)
-                    .environment(runtime.logsViewModel)
                     .environment(modeManager)
                     .environment(\.locale, languageManager.locale)
                     .task {
