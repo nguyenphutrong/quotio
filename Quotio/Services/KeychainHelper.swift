@@ -188,7 +188,7 @@ enum KeychainHelper {
         let query = externalCredentialQuery(service: service, account: account)
 
         var result: AnyObject?
-        let status = performSecurityCall {
+        let status = performNonInteractiveSecurityCall {
             SecItemCopyMatching(query as CFDictionary, &result)
         }
         if status == errSecSuccess,
@@ -235,7 +235,7 @@ enum KeychainHelper {
             return false
         }
         let query = externalCredentialUpdateQuery(service: service, account: account)
-        let status = performSecurityCall {
+        let status = performNonInteractiveSecurityCall {
             SecItemUpdate(
                 query as CFDictionary,
                 [kSecValueData as String: newData] as CFDictionary
@@ -422,5 +422,32 @@ enum KeychainHelper {
         securityLock.lock()
         defer { securityLock.unlock() }
         return operation()
+    }
+
+    /// Run a keychain call against a credential owned by another app without letting
+    /// securityd show a password dialog.
+    ///
+    /// `LAContext.interactionNotAllowed` only governs the data-protection keychain. Items
+    /// written by other tools (Claude Code, Codex CLI) live in the legacy login keychain,
+    /// where access is enforced by securityd's ACL and partition-list checks. Those checks
+    /// ignore the `LAContext` flag and raise the "wants to access key ... in your keychain"
+    /// prompt whenever this app is not on the item's allow list. The allow list is reset
+    /// every time the owning tool rewrites the item (token refresh, account switch), so
+    /// "Always Allow" cannot stick and the prompt returns on the next background refresh.
+    ///
+    /// The only supported way to make that path fail silently is the process-wide
+    /// `SecKeychainSetUserInteractionAllowed(false)`, which turns the prompt into
+    /// `errSecAuthFailed` / `errSecInteractionNotAllowed`. The flag is global, so it is only
+    /// flipped while `securityLock` is held and is restored before the lock is released.
+    nonisolated private static func performNonInteractiveSecurityCall(
+        _ operation: () -> OSStatus
+    ) -> OSStatus {
+        performSecurityCall {
+            var previous: DarwinBoolean = true
+            SecKeychainGetUserInteractionAllowed(&previous)
+            SecKeychainSetUserInteractionAllowed(false)
+            defer { SecKeychainSetUserInteractionAllowed(previous.boolValue) }
+            return operation()
+        }
     }
 }

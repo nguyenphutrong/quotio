@@ -186,6 +186,27 @@ final class MonitorRuntimeTests: XCTestCase {
         )
     }
 
+    /// External reads must never reach securityd with user interaction enabled: the legacy
+    /// login keychain ignores `LAContext.interactionNotAllowed` and would otherwise show the
+    /// "wants to access key" password dialog. The flag is process-global, so it must also be
+    /// restored once the call returns or every later keychain operation would fail silently.
+    func testExternalCredentialReadRestoresProcessInteractionFlag() {
+        var before: DarwinBoolean = false
+        XCTAssertEqual(SecKeychainGetUserInteractionAllowed(&before), errSecSuccess)
+
+        XCTAssertNil(KeychainHelper.readExternalCredential(service: "fixture.external.missing.\(UUID().uuidString)"))
+        XCTAssertFalse(KeychainHelper.compareAndSwapExternalCredential(
+            service: "fixture.external.missing.\(UUID().uuidString)",
+            account: "fixture-account",
+            expectedData: Data(),
+            newData: Data("unused".utf8)
+        ))
+
+        var after: DarwinBoolean = false
+        XCTAssertEqual(SecKeychainGetUserInteractionAllowed(&after), errSecSuccess)
+        XCTAssertEqual(after.boolValue, before.boolValue)
+    }
+
     func testMonitorProvidersDoNotRequireInstalledCLI() {
         let providers: Set<AIProvider> = [.codex, .claude, .factoryDroid, .devin, .grok, .openRouter, .amp]
 
