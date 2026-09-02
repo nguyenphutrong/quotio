@@ -11,6 +11,28 @@ final class MonitorRuntimeTests: XCTestCase {
         XCTAssertEqual(KeychainHelper.monitorCredentialBackend(vaultEnabled: false), .keychain)
     }
 
+    func testMonitorCredentialCASDoesNotOverwriteNewerCredential() throws {
+        try XCTSkipIf(
+            YubiKeySecretVault.isEnabled,
+            "Requires the Keychain backend; disable the YubiKey vault in Settings to run."
+        )
+        let account = "cas-test-\(UUID().uuidString)"
+        let original = Data("original".utf8)
+        let newer = Data("newer".utf8)
+        defer { KeychainHelper.deleteMonitorCredential(account: account) }
+
+        XCTAssertTrue(KeychainHelper.saveMonitorCredential(original, account: account))
+        let originalFingerprint = MonitorIdentity.fingerprint(original.base64EncodedString())
+        XCTAssertTrue(KeychainHelper.saveMonitorCredential(newer, account: account))
+
+        XCTAssertFalse(KeychainHelper.compareAndSwapMonitorCredential(
+            Data("stale replacement".utf8),
+            account: account,
+            expectedFingerprint: originalFingerprint
+        ))
+        XCTAssertEqual(KeychainHelper.getMonitorCredential(account: account), newer)
+    }
+
     func testVaultMigrationOnlyFallsBackWhenEnvelopeIsAbsent() {
         XCTAssertTrue(YubiKeySecretVault.shouldMigrateLegacy(.absent))
         XCTAssertFalse(YubiKeySecretVault.shouldMigrateLegacy(.unreadable))
