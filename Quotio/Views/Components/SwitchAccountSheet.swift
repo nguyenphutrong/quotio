@@ -11,7 +11,7 @@ import SwiftUI
 /// Sheet for confirming and executing Antigravity account switch
 struct SwitchAccountSheet: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var settings = MenuBarSettingsManager.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
     
     let accountEmail: String
     let onDismiss: () -> Void

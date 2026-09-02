@@ -7,30 +7,10 @@
 
 import AppKit
 import Foundation
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 import Sparkle
-
-// MARK: - Update Channel
-
-enum UpdateChannel: String, CaseIterable, Identifiable, Sendable {
-    case stable
-    case beta
-    
-    var id: String { rawValue }
-    
-    var displayName: String {
-        switch self {
-        case .stable: return "settings.updateChannel.stable".localizedStatic()
-        case .beta: return "settings.updateChannel.beta".localizedStatic()
-        }
-    }
-    
-    var icon: String {
-        switch self {
-        case .stable: return "checkmark.shield"
-        case .beta: return "flask.fill"
-        }
-    }
-}
 
 // MARK: - UpdaterService
 
@@ -43,6 +23,7 @@ final class UpdaterService: NSObject {
     
     private var updaterController: SPUStandardUpdaterController?
     private var updater: SPUUpdater? { updaterController?.updater }
+    @ObservationIgnored private let preferencesRepository: any UpdatePreferencesRepository
     
     private(set) var isInitialized = false
     
@@ -70,12 +51,8 @@ final class UpdaterService: NSObject {
     private(set) var currentAppIcon: NSImage?
     
     var updateChannel: UpdateChannel {
-        get {
-            let rawValue = UserDefaults.standard.string(forKey: "updateChannel") ?? "stable"
-            return UpdateChannel(rawValue: rawValue) ?? .stable
-        }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: "updateChannel")
+        didSet {
+            preferencesRepository.save(UpdatePreferences(channel: updateChannel))
             updater?.resetUpdateCycle()
             updateAppIcon()
         }
@@ -83,11 +60,15 @@ final class UpdaterService: NSObject {
     
     // MARK: - Singleton
     
-    static let shared = UpdaterService()
+    static let shared = UpdaterService(
+        preferencesRepository: UserDefaultsUpdatePreferencesRepository()
+    )
     
     // MARK: - Initialization
     
-    override init() {
+    init(preferencesRepository: any UpdatePreferencesRepository) {
+        self.preferencesRepository = preferencesRepository
+        self.updateChannel = preferencesRepository.load().channel
         super.init()
         updateAppIcon()
     }
@@ -161,8 +142,8 @@ extension UpdaterService: SPUUpdaterDelegate {
     }
     
     nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
-        let channel = UserDefaults.standard.string(forKey: "updateChannel") ?? "stable"
-        return channel == "beta" ? Set(["beta"]) : Set()
+        let channel = preferencesRepository.load().channel
+        return channel == .beta ? Set(["beta"]) : Set()
     }
     
     nonisolated func updaterDidFinishUpdateCycleForUpdateCheck(_ updater: SPUUpdater) throws {

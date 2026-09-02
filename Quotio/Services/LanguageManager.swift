@@ -5,51 +5,10 @@
 //  Modern SwiftUI localization using String Catalogs (.xcstrings)
 //
 
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 import SwiftUI
-
-// MARK: - Supported Languages
-
-enum AppLanguage: String, CaseIterable, Identifiable, Codable {
-    case english = "en"
-    case vietnamese = "vi"
-    case chinese = "zh-Hans"
-    case french = "fr"
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .english: return "English"
-        case .vietnamese: return "Tiếng Việt"
-        case .chinese: return "简体中文"
-        case .french: return "Français"
-        }
-    }
-
-    var flag: String {
-        switch self {
-        case .english: return "🇺🇸"
-        case .vietnamese: return "🇻🇳"
-        case .chinese: return "🇨🇳"
-        case .french: return "🇫🇷"
-        }
-    }
-
-    var locale: Locale {
-        Locale(identifier: rawValue)
-    }
-
-    var bundle: Bundle {
-        if let path = Bundle.main.path(forResource: rawValue, ofType: "lproj"),
-           let bundle = Bundle(path: path) {
-            return bundle
-        }
-        #if DEBUG
-        Log.debug("LanguageManager: Bundle not found for \\(rawValue), falling back to main bundle")
-        #endif
-        return .main
-    }
-}
 
 // MARK: - Language Manager
 
@@ -57,30 +16,25 @@ enum AppLanguage: String, CaseIterable, Identifiable, Codable {
 @Observable
 final class LanguageManager {
 
-    static let shared = LanguageManager()
+    static let shared = LanguageManager(
+        repository: UserDefaultsLanguagePreferencesRepository()
+    )
+
+    @ObservationIgnored private let repository: any LanguagePreferencesRepository
 
     private(set) var currentLanguage: AppLanguage {
         didSet {
             guard oldValue != currentLanguage else { return }
-            UserDefaults.standard.set(currentLanguage.rawValue, forKey: "appLanguage")
+            repository.save(LanguagePreferences(language: currentLanguage))
         }
     }
 
     var locale: Locale { currentLanguage.locale }
     var bundle: Bundle { currentLanguage.bundle }
 
-    private init() {
-        let saved = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
-        
-        // Migration: "zh" was used before String Catalogs migration, now use "zh-Hans"
-        let migrated = (saved == "zh") ? "zh-Hans" : saved
-        
-        self.currentLanguage = AppLanguage(rawValue: migrated) ?? .english
-        
-        // Persist migrated value if it changed
-        if saved == "zh" {
-            UserDefaults.standard.set("zh-Hans", forKey: "appLanguage")
-        }
+    init(repository: any LanguagePreferencesRepository) {
+        self.repository = repository
+        self.currentLanguage = repository.load().language
     }
 
     func setLanguage(_ language: AppLanguage) {

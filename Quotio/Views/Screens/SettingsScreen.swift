@@ -3,16 +3,18 @@
 //  Quotio
 //
 
-import SwiftUI
 import AppKit
+import QuotioDomain
+import QuotioPresentation
+import SwiftUI
 
 struct SettingsScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var modeManager = OperatingModeManager.shared
-    private let launchManager = LaunchAtLoginManager.shared
+    @Environment(OperatingModeManager.self) private var modeManager
+    @Environment(LanguageManager.self) private var languageManager
     
     var body: some View {
-        @Bindable var lang = LanguageManager.shared
+        @Bindable var lang = languageManager
 
         Form {
             // Operating Mode
@@ -48,11 +50,11 @@ struct SettingsScreen: View {
             // Troubleshooting
             Section {
                 Button("troubleshooting.applyWorkaround".localized()) {
-                    CLIProxyManager.shared.applyBaseURLWorkaround()
+                    viewModel.proxyManager.applyBaseURLWorkaround()
                 }
 
                 Button("troubleshooting.restoreOriginal".localized()) {
-                    CLIProxyManager.shared.removeBaseURLWorkaround()
+                    viewModel.proxyManager.removeBaseURLWorkaround()
                 }
             } header: {
                 Label("troubleshooting.title".localized(), systemImage: "hammer.fill")
@@ -107,7 +109,7 @@ struct SettingsScreen: View {
 
 struct OperatingModeSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var modeManager = OperatingModeManager.shared
+    @Environment(OperatingModeManager.self) private var modeManager
     @State private var showModeChangeConfirmation = false
     @State private var pendingMode: OperatingMode?
     
@@ -186,6 +188,7 @@ struct OperatingModeSection: View {
 
 struct ProxySettingsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(SettingsScreenModel.self) private var settingsModel
     
     @State private var isLoading = true
     @State private var loadError: String?
@@ -424,16 +427,16 @@ struct ProxySettingsSection: View {
         }
     }
     
-    /// Persists the upstream proxy URL to both UserDefaults and the running proxy instance.
+    /// Persists the upstream proxy URL to both app preferences and the running proxy instance.
     ///
-    /// The URL is first saved to UserDefaults so it survives app restarts (used by
+    /// The URL is first saved to app preferences so it survives app restarts (used by
     /// `CLIProxyManager.syncProxyURLInConfig()` during proxy startup), then sent to the
     /// proxy API to take effect immediately. Only valid or empty URLs are saved.
     private func saveProxyURL() async {
         if proxyURL.isEmpty {
-            UserDefaults.standard.set("", forKey: "proxyURL")
+            settingsModel.setProxyURL("")
         } else if proxyURLValidation == .valid {
-            UserDefaults.standard.set(ProxyURLValidator.sanitize(proxyURL), forKey: "proxyURL")
+            settingsModel.setProxyURL(ProxyURLValidator.sanitize(proxyURL))
         }
 
         guard let apiClient = viewModel.apiClient else { return }
@@ -494,6 +497,7 @@ struct ProxySettingsSection: View {
     }
     
     private func saveLoggingToFile(_ enabled: Bool) async {
+        settingsModel.setLoggingToFile(enabled)
         guard let apiClient = viewModel.apiClient else { return }
         do {
             try await apiClient.setLoggingToFile(enabled)
@@ -525,12 +529,37 @@ struct ProxySettingsSection: View {
 
 struct LocalProxyServerSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @AppStorage("autoStartProxy") private var autoStartProxy = false
-    @AppStorage("autoStartTunnel") private var autoStartTunnel = false
-    @AppStorage("autoRestartTunnel") private var autoRestartTunnel = false
-    @AppStorage("allowNetworkAccess") private var allowNetworkAccess = false
+    @Environment(SettingsScreenModel.self) private var settingsModel
     @State private var portText: String = ""
     @State private var isLoadingConfig = false  // Prevents onChange from firing during initial load
+
+    private var autoStartProxyBinding: Binding<Bool> {
+        Binding(
+            get: { settingsModel.proxyPreferences.autoStartProxy },
+            set: { settingsModel.setAutoStartProxy($0) }
+        )
+    }
+
+    private var autoStartTunnelBinding: Binding<Bool> {
+        Binding(
+            get: { settingsModel.tunnelPreferences.autoStartTunnel },
+            set: { settingsModel.setAutoStartTunnel($0) }
+        )
+    }
+
+    private var autoRestartTunnelBinding: Binding<Bool> {
+        Binding(
+            get: { settingsModel.tunnelPreferences.autoRestartTunnel },
+            set: { settingsModel.setAutoRestartTunnel($0) }
+        )
+    }
+
+    private var allowNetworkAccessBinding: Binding<Bool> {
+        Binding(
+            get: { settingsModel.proxyPreferences.allowNetworkAccess },
+            set: { settingsModel.setAllowNetworkAccess($0) }
+        )
+    }
     
     var body: some View {
         Section {
@@ -565,19 +594,15 @@ struct LocalProxyServerSection: View {
             
             ManagementKeyRow()
             
-            Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
+            Toggle("settings.autoStartProxy".localized(), isOn: autoStartProxyBinding)
             
-            Toggle("settings.autoStartTunnel".localized(), isOn: $autoStartTunnel)
+            Toggle("settings.autoStartTunnel".localized(), isOn: autoStartTunnelBinding)
                 .disabled(!viewModel.tunnelManager.installation.isInstalled)
             
-            Toggle("settings.autoRestartTunnel".localized(), isOn: $autoRestartTunnel)
+            Toggle("settings.autoRestartTunnel".localized(), isOn: autoRestartTunnelBinding)
                 .disabled(!viewModel.tunnelManager.installation.isInstalled)
                 
-            NetworkAccessSection(allowNetworkAccess: $allowNetworkAccess)
-                .onChange(of: allowNetworkAccess) { _, newValue in
-                    guard !isLoadingConfig else { return }
-                    viewModel.proxyManager.allowNetworkAccess = newValue
-                }
+            NetworkAccessSection(allowNetworkAccess: allowNetworkAccessBinding)
                 
 
         } header: {
@@ -680,7 +705,7 @@ struct PathLabel: View {
 }
 
 struct NotificationSettingsSection: View {
-    private let notificationManager = NotificationManager.shared
+    @Environment(NotificationManager.self) private var notificationManager
     
     var body: some View {
         @Bindable var manager = notificationManager
@@ -750,7 +775,7 @@ struct NotificationSettingsSection: View {
 // MARK: - Quota Display Settings Section
 
 struct QuotaDisplaySettingsSection: View {
-    @State private var settings = MenuBarSettingsManager.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
     
     private var displayModeBinding: Binding<QuotaDisplayMode> {
         Binding(
@@ -793,7 +818,7 @@ struct QuotaDisplaySettingsSection: View {
 
 struct RefreshCadenceSettingsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var refreshSettings = RefreshSettingsManager.shared
+    @Environment(RefreshSettingsManager.self) private var refreshSettings
     
     private var cadenceBinding: Binding<RefreshCadence> {
         Binding(
@@ -831,19 +856,23 @@ struct RefreshCadenceSettingsSection: View {
 // MARK: - Update Settings Section
 
 struct UpdateSettingsSection: View {
-    @AppStorage("autoCheckUpdates") private var autoCheckUpdates = true
+    @Environment(SettingsScreenModel.self) private var settingsModel
     
     #if canImport(Sparkle)
-    private let updaterService = UpdaterService.shared
+    @Environment(UpdaterService.self) private var updaterService
     #endif
+
+    private var autoCheckUpdatesBinding: Binding<Bool> {
+        Binding(
+            get: { settingsModel.appShellPreferences.autoCheckUpdates },
+            set: { settingsModel.setAutomaticUpdateChecks($0) }
+        )
+    }
     
     var body: some View {
         Section {
             #if canImport(Sparkle)
-            Toggle("settings.autoCheckUpdates".localized(), isOn: $autoCheckUpdates)
-                .onChange(of: autoCheckUpdates) { _, newValue in
-                    updaterService.automaticallyChecksForUpdates = newValue
-                }
+            Toggle("settings.autoCheckUpdates".localized(), isOn: autoCheckUpdatesBinding)
             
             HStack {
                 Text("settings.lastChecked".localized())
@@ -874,6 +903,7 @@ struct UpdateSettingsSection: View {
 
 struct ProxyUpdateSettingsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(AtomFeedUpdateService.self) private var atomFeedService
     @State private var isCheckingForUpdate = false
     @State private var isUpgrading = false
     @State private var upgradeError: String?
@@ -883,10 +913,6 @@ struct ProxyUpdateSettingsSection: View {
         viewModel.proxyManager
     }
 
-    private var atomFeedService: AtomFeedUpdateService {
-        AtomFeedUpdateService.shared
-    }
-    
     var body: some View {
         Section {
             // Current version
@@ -1457,8 +1483,8 @@ private struct AvailableVersionRow: View {
 
 struct MenuBarSettingsSection: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    private let settings = MenuBarSettingsManager.shared
-    @AppStorage("showInDock") private var showInDock = true
+    @Environment(MenuBarSettingsManager.self) private var settings
+    @Environment(SettingsScreenModel.self) private var settingsModel
     @State private var showTruncationAlert = false
     @State private var pendingMaxItems: Int?
     
@@ -1467,10 +1493,9 @@ struct MenuBarSettingsSection: View {
             get: { settings.showMenuBarIcon },
             set: { newValue in
                 // Prevent disabling both dock and menu bar icon (user would have no way to access app)
-                if !newValue && !showInDock {
+                if !newValue && !settingsModel.appShellPreferences.showInDock {
                     // Re-enable dock if user tries to disable menu bar icon while dock is already disabled
-                    showInDock = true
-                    // activation policy will be set by showInDockBinding automatically
+                    settingsModel.setShowInDock(true)
                 }
                 settings.showMenuBarIcon = newValue
             }
@@ -1479,7 +1504,7 @@ struct MenuBarSettingsSection: View {
 
     private var showInDockBinding: Binding<Bool> {
         Binding(
-            get: { showInDock },
+            get: { settingsModel.appShellPreferences.showInDock },
             set: { newValue in
                 // Prevent disabling both dock and menu bar icon (user would have no way to access app)
                 if !newValue && !settings.showMenuBarIcon {
@@ -1487,13 +1512,7 @@ struct MenuBarSettingsSection: View {
                     settings.showMenuBarIcon = true
                 }
 
-                // Update the value
-                showInDock = newValue
-
-                // This is the ONLY place where activation policy is changed based on user settings
-                // - true: dock icon always visible, even when window is closed
-                // - false: dock icon never visible
-                NSApp.setActivationPolicy(newValue ? .regular : .accessory)
+                settingsModel.setShowInDock(newValue)
             }
         )
     }
@@ -1609,7 +1628,7 @@ struct MenuBarSettingsSection: View {
 // MARK: - Appearance Settings Section
 
 struct AppearanceSettingsSection: View {
-    @State private var appearanceManager = AppearanceManager.shared
+    @Environment(AppearanceManager.self) private var appearanceManager
     
     private var appearanceModeBinding: Binding<AppearanceMode> {
         Binding(
@@ -1638,8 +1657,8 @@ struct AppearanceSettingsSection: View {
 // MARK: - Privacy Settings Section
 
 struct PrivacySettingsSection: View {
-    @State private var settings = MenuBarSettingsManager.shared
-    @State private var telemetrySettings = TelemetrySettings.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
+    @Environment(TelemetrySettings.self) private var telemetrySettings
     
     private var hideSensitiveBinding: Binding<Bool> {
         Binding(
@@ -1894,16 +1913,24 @@ struct YubiKeySettingsSection: View {
 }
 
 struct GeneralSettingsTab: View {
-    @AppStorage("autoStartProxy") private var autoStartProxy = false
+    @Environment(SettingsScreenModel.self) private var settingsModel
+    @Environment(LanguageManager.self) private var languageManager
+
+    private var autoStartProxyBinding: Binding<Bool> {
+        Binding(
+            get: { settingsModel.proxyPreferences.autoStartProxy },
+            set: { settingsModel.setAutoStartProxy($0) }
+        )
+    }
     
     var body: some View {
-        @Bindable var lang = LanguageManager.shared
+        @Bindable var lang = languageManager
         
         Form {
             Section {
                 LaunchAtLoginToggle()
                 
-                Toggle("settings.autoStartProxy".localized(), isOn: $autoStartProxy)
+                Toggle("settings.autoStartProxy".localized(), isOn: autoStartProxyBinding)
             } header: {
                 Label("settings.startup".localized(), systemImage: "power")
             }
@@ -1960,9 +1987,10 @@ struct AboutTab: View {
 // MARK: - About Screen (New Full-Page Version)
 
 struct AboutScreen: View {
+    @Environment(OperatingModeManager.self) private var modeManager
+    @Environment(UpdaterService.self) private var updaterService
     @State private var showCopiedToast = false
     @State private var isHoveringVersion = false
-    @State private var updaterService = UpdaterService.shared
     
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -2036,7 +2064,7 @@ struct AboutScreen: View {
                     .blur(radius: 40)
                 
                 // App Icon - uses observable currentAppIcon from UpdaterService
-                if let appIcon = UpdaterService.shared.currentAppIcon {
+                if let appIcon = updaterService.currentAppIcon {
                     Image(nsImage: appIcon)
                         .resizable()
                         .frame(width: 96, height: 96)
@@ -2093,7 +2121,7 @@ struct AboutScreen: View {
         VStack(spacing: 12) {
             AboutUpdateCard()
             
-            if OperatingModeManager.shared.isLocalProxyMode {
+            if modeManager.isLocalProxyMode {
                 AboutProxyUpdateCard()
             }
         }
@@ -2227,12 +2255,19 @@ struct VersionBadge: View {
 // MARK: - About Update Card
 
 struct AboutUpdateCard: View {
-    @AppStorage("autoCheckUpdates") private var autoCheckUpdates = true
+    @Environment(SettingsScreenModel.self) private var settingsModel
     @State private var isHovered = false
     
     #if canImport(Sparkle)
-    private let updaterService = UpdaterService.shared
+    @Environment(UpdaterService.self) private var updaterService
     #endif
+
+    private var autoCheckUpdatesBinding: Binding<Bool> {
+        Binding(
+            get: { settingsModel.appShellPreferences.autoCheckUpdates },
+            set: { settingsModel.setAutomaticUpdateChecks($0) }
+        )
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -2247,12 +2282,9 @@ struct AboutUpdateCard: View {
                 Text("settings.autoCheckUpdates".localized())
                     .font(.subheadline)
                 Spacer()
-                Toggle("", isOn: $autoCheckUpdates)
+                Toggle("", isOn: autoCheckUpdatesBinding)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .onChange(of: autoCheckUpdates) { _, newValue in
-                        updaterService.automaticallyChecksForUpdates = newValue
-                    }
             }
             
             HStack {
@@ -2322,6 +2354,7 @@ struct AboutUpdateCard: View {
 
 struct AboutProxyUpdateCard: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(AtomFeedUpdateService.self) private var atomFeedService
     @State private var isHovered = false
     @State private var showAdvancedSheet = false
     @State private var isCheckingForUpdate = false
@@ -2330,10 +2363,6 @@ struct AboutProxyUpdateCard: View {
 
     private var proxyManager: CLIProxyManager {
         viewModel.proxyManager
-    }
-
-    private var atomFeedService: AtomFeedUpdateService {
-        AtomFeedUpdateService.shared
     }
 
     private var currentVersionText: String {
@@ -2618,7 +2647,7 @@ struct LinkCard: View {
 
 struct ManagementKeyRow: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var settings = MenuBarSettingsManager.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
     @State private var regenerateError: String?
     @State private var showRegenerateConfirmation = false
     @State private var showCopyConfirmation = false
@@ -2711,7 +2740,7 @@ struct ManagementKeyRow: View {
 /// Reusable toggle component for Launch at Login functionality
 /// Uses LaunchAtLoginManager for proper SMAppService handling
 struct LaunchAtLoginToggle: View {
-    private let launchManager = LaunchAtLoginManager.shared
+    @Environment(LaunchAtLoginManager.self) private var launchManager
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showLocationWarning = false
@@ -2769,7 +2798,7 @@ struct LaunchAtLoginToggle: View {
 // MARK: - Usage Display Settings Section
 
 struct UsageDisplaySettingsSection: View {
-    @State private var settings = MenuBarSettingsManager.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
     
     private var totalUsageModeBinding: Binding<TotalUsageMode> {
         Binding(

@@ -1,5 +1,6 @@
 import Foundation
 import QuotioApplication
+import QuotioDomain
 import QuotioInfrastructure
 import QuotioPresentation
 import XCTest
@@ -97,6 +98,19 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
     let modeManager = OperatingModeManager.shared
     let appearanceManager = AppearanceManager.shared
     let languageManager = LanguageManager.shared
+    let settingsScreenModel = SettingsScreenModel(
+        proxyRepository: AppRuntimeTestPreferencesRepository(),
+        tunnelRepository: AppRuntimeTestPreferencesRepository(),
+        appShellRepository: AppRuntimeTestPreferencesRepository()
+    )
+    let refreshSettings = RefreshSettingsManager.shared
+    let warmupSettings = WarmupSettingsManager.shared
+    let ideScanSettings = IDEScanSettingsManager.shared
+    let launchAtLoginManager = LaunchAtLoginManager.shared
+    let updaterService = UpdaterService.shared
+    let notificationManager = NotificationManager.shared
+    let telemetrySettings = TelemetrySettings.shared
+    let updatePollingService = AtomFeedUpdateService.shared
 
     var hasCompletedOnboarding = true
     var showInDock = true
@@ -205,6 +219,65 @@ private actor AppRuntimeTestProxyLogRepository: ProxyLogRepository {
     }
 
     func clearLogs() {}
+}
+
+private final class AppRuntimeTestPreferencesRepository:
+    ProxyPreferencesRepository,
+    TunnelPreferencesRepository,
+    AppShellPreferencesRepository,
+    @unchecked Sendable
+{
+    private var proxyPreferences = ProxyPreferences()
+    private var tunnelPreferences = TunnelPreferences()
+    private var appShellPreferences = AppShellPreferences()
+
+    func load() -> ProxyPreferences {
+        proxyPreferences
+    }
+
+    func load() -> TunnelPreferences {
+        tunnelPreferences
+    }
+
+    func load() -> AppShellPreferences {
+        appShellPreferences
+    }
+
+    func setAutoStartProxy(_ enabled: Bool) {
+        proxyPreferences.autoStartProxy = enabled
+    }
+
+    func setAllowNetworkAccess(_ enabled: Bool) {
+        proxyPreferences.allowNetworkAccess = enabled
+    }
+
+    func setLoggingToFile(_ enabled: Bool) {
+        proxyPreferences.loggingToFile = enabled
+    }
+
+    func setProxyURL(_ proxyURL: String?) {
+        proxyPreferences.proxyURL = proxyURL
+    }
+
+    func setAutoStartTunnel(_ enabled: Bool) {
+        tunnelPreferences.autoStartTunnel = enabled
+    }
+
+    func setAutoRestartTunnel(_ enabled: Bool) {
+        tunnelPreferences.autoRestartTunnel = enabled
+    }
+
+    func setAutomaticUpdateChecks(_ enabled: Bool) {
+        appShellPreferences.autoCheckUpdates = enabled
+    }
+
+    func setShowInDock(_ enabled: Bool) {
+        appShellPreferences.showInDock = enabled
+    }
+
+    func setHideGettingStarted(_ hidden: Bool) {
+        appShellPreferences.hideGettingStarted = hidden
+    }
 }
 
 private final class LockedCounter: @unchecked Sendable {

@@ -5,6 +5,7 @@
 //  Multi-step onboarding wizard for new users
 //
 
+import QuotioDomain
 import SwiftUI
 
 enum OnboardingStep: Int, CaseIterable {
@@ -29,7 +30,6 @@ final class OnboardingViewModel {
     var currentStep: OnboardingStep = .welcome
     var selectedMode: OperatingMode = .monitor
     var direction: SlideDirection = .forward
-    @ObservationIgnored private let modeManager = OperatingModeManager.shared
     
     var visibleSteps: [OnboardingStep] {
         [.welcome, .modeSelection, .providers, .completion]
@@ -59,9 +59,6 @@ final class OnboardingViewModel {
         }
     }
     
-    func completeOnboarding() {
-        modeManager.completeOnboarding(mode: selectedMode)
-    }
 }
 
 enum SlideDirection {
@@ -71,6 +68,7 @@ enum SlideDirection {
 
 struct OnboardingFlow: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(OperatingModeManager.self) private var modeManager
     @State private var viewModel = OnboardingViewModel()
     
     var onComplete: (() -> Void)?
@@ -100,7 +98,7 @@ struct OnboardingFlow: View {
             ProviderStep(viewModel: viewModel)
         case .completion:
             CompletionStep(viewModel: viewModel) {
-                viewModel.completeOnboarding()
+                modeManager.completeOnboarding(mode: viewModel.selectedMode)
                 onComplete?()
                 dismiss()
             }

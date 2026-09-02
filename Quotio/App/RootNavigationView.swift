@@ -1,3 +1,4 @@
+import QuotioDomain
 import QuotioPresentation
 import SwiftUI
 
@@ -6,7 +7,7 @@ struct RootNavigationView: View {
 
     @Environment(QuotaViewModel.self) private var viewModel
     @Environment(OperatingModeManager.self) private var modeManager
-    @AppStorage("loggingToFile") private var loggingToFile = true
+    @Environment(SettingsScreenModel.self) private var settingsModel
 
     var body: some View {
         @Bindable var viewModel = viewModel
@@ -34,7 +35,7 @@ struct RootNavigationView: View {
                             Label("nav.apiKeys".localized(), systemImage: "key.horizontal")
                                 .tag(NavigationPage.apiKeys)
 
-                            if loggingToFile {
+                            if settingsModel.proxyPreferences.loggingToFile {
                                 Label("nav.logs".localized(), systemImage: "doc.text")
                                     .tag(NavigationPage.logs)
                             }

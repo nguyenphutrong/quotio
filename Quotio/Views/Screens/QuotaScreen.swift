@@ -3,14 +3,15 @@
 //  Quotio
 //
 
+import QuotioDomain
 import SwiftUI
 
 struct QuotaScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var modeManager = OperatingModeManager.shared
+    @Environment(OperatingModeManager.self) private var modeManager
 
     @State private var selectedProvider: AIProvider?
-    @State private var settings = MenuBarSettingsManager.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
     
     // MARK: - Data Sources
     
@@ -279,7 +280,7 @@ private struct ProviderSegmentButton: View {
     let isSelected: Bool
     let action: () -> Void
 
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    @Environment(MenuBarSettingsManager.self) private var settings
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
@@ -481,7 +482,7 @@ private struct AccountInfo {
 private struct AccountQuotaCardV2: View {
     @Environment(QuotaViewModel.self) private var viewModel
     
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    @Environment(MenuBarSettingsManager.self) private var settings
     let provider: AIProvider
     let account: AccountInfo
     let isLoading: Bool
@@ -1149,7 +1150,7 @@ private struct AntigravityDisplayGroup: Identifiable {
 private struct AntigravityGroupRow: View {
     let group: AntigravityDisplayGroup
     
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    @Environment(MenuBarSettingsManager.self) private var settings
 
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
@@ -1226,7 +1227,7 @@ private struct AntigravityGroupRow: View {
 private struct AntigravityLowestBarLayout: View {
     let groups: [AntigravityDisplayGroup]
     
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    @Environment(MenuBarSettingsManager.self) private var settings
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
@@ -1307,7 +1308,7 @@ private struct AntigravityLowestBarLayout: View {
 private struct AntigravityRingLayout: View {
     let groups: [AntigravityDisplayGroup]
     
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    @Environment(MenuBarSettingsManager.self) private var settings
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
@@ -1348,7 +1349,7 @@ private struct AntigravityRingLayout: View {
 private struct StandardLowestBarLayout: View {
     let models: [ModelQuota]
     
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    @Environment(MenuBarSettingsManager.self) private var settings
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
@@ -1440,7 +1441,7 @@ private struct StandardLowestBarLayout: View {
 private struct StandardRingLayout: View {
     let models: [ModelQuota]
     
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    @Environment(MenuBarSettingsManager.self) private var settings
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
@@ -1490,7 +1491,7 @@ private struct AntigravityModelsDetailSheet: View {
     
     @Environment(\.dismiss) private var dismiss
     
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    @Environment(MenuBarSettingsManager.self) private var settings
     
     private var sortedModels: [ModelQuota] {
         models.sorted { $0.name < $1.name }
@@ -1556,7 +1557,7 @@ private struct AntigravityModelsDetailSheet: View {
 private struct ModelDetailCard: View {
     let model: ModelQuota
     
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    @Environment(MenuBarSettingsManager.self) private var settings
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }
@@ -1630,7 +1631,7 @@ private struct UsageRowV2: View {
     let resetTime: String
     let tooltip: String?
     
-    private var settings: MenuBarSettingsManager { MenuBarSettingsManager.shared }
+    @Environment(MenuBarSettingsManager.self) private var settings
     private var displayHelper: QuotaDisplayHelper {
         QuotaDisplayHelper(displayMode: settings.quotaDisplayMode)
     }

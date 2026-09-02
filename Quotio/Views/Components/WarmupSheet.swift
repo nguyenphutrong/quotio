@@ -3,12 +3,13 @@
 //  Quotio
 //
 
+import QuotioDomain
 import SwiftUI
 
 struct WarmupSheet: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var settings = MenuBarSettingsManager.shared
-    @State private var warmupSettings = WarmupSettingsManager.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
+    @Environment(WarmupSettingsManager.self) private var warmupSettings
     @State private var availableModels: [String] = []
     @State private var selectedModels: Set<String> = []
     @State private var isLoadingModels = false

@@ -4,6 +4,9 @@
 //
 
 import Foundation
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 import UserNotifications
 
 /// Notification types for tracking which notifications have been sent
@@ -23,54 +26,49 @@ enum NotificationType: String {
 @MainActor
 @Observable
 final class NotificationManager {
-    static let shared = NotificationManager()
+    static let shared = NotificationManager(
+        repository: UserDefaultsNotificationPreferencesRepository()
+    )
     
     private(set) var isAuthorized = false
     private var sentNotifications: Set<String> = []
-    
-    // Settings stored in UserDefaults
-    var notificationsEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "notificationsEnabled") }
-        set { UserDefaults.standard.set(newValue, forKey: "notificationsEnabled") }
-    }
-    
-    var quotaAlertThreshold: Double {
-        get { 
-            let value = UserDefaults.standard.double(forKey: "quotaAlertThreshold")
-            return value > 0 ? value : 20.0 // Default 20%
+    @ObservationIgnored private let repository: any NotificationPreferencesRepository
+
+    var notificationsEnabled: Bool { didSet { persist() } }
+    var quotaAlertThreshold: Double { didSet { persist() } }
+    var notifyOnQuotaLow: Bool { didSet { persist() } }
+    var notifyOnCooling: Bool { didSet { persist() } }
+    var notifyOnProxyCrash: Bool { didSet { persist() } }
+    var notifyOnUpgradeAvailable: Bool { didSet { persist() } }
+
+    init(repository: any NotificationPreferencesRepository, requestsAuthorization: Bool = true) {
+        self.repository = repository
+        let preferences = repository.load()
+        self.notificationsEnabled = preferences.notificationsEnabled
+        self.quotaAlertThreshold = preferences.quotaAlertThreshold
+        self.notifyOnQuotaLow = preferences.notifyOnQuotaLow
+        self.notifyOnCooling = preferences.notifyOnCooling
+        self.notifyOnProxyCrash = preferences.notifyOnProxyCrash
+        self.notifyOnUpgradeAvailable = preferences.notifyOnUpgradeAvailable
+
+        if requestsAuthorization {
+            Task {
+                await requestAuthorization()
+            }
         }
-        set { UserDefaults.standard.set(newValue, forKey: "quotaAlertThreshold") }
-    }
-    
-    var notifyOnQuotaLow: Bool {
-        get { UserDefaults.standard.object(forKey: "notifyOnQuotaLow") as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: "notifyOnQuotaLow") }
-    }
-    
-    var notifyOnCooling: Bool {
-        get { UserDefaults.standard.object(forKey: "notifyOnCooling") as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: "notifyOnCooling") }
-    }
-    
-    var notifyOnProxyCrash: Bool {
-        get { UserDefaults.standard.object(forKey: "notifyOnProxyCrash") as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: "notifyOnProxyCrash") }
-    }
-    
-    var notifyOnUpgradeAvailable: Bool {
-        get { UserDefaults.standard.object(forKey: "notifyOnUpgradeAvailable") as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: "notifyOnUpgradeAvailable") }
     }
 
-    private init() {
-        // Enable notifications by default on first launch
-        if UserDefaults.standard.object(forKey: "notificationsEnabled") == nil {
-            UserDefaults.standard.set(true, forKey: "notificationsEnabled")
-        }
-        
-        Task {
-            await requestAuthorization()
-        }
+    private func persist() {
+        repository.save(
+            NotificationPreferences(
+                notificationsEnabled: notificationsEnabled,
+                quotaAlertThreshold: quotaAlertThreshold,
+                notifyOnQuotaLow: notifyOnQuotaLow,
+                notifyOnCooling: notifyOnCooling,
+                notifyOnProxyCrash: notifyOnProxyCrash,
+                notifyOnUpgradeAvailable: notifyOnUpgradeAvailable
+            )
+        )
     }
     
     // MARK: - Authorization

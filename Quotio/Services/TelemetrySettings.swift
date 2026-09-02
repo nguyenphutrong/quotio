@@ -6,36 +6,43 @@
 //
 
 import Foundation
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 
 @MainActor
 @Observable
 final class TelemetrySettings {
-    static let shared = TelemetrySettings()
+    static let shared = TelemetrySettings(
+        repository: UserDefaultsTelemetryPreferencesRepository()
+    )
 
-    private enum Keys {
-        static let shareAnonymousUsage = "shareAnonymousUsage"
-        static let anonymousInstallID = "anonymousInstallID"
-        static let hasSentFirstOptInLaunch = "telemetry.hasSentFirstOptInLaunch"
-    }
+    @ObservationIgnored private let repository: any TelemetryPreferencesRepository
+    @ObservationIgnored private var sharingPreferenceChanged: () -> Void = {}
 
     var shareAnonymousUsage: Bool {
         didSet {
-            UserDefaults.standard.set(shareAnonymousUsage, forKey: Keys.shareAnonymousUsage)
-            TelemetryService.shared.applySharingPreference()
+            persist()
+            sharingPreferenceChanged()
         }
     }
 
-    private init() {
-        shareAnonymousUsage = UserDefaults.standard.bool(forKey: Keys.shareAnonymousUsage)
-    }
-
-    var anonymousInstallID: String? {
-        UserDefaults.standard.string(forKey: Keys.anonymousInstallID)
-    }
+    private(set) var anonymousInstallID: String?
 
     var hasSentFirstOptInLaunch: Bool {
-        get { UserDefaults.standard.bool(forKey: Keys.hasSentFirstOptInLaunch) }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.hasSentFirstOptInLaunch) }
+        didSet { persist() }
+    }
+
+    init(repository: any TelemetryPreferencesRepository) {
+        self.repository = repository
+        let preferences = repository.load()
+        self.shareAnonymousUsage = preferences.shareAnonymousUsage
+        self.anonymousInstallID = preferences.anonymousInstallID
+        self.hasSentFirstOptInLaunch = preferences.hasSentFirstOptInLaunch
+    }
+
+    func onSharingPreferenceChanged(_ action: @escaping () -> Void) {
+        sharingPreferenceChanged = action
     }
 
     func ensureAnonymousInstallID() -> String {
@@ -44,12 +51,24 @@ final class TelemetrySettings {
         }
 
         let newID = UUID().uuidString.lowercased()
-        UserDefaults.standard.set(newID, forKey: Keys.anonymousInstallID)
+        anonymousInstallID = newID
+        persist()
         return newID
     }
 
     func resetAnonymousInstallID() {
-        UserDefaults.standard.removeObject(forKey: Keys.anonymousInstallID)
-        UserDefaults.standard.removeObject(forKey: Keys.hasSentFirstOptInLaunch)
+        anonymousInstallID = nil
+        hasSentFirstOptInLaunch = false
+        persist()
+    }
+
+    private func persist() {
+        repository.save(
+            TelemetryPreferences(
+                shareAnonymousUsage: shareAnonymousUsage,
+                anonymousInstallID: anonymousInstallID,
+                hasSentFirstOptInLaunch: hasSentFirstOptInLaunch
+            )
+        )
     }
 }

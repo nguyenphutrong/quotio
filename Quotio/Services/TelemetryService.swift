@@ -7,16 +7,22 @@
 
 import Foundation
 import PostHog
+import QuotioDomain
 
 @MainActor
 final class TelemetryService {
-    static let shared = TelemetryService()
+    static let shared = TelemetryService(settings: .shared)
 
-    private let settings = TelemetrySettings.shared
+    private let settings: TelemetrySettings
     private var isConfigured = false
     private var isStarted = false
 
-    private init() {}
+    init(settings: TelemetrySettings) {
+        self.settings = settings
+        settings.onSharingPreferenceChanged { [weak self] in
+            self?.applySharingPreference()
+        }
+    }
 
     func configureIfAllowed() {
         guard settings.shareAnonymousUsage else {

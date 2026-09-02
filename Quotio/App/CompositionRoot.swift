@@ -1,5 +1,7 @@
+import AppKit
 import Foundation
 import QuotioApplication
+import QuotioDomain
 import QuotioInfrastructure
 import QuotioPresentation
 
@@ -35,16 +37,38 @@ enum CompositionRoot {
             clearLogs: ClearProxyLogsUseCase(repository: logRepository),
             sleeper: ContinuousSleeper()
         )
+        let updaterService = UpdaterService.shared
+        let settingsScreenModel = SettingsScreenModel(
+            proxyRepository: UserDefaultsProxyPreferencesRepository(),
+            tunnelRepository: UserDefaultsTunnelPreferencesRepository(),
+            appShellRepository: UserDefaultsAppShellPreferencesRepository(),
+            applyNetworkAccess: { [proxyManager = viewModel.proxyManager] enabled in
+                proxyManager.allowNetworkAccess = enabled
+            },
+            applyAutomaticUpdateChecks: { [updaterService] enabled in
+                updaterService.automaticallyChecksForUpdates = enabled
+            },
+            applyDockVisibility: { enabled in
+                NSApp.setActivationPolicy(enabled ? .regular : .accessory)
+            }
+        )
         let services = LegacyAppRuntimeServices(
             viewModel: viewModel,
             logsScreenModel: logsScreenModel,
+            settingsScreenModel: settingsScreenModel,
             modeManager: .shared,
             appearanceManager: .shared,
             statusBarManager: .shared,
             menuBarSettings: .shared,
             languageManager: .shared,
+            refreshSettings: .shared,
+            warmupSettings: .shared,
+            ideScanSettings: .shared,
+            launchAtLoginManager: .shared,
+            notificationManager: .shared,
+            telemetrySettings: .shared,
             telemetryService: .shared,
-            updaterService: .shared,
+            updaterService: updaterService,
             updatePollingService: .shared,
             tunnelManager: .shared
         )
@@ -56,29 +80,43 @@ enum CompositionRoot {
 private final class LegacyAppRuntimeServices: AppRuntimeServices {
     let viewModel: QuotaViewModel
     let logsScreenModel: LogsScreenModel
+    let settingsScreenModel: SettingsScreenModel
     let modeManager: OperatingModeManager
     let appearanceManager: AppearanceManager
     let statusBarManager: StatusBarManager
     let menuBarSettings: MenuBarSettingsManager
     let languageManager: LanguageManager
+    let refreshSettings: RefreshSettingsManager
+    let warmupSettings: WarmupSettingsManager
+    let ideScanSettings: IDEScanSettingsManager
+    let launchAtLoginManager: LaunchAtLoginManager
+    let updaterService: UpdaterService
+    let notificationManager: NotificationManager
+    let telemetrySettings: TelemetrySettings
+    let updatePollingService: AtomFeedUpdateService
 
     private let telemetryService: TelemetryService
-    private let updaterService: UpdaterService
-    private let updatePollingService: AtomFeedUpdateService
     private let tunnelManager: TunnelManager
 
     var hasCompletedOnboarding: Bool { modeManager.hasCompletedOnboarding }
-    var showInDock: Bool { UserDefaults.standard.bool(forKey: "showInDock") }
+    var showInDock: Bool { settingsScreenModel.appShellPreferences.showInDock }
     var canCheckForUpdates: Bool { updaterService.canCheckForUpdates }
 
     init(
         viewModel: QuotaViewModel,
         logsScreenModel: LogsScreenModel,
+        settingsScreenModel: SettingsScreenModel,
         modeManager: OperatingModeManager,
         appearanceManager: AppearanceManager,
         statusBarManager: StatusBarManager,
         menuBarSettings: MenuBarSettingsManager,
         languageManager: LanguageManager,
+        refreshSettings: RefreshSettingsManager,
+        warmupSettings: WarmupSettingsManager,
+        ideScanSettings: IDEScanSettingsManager,
+        launchAtLoginManager: LaunchAtLoginManager,
+        notificationManager: NotificationManager,
+        telemetrySettings: TelemetrySettings,
         telemetryService: TelemetryService,
         updaterService: UpdaterService,
         updatePollingService: AtomFeedUpdateService,
@@ -86,11 +124,18 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     ) {
         self.viewModel = viewModel
         self.logsScreenModel = logsScreenModel
+        self.settingsScreenModel = settingsScreenModel
         self.modeManager = modeManager
         self.appearanceManager = appearanceManager
         self.statusBarManager = statusBarManager
         self.menuBarSettings = menuBarSettings
         self.languageManager = languageManager
+        self.refreshSettings = refreshSettings
+        self.warmupSettings = warmupSettings
+        self.ideScanSettings = ideScanSettings
+        self.launchAtLoginManager = launchAtLoginManager
+        self.notificationManager = notificationManager
+        self.telemetrySettings = telemetrySettings
         self.telemetryService = telemetryService
         self.updaterService = updaterService
         self.updatePollingService = updatePollingService
@@ -98,11 +143,6 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     }
 
     func prepareForLaunch() {
-        UserDefaults.standard.register(defaults: [
-            "showInDock": true,
-            "totalUsageMode": TotalUsageMode.sessionOnly.rawValue,
-            "modelAggregationMode": ModelAggregationMode.lowest.rawValue,
-        ])
         telemetryService.configureIfAllowed()
     }
 

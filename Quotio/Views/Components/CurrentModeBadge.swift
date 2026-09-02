@@ -5,12 +5,13 @@
 //  Compact badge showing current operating mode in sidebar footer
 //
 
+import QuotioDomain
 import SwiftUI
 
 /// Compact badge showing current mode in sidebar, clickable to open settings
 struct CurrentModeBadge: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var modeManager = OperatingModeManager.shared
+    @Environment(OperatingModeManager.self) private var modeManager
     @State private var isHovered = false
     
     var body: some View {

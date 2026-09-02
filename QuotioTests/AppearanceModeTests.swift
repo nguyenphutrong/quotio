@@ -1,4 +1,5 @@
 import AppKit
+import QuotioDomain
 import XCTest
 @testable import Quotio
 

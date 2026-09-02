@@ -5,76 +5,18 @@
 
 import Foundation
 import Observation
-
-// MARK: - Warmup Cadence
-
-enum WarmupCadence: String, CaseIterable, Identifiable, Codable {
-    case fifteenMinutes = "15min"
-    case thirtyMinutes = "30min"
-    case oneHour = "1h"
-    case twoHours = "2h"
-    case threeHours = "3h"
-    case fourHours = "4h"
-    
-    var id: String { rawValue }
-    
-    var intervalSeconds: TimeInterval {
-        switch self {
-        case .fifteenMinutes: return 900
-        case .thirtyMinutes: return 1800
-        case .oneHour: return 3600
-        case .twoHours: return 7200
-        case .threeHours: return 10800
-        case .fourHours: return 14400
-        }
-    }
-    
-    var intervalNanoseconds: UInt64 {
-        UInt64(intervalSeconds * 1_000_000_000)
-    }
-    
-    var localizationKey: String {
-        switch self {
-        case .fifteenMinutes: return "warmup.interval.15min"
-        case .thirtyMinutes: return "warmup.interval.30min"
-        case .oneHour: return "warmup.interval.1h"
-        case .twoHours: return "warmup.interval.2h"
-        case .threeHours: return "warmup.interval.3h"
-        case .fourHours: return "warmup.interval.4h"
-        }
-    }
-}
-
-// MARK: - Warmup Schedule
-
-enum WarmupScheduleMode: String, CaseIterable, Identifiable, Codable {
-    case interval
-    case daily
-    
-    var id: String { rawValue }
-    
-    var localizationKey: String {
-        switch self {
-        case .interval: return "warmup.schedule.interval"
-        case .daily: return "warmup.schedule.daily"
-        }
-    }
-}
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 
 @MainActor
 @Observable
 final class WarmupSettingsManager {
-    static let shared = WarmupSettingsManager()
-    
-    private let defaults = UserDefaults.standard
-    private let enabledAccountsKey = "warmupEnabledAccounts"
-    private let warmupCadenceKey = "warmupCadence"
-    private let warmupScheduleModeKey = "warmupScheduleMode"
-    private let warmupDailyMinutesKey = "warmupDailyMinutes"
-    private let warmupSelectedModelsKey = "warmupSelectedModels"
-    private let warmupCadenceByAccountKey = "warmupCadenceByAccount"
-    private let warmupScheduleModeByAccountKey = "warmupScheduleModeByAccount"
-    private let warmupDailyMinutesByAccountKey = "warmupDailyMinutesByAccount"
+    static let shared = WarmupSettingsManager(
+        repository: UserDefaultsWarmupPreferencesRepository()
+    )
+
+    @ObservationIgnored private let repository: any WarmupPreferencesRepository
     
     var enabledAccountIds: Set<String> {
         didSet {
@@ -85,14 +27,14 @@ final class WarmupSettingsManager {
     
     var warmupCadence: WarmupCadence {
         didSet {
-            defaults.set(warmupCadence.rawValue, forKey: warmupCadenceKey)
+            persist()
             onWarmupCadenceChanged?(warmupCadence)
         }
     }
     
     var warmupScheduleMode: WarmupScheduleMode {
         didSet {
-            defaults.set(warmupScheduleMode.rawValue, forKey: warmupScheduleModeKey)
+            persist()
             onWarmupScheduleChanged?()
         }
     }
@@ -104,7 +46,7 @@ final class WarmupSettingsManager {
                 warmupDailyMinutes = clamped
                 return
             }
-            defaults.set(clamped, forKey: warmupDailyMinutesKey)
+            persist()
             onWarmupScheduleChanged?()
         }
     }
@@ -146,43 +88,17 @@ final class WarmupSettingsManager {
     var onWarmupCadenceChanged: ((WarmupCadence) -> Void)?
     var onWarmupScheduleChanged: (() -> Void)?
     
-    private init() {
-        let saved = defaults.stringArray(forKey: enabledAccountsKey) ?? []
-        self.enabledAccountIds = Set(saved)
-        let cadenceValue = defaults.string(forKey: warmupCadenceKey) ?? WarmupCadence.oneHour.rawValue
-        self.warmupCadence = WarmupCadence(rawValue: cadenceValue) ?? .oneHour
-        let modeValue = defaults.string(forKey: warmupScheduleModeKey) ?? WarmupScheduleMode.interval.rawValue
-        self.warmupScheduleMode = WarmupScheduleMode(rawValue: modeValue) ?? .interval
-        if defaults.object(forKey: warmupDailyMinutesKey) != nil {
-            let storedMinutes = defaults.integer(forKey: warmupDailyMinutesKey)
-            self.warmupDailyMinutes = min(max(storedMinutes, 0), 1439)
-        } else {
-            self.warmupDailyMinutes = 540
-        }
-        if let data = defaults.data(forKey: warmupSelectedModelsKey),
-           let decoded = try? JSONDecoder().decode([String: [String]].self, from: data) {
-            self.selectedModelsByAccount = decoded
-        } else {
-            self.selectedModelsByAccount = [:]
-        }
-        if let data = defaults.data(forKey: warmupCadenceByAccountKey),
-           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
-            self.cadenceByAccount = decoded
-        } else {
-            self.cadenceByAccount = [:]
-        }
-        if let data = defaults.data(forKey: warmupScheduleModeByAccountKey),
-           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
-            self.scheduleModeByAccount = decoded
-        } else {
-            self.scheduleModeByAccount = [:]
-        }
-        if let data = defaults.data(forKey: warmupDailyMinutesByAccountKey),
-           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-            self.dailyMinutesByAccount = decoded
-        } else {
-            self.dailyMinutesByAccount = [:]
-        }
+    init(repository: any WarmupPreferencesRepository) {
+        self.repository = repository
+        let preferences = repository.load()
+        self.enabledAccountIds = preferences.enabledAccountIds
+        self.warmupCadence = preferences.cadence
+        self.warmupScheduleMode = preferences.scheduleMode
+        self.warmupDailyMinutes = preferences.dailyMinutes
+        self.selectedModelsByAccount = preferences.selectedModelsByAccount
+        self.cadenceByAccount = preferences.cadenceByAccount
+        self.scheduleModeByAccount = preferences.scheduleModeByAccount
+        self.dailyMinutesByAccount = preferences.dailyMinutesByAccount
     }
     
     func isEnabled(provider: AIProvider, accountKey: String) -> Bool {
@@ -275,28 +191,36 @@ final class WarmupSettingsManager {
     }
     
     private func persist() {
-        let values = enabledAccountIds.sorted()
-        defaults.set(values, forKey: enabledAccountsKey)
+        repository.save(preferences)
     }
     
     private func persistSelectedModels() {
-        guard let data = try? JSONEncoder().encode(selectedModelsByAccount) else { return }
-        defaults.set(data, forKey: warmupSelectedModelsKey)
+        persist()
     }
 
     private func persistCadenceByAccount() {
-        guard let data = try? JSONEncoder().encode(cadenceByAccount) else { return }
-        defaults.set(data, forKey: warmupCadenceByAccountKey)
+        persist()
     }
 
     private func persistScheduleModeByAccount() {
-        guard let data = try? JSONEncoder().encode(scheduleModeByAccount) else { return }
-        defaults.set(data, forKey: warmupScheduleModeByAccountKey)
+        persist()
     }
 
     private func persistDailyMinutesByAccount() {
-        guard let data = try? JSONEncoder().encode(dailyMinutesByAccount) else { return }
-        defaults.set(data, forKey: warmupDailyMinutesByAccountKey)
+        persist()
+    }
+
+    private var preferences: WarmupPreferences {
+        WarmupPreferences(
+            enabledAccountIds: enabledAccountIds,
+            cadence: warmupCadence,
+            scheduleMode: warmupScheduleMode,
+            dailyMinutes: warmupDailyMinutes,
+            selectedModelsByAccount: selectedModelsByAccount,
+            cadenceByAccount: cadenceByAccount,
+            scheduleModeByAccount: scheduleModeByAccount,
+            dailyMinutesByAccount: dailyMinutesByAccount
+        )
     }
     
     nonisolated static func makeAccountId(provider: AIProvider, accountKey: String) -> String {

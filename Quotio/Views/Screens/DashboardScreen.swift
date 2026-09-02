@@ -3,13 +3,16 @@
 //  Quotio
 //
 
+import QuotioDomain
+import QuotioPresentation
 import SwiftUI
 import UniformTypeIdentifiers
 
 struct DashboardScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
-    @AppStorage("hideGettingStarted") private var hideGettingStarted: Bool = false
-    @State private var modeManager = OperatingModeManager.shared
+    @Environment(OperatingModeManager.self) private var modeManager
+    @Environment(MenuBarSettingsManager.self) private var menuBarSettings
+    @Environment(SettingsScreenModel.self) private var settingsModel
 
     @State private var selectedProvider: AIProvider?
     @State private var isImporterPresented = false
@@ -20,7 +23,7 @@ struct DashboardScreen: View {
     private var tunnelManager: TunnelManager { TunnelManager.shared }
     
     private var showGettingStarted: Bool {
-        guard !hideGettingStarted else { return false }
+        guard !settingsModel.appShellPreferences.hideGettingStarted else { return false }
         guard modeManager.isLocalProxyMode else { return false }
         return !isSetupComplete
     }
@@ -49,13 +52,12 @@ struct DashboardScreen: View {
     
     /// Lowest quota percentage across all providers using total usage logic
     private var lowestQuotaPercentage: Double {
-        let settings = MenuBarSettingsManager.shared
         var allTotals: [Double] = []
         
         for (_, accountQuotas) in viewModel.providerQuotas {
             for (_, quotaData) in accountQuotas {
                 let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
-                let total = settings.totalUsagePercent(models: models)
+                let total = menuBarSettings.totalUsagePercent(models: models)
                 if total >= 0 {
                     allTotals.append(total)
                 }
@@ -381,7 +383,7 @@ struct DashboardScreen: View {
                 Spacer()
                 
                 Button {
-                    withAnimation { hideGettingStarted = true }
+                    withAnimation { settingsModel.setHideGettingStarted(true) }
                 } label: {
                     Image(systemName: "xmark")
                         .font(.caption)

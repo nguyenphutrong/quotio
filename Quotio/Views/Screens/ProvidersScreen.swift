@@ -15,6 +15,7 @@ import UniformTypeIdentifiers
 
 struct ProvidersScreen: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(OperatingModeManager.self) private var modeManager
     @State private var isImporterPresented = false
     @State private var selectedProvider: AIProvider?
     @State private var showProxyRequiredAlert = false
@@ -28,8 +29,6 @@ struct ProvidersScreen: View {
     @State private var editingMonitorAPIKeyAccount: MonitorAccount?
     @State private var showAddProviderPopover = false
     @State private var switchingAccount: AccountRowData?
-    @State private var modeManager = OperatingModeManager.shared
-
     private let customProviderService = CustomProviderService.shared
     private let warpService = WarpService.shared
     
@@ -911,13 +910,13 @@ struct MenuBarHintView: View {
 
 struct OAuthSheet: View {
     @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(OperatingModeManager.self) private var modeManager
     let provider: AIProvider
     let onDismiss: () -> Void
     
     @State private var hasStartedAuth = false
     @State private var selectedKiroMethod: AuthCommand = .kiroImport
     @State private var manualOAuthCode = ""
-    @State private var modeManager = OperatingModeManager.shared
     
     private var isPolling: Bool {
         viewModel.oauthState?.status == .polling || viewModel.oauthState?.status == .waiting

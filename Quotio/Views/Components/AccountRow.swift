@@ -6,6 +6,7 @@
 //  Replaces: AuthFileRow, DirectAuthFileRow, AutoDetectedAccountRow
 //
 
+import QuotioDomain
 import SwiftUI
 
 /// Represents the source/type of an account for display purposes
@@ -184,7 +185,7 @@ struct AccountRow: View {
     var onDownload: (() -> Void)?
     var isActiveInIDE: Bool = false
     
-    @State private var settings = MenuBarSettingsManager.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
     @State private var showWarning = false
     @State private var showMaxItemsAlert = false
     @State private var showDeleteConfirmation = false

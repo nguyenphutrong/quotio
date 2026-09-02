@@ -6,6 +6,9 @@
 //
 
 import Foundation
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 import SwiftUI
 
 // MARK: - Privacy String Extension
@@ -40,250 +43,34 @@ extension String {
     }
 }
 
-// MARK: - Menu Bar Quota Item
-
-/// Represents a single item selected for menu bar display
-struct MenuBarQuotaItem: Codable, Identifiable, Hashable {
-    let provider: String      // AIProvider.rawValue
-    let accountKey: String    // email or account identifier
-    
-    var id: String { "\(provider)_\(accountKey)" }
-    
-    /// Get the AIProvider enum value
-    var aiProvider: AIProvider? {
-        // Handle "copilot" alias
-        if provider == "copilot" {
-            return .copilot
-        }
-        return AIProvider(rawValue: provider)
-    }
-    
-    /// Short display symbol for the provider
-    var providerSymbol: String {
-        aiProvider?.menuBarSymbol ?? "?"
-    }
-}
-
-// MARK: - Appearance Mode
-
-/// Appearance mode for the app (light/dark/system)
-enum AppearanceMode: String, CaseIterable, Identifiable {
-    case system = "system"
-    case light = "light"
-    case dark = "dark"
-    
-    var id: String { rawValue }
-    
-    var localizationKey: String {
-        switch self {
-        case .system: return "settings.appearance.system"
-        case .light: return "settings.appearance.light"
-        case .dark: return "settings.appearance.dark"
-        }
-    }
-    
-    var icon: String {
-        switch self {
-        case .system: return "circle.lefthalf.filled"
-        case .light: return "sun.max.fill"
-        case .dark: return "moon.fill"
-        }
-    }
-
-    var appKitAppearance: NSAppearance? {
-        switch self {
-        case .system: nil
-        case .light: NSAppearance(named: .aqua)
-        case .dark: NSAppearance(named: .darkAqua)
-        }
-    }
-}
-
 // MARK: - Appearance Settings Manager
 
 /// Manager for appearance settings with persistence
 @MainActor
 @Observable
 final class AppearanceManager {
-    static let shared = AppearanceManager()
-    
-    private let defaults = UserDefaults.standard
-    private let appearanceModeKey = "appearanceMode"
+    static let shared = AppearanceManager(
+        repository: UserDefaultsAppearancePreferencesRepository()
+    )
+
+    @ObservationIgnored private let repository: any AppearancePreferencesRepository
     
     /// Current appearance mode
     var appearanceMode: AppearanceMode {
         didSet {
-            defaults.set(appearanceMode.rawValue, forKey: appearanceModeKey)
+            repository.save(AppearancePreferences(mode: appearanceMode))
             applyAppearance()
         }
     }
     
-    private init() {
-        let saved = defaults.string(forKey: appearanceModeKey) ?? AppearanceMode.system.rawValue
-        self.appearanceMode = AppearanceMode(rawValue: saved) ?? .system
+    init(repository: any AppearancePreferencesRepository) {
+        self.repository = repository
+        self.appearanceMode = repository.load().mode
     }
     
     /// Apply the current appearance mode to the app
     func applyAppearance() {
         NSApp.appearance = appearanceMode.appKitAppearance
-    }
-}
-
-// MARK: - Color Mode
-
-/// Color mode for menu bar quota display
-enum MenuBarColorMode: String, Codable, CaseIterable, Identifiable {
-    case colored = "colored"       // Green/Yellow/Red based on quota %
-    case monochrome = "monochrome" // White/Gray only
-    
-    var id: String { rawValue }
-    
-    var localizationKey: String {
-        switch self {
-        case .colored: return "settings.menubar.colored"
-        case .monochrome: return "settings.menubar.monochrome"
-        }
-    }
-}
-
-// MARK: - Quota Display Mode
-
-/// Display mode for quota percentage (used vs remaining)
-enum QuotaDisplayMode: String, Codable, CaseIterable, Identifiable {
-    case used = "used"           // Show percentage used (e.g., "75% used")
-    case remaining = "remaining" // Show percentage remaining (e.g., "25% left")
-    
-    var id: String { rawValue }
-    
-    var localizationKey: String {
-        switch self {
-        case .used: return "settings.quota.displayMode.used"
-        case .remaining: return "settings.quota.displayMode.remaining"
-        }
-    }
-    
-    /// Convert a remaining percentage to the display value based on mode.
-    /// A negative input is the "no data" sentinel and is propagated as -1 so it can
-    /// never surface as a fake percentage (e.g. 100 - (-1) = 101%). Valid input is
-    /// clamped to 0-100 before conversion.
-    func displayValue(from remainingPercent: Double) -> Double {
-        guard remainingPercent >= 0 else { return -1 }
-        let clamped = min(100, max(0, remainingPercent))
-        switch self {
-        case .used: return 100 - clamped
-        case .remaining: return clamped
-        }
-    }
-    
-    var suffixKey: String {
-        switch self {
-        case .used: return "settings.quota.used"
-        case .remaining: return "settings.quota.left"
-        }
-    }
-}
-
-// MARK: - Quota Display Style
-
-/// Visual style for quota display in the main UI
-enum QuotaDisplayStyle: String, Codable, CaseIterable, Identifiable {
-    case card = "card"           // Default card with progress bar
-    case lowestBar = "lowestBar" // Compact: lowest % bar, others text
-    case ring = "ring"           // Circular progress rings
-
-    var id: String { rawValue }
-
-    var localizationKey: String {
-        switch self {
-        case .card: return "settings.quota.style.card"
-        case .lowestBar: return "settings.quota.style.lowestBar"
-        case .ring: return "settings.quota.style.ring"
-        }
-    }
-
-    var iconName: String {
-        switch self {
-        case .card: return "rectangle.portrait"
-        case .lowestBar: return "chart.bar.fill"
-        case .ring: return "circle.dotted"
-        }
-    }
-}
-
-// MARK: - Refresh Cadence
-
-/// Refresh cadence options for quota auto-refresh
-enum RefreshCadence: String, CaseIterable, Identifiable, Codable {
-    case manual = "manual"
-    case oneMinute = "1min"
-    case twoMinutes = "2min"
-    case fiveMinutes = "5min"
-    case tenMinutes = "10min"
-    case fifteenMinutes = "15min"
-    
-    var id: String { rawValue }
-    
-    /// Interval in seconds (nil for manual = no auto-refresh)
-    var intervalSeconds: TimeInterval? {
-        switch self {
-        case .manual: return nil
-        case .oneMinute: return 60
-        case .twoMinutes: return 120
-        case .fiveMinutes: return 300
-        case .tenMinutes: return 600
-        case .fifteenMinutes: return 900
-        }
-    }
-    
-    /// Interval in nanoseconds for Task.sleep
-    var intervalNanoseconds: UInt64? {
-        guard let seconds = intervalSeconds else { return nil }
-        return UInt64(seconds * 1_000_000_000)
-    }
-    
-    var localizationKey: String {
-        switch self {
-        case .manual: return "settings.refresh.manual"
-        case .oneMinute: return "settings.refresh.1min"
-        case .twoMinutes: return "settings.refresh.2min"
-        case .fiveMinutes: return "settings.refresh.5min"
-        case .tenMinutes: return "settings.refresh.10min"
-        case .fifteenMinutes: return "settings.refresh.15min"
-        }
-    }
-}
-
-// MARK: - Total Usage Calculation Mode
-
-/// Mode for calculating total usage indicators (session vs extra)
-enum TotalUsageMode: String, CaseIterable, Identifiable, Codable {
-    case sessionOnly = "sessionOnly"
-    case combined = "combined"
-    
-    var id: String { rawValue }
-    
-    var localizationKey: String {
-        switch self {
-        case .sessionOnly: return "settings.usageDisplay.totalMode.sessionOnly"
-        case .combined: return "settings.usageDisplay.totalMode.combined"
-        }
-    }
-}
-
-// MARK: - Model Aggregation Mode
-
-/// Mode for aggregating multi-model provider quotas
-enum ModelAggregationMode: String, CaseIterable, Identifiable, Codable {
-    case lowest = "lowest"
-    case average = "average"
-    
-    var id: String { rawValue }
-    
-    var localizationKey: String {
-        switch self {
-        case .lowest: return "settings.usageDisplay.modelAggregation.lowest"
-        case .average: return "settings.usageDisplay.modelAggregation.average"
-        }
     }
 }
 
@@ -382,15 +169,16 @@ extension MenuBarSettingsManager {
 @MainActor
 @Observable
 final class RefreshSettingsManager {
-    static let shared = RefreshSettingsManager()
-    
-    private let defaults = UserDefaults.standard
-    private let refreshCadenceKey = "refreshCadence"
+    static let shared = RefreshSettingsManager(
+        repository: UserDefaultsRefreshPreferencesRepository()
+    )
+
+    @ObservationIgnored private let repository: any RefreshPreferencesRepository
     
     /// Current refresh cadence
     var refreshCadence: RefreshCadence {
         didSet {
-            defaults.set(refreshCadence.rawValue, forKey: refreshCadenceKey)
+            repository.save(RefreshPreferences(cadence: refreshCadence))
             onRefreshCadenceChanged?(refreshCadence)
         }
     }
@@ -398,9 +186,9 @@ final class RefreshSettingsManager {
     /// Callback when refresh cadence changes (for ViewModel to restart timer)
     var onRefreshCadenceChanged: ((RefreshCadence) -> Void)?
     
-    private init() {
-        let saved = defaults.string(forKey: refreshCadenceKey) ?? RefreshCadence.tenMinutes.rawValue
-        self.refreshCadence = RefreshCadence(rawValue: saved) ?? .tenMinutes
+    init(repository: any RefreshPreferencesRepository) {
+        self.repository = repository
+        self.refreshCadence = repository.load().cadence
     }
 }
 
@@ -552,22 +340,11 @@ struct MenuBarQuotaDisplayItem: Identifiable, Equatable {
 @MainActor
 @Observable
 final class MenuBarSettingsManager {
-    static let shared = MenuBarSettingsManager()
-    
-    private let defaults = UserDefaults.standard
-    private let selectedItemsKey = "menuBarSelectedQuotaItems"
-    private let colorModeKey = "menuBarColorMode"
-    private let showMenuBarIconKey = "showMenuBarIcon"
-    private let showQuotaKey = "menuBarShowQuota"
-    private let menuBarMaxItemsKey = "menuBarMaxItems"
-    private let quotaDisplayModeKey = "quotaDisplayMode"
-    private let quotaDisplayStyleKey = "quotaDisplayStyle"
-    // Retain the key introduced by #493 so existing user preferences carry forward.
-    private let stackPairedQuotaMetricsKey = "menuBarStackClaudeQuotaWindows"
-    private let hideSensitiveInfoKey = "hideSensitiveInfo"
-    private let totalUsageModeKey = "totalUsageMode"
-    private let modelAggregationModeKey = "modelAggregationMode"
-    private let hasUserModifiedMenuBarKey = "hasUserModifiedMenuBar"
+    static let shared = MenuBarSettingsManager(
+        repository: UserDefaultsMenuBarPreferencesRepository()
+    )
+
+    @ObservationIgnored private let repository: any MenuBarPreferencesRepository
 
     static let minMenuBarItems = 1
     static let maxMenuBarItems = 10
@@ -575,66 +352,66 @@ final class MenuBarSettingsManager {
 
     /// Whether to show menu bar icon at all
     var showMenuBarIcon: Bool {
-        didSet { defaults.set(showMenuBarIcon, forKey: showMenuBarIconKey) }
+        didSet { persist() }
     }
 
     /// Whether to show quota in menu bar (only effective when showMenuBarIcon is true)
     var showQuotaInMenuBar: Bool {
-        didSet { defaults.set(showQuotaInMenuBar, forKey: showQuotaKey) }
+        didSet { persist() }
     }
 
     /// Maximum number of items to display in menu bar
     var menuBarMaxItems: Int {
         didSet {
-            defaults.set(menuBarMaxItems, forKey: menuBarMaxItemsKey)
+            persist()
             enforceMaxItems()
         }
     }
     
     /// Selected items to display
     var selectedItems: [MenuBarQuotaItem] {
-        didSet { saveSelectedItems() }
+        didSet { persist() }
     }
     
     /// Color mode (colored vs monochrome)
     var colorMode: MenuBarColorMode {
-        didSet { defaults.set(colorMode.rawValue, forKey: colorModeKey) }
+        didSet { persist() }
     }
     
     /// Quota display mode (used vs remaining)
     var quotaDisplayMode: QuotaDisplayMode {
-        didSet { defaults.set(quotaDisplayMode.rawValue, forKey: quotaDisplayModeKey) }
+        didSet { persist() }
     }
     
     /// Visual style for quota display
     var quotaDisplayStyle: QuotaDisplayStyle {
-        didSet { defaults.set(quotaDisplayStyle.rawValue, forKey: quotaDisplayStyleKey) }
+        didSet { persist() }
     }
 
     /// Whether providers with a stable metric pair use the compact stacked layout.
     var stackPairedQuotaMetrics: Bool {
-        didSet { defaults.set(stackPairedQuotaMetrics, forKey: stackPairedQuotaMetricsKey) }
+        didSet { persist() }
     }
     
     /// Whether to hide sensitive information (emails, account names)
     var hideSensitiveInfo: Bool {
-        didSet { defaults.set(hideSensitiveInfo, forKey: hideSensitiveInfoKey) }
+        didSet { persist() }
     }
     
     /// Total usage calculation mode (session-only vs combined)
     var totalUsageMode: TotalUsageMode {
-        didSet { defaults.set(totalUsageMode.rawValue, forKey: totalUsageModeKey) }
+        didSet { persist() }
     }
     
     /// Model aggregation mode (lowest vs average)
     var modelAggregationMode: ModelAggregationMode {
-        didSet { defaults.set(modelAggregationMode.rawValue, forKey: modelAggregationModeKey) }
+        didSet { persist() }
     }
 
     /// Whether user has manually modified the menu bar selection
     /// When true, autoSelectNewAccounts will not add new items
     private(set) var hasUserModifiedMenuBar: Bool {
-        didSet { defaults.set(hasUserModifiedMenuBar, forKey: hasUserModifiedMenuBarKey) }
+        didSet { persist() }
     }
 
     /// Check if adding another item would exceed the warning threshold
@@ -649,60 +426,21 @@ final class MenuBarSettingsManager {
         selectedItems.count >= menuBarMaxItems
     }
     
-    private init() {
-        // Show menu bar icon - default true if not set
-        if defaults.object(forKey: showMenuBarIconKey) == nil {
-            defaults.set(true, forKey: showMenuBarIconKey)
-        }
-        self.showMenuBarIcon = defaults.bool(forKey: showMenuBarIconKey)
-        
-        // Show quota in menu bar - default true if not set
-        if defaults.object(forKey: showQuotaKey) == nil {
-            defaults.set(true, forKey: showQuotaKey)
-        }
-        self.showQuotaInMenuBar = defaults.bool(forKey: showQuotaKey)
-        
-        if defaults.object(forKey: menuBarMaxItemsKey) == nil {
-            defaults.set(Self.defaultMenuBarMaxItems, forKey: menuBarMaxItemsKey)
-        }
-
-        self.colorMode = MenuBarColorMode(rawValue: defaults.string(forKey: colorModeKey) ?? "") ?? .colored
-        self.quotaDisplayMode = QuotaDisplayMode(rawValue: defaults.string(forKey: quotaDisplayModeKey) ?? "") ?? .used
-        self.quotaDisplayStyle = QuotaDisplayStyle(rawValue: defaults.string(forKey: quotaDisplayStyleKey) ?? "") ?? .card
-        if defaults.object(forKey: stackPairedQuotaMetricsKey) == nil {
-            defaults.set(true, forKey: stackPairedQuotaMetricsKey)
-        }
-        self.stackPairedQuotaMetrics = defaults.bool(forKey: stackPairedQuotaMetricsKey)
-        self.selectedItems = Self.loadSelectedItems(from: defaults, key: selectedItemsKey)
-
-        // Load and clamp menuBarMaxItems, then persist the clamped value
-        let loadedMax = defaults.integer(forKey: menuBarMaxItemsKey)
-        let clampedMax = Self.clampedMenuBarMax(loadedMax)
-        self.menuBarMaxItems = clampedMax
-        if loadedMax != clampedMax {
-            defaults.set(clampedMax, forKey: menuBarMaxItemsKey)
-        }
-
-        self.hideSensitiveInfo = defaults.bool(forKey: hideSensitiveInfoKey)
-        self.totalUsageMode = TotalUsageMode(rawValue: defaults.string(forKey: totalUsageModeKey) ?? "") ?? .sessionOnly
-        self.modelAggregationMode = ModelAggregationMode(rawValue: defaults.string(forKey: modelAggregationModeKey) ?? "") ?? .lowest
-        self.hasUserModifiedMenuBar = defaults.bool(forKey: hasUserModifiedMenuBarKey)
-
-        enforceMaxItems()
-    }
-    
-    private func saveSelectedItems() {
-        if let data = try? JSONEncoder().encode(selectedItems) {
-            defaults.set(data, forKey: selectedItemsKey)
-        }
-    }
-    
-    private static func loadSelectedItems(from defaults: UserDefaults, key: String) -> [MenuBarQuotaItem] {
-        guard let data = defaults.data(forKey: key),
-              let items = try? JSONDecoder().decode([MenuBarQuotaItem].self, from: data) else {
-            return []
-        }
-        return items.filter { $0.provider != "gemini-cli" }
+    init(repository: any MenuBarPreferencesRepository) {
+        self.repository = repository
+        let preferences = repository.load()
+        self.showMenuBarIcon = preferences.showMenuBarIcon
+        self.showQuotaInMenuBar = preferences.showQuotaInMenuBar
+        self.menuBarMaxItems = preferences.menuBarMaxItems
+        self.selectedItems = preferences.selectedItems
+        self.colorMode = preferences.colorMode
+        self.quotaDisplayMode = preferences.quotaDisplayMode
+        self.quotaDisplayStyle = preferences.quotaDisplayStyle
+        self.stackPairedQuotaMetrics = preferences.stackPairedQuotaMetrics
+        self.hideSensitiveInfo = preferences.hideSensitiveInfo
+        self.totalUsageMode = preferences.totalUsageMode
+        self.modelAggregationMode = preferences.modelAggregationMode
+        self.hasUserModifiedMenuBar = preferences.hasUserModifiedMenuBar
     }
     
     func addItem(_ item: MenuBarQuotaItem) {
@@ -768,5 +506,24 @@ final class MenuBarSettingsManager {
 
     private static func clampedMenuBarMax(_ value: Int) -> Int {
         min(max(value, minMenuBarItems), maxMenuBarItems)
+    }
+
+    private func persist() {
+        repository.save(
+            MenuBarPreferences(
+                showMenuBarIcon: showMenuBarIcon,
+                showQuotaInMenuBar: showQuotaInMenuBar,
+                menuBarMaxItems: menuBarMaxItems,
+                selectedItems: selectedItems,
+                colorMode: colorMode,
+                quotaDisplayMode: quotaDisplayMode,
+                quotaDisplayStyle: quotaDisplayStyle,
+                stackPairedQuotaMetrics: stackPairedQuotaMetrics,
+                hideSensitiveInfo: hideSensitiveInfo,
+                totalUsageMode: totalUsageMode,
+                modelAggregationMode: modelAggregationMode,
+                hasUserModifiedMenuBar: hasUserModifiedMenuBar
+            )
+        )
     }
 }

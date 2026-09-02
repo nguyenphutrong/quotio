@@ -7,6 +7,7 @@
 //
 
 import AppKit
+import QuotioDomain
 import SwiftUI
 
 @MainActor

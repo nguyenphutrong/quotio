@@ -3,6 +3,7 @@
 //  Quotio
 //
 
+import QuotioDomain
 import SwiftUI
 
 struct QuotaCard: View {
@@ -213,7 +214,7 @@ private struct QuotaSection: View {
     let resetTime: String
     let tint: Color
     
-    @State private var settings = MenuBarSettingsManager.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
     
     private var progressWidth: Double {
         min(1, max(0, remainingPercent / 100))
@@ -288,7 +289,7 @@ private struct StatusBadge: View {
 private struct QuotaAccountRow: View {
     let account: AuthFile
     var quotaData: ProviderQuotaData?
-    @State private var settings = MenuBarSettingsManager.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
 
     private var displayName: String {
         let name = account.email ?? account.name

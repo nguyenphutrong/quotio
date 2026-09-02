@@ -10,6 +10,15 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     var modeManager: OperatingModeManager { get }
     var appearanceManager: AppearanceManager { get }
     var languageManager: LanguageManager { get }
+    var settingsScreenModel: SettingsScreenModel { get }
+    var refreshSettings: RefreshSettingsManager { get }
+    var warmupSettings: WarmupSettingsManager { get }
+    var ideScanSettings: IDEScanSettingsManager { get }
+    var launchAtLoginManager: LaunchAtLoginManager { get }
+    var updaterService: UpdaterService { get }
+    var notificationManager: NotificationManager { get }
+    var telemetrySettings: TelemetrySettings { get }
+    var updatePollingService: AtomFeedUpdateService { get }
     var hasCompletedOnboarding: Bool { get }
     var showInDock: Bool { get }
     var canCheckForUpdates: Bool { get }
@@ -53,6 +62,15 @@ final class AppRuntime {
     var modeManager: OperatingModeManager { services.modeManager }
     var appearanceManager: AppearanceManager { services.appearanceManager }
     var languageManager: LanguageManager { services.languageManager }
+    var settingsScreenModel: SettingsScreenModel { services.settingsScreenModel }
+    var refreshSettings: RefreshSettingsManager { services.refreshSettings }
+    var warmupSettings: WarmupSettingsManager { services.warmupSettings }
+    var ideScanSettings: IDEScanSettingsManager { services.ideScanSettings }
+    var launchAtLoginManager: LaunchAtLoginManager { services.launchAtLoginManager }
+    var updaterService: UpdaterService { services.updaterService }
+    var notificationManager: NotificationManager { services.notificationManager }
+    var telemetrySettings: TelemetrySettings { services.telemetrySettings }
+    var updatePollingService: AtomFeedUpdateService { services.updatePollingService }
     var showInDock: Bool { services.showInDock }
     var canCheckForUpdates: Bool { services.canCheckForUpdates }
 

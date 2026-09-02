@@ -4,9 +4,10 @@
 //
 
 import Foundation
-import SwiftUI
 import AppKit
 import Observation
+import QuotioDomain
+import SwiftUI
 
 @MainActor
 @Observable

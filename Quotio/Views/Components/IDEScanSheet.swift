@@ -6,12 +6,14 @@
 //  User must explicitly trigger scan - addresses issue #29
 //
 
+import QuotioDomain
 import SwiftUI
 
 struct IDEScanSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(QuotaViewModel.self) private var viewModel
-    @State private var settings = MenuBarSettingsManager.shared
+    @Environment(MenuBarSettingsManager.self) private var settings
+    @Environment(IDEScanSettingsManager.self) private var ideScanSettings
     
     @State private var scanOptions = IDEScanOptions.defaultOptions
     @State private var isScanning = false
@@ -197,7 +199,7 @@ struct IDEScanSheet: View {
                     .foregroundStyle(.green)
             }
             
-            if let result = IDEScanSettingsManager.shared.lastScanResult {
+            if let result = ideScanSettings.lastScanResult {
                 VStack(alignment: .leading, spacing: 8) {
                     if result.cursorFound {
                         resultRow(icon: "checkmark.circle.fill", color: .green, text: "Cursor: \((result.cursorEmail ?? "Found").masked(if: settings.hideSensitiveInfo))")
