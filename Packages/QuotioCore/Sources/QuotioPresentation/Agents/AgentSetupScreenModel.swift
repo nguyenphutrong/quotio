@@ -246,7 +246,7 @@ public final class AgentSetupScreenModel {
             log("Loaded \(processed.count) models")
             return true
         } catch {
-            log("Failed to load models: \(error.localizedDescription)")
+            log("Failed to load models: \(agentConfigurationErrorMessage(error))")
             if availableModels.isEmpty {
                 availableModels = AvailableModel.allModels
             }

@@ -175,7 +175,7 @@ public final class ProxyManagementScreenModel {
             }
         } catch {
             if !Task.isCancelled {
-                errorMessage = error.localizedDescription
+                errorMessage = proxyManagementErrorMessage(error)
             }
         }
     }
@@ -246,7 +246,7 @@ public final class ProxyManagementScreenModel {
             saveDisabledAuthFiles(disabled)
             await refreshData()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = proxyManagementErrorMessage(error)
         }
     }
 
@@ -283,7 +283,7 @@ public final class ProxyManagementScreenModel {
             saveDisabledAuthFiles(stored)
             await refreshData()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = proxyManagementErrorMessage(error)
         }
     }
 
@@ -300,7 +300,7 @@ public final class ProxyManagementScreenModel {
             await refreshData()
             errorMessage = nil
         } catch {
-            errorMessage = "Import failed: \(error.localizedDescription)"
+            errorMessage = "Import failed: \(proxyManagementErrorMessage(error))"
         }
     }
 
@@ -311,7 +311,7 @@ public final class ProxyManagementScreenModel {
             try await client.addAPIKey(key)
             apiKeys = try await client.fetchAPIKeys()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = proxyManagementErrorMessage(error)
         }
     }
 
@@ -322,7 +322,7 @@ public final class ProxyManagementScreenModel {
             try await client.updateAPIKey(old: old, new: new)
             apiKeys = try await client.fetchAPIKeys()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = proxyManagementErrorMessage(error)
         }
     }
 
@@ -332,7 +332,7 @@ public final class ProxyManagementScreenModel {
             try await client.deleteAPIKey(value: key)
             apiKeys = try await client.fetchAPIKeys()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = proxyManagementErrorMessage(error)
         }
     }
 

@@ -35,30 +35,13 @@ public enum CustomProviderServiceError: Error, Equatable {
     case duplicateName
 }
 
-public enum CustomProviderRemoteError: LocalizedError, Equatable {
+public enum CustomProviderRemoteError: Error, Equatable {
     case noAPIKey
     case invalidURL
     case invalidResponse
     case unauthorized
     case endpointNotFound
     case serverError(Int, String)
-
-    public var errorDescription: String? {
-        switch self {
-        case .noAPIKey:
-            "No API key provided"
-        case .invalidURL:
-            "Invalid base URL"
-        case .invalidResponse:
-            "Invalid response from server"
-        case .unauthorized:
-            "API key is invalid or unauthorized"
-        case .endpointNotFound:
-            "Models endpoint not found at this URL"
-        case .serverError(let code, let message):
-            "Server error (\(code)): \(message)"
-        }
-    }
 }
 
 public enum CustomProviderEndpointPolicy {

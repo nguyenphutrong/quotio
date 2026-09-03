@@ -36,11 +36,15 @@ public enum WarmupModelState: String, Equatable, Sendable {
     case failed
 }
 
+public enum WarmupExecutionFailure: Equatable, Sendable {
+    case failed
+}
+
 public struct WarmupStatus: Equatable, Sendable {
     public var isRunning: Bool
     public var lastRun: Date?
     public var nextRun: Date?
-    public var lastError: String?
+    public var lastFailure: WarmupExecutionFailure?
     public var progressCompleted: Int
     public var progressTotal: Int
     public var currentModel: String?
@@ -50,7 +54,7 @@ public struct WarmupStatus: Equatable, Sendable {
         isRunning: Bool = false,
         lastRun: Date? = nil,
         nextRun: Date? = nil,
-        lastError: String? = nil,
+        lastFailure: WarmupExecutionFailure? = nil,
         progressCompleted: Int = 0,
         progressTotal: Int = 0,
         currentModel: String? = nil,
@@ -59,7 +63,7 @@ public struct WarmupStatus: Equatable, Sendable {
         self.isRunning = isRunning
         self.lastRun = lastRun
         self.nextRun = nextRun
-        self.lastError = lastError
+        self.lastFailure = lastFailure
         self.progressCompleted = progressCompleted
         self.progressTotal = progressTotal
         self.currentModel = currentModel
@@ -198,14 +202,14 @@ public actor WarmupSchedulerService: LifecycleCancelling {
             nextRun[target.account] = date
             updateStatus(for: target.account) {
                 $0.nextRun = date
-                $0.lastError = nil
+                $0.lastFailure = nil
             }
             publish()
         }
 
         let dueAccounts = Set(dueTargets.map(\.account))
         for target in sortedTargets() where !dueAccounts.contains(target.account) {
-            updateStatus(for: target.account) { $0.lastError = nil }
+            updateStatus(for: target.account) { $0.lastFailure = nil }
         }
         publish()
     }
@@ -246,7 +250,7 @@ public actor WarmupSchedulerService: LifecycleCancelling {
 
         updateStatus(for: target.account) { status in
             status.isRunning = true
-            status.lastError = nil
+            status.lastFailure = nil
             status.progressCompleted = 0
             status.progressTotal = models.count
             status.currentModel = nil
@@ -273,7 +277,7 @@ public actor WarmupSchedulerService: LifecycleCancelling {
                 updateStatus(for: target.account) {
                     $0.progressCompleted += 1
                     $0.modelStates[model] = .failed
-                    $0.lastError = error.localizedDescription
+                    $0.lastFailure = .failed
                 }
             }
             publish()

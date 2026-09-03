@@ -573,7 +573,7 @@ struct ProvidersScreen: View {
         do {
             try await proxyManagement.exportAuthFile(name: filename, to: url)
         } catch {
-            proxyManagement.errorMessage = error.localizedDescription
+            proxyManagement.errorMessage = proxyManagementErrorMessage(error)
         }
     }
 
@@ -605,7 +605,7 @@ struct ProvidersScreen: View {
                 do {
                     try await proxyManagement.importAuthFile(from: url)
                 } catch {
-                    proxyManagement.errorMessage = error.localizedDescription
+                    proxyManagement.errorMessage = proxyManagementErrorMessage(error)
                 }
             }
         }
@@ -629,7 +629,7 @@ struct ProvidersScreen: View {
             try providersModel.save(provider)
             syncCustomProvidersToConfig()
         } catch {
-            proxyManagement.errorMessage = error.localizedDescription
+            proxyManagement.errorMessage = customProviderErrorMessage(error)
         }
     }
 
@@ -638,7 +638,7 @@ struct ProvidersScreen: View {
             try providersModel.deleteCustomProvider(id: id)
             syncCustomProvidersToConfig()
         } catch {
-            proxyManagement.errorMessage = error.localizedDescription
+            proxyManagement.errorMessage = customProviderErrorMessage(error)
         }
     }
 

@@ -82,6 +82,10 @@ report_matches \
     '\.localized(Static)?[[:space:]]*\(' \
     "${domain}" "${application}"
 report_matches \
+    'Domain/Application declared UI-ready LocalizedError text' \
+    '\bLocalizedError\b' \
+    "${domain}" "${application}"
+report_matches \
     'Infrastructure imported Presentation' \
     '^[[:space:]]*(@preconcurrency[[:space:]]+)?import[[:space:]]+QuotioPresentation([[:space:].]|$)' \
     "${infrastructure}"

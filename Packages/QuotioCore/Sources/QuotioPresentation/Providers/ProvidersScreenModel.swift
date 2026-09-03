@@ -31,7 +31,7 @@ public final class ProvidersScreenModel {
             customProviders = try customProviderService.providers()
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = customProviderErrorMessage(error)
         }
     }
 
@@ -39,7 +39,7 @@ public final class ProvidersScreenModel {
         do {
             return try customProviderService.validationIssues(for: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = customProviderErrorMessage(error)
             return provider.validationIssues()
         }
     }
@@ -50,7 +50,7 @@ public final class ProvidersScreenModel {
             customProviders = try customProviderService.providers()
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = customProviderErrorMessage(error)
             throw error
         }
     }
@@ -60,7 +60,7 @@ public final class ProvidersScreenModel {
             try customProviderService.synchronizeConfiguration(at: configurationPath)
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = customProviderErrorMessage(error)
             throw error
         }
     }
@@ -71,7 +71,7 @@ public final class ProvidersScreenModel {
             customProviders = try customProviderService.providers()
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = customProviderErrorMessage(error)
             throw error
         }
     }
@@ -82,7 +82,7 @@ public final class ProvidersScreenModel {
             errorMessage = nil
             return models
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = customProviderErrorMessage(error)
             throw error
         }
     }
@@ -92,7 +92,7 @@ public final class ProvidersScreenModel {
             try await customProviderService.testConnection(to: provider)
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = customProviderErrorMessage(error)
             throw error
         }
     }

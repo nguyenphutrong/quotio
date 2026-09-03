@@ -62,7 +62,7 @@ public final class ProxyWarmupExecutor: WarmupExecuting, WarmupExecutionAvailabi
                 data: body
             ))
             if 200...299 ~= response.statusCode { return }
-            lastError = .httpError(response.statusCode, response.body)
+            lastError = .httpError(response.statusCode)
         }
         throw lastError ?? .invalidResponse
     }
@@ -85,26 +85,10 @@ public final class ProxyWarmupExecutor: WarmupExecuting, WarmupExecutionAvailabi
     }
 }
 
-public enum ProxyWarmupFailure: LocalizedError, Equatable, Sendable {
+public enum ProxyWarmupFailure: Error, Equatable, Sendable {
     case invalidResponse
     case encodingFailed
-    case httpError(Int, String?)
-
-    public var errorDescription: String? {
-        switch self {
-        case .invalidResponse:
-            "Invalid warmup response"
-        case .encodingFailed:
-            "Failed to encode warmup payload"
-        case .httpError(let status, let body):
-            if let snippet = body?.trimmingCharacters(in: .whitespacesAndNewlines).prefix(240),
-               !snippet.isEmpty {
-                "Warmup HTTP \(status): \(snippet)"
-            } else {
-                "Warmup HTTP \(status)"
-            }
-        }
-    }
+    case httpError(Int)
 }
 
 private struct AntigravityWarmupRequest: Encodable, Sendable {

@@ -3,6 +3,26 @@ import QuotioApplication
 import QuotioDomain
 import SwiftUI
 
+@MainActor
+func customProviderErrorMessage(_ error: Error) -> String {
+    switch error {
+    case CustomProviderRemoteError.noAPIKey:
+        "No API key provided"
+    case CustomProviderRemoteError.invalidURL:
+        "Invalid base URL"
+    case CustomProviderRemoteError.invalidResponse:
+        "Invalid response from server"
+    case CustomProviderRemoteError.unauthorized:
+        "API key is invalid or unauthorized"
+    case CustomProviderRemoteError.endpointNotFound:
+        "Models endpoint not found at this URL"
+    case CustomProviderRemoteError.serverError(let code, let message):
+        "Server error (\(code)): \(message)"
+    default:
+        error.localizedDescription
+    }
+}
+
 public extension CustomProviderType {
     var displayName: String {
         switch self {

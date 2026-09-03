@@ -72,7 +72,7 @@ struct WarmupSheet: View {
         if status.isRunning {
             return "warmup.status.running".localized()
         }
-        if status.lastError != nil {
+        if status.lastFailure != nil {
             return "warmup.status.failed".localized()
         }
         return "warmup.status.idle".localized()

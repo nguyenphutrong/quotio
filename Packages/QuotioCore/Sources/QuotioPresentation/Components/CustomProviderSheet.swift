@@ -819,7 +819,7 @@ struct CustomProviderSheet: View {
                     .sorted { $0.name < $1.name }
             } catch {
                 isLoadingModels = false
-                modelFetchError = "Failed to fetch models: \(error.localizedDescription)"
+                modelFetchError = "Failed to fetch models: \(customProviderErrorMessage(error))"
             }
         }
     }
@@ -866,7 +866,7 @@ struct CustomProviderSheet: View {
                 dismiss()
             } catch {
                 isTestingConnection = false
-                testError = error.localizedDescription
+                testError = customProviderErrorMessage(error)
                 showValidationAlert = true
             }
         }

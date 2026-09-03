@@ -126,6 +126,8 @@ public extension AgentConnectionMessage {
 @MainActor
 func agentConfigurationErrorMessage(_ error: Error) -> String {
     switch error {
+    case ModelCatalogError.proxyUnavailable:
+        "The proxy is not available."
     case AgentConfigurationValidationError.invalidProxyURL:
         "The proxy URL must be an absolute HTTP or HTTPS URL."
     case AgentConfigurationValidationError.missingAPIKey:

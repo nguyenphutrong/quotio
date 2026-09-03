@@ -120,16 +120,9 @@ public struct ModelCatalogState: Equatable, Sendable {
     }
 }
 
-public enum ModelCatalogError: LocalizedError, Equatable {
+public enum ModelCatalogError: Error, Equatable {
     /// No running proxy to ask, so no catalog can be fetched.
     case proxyUnavailable
-
-    public var errorDescription: String? {
-        switch self {
-        case .proxyUnavailable:
-            return "The proxy is not available."
-        }
-    }
 }
 
 public enum ModelCatalog {

@@ -23,8 +23,30 @@ final class WarmupSchedulerServiceTests: XCTestCase {
         XCTAssertEqual(status.progressCompleted, 2)
         XCTAssertEqual(status.lastRun, Self.now)
         XCTAssertEqual(status.nextRun, Self.now.addingTimeInterval(3_600))
-        XCTAssertNil(status.lastError)
+        XCTAssertNil(status.lastFailure)
         await service.cancelForTermination()
+    }
+
+    func testModelFailurePublishesSemanticFailureState() async {
+        let executor = StubWarmupExecutor(models: ["model"], failingModels: ["model"])
+        let service = makeService(executor: executor)
+        let target = Self.target(selectedModels: ["model"])
+        await service.configure(targets: [target])
+        let snapshots = await service.states()
+        let observedFailure = Task {
+            for await snapshot in snapshots {
+                if snapshot.statuses[target.account]?.lastFailure == .failed {
+                    return true
+                }
+            }
+            return false
+        }
+
+        await service.runDueCycle()
+        await service.cancelForTermination()
+
+        let didObserveFailure = await observedFailure.value
+        XCTAssertTrue(didObserveFailure)
     }
 
     func testUnavailableExecutionAdvancesIntervalWithoutFetchingModels() async {

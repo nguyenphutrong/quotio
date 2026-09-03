@@ -4,6 +4,22 @@ import QuotioApplication
 import QuotioDomain
 
 @MainActor
+func proxyManagementErrorMessage(_ error: Error) -> String {
+    switch error {
+    case ProxyManagementFailure.invalidURL:
+        "Invalid URL"
+    case ProxyManagementFailure.invalidResponse:
+        "Invalid response"
+    case ProxyManagementFailure.httpError(let statusCode):
+        "HTTP error: \(statusCode)"
+    case ProxyManagementFailure.connectionError(let message):
+        "Connection error: \(message)"
+    default:
+        error.localizedDescription
+    }
+}
+
+@MainActor
 @Observable
 public final class ProxyScreenModel {
     public private(set) var state: ProxySnapshot {

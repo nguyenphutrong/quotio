@@ -57,22 +57,9 @@ public protocol ManagedAuthFileStateRepository: Sendable {
     func recordAuthFilesChanged(at date: Date)
 }
 
-public enum ProxyManagementFailure: LocalizedError, Equatable, Sendable {
+public enum ProxyManagementFailure: Error, Equatable, Sendable {
     case invalidURL
     case invalidResponse
     case httpError(Int)
     case connectionError(String)
-
-    public var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            "Invalid URL"
-        case .invalidResponse:
-            "Invalid response"
-        case .httpError(let statusCode):
-            "HTTP error: \(statusCode)"
-        case .connectionError(let message):
-            "Connection error: \(message)"
-        }
-    }
 }
