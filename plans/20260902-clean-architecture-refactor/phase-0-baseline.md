@@ -94,13 +94,38 @@ notarization, generation of a release-candidate appcast, and the Homebrew dispat
 therefore not run. Triggering the release or Homebrew workflow would also mutate shared
 external state and requires explicit approval.
 
+### Current-macOS isolated UI shell checks
+
+An ad-hoc-signed app copy with a non-production bundle identifier was run against
+disposable home directories so the checks could not read or replace the user's
+preferences, Application Support files, CLI configuration, or Quotio Keychain items.
+The in-process harness captured the app's own windows and accessibility tree and exited
+without exercising release or production credentials.
+
+- Both local-proxy and quota-only dashboard shells rendered in all 16 combinations of
+  light/dark appearance and English, French, Vietnamese, and Simplified Chinese.
+- The expected localized empty states, navigation, status item, and main window rendered
+  without a crash, missing content, or overlapping primary content.
+- A fresh-onboarding run initially reproduced a missing `OperatingModeManager`
+  environment dependency in the onboarding sheet. Onboarding now returns the selected
+  mode to `AppRuntime`, which persists it before full initialization. The isolated
+  fresh-install rerun displayed the `Welcome to Quotio` sheet and exited successfully.
+- The onboarding rerun used a disposable default keychain inside its isolated home. The
+  generated `local-management-key` was confined to that keychain, which was removed with
+  the rest of the harness artifacts.
+
+This verifies shell rendering and fresh-onboarding bootstrap on the current development
+macOS only. It does not constitute the interactive provider/OAuth/proxy/tunnel/agent,
+notification, or release-candidate matrix.
+
 ### Manual acceptance limits
 
 This machine runs macOS 26.6 and has no macOS 14 host. The full macOS 14/current-macOS
 manual matrix across both operating modes, light/dark appearance, all providers, and
-all four locales was not run. Automated contracts and the current-macOS launch smoke
-pass, but the deferred manual matrix and signed/notarized release-candidate validation
-remain external acceptance gates.
+all four locales was not run. Automated contracts, the current-macOS launch smoke, the
+16-combination isolated shell matrix, and the isolated fresh-onboarding bootstrap pass,
+but the deferred interactive/manual matrix and signed/notarized release-candidate
+validation remain external acceptance gates.
 
 ## Persisted Identifier Compatibility Contract
 
