@@ -46,6 +46,17 @@ final class LocalizationBundleTests: XCTestCase {
         }
     }
 
+    func testChangingLanguageUpdatesPresentationLocalization() {
+        let languageManager = LanguageManager(repository: InMemoryLanguagePreferencesRepository(language: .english))
+        defer { languageManager.setLanguage(storedLanguage) }
+
+        XCTAssertEqual("nav.settings".localized(), "Settings")
+
+        languageManager.setLanguage(.vietnamese)
+
+        XCTAssertEqual("nav.settings".localized(), "Cài đặt")
+    }
+
     private var storedLanguage: AppLanguage {
         UserDefaults.standard.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:)) ?? .english
     }

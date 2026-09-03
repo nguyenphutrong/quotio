@@ -17,6 +17,7 @@ enum AccountRowSource: Equatable {
     case autoDetected    // Auto-detected from IDE (Cursor, Trae)
     case monitor(AccountSource)
     
+    @MainActor
     var displayName: String {
         switch self {
         case .proxy: return "providers.source.proxy".localizedStatic()

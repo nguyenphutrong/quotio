@@ -362,6 +362,7 @@ struct QuotaOAuthState: Identifiable, Equatable {
     var error: String?
     var authURL: String?
 
+    @MainActor
     init?(_ flowState: OAuthFlowState) {
         let providerID: AccountProviderID
         let prompt: OAuthPrompt?

@@ -50,7 +50,7 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
 
     public func preview(_ request: AgentConfigurationRequest) async throws -> AgentConfigResult {
         try validate(request)
-        return configurationResult(
+        return await configurationResult(
             request,
             mode: .manual,
             existingData: await fileStore.data(at: configPath)
@@ -60,7 +60,7 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
     public func apply(_ request: AgentConfigurationRequest) async throws -> AgentConfigResult {
         try validate(request)
         let existingData = await fileStore.data(at: configPath)
-        let result = configurationResult(request, mode: request.mode, existingData: existingData)
+        let result = await configurationResult(request, mode: request.mode, existingData: existingData)
         guard request.mode == .automatic,
               result.success,
               let output = result.rawConfigs.first else { return result }
@@ -111,7 +111,7 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                     type: .file,
                     mode: mode,
                     configPath: configPath,
-                    instructions: localize("agents.opencode.notConfigured"),
+                    instructions: await localize("agents.opencode.notConfigured"),
                     modelsConfigured: 0
                 )
             }
@@ -150,7 +150,7 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
         _ request: AgentConfigurationRequest,
         mode: ConfigurationMode,
         existingData: Data?
-    ) -> AgentConfigResult {
+    ) async -> AgentConfigResult {
         let config = request.configuration
         let baseURL = config.proxyURL.replacingOccurrences(of: "/v1", with: "")
         let models = request.availableModels.isEmpty ? AvailableModel.allModels : request.availableModels
@@ -177,7 +177,7 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                 )
             } catch {
                 guard mode == .manual else {
-                    let format = localize("agents.opencode.parseFailed")
+                    let format = await localize("agents.opencode.parseFailed")
                     return .failure(error: String(format: format, configPath, error.localizedDescription))
                 }
                 data = try OpenCodeConfigEditor.merging(existing: nil, providers: ["quotio": provider])

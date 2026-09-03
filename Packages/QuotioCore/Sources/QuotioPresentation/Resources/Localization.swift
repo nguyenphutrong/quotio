@@ -3,20 +3,16 @@ import Observation
 import QuotioApplication
 import QuotioDomain
 
+@MainActor
 private enum PresentationLocalization {
-    static let lock = NSLock()
-    nonisolated(unsafe) static var bundle = Bundle.main
+    static var bundle = Bundle.main
 
     static func updateBundle(_ newBundle: Bundle) {
-        lock.lock()
         bundle = newBundle
-        lock.unlock()
     }
 
     static func localized(_ key: String) -> String {
-        lock.lock()
-        defer { lock.unlock() }
-        return NSLocalizedString(key, bundle: bundle, comment: "")
+        NSLocalizedString(key, bundle: bundle, comment: "")
     }
 }
 
@@ -58,10 +54,12 @@ public final class LanguageManager {
 }
 
 public extension String {
+    @MainActor
     func localized() -> String {
         PresentationLocalization.localized(self)
     }
 
+    @MainActor
     func localizedStatic() -> String {
         localized()
     }

@@ -48,7 +48,7 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
             return .success(
                 type: .file,
                 mode: mode,
-                instructions: localize("agents.codex.revertManualInstructions"),
+                instructions: await localize("agents.codex.revertManualInstructions"),
                 modelsConfigured: 0
             )
         }
@@ -110,14 +110,14 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
                 content: config,
                 filename: "config.toml",
                 targetPath: configPath,
-                instructions: localize("agents.codex.saveConfigTOML")
+                instructions: await localize("agents.codex.saveConfigTOML")
             ),
             RawConfigOutput(
                 format: .json,
                 content: String(decoding: auth.managed, as: UTF8.self),
                 filename: "auth.json",
                 targetPath: authPath,
-                instructions: localize("agents.codex.authJSONMergeKey")
+                instructions: await localize("agents.codex.authJSONMergeKey")
             ),
         ]
         var backupPath: String?
@@ -134,7 +134,7 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
             configPath: configPath,
             authPath: authPath,
             rawConfigs: rawConfigs,
-            instructions: localize(write ? "agents.codex.applySuccess" : "agents.codex.mergeAndSaveFiles"),
+            instructions: await localize(write ? "agents.codex.applySuccess" : "agents.codex.mergeAndSaveFiles"),
             modelsConfigured: 1,
             backupPath: backupPath
         )

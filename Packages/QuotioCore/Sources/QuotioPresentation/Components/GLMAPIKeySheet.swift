@@ -237,6 +237,7 @@ enum GLMEndpoint: String, CaseIterable, Codable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    @MainActor
     var displayName: String {
         switch self {
         case .zai: return "glm.endpoint.zaiGlobal".localizedStatic()

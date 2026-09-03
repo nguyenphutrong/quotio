@@ -55,6 +55,7 @@ public extension CLIAgent {
     }
 }
 
+@MainActor
 public extension ConfigurationSetup {
     var displayName: String {
         switch self {
@@ -121,6 +122,7 @@ public extension ModelSlot {
     }
 }
 
+@MainActor
 public extension CodexReasoningEffort {
     var displayName: String {
         if case .custom(let value) = self {

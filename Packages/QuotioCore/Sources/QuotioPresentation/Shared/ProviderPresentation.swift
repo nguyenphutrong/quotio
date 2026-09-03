@@ -150,6 +150,7 @@ public extension QuotaProvider {
 }
 
 public extension AccountSource {
+    @MainActor
     var displayName: String { localizationKey.localizedStatic() }
 
     var localizationKey: String {

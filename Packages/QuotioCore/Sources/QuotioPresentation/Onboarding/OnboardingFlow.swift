@@ -15,6 +15,7 @@ enum OnboardingStep: Int, CaseIterable {
     case providers = 2
     case completion = 3
     
+    @MainActor
     var title: String {
         switch self {
         case .welcome: return "onboarding.step.welcome".localizedStatic()

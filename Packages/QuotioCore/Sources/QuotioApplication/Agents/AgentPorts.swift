@@ -59,4 +59,4 @@ public enum AgentConfigurationServiceError: LocalizedError, Equatable, Sendable 
     }
 }
 
-public typealias AgentTextLocalizer = @Sendable (_ key: String) -> String
+public typealias AgentTextLocalizer = @MainActor @Sendable (_ key: String) -> String

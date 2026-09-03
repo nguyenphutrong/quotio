@@ -108,21 +108,21 @@ public actor AmpAgentConfigurationAdapter: AgentConfigurationRepository {
                 content: String(decoding: managedSettings, as: UTF8.self),
                 filename: "settings.json",
                 targetPath: settingsPath,
-                instructions: localize("agents.amp.mergeSettings")
+                instructions: await localize("agents.amp.mergeSettings")
             ),
             RawConfigOutput(
                 format: .json,
                 content: String(decoding: managedSecrets, as: UTF8.self),
                 filename: "secrets.json",
                 targetPath: secretsPath,
-                instructions: localize("agents.amp.mergeSecrets")
+                instructions: await localize("agents.amp.mergeSecrets")
             ),
             RawConfigOutput(
                 format: .shellExport,
                 content: shellExports,
                 filename: nil,
                 targetPath: shellProfilePath + " (alternative)",
-                instructions: localize("agents.amp.useEnvironmentVariables")
+                instructions: await localize("agents.amp.useEnvironmentVariables")
             ),
         ]
 
@@ -150,7 +150,7 @@ public actor AmpAgentConfigurationAdapter: AgentConfigurationRepository {
             authPath: secretsPath,
             shellConfig: shellExports,
             rawConfigs: rawConfigs,
-            instructions: localize(write ? "agents.amp.configSuccess" : "agents.amp.mergeAndSaveFiles"),
+            instructions: await localize(write ? "agents.amp.configSuccess" : "agents.amp.mergeAndSaveFiles"),
             modelsConfigured: 1,
             backupPath: backupPath
         )

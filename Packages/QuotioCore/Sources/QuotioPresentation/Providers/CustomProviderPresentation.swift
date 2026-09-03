@@ -88,6 +88,7 @@ public extension CustomProviderType {
 }
 
 public extension CustomHeader {
+    @MainActor
     static func validationErrors(in headers: [CustomHeader]) -> [String] {
         validationIssues(in: headers).map { issue in
             switch issue {
@@ -101,6 +102,7 @@ public extension CustomHeader {
 }
 
 public extension CustomProviderValidationIssue {
+    @MainActor
     func localizedMessage(providerType: CustomProviderType) -> String {
         switch self {
         case .nameRequired:
@@ -130,6 +132,7 @@ public extension CustomProviderValidationIssue {
 }
 
 public extension CustomProvider {
+    @MainActor
     func validate() -> [String] {
         validationIssues().map {
             $0.localizedMessage(providerType: type)
