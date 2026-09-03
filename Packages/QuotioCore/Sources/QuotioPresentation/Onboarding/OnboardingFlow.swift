@@ -69,12 +69,11 @@ enum SlideDirection {
 
 public struct OnboardingFlow: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(OperatingModeManager.self) private var modeManager
     @State private var viewModel = OnboardingViewModel()
     
-    var onComplete: (() -> Void)?
+    var onComplete: ((OperatingMode) -> Void)?
 
-    public init(onComplete: (() -> Void)? = nil) {
+    public init(onComplete: ((OperatingMode) -> Void)? = nil) {
         self.onComplete = onComplete
     }
     
@@ -103,8 +102,7 @@ public struct OnboardingFlow: View {
             ProviderStep(viewModel: viewModel)
         case .completion:
             CompletionStep(viewModel: viewModel) {
-                modeManager.completeOnboarding(mode: viewModel.selectedMode)
-                onComplete?()
+                onComplete?(viewModel.selectedMode)
                 dismiss()
             }
         }

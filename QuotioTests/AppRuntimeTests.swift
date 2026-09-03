@@ -40,11 +40,13 @@ final class AppRuntimeTests: XCTestCase {
         XCTAssertEqual(services.loadDirectAuthFilesCount, 0)
         XCTAssertEqual(services.startUpdatePollingCount, 1)
 
-        async let firstCompletion: Void = runtime.completeOnboarding()
-        async let secondCompletion: Void = runtime.completeOnboarding()
+        async let firstCompletion: Void = runtime.completeOnboarding(mode: .localProxy)
+        async let secondCompletion: Void = runtime.completeOnboarding(mode: .localProxy)
         _ = await (firstCompletion, secondCompletion)
 
         XCTAssertFalse(runtime.needsOnboarding)
+        XCTAssertEqual(services.modeManager.currentMode, .localProxy)
+        XCTAssertTrue(services.modeManager.hasCompletedOnboarding)
         XCTAssertEqual(services.loadDirectAuthFilesCount, 1)
         XCTAssertEqual(services.initializeFeaturesCount, 1)
         XCTAssertEqual(services.backgroundUpdateCheckCount, 1)

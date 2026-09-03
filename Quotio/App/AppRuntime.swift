@@ -1,4 +1,5 @@
 import Foundation
+import QuotioDomain
 import QuotioPresentation
 
 @MainActor
@@ -145,7 +146,8 @@ final class AppRuntime {
         await startUpdatePollingIfNeeded()
     }
 
-    func completeOnboarding() async {
+    func completeOnboarding(mode: OperatingMode) async {
+        services.modeManager.completeOnboarding(mode: mode)
         needsOnboarding = false
         await performFullInitializationIfNeeded()
     }

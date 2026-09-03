@@ -64,9 +64,9 @@ struct QuotioApp: App {
                         statusBarManager.rebuildMenuInPlace()
                     }
                     .sheet(isPresented: $showOnboarding) {
-                        OnboardingFlow {
+                        OnboardingFlow { mode in
                             Task {
-                                await runtime.completeOnboarding()
+                                await runtime.completeOnboarding(mode: mode)
                             }
                         }
                     }
