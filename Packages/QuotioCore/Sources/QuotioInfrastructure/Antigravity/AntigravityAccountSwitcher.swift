@@ -81,7 +81,7 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
             return path
         } ?? Self.authFilePath(email: email, directory: expanded)
         guard let credentialPath else {
-            fail("Auth file not found for \(email)")
+            fail(.authFileNotFound(accountEmail: email))
             return
         }
         await switchAccount(authFilePath: credentialPath, restartIDE: restartIDE)
@@ -94,10 +94,11 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
         let url = URL(fileURLWithPath: path)
         guard let data = try? Data(contentsOf: url),
               var auth = try? JSONDecoder().decode(AntigravitySwitchAuthFile.self, from: data) else {
-            fail("Failed to read auth file")
+            fail(.authFileUnreadable)
             return
         }
         let wasRunning = await process.isRunning()
+        var pendingFailure = AntigravitySwitchFailure.credentialRefreshFailed
 
         do {
             if Self.isExpired(auth.expired, now: now()), let refreshToken = auth.refreshToken {
@@ -124,10 +125,12 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
             try await Task.sleep(for: wasRunning ? .milliseconds(500) : .milliseconds(200))
             try ensureCurrent(id)
 
+            pendingFailure = .databaseBackupFailed
             update(.switching(progress: .creatingBackup))
             try await database.createBackup()
             try ensureCurrent(id)
 
+            pendingFailure = .credentialInjectionFailed
             update(.switching(progress: .injectingToken))
             let profile = await devices.loadOrCreate(email: auth.email)
             try? await devices.writeToIDE(profile)
@@ -145,6 +148,7 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
             try ensureCurrent(id)
 
             if wasRunning && restartIDE {
+                pendingFailure = .ideRestartFailed
                 update(.switching(progress: .restartingIDE))
                 try await process.launch()
             }
@@ -161,7 +165,7 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
             await rollbackIfNeeded()
             if operationID == id {
                 operationID = nil
-                fail(error.localizedDescription)
+                fail(pendingFailure)
             }
         }
     }
@@ -180,7 +184,7 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
         publish()
     }
 
-    private func fail(_ message: String) { update(.failed(message: message)) }
+    private func fail(_ failure: AntigravitySwitchFailure) { update(.failed(failure)) }
 
     private func publish() {
         for continuation in continuations.values { continuation.yield(current) }

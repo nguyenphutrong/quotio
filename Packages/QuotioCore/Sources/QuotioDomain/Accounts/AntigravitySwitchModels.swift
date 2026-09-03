@@ -58,12 +58,21 @@ public enum AntigravitySwitchProgress: String, CaseIterable, Equatable, Sendable
     case restartingIDE
 }
 
+public enum AntigravitySwitchFailure: Equatable, Sendable {
+    case authFileNotFound(accountEmail: String)
+    case authFileUnreadable
+    case credentialRefreshFailed
+    case databaseBackupFailed
+    case credentialInjectionFailed
+    case ideRestartFailed
+}
+
 public enum AntigravitySwitchState: Equatable, Sendable {
     case idle
     case confirming(accountID: String, accountEmail: String)
     case switching(progress: AntigravitySwitchProgress)
     case success(accountID: String)
-    case failed(message: String)
+    case failed(AntigravitySwitchFailure)
 }
 
 public struct AntigravitySwitchSnapshot: Equatable, Sendable {

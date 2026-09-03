@@ -80,8 +80,8 @@ struct SwitchAccountSheet: View {
         case .success:
             successContent
             
-        case .failed(let message):
-            failureContent(message: message)
+        case .failed(let failure):
+            failureContent(message: failure.displayMessage)
         }
     }
     

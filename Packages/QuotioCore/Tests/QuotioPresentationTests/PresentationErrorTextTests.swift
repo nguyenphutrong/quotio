@@ -68,4 +68,28 @@ final class PresentationErrorTextTests: XCTestCase {
             "The updated OpenCode configuration could not be verified."
         )
     }
+
+    func testAntigravitySwitchFailuresMapToPresentationMessages() {
+        XCTAssertEqual(
+            AntigravitySwitchFailure.authFileNotFound(accountEmail: "person@example.com").displayMessage,
+            "Auth file not found for person@example.com"
+        )
+        XCTAssertEqual(AntigravitySwitchFailure.authFileUnreadable.displayMessage, "Failed to read auth file")
+        XCTAssertEqual(
+            AntigravitySwitchFailure.credentialRefreshFailed.displayMessage,
+            "Failed to refresh the account credential"
+        )
+        XCTAssertEqual(
+            AntigravitySwitchFailure.databaseBackupFailed.displayMessage,
+            "Failed to back up the Antigravity database"
+        )
+        XCTAssertEqual(
+            AntigravitySwitchFailure.credentialInjectionFailed.displayMessage,
+            "Failed to update the Antigravity credential"
+        )
+        XCTAssertEqual(
+            AntigravitySwitchFailure.ideRestartFailed.displayMessage,
+            "Failed to restart Antigravity IDE"
+        )
+    }
 }

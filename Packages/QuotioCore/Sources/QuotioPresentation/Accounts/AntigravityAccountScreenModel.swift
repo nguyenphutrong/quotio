@@ -63,3 +63,22 @@ public final class AntigravityAccountScreenModel {
         Task { await switcher.cancelSwitch() }
     }
 }
+
+extension AntigravitySwitchFailure {
+    var displayMessage: String {
+        switch self {
+        case .authFileNotFound(let accountEmail):
+            "Auth file not found for \(accountEmail)"
+        case .authFileUnreadable:
+            "Failed to read auth file"
+        case .credentialRefreshFailed:
+            "Failed to refresh the account credential"
+        case .databaseBackupFailed:
+            "Failed to back up the Antigravity database"
+        case .credentialInjectionFailed:
+            "Failed to update the Antigravity credential"
+        case .ideRestartFailed:
+            "Failed to restart Antigravity IDE"
+        }
+    }
+}

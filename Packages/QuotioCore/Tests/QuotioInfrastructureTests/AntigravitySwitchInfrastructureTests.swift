@@ -3,6 +3,41 @@ import XCTest
 @testable import QuotioInfrastructure
 
 final class AntigravitySwitchInfrastructureTests: XCTestCase {
+    func testMissingAuthFilePublishesSemanticFailure() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let switcher = AntigravityAccountSwitcher()
+
+        await switcher.switchAccount(
+            email: "person@example.com",
+            authDirectory: directory.path,
+            restartIDE: false
+        )
+
+        let snapshot = await switcher.snapshot()
+        XCTAssertEqual(
+            snapshot.state,
+            .failed(.authFileNotFound(accountEmail: "person@example.com"))
+        )
+    }
+
+    func testUnreadableAuthFilePublishesSemanticFailure() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let authFile = directory.appendingPathComponent("antigravity-person.json")
+        try Data("not-json".utf8).write(to: authFile)
+        let switcher = AntigravityAccountSwitcher()
+
+        await switcher.switchAccount(authFilePath: authFile.path, restartIDE: false)
+
+        let snapshot = await switcher.snapshot()
+        XCTAssertEqual(snapshot.state, .failed(.authFileUnreadable))
+    }
+
     func testVersionComponentsSupportThresholdAndShortVersions() {
         XCTAssertEqual(AntigravityVersionDetection.components("1.16.5"), [1, 16, 5])
         XCTAssertEqual(AntigravityVersionDetection.components("2"), [2, 0, 0])
