@@ -142,8 +142,8 @@ public actor ProxyNotificationRelay: ProxyNotificationDelivering {
             await notifications.submit(.proxyCrashed(exitCode: exitCode))
         case .upgradeSucceeded(let version):
             await notifications.submit(.proxyUpdateSucceeded(version: version))
-        case .upgradeFailed(let version, let reason):
-            await notifications.submit(.proxyUpdateFailed(version: version, reason: reason))
+        case .upgradeFailed(let version, let failure):
+            await notifications.submit(.proxyUpdateFailed(version: version, failure: failure))
         case .rolledBack(let version):
             await notifications.submit(.proxyRolledBack(version: version))
         case .suppressUpgrade(let version):

@@ -144,7 +144,15 @@ final class ProxyLifecycleControllerTests: XCTestCase {
         XCTAssertTrue(snapshot.status.running)
         XCTAssertEqual(snapshot.lifecycle, .active)
         XCTAssertEqual(removedTestConfigurationCount, 1)
-        XCTAssertEqual(notifications.count, 1)
+        XCTAssertEqual(
+            notifications,
+            [
+                .upgradeFailed(
+                    version: "2.0.0",
+                    failure: .compatibilityCheckFailed(.proxyNotResponding)
+                ),
+            ]
+        )
         await harness.controller.shutdown()
     }
 
@@ -211,7 +219,10 @@ final class ProxyLifecycleControllerTests: XCTestCase {
         XCTAssertEqual(snapshot.lifecycle, .active)
         XCTAssertFalse(containsCandidate)
         XCTAssertEqual(requestCount, 4)
-        XCTAssertEqual(notifications.count, 1)
+        XCTAssertEqual(
+            notifications,
+            [.upgradeFailed(version: "2.0.0", failure: .startupFailed)]
+        )
         await harness.controller.shutdown()
     }
 

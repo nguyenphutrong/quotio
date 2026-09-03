@@ -89,10 +89,14 @@ public final class UserNotificationCenterAdapter: NotificationDelivering {
             content.body = String(format: localize("notification.upgrade.success.body"), version)
             content.categoryIdentifier = "upgradeSuccess"
             content.sound = .default
-        case .proxyUpdateFailed(let version, let reason):
+        case .proxyUpdateFailed(let version, let failure):
             identifier = "upgrade_failed_\(version)"
             content.title = localize("notification.upgrade.failed.title")
-            content.body = String(format: localize("notification.upgrade.failed.body"), version, reason)
+            content.body = String(
+                format: localize("notification.upgrade.failed.body"),
+                version,
+                proxyFailureNotificationReason(failure)
+            )
             content.categoryIdentifier = "upgradeFailed"
             content.sound = .defaultCritical
         case .proxyRolledBack(let version):
@@ -112,5 +116,27 @@ public final class UserNotificationCenterAdapter: NotificationDelivering {
 
     public func removeAllDelivered() {
         center.removeAllDeliveredNotifications()
+    }
+}
+
+func proxyFailureNotificationReason(_ failure: ProxyFailure) -> String {
+    switch failure {
+    case .binaryNotFound: "Binary not found"
+    case .startupFailed: "Proxy startup failed"
+    case .operationInProgress: "Another operation is in progress"
+    case .network(let message),
+         .downloadFailed(let message),
+         .extractionFailed(let message),
+         .installationFailed(let message),
+         .dryRunFailed(let message),
+         .rollbackFailed(let message): message
+    case .noCompatibleBinary: "No compatible binary"
+    case .checksumMissing: "No SHA256 checksum provided"
+    case .checksumMismatch: "Checksum mismatch"
+    case .compatibilityCheckFailed: "Compatibility check failed"
+    case .noVersionAvailable: "No version available"
+    case .versionAlreadyInstalled(let version): "Version \(version) is already installed"
+    case .cannotDeleteCurrentVersion: "Cannot delete current version"
+    case .cancelled: "Operation cancelled"
     }
 }

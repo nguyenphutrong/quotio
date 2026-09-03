@@ -337,7 +337,7 @@ public actor ProxyLifecycleController: ProxyControlling {
             returnToRuntimeState(wasRunning: currentSnapshot.status.running)
             if installedVersion != nil {
                 await notificationDelivery.deliver(
-                    .upgradeFailed(version: version.version, reason: describe(failure))
+                    .upgradeFailed(version: version.version, failure: failure)
                 )
             }
             publish()
@@ -924,28 +924,6 @@ public actor ProxyLifecycleController: ProxyControlling {
             return .cancelled
         }
         return .installationFailed(String(describing: error))
-    }
-
-    private func describe(_ failure: ProxyFailure) -> String {
-        switch failure {
-        case .binaryNotFound: "Binary not found"
-        case .startupFailed: "Proxy startup failed"
-        case .operationInProgress: "Another operation is in progress"
-        case .network(let message),
-             .downloadFailed(let message),
-             .extractionFailed(let message),
-             .installationFailed(let message),
-             .dryRunFailed(let message),
-             .rollbackFailed(let message): message
-        case .noCompatibleBinary: "No compatible binary"
-        case .checksumMissing: "No SHA256 checksum provided"
-        case .checksumMismatch: "Checksum mismatch"
-        case .compatibilityCheckFailed: "Compatibility check failed"
-        case .noVersionAvailable: "No version available"
-        case .versionAlreadyInstalled(let version): "Version \(version) is already installed"
-        case .cannotDeleteCurrentVersion: "Cannot delete current version"
-        case .cancelled: "Operation cancelled"
-        }
     }
 
     private func sanitizeProxyURL(_ value: String) -> String {

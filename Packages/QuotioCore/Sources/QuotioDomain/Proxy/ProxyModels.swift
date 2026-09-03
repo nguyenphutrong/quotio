@@ -189,7 +189,7 @@ public enum ProxyFailure: Error, Equatable, Sendable {
 public enum ProxyNotification: Equatable, Sendable {
     case crashed(exitCode: Int32)
     case upgradeSucceeded(version: String)
-    case upgradeFailed(version: String, reason: String)
+    case upgradeFailed(version: String, failure: ProxyFailure)
     case rolledBack(version: String)
     case suppressUpgrade(version: String)
 }

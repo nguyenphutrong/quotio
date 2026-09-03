@@ -62,7 +62,7 @@ public enum SemanticNotification: Equatable, Sendable {
     case proxyStarted
     case proxyUpdateAvailable(version: String)
     case proxyUpdateSucceeded(version: String)
-    case proxyUpdateFailed(version: String, reason: String)
+    case proxyUpdateFailed(version: String, failure: ProxyFailure)
     case proxyRolledBack(version: String)
 }
 

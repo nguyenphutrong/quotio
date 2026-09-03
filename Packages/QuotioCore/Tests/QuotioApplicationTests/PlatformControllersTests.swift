@@ -167,6 +167,19 @@ final class PlatformControllersTests: XCTestCase {
         XCTAssertEqual(delivery.authorizationRequestCount, 1)
     }
 
+    func testProxyNotificationRelayPreservesSemanticUpgradeFailure() async {
+        let notifications = PollingNotificationFake()
+        let relay = ProxyNotificationRelay(notifications: notifications)
+        let failure = ProxyFailure.checksumMismatch(expected: "expected", actual: "actual")
+
+        await relay.deliver(.upgradeFailed(version: "2.0.0", failure: failure))
+
+        XCTAssertEqual(
+            notifications.submitted,
+            [.proxyUpdateFailed(version: "2.0.0", failure: failure)]
+        )
+    }
+
     func testLaunchAtLoginControllerSkipsRedundantRegistrationAndSurfacesFailures() {
         let registration = LaunchAtLoginRegistrationFake(status: .enabled)
         let controller = LaunchAtLoginController(
