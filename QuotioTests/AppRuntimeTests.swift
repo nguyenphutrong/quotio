@@ -92,7 +92,19 @@ final class AppRuntimeTests: XCTestCase {
 
 @MainActor
 private final class FakeAppRuntimeServices: AppRuntimeServices {
-    let viewModel = CompositionRoot.makeQuotaViewModel()
+    private lazy var dependencies = CompositionRoot.makeProduction()
+    var proxyManagement: ProxyManagementScreenModel { dependencies.proxyManagement }
+    var quotaController: QuotaFeatureController { dependencies.quotaController }
+    var quotaScreenModel: QuotaScreenModel { dependencies.quotaScreenModel }
+    var accountsScreenModel: AccountsScreenModel { dependencies.accountsScreenModel }
+    var dashboardScreenModel: DashboardScreenModel { dependencies.dashboardScreenModel }
+    var providersScreenModel: ProvidersScreenModel { dependencies.providersScreenModel }
+    var navigationScreenModel: NavigationScreenModel { dependencies.navigationScreenModel }
+    var warmupScreenModel: WarmupScreenModel { dependencies.warmupScreenModel }
+    var ideImportScreenModel: IDEImportScreenModel { dependencies.ideImportScreenModel }
+    var antigravityAccountScreenModel: AntigravityAccountScreenModel {
+        dependencies.antigravityAccountScreenModel
+    }
     let logsScreenModel: LogsScreenModel
     let menuBarSettings = MenuBarSettingsManager.shared
     let statusBarManager = StatusBarManager.shared

@@ -11,13 +11,15 @@ import SwiftUI
 
 /// Compact badge showing current mode in sidebar, clickable to open settings
 struct CurrentModeBadge: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(NavigationScreenModel.self) private var navigation
+    @Environment(ProxyManagementScreenModel.self) private var proxyManagement
+    @Environment(AccountsScreenModel.self) private var accounts
     @Environment(OperatingModeManager.self) private var modeManager
     @State private var isHovered = false
     
     var body: some View {
         Button {
-            viewModel.currentPage = .settings
+            navigation.currentPage = .settings
         } label: {
             HStack(spacing: 8) {
                 // Mode icon
@@ -74,11 +76,11 @@ struct CurrentModeBadge: View {
     private var statusText: String {
         switch modeManager.currentMode {
         case .monitor:
-            let count = viewModel.monitorAccounts.count
+            let count = accounts.accounts.count
             return String(format: "sidebar.modeBadge.accounts".localized(), count)
         case .localProxy:
-            if viewModel.proxyManager.proxyStatus.running {
-                return ":" + String(viewModel.proxyManager.port) + " - " + "status.running".localized()
+            if proxyManagement.proxy.proxyStatus.running {
+                return ":" + String(proxyManagement.proxy.port) + " - " + "status.running".localized()
             } else {
                 return "status.stopped".localized()
             }
@@ -104,8 +106,12 @@ struct CurrentModeBadge: View {
 }
 
 #Preview {
+    let runtime = CompositionRoot.makeProduction()
     CurrentModeBadge()
-        .environment(CompositionRoot.makeQuotaViewModel())
+        .environment(runtime.navigationScreenModel)
+        .environment(runtime.proxyManagement)
+        .environment(runtime.accountsScreenModel)
+        .environment(runtime.modeManager)
         .padding()
         .frame(width: 200)
 }

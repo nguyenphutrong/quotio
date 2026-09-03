@@ -10,7 +10,6 @@ import SwiftUI
 
 // Legacy SidebarView - kept for reference
 struct SidebarView: View {
-    @Environment(QuotaViewModel.self) private var viewModel
     @Binding var isExpanded: Bool
     @Binding var isPinned: Bool
     

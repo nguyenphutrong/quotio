@@ -3,8 +3,9 @@
 //  Quotio
 //
 
-import SwiftUI
 import AppKit
+import QuotioDomain
+import SwiftUI
 
 struct ProviderIcon: View {
     let provider: AIProvider

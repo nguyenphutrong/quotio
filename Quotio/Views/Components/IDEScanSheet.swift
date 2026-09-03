@@ -11,7 +11,7 @@ import SwiftUI
 
 struct IDEScanSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(IDEImportScreenModel.self) private var viewModel
     @Environment(MenuBarSettingsManager.self) private var settings
     @Environment(IDEScanSettingsManager.self) private var ideScanSettings
     
@@ -306,7 +306,7 @@ struct IDEScanSheet: View {
         scanComplete = false
         
         Task {
-            await viewModel.scanIDEsWithConsent(options: scanOptions)
+            await viewModel.scan(options: scanOptions)
             
             await MainActor.run {
                 isScanning = false
@@ -317,6 +317,9 @@ struct IDEScanSheet: View {
 }
 
 #Preview {
+    let runtime = CompositionRoot.makeProduction()
     IDEScanSheet(onScanComplete: {})
-        .environment(CompositionRoot.makeQuotaViewModel())
+        .environment(runtime.ideImportScreenModel)
+        .environment(runtime.menuBarSettings)
+        .environment(runtime.ideScanSettings)
 }

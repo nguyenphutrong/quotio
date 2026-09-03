@@ -36,6 +36,20 @@ final class AccountScreenModelsTests: XCTestCase {
         XCTAssertFalse(String(describing: model).contains("accessToken"))
     }
 
+    func testAccountsModelReloadMergesQuotaDerivedAccounts() async {
+        let model = AccountsScreenModel(
+            accountService: AccountScreenModelService(accounts: []),
+            authFileRepository: AccountScreenModelAuthFiles(files: [])
+        )
+
+        await model.reloadAccounts(merging: [
+            .cursor: ["person@example.com": ProviderQuota(accountDisplayName: "Person")],
+        ])
+
+        XCTAssertEqual(model.accounts.map(\.accountKey), ["person@example.com"])
+        XCTAssertEqual(model.accounts.first?.source, .localIDE)
+    }
+
     func testOAuthModelPublishesSuccessAndRunsHandlerOnce() async {
         let providerID = AccountProviderID(rawValue: "claude")
         let controller = OAuthFlowController(authorizer: ImmediateOAuthAuthorizer())

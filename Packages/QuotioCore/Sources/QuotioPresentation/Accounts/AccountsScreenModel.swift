@@ -25,6 +25,15 @@ public final class AccountsScreenModel {
         accounts = await accountService.accounts()
     }
 
+    public func reloadAccounts(
+        merging quotas: [QuotaProvider: [String: ProviderQuota]]
+    ) async {
+        accounts = AccountSelectionPolicy.mergingQuotaAccounts(
+            await accountService.accounts(),
+            quotas: quotas
+        )
+    }
+
     public func reloadAuthFiles() async {
         authFiles = await authFileRepository.scanAllAuthFiles()
     }
@@ -74,6 +83,14 @@ public final class AccountsScreenModel {
         let content = try await authFileRepository.readAuthFileForImport(from: url)
         try await authFileRepository.uploadAuthFile(name: url.lastPathComponent, content: content)
         await reloadAuthFiles()
+    }
+
+    public func readAuthFileForImport(from url: URL) async throws -> Data {
+        try await authFileRepository.readAuthFileForImport(from: url)
+    }
+
+    public func writeDownloadedAuthFile(_ content: Data, to url: URL) async throws {
+        try await authFileRepository.writeDownloadedAuthFile(content, to: url)
     }
 
     public func exportAuthFile(name: String, to url: URL) async throws {

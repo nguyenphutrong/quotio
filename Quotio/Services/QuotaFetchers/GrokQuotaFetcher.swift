@@ -1,4 +1,5 @@
 import Foundation
+import QuotioDomain
 
 nonisolated struct GrokAuthCandidate: Sendable, Equatable {
     let entryKey: String

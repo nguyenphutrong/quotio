@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import QuotioDomain
 
 nonisolated struct CodexResetCreditInventoryFetcher: Sendable {
     private static let inventoryURL = URL(string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits")!

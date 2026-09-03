@@ -10,18 +10,18 @@ import SwiftUI
 
 /// Sheet for confirming and executing Antigravity account switch
 struct SwitchAccountSheet: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(AntigravityAccountScreenModel.self) private var viewModel
     @Environment(MenuBarSettingsManager.self) private var settings
     
     let accountEmail: String
     let onDismiss: () -> Void
     
     private var switchState: AccountSwitchState {
-        viewModel.antigravitySwitcher.switchState
+        viewModel.switcher.switchState
     }
     
     private var isIDERunning: Bool {
-        viewModel.antigravitySwitcher.isIDERunning()
+        viewModel.switcher.isIDERunning()
     }
     
     var body: some View {
@@ -207,7 +207,7 @@ struct SwitchAccountSheet: View {
         case .idle, .confirming:
             HStack {
                 Button("action.cancel".localized()) {
-                    viewModel.cancelAntigravitySwitch()
+                    viewModel.cancel()
                     onDismiss()
                 }
                 .buttonStyle(.bordered)
@@ -216,7 +216,7 @@ struct SwitchAccountSheet: View {
                 
                 Button("antigravity.switch.title".localized()) {
                     Task {
-                        await viewModel.switchAntigravityAccount(email: accountEmail)
+                        await viewModel.switchAccount(email: accountEmail)
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -228,7 +228,7 @@ struct SwitchAccountSheet: View {
             
         case .success:
             Button("action.done".localized()) {
-                viewModel.dismissAntigravitySwitchResult()
+                viewModel.dismissResult()
                 onDismiss()
             }
             .buttonStyle(.borderedProminent)
@@ -237,7 +237,7 @@ struct SwitchAccountSheet: View {
         case .failed:
             HStack {
                 Button("action.cancel".localized()) {
-                    viewModel.dismissAntigravitySwitchResult()
+                    viewModel.dismissResult()
                     onDismiss()
                 }
                 .buttonStyle(.bordered)
@@ -246,7 +246,7 @@ struct SwitchAccountSheet: View {
                 
                 Button("action.retry".localized()) {
                     Task {
-                        await viewModel.switchAntigravityAccount(email: accountEmail)
+                        await viewModel.switchAccount(email: accountEmail)
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -258,9 +258,11 @@ struct SwitchAccountSheet: View {
 // MARK: - Preview
 
 #Preview {
+    let runtime = CompositionRoot.makeProduction()
     SwitchAccountSheet(
         accountEmail: "user@gmail.com",
         onDismiss: {}
     )
-    .environment(CompositionRoot.makeQuotaViewModel())
+    .environment(runtime.antigravityAccountScreenModel)
+    .environment(runtime.menuBarSettings)
 }

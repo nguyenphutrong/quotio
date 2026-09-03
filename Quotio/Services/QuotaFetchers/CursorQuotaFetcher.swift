@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import QuotioDomain
 import SQLite3
 
 /// Quota data from Cursor

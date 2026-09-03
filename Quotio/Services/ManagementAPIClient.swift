@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import QuotioDomain
 
 actor ManagementAPIClient {
     private let baseURL: String

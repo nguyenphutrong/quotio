@@ -16,7 +16,12 @@ import QuotioPresentation
 import UniformTypeIdentifiers
 
 struct ProvidersScreen: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var proxyManagement
+    @Environment(QuotaScreenModel.self) private var quota
+    @Environment(AccountsScreenModel.self) private var accounts
+    @Environment(QuotaFeatureController.self) private var quotaController
+    @Environment(AntigravityAccountScreenModel.self) private var antigravityAccounts
+    @Environment(ProvidersScreenModel.self) private var providersModel
     @Environment(OperatingModeManager.self) private var modeManager
     @State private var isImporterPresented = false
     @State private var selectedProvider: AIProvider?
@@ -31,7 +36,6 @@ struct ProvidersScreen: View {
     @State private var editingMonitorAPIKeyAccount: MonitorAccount?
     @State private var showAddProviderPopover = false
     @State private var switchingAccount: AccountRowData?
-    private let customProviderService = CustomProviderService.shared
     private let warpService = WarpService.shared
     
     // MARK: - Computed Properties
@@ -55,16 +59,16 @@ struct ProvidersScreen: View {
     private var groupedAccounts: [AIProvider: [AccountRowData]] {
         var groups: [AIProvider: [AccountRowData]] = [:]
 
-        if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
+        if modeManager.isLocalProxyMode && proxyManagement.proxy.proxyStatus.running {
             // From proxy auth files (proxy running)
-            for file in viewModel.authFiles {
+            for file in proxyManagement.authFiles {
                 guard let provider = file.providerType else { continue }
                 let data = AccountRowData.from(authFile: file, provider: provider)
                 groups[provider, default: []].append(data)
             }
         } else if modeManager.isMonitorMode {
-            for account in viewModel.monitorAccounts where ![.glm, .warp, .clinePass].contains(account.provider) {
-                let state = viewModel.monitorStatus(for: account)
+            for account in accounts.accounts where ![.glm, .warp, .clinePass].contains(account.provider) {
+                let state = quotaController.monitorStatus(for: account)
                 let data = AccountRowData.from(
                     monitorAccount: account,
                     status: state.status,
@@ -74,7 +78,7 @@ struct ProvidersScreen: View {
             }
         } else {
             // From direct auth files (proxy not running or quota-only mode)
-            for file in viewModel.directAuthFiles {
+            for file in proxyManagement.directAuthFiles {
                 let data = AccountRowData.from(directAuthFile: file)
                 groups[file.provider, default: []].append(data)
             }
@@ -82,7 +86,7 @@ struct ProvidersScreen: View {
 
         // Add auto-detected accounts (Cursor, Trae)
         // API-key providers are added from their own storage below.
-        for (provider, quotas) in viewModel.providerQuotas where !modeManager.isMonitorMode {
+        for (provider, quotas) in quota.providerQuotas where !modeManager.isMonitorMode {
             if !provider.supportsManualAuth && provider != .glm && provider != .clinePass {
                 for (accountKey, _) in quotas {
                     let data = AccountRowData.from(provider: provider, accountKey: accountKey)
@@ -92,7 +96,9 @@ struct ProvidersScreen: View {
         }
 
         // Add GLM providers from CustomProviderService
-        for glmProvider in customProviderService.providers.filter({ $0.type == .glmCompatibility && $0.isEnabled }) {
+        for glmProvider in providersModel.customProviders.filter({
+            $0.type == .glmCompatibility && $0.isEnabled
+        }) {
             // Use provider name as display name (store provider ID for editing)
             let data = AccountRowData(
                 id: glmProvider.id.uuidString,
@@ -110,7 +116,9 @@ struct ProvidersScreen: View {
         }
 
         // ClinePass API keys are stored as custom providers but shown as first-class accounts.
-        for clinePassProvider in customProviderService.providers.filter({ $0.type == .clinePass && $0.isEnabled }) {
+        for clinePassProvider in providersModel.customProviders.filter({
+            $0.type == .clinePass && $0.isEnabled
+        }) {
             let data = AccountRowData(
                 id: clinePassProvider.id.uuidString,
                 provider: .clinePass,
@@ -180,9 +188,8 @@ struct ProvidersScreen: View {
         .sheet(item: $selectedProvider) { provider in
             OAuthSheet(provider: provider) {
                 selectedProvider = nil
-                viewModel.cancelOAuth()
+                quotaController.cancelOAuth()
             }
-            .environment(viewModel)
         }
         .fileImporter(
             isPresented: $isImporterPresented,
@@ -190,16 +197,17 @@ struct ProvidersScreen: View {
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
-                Task { await viewModel.importVertexServiceAccount(url: url) }
+                Task { await proxyManagement.importVertexServiceAccount(url: url) }
             }
             // Failure case is silently ignored - user can retry via UI
         }
         .task {
-            await viewModel.loadDirectAuthFiles()
+            providersModel.reloadCustomProviders()
+            await proxyManagement.loadDirectAuthFiles()
         }
         .alert("providers.proxyRequired.title".localized(), isPresented: $showProxyRequiredAlert) {
             Button("action.startProxy".localized()) {
-                Task { await viewModel.startProxy() }
+                Task { await proxyManagement.startProxy() }
             }
             Button("action.cancel".localized(), role: .cancel) {}
         } message: {
@@ -207,22 +215,15 @@ struct ProvidersScreen: View {
         }
         .sheet(isPresented: $showIDEScanSheet) {
             IDEScanSheet {}
-            .environment(viewModel)
         }
         .sheet(item: $customProviderSheetMode) { mode in
             CustomProviderSheet(
                 provider: mode.provider,
                 initialProviderType: mode.initialProviderType
             ) { provider in
-                // Check if provider already exists by ID to determine if we're updating or adding
-                if customProviderService.providers.contains(where: { $0.id == provider.id }) {
-                    customProviderService.updateProvider(provider)
-                } else {
-                    customProviderService.addProvider(provider)
-                }
-                syncCustomProvidersToConfig()
+                saveCustomProvider(provider)
                 if provider.type == .clinePass {
-                    Task { await viewModel.refreshQuotaForProvider(.clinePass) }
+                    Task { await quotaController.refresh(provider: .clinePass) }
                 }
             }
         }
@@ -237,43 +238,24 @@ struct ProvidersScreen: View {
                     warpService.addToken(name: name, token: token)
                 }
                 editingWarpToken = nil
-                Task { await viewModel.refreshAutoDetectedProviders() }
+                Task { await quotaController.refresh(provider: .warp) }
             }
         }
         .sheet(isPresented: $showGLMConnectionSheet) {
             GLMAPIKeySheet(provider: editingGLMProvider) { provider in
-                if customProviderService.providers.contains(where: { $0.id == provider.id }) {
-                    customProviderService.updateProvider(provider)
-                } else {
-                    customProviderService.addProvider(provider)
-                }
+                saveCustomProvider(provider)
                 editingGLMProvider = nil
-                syncCustomProvidersToConfig()
-                Task { await viewModel.refreshQuotaForProvider(.glm) }
+                Task { await quotaController.refresh(provider: .glm) }
             }
-            .environment(viewModel)
         }
         .sheet(item: $monitorAPIKeyProvider) { provider in
             MonitorAPIKeyConnectionSheet(provider: provider, account: editingMonitorAPIKeyAccount) { label, apiKey in
-                if provider == .factoryDroid {
-                    try await viewModel.saveFactoryDroidAccount(
-                        label: label,
-                        apiKey: apiKey,
-                        existingAccountID: editingMonitorAPIKeyAccount?.id
-                    )
-                } else if provider == .amp {
-                    try await viewModel.saveAmpAccount(
-                        label: label,
-                        apiKey: apiKey,
-                        existingAccountID: editingMonitorAPIKeyAccount?.id
-                    )
-                } else {
-                    try await viewModel.saveOpenRouterAccount(
-                        label: label,
-                        apiKey: apiKey,
-                        existingAccountID: editingMonitorAPIKeyAccount?.id
-                    )
-                }
+                try await quotaController.saveAPIKey(
+                    provider: provider,
+                    label: label,
+                    apiKey: apiKey,
+                    existingAccountID: editingMonitorAPIKeyAccount?.id
+                )
                 editingMonitorAPIKeyAccount = nil
             }
         }
@@ -302,7 +284,6 @@ struct ProvidersScreen: View {
                     switchingAccount = nil
                 }
             )
-            .environment(viewModel)
         }
     }
     
@@ -323,24 +304,24 @@ struct ProvidersScreen: View {
             Button {
                 Task {
                     if modeManager.isMonitorMode {
-                        await viewModel.manualRefresh()
-                    } else if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
-                        await viewModel.refreshData()
+                        await quotaController.refreshAll(force: true)
+                    } else if modeManager.isLocalProxyMode && proxyManagement.proxy.proxyStatus.running {
+                        await proxyManagement.refreshData()
                     } else {
-                        await viewModel.loadDirectAuthFiles()
+                        await proxyManagement.loadDirectAuthFiles()
                     }
                     if !modeManager.isMonitorMode {
-                        await viewModel.refreshAutoDetectedProviders()
+                        await quotaController.refreshAutoDetectedProviders()
                     }
                 }
             } label: {
-                if viewModel.isLoadingQuotas {
+                if quota.isLoadingQuotas {
                     SmallProgressView()
                 } else {
                     Image(systemName: "arrow.clockwise")
                 }
             }
-            .disabled(viewModel.isLoadingQuotas)
+            .disabled(quota.isLoadingQuotas)
             .help("action.refresh".localized())
         }
 
@@ -399,7 +380,7 @@ struct ProvidersScreen: View {
                             Task { await downloadAccountAuthFile(account) }
                         },
                         isAccountActive: provider == .antigravity ? { account in
-                            viewModel.isAntigravityAccountActive(email: account.displayName)
+                            antigravityAccounts.isActive(email: account.displayName)
                         } : nil
                     )
                 }
@@ -430,7 +411,7 @@ struct ProvidersScreen: View {
     @ViewBuilder
     private var customProvidersSection: some View {
         // API-key providers with first-class quota tracking are shown in Your Accounts.
-        let genericProviders = customProviderService.providers.filter {
+        let genericProviders = providersModel.customProviders.filter {
             $0.type != .glmCompatibility && $0.type != .clinePass
         }
 
@@ -443,12 +424,12 @@ struct ProvidersScreen: View {
                         customProviderSheetMode = .edit(provider)
                     },
                     onDelete: {
-                        customProviderService.deleteProvider(id: provider.id)
-                        syncCustomProvidersToConfig()
+                        deleteCustomProvider(id: provider.id)
                     },
                     onToggle: {
-                        customProviderService.toggleProvider(id: provider.id)
-                        syncCustomProvidersToConfig()
+                        var updated = provider
+                        updated.isEnabled.toggle()
+                        saveCustomProvider(updated)
                     }
                 )
             }
@@ -492,7 +473,7 @@ struct ProvidersScreen: View {
         }
 
         // In Local Proxy Mode, require proxy to be running for OAuth
-        if modeManager.isLocalProxyMode && !viewModel.proxyManager.proxyStatus.running {
+        if modeManager.isLocalProxyMode && !proxyManagement.proxy.proxyStatus.running {
             showProxyRequiredAlert = true
             return
         }
@@ -503,7 +484,7 @@ struct ProvidersScreen: View {
             editingWarpToken = nil
             showWarpConnectionSheet = true
         } else {
-            viewModel.cancelOAuth()
+            quotaController.cancelOAuth()
             selectedProvider = provider
         }
     }
@@ -513,16 +494,19 @@ struct ProvidersScreen: View {
         guard account.canDelete else { return }
 
         if modeManager.isMonitorMode, case .monitor = account.source {
-            await viewModel.deleteMonitorAccount(accountID: account.id)
+            await quotaController.remove(account: QuotaAccountID(
+                provider: account.provider,
+                accountKey: account.menuBarAccountKey
+            ))
             return
         }
 
         // Handle auto-detected IDE accounts (Cursor, Trae) imported via "Scan for IDEs"
         if account.source == .autoDetected {
-            await viewModel.deleteAutoDetectedAccount(
+            await quotaController.remove(account: QuotaAccountID(
                 provider: account.provider,
                 accountKey: account.menuBarAccountKey
-            )
+            ))
             return
         }
 
@@ -530,18 +514,20 @@ struct ProvidersScreen: View {
         if account.provider == .glm {
             // GLM accounts are stored as custom providers
             // Find the GLM provider by ID and delete it
-            if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
-                customProviderService.deleteProvider(id: glmProvider.id)
-                syncCustomProvidersToConfig()
+            if let glmProvider = providersModel.customProviders.first(where: {
+                $0.id.uuidString == account.id
+            }) {
+                deleteCustomProvider(id: glmProvider.id)
             }
             return
         }
 
         if account.provider == .clinePass {
-            if let provider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
-                customProviderService.deleteProvider(id: provider.id)
-                syncCustomProvidersToConfig()
-                await viewModel.refreshQuotaForProvider(.clinePass)
+            if let provider = providersModel.customProviders.first(where: {
+                $0.id.uuidString == account.id
+            }) {
+                deleteCustomProvider(id: provider.id)
+                await quotaController.refresh(provider: .clinePass)
             }
             return
         }
@@ -550,28 +536,28 @@ struct ProvidersScreen: View {
         if account.provider == .warp {
             if let uuid = UUID(uuidString: account.id) {
                 warpService.deleteToken(id: uuid)
-                await viewModel.refreshQuotaForProvider(.warp)
+                await quotaController.refresh(provider: .warp)
             }
             return
         }
 
         // Find the original AuthFile to delete
-        if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
-            await viewModel.deleteAuthFile(authFile)
+        if let authFile = proxyManagement.authFiles.first(where: { $0.id == account.id }) {
+            await proxyManagement.deleteAuthFile(authFile)
         }
     }
 
     private func toggleAccountDisabled(_ account: AccountRowData) async {
         if modeManager.isMonitorMode, case .monitor = account.source {
-            await viewModel.setMonitorAccountDisabled(!account.isDisabled, accountID: account.id)
+            await quotaController.setAccountDisabled(!account.isDisabled, accountID: account.id)
             return
         }
 
         guard account.source == .proxy else { return }
 
         // Find the original AuthFile to toggle
-        if let authFile = viewModel.authFiles.first(where: { $0.id == account.id }) {
-            await viewModel.toggleAuthFileDisabled(authFile)
+        if let authFile = proxyManagement.authFiles.first(where: { $0.id == account.id }) {
+            await proxyManagement.toggleAuthFileDisabled(authFile)
         }
     }
 
@@ -586,21 +572,25 @@ struct ProvidersScreen: View {
         guard savePanel.runModal() == .OK, let url = savePanel.url else { return }
 
         do {
-            try await viewModel.exportAuthFile(name: filename, to: url)
+            try await proxyManagement.exportAuthFile(name: filename, to: url)
         } catch {
-            viewModel.errorMessage = error.localizedDescription
+            proxyManagement.errorMessage = error.localizedDescription
         }
     }
 
     private func handleEditGlmAccount(_ account: AccountRowData) {
-        if let glmProvider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
+        if let glmProvider = providersModel.customProviders.first(where: {
+            $0.id.uuidString == account.id
+        }) {
             editingGLMProvider = glmProvider
             showGLMConnectionSheet = true
         }
     }
 
     private func handleEditClinePassAccount(_ account: AccountRowData) {
-        if let provider = customProviderService.providers.first(where: { $0.id.uuidString == account.id }) {
+        if let provider = providersModel.customProviders.first(where: {
+            $0.id.uuidString == account.id
+        }) {
             customProviderSheetMode = .edit(provider)
         }
     }
@@ -614,9 +604,9 @@ struct ProvidersScreen: View {
         if openPanel.runModal() == .OK, let url = openPanel.url {
             Task {
                 do {
-                    try await viewModel.importAuthFile(from: url)
+                    try await proxyManagement.importAuthFile(from: url)
                 } catch {
-                    viewModel.errorMessage = error.localizedDescription
+                    proxyManagement.errorMessage = error.localizedDescription
                 }
             }
         }
@@ -631,15 +621,35 @@ struct ProvidersScreen: View {
     }
 
     private func handleEditMonitorAPIKeyAccount(_ account: AccountRowData) {
-        guard let monitorAccount = viewModel.monitorAccounts.first(where: { $0.id == account.id }) else { return }
+        guard let monitorAccount = accounts.accounts.first(where: { $0.id == account.id }) else { return }
         editingMonitorAPIKeyAccount = monitorAccount
         monitorAPIKeyProvider = monitorAccount.provider
+    }
+
+    private func saveCustomProvider(_ provider: CustomProvider) {
+        do {
+            try providersModel.save(provider)
+            syncCustomProvidersToConfig()
+        } catch {
+            proxyManagement.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func deleteCustomProvider(id: UUID) {
+        do {
+            try providersModel.deleteCustomProvider(id: id)
+            syncCustomProvidersToConfig()
+        } catch {
+            proxyManagement.errorMessage = error.localizedDescription
+        }
     }
 
     private func syncCustomProvidersToConfig() {
         // Silent failure - custom provider sync is non-critical
         // Config will be synced on next proxy start
-        try? customProviderService.syncToConfigFile(configPath: viewModel.proxyManager.configPath)
+        try? providersModel.synchronizeCustomProviders(
+            at: proxyManagement.proxy.configPath
+        )
     }
 }
 
@@ -911,7 +921,8 @@ struct MenuBarHintView: View {
 // MARK: - OAuth Sheet
 
 struct OAuthSheet: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var proxyManagement
+    @Environment(QuotaFeatureController.self) private var viewModel
     @Environment(OperatingModeManager.self) private var modeManager
     let provider: AIProvider
     let onDismiss: () -> Void
@@ -970,11 +981,11 @@ struct OAuthSheet: View {
             }
 
             if !modeManager.isMonitorMode,
-               viewModel.isLegacyAuthWarningNeeded(for: provider) {
+               proxyManagement.isLegacyAuthWarningNeeded(for: provider) {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                    Text(viewModel.upstreamCompatibilityWarning)
+                    Text(proxyManagement.upstreamCompatibilityWarning)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1056,7 +1067,7 @@ struct OAuthSheet: View {
 }
 
 private struct OAuthStatusView: View {
-    let status: OAuthState.OAuthStatus
+    let status: QuotaOAuthState.OAuthStatus
     let error: String?
     let state: String?
     let authURL: String?

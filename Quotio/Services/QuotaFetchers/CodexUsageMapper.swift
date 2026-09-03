@@ -1,4 +1,5 @@
 import Foundation
+import QuotioDomain
 
 nonisolated struct CodexQuotaIdentity: Sendable {
     var planType: String?

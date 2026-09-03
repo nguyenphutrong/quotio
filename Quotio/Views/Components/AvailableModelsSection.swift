@@ -15,13 +15,13 @@ import QuotioPresentation
 import SwiftUI
 
 struct AvailableModelsSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var proxyManagement
 
     @State private var state = ModelCatalogState()
     @State private var copiedModelId: String?
 
     private var isProxyRunning: Bool {
-        viewModel.proxyManager.proxyStatus.running
+        proxyManagement.proxy.proxyStatus.running
     }
 
     private var showsOwnerColumn: Bool {
@@ -218,7 +218,7 @@ struct AvailableModelsSection: View {
 
         state.beginLoading()
         do {
-            let entries = try await viewModel.agentSetupViewModel.fetchModelCatalog()
+            let entries = try await proxyManagement.agentSetup.fetchModelCatalog()
             state.apply(entries: entries, fetchedAt: Date())
         } catch {
             state.applyFailure()

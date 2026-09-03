@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import QuotioDomain
 
 /// Auth data from Trae's storage.json
 struct TraeAuthData: Sendable {

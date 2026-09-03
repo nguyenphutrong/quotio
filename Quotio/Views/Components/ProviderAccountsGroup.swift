@@ -6,6 +6,7 @@
 //  Used in ProvidersScreen to organize accounts by provider.
 //
 
+import QuotioDomain
 import SwiftUI
 
 /// Represents a group of accounts for a single provider

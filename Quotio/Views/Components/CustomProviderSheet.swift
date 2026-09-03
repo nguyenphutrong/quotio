@@ -3,10 +3,14 @@
 //  Quotio - Custom AI provider add/edit modal
 //
 
+import QuotioApplication
+import QuotioDomain
+import QuotioPresentation
 import SwiftUI
 
 struct CustomProviderSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(ProvidersScreenModel.self) private var providersModel
     
     let provider: CustomProvider?
     let initialProviderType: CustomProviderType
@@ -755,7 +759,10 @@ struct CustomProviderSheet: View {
         providerType = provider.type
         baseURL = provider.type == .clinePass
             ? (provider.type.defaultBaseURL ?? provider.baseURL)
-            : normalizedBaseURL(provider.baseURL, for: provider.type)
+            : CustomProviderEndpointPolicy.normalizedBaseURL(
+                provider.baseURL,
+                for: provider.type
+            )
         prefix = provider.prefix ?? ""
         apiKeys = provider.type == .clinePass
             ? [provider.apiKeys.first ?? CustomAPIKeyEntry(apiKey: "")]
@@ -772,52 +779,6 @@ struct CustomProviderSheet: View {
         // Set selected models from existing provider
         selectedModelIds = Set(provider.models.map { $0.name })
     }
-
-    private func normalizedBaseURL(_ rawValue: String, for type: CustomProviderType) -> String {
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (type == .openaiCompatibility || type == .codexCompatibility), !trimmed.isEmpty,
-              var components = URLComponents(string: trimmed) else {
-            return trimmed
-        }
-
-        if baseURLIncludesVersion(components.path) {
-            return components.string ?? trimmed
-        }
-
-        if components.path.isEmpty || components.path == "/" {
-            components.path = "/v1"
-        } else if components.path.hasSuffix("/") {
-            components.path += "v1"
-        } else {
-            components.path += "/v1"
-        }
-
-        return components.string ?? trimmed
-    }
-
-    private func makeModelsURL(baseURL rawBaseURL: String, providerType: CustomProviderType) -> URL? {
-        let normalizedBaseURL = normalizedBaseURL(rawBaseURL, for: providerType)
-        guard let url = URL(string: normalizedBaseURL) else { return nil }
-
-        let endpoint = baseURLIncludesVersion(url.path) ? "models" : "v1/models"
-        return url.appendingPathComponent(endpoint)
-    }
-
-    private func baseURLIncludesVersion(_ path: String) -> Bool {
-        guard let lastSegment = path.split(separator: "/").last else { return false }
-        return isVersionPathSegment(lastSegment)
-    }
-
-    private func isVersionPathSegment(_ segment: Substring) -> Bool {
-        guard segment.first == "v" else { return false }
-
-        let remainder = segment.dropFirst()
-        guard let firstCharacter = remainder.first, firstCharacter.isNumber else {
-            return false
-        }
-
-        return remainder.allSatisfy { $0.isNumber || $0.isLetter }
-    }
     
     private func fetchModelsFromAPI() {
         if providerType == .clinePass {
@@ -831,17 +792,6 @@ struct CustomProviderSheet: View {
             return
         }
         
-        let effectiveBaseURL = baseURL.isEmpty
-            ? (providerType.defaultBaseURL ?? "")
-            : normalizedBaseURL(baseURL, for: providerType)
-
-        guard let modelsURL = makeModelsURL(baseURL: effectiveBaseURL, providerType: providerType) else {
-            modelFetchError = "Invalid base URL"
-            return
-        }
-
-        // Normalize the form's headers once, and validate before any of them touch the
-        // request — the same canonical set is what gets persisted and emitted to YAML.
         let customHeaders = providerType.supportsCustomHeaders
             ? CustomHeader.canonicalized(headers)
             : []
@@ -850,65 +800,27 @@ struct CustomProviderSheet: View {
             return
         }
 
-        var request = URLRequest(url: modelsURL)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 15
-        
-        // Set authorization header based on provider type
-        switch providerType {
-        case .openaiCompatibility, .codexCompatibility, .clinePass:
-            request.setValue("Bearer \(firstKey.apiKey)", forHTTPHeaderField: "Authorization")
-        case .claudeCompatibility:
-            request.setValue("Bearer \(firstKey.apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        case .geminiCompatibility:
-            var components = URLComponents(url: modelsURL, resolvingAgainstBaseURL: false)
-            components?.queryItems = [URLQueryItem(name: "key", value: firstKey.apiKey)]
-            if let newURL = components?.url {
-                request.url = newURL
-            }
-        case .glmCompatibility:
-            request.setValue("Bearer \(firstKey.apiKey)", forHTTPHeaderField: "Authorization")
-        }
-        
-        // Add custom headers (canonical form, already validated above)
-        request.applyCustomHeaders(customHeaders)
-
         isLoadingModels = true
         modelFetchError = nil
-        
+
+        let draft = makeProvider(models: models, headers: customHeaders)
         Task {
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
-                
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    await MainActor.run {
-                        isLoadingModels = false
-                        modelFetchError = "Invalid response"
+                let fetchedModels = try await providersModel.discoverModels(for: draft)
+                isLoadingModels = false
+                availableModels = fetchedModels
+                    .map {
+                        AvailableModel(
+                            id: $0.id,
+                            name: $0.name,
+                            provider: $0.provider,
+                            isDefault: false
+                        )
                     }
-                    return
-                }
-                
-                guard httpResponse.statusCode == 200 else {
-                    await MainActor.run {
-                        isLoadingModels = false
-                        modelFetchError = "Failed to fetch models: HTTP \(httpResponse.statusCode)"
-                    }
-                    return
-                }
-                
-                let modelsResponse = try JSONDecoder().decode(ModelsListResponse.self, from: data)
-                let fetchedModels = modelsResponse.allModels.map { $0.toAvailableModel() }
-                
-                await MainActor.run {
-                    isLoadingModels = false
-                    availableModels = fetchedModels.sorted { $0.name < $1.name }
-                }
+                    .sorted { $0.name < $1.name }
             } catch {
-                await MainActor.run {
-                    isLoadingModels = false
-                    modelFetchError = "Failed to fetch models: \(error.localizedDescription)"
-                }
+                isLoadingModels = false
+                modelFetchError = "Failed to fetch models: \(error.localizedDescription)"
             }
         }
     }
@@ -933,28 +845,11 @@ struct CustomProviderSheet: View {
             }
         }
         
-        // Build provider
-        let newProvider = CustomProvider(
-            id: provider?.id ?? UUID(),
-            name: name.trimmingCharacters(in: .whitespaces),
-            type: providerType,
-            baseURL: providerType == .clinePass
-                ? (providerType.defaultBaseURL ?? baseURL)
-                : normalizedBaseURL(baseURL, for: providerType),
-            prefix: prefix.trimmingCharacters(in: .whitespaces).isEmpty ? nil : prefix.trimmingCharacters(in: .whitespaces),
-            apiKeys: apiKeys.filter { !$0.apiKey.trimmingCharacters(in: .whitespaces).isEmpty },
-            models: limitToSelectedModels ? allModels : [],
-            headers: providerType.supportsCustomHeaders
-                ? CustomHeader.canonicalized(headers)
-                : [],
-            limitToSelectedModels: limitToSelectedModels,
-            isEnabled: isEnabled,
-            createdAt: provider?.createdAt ?? Date(),
-            updatedAt: Date()
-        )
-        
-        // Validate basic fields
-        validationErrors = CustomProviderService.shared.validateProvider(newProvider)
+        let newProvider = makeProvider(models: limitToSelectedModels ? allModels : [])
+
+        validationErrors = providersModel.validationIssues(for: newProvider).map {
+            $0.localizedMessage(providerType: providerType)
+        }
         
         if !validationErrors.isEmpty {
             showValidationAlert = true
@@ -966,95 +861,48 @@ struct CustomProviderSheet: View {
         
         Task {
             do {
-                let success = try await testConnection(provider: newProvider)
-                await MainActor.run {
-                    isTestingConnection = false
-                    if success {
-                        onSave(newProvider)
-                        dismiss()
-                    }
-                }
+                try await providersModel.testConnection(to: newProvider)
+                isTestingConnection = false
+                onSave(newProvider)
+                dismiss()
             } catch {
-                await MainActor.run {
-                    isTestingConnection = false
-                    testError = error.localizedDescription
-                    showValidationAlert = true
-                }
+                isTestingConnection = false
+                testError = error.localizedDescription
+                showValidationAlert = true
             }
         }
     }
-    
-    private func testConnection(provider: CustomProvider) async throws -> Bool {
-        guard let firstKey = provider.apiKeys.first else {
-            throw CustomProviderTestError.noAPIKey
-        }
 
-        if provider.type == .clinePass {
-            let quota = try await ClinePassQuotaFetcher().fetchQuota(apiKey: firstKey.apiKey)
-            guard !quota.isForbidden else {
-                throw CustomProviderTestError.unauthorized
-            }
-            return true
-        }
-        
-        let effectiveBaseURL = provider.baseURL.isEmpty 
-            ? (provider.type.defaultBaseURL ?? "")
-            : provider.baseURL
-        
-        guard let modelsURL = makeModelsURL(baseURL: effectiveBaseURL, providerType: provider.type) else {
-            throw CustomProviderTestError.invalidURL
-        }
-
-        var request = URLRequest(url: modelsURL)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 15
-        
-        // Set authorization header based on provider type
-        switch provider.type {
-        case .openaiCompatibility, .codexCompatibility, .clinePass:
-            request.setValue("Bearer \(firstKey.apiKey)", forHTTPHeaderField: "Authorization")
-        case .claudeCompatibility:
-            request.setValue("Bearer \(firstKey.apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        case .geminiCompatibility:
-            // Gemini uses query parameter for API key
-            var components = URLComponents(url: modelsURL, resolvingAgainstBaseURL: false)
-            components?.queryItems = [URLQueryItem(name: "key", value: firstKey.apiKey)]
-            if let newURL = components?.url {
-                request.url = newURL
-            }
-        case .glmCompatibility:
-            request.setValue("Bearer \(firstKey.apiKey)", forHTTPHeaderField: "Authorization")
-        }
-        
-        // Add custom headers if any — the same canonical set that is written to the
-        // generated CLIProxyAPI config, so the connection test exercises the real headers.
-        request.applyCustomHeaders(provider.effectiveHeaders)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw CustomProviderTestError.invalidResponse
-        }
-        
-        switch httpResponse.statusCode {
-        case 200..<300:
-            return true
-        case 401, 403:
-            throw CustomProviderTestError.unauthorized
-        case 404:
-            throw CustomProviderTestError.endpointNotFound
-        default:
-            if let errorMessage = String(data: data, encoding: .utf8) {
-                throw CustomProviderTestError.serverError(httpResponse.statusCode, errorMessage)
-            }
-            throw CustomProviderTestError.serverError(httpResponse.statusCode, "Unknown error")
-        }
+    private func makeProvider(
+        models providerModels: [ModelMapping],
+        headers providerHeaders: [CustomHeader]? = nil
+    ) -> CustomProvider {
+        CustomProvider(
+            id: provider?.id ?? UUID(),
+            name: name.trimmingCharacters(in: .whitespaces),
+            type: providerType,
+            baseURL: providerType == .clinePass
+                ? (providerType.defaultBaseURL ?? baseURL)
+                : CustomProviderEndpointPolicy.normalizedBaseURL(baseURL, for: providerType),
+            prefix: {
+                let value = prefix.trimmingCharacters(in: .whitespaces)
+                return value.isEmpty ? nil : value
+            }(),
+            apiKeys: apiKeys.filter { !$0.apiKey.trimmingCharacters(in: .whitespaces).isEmpty },
+            models: providerModels,
+            headers: providerHeaders ?? (
+                providerType.supportsCustomHeaders ? CustomHeader.canonicalized(headers) : []
+            ),
+            limitToSelectedModels: limitToSelectedModels,
+            isEnabled: isEnabled,
+            createdAt: provider?.createdAt ?? Date(),
+            updatedAt: Date()
+        )
     }
 
     private func nextAvailableClinePassName() -> String {
         let baseName = "ClinePass"
-        let existingNames = Set(CustomProviderService.shared.providers.map { $0.name.lowercased() })
+        let existingNames = Set(providersModel.customProviders.map { $0.name.lowercased() })
 
         guard existingNames.contains(baseName.lowercased()) else {
             return baseName
@@ -1065,58 +913,6 @@ struct CustomProviderSheet: View {
             suffix += 1
         }
         return "\(baseName) \(suffix)"
-    }
-}
-
-enum CustomProviderTestError: LocalizedError {
-    case noAPIKey
-    case invalidURL
-    case invalidResponse
-    case unauthorized
-    case endpointNotFound
-    case serverError(Int, String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .noAPIKey:
-            return "No API key provided"
-        case .invalidURL:
-            return "Invalid base URL"
-        case .invalidResponse:
-            return "Invalid response from server"
-        case .unauthorized:
-            return "API key is invalid or unauthorized"
-        case .endpointNotFound:
-            return "Models endpoint not found at this URL"
-        case .serverError(let code, let message):
-            return "Server error (\(code)): \(message)"
-        }
-    }
-}
-
-// MARK: - Models Response Parsing
-
-private struct ModelsListResponse: Codable {
-    let data: [ModelData]?
-    let models: [ModelData]?
-    
-    var allModels: [ModelData] {
-        data ?? models ?? []
-    }
-}
-
-private struct ModelData: Codable {
-    let id: String
-    let name: String?
-    let ownedBy: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case id, name
-        case ownedBy = "owned_by"
-    }
-    
-    func toAvailableModel() -> AvailableModel {
-        AvailableModel(id: id, name: name ?? id, provider: ownedBy ?? "unknown", isDefault: false)
     }
 }
 

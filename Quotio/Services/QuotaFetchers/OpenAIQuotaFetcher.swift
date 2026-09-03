@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import QuotioDomain
 
 actor OpenAIQuotaFetcher {
     private let usageURL = "https://chatgpt.com/backend-api/wham/usage"

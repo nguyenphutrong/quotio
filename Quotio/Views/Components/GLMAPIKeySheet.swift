@@ -6,11 +6,11 @@
 //  API key configuration sheet
 //
 
+import QuotioDomain
 import SwiftUI
 
 struct GLMAPIKeySheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(QuotaViewModel.self) private var viewModel
 
     let provider: CustomProvider?
     let onSave: (CustomProvider) -> Void

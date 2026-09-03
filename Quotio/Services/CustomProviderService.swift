@@ -7,6 +7,8 @@
 //
 
 import Foundation
+import QuotioDomain
+import QuotioInfrastructure
 
 @MainActor
 @Observable
@@ -164,7 +166,7 @@ final class CustomProviderService {
     
     /// Generate YAML config sections for all enabled custom providers
     func generateYAMLConfig() -> String {
-        enabledProviders.toYAMLSections()
+        CustomProviderYAMLSerializer.sections(for: enabledProviders)
     }
     
     /// Update the CLIProxyAPI config file to include custom providers
@@ -191,83 +193,7 @@ final class CustomProviderService {
     /// Remove custom provider sections from config content.
     /// Internal (not private) so unit tests can verify strip/re-append round-trips.
     func removeCustomProviderSections(from content: String) -> String {
-        var result = content
-        
-        // Derive and deduplicate the CLIProxyAPI section keys managed by custom providers.
-        let customProviderKeys = Set(CustomProviderType.allCases.map(\.yamlSectionKey))
-            .sorted()
-            .map { "\($0):" }
-        
-        // Remove marker comment and everything after it that belongs to custom providers
-        if let markerRange = result.range(of: "# Custom Providers (managed by Quotio)") {
-            // Find the end of custom providers section (next top-level key or end of file)
-            let afterMarker = result[markerRange.upperBound...]
-            
-            var endIndex = result.endIndex
-            
-            // Look for any non-custom-provider top-level key
-            let topLevelKeyPattern = #"(?m)^[a-z][\w-]*:"#
-            if let regex = try? NSRegularExpression(pattern: topLevelKeyPattern, options: []) {
-                let searchRange = NSRange(afterMarker.startIndex..<afterMarker.endIndex, in: result)
-                let matches = regex.matches(in: result, options: [], range: searchRange)
-                
-                for match in matches {
-                    if let range = Range(match.range, in: result) {
-                        let key = String(result[range])
-                        if !customProviderKeys.contains(key) {
-                            endIndex = range.lowerBound
-                            break
-                        }
-                    }
-                }
-            }
-            
-            // Remove the custom providers section
-            result.removeSubrange(markerRange.lowerBound..<endIndex)
-        }
-        
-        // Also remove standalone custom provider sections that might exist without marker
-        for key in customProviderKeys {
-            result = removeYAMLSection(key, from: result)
-        }
-        
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
-    /// Remove a top-level YAML section by key
-    private func removeYAMLSection(_ key: String, from content: String) -> String {
-        var result = content
-        
-        // Pattern to match the section start
-        guard let startRange = result.range(of: "\n\(key)") ?? result.range(of: key) else {
-            return result
-        }
-        
-        guard startRange.upperBound < result.endIndex else {
-            result.removeSubrange(startRange.lowerBound..<result.endIndex)
-            return result
-        }
-        
-        let searchStart = result.index(after: startRange.upperBound)
-        guard searchStart < result.endIndex else {
-            result.removeSubrange(startRange.lowerBound..<result.endIndex)
-            return result
-        }
-        
-        // Find the next top-level key (line starting with non-whitespace followed by colon)
-        let afterSection = result[searchStart...]
-        let pattern = #"(?m)^[a-z][\w-]*:"#
-        
-        if let regex = try? NSRegularExpression(pattern: pattern, options: []),
-           let firstMatch = regex.firstMatch(in: result, options: [], range: NSRange(afterSection.startIndex..<afterSection.endIndex, in: result)),
-           let matchRange = Range(firstMatch.range, in: result) {
-            result.removeSubrange(startRange.lowerBound..<matchRange.lowerBound)
-        } else {
-            // No more top-level keys, remove to end
-            result.removeSubrange(startRange.lowerBound..<result.endIndex)
-        }
-        
-        return result
+        FileCustomProviderConfigurationSynchronizer.removingManagedSections(from: content)
     }
     
     // MARK: - Validation

@@ -64,4 +64,65 @@ final class AccountModelsTests: XCTestCase {
         XCTAssertEqual(selected.first?.source, .nativeCredential)
         XCTAssertEqual(selected.first?.status, .disabled)
     }
+
+    func testMergingQuotaAccountsAddsImportedIDEAccountWithoutDuplicatingCredentialAccount() {
+        let codex = Account.make(
+            providerID: AccountProviderID(rawValue: QuotaProvider.codex.rawValue),
+            accountKey: "person@example.com",
+            source: .nativeCredential
+        )
+        let quota = ProviderQuota(
+            models: [],
+            accountDisplayName: "Person"
+        )
+
+        let merged = AccountSelectionPolicy.mergingQuotaAccounts(
+            [codex],
+            quotas: [
+                .codex: ["person@example.com": quota],
+                .cursor: ["cursor@example.com": quota],
+            ]
+        )
+
+        XCTAssertEqual(merged.count, 2)
+        XCTAssertEqual(merged.filter { $0.providerID.rawValue == QuotaProvider.codex.rawValue }.count, 1)
+        let cursor = merged.first { $0.providerID.rawValue == QuotaProvider.cursor.rawValue }
+        XCTAssertEqual(cursor?.source, .localIDE)
+        XCTAssertEqual(cursor?.displayName, "Person")
+        XCTAssertEqual(cursor?.canDelete, true)
+    }
+
+    func testMergingQuotaDisplayNameDoesNotChangeExistingAccountIdentity() {
+        let account = Account.make(
+            providerID: AccountProviderID(rawValue: QuotaProvider.factoryDroid.rawValue),
+            accountKey: "org-123",
+            displayName: "Factory Droid",
+            source: .nativeCredential
+        )
+        let quota = ProviderQuota(accountDisplayName: "factory@example.com")
+
+        let merged = AccountSelectionPolicy.mergingQuotaAccounts(
+            [account],
+            quotas: [.factoryDroid: [account.accountKey: quota]]
+        )
+
+        XCTAssertEqual(merged.first?.displayName, "factory@example.com")
+        XCTAssertEqual(merged.first?.accountKey, account.accountKey)
+        XCTAssertEqual(merged.first?.id, account.id)
+    }
+
+    func testMergingQuotaAccountsHidesGenericPlaceholderWhenSpecificAccountExists() {
+        let specific = Account.make(
+            providerID: AccountProviderID(rawValue: QuotaProvider.claude.rawValue),
+            accountKey: "person@example.com",
+            source: .nativeCredential
+        )
+
+        let merged = AccountSelectionPolicy.mergingQuotaAccounts(
+            [specific],
+            quotas: [.claude: ["Claude Code": ProviderQuota()]]
+        )
+
+        XCTAssertEqual(merged, [specific])
+    }
 }

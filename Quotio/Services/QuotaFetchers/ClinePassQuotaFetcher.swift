@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import QuotioDomain
 
 nonisolated private struct ClinePassLimitsResponse: Decodable, Sendable {
     let data: ClinePassLimitsData

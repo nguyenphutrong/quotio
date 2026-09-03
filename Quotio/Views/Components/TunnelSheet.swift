@@ -11,10 +11,10 @@ import QuotioPresentation
 
 struct TunnelSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var proxyManagement
     
     private var tunnelManager: TunnelManager { TunnelManager.shared }
-    private var proxyPort: UInt16 { viewModel.proxyManager.port }
+    private var proxyPort: UInt16 { proxyManagement.proxy.port }
     
     @State private var isHoveringCopy = false
     
@@ -385,7 +385,8 @@ struct TunnelSheet: View {
 }
 
 #Preview {
+    let runtime = CompositionRoot.makeProduction()
     TunnelSheet()
-        .environment(CompositionRoot.makeQuotaViewModel())
+        .environment(runtime.proxyManagement)
         .frame(width: 520, height: 450)
 }

@@ -15,7 +15,8 @@ struct QuotioApp: App {
     @State private var showOnboarding = false
 
     private var runtime: AppRuntime { appDelegate.runtime }
-    private var viewModel: QuotaViewModel { runtime.viewModel }
+    private var proxyManagement: ProxyManagementScreenModel { runtime.proxyManagement }
+    private var quotaScreenModel: QuotaScreenModel { runtime.quotaScreenModel }
     private var menuBarSettings: MenuBarSettingsManager { runtime.menuBarSettings }
     private var statusBarManager: StatusBarManager { runtime.statusBarManager }
     private var modeManager: OperatingModeManager { runtime.modeManager }
@@ -29,7 +30,16 @@ struct QuotioApp: App {
             } else {
                 RootNavigationView(logsScreenModel: runtime.logsScreenModel)
                     .id(languageManager.currentLanguage)
-                    .environment(viewModel)
+                    .environment(proxyManagement)
+                    .environment(runtime.quotaController)
+                    .environment(quotaScreenModel)
+                    .environment(runtime.accountsScreenModel)
+                    .environment(runtime.dashboardScreenModel)
+                    .environment(runtime.providersScreenModel)
+                    .environment(runtime.navigationScreenModel)
+                    .environment(runtime.warmupScreenModel)
+                    .environment(runtime.ideImportScreenModel)
+                    .environment(runtime.antigravityAccountScreenModel)
                     .environment(modeManager)
                     .environment(menuBarSettings)
                     .environment(appearanceManager)
@@ -48,10 +58,10 @@ struct QuotioApp: App {
                         await runtime.initializeIfNeeded()
                         showOnboarding = runtime.needsOnboarding
                     }
-                    .onChange(of: viewModel.proxyManager.proxyStatus.running) {
+                    .onChange(of: proxyManagement.proxy.proxyStatus.running) {
                         runtime.updateStatusBar()
                     }
-                    .onChange(of: viewModel.isLoadingQuotas) {
+                    .onChange(of: quotaScreenModel.isLoadingQuotas) {
                         runtime.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }
@@ -92,11 +102,11 @@ struct QuotioApp: App {
                     .onChange(of: modeManager.currentMode) {
                         runtime.updateStatusBar()
                     }
-                    .onChange(of: viewModel.providerQuotas.count) {
+                    .onChange(of: quotaScreenModel.providerQuotas.count) {
                         runtime.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }
-                    .onChange(of: viewModel.directAuthFiles.count) {
+                    .onChange(of: proxyManagement.directAuthFiles.count) {
                         runtime.updateStatusBar()
                         statusBarManager.rebuildMenuInPlace()
                     }

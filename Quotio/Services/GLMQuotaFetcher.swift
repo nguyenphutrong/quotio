@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import QuotioDomain
 
 // MARK: - API Response Models
 

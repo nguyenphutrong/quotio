@@ -9,7 +9,7 @@ import QuotioDomain
 import QuotioPresentation
 
 struct APIKeysScreen: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var viewModel
     
     @State private var newAPIKey: String = ""
     @State private var editingKeyIndex: Int? = nil
@@ -18,7 +18,7 @@ struct APIKeysScreen: View {
     
     var body: some View {
         Group {
-            if !viewModel.proxyManager.proxyStatus.running {
+            if !viewModel.proxy.proxyStatus.running {
                 proxyNotRunningView
             } else {
                 apiKeysListView
@@ -26,7 +26,7 @@ struct APIKeysScreen: View {
         }
         .navigationTitle("nav.apiKeys".localized())
         .toolbar {
-            if viewModel.proxyManager.proxyStatus.running {
+            if viewModel.proxy.proxyStatus.running {
                 ToolbarItemGroup {
                     Button {
                         newAPIKey = generateRandomKey()

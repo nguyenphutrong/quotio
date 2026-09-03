@@ -3,7 +3,16 @@ import QuotioPresentation
 
 @MainActor
 protocol AppRuntimeServices: AnyObject, Sendable {
-    var viewModel: QuotaViewModel { get }
+    var proxyManagement: ProxyManagementScreenModel { get }
+    var quotaController: QuotaFeatureController { get }
+    var quotaScreenModel: QuotaScreenModel { get }
+    var accountsScreenModel: AccountsScreenModel { get }
+    var dashboardScreenModel: DashboardScreenModel { get }
+    var providersScreenModel: ProvidersScreenModel { get }
+    var navigationScreenModel: NavigationScreenModel { get }
+    var warmupScreenModel: WarmupScreenModel { get }
+    var ideImportScreenModel: IDEImportScreenModel { get }
+    var antigravityAccountScreenModel: AntigravityAccountScreenModel { get }
     var logsScreenModel: LogsScreenModel { get }
     var menuBarSettings: MenuBarSettingsManager { get }
     var statusBarManager: StatusBarManager { get }
@@ -56,7 +65,18 @@ final class AppRuntime {
     private(set) var needsOnboarding = false
     private(set) var hasShutDown = false
 
-    var viewModel: QuotaViewModel { services.viewModel }
+    var proxyManagement: ProxyManagementScreenModel { services.proxyManagement }
+    var quotaController: QuotaFeatureController { services.quotaController }
+    var quotaScreenModel: QuotaScreenModel { services.quotaScreenModel }
+    var accountsScreenModel: AccountsScreenModel { services.accountsScreenModel }
+    var dashboardScreenModel: DashboardScreenModel { services.dashboardScreenModel }
+    var providersScreenModel: ProvidersScreenModel { services.providersScreenModel }
+    var navigationScreenModel: NavigationScreenModel { services.navigationScreenModel }
+    var warmupScreenModel: WarmupScreenModel { services.warmupScreenModel }
+    var ideImportScreenModel: IDEImportScreenModel { services.ideImportScreenModel }
+    var antigravityAccountScreenModel: AntigravityAccountScreenModel {
+        services.antigravityAccountScreenModel
+    }
     var logsScreenModel: LogsScreenModel { services.logsScreenModel }
     var menuBarSettings: MenuBarSettingsManager { services.menuBarSettings }
     var statusBarManager: StatusBarManager { services.statusBarManager }

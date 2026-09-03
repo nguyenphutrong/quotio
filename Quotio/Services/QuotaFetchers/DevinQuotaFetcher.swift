@@ -1,4 +1,5 @@
 import Foundation
+import QuotioDomain
 import SQLite3
 
 nonisolated struct DevinCredential: Sendable, Equatable {

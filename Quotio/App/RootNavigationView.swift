@@ -5,16 +5,19 @@ import SwiftUI
 struct RootNavigationView: View {
     let logsScreenModel: LogsScreenModel
 
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(NavigationScreenModel.self) private var navigation
+    @Environment(ProxyManagementScreenModel.self) private var proxyManagement
+    @Environment(QuotaScreenModel.self) private var quota
+    @Environment(QuotaFeatureController.self) private var quotaController
     @Environment(OperatingModeManager.self) private var modeManager
     @Environment(SettingsScreenModel.self) private var settingsModel
 
     var body: some View {
-        @Bindable var viewModel = viewModel
+        @Bindable var navigation = navigation
 
         NavigationSplitView {
             VStack(spacing: 0) {
-                List(selection: $viewModel.currentPage) {
+                List(selection: $navigation.currentPage) {
                     Section {
                         Label("nav.dashboard".localized(), systemImage: "gauge.with.dots.needle.33percent")
                             .tag(NavigationPage.dashboard)
@@ -59,9 +62,9 @@ struct RootNavigationView: View {
 
                     Group {
                         if modeManager.isLocalProxyMode {
-                            ProxyStatusRow(viewModel: viewModel)
+                            ProxyStatusRow(proxyManagement: proxyManagement)
                         } else {
-                            QuotaRefreshStatusRow(viewModel: viewModel)
+                            QuotaRefreshStatusRow(quota: quota)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -73,37 +76,37 @@ struct RootNavigationView: View {
             .toolbar {
                 ToolbarItem {
                     if modeManager.isLocalProxyMode {
-                        if viewModel.proxyManager.isStarting {
+                        if proxyManagement.proxy.isStarting {
                             SmallProgressView()
                         } else {
                             Button {
-                                Task { await viewModel.toggleProxy() }
+                                Task { await proxyManagement.toggleProxy() }
                             } label: {
                                 Image(
-                                    systemName: viewModel.proxyManager.proxyStatus.running
+                                    systemName: proxyManagement.proxy.proxyStatus.running
                                         ? "stop.fill"
                                         : "play.fill"
                                 )
                             }
                             .help(
-                                viewModel.proxyManager.proxyStatus.running
+                                proxyManagement.proxy.proxyStatus.running
                                     ? "action.stopProxy".localized()
                                     : "action.startProxy".localized()
                             )
                         }
                     } else {
                         Button {
-                            Task { await viewModel.manualRefresh() }
+                            Task { await quotaController.refreshAll(force: true) }
                         } label: {
                             Image(systemName: "arrow.clockwise")
                         }
                         .help("action.refreshQuota".localized())
-                        .disabled(viewModel.isLoadingQuotas)
+                        .disabled(quota.isLoadingQuotas)
                     }
                 }
             }
         } detail: {
-            switch viewModel.currentPage {
+            switch navigation.currentPage {
             case .dashboard:
                 DashboardScreen()
             case .quota:
@@ -115,13 +118,13 @@ struct RootNavigationView: View {
             case .apiKeys:
                 APIKeysScreen()
             case .logs:
-                if viewModel.proxyManager.proxyStatus.running {
+                if proxyManagement.proxy.proxyStatus.running {
                     QuotioPresentation.LogsScreen(model: logsScreenModel)
                 } else {
                     ProxyRequiredView(
                         description: "logs.startProxy".localized()
                     ) {
-                        await viewModel.startProxy()
+                        await proxyManagement.startProxy()
                     }
                     .navigationTitle("nav.logs".localized())
                 }
@@ -135,22 +138,22 @@ struct RootNavigationView: View {
 }
 
 struct ProxyStatusRow: View {
-    let viewModel: QuotaViewModel
+    let proxyManagement: ProxyManagementScreenModel
 
     var body: some View {
         HStack {
-            if viewModel.proxyManager.isStarting {
+            if proxyManagement.proxy.isStarting {
                 SmallProgressView(size: 8)
             } else {
                 Circle()
-                    .fill(viewModel.proxyManager.proxyStatus.running ? .green : .gray)
+                    .fill(proxyManagement.proxy.proxyStatus.running ? .green : .gray)
                     .frame(width: 8, height: 8)
             }
 
             Text(
-                viewModel.proxyManager.isStarting
+                proxyManagement.proxy.isStarting
                     ? "status.starting".localized()
-                    : viewModel.proxyManager.proxyStatus.running
+                    : proxyManagement.proxy.proxyStatus.running
                         ? "status.running".localized()
                         : "status.stopped".localized()
             )
@@ -158,7 +161,7 @@ struct ProxyStatusRow: View {
 
             Spacer()
 
-            Text(":" + String(viewModel.proxyManager.port))
+            Text(":" + String(proxyManagement.proxy.port))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -166,11 +169,11 @@ struct ProxyStatusRow: View {
 }
 
 struct QuotaRefreshStatusRow: View {
-    let viewModel: QuotaViewModel
+    let quota: QuotaScreenModel
 
     var body: some View {
         HStack {
-            if viewModel.isLoadingQuotas {
+            if quota.isLoadingQuotas {
                 SmallProgressView(size: 8)
                 Text("status.refreshing".localized())
                     .font(.caption)
@@ -179,7 +182,7 @@ struct QuotaRefreshStatusRow: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
-                if let lastRefresh = viewModel.lastQuotaRefreshTime {
+                if let lastRefresh = quota.lastRefreshTime {
                     Text("status.updatedAgo \(lastRefresh, style: .relative)")
                         .font(.caption)
                         .foregroundStyle(.secondary)

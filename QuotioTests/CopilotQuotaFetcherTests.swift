@@ -225,56 +225,6 @@ final class CopilotQuotaFetcherTests: XCTestCase {
         XCTAssertEqual(parsed.legacyIdentityKeys, ["marcos-legacy"])
     }
 
-    // MARK: - Provider-Scoped Monitor Refresh
-
-    // Refreshing ONLY Copilot goes through MonitorRefreshCoordinator.refresh,
-    // which merges `previous` into the fetcher output. Reconciling the fetcher
-    // output alone is not enough — the merged dictionary is what gets stored, so
-    // the stale filename key would survive and #404 would come back for anyone
-    // who uses the per-provider refresh button.
-    func testScopedMonitorRefreshCollapsesStaleKeyFromCoordinatorMerge() async throws {
-        let directory = try Self.makeTemporaryAuthDirectory()
-        defer { try? FileManager.default.removeItem(atPath: directory) }
-        try Self.writeCopilotAuthFile(
-            named: "github-copilot-marcosvrs.json",
-            in: directory,
-            fields: ["username": "marcosvrs"]
-        )
-
-        let staleDate = Date(timeIntervalSince1970: 1_000)
-        let freshDate = Date(timeIntervalSince1970: 2_000)
-        // Snapshot written by an older release, keyed by the full filename.
-        let previous = [
-            "github-copilot-marcosvrs.json": ProviderQuotaData(models: [], lastUpdated: staleDate),
-        ]
-        let fetched = ["marcosvrs": ProviderQuotaData(models: [], lastUpdated: freshDate)]
-
-        // Counterfactual: the coordinator merge on its own keeps BOTH keys.
-        let merged = await MonitorRefreshCoordinator().refresh(
-            provider: .copilot,
-            force: true,
-            previous: previous,
-            credentialAvailability: .present
-        ) {
-            fetched
-        }
-        XCTAssertEqual(Set(merged.keys), ["github-copilot-marcosvrs.json", "marcosvrs"])
-
-        // The production scoped-refresh path reconciles that merged result.
-        let scoped = await QuotaViewModel.refreshCopilotThroughCoordinator(
-            coordinator: MonitorRefreshCoordinator(),
-            fetcher: CopilotQuotaFetcher(),
-            previous: previous,
-            credentialAvailability: .present,
-            authDir: directory
-        ) {
-            fetched
-        }
-
-        XCTAssertEqual(Set(scoped.keys), ["marcosvrs"])
-        XCTAssertEqual(scoped["marcosvrs"]?.lastUpdated, freshDate)
-    }
-
     // MARK: - Helpers
 
     private static func makeTemporaryAuthDirectory() throws -> String {

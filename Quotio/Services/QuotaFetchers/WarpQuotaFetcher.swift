@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import QuotioDomain
 
 struct WarpQuotaResponse: Codable, Sendable {
     let data: WarpDataWrapper?

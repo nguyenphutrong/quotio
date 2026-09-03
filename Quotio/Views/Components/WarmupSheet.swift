@@ -3,11 +3,12 @@
 //  Quotio
 //
 
+import QuotioApplication
 import QuotioDomain
 import SwiftUI
 
 struct WarmupSheet: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(WarmupScreenModel.self) private var viewModel
     @Environment(MenuBarSettingsManager.self) private var settings
     @Environment(WarmupSettingsManager.self) private var warmupSettings
     @State private var availableModels: [String] = []
@@ -28,7 +29,7 @@ struct WarmupSheet: View {
     }()
     
     private var isWarmupEnabled: Bool {
-        viewModel.isWarmupEnabled(for: provider, accountKey: accountKey)
+        viewModel.isEnabled(for: provider, accountKey: accountKey)
     }
     
     private var displayEmail: String {
@@ -36,7 +37,7 @@ struct WarmupSheet: View {
     }
 
     private var warmupIsRunning: Bool {
-        viewModel.warmupStatus(provider: provider, accountKey: accountKey).isRunning
+        viewModel.status(provider: provider, accountKey: accountKey).isRunning
     }
 
     private var scheduleModeBinding: Binding<WarmupScheduleMode> {
@@ -67,7 +68,7 @@ struct WarmupSheet: View {
         if selectedModels.isEmpty {
             return "warmup.status.noSelection".localized()
         }
-        let status = viewModel.warmupStatus(provider: provider, accountKey: accountKey)
+        let status = viewModel.status(provider: provider, accountKey: accountKey)
         if status.isRunning {
             return "warmup.status.running".localized()
         }
@@ -78,7 +79,7 @@ struct WarmupSheet: View {
     }
 
     private var lastRunText: String {
-        let status = viewModel.warmupStatus(provider: provider, accountKey: accountKey)
+        let status = viewModel.status(provider: provider, accountKey: accountKey)
         guard let lastRun = status.lastRun else {
             return "warmup.status.none".localized()
         }
@@ -86,13 +87,13 @@ struct WarmupSheet: View {
     }
 
     private var progressText: String? {
-        let status = viewModel.warmupStatus(provider: provider, accountKey: accountKey)
+        let status = viewModel.status(provider: provider, accountKey: accountKey)
         guard status.isRunning, status.progressTotal > 0 else { return nil }
         return String(format: "warmup.status.progress".localized(), status.progressCompleted, status.progressTotal)
     }
 
     private var currentModelText: String? {
-        let status = viewModel.warmupStatus(provider: provider, accountKey: accountKey)
+        let status = viewModel.status(provider: provider, accountKey: accountKey)
         guard status.isRunning, let current = status.currentModel else { return nil }
         return String(format: "warmup.status.currentModel".localized(), current)
     }
@@ -101,7 +102,7 @@ struct WarmupSheet: View {
         guard isWarmupEnabled, !selectedModels.isEmpty else {
             return "warmup.status.none".localized()
         }
-        guard let nextRun = viewModel.warmupNextRunDate(provider: provider, accountKey: accountKey) else {
+        guard let nextRun = viewModel.status(provider: provider, accountKey: accountKey).nextRun else {
             return "warmup.status.none".localized()
         }
         return Self.dateFormatter.string(from: nextRun)
@@ -255,7 +256,7 @@ struct WarmupSheet: View {
             Spacer()
             
             Button("warmup.stop".localized()) {
-                viewModel.setWarmupEnabled(false, provider: provider, accountKey: accountKey)
+                viewModel.setEnabled(false, provider: provider, accountKey: accountKey)
                 shouldAutoClose = false
                 didSeeRunning = false
                 onDismiss()
@@ -269,7 +270,7 @@ struct WarmupSheet: View {
                 }
                 shouldAutoClose = true
                 didSeeRunning = warmupIsRunning
-                viewModel.setWarmupEnabled(true, provider: provider, accountKey: accountKey)
+                viewModel.setEnabled(true, provider: provider, accountKey: accountKey)
             }
             .disabled(!isWarmupEnabled && selectedModels.isEmpty)
             .keyboardShortcut(.defaultAction)
@@ -342,7 +343,7 @@ struct WarmupSheet: View {
         guard provider == .antigravity else { return }
         guard availableModels.isEmpty else { return }
         isLoadingModels = true
-        let models = await viewModel.warmupAvailableModels(provider: provider, accountKey: accountKey)
+        let models = await viewModel.availableModels(provider: provider, accountKey: accountKey)
         availableModels = models
         if warmupSettings.hasStoredSelection(provider: provider, accountKey: accountKey) {
             let saved = warmupSettings.selectedModels(provider: provider, accountKey: accountKey)

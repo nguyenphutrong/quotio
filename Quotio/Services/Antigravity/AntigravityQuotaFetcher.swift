@@ -126,47 +126,9 @@ nonisolated struct GroupedModelQuota: Identifiable, Sendable {
 
 // MARK: - Models
 
-nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
-    let name: String
-    let percentage: Double
-    let resetTime: String
+typealias ModelQuota = QuotaMetric
 
-    /// Typed value for currency/count/status rows. Nil keeps the legacy percentage presentation.
-    var presentation: QuotaMetricPresentation?
-
-    // Optional usage details for providers that support it (e.g., Cursor)
-    var used: Int?
-    var limit: Int?
-    var remaining: Int?
-
-    // Optional tooltip message (e.g., Warp bonus userFacingMessage)
-    var tooltip: String?
-
-    init(
-        name: String,
-        percentage: Double,
-        resetTime: String,
-        presentation: QuotaMetricPresentation? = nil,
-        used: Int? = nil,
-        limit: Int? = nil,
-        remaining: Int? = nil,
-        tooltip: String? = nil
-    ) {
-        self.name = name
-        self.percentage = percentage
-        self.resetTime = resetTime
-        self.presentation = presentation
-        self.used = used
-        self.limit = limit
-        self.remaining = remaining
-        self.tooltip = tooltip
-    }
-
-    var id: String { name }
-
-    var usedPercentage: Double {
-        100 - percentage
-    }
+nonisolated extension QuotaMetric {
 
     var formattedPercentage: String {
         if percentage < 0 {
@@ -188,6 +150,16 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
                 let key = semantics == .balance ? "quota.metric.balanceValue" : "quota.metric.spentValue"
                 return String(format: key.localizedStatic(), unit.format(value))
             case .status(let text):
+                if text == "grok-disabled" {
+                    return "grok.status.disabled".localizedStatic()
+                }
+                if text.hasPrefix("grok-cap:") {
+                    let value = String(text.dropFirst("grok-cap:".count))
+                    return String(format: "grok.status.cap".localizedStatic(), value)
+                }
+                if text == "legacy-billing" {
+                    return "factory.status.legacyBilling".localizedStatic()
+                }
                 return text
             }
         }
@@ -363,32 +335,9 @@ nonisolated struct ModelQuota: Codable, Identifiable, Sendable {
     }
 }
 
-nonisolated struct ProviderQuotaData: Codable, Sendable {
-    var models: [ModelQuota]
-    var lastUpdated: Date
-    var isForbidden: Bool
-    var planType: String?
-    var tokenExpiresAt: Date?  // For Kiro: token expiry time
-    var analytics: QuotaAnalytics?
-    var accountDisplayName: String?
+typealias ProviderQuotaData = ProviderQuota
 
-    init(
-        models: [ModelQuota] = [],
-        lastUpdated: Date = Date(),
-        isForbidden: Bool = false,
-        planType: String? = nil,
-        tokenExpiresAt: Date? = nil,
-        analytics: QuotaAnalytics? = nil,
-        accountDisplayName: String? = nil
-    ) {
-        self.models = models
-        self.lastUpdated = lastUpdated
-        self.isForbidden = isForbidden
-        self.planType = planType
-        self.tokenExpiresAt = tokenExpiresAt
-        self.analytics = analytics
-        self.accountDisplayName = accountDisplayName
-    }
+nonisolated extension ProviderQuota {
 
     /// Format token expiry time in user's local timezone
     var formattedTokenExpiry: String? {
@@ -412,6 +361,8 @@ nonisolated struct ProviderQuotaData: Codable, Sendable {
     var planDisplayName: String? {
         guard let plan = planType?.lowercased() else { return nil }
         switch plan {
+        case "openrouter-free": return "openrouter.plan.freeTier".localizedStatic()
+        case "openrouter-pay-as-you-go": return "openrouter.plan.payAsYouGo".localizedStatic()
         case "guest": return "Guest"
         case "free": return "Free"
         case "go": return "Go"
@@ -450,61 +401,13 @@ nonisolated struct ProviderQuotaData: Codable, Sendable {
 
 // MARK: - Subscription Info Models
 
-nonisolated struct SubscriptionTier: Codable, Sendable {
-    let id: String
-    let name: String
-    let description: String
-    let privacyNotice: PrivacyNotice?
-    let isDefault: Bool?
-    let upgradeSubscriptionUri: String?
-    let upgradeSubscriptionText: String?
-    let upgradeSubscriptionType: String?
-    let userDefinedCloudaicompanionProject: Bool?
-}
+typealias SubscriptionTier = QuotaSubscriptionTier
+typealias PrivacyNotice = QuotaPrivacyNotice
+typealias SubscriptionInfo = QuotaSubscriptionInfo
 
-nonisolated struct PrivacyNotice: Codable, Sendable {
-    let showNotice: Bool?
-    let noticeText: String?
-}
-
-nonisolated struct SubscriptionInfo: Codable, Sendable {
-    let currentTier: SubscriptionTier?
-    let allowedTiers: [SubscriptionTier]?
-    let cloudaicompanionProject: String?
-    let gcpManaged: Bool?
-    let upgradeSubscriptionUri: String?
-    let paidTier: SubscriptionTier?
-
-    /// Get the effective tier - prioritize paidTier over currentTier
-    private var effectiveTier: SubscriptionTier? {
-        paidTier ?? currentTier
-    }
-
-    var tierDisplayName: String {
-        effectiveTier?.name ?? "Unknown"
-    }
-
-    var tierDescription: String {
-        effectiveTier?.description ?? ""
-    }
-
-    var tierId: String {
-        effectiveTier?.id ?? "unknown"
-    }
-
-    var isPaidTier: Bool {
-        guard let id = effectiveTier?.id else { return false }
-        return id.contains("pro") || id.contains("ultra")
-    }
-
-    var canUpgrade: Bool {
-        effectiveTier?.upgradeSubscriptionUri != nil
-    }
-
-    var upgradeURL: URL? {
-        guard let uri = effectiveTier?.upgradeSubscriptionUri else { return nil }
-        return URL(string: uri)
-    }
+nonisolated extension QuotaSubscriptionInfo {
+    var tierDisplayName: String { effectiveTier?.name ?? "Unknown" }
+    var tierDescription: String { effectiveTier?.description ?? "" }
 }
 
 // MARK: - API Response Models

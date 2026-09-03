@@ -9,9 +9,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct DashboardScreen: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var proxyManagement
+    @Environment(QuotaScreenModel.self) private var quota
+    @Environment(AccountsScreenModel.self) private var accounts
+    @Environment(DashboardScreenModel.self) private var dashboard
+    @Environment(QuotaFeatureController.self) private var quotaController
     @Environment(OperatingModeManager.self) private var modeManager
-    @Environment(MenuBarSettingsManager.self) private var menuBarSettings
     @Environment(SettingsScreenModel.self) private var settingsModel
 
     @State private var selectedProvider: AIProvider?
@@ -29,10 +32,10 @@ struct DashboardScreen: View {
     }
     
     private var isSetupComplete: Bool {
-        viewModel.proxyManager.isBinaryInstalled &&
-        viewModel.proxyManager.proxyStatus.running &&
-        !viewModel.authFiles.isEmpty &&
-        viewModel.agentSetupViewModel.agentStatuses.contains(where: { $0.configured })
+        proxyManagement.proxy.isBinaryInstalled &&
+        proxyManagement.proxy.proxyStatus.running &&
+        !proxyManagement.authFiles.isEmpty &&
+        proxyManagement.agentSetup.agentStatuses.contains(where: { $0.configured })
     }
     
     /// Check if we should show main content
@@ -40,45 +43,33 @@ struct DashboardScreen: View {
         if modeManager.isMonitorMode {
             return true // Always show content in quota-only mode
         }
-        return viewModel.proxyManager.proxyStatus.running
+        return proxyManagement.proxy.proxyStatus.running
     }
     
     // MARK: - Precomputed Properties (performance optimization)
     
     /// Unique provider count from direct auth files
     private var directProvidersCount: Int {
-        Set(viewModel.monitorAccounts.map { $0.provider }).count
+        dashboard.connectedProviderCount
     }
     
     /// Lowest quota percentage across all providers using total usage logic
     private var lowestQuotaPercentage: Double {
-        var allTotals: [Double] = []
-        
-        for (_, accountQuotas) in viewModel.providerQuotas {
-            for (_, quotaData) in accountQuotas {
-                let models = quotaData.models.map { (name: $0.name, percentage: $0.percentage) }
-                let total = menuBarSettings.totalUsagePercent(models: models)
-                if total >= 0 {
-                    allTotals.append(total)
-                }
-            }
-        }
-        
-        return allTotals.min() ?? 100
+        dashboard.lowestQuotaPercentage
     }
     
     /// Grouped accounts by provider (cached computation)
     private var groupedMonitorAccounts: [AIProvider: [MonitorAccount]] {
-        Dictionary(grouping: viewModel.monitorAccounts) { $0.provider }
+        Dictionary(grouping: accounts.accounts) { $0.provider }
     }
     
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 if modeManager.isLocalProxyMode {
-                    if !viewModel.proxyManager.isBinaryInstalled {
+                    if !proxyManagement.proxy.isBinaryInstalled {
                         installBinarySection
-                    } else if !viewModel.proxyManager.proxyStatus.running {
+                    } else if !proxyManagement.proxy.proxyStatus.running {
                         startProxySection
                     } else {
                         fullModeContent
@@ -96,39 +87,38 @@ struct DashboardScreen: View {
                 Button {
                     Task {
                         if modeManager.isMonitorMode {
-                            await viewModel.manualRefresh()
-                        } else if modeManager.isLocalProxyMode && viewModel.proxyManager.proxyStatus.running {
-                            await viewModel.refreshData()
+                            await quotaController.refreshAll(force: true)
+                        } else if modeManager.isLocalProxyMode && proxyManagement.proxy.proxyStatus.running {
+                            await proxyManagement.refreshData()
                         } else {
-                            await viewModel.refreshQuotasUnified()
+                            await quotaController.refreshAll(force: true)
                         }
                     }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .disabled(viewModel.isLoadingQuotas)
+                .disabled(quota.isLoadingQuotas)
             }
         }
         .sheet(item: $selectedProvider) { provider in
             OAuthSheet(provider: provider) {
                 selectedProvider = nil
-                viewModel.cancelOAuth()
+                quotaController.cancelOAuth()
                 Task {
                     if modeManager.isMonitorMode {
-                        await viewModel.manualRefresh()
+                        await quotaController.refreshAll(force: true)
                     } else {
-                        await viewModel.refreshData()
+                        await proxyManagement.refreshData()
                     }
                 }
             }
-            .environment(viewModel)
         }
         .sheet(item: $selectedAgentForConfig) { (agent: CLIAgent) in
-            AgentConfigSheet(viewModel: viewModel.agentSetupViewModel, agent: agent)
+            AgentConfigSheet(viewModel: proxyManagement.agentSetup, agent: agent)
                 .id(sheetPresentationID)
                 .onDisappear {
-                    viewModel.agentSetupViewModel.dismissConfiguration()
-                    Task { await viewModel.agentSetupViewModel.refreshAgentStatuses() }
+                    proxyManagement.agentSetup.dismissConfiguration()
+                    Task { await proxyManagement.agentSetup.refreshAgentStatuses() }
                 }
         }
         .fileImporter(
@@ -138,14 +128,14 @@ struct DashboardScreen: View {
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
                 Task {
-                    await viewModel.importVertexServiceAccount(url: url)
-                    await viewModel.refreshData()
+                    await proxyManagement.importVertexServiceAccount(url: url)
+                    await proxyManagement.refreshData()
                 }
             }
         }
         .task {
             if modeManager.isLocalProxyMode {
-                await viewModel.agentSetupViewModel.refreshAgentStatuses()
+                await proxyManagement.agentSetup.refreshAgentStatuses()
             }
         }
     }
@@ -185,7 +175,7 @@ struct DashboardScreen: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 16)], spacing: 16) {
             KPICard(
                 title: "dashboard.trackedAccounts".localized(),
-                value: "\(viewModel.monitorAccounts.count)",
+                value: "\(dashboard.trackedAccountCount)",
                 subtitle: "dashboard.accounts".localized(),
                 icon: "person.2.fill",
                 color: .blue
@@ -208,7 +198,7 @@ struct DashboardScreen: View {
                 color: lowestQuotaPercentage > 50 ? .green : (lowestQuotaPercentage > 20 ? .orange : .red)
             )
             
-            if let lastRefresh = viewModel.lastQuotaRefreshTime {
+            if let lastRefresh = dashboard.lastRefreshTime {
                 KPICard(
                     title: "dashboard.lastRefresh".localized(),
                     value: lastRefresh.formatted(date: .omitted, time: .shortened),
@@ -222,7 +212,7 @@ struct DashboardScreen: View {
     
     private var quotaStatusSection: some View {
         GroupBox {
-            if viewModel.providerQuotas.isEmpty {
+            if quota.providerQuotas.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "chart.bar.xaxis")
                         .font(.largeTitle)
@@ -233,20 +223,20 @@ struct DashboardScreen: View {
                         .foregroundStyle(.secondary)
                     
                     Button {
-                        Task { await viewModel.manualRefresh() }
+                        Task { await quotaController.refreshAll(force: true) }
                     } label: {
                         Label("action.refresh".localized(), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(.bordered)
-                    .disabled(viewModel.isLoadingQuotas)
+                    .disabled(quota.isLoadingQuotas)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                     // Sort providers for stable iteration order (ForEach performance fix)
-                    ForEach(viewModel.providerQuotas.keys.sorted { $0.displayName < $1.displayName }) { provider in
-                        if let accounts = viewModel.providerQuotas[provider], !accounts.isEmpty {
+                    ForEach(quota.providerQuotas.keys.sorted { $0.displayName < $1.displayName }) { provider in
+                        if let accounts = quota.providerQuotas[provider], !accounts.isEmpty {
                             QuotaProviderRow(provider: provider, accounts: accounts)
                         }
                     }
@@ -258,7 +248,7 @@ struct DashboardScreen: View {
                 
                 Spacer()
                 
-                if viewModel.isLoadingQuotas {
+                if quota.isLoadingQuotas {
                     SmallProgressView()
                 }
             }
@@ -267,7 +257,7 @@ struct DashboardScreen: View {
     
     private var trackedAccountsSection: some View {
         GroupBox {
-            if viewModel.monitorAccounts.isEmpty {
+            if accounts.accounts.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "person.crop.circle.badge.questionmark")
                         .font(.largeTitle)
@@ -323,24 +313,24 @@ struct DashboardScreen: View {
         } description: {
             Text("dashboard.clickToInstall".localized())
         } actions: {
-            if viewModel.proxyManager.isDownloading {
-                ProgressView(value: viewModel.proxyManager.downloadProgress)
+            if proxyManagement.proxy.isDownloading {
+                ProgressView(value: proxyManagement.proxy.downloadProgress)
                     .progressViewStyle(.linear)
                     .frame(width: 200)
             } else {
                 Button("dashboard.installCLI".localized()) {
                     Task {
                         do {
-                            try await viewModel.proxyManager.downloadAndInstallBinary()
+                            try await proxyManagement.proxy.downloadAndInstallBinary()
                         } catch {
-                            viewModel.errorMessage = viewModel.proxyManager.errorMessage(for: error)
+                            proxyManagement.errorMessage = proxyManagement.proxy.errorMessage(for: error)
                         }
                     }
                 }
                 .buttonStyle(.borderedProminent)
             }
             
-            if let error = viewModel.proxyManager.lastError {
+            if let error = proxyManagement.proxy.lastError {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -355,7 +345,7 @@ struct DashboardScreen: View {
         ProxyRequiredView(
             description: "dashboard.startToBegin".localized()
         ) {
-            await viewModel.startProxy()
+            await proxyManagement.startProxy()
         }
         .frame(maxWidth: .infinity, minHeight: 300)
     }
@@ -402,16 +392,16 @@ struct DashboardScreen: View {
                 icon: "person.2.badge.key",
                 title: "onboarding.addProvider".localized(),
                 description: "onboarding.addProviderDesc".localized(),
-                isCompleted: !viewModel.authFiles.isEmpty,
-                actionLabel: viewModel.authFiles.isEmpty ? "providers.addProvider".localized() : nil
+                isCompleted: !proxyManagement.authFiles.isEmpty,
+                actionLabel: proxyManagement.authFiles.isEmpty ? "providers.addProvider".localized() : nil
             ),
             GettingStartedStep(
                 id: "agent",
                 icon: "terminal",
                 title: "onboarding.configureAgent".localized(),
                 description: "onboarding.configureAgentDesc".localized(),
-                isCompleted: viewModel.agentSetupViewModel.agentStatuses.contains(where: { $0.configured }),
-                actionLabel: viewModel.agentSetupViewModel.agentStatuses.contains(where: { $0.configured }) ? nil : "agents.configure".localized()
+                isCompleted: proxyManagement.agentSetup.agentStatuses.contains(where: { $0.configured }),
+                actionLabel: proxyManagement.agentSetup.agentStatuses.contains(where: { $0.configured }) ? nil : "agents.configure".localized()
             )
         ]
     }
@@ -446,18 +436,18 @@ struct DashboardScreen: View {
             if provider == .vertex {
                 isImporterPresented = true
             } else {
-                viewModel.cancelOAuth()
+                quotaController.cancelOAuth()
                 selectedProvider = provider
             }
         }
     }
     
     private func showAgentPicker() {
-        let installedAgents = viewModel.agentSetupViewModel.agentStatuses.filter { $0.installed }
+        let installedAgents = proxyManagement.agentSetup.agentStatuses.filter { $0.installed }
         guard let firstAgent = installedAgents.first else { return }
         
-        let apiKey = viewModel.apiKeys.first ?? viewModel.proxyManager.managementKey
-        viewModel.agentSetupViewModel.startConfiguration(for: firstAgent.agent, apiKey: apiKey)
+        let apiKey = proxyManagement.apiKeys.first ?? proxyManagement.proxy.managementKey
+        proxyManagement.agentSetup.startConfiguration(for: firstAgent.agent, apiKey: apiKey)
         sheetPresentationID = UUID()
         selectedAgentForConfig = firstAgent.agent
     }
@@ -468,15 +458,15 @@ struct DashboardScreen: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 16)], spacing: 16) {
             KPICard(
                 title: "dashboard.accounts".localized(),
-                value: "\(viewModel.totalAccounts)",
-                subtitle: "\(viewModel.readyAccounts) " + "dashboard.ready".localized(),
+                value: "\(proxyManagement.totalAccounts)",
+                subtitle: "\(proxyManagement.readyAccounts) " + "dashboard.ready".localized(),
                 icon: "person.2.fill",
                 color: .blue
             )
             
             KPICard(
                 title: "dashboard.requests".localized(),
-                value: "\(viewModel.usageStats?.usage?.totalRequests ?? 0)",
+                value: "\(proxyManagement.usageStats?.usage?.totalRequests ?? 0)",
                 subtitle: "dashboard.total".localized(),
                 icon: "arrow.up.arrow.down",
                 color: .green
@@ -484,7 +474,7 @@ struct DashboardScreen: View {
             
             KPICard(
                 title: "dashboard.tokens".localized(),
-                value: (viewModel.usageStats?.usage?.totalTokens ?? 0).formattedCompact,
+                value: (proxyManagement.usageStats?.usage?.totalTokens ?? 0).formattedCompact,
                 subtitle: "dashboard.processed".localized(),
                 icon: "text.word.spacing",
                 color: .purple
@@ -492,8 +482,8 @@ struct DashboardScreen: View {
             
             KPICard(
                 title: "dashboard.successRate".localized(),
-                value: String(format: "%.0f%%", viewModel.usageStats?.usage?.successRate ?? 0.0),
-                subtitle: "\(viewModel.usageStats?.usage?.failureCount ?? 0) " + "dashboard.failed".localized(),
+                value: String(format: "%.0f%%", proxyManagement.usageStats?.usage?.successRate ?? 0.0),
+                subtitle: "\(proxyManagement.usageStats?.usage?.failureCount ?? 0) " + "dashboard.failed".localized(),
                 icon: "checkmark.circle.fill",
                 color: .orange
             )
@@ -506,16 +496,16 @@ struct DashboardScreen: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
                 FlowLayout(spacing: 8) {
-                    ForEach(viewModel.connectedProviders) { provider in
-                        ProviderChip(provider: provider, count: viewModel.authFilesByProvider[provider]?.count ?? 0)
+                    ForEach(proxyManagement.connectedProviders) { provider in
+                        ProviderChip(provider: provider, count: proxyManagement.authFilesByProvider[provider]?.count ?? 0)
                     }
                     
-                    ForEach(viewModel.disconnectedProviders.filter(\.supportsLocalProxySetup)) { provider in
+                    ForEach(proxyManagement.disconnectedProviders.filter(\.supportsLocalProxySetup)) { provider in
                         Button {
                             if provider == .vertex {
                                 isImporterPresented = true
                             } else {
-                                viewModel.cancelOAuth()
+                                quotaController.cancelOAuth()
                                 selectedProvider = provider
                             }
                         } label: {
@@ -536,7 +526,7 @@ struct DashboardScreen: View {
 
     /// The display endpoint for clients to connect to
     private var displayEndpoint: String {
-        viewModel.proxyManager.baseURL + "/v1"
+        proxyManagement.proxy.baseURL + "/v1"
     }
 
     private var endpointSection: some View {
@@ -644,7 +634,6 @@ struct DashboardScreen: View {
         }
         .sheet(isPresented: $showTunnelSheet) {
             TunnelSheet()
-                .environment(viewModel)
         }
     }
 }

@@ -8,6 +8,7 @@
 
 import AppKit
 import QuotioDomain
+import QuotioPresentation
 import SwiftUI
 
 @MainActor
@@ -41,16 +42,26 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     
     // Native menu builder
     private var menuBuilder: StatusBarMenuBuilder?
-    private weak var viewModel: QuotaViewModel?
     
     private override init() {
         super.init()
     }
     
-    func setViewModel(_ viewModel: QuotaViewModel) {
-        self.viewModel = viewModel
-        self.menuBuilder = StatusBarMenuBuilder(viewModel: viewModel)
-        MenuActionHandler.shared.viewModel = viewModel
+    func setDependencies(
+        proxyManagement: ProxyManagementScreenModel,
+        quota: QuotaScreenModel,
+        accounts: AccountsScreenModel,
+        quotaController: QuotaFeatureController,
+        antigravityAccounts: AntigravityAccountScreenModel
+    ) {
+        menuBuilder = StatusBarMenuBuilder(
+            proxyManagement: proxyManagement,
+            quota: quota,
+            accounts: accounts,
+            quotaController: quotaController,
+            antigravityAccounts: antigravityAccounts
+        )
+        MenuActionHandler.shared.quotaController = quotaController
     }
     
     /// Highest backing scale factor across all active screens to ensure sharp rendering in multi-monitor setups

@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import QuotioDomain
 
 actor WarmupService {
     private let antigravityBaseURLs = [

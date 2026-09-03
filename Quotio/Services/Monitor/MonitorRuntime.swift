@@ -565,7 +565,7 @@ actor MonitorRefreshCoordinator {
     /// specific, higher-priority credential for the same provider (e.g. a
     /// nameless "Claude Code" native credential once "Claude Desktop" is also
     /// discovered). `discoverAccounts` hides these from the account list to
-    /// avoid duplicate rows; `QuotaViewModel` uses the same table to keep quota
+    /// avoid duplicate rows; quota projection uses the same table to keep quota
     /// data for hidden placeholders from lingering on the Quota screen.
     static let placeholderAccountKeys: [AIProvider: Set<String>] = [
         .copilot: ["github copilot"],

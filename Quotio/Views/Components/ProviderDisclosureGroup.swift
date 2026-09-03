@@ -6,6 +6,7 @@
 //  Part of ProvidersScreen UI/UX redesign.
 //
 
+import QuotioDomain
 import SwiftUI
 
 // MARK: - Provider Disclosure Group

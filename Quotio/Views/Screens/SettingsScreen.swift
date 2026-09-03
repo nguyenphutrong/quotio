@@ -9,7 +9,7 @@ import QuotioPresentation
 import SwiftUI
 
 struct SettingsScreen: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var viewModel
     @Environment(OperatingModeManager.self) private var modeManager
     @Environment(LanguageManager.self) private var languageManager
     
@@ -100,7 +100,7 @@ struct SettingsScreen: View {
         .formStyle(.grouped)
         .navigationTitle("nav.settings".localized())
         .onAppear {
-            NSLog("[SettingsScreen] View appeared - mode: \(modeManager.currentMode.rawValue), proxy running: \(viewModel.proxyManager.proxyStatus.running)")
+            NSLog("[SettingsScreen] View appeared - mode: \(modeManager.currentMode.rawValue), proxy running: \(viewModel.proxy.proxyStatus.running)")
         }
     }
 }
@@ -108,7 +108,8 @@ struct SettingsScreen: View {
 // MARK: - Operating Mode Section
 
 struct OperatingModeSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var viewModel
+    @Environment(QuotaFeatureController.self) private var quotaController
     @Environment(OperatingModeManager.self) private var modeManager
     @State private var showModeChangeConfirmation = false
     @State private var pendingMode: OperatingMode?
@@ -178,7 +179,12 @@ struct OperatingModeSection: View {
         
         // Re-initialize based on new mode
         Task {
-            await viewModel.initialize()
+            if modeManager.isLocalProxyMode {
+                await viewModel.initialize()
+            } else {
+                await viewModel.loadDirectAuthFiles()
+            }
+            await quotaController.initialize()
         }
     }
 }
@@ -187,7 +193,7 @@ struct OperatingModeSection: View {
 // Uses ManagementAPIClient for hot-reload settings
 
 struct ProxySettingsSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var viewModel
     @Environment(SettingsScreenModel.self) private var settingsModel
     
     @State private var isLoading = true
@@ -207,7 +213,7 @@ struct ProxySettingsSection: View {
     @State private var proxyURLValidation: ProxyURLValidationResult = .empty
     
     private var isAPIAvailable: Bool {
-        viewModel.proxyManager.proxyStatus.running && viewModel.apiClient != nil
+        viewModel.proxy.proxyStatus.running && viewModel.apiClient != nil
     }
     
     var body: some View {
@@ -528,7 +534,7 @@ struct ProxySettingsSection: View {
 // MARK: - Local Proxy Server Section
 
 struct LocalProxyServerSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var viewModel
     @Environment(SettingsScreenModel.self) private var settingsModel
     @State private var portText: String = ""
     @State private var isLoadingConfig = false  // Prevents onChange from firing during initial load
@@ -572,7 +578,7 @@ struct LocalProxyServerSection: View {
                     .onChange(of: portText) { _, newValue in
                         guard !isLoadingConfig else { return }
                         if let port = UInt16(newValue), port > 0 {
-                            viewModel.proxyManager.setPort(port)
+                            viewModel.proxy.setPort(port)
                         }
                     }
             }
@@ -580,14 +586,14 @@ struct LocalProxyServerSection: View {
             LabeledContent("settings.status".localized()) {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(viewModel.proxyManager.proxyStatus.running ? .green : .gray)
+                        .fill(viewModel.proxy.proxyStatus.running ? .green : .gray)
                         .frame(width: 8, height: 8)
-                    Text(viewModel.proxyManager.proxyStatus.running ? "status.running".localized() : "status.stopped".localized())
+                    Text(viewModel.proxy.proxyStatus.running ? "status.running".localized() : "status.stopped".localized())
                 }
             }
             
             LabeledContent("settings.endpoint".localized()) {
-                Text(viewModel.proxyManager.proxyStatus.endpoint)
+                Text(viewModel.proxy.proxyStatus.endpoint)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
             }
@@ -613,7 +619,7 @@ struct LocalProxyServerSection: View {
         }
         .onAppear {
             isLoadingConfig = true
-            portText = String(viewModel.proxyManager.port)
+            portText = String(viewModel.proxy.port)
             // Delay clearing the flag to allow onChange to be suppressed
             DispatchQueue.main.async {
                 isLoadingConfig = false
@@ -657,20 +663,20 @@ struct NetworkAccessSection: View {
 // MARK: - Local Paths Section
 
 struct LocalPathsSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var viewModel
     
     var body: some View {
         Section {
             LabeledContent("settings.binary".localized()) {
-                PathLabel(path: viewModel.proxyManager.effectiveBinaryPath)
+                PathLabel(path: viewModel.proxy.effectiveBinaryPath)
             }
             
             LabeledContent("settings.config".localized()) {
-                PathLabel(path: viewModel.proxyManager.configPath)
+                PathLabel(path: viewModel.proxy.configPath)
             }
             
             LabeledContent("settings.authDir".localized()) {
-                PathLabel(path: viewModel.proxyManager.authDir)
+                PathLabel(path: viewModel.proxy.authDir)
             }
         } header: {
             Label("settings.paths".localized(), systemImage: "folder")
@@ -817,7 +823,7 @@ struct QuotaDisplaySettingsSection: View {
 // MARK: - Refresh Cadence Settings Section
 
 struct RefreshCadenceSettingsSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(QuotaFeatureController.self) private var viewModel
     @Environment(RefreshSettingsManager.self) private var refreshSettings
     
     private var cadenceBinding: Binding<RefreshCadence> {
@@ -838,7 +844,7 @@ struct RefreshCadenceSettingsSection: View {
             if refreshSettings.refreshCadence == .manual {
                 Button {
                     Task {
-                        await viewModel.manualRefresh()
+                        await viewModel.refreshAll(force: true)
                     }
                 } label: {
                     Label("settings.refresh.now".localized(), systemImage: "arrow.clockwise")
@@ -902,7 +908,7 @@ struct UpdateSettingsSection: View {
 // MARK: - Proxy Update Settings Section
 
 struct ProxyUpdateSettingsSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var viewModel
     @Environment(AtomFeedUpdateService.self) private var atomFeedService
     @State private var isCheckingForUpdate = false
     @State private var isUpgrading = false
@@ -910,7 +916,7 @@ struct ProxyUpdateSettingsSection: View {
     @State private var showAdvancedSheet = false
 
     private var proxyManager: ProxyScreenModel {
-        viewModel.proxyManager
+        viewModel.proxy
     }
 
     var body: some View {
@@ -1082,7 +1088,7 @@ struct ProxyUpdateSettingsSection: View {
 
 struct ProxyVersionManagerSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var viewModel
     
     @State private var availableVersions: [ProxyVersionInfo] = []
     @State private var installedVersions: [InstalledProxyVersion] = []
@@ -1097,7 +1103,7 @@ struct ProxyVersionManagerSheet: View {
     @State private var versionsToDelete: [String] = []
     
     private var proxyManager: ProxyScreenModel {
-        viewModel.proxyManager
+        viewModel.proxy
     }
 
     private var installedVersionItems: [NamespacedInstalledVersionItem] {
@@ -1480,7 +1486,7 @@ private struct AvailableVersionRow: View {
 // MARK: - Menu Bar Settings Section
 
 struct MenuBarSettingsSection: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(QuotaFeatureController.self) private var viewModel
     @Environment(MenuBarSettingsManager.self) private var settings
     @Environment(SettingsScreenModel.self) private var settingsModel
     @State private var showTruncationAlert = false
@@ -1548,7 +1554,7 @@ struct MenuBarSettingsSection: View {
                     showTruncationAlert = true
                 } else {
                     settings.menuBarMaxItems = clamped
-                    viewModel.syncMenuBarSelection()
+                    viewModel.synchronizeMenuBarSelection()
                 }
             }
         )
@@ -1607,7 +1613,7 @@ struct MenuBarSettingsSection: View {
             Button("action.ok".localized(), role: .destructive) {
                 if let newMax = pendingMaxItems {
                     settings.menuBarMaxItems = newMax
-                    viewModel.syncMenuBarSelection()
+                    viewModel.synchronizeMenuBarSelection()
                     pendingMaxItems = nil
                 }
             }
@@ -2351,7 +2357,7 @@ struct AboutUpdateCard: View {
 // MARK: - About Proxy Update Card
 
 struct AboutProxyUpdateCard: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var viewModel
     @Environment(AtomFeedUpdateService.self) private var atomFeedService
     @State private var isHovered = false
     @State private var showAdvancedSheet = false
@@ -2360,7 +2366,7 @@ struct AboutProxyUpdateCard: View {
     @State private var upgradeError: String?
 
     private var proxyManager: ProxyScreenModel {
-        viewModel.proxyManager
+        viewModel.proxy
     }
 
     private var currentVersionText: String {
@@ -2644,7 +2650,7 @@ struct LinkCard: View {
 // MARK: - Management Key Row
 
 struct ManagementKeyRow: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var viewModel
     @Environment(MenuBarSettingsManager.self) private var settings
     @State private var regenerateError: String?
     @State private var showRegenerateConfirmation = false
@@ -2652,10 +2658,10 @@ struct ManagementKeyRow: View {
     
     private var displayKey: String {
         if settings.hideSensitiveInfo {
-            let key = viewModel.proxyManager.managementKey
+            let key = viewModel.proxy.managementKey
             return String(repeating: "•", count: 8) + "..." + key.suffix(4)
         }
-        return viewModel.proxyManager.managementKey
+        return viewModel.proxy.managementKey
     }
     
     var body: some View {
@@ -2670,7 +2676,7 @@ struct ManagementKeyRow: View {
                 Button {
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
-                    pasteboard.setString(viewModel.proxyManager.managementKey, forType: .string)
+                    pasteboard.setString(viewModel.proxy.managementKey, forType: .string)
                     showCopyConfirmation = true
                     Task {
                         try? await Task.sleep(for: .seconds(1.5))
@@ -2689,7 +2695,7 @@ struct ManagementKeyRow: View {
                 Button {
                     showRegenerateConfirmation = true
                 } label: {
-                    if viewModel.proxyManager.isRegeneratingKey {
+                    if viewModel.proxy.isRegeneratingKey {
                         ProgressView()
                             .controlSize(.small)
                             .scaleEffect(0.7)
@@ -2699,7 +2705,7 @@ struct ManagementKeyRow: View {
                     }
                 }
                 .buttonStyle(.borderless)
-                .disabled(viewModel.proxyManager.isRegeneratingKey)
+                .disabled(viewModel.proxy.isRegeneratingKey)
                 .help("settings.managementKey.regenerate".localized())
             }
         }
@@ -2712,9 +2718,9 @@ struct ManagementKeyRow: View {
                 Task {
                     regenerateError = nil
                     do {
-                        try await viewModel.proxyManager.regenerateManagementKey()
+                        try await viewModel.proxy.regenerateManagementKey()
                     } catch {
-                        regenerateError = viewModel.proxyManager.errorMessage(for: error)
+                        regenerateError = viewModel.proxy.errorMessage(for: error)
                     }
                 }
             }

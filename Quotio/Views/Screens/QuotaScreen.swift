@@ -4,10 +4,14 @@
 //
 
 import QuotioDomain
+import QuotioPresentation
 import SwiftUI
 
 struct QuotaScreen: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(ProxyManagementScreenModel.self) private var proxyManagement
+    @Environment(QuotaScreenModel.self) private var quota
+    @Environment(AccountsScreenModel.self) private var accounts
+    @Environment(QuotaFeatureController.self) private var quotaController
     @Environment(OperatingModeManager.self) private var modeManager
 
     @State private var selectedProvider: AIProvider?
@@ -20,14 +24,14 @@ struct QuotaScreen: View {
         var providers = Set<AIProvider>()
         
         // From proxy auth files
-        for file in viewModel.authFiles {
+        for file in proxyManagement.authFiles {
             if let provider = file.providerType {
                 providers.insert(provider)
             }
         }
         
         // From direct quota data
-        for provider in viewModel.providerQuotas.keys {
+        for provider in quota.providerQuotas.keys {
             providers.insert(provider)
         }
         
@@ -39,12 +43,12 @@ struct QuotaScreen: View {
         var accounts = Set<String>()
         
         // From auth files
-        for file in viewModel.authFiles where file.providerType == provider {
+        for file in proxyManagement.authFiles where file.providerType == provider {
             accounts.insert(file.quotaLookupKey)
         }
         
         // From quota data
-        if let quotaAccounts = viewModel.providerQuotas[provider] {
+        if let quotaAccounts = quota.providerQuotas[provider] {
             for key in quotaAccounts.keys {
                 accounts.insert(key)
             }
@@ -54,7 +58,7 @@ struct QuotaScreen: View {
     }
     
     private func lowestQuotaPercent(for provider: AIProvider) -> Double? {
-        guard let accounts = viewModel.providerQuotas[provider] else { return nil }
+        guard let accounts = quota.providerQuotas[provider] else { return nil }
         
         var allTotals: [Double] = []
         for (_, quotaData) in accounts {
@@ -71,9 +75,9 @@ struct QuotaScreen: View {
     /// Check if we have any data to show
     private var hasAnyData: Bool {
         if modeManager.isMonitorMode {
-            return !viewModel.providerQuotas.isEmpty || !viewModel.monitorAccounts.isEmpty
+            return !quota.providerQuotas.isEmpty || !accounts.accounts.isEmpty
         }
-        return !viewModel.authFiles.isEmpty || !viewModel.providerQuotas.isEmpty
+        return !proxyManagement.authFiles.isEmpty || !quota.providerQuotas.isEmpty
     }
     
     var body: some View {
@@ -130,7 +134,7 @@ struct QuotaScreen: View {
                     Menu {
                         if let provider = selectedProvider ?? availableProviders.first {
                             Button {
-                                Task { await viewModel.refreshQuota(for: provider) }
+                                Task { await quotaController.refresh(provider: provider) }
                             } label: {
                                 Label(
                                     provider.displayName + " — " + "action.refreshQuota".localized(),
@@ -138,22 +142,22 @@ struct QuotaScreen: View {
                                 )
                             }
                             .disabled(
-                                viewModel.isRefreshing(provider: provider)
-                                    || !viewModel.supportsScopedRefresh(for: provider)
+                                quota.isRefreshing(provider: provider)
+                                    || !quota.supportsScopedRefresh(for: provider)
                             )
 
                             Divider()
                         }
 
                         Button {
-                            Task { await viewModel.manualRefresh() }
+                            Task { await quotaController.refreshAll(force: true) }
                         } label: {
                             Label("action.refresh".localized(), systemImage: "arrow.triangle.2.circlepath")
                         }
-                        .disabled(viewModel.isLoadingQuotas)
+                        .disabled(quota.isLoadingQuotas)
                     } label: {
                         if let provider = selectedProvider ?? availableProviders.first,
-                           viewModel.isRefreshing(provider: provider) {
+                           quota.isRefreshing(provider: provider) {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
@@ -192,10 +196,10 @@ struct QuotaScreen: View {
                 if let provider = selectedProvider ?? availableProviders.first {
                     ProviderQuotaView(
                         provider: provider,
-                        authFiles: viewModel.authFiles.filter { $0.providerType == provider },
-                        quotaData: viewModel.providerQuotas[provider] ?? [:],
-                        subscriptionInfos: viewModel.subscriptionInfos[provider] ?? [:],
-                        isLoading: viewModel.refreshingProviders.contains(provider)
+                        authFiles: proxyManagement.authFiles.filter { $0.providerType == provider },
+                        quotaData: quota.providerQuotas[provider] ?? [:],
+                        subscriptionInfos: quota.subscriptionInfos[provider] ?? [:],
+                        isLoading: quota.refreshingProviders.contains(provider)
                     )
                     .padding(.horizontal, 24)
                     .padding(.vertical, 16)
@@ -371,7 +375,8 @@ private struct QuotaStatusDot: View {
 // MARK: - Provider Quota View
 
 private struct ProviderQuotaView: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(AccountsScreenModel.self) private var accountsModel
+    @Environment(AntigravityAccountScreenModel.self) private var antigravityAccounts
     let provider: AIProvider
     let authFiles: [AuthFile]
     let quotaData: [String: ProviderQuotaData]
@@ -401,7 +406,7 @@ private struct ProviderQuotaView: View {
         // Only Codex needs direct-auth email backfill because its quota key is
         // filename-based to distinguish same-email Plus/Team accounts.
         let directAuthEmailsByKey: [String: String] = provider == .codex
-            ? viewModel.monitorAccounts
+            ? accountsModel.accounts
                 .filter { $0.provider == .codex }
                 .reduce(into: [:]) { $0[$1.accountKey] = $1.displayName }
             : [:]
@@ -425,7 +430,7 @@ private struct ProviderQuotaView: View {
         // keeping the alphabetical order as the tie-breaker.
         guard provider == .antigravity else { return sorted }
         return AccountSorting.prioritizingActive(sorted) {
-            viewModel.isAntigravityAccountActive(email: $0.email)
+            antigravityAccounts.isActive(email: $0.email)
         }
     }
     
@@ -480,7 +485,10 @@ private struct AccountInfo {
 // MARK: - Account Quota Card V2
 
 private struct AccountQuotaCardV2: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(QuotaScreenModel.self) private var quota
+    @Environment(QuotaFeatureController.self) private var quotaController
+    @Environment(WarmupScreenModel.self) private var warmup
+    @Environment(AntigravityAccountScreenModel.self) private var antigravityAccounts
     
     @Environment(MenuBarSettingsManager.self) private var settings
     let provider: AIProvider
@@ -495,19 +503,19 @@ private struct AccountQuotaCardV2: View {
     }
 
     private var isRefreshing: Bool {
-        viewModel.isRefreshing(account: accountID)
+        quota.isRefreshing(account: accountID)
     }
 
     /// Check if OAuth is in progress for this provider
     private var isReauthenticating: Bool {
-        guard let oauthState = viewModel.oauthState else { return false }
+        guard let oauthState = quotaController.oauthState else { return false }
         return oauthState.provider == provider &&
                (oauthState.status == .waiting || oauthState.status == .polling)
     }
     
     /// Get auth URL if available during reauthentication
     private var reauthURL: URL? {
-        guard let oauthState = viewModel.oauthState,
+        guard let oauthState = quotaController.oauthState,
               oauthState.provider == provider,
               let urlString = oauthState.authURL else { return nil }
         return URL(string: urlString)
@@ -524,12 +532,12 @@ private struct AccountQuotaCardV2: View {
     }
     
     private var isWarmupEnabled: Bool {
-        viewModel.isWarmupEnabled(for: provider, accountKey: account.key)
+        warmup.isEnabled(for: provider, accountKey: account.key)
     }
     
     /// Check if this Antigravity account is active in IDE
     private var isActiveInIDE: Bool {
-        provider == .antigravity && viewModel.isAntigravityAccountActive(email: account.email)
+        provider == .antigravity && antigravityAccounts.isActive(email: account.email)
     }
     
     /// Build 4-group display for Antigravity: Gemini 3 Pro, Gemini 3 Flash, Gemini 3 Image, Claude 4.5
@@ -706,7 +714,7 @@ private struct AccountQuotaCardV2: View {
                 
                 Button {
                     Task {
-                        await viewModel.refreshQuota(for: accountID)
+                        await quotaController.refresh(account: accountID)
                     }
                 } label: {
                     if isRefreshing || isLoading {
@@ -731,8 +739,8 @@ private struct AccountQuotaCardV2: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(
-                    viewModel.isRefreshBlocked(for: accountID)
-                        || !viewModel.supportsScopedRefresh(for: provider)
+                    quota.isRefreshBlocked(for: accountID)
+                        || !quota.supportsScopedRefresh(for: provider)
                 )
                 .help("action.refreshQuota".localized())
                 
@@ -759,7 +767,7 @@ private struct AccountQuotaCardV2: View {
                         } else {
                             Button {
                                 Task {
-                                    await viewModel.startOAuth(for: .claude, launchMode: .autoOpen)
+                                    await quotaController.startOAuth(for: .claude, launchMode: .autoOpen)
                                 }
                             } label: {
                                 if isReauthenticating {
@@ -798,7 +806,6 @@ private struct AccountQuotaCardV2: View {
                     showSwitchSheet = false
                 }
             )
-            .environment(viewModel)
         }
         .sheet(isPresented: $showWarmupSheet) {
             WarmupSheet(
@@ -809,7 +816,6 @@ private struct AccountQuotaCardV2: View {
                     showWarmupSheet = false
                 }
             )
-            .environment(viewModel)
         }
     }
     
@@ -1766,7 +1772,15 @@ private struct QuotaLoadingView: View {
 // MARK: - Preview
 
 #Preview {
+    let runtime = CompositionRoot.makeProduction()
     QuotaScreen()
-        .environment(CompositionRoot.makeQuotaViewModel())
+        .environment(runtime.proxyManagement)
+        .environment(runtime.quotaScreenModel)
+        .environment(runtime.accountsScreenModel)
+        .environment(runtime.quotaController)
+        .environment(runtime.warmupScreenModel)
+        .environment(runtime.antigravityAccountScreenModel)
+        .environment(runtime.modeManager)
+        .environment(runtime.menuBarSettings)
         .frame(width: 600, height: 500)
 }

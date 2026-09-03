@@ -7,13 +7,13 @@ import QuotioPresentation
 import SwiftUI
 
 struct AgentSetupScreen: View {
-    @Environment(QuotaViewModel.self) private var quotaViewModel
+    @Environment(ProxyManagementScreenModel.self) private var proxyManagement
     @State private var selectedAgentForConfig: CLIAgent?
     @State private var sheetPresentationID = UUID()
     @State private var hasLoadedOnce = false
     
     private var viewModel: AgentSetupViewModel {
-        quotaViewModel.agentSetupViewModel
+        proxyManagement.agentSetup
     }
     
     private var sortedAgents: [AgentStatus] {
@@ -121,7 +121,7 @@ struct AgentSetupScreen: View {
                     AgentCard(
                         status: status,
                         onConfigure: {
-                            let apiKey = quotaViewModel.apiKeys.first ?? quotaViewModel.proxyManager.managementKey
+                            let apiKey = proxyManagement.apiKeys.first ?? proxyManagement.proxy.managementKey
                             viewModel.startConfiguration(for: status.agent, apiKey: apiKey)
                             sheetPresentationID = UUID()
                             selectedAgentForConfig = status.agent
@@ -195,7 +195,8 @@ private struct NotInstalledAgentCard: View {
 }
 
 #Preview {
+    let runtime = CompositionRoot.makeProduction()
     AgentSetupScreen()
-        .environment(CompositionRoot.makeQuotaViewModel())
+        .environment(runtime.proxyManagement)
         .frame(width: 700, height: 600)
 }

@@ -211,6 +211,14 @@ public struct Account: Identifiable, Codable, Hashable, Sendable {
 }
 
 public enum AccountSelectionPolicy {
+    private static let placeholderAccountKeys: [QuotaProvider: Set<String>] = [
+        .copilot: ["github copilot"],
+        .antigravity: ["antigravity"],
+        .claude: ["claude code"],
+        .codex: ["codex", "codex user"],
+        .kiro: ["kiro"],
+    ]
+
     public static func preferred(
         _ candidates: [Account],
         disabledIDs: Set<String> = []
@@ -229,6 +237,61 @@ public enum AccountSelectionPolicy {
                 return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
             return $0.providerID.rawValue < $1.providerID.rawValue
+        }
+    }
+
+    public static func mergingQuotaAccounts(
+        _ accounts: [Account],
+        quotas: [QuotaProvider: [String: ProviderQuota]]
+    ) -> [Account] {
+        var merged = accounts.map { account in
+            guard let provider = QuotaProvider(rawValue: account.providerID.rawValue),
+                  let displayName = quotas[provider]?[account.accountKey]?.accountDisplayName else {
+                return account
+            }
+            return Account(
+                identity: account.identity,
+                displayName: displayName,
+                source: account.source,
+                credentialReference: account.credentialReference,
+                capabilities: account.capabilities,
+                status: account.status,
+                credentialMetadata: account.credentialMetadata
+            )
+        }
+        var keys = Set(merged.map(\.deduplicationKey))
+
+        for (provider, accountQuotas) in quotas {
+            for (accountKey, quota) in accountQuotas {
+                let source: AccountSource = switch provider {
+                case .cursor, .trae: .localIDE
+                case .glm, .warp, .clinePass, .factoryDroid, .openRouter, .amp: .apiKey
+                default: .nativeCredential
+                }
+                let account = Account.make(
+                    providerID: AccountProviderID(rawValue: provider.rawValue),
+                    accountKey: accountKey,
+                    displayName: quota.accountDisplayName,
+                    source: source,
+                    capabilities: provider.isImportedFromLocalIDE ? [.delete] : []
+                )
+                guard keys.insert(account.deduplicationKey).inserted else { continue }
+                merged.append(account)
+            }
+        }
+
+        merged = preferred(merged)
+        return merged.filter { account in
+            guard let provider = QuotaProvider(rawValue: account.providerID.rawValue),
+                  placeholderAccountKeys[provider]?.contains(account.accountKey.lowercased()) == true else {
+                return true
+            }
+            return !merged.contains {
+                $0.providerID == account.providerID
+                    && $0.id != account.id
+                    && placeholderAccountKeys[provider]?.contains($0.accountKey.lowercased()) != true
+                    && $0.source.priority >= account.source.priority
+            }
         }
     }
 }

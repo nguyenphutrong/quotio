@@ -3,6 +3,7 @@
 //  Quotio - CLIProxyAPI GUI Wrapper
 //
 
+import QuotioDomain
 import SwiftUI
 
 struct ProviderStep: View {

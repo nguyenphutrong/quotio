@@ -7,6 +7,7 @@ import Foundation
 import SwiftUI
 import AppKit
 import os.log
+import QuotioDomain
 import QuotioPresentation
 
 @MainActor
@@ -50,15 +51,19 @@ final class AgentSetupViewModel {
     private var configurationLoadTask: Task<Void, Never>?
 
     weak var proxyManager: ProxyScreenModel?
-
-    /// Reference to QuotaViewModel for quota checking
-    weak var quotaViewModel: QuotaViewModel?
+    private var apiKeysProvider: () -> [String] = { [] }
+    private var quotaProvider: (() -> [AIProvider: [String: ProviderQuotaData]])?
 
     init() {}
 
-    func setup(proxyManager: ProxyScreenModel, quotaViewModel: QuotaViewModel? = nil) {
+    func setup(
+        proxyManager: ProxyScreenModel,
+        apiKeys: @escaping () -> [String],
+        quotas: @escaping () -> [AIProvider: [String: ProviderQuotaData]]
+    ) {
         self.proxyManager = proxyManager
-        self.quotaViewModel = quotaViewModel
+        apiKeysProvider = apiKeys
+        quotaProvider = quotas
     }
 
     func refreshAgentStatuses(forceRefresh: Bool = false) async {
@@ -401,7 +406,7 @@ final class AgentSetupViewModel {
 
         // Use the first API key from the API Keys management interface
         // If no keys exist, fall back to managementKey
-        let apiKey = quotaViewModel?.apiKeys.first ?? proxyManager.managementKey
+        let apiKey = apiKeysProvider().first ?? proxyManager.managementKey
 
         // Use tunnel URL if active, otherwise use local proxy endpoint
         let modelEndpoint: String
@@ -447,9 +452,8 @@ final class AgentSetupViewModel {
 
     /// Check if a provider has available quota for a specific model
     func checkProviderQuota(provider: AIProvider, modelId: String) -> Bool {
-        guard let quotaVM = quotaViewModel else { return true }
-
-        guard let providerQuotas = quotaVM.providerQuotas[provider] else { return false }
+        guard let quotaProvider else { return true }
+        guard let providerQuotas = quotaProvider()[provider] else { return false }
 
         for (_, quotaData) in providerQuotas {
             let hasQuotaForModel = quotaData.models.contains { model in

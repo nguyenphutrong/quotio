@@ -20,7 +20,11 @@ import SwiftUI
 @MainActor
 final class StatusBarMenuBuilder {
     
-    private let viewModel: QuotaViewModel
+    private let proxyManagement: ProxyManagementScreenModel
+    private let quota: QuotaScreenModel
+    private let accounts: AccountsScreenModel
+    private let quotaController: QuotaFeatureController
+    private let antigravityAccounts: AntigravityAccountScreenModel
     private let modeManager = OperatingModeManager.shared
     private let menuWidth: CGFloat = 360
     private let agentDetectionService = AgentDetectionService()
@@ -33,8 +37,18 @@ final class StatusBarMenuBuilder {
     // Selected provider from UserDefaults (kept for compatibility)
     @AppStorage("menuBarSelectedProvider") private var selectedProviderRaw: String = ""
     
-    init(viewModel: QuotaViewModel) {
-        self.viewModel = viewModel
+    init(
+        proxyManagement: ProxyManagementScreenModel,
+        quota: QuotaScreenModel,
+        accounts: AccountsScreenModel,
+        quotaController: QuotaFeatureController,
+        antigravityAccounts: AntigravityAccountScreenModel
+    ) {
+        self.proxyManagement = proxyManagement
+        self.quota = quota
+        self.accounts = accounts
+        self.quotaController = quotaController
+        self.antigravityAccounts = antigravityAccounts
     }
     
     // MARK: - Build Menu
@@ -114,19 +128,19 @@ final class StatusBarMenuBuilder {
         var providers = Set<AIProvider>()
         
         // From direct auth files (scanned from filesystem - available immediately)
-        for file in viewModel.directAuthFiles {
+        for file in proxyManagement.directAuthFiles {
             providers.insert(file.provider)
         }
         
         // From quota data (available after API calls complete)
-        for (provider, accountQuotas) in viewModel.providerQuotas {
+        for (provider, accountQuotas) in quota.providerQuotas {
             if !accountQuotas.isEmpty {
                 providers.insert(provider)
             }
         }
 
         if modeManager.isMonitorMode {
-            providers.formUnion(Self.monitorProviders(viewModel.monitorAccounts))
+            providers.formUnion(Self.monitorProviders(accounts.accounts))
         }
         
         return Self.filterProviders(
@@ -161,10 +175,8 @@ final class StatusBarMenuBuilder {
             return cached
         }
         
-        // Check if we have cached data from QuotaViewModel
-        if let statuses = viewModel.agentSetupViewModel.agentStatuses as [AgentStatus]?,
-           !statuses.isEmpty,
-           let status = statuses.first(where: { $0.agent == agent }) {
+        if !proxyManagement.agentSetup.agentStatuses.isEmpty,
+           let status = proxyManagement.agentSetup.agentStatuses.first(where: { $0.agent == agent }) {
             cachedAgentStatuses[agent] = status.installed
             lastAgentCacheTime = Date()
             return status.installed
@@ -225,9 +237,9 @@ final class StatusBarMenuBuilder {
     private func accountsForProvider(
         _ provider: AIProvider
     ) -> [(accountKey: String, email: String, data: ProviderQuotaData)] {
-        guard let quotas = viewModel.providerQuotas[provider] else { return [] }
+        guard let quotas = quota.providerQuotas[provider] else { return [] }
         return Self.orderedAccounts(quotas, provider: provider) {
-            viewModel.isAntigravityAccountActive(email: $0)
+            antigravityAccounts.isActive(email: $0)
         }
     }
 
@@ -253,7 +265,7 @@ final class StatusBarMenuBuilder {
     // MARK: - Header Item
     
     private func buildHeaderItem() -> NSMenuItem {
-        let headerView = MenuHeaderView(isLoading: viewModel.isLoadingQuotas)
+        let headerView = MenuHeaderView(isLoading: quota.isLoadingQuotas)
         return viewItem(for: headerView)
     }
 
@@ -261,20 +273,20 @@ final class StatusBarMenuBuilder {
 
     private func buildNetworkInfoItem() -> NSMenuItem {
         let networkView = MenuNetworkInfoView(
-            port: String(viewModel.proxyManager.port),
-            isProxyRunning: viewModel.proxyManager.proxyStatus.running,
-            onProxyToggle: { [weak viewModel] in
-                Task { await viewModel?.toggleProxy() }
+            port: String(proxyManagement.proxy.port),
+            isProxyRunning: proxyManagement.proxy.proxyStatus.running,
+            onProxyToggle: { [weak proxyManagement] in
+                Task { await proxyManagement?.toggleProxy() }
             },
             onCopyProxyURL: {
-                let url = "http://127.0.0.1:\(self.viewModel.proxyManager.port)"
+                let url = "http://127.0.0.1:\(self.proxyManagement.proxy.port)"
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(url, forType: .string)
             },
-            onTunnelToggle: { [weak viewModel] in
-                guard let viewModel = viewModel else { return }
+            onTunnelToggle: { [weak proxyManagement] in
+                guard let proxyManagement else { return }
                 Task {
-                    await TunnelManager.shared.toggle(port: viewModel.proxyManager.port)
+                    await TunnelManager.shared.toggle(port: proxyManagement.proxy.port)
                 }
             },
             onCopyTunnelURL: {
@@ -292,8 +304,8 @@ final class StatusBarMenuBuilder {
         data: ProviderQuotaData,
         provider: AIProvider
     ) -> NSMenuItem {
-        let subscriptionInfo = viewModel.subscriptionInfos[provider]?[accountKey]
-        let isActiveInIDE = provider == .antigravity && viewModel.isAntigravityAccountActive(email: email)
+        let subscriptionInfo = quota.subscriptionInfos[provider]?[accountKey]
+        let isActiveInIDE = provider == .antigravity && antigravityAccounts.isActive(email: email)
 
         let cardView = MenuAccountCardView(
             accountKey: accountKey,
@@ -302,8 +314,8 @@ final class StatusBarMenuBuilder {
             provider: provider,
             subscriptionInfo: subscriptionInfo,
             isActiveInIDE: isActiveInIDE,
-            onUseAccount: provider == .antigravity && !isActiveInIDE ? { [weak viewModel] in
-                Self.showSwitchConfirmation(email: email, viewModel: viewModel)
+            onUseAccount: provider == .antigravity && !isActiveInIDE ? { [weak antigravityAccounts] in
+                Self.showSwitchConfirmation(email: email, accounts: antigravityAccounts)
             } : nil
         )
 
@@ -347,10 +359,13 @@ final class StatusBarMenuBuilder {
 
     // MARK: - Switch Account Confirmation
     
-    private static func showSwitchConfirmation(email: String, viewModel: QuotaViewModel?) {
-        guard let viewModel = viewModel else { return }
+    private static func showSwitchConfirmation(
+        email: String,
+        accounts: AntigravityAccountScreenModel?
+    ) {
+        guard let accounts else { return }
         
-        let isIDERunning = viewModel.antigravitySwitcher.isIDERunning()
+        let isIDERunning = accounts.switcher.isIDERunning()
         
         let alert = NSAlert()
         alert.messageText = "antigravity.switch.dialog.title".localized()
@@ -368,7 +383,7 @@ final class StatusBarMenuBuilder {
         
         if response == .alertFirstButtonReturn {
             Task { @MainActor in
-                await viewModel.switchAntigravityAccount(email: email)
+                await accounts.switchAccount(email: email)
                 StatusBarManager.shared.rebuildMenuInPlace()
             }
         }
@@ -402,7 +417,8 @@ final class StatusBarMenuBuilder {
         let appearanceMode = AppearanceManager.shared.appearanceMode
         let rootView = view
             .frame(width: effectiveWidth)
-            .environment(viewModel)
+            .environment(quota)
+            .environment(quotaController)
         let hostingView = NSHostingView(rootView: rootView)
         hostingView.appearance = appearanceMode.appKitAppearance
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
@@ -419,7 +435,7 @@ final class StatusBarMenuBuilder {
 final class MenuActionHandler: NSObject {
     static let shared = MenuActionHandler()
     
-    weak var viewModel: QuotaViewModel?
+    weak var quotaController: QuotaFeatureController?
     
     private override init() {
         super.init()
@@ -427,7 +443,7 @@ final class MenuActionHandler: NSObject {
     
     @objc func refresh() {
         Task {
-            await viewModel?.refreshQuotasUnified()
+            await quotaController?.refreshAll(force: true)
         }
     }
     
@@ -489,7 +505,8 @@ private struct MenuHeaderView: View {
 // MARK: - Provider Section Header
 
 private struct MenuProviderSectionHeader: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(QuotaScreenModel.self) private var quota
+    @Environment(QuotaFeatureController.self) private var quotaController
     let provider: AIProvider
 
     var body: some View {
@@ -501,9 +518,9 @@ private struct MenuProviderSectionHeader: View {
             Spacer()
 
             Button {
-                Task { await viewModel.refreshQuota(for: provider) }
+                Task { await quotaController.refresh(provider: provider) }
             } label: {
-                if viewModel.refreshingProviders.contains(provider) {
+                if quota.refreshingProviders.contains(provider) {
                     ProgressView()
                         .controlSize(.mini)
                         .frame(width: 18, height: 18)
@@ -515,8 +532,8 @@ private struct MenuProviderSectionHeader: View {
             }
             .buttonStyle(.plain)
             .disabled(
-                viewModel.isRefreshing(provider: provider)
-                    || !viewModel.supportsScopedRefresh(for: provider)
+                quota.isRefreshing(provider: provider)
+                    || !quota.supportsScopedRefresh(for: provider)
             )
             .help("action.refreshQuota".localized())
         }
@@ -804,7 +821,8 @@ private struct MenuNetworkInfoView: View {
 // MARK: Account Card View
 
 private struct MenuAccountCardView: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(QuotaScreenModel.self) private var quota
+    @Environment(QuotaFeatureController.self) private var quotaController
     let accountKey: String
     let email: String
     let data: ProviderQuotaData
@@ -1002,9 +1020,9 @@ private struct MenuAccountCardView: View {
             Spacer()
 
             Button {
-                Task { await viewModel.refreshQuota(for: accountID) }
+                Task { await quotaController.refresh(account: accountID) }
             } label: {
-                if viewModel.isRefreshing(account: accountID) {
+                if quota.isRefreshing(account: accountID) {
                     ProgressView()
                         .controlSize(.mini)
                         .frame(width: 20, height: 20)
@@ -1017,8 +1035,8 @@ private struct MenuAccountCardView: View {
             }
             .buttonStyle(.plain)
             .disabled(
-                viewModel.isRefreshBlocked(for: accountID)
-                    || !viewModel.supportsScopedRefresh(for: provider)
+                quota.isRefreshBlocked(for: accountID)
+                    || !quota.supportsScopedRefresh(for: provider)
             )
             .help("action.refreshQuota".localized())
             
@@ -2619,18 +2637,19 @@ private extension AIProvider {
 // MARK: - Menu Actions View
 
 private struct MenuActionsView: View {
-    @Environment(QuotaViewModel.self) private var viewModel
+    @Environment(QuotaScreenModel.self) private var quota
+    @Environment(QuotaFeatureController.self) private var quotaController
     
     var body: some View {
         VStack(spacing: 0) {
             MenuBarActionButton(
                 icon: "arrow.clockwise",
                 title: "action.refresh".localized(),
-                isLoading: viewModel.isLoadingQuotas
+                isLoading: quota.isLoadingQuotas
             ) {
-                Task { await viewModel.manualRefresh() }
+                Task { await quotaController.refreshAll(force: true) }
             }
-            .disabled(viewModel.isLoadingQuotas)
+            .disabled(quota.isLoadingQuotas)
             
             MenuBarActionButton(
                 icon: "macwindow",

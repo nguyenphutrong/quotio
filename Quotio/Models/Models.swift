@@ -4,31 +4,14 @@
 //
 
 import Foundation
+import QuotioDomain
 import SwiftUI
 
 // MARK: - Provider Types
 
-nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendable {
-    case claude = "claude"
-    case codex = "codex"
-    case qwen = "qwen"
-    case iflow = "iflow"
-    case antigravity = "antigravity"
-    case vertex = "vertex"
-    case kiro = "kiro"
-    case copilot = "github-copilot"
-    case cursor = "cursor"
-    case factoryDroid = "factory-droid"
-    case devin = "devin"
-    case grok = "grok"
-    case openRouter = "openrouter"
-    case amp = "amp"
-    case trae = "trae"
-    case glm = "glm"
-    case warp = "warp"
-    case clinePass = "clinepass"
-    
-    var id: String { rawValue }
+typealias AIProvider = QuotaProvider
+
+nonisolated extension QuotaProvider {
     
     var displayName: String {
         switch self {
@@ -188,48 +171,6 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
         }
     }
     
-    /// Whether this provider supports quota tracking in quota-only mode
-    var supportsQuotaOnlyMode: Bool {
-        switch self {
-        case .claude, .codex, .cursor, .factoryDroid, .antigravity, .copilot, .devin, .grok, .openRouter, .amp, .trae, .glm, .warp, .kiro, .clinePass:
-            return true
-        case .qwen, .iflow, .vertex:
-            return false
-        }
-    }
-    
-    /// Whether this provider uses browser cookies for auth
-    var usesBrowserAuth: Bool {
-        switch self {
-        case .cursor, .trae:
-            return true
-        default:
-            return false
-        }
-    }
-    
-    /// Whether this provider uses CLI commands for quota
-    var usesCLIQuota: Bool {
-        switch self {
-        case .claude, .codex:
-            return true
-        default:
-            return false
-        }
-    }
-
-    /// Whether this provider's accounts are imported from a local IDE database by the
-    /// explicit "Scan for IDEs" flow (issue #29) instead of being authenticated inside
-    /// Quotio. Such an account owns no Quotio credential, so it exists only as imported
-    /// quota data and deleting that data deletes the account (issue #213).
-    ///
-    /// Derived from the existing traits rather than listing cases again, so a new IDE
-    /// edition only has to opt into `usesBrowserAuth` / `supportsManualAuth` to inherit
-    /// the same import and delete behaviour.
-    var isImportedFromLocalIDE: Bool {
-        usesBrowserAuth && !supportsManualAuth
-    }
-
     /// Map provider to CLI agent (if applicable)
     var cliAgent: CLIAgent? {
         switch self {
@@ -242,7 +183,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     /// Whether this provider can be added manually (via OAuth, CLI login, or file import)
     /// Cursor, Trae, Windsurf are excluded because they only read from local app databases
     /// GLM and ClinePass are excluded because they should only be added via Custom Providers
-    var supportsManualAuth: Bool {
+    private var legacySupportsManualAuth: Bool {
         switch self {
         case .cursor, .trae, .devin, .grok, .glm, .clinePass:
             return false  // API-key providers: Custom Providers; Cursor/Trae: local app databases
@@ -252,7 +193,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     }
 
     /// Whether this provider uses API key authentication
-    var usesAPIKeyAuth: Bool {
+    private var legacyUsesAPIKeyAuth: Bool {
         switch self {
         case .glm, .warp, .clinePass, .factoryDroid, .openRouter, .amp:
             return true
@@ -262,7 +203,7 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     }
     
     /// Whether this provider is quota-tracking only (not a real provider that can route requests)
-    var isQuotaTrackingOnly: Bool {
+    private var legacyIsQuotaTrackingOnly: Bool {
         switch self {
         case .cursor, .trae, .factoryDroid, .devin, .grok, .openRouter, .amp, .warp:
             return true  // Only for tracking usage, not a provider
@@ -272,27 +213,19 @@ nonisolated enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendab
     }
 
     /// Whether the Local Proxy dashboard can route this provider through its setup flow.
-    var supportsLocalProxySetup: Bool {
-        supportsManualAuth && !isQuotaTrackingOnly
+    private var legacySupportsLocalProxySetup: Bool {
+        legacySupportsManualAuth && !legacyIsQuotaTrackingOnly
     }
 }
 
 /// Stable identity for one account in the provider quota dictionary.
-nonisolated struct QuotaAccountID: Hashable, Sendable {
-    let provider: AIProvider
-    let accountKey: String
-}
+typealias QuotaAccountID = QuotioDomain.QuotaAccountID
 
 // MARK: - Quota Metric Presentation
 
 /// Optional typed value for quota rows that are not plain percentages.
 /// Existing snapshots omit this field and continue to render through ModelQuota.percentage.
-nonisolated enum QuotaMetricUnit: String, Codable, Sendable, Equatable {
-    case usd
-    case credits
-    case requests
-    case searches
-
+nonisolated extension QuotaMetricUnit {
     func format(_ value: Double) -> String {
         switch self {
         case .usd:
@@ -305,17 +238,6 @@ nonisolated enum QuotaMetricUnit: String, Codable, Sendable, Equatable {
             return String.localizedStringWithFormat("quota.metric.unit.searches".localizedStatic(), value)
         }
     }
-}
-
-nonisolated enum QuotaAmountSemantics: String, Codable, Sendable, Equatable {
-    case balance
-    case spent
-}
-
-nonisolated enum QuotaMetricPresentation: Codable, Sendable, Equatable {
-    case progress(used: Double, limit: Double, unit: QuotaMetricUnit)
-    case amount(value: Double, unit: QuotaMetricUnit, semantics: QuotaAmountSemantics)
-    case status(text: String)
 }
 
 // MARK: - Auth File (from Management API)
