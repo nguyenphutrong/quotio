@@ -13,7 +13,7 @@ final class ProxyManagementScreenModel {
     let accounts: AccountsScreenModel
     let oauth: OAuthScreenModel
     let tunnelManager: TunnelManager
-    let agentSetup: AgentSetupViewModel
+    let agentSetup: AgentSetupScreenModel
 
     private(set) var authFiles: [AuthFile] = []
     private(set) var usageStats: UsageStats?
@@ -37,7 +37,7 @@ final class ProxyManagementScreenModel {
         accounts: AccountsScreenModel,
         oauth: OAuthScreenModel,
         tunnelManager: TunnelManager,
-        agentSetup: AgentSetupViewModel,
+        agentSetup: AgentSetupScreenModel,
         authWorkaroundService: LegacyAntigravityAuthWorkaroundService = LegacyAntigravityAuthWorkaroundService(),
         notificationManager: NotificationManager,
         refreshSettings: RefreshSettingsManager

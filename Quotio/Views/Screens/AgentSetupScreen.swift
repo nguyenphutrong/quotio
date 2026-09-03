@@ -3,6 +3,7 @@
 //  Quotio - Main agent setup screen
 //
 
+import QuotioDomain
 import QuotioPresentation
 import SwiftUI
 
@@ -12,7 +13,7 @@ struct AgentSetupScreen: View {
     @State private var sheetPresentationID = UUID()
     @State private var hasLoadedOnce = false
     
-    private var viewModel: AgentSetupViewModel {
+    private var viewModel: AgentSetupScreenModel {
         proxyManagement.agentSetup
     }
     
@@ -121,8 +122,7 @@ struct AgentSetupScreen: View {
                     AgentCard(
                         status: status,
                         onConfigure: {
-                            let apiKey = proxyManagement.apiKeys.first ?? proxyManagement.proxy.managementKey
-                            viewModel.startConfiguration(for: status.agent, apiKey: apiKey)
+                            viewModel.startConfiguration(for: status.agent)
                             sheetPresentationID = UUID()
                             selectedAgentForConfig = status.agent
                         }

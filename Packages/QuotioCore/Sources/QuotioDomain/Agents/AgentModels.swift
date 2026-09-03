@@ -4,40 +4,19 @@
 //
 
 import Foundation
-import SwiftUI
 
 // MARK: - CLI Agent Types
 
-nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable {
+public enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable {
     case claudeCode = "claude-code"
     case codexCLI = "codex"
     case ampCLI = "amp"
     case openCode = "opencode"
     case factoryDroid = "factory-droid"
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var displayName: String {
-        switch self {
-        case .claudeCode: return "Claude Code"
-        case .codexCLI: return "Codex CLI"
-        case .ampCLI: return "Amp CLI"
-        case .openCode: return "OpenCode"
-        case .factoryDroid: return "Factory Droid"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .claudeCode: return "Anthropic's official CLI for Claude models"
-        case .codexCLI: return "OpenAI's Codex CLI for GPT-5 models"
-        case .ampCLI: return "Sourcegraph's Amp coding assistant"
-        case .openCode: return "The open source AI coding agent"
-        case .factoryDroid: return "Factory's AI coding agent"
-        }
-    }
-
-    var configType: AgentConfigType {
+    public var configType: AgentConfigType {
         switch self {
         case .claudeCode: return .both
         case .codexCLI: return .file
@@ -46,61 +25,11 @@ nonisolated enum CLIAgent: String, CaseIterable, Identifiable, Codable, Sendable
         case .factoryDroid: return .file
         }
     }
-
-    var binaryNames: [String] {
-        switch self {
-        case .claudeCode: return ["claude"]
-        case .codexCLI: return ["codex"]
-        case .ampCLI: return ["amp"]
-        case .openCode: return ["opencode", "oc"]
-        case .factoryDroid: return ["droid", "factory-droid"]
-        }
-    }
-
-    var configPaths: [String] {
-        switch self {
-        case .claudeCode: return ["~/.claude/settings.json"]
-        case .codexCLI: return ["~/.codex/config.toml", "~/.codex/auth.json"]
-        case .ampCLI: return ["~/.config/amp/settings.json", "~/.local/share/amp/secrets.json"]
-        case .openCode: return ["~/.config/opencode/opencode.json"]
-        case .factoryDroid: return ["~/.factory/config.json"]
-        }
-    }
-
-    var docsURL: URL? {
-        switch self {
-        case .claudeCode: return URL(string: "https://docs.anthropic.com/en/docs/claude-code")
-        case .codexCLI: return URL(string: "https://github.com/openai/codex")
-        case .ampCLI: return URL(string: "https://ampcode.com/manual")
-        case .openCode: return URL(string: "https://github.com/sst/opencode")
-        case .factoryDroid: return URL(string: "https://docs.factory.ai/welcome")
-        }
-    }
-
-    var systemIcon: String {
-        switch self {
-        case .claudeCode: return "brain.head.profile"
-        case .codexCLI: return "chevron.left.forwardslash.chevron.right"
-        case .ampCLI: return "bolt.fill"
-        case .openCode: return "terminal"
-        case .factoryDroid: return "cpu"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .claudeCode: return Color(hex: "D97706") ?? .orange
-        case .codexCLI: return Color(hex: "10A37F") ?? .green
-        case .ampCLI: return Color(hex: "FF5543") ?? .red
-        case .openCode: return Color(hex: "8B5CF6") ?? .purple
-        case .factoryDroid: return Color(hex: "238636") ?? .green
-        }
-    }
 }
 
 // MARK: - Configuration Types
 
-nonisolated enum AgentConfigType: String, Codable, Sendable {
+public enum AgentConfigType: String, Codable, Sendable {
     case environment = "env"
     case file = "file"
     case both = "both"
@@ -109,98 +38,40 @@ nonisolated enum AgentConfigType: String, Codable, Sendable {
 // MARK: - Configuration Setup Mode
 
 /// Determines whether to use proxy or default provider endpoints
-nonisolated enum ConfigurationSetup: String, CaseIterable, Identifiable, Codable, Sendable {
+public enum ConfigurationSetup: String, CaseIterable, Identifiable, Codable, Sendable {
     case proxy = "proxy"
     case defaultSetup = "default"
 
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .proxy: return "agents.setup.proxy".localizedStatic()
-        case .defaultSetup: return "agents.setup.default".localizedStatic()
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .proxy: return "agents.setup.proxy.desc".localizedStatic()
-        case .defaultSetup: return "agents.setup.default.desc".localizedStatic()
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .proxy: return "arrow.triangle.branch"
-        case .defaultSetup: return "arrow.right"
-        }
-    }
+    public var id: String { rawValue }
 }
 
 // MARK: - Configuration Mode
 
-nonisolated enum ConfigurationMode: String, CaseIterable, Identifiable, Codable, Sendable {
+public enum ConfigurationMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case automatic = "automatic"
     case manual = "manual"
 
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .automatic: return "Automatic"
-        case .manual: return "Manual"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .automatic: return "gearshape.2"
-        case .manual: return "doc.text"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .automatic: return "Directly update config files and shell profile"
-        case .manual: return "View and copy configuration manually"
-        }
-    }
+    public var id: String { rawValue }
 }
 
-nonisolated enum ConfigStorageOption: String, CaseIterable, Identifiable, Codable, Sendable {
+public enum ConfigStorageOption: String, CaseIterable, Identifiable, Codable, Sendable {
     case jsonOnly = "json"
     case shellOnly = "shell"
     case both = "both"
 
-    var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .jsonOnly: return "doc.text"
-        case .shellOnly: return "terminal"
-        case .both: return "square.stack"
-        }
-    }
+    public var id: String { rawValue }
 }
 
 // MARK: - Model Slots
 
-nonisolated enum ModelSlot: String, CaseIterable, Identifiable, Codable, Sendable {
+public enum ModelSlot: String, CaseIterable, Identifiable, Codable, Sendable {
     case opus = "opus"
     case sonnet = "sonnet"
     case haiku = "haiku"
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var displayName: String {
-        switch self {
-        case .opus: return "Opus (High Intelligence)"
-        case .sonnet: return "Sonnet (Balanced)"
-        case .haiku: return "Haiku (Fast)"
-        }
-    }
-
-    var envSuffix: String {
+    public var envSuffix: String {
         rawValue.uppercased()
     }
 }
@@ -217,7 +88,7 @@ nonisolated enum ModelSlot: String, CaseIterable, Identifiable, Codable, Sendabl
 /// only the empty string is rejected. `custom` mirrors that escape hatch so a
 /// value Quotio does not know is round-tripped verbatim instead of being
 /// silently replaced.
-nonisolated enum CodexReasoningEffort: RawRepresentable, CaseIterable, Identifiable, Codable, Hashable, Sendable {
+public enum CodexReasoningEffort: RawRepresentable, CaseIterable, Identifiable, Codable, Hashable, Sendable {
     case none
     case minimal
     case low
@@ -232,7 +103,7 @@ nonisolated enum CodexReasoningEffort: RawRepresentable, CaseIterable, Identifia
 
     /// Fails only for the empty string, which Codex itself rejects with
     /// "reasoning_effort must not be empty".
-    init?(rawValue: String) {
+    public init?(rawValue: String) {
         switch rawValue {
         case "none": self = .none
         case "minimal": self = .minimal
@@ -247,7 +118,7 @@ nonisolated enum CodexReasoningEffort: RawRepresentable, CaseIterable, Identifia
         }
     }
 
-    var rawValue: String {
+    public var rawValue: String {
         switch self {
         case .none: return "none"
         case .minimal: return "minimal"
@@ -263,32 +134,22 @@ nonisolated enum CodexReasoningEffort: RawRepresentable, CaseIterable, Identifia
 
     /// The named values Quotio offers in the picker, ordered by effort.
     /// A `custom` value read from the user's config is offered alongside these.
-    static let allCases: [CodexReasoningEffort] = [
+    public static let allCases: [CodexReasoningEffort] = [
         .none, .minimal, .low, .medium, .high, .xhigh, .max, .ultra
     ]
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
     /// Default effort, matching the value Quotio has historically written.
-    static let defaultEffort: CodexReasoningEffort = .high
+    public static let defaultEffort: CodexReasoningEffort = .high
 
-    var displayName: String {
-        if case .custom(let value) = self {
-            return String.localizedStringWithFormat(
-                "agents.reasoningEffort.custom".localizedStatic(),
-                value
-            )
-        }
-        return "agents.reasoningEffort.\(rawValue)".localizedStatic()
-    }
-
-    init(from decoder: any Decoder) throws {
+    public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         let rawValue = try container.decode(String.self)
         self = CodexReasoningEffort(rawValue: rawValue) ?? .defaultEffort
     }
 
-    func encode(to encoder: any Encoder) throws {
+    public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(rawValue)
     }
@@ -296,25 +157,26 @@ nonisolated enum CodexReasoningEffort: RawRepresentable, CaseIterable, Identifia
 
 // MARK: - Available Models for Routing
 
-nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
-    let id: String
-    let name: String
-    let provider: String
-    let isDefault: Bool
+public struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
+    public let id: String
+    public let name: String
+    public let provider: String
+    public let isDefault: Bool
 
-    var displayName: String {
-        name.split(separator: "-")
-            .map { $0.capitalized }
-            .joined(separator: " ")
+    public init(id: String, name: String, provider: String, isDefault: Bool) {
+        self.id = id
+        self.name = name
+        self.provider = provider
+        self.isDefault = isDefault
     }
 
-    static let defaultModels: [ModelSlot: AvailableModel] = [
+    public static let defaultModels: [ModelSlot: AvailableModel] = [
         .opus: AvailableModel(id: "opus", name: "gemini-claude-opus-4-6-thinking", provider: "openai", isDefault: true),
         .sonnet: AvailableModel(id: "sonnet", name: "gemini-claude-sonnet-4-5", provider: "openai", isDefault: true),
         .haiku: AvailableModel(id: "haiku", name: "gemini-3-flash-preview", provider: "openai", isDefault: true)
     ]
 
-    static let allModels: [AvailableModel] = [
+    public static let allModels: [AvailableModel] = [
         // Claude models
         AvailableModel(id: "gemini-claude-opus-4-6-thinking", name: "gemini-claude-opus-4-6-thinking", provider: "anthropic", isDefault: false),
         AvailableModel(id: "gemini-claude-opus-4-5-thinking", name: "gemini-claude-opus-4-5-thinking", provider: "anthropic", isDefault: false),
@@ -344,51 +206,47 @@ nonisolated struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
 
 // MARK: - Agent Status
 
-nonisolated struct AgentStatus: Identifiable, Sendable {
-    let agent: CLIAgent
-    var installed: Bool
-    var configured: Bool
-    var binaryPath: String?
-    var version: String?
-    var lastConfigured: Date?
+public struct AgentStatus: Identifiable, Sendable {
+    public let agent: CLIAgent
+    public var installed: Bool
+    public var configured: Bool
+    public var binaryPath: String?
+    public var version: String?
+    public var lastConfigured: Date?
 
-    var id: String { agent.id }
+    public var id: String { agent.id }
 
-    var statusText: String {
-        if !installed {
-            return "Not Installed"
-        } else if configured {
-            return "Configured"
-        } else {
-            return "Installed"
-        }
-    }
-
-    var statusColor: Color {
-        if !installed {
-            return .secondary
-        } else if configured {
-            return .green
-        } else {
-            return .orange
-        }
+    public init(
+        agent: CLIAgent,
+        installed: Bool,
+        configured: Bool,
+        binaryPath: String?,
+        version: String?,
+        lastConfigured: Date?
+    ) {
+        self.agent = agent
+        self.installed = installed
+        self.configured = configured
+        self.binaryPath = binaryPath
+        self.version = version
+        self.lastConfigured = lastConfigured
     }
 }
 
 // MARK: - Agent Configuration
 
-nonisolated struct AgentConfiguration: Codable, Sendable {
-    let agent: CLIAgent
-    var modelSlots: [ModelSlot: String]
-    var proxyURL: String
-    var apiKey: String
-    var useOAuth: Bool
-    var setupMode: ConfigurationSetup
+public struct AgentConfiguration: Codable, Sendable {
+    public let agent: CLIAgent
+    public var modelSlots: [ModelSlot: String]
+    public var proxyURL: String
+    public var apiKey: String
+    public var useOAuth: Bool
+    public var setupMode: ConfigurationSetup
     /// Reasoning effort written to Codex CLI's `model_reasoning_effort`.
     /// Only used when `agent == .codexCLI`.
-    var codexReasoningEffort: CodexReasoningEffort
+    public var codexReasoningEffort: CodexReasoningEffort
 
-    init(agent: CLIAgent, proxyURL: String, apiKey: String, setupMode: ConfigurationSetup = .proxy) {
+    public init(agent: CLIAgent, proxyURL: String, apiKey: String, setupMode: ConfigurationSetup = .proxy) {
         self.agent = agent
         self.proxyURL = proxyURL
         self.apiKey = apiKey
@@ -401,7 +259,7 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
     }
 
     /// Initialize with saved model slots (for restoring existing configuration)
-    init(agent: CLIAgent, proxyURL: String, apiKey: String, setupMode: ConfigurationSetup = .proxy, savedModelSlots: [ModelSlot: String]) {
+    public init(agent: CLIAgent, proxyURL: String, apiKey: String, setupMode: ConfigurationSetup = .proxy, savedModelSlots: [ModelSlot: String]) {
         self.agent = agent
         self.proxyURL = proxyURL
         self.apiKey = apiKey
@@ -418,41 +276,159 @@ nonisolated struct AgentConfiguration: Codable, Sendable {
         }
         self.modelSlots = slots
     }
+
+    public func validate() throws {
+        guard setupMode == .proxy else { return }
+
+        guard let url = URL(string: proxyURL),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil else {
+            throw AgentConfigurationValidationError.invalidProxyURL
+        }
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AgentConfigurationValidationError.missingAPIKey
+        }
+
+        let requiredSlots: [ModelSlot]
+        switch agent {
+        case .claudeCode:
+            requiredSlots = ModelSlot.allCases
+        case .codexCLI:
+            requiredSlots = [.sonnet]
+        case .ampCLI, .openCode, .factoryDroid:
+            requiredSlots = []
+        }
+        if requiredSlots.contains(where: {
+            modelSlots[$0]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+        }) {
+            throw AgentConfigurationValidationError.missingModel
+        }
+    }
+}
+
+public enum AgentConfigurationValidationError: LocalizedError, Equatable, Sendable {
+    case invalidProxyURL
+    case missingAPIKey
+    case missingModel
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidProxyURL:
+            return "The proxy URL must be an absolute HTTP or HTTPS URL."
+        case .missingAPIKey:
+            return "An API key is required for proxy configuration."
+        case .missingModel:
+            return "A required model selection is missing."
+        }
+    }
+}
+
+public struct SavedAgentConfiguration: Sendable {
+    public let baseURL: String?
+    public let apiKey: String?
+    public let modelSlots: [ModelSlot: String]
+    public let isProxyConfigured: Bool
+    public let backupFiles: [AgentBackupFile]
+    public var reasoningEffort: CodexReasoningEffort?
+
+    public init(
+        baseURL: String?,
+        apiKey: String?,
+        modelSlots: [ModelSlot: String],
+        isProxyConfigured: Bool,
+        backupFiles: [AgentBackupFile],
+        reasoningEffort: CodexReasoningEffort? = nil
+    ) {
+        self.baseURL = baseURL
+        self.apiKey = apiKey
+        self.modelSlots = modelSlots
+        self.isProxyConfigured = isProxyConfigured
+        self.backupFiles = backupFiles
+        self.reasoningEffort = reasoningEffort
+    }
+}
+
+public struct AgentBackupFile: Identifiable, Sendable {
+    public let path: String
+    public let timestamp: Date
+    public let agent: CLIAgent
+
+    public var id: String { path }
+
+    public init(path: String, timestamp: Date, agent: CLIAgent) {
+        self.path = path
+        self.timestamp = timestamp
+        self.agent = agent
+    }
+}
+
+public struct AgentConfigurationRequest: Sendable {
+    public let configuration: AgentConfiguration
+    public let mode: ConfigurationMode
+    public let storageOption: ConfigStorageOption
+    public let availableModels: [AvailableModel]
+
+    public init(
+        configuration: AgentConfiguration,
+        mode: ConfigurationMode,
+        storageOption: ConfigStorageOption = .jsonOnly,
+        availableModels: [AvailableModel] = []
+    ) {
+        self.configuration = configuration
+        self.mode = mode
+        self.storageOption = storageOption
+        self.availableModels = availableModels
+    }
 }
 
 // MARK: - Raw Configuration Output (for Manual Mode)
 
-nonisolated struct RawConfigOutput: Sendable {
-    let format: ConfigFormat
-    let content: String
-    let filename: String?
-    let targetPath: String?
-    let instructions: String
+public struct RawConfigOutput: Sendable {
+    public let format: ConfigFormat
+    public let content: String
+    public let filename: String?
+    public let targetPath: String?
+    public let instructions: String
 
-    enum ConfigFormat: String, Sendable {
+    public enum ConfigFormat: String, Sendable {
         case shellExport = "shell"
         case toml = "toml"
         case json = "json"
         case yaml = "yaml"
     }
+
+    public init(
+        format: ConfigFormat,
+        content: String,
+        filename: String?,
+        targetPath: String?,
+        instructions: String
+    ) {
+        self.format = format
+        self.content = content
+        self.filename = filename
+        self.targetPath = targetPath
+        self.instructions = instructions
+    }
 }
 
 // MARK: - Configuration Result
 
-nonisolated struct AgentConfigResult: Sendable {
-    let success: Bool
-    let configType: AgentConfigType
-    let mode: ConfigurationMode
-    var configPath: String?
-    var authPath: String?
-    var shellConfig: String?
-    var rawConfigs: [RawConfigOutput]
-    var instructions: String
-    var modelsConfigured: Int
-    var error: String?
-    var backupPath: String?
+public struct AgentConfigResult: Sendable {
+    public let success: Bool
+    public let configType: AgentConfigType
+    public let mode: ConfigurationMode
+    public var configPath: String?
+    public var authPath: String?
+    public var shellConfig: String?
+    public var rawConfigs: [RawConfigOutput]
+    public var instructions: String
+    public var modelsConfigured: Int
+    public var error: String?
+    public var backupPath: String?
 
-    static func success(
+    public static func success(
         type: AgentConfigType,
         mode: ConfigurationMode,
         configPath: String? = nil,
@@ -478,7 +454,7 @@ nonisolated struct AgentConfigResult: Sendable {
         )
     }
 
-    static func failure(error: String) -> AgentConfigResult {
+    public static func failure(error: String) -> AgentConfigResult {
         AgentConfigResult(
             success: false,
             configType: .environment,
@@ -497,30 +473,12 @@ nonisolated struct AgentConfigResult: Sendable {
 
 // MARK: - Shell Profile
 
-nonisolated enum ShellType: String, CaseIterable, Sendable {
+public enum ShellType: String, CaseIterable, Sendable {
     case zsh = "zsh"
     case bash = "bash"
     case fish = "fish"
 
-    var profilePath: String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        switch self {
-        case .zsh:
-            if let zdotdir = ProcessInfo.processInfo.environment["ZDOTDIR"], !zdotdir.isEmpty {
-                return "\(zdotdir)/.zshrc"
-            }
-            let xdgConfigHome = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] ?? "\(home)/.config"
-            let xdgZshDir = "\(xdgConfigHome)/zsh"
-            if FileManager.default.fileExists(atPath: xdgZshDir) {
-                return "\(xdgZshDir)/.zshrc"
-            }
-            return "\(home)/.zshrc"
-        case .bash: return "\(home)/.bashrc"
-        case .fish: return "\(home)/.config/fish/config.fish"
-        }
-    }
-
-    var exportPrefix: String {
+    public var exportPrefix: String {
         switch self {
         case .zsh, .bash: return "export"
         case .fish: return "set -gx"
@@ -530,9 +488,16 @@ nonisolated enum ShellType: String, CaseIterable, Sendable {
 
 // MARK: - Connection Test Result
 
-nonisolated struct ConnectionTestResult: Sendable {
-    let success: Bool
-    let message: String
-    let latencyMs: Int?
-    let modelResponded: String?
+public struct ConnectionTestResult: Sendable {
+    public let success: Bool
+    public let message: String
+    public let latencyMs: Int?
+    public let modelResponded: String?
+
+    public init(success: Bool, message: String, latencyMs: Int?, modelResponded: String?) {
+        self.success = success
+        self.message = message
+        self.latencyMs = latencyMs
+        self.modelResponded = modelResponded
+    }
 }

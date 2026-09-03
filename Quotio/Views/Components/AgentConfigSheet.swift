@@ -3,16 +3,19 @@
 //  Quotio - Agent configuration modal with automatic/manual modes
 //
 
+import AppKit
+import QuotioDomain
+import QuotioPresentation
 import SwiftUI
 
 struct AgentConfigSheet: View {
-    @Bindable var viewModel: AgentSetupViewModel
+    @Bindable var viewModel: AgentSetupScreenModel
     let agent: CLIAgent
     
     @Environment(\.dismiss) private var dismiss
     @State private var previewConfig: AgentConfigResult?
     @State private var showRestoreConfirm = false
-    @State private var backupToRestore: AgentConfigurationService.BackupFile?
+    @State private var backupToRestore: AgentBackupFile?
     
     private var hasResult: Bool {
         viewModel.configResult != nil
@@ -602,7 +605,7 @@ struct AgentConfigSheet: View {
                 }
                 
                 if result.shellConfig != nil {
-                    FilePathRow(icon: "terminal", label: "Shell", path: viewModel.detectedShell.profilePath)
+                    FilePathRow(icon: "terminal", label: "Shell", path: viewModel.detectedShellProfilePath)
                 }
                 
                 if let backupPath = result.backupPath {
@@ -625,7 +628,7 @@ struct AgentConfigSheet: View {
                 Spacer()
                 
                 Button {
-                    viewModel.copyAllRawConfigsToClipboard()
+                    copyResultToClipboard(result)
                 } label: {
                     Label("action.copyAll".localized(), systemImage: "doc.on.doc")
                         .font(.caption)
@@ -646,7 +649,7 @@ struct AgentConfigSheet: View {
             
             if viewModel.selectedRawConfigIndex < result.rawConfigs.count {
                 RawConfigView(config: result.rawConfigs[viewModel.selectedRawConfigIndex]) {
-                    viewModel.copyRawConfigToClipboard(index: viewModel.selectedRawConfigIndex)
+                    copyToClipboard(result.rawConfigs[viewModel.selectedRawConfigIndex].content)
                 }
             }
         }
@@ -718,6 +721,23 @@ struct AgentConfigSheet: View {
         }
         .padding(16)
     }
+
+    private func copyResultToClipboard(_ result: AgentConfigResult) {
+        let content = result.rawConfigs.map { config in
+            """
+            # \(config.filename ?? "Configuration")
+            # Target: \(config.targetPath ?? "N/A")
+
+            \(config.content)
+            """
+        }.joined(separator: "\n\n---\n\n")
+        copyToClipboard(content)
+    }
+
+    private func copyToClipboard(_ content: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(content, forType: .string)
+    }
 }
 
 private struct ModeButton: View {
@@ -781,7 +801,7 @@ private struct SetupModeButton: View {
 }
 
 private struct BackupButton: View {
-    let backup: AgentConfigurationService.BackupFile
+    let backup: AgentBackupFile
     let action: () -> Void
     
     var body: some View {
@@ -1029,8 +1049,9 @@ private struct RawConfigView: View {
 }
 
 #Preview {
+    let runtime = CompositionRoot.makeProduction()
     AgentConfigSheet(
-        viewModel: AgentSetupViewModel(),
+        viewModel: runtime.proxyManagement.agentSetup,
         agent: .claudeCode
     )
 }

@@ -3,6 +3,7 @@
 //  Quotio - Individual CLI agent card component
 //
 
+import QuotioDomain
 import SwiftUI
 
 struct AgentCard: View {

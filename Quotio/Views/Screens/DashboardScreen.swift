@@ -446,8 +446,7 @@ struct DashboardScreen: View {
         let installedAgents = proxyManagement.agentSetup.agentStatuses.filter { $0.installed }
         guard let firstAgent = installedAgents.first else { return }
         
-        let apiKey = proxyManagement.apiKeys.first ?? proxyManagement.proxy.managementKey
-        proxyManagement.agentSetup.startConfiguration(for: firstAgent.agent, apiKey: apiKey)
+        proxyManagement.agentSetup.startConfiguration(for: firstAgent.agent)
         sheetPresentationID = UUID()
         selectedAgentForConfig = firstAgent.agent
     }

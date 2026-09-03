@@ -52,14 +52,16 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         quota: QuotaScreenModel,
         accounts: AccountsScreenModel,
         quotaController: QuotaFeatureController,
-        antigravityAccounts: AntigravityAccountScreenModel
+        antigravityAccounts: AntigravityAccountScreenModel,
+        isCLIInstalled: @escaping (CLIAgent) -> Bool
     ) {
         menuBuilder = StatusBarMenuBuilder(
             proxyManagement: proxyManagement,
             quota: quota,
             accounts: accounts,
             quotaController: quotaController,
-            antigravityAccounts: antigravityAccounts
+            antigravityAccounts: antigravityAccounts,
+            isCLIInstalled: isCLIInstalled
         )
         MenuActionHandler.shared.quotaController = quotaController
     }

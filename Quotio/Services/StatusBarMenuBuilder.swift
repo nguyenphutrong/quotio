@@ -27,7 +27,7 @@ final class StatusBarMenuBuilder {
     private let antigravityAccounts: AntigravityAccountScreenModel
     private let modeManager = OperatingModeManager.shared
     private let menuWidth: CGFloat = 360
-    private let agentDetectionService = AgentDetectionService()
+    private let installationProbe: (CLIAgent) -> Bool
     
     // Cached agent statuses for filtering
     private var cachedAgentStatuses: [CLIAgent: Bool] = [:]
@@ -42,13 +42,15 @@ final class StatusBarMenuBuilder {
         quota: QuotaScreenModel,
         accounts: AccountsScreenModel,
         quotaController: QuotaFeatureController,
-        antigravityAccounts: AntigravityAccountScreenModel
+        antigravityAccounts: AntigravityAccountScreenModel,
+        isCLIInstalled: @escaping (CLIAgent) -> Bool
     ) {
         self.proxyManagement = proxyManagement
         self.quota = quota
         self.accounts = accounts
         self.quotaController = quotaController
         self.antigravityAccounts = antigravityAccounts
+        self.installationProbe = isCLIInstalled
     }
     
     // MARK: - Build Menu
@@ -182,40 +184,10 @@ final class StatusBarMenuBuilder {
             return status.installed
         }
         
-        // Fallback: synchronous binary check
-        let isInstalled = checkBinaryExists(names: agent.binaryNames)
+        let isInstalled = installationProbe(agent)
         cachedAgentStatuses[agent] = isInstalled
         lastAgentCacheTime = Date()
         return isInstalled
-    }
-    
-    private func checkBinaryExists(names: [String]) -> Bool {
-        let fileManager = FileManager.default
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        
-        let commonPaths = [
-            "/usr/local/bin",
-            "/opt/homebrew/bin",
-            "/usr/bin",
-            "\(home)/.local/bin",
-            "\(home)/.cargo/bin",
-            "\(home)/.bun/bin",
-            "\(home)/.deno/bin",
-            "\(home)/.npm-global/bin",
-            "\(home)/.volta/bin",
-            "\(home)/.asdf/shims",
-            "\(home)/.local/share/mise/shims"
-        ]
-        
-        for name in names {
-            for basePath in commonPaths {
-                let fullPath = "\(basePath)/\(name)"
-                if fileManager.isExecutableFile(atPath: fullPath) {
-                    return true
-                }
-            }
-        }
-        return false
     }
     
     private func selectedProvider(from providers: [AIProvider]) -> AIProvider? {

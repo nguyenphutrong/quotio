@@ -1,5 +1,5 @@
 import XCTest
-@testable import Quotio
+@testable import QuotioDomain
 
 final class ModelCatalogTests: XCTestCase {
 
@@ -260,31 +260,4 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertFalse(AvailableModel.allModels.isEmpty)
     }
 
-    @MainActor
-    func testCatalogFetchWithoutAProxyThrowsInsteadOfFallingBackToDefaults() async {
-        let viewModel = AgentSetupViewModel()
-
-        do {
-            _ = try await viewModel.fetchModelCatalog()
-            XCTFail("Expected a thrown error when no proxy is configured")
-        } catch {
-            XCTAssertEqual(error as? ModelCatalogError, .proxyUnavailable)
-        }
-
-        XCTAssertTrue(
-            viewModel.availableModels.isEmpty,
-            "The catalog path must not populate the shared agent-setup model list"
-        )
-    }
-
-    @MainActor
-    func testLoadModelsWithoutAProxyStillReportsFailureWithoutTouchingModels() async {
-        // Guards the unchanged behavior of the shared picker loader.
-        let viewModel = AgentSetupViewModel()
-
-        let loadedFromRemote = await viewModel.loadModels()
-
-        XCTAssertFalse(loadedFromRemote)
-        XCTAssertTrue(viewModel.availableModels.isEmpty)
-    }
 }

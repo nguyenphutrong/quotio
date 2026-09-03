@@ -203,8 +203,44 @@ enum CompositionRoot {
         antigravityAccountScreenModel.setDidSwitchHandler { [weak quotaController] in
             await quotaController?.refresh(provider: .antigravity)
         }
-        let agentSetup = AgentSetupViewModel()
         let tunnelManager = TunnelManager.shared
+        let agentFileStore = AgentFileStore()
+        let agentDetector = AgentDetectionAdapter()
+        let agentInstallationProbe = AgentBinaryInstallationProbe()
+        let agentConfigurationService = QuotioApplication.AgentConfigurationService(
+            adapters: [
+                ClaudeCodeAgentConfigurationAdapter(fileStore: agentFileStore),
+                CodexAgentConfigurationAdapter(
+                    fileStore: agentFileStore,
+                    localize: { $0.localizedStatic() }
+                ),
+                AmpAgentConfigurationAdapter(
+                    fileStore: agentFileStore,
+                    localize: { $0.localizedStatic() }
+                ),
+                OpenCodeAgentConfigurationAdapter(
+                    fileStore: agentFileStore,
+                    localize: { $0.localizedStatic() }
+                ),
+                FactoryDroidAgentConfigurationAdapter(fileStore: agentFileStore),
+            ],
+            detector: agentDetector,
+            shellProfiles: ShellProfileAdapter(fileStore: agentFileStore),
+            modelCatalog: AgentModelCatalogHTTPAdapter {
+                await CopilotQuotaFetcher().fetchUserAvailableModelIds()
+            }
+        )
+        weak var proxyManagementReference: ProxyManagementScreenModel?
+        let agentSetup = AgentSetupScreenModel(
+            service: agentConfigurationService,
+            endpointContext: { [weak proxyScreenModel, weak tunnelManager] in
+                guard let proxyScreenModel else { return nil }
+                return AgentEndpointContext(
+                    baseURL: tunnelManager?.tunnelState.publicURL ?? proxyScreenModel.baseURL,
+                    apiKey: proxyManagementReference?.apiKeys.first ?? proxyScreenModel.managementKey
+                )
+            }
+        )
         let proxyManagement = ProxyManagementScreenModel(
             proxy: proxyScreenModel,
             accounts: accountsScreenModel,
@@ -214,17 +250,13 @@ enum CompositionRoot {
             notificationManager: notificationManager,
             refreshSettings: refreshSettings
         )
+        proxyManagementReference = proxyManagement
         quotaController.setAuthFilesProvider { [weak proxyManagement] in
             proxyManagement?.authFiles ?? []
         }
         proxyManagement.setQuotaRefresh { [weak quotaController] force in
             await quotaController?.refreshAll(force: force)
         }
-        agentSetup.setup(
-            proxyManager: proxyScreenModel,
-            apiKeys: { [weak proxyManagement] in proxyManagement?.apiKeys ?? [] },
-            quotas: { [weak quotaScreenModel] in quotaScreenModel?.providerQuotas ?? [:] }
-        )
         oauthScreenModel.setSuccessHandler { [weak proxyManagement, weak quotaController] in
             if !modeManager.isMonitorMode {
                 await proxyManagement?.refreshData(refreshQuota: false)
@@ -313,7 +345,8 @@ enum CompositionRoot {
             telemetryService: .shared,
             updaterService: updaterService,
             updatePollingService: .shared,
-            tunnelManager: tunnelManager
+            tunnelManager: tunnelManager,
+            isCLIInstalled: agentInstallationProbe.isInstalled
         )
         return AppRuntime(services: services)
     }
@@ -412,6 +445,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
 
     private let telemetryService: TelemetryService
     private let tunnelManager: TunnelManager
+    private let isCLIInstalled: (CLIAgent) -> Bool
 
     var hasCompletedOnboarding: Bool { modeManager.hasCompletedOnboarding }
     var showInDock: Bool { settingsScreenModel.appShellPreferences.showInDock }
@@ -444,7 +478,8 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         telemetryService: TelemetryService,
         updaterService: UpdaterService,
         updatePollingService: AtomFeedUpdateService,
-        tunnelManager: TunnelManager
+        tunnelManager: TunnelManager,
+        isCLIInstalled: @escaping (CLIAgent) -> Bool
     ) {
         self.proxyManagement = proxyManagement
         self.quotaController = quotaController
@@ -473,6 +508,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         self.updaterService = updaterService
         self.updatePollingService = updatePollingService
         self.tunnelManager = tunnelManager
+        self.isCLIInstalled = isCLIInstalled
     }
 
     func prepareForLaunch() {
@@ -493,7 +529,8 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
             quota: quotaScreenModel,
             accounts: accountsScreenModel,
             quotaController: quotaController,
-            antigravityAccounts: antigravityAccountScreenModel
+            antigravityAccounts: antigravityAccountScreenModel,
+            isCLIInstalled: isCLIInstalled
         )
     }
 

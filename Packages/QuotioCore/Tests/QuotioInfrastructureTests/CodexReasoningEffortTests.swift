@@ -1,8 +1,10 @@
+import Foundation
+import QuotioDomain
 import XCTest
-@testable import Quotio
+@testable import QuotioInfrastructure
 
 final class CodexReasoningEffortTests: XCTestCase {
-    private let service = AgentConfigurationService()
+    private let service = CodexConfigurationTestFacade()
 
     private let proxyURL = "http://127.0.0.1:8317/v1"
 
@@ -359,5 +361,27 @@ final class CodexReasoningEffortTests: XCTestCase {
         XCTAssertEqual(occurrences.count, 1)
         XCTAssertTrue(merged.contains("model_reasoning_effort = \"medium\""))
         XCTAssertTrue(merged.contains("custom_key = \"value\""))
+    }
+}
+
+private struct CodexConfigurationTestFacade {
+    func parseTopLevelCodexReasoningEffort(from content: String) async -> CodexReasoningEffort? {
+        CodexConfigurationCodec.snapshot(from: content).reasoningEffort
+    }
+
+    func buildManagedCodexTOML(
+        model: String,
+        proxyURL: String,
+        reasoningEffort: CodexReasoningEffort = .defaultEffort
+    ) async -> String {
+        CodexConfigurationCodec.managedTOML(
+            model: model,
+            proxyURL: proxyURL,
+            reasoningEffort: reasoningEffort
+        )
+    }
+
+    func mergeCodexConfig(existingContent: String, managedConfig: String) async -> String {
+        CodexConfigurationCodec.mergeTOML(existing: existingContent, managed: managedConfig)
     }
 }

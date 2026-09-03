@@ -1,5 +1,6 @@
+import Foundation
 import XCTest
-@testable import Quotio
+@testable import QuotioInfrastructure
 
 final class OpenCodeConfigTests: XCTestCase {
 

@@ -2,7 +2,7 @@ import Foundation
 
 /// Reasons an opencode.json document is refused. Every case means "do not
 /// write": the caller must leave the user's file exactly as it was (#176).
-nonisolated enum OpenCodeConfigError: LocalizedError, Equatable {
+public nonisolated enum OpenCodeConfigError: LocalizedError, Equatable, Sendable {
     /// The file is not decodable as UTF-8 text.
     case notUTF8
     /// A `/* … */` comment is never closed.
@@ -20,28 +20,24 @@ nonisolated enum OpenCodeConfigError: LocalizedError, Equatable {
     /// The spliced document did not reparse into the expected value.
     case verificationFailed
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .notUTF8:
-            return "agents.opencode.parseError.notUTF8".localizedStatic()
+            return "The OpenCode configuration is not valid UTF-8."
         case .unterminatedBlockComment:
-            return "agents.opencode.parseError.unterminatedComment".localizedStatic()
+            return "The OpenCode configuration contains an unterminated block comment."
         case .unterminatedString:
-            return "agents.opencode.parseError.unterminatedString".localizedStatic()
+            return "The OpenCode configuration contains an unterminated string."
         case let .invalidSyntax(line, column):
-            return String(
-                format: "agents.opencode.parseError.syntax".localizedStatic(),
-                String(line),
-                String(column)
-            )
+            return "The OpenCode configuration has invalid syntax at line \(line), column \(column)."
         case .rootNotObject:
-            return "agents.opencode.parseError.notObject".localizedStatic()
+            return "The OpenCode configuration root must be a JSON object."
         case let .duplicateKey(key):
-            return String(format: "agents.opencode.parseError.duplicateKey".localizedStatic(), key)
+            return "The OpenCode configuration contains the duplicate key '\(key)'."
         case .providerNotObject:
-            return "agents.opencode.parseError.providerNotObject".localizedStatic()
+            return "The OpenCode provider value must be a JSON object."
         case .verificationFailed:
-            return "agents.opencode.parseError.verification".localizedStatic()
+            return "The updated OpenCode configuration could not be verified."
         }
     }
 }
@@ -58,9 +54,9 @@ nonisolated enum OpenCodeConfigError: LocalizedError, Equatable {
 /// Every operation is fail-closed: if the document cannot be parsed, is
 /// ambiguous, or the spliced result does not reparse into the value we intended,
 /// the operation throws and the caller leaves the file untouched.
-nonisolated enum OpenCodeConfigEditor {
+public nonisolated enum OpenCodeConfigEditor {
 
-    static let schemaURL = "https://opencode.ai/config.json"
+    public static let schemaURL = "https://opencode.ai/config.json"
 
     // MARK: - Public API
 
@@ -71,7 +67,7 @@ nonisolated enum OpenCodeConfigEditor {
     /// file that does not declare it is left as the user wrote it.
     /// - Parameter existing: current file contents, or nil/empty for a new file.
     /// - Returns: the full new file contents.
-    static func merging(existing: Data?, providers: [String: Any]) throws -> Data {
+    public static func merging(existing: Data?, providers: [String: Any]) throws -> Data {
         if providers.isEmpty, let existing, !existing.isEmpty {
             return existing
         }
@@ -152,7 +148,7 @@ nonisolated enum OpenCodeConfigEditor {
     ///
     /// - Returns: the new file contents, or nil when none of `keys` is present
     ///   so the caller can leave the file completely untouched.
-    static func removingProviders(existing: Data, keys: [String]) throws -> Data? {
+    public static func removingProviders(existing: Data, keys: [String]) throws -> Data? {
         guard !existing.isEmpty else { return nil }
         let (bom, text) = try decoded(existing)
         let scalars = Array(text.unicodeScalars)
@@ -203,7 +199,7 @@ nonisolated enum OpenCodeConfigEditor {
     /// trailing commas. The pre-pass never invents validity: it throws on
     /// unterminated comments/strings and replaces each removed comment with a
     /// space so adjacent tokens cannot fuse into a new, valid token.
-    static func parseObject(_ data: Data) throws -> [String: Any] {
+    public static func parseObject(_ data: Data) throws -> [String: Any] {
         if let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
             return object
         }
@@ -221,7 +217,7 @@ nonisolated enum OpenCodeConfigEditor {
     /// tokens into one — `1/* x */2` becomes `1 2` (invalid), never `12`.
     /// Throws on unterminated block comments and unterminated strings instead of
     /// silently discarding the rest of the input.
-    static func strippingJSONCSyntax(from text: String) throws -> String {
+    public static func strippingJSONCSyntax(from text: String) throws -> String {
         let s = Array(text.unicodeScalars)
         var withoutComments: [Unicode.Scalar] = []
         withoutComments.reserveCapacity(s.count)

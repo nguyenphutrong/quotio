@@ -509,23 +509,6 @@ final class MonitorRuntimeTests: XCTestCase {
         }
     }
 
-    func testAmpConfigurationMergePreservesNativeAndUnknownSecrets() throws {
-        let existing = try JSONSerialization.data(withJSONObject: [
-            "apiKey@https://ampcode.com/": "native-token",
-            "unrelated": "preserve-me",
-        ])
-
-        let merged = try AgentConfigurationService.mergedAmpJSON(
-            existing: existing,
-            updates: ["apiKey@http://localhost:8317": "proxy-token"]
-        )
-        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: merged) as? [String: String])
-
-        XCTAssertEqual(object["apiKey@https://ampcode.com/"], "native-token")
-        XCTAssertEqual(object["unrelated"], "preserve-me")
-        XCTAssertEqual(object["apiKey@http://localhost:8317"], "proxy-token")
-    }
-
     func testAmpNativeAndNamedAccountDoNotCollide() {
         let native = AmpQuotaFetcher.localAccount(provider: .amp)
         let named = MonitorAccount.make(
