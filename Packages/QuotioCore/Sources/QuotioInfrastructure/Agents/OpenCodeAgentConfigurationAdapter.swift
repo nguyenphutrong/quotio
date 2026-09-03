@@ -171,12 +171,36 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                     existing: existingData,
                     providers: ["quotio": provider]
                 )
-            } catch {
+            } catch let error as OpenCodeConfigError {
                 guard mode == .manual else {
+                    let issue: OpenCodeConfigIssue
+                    switch error {
+                    case .notUTF8:
+                        issue = .notUTF8
+                    case .unterminatedBlockComment:
+                        issue = .unterminatedBlockComment
+                    case .unterminatedString:
+                        issue = .unterminatedString
+                    case .invalidSyntax(let line, let column):
+                        issue = .invalidSyntax(line: line, column: column)
+                    case .rootNotObject:
+                        issue = .rootNotObject
+                    case .duplicateKey(let key):
+                        issue = .duplicateKey(key)
+                    case .providerNotObject:
+                        issue = .providerNotObject
+                    case .verificationFailed:
+                        issue = .verificationFailed
+                    }
                     return .failure(.openCodeConfigInvalid(
                         path: configPath,
-                        details: error.localizedDescription
+                        issue: issue
                     ))
+                }
+                data = try OpenCodeConfigEditor.merging(existing: nil, providers: ["quotio": provider])
+            } catch {
+                guard mode == .manual else {
+                    return .failure(.generateConfigFailed(details: error.localizedDescription))
                 }
                 data = try OpenCodeConfigEditor.merging(existing: nil, providers: ["quotio": provider])
             }

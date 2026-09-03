@@ -443,11 +443,22 @@ public enum AgentConfigurationInstruction: Equatable, Sendable {
     case shellProfileUpdated(path: String)
 }
 
+public enum OpenCodeConfigIssue: Equatable, Sendable {
+    case notUTF8
+    case unterminatedBlockComment
+    case unterminatedString
+    case invalidSyntax(line: Int, column: Int)
+    case rootNotObject
+    case duplicateKey(String)
+    case providerNotObject
+    case verificationFailed
+}
+
 public enum AgentConfigurationFailure: Equatable, Sendable {
     case updateSettingsFailed(details: String)
     case updateConfigFailed(details: String)
     case generateConfigFailed(details: String)
-    case openCodeConfigInvalid(path: String, details: String)
+    case openCodeConfigInvalid(path: String, issue: OpenCodeConfigIssue)
     case operationFailed(details: String)
 }
 

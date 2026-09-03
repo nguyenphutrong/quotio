@@ -98,10 +98,34 @@ public extension AgentConfigurationFailure {
             "Failed to update config: \(details)"
         case .generateConfigFailed(let details):
             "Failed to generate config: \(details)"
-        case .openCodeConfigInvalid(let path, let details):
-            String(format: "agents.opencode.parseFailed".localized(), path, details)
+        case .openCodeConfigInvalid(let path, let issue):
+            String(format: "agents.opencode.parseFailed".localized(), path, issue.localizedText)
         case .operationFailed(let details):
             details
+        }
+    }
+}
+
+public extension OpenCodeConfigIssue {
+    @MainActor
+    var localizedText: String {
+        switch self {
+        case .notUTF8:
+            "The OpenCode configuration is not valid UTF-8."
+        case .unterminatedBlockComment:
+            "The OpenCode configuration contains an unterminated block comment."
+        case .unterminatedString:
+            "The OpenCode configuration contains an unterminated string."
+        case .invalidSyntax(let line, let column):
+            "The OpenCode configuration has invalid syntax at line \(line), column \(column)."
+        case .rootNotObject:
+            "The OpenCode configuration root must be a JSON object."
+        case .duplicateKey(let key):
+            "The OpenCode configuration contains the duplicate key '\(key)'."
+        case .providerNotObject:
+            "The OpenCode provider value must be a JSON object."
+        case .verificationFailed:
+            "The updated OpenCode configuration could not be verified."
         }
     }
 }

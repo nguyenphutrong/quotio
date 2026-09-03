@@ -176,6 +176,13 @@ final class OpenCodeAgentConfigurationAdapterTests: XCTestCase {
         try write(malformed)
         let applyResult = try await adapter.apply(request(mode: .automatic))
         XCTAssertFalse(applyResult.success)
+        XCTAssertEqual(
+            applyResult.failure,
+            .openCodeConfigInvalid(
+                path: configURL.path,
+                issue: .invalidSyntax(line: 1, column: 3)
+            )
+        )
         XCTAssertEqual(try Data(contentsOf: configURL), malformed)
         let resetResult = try await adapter.reset(mode: .automatic)
         XCTAssertFalse(resetResult.success)
