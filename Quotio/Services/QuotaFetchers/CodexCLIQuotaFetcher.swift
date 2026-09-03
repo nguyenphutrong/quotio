@@ -7,6 +7,9 @@
 //
 
 import Foundation
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 
 /// Auth file structure for Codex CLI (~/.codex/auth.json)
 nonisolated struct CodexCLIAuthFile: Codable, Sendable {
@@ -59,8 +62,10 @@ actor CodexCLIQuotaFetcher {
     private let clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
     
     private var session: URLSession
+    private let externalCredentials: any ExternalCredentialReading
     
-    init() {
+    init(externalCredentials: any ExternalCredentialReading = ExternalKeychainCredentialReader()) {
+        self.externalCredentials = externalCredentials
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         self.session = URLSession(configuration: config)
     }
@@ -376,7 +381,7 @@ actor CodexCLIQuotaFetcher {
             return quota
         }
 
-        if let record = KeychainHelper.readExternalCredentialRecord(service: "Codex Auth"),
+        if let record = await externalCredentials.read(service: "Codex Auth", account: nil),
            let auth = try? JSONDecoder().decode(CodexCLIAuthFile.self, from: record.data),
            let tokens = auth.tokens {
             let claims = tokens.idToken.flatMap(decodeJWT)
@@ -518,7 +523,7 @@ actor CodexCLIQuotaFetcher {
             )
         }
 
-        if let record = KeychainHelper.readExternalCredentialRecord(service: "Codex Auth"),
+        if let record = await externalCredentials.read(service: "Codex Auth", account: nil),
            let auth = try? JSONDecoder().decode(CodexCLIAuthFile.self, from: record.data),
            let tokens = auth.tokens {
             let claims = tokens.idToken.flatMap(decodeJWT)
@@ -694,7 +699,7 @@ actor CodexCLIQuotaFetcher {
     }
 
     private func fetchNativeKeychainQuotas() async -> [String: ProviderQuotaData] {
-        guard let record = KeychainHelper.readExternalCredentialRecord(service: "Codex Auth"),
+        guard let record = await externalCredentials.read(service: "Codex Auth", account: nil),
               var auth = try? JSONDecoder().decode(CodexCLIAuthFile.self, from: record.data),
               var tokens = auth.tokens,
               var accessToken = tokens.accessToken else { return [:] }
@@ -709,7 +714,7 @@ actor CodexCLIQuotaFetcher {
                 tokens.idToken = refreshed.idToken ?? tokens.idToken
                 auth.tokens = tokens
                 if let data = try? JSONEncoder().encode(auth) {
-                    _ = KeychainHelper.compareAndSwapExternalCredential(
+                    _ = await externalCredentials.compareAndSwap(
                         service: "Codex Auth",
                         account: record.account,
                         expectedData: record.data,
@@ -724,13 +729,20 @@ actor CodexCLIQuotaFetcher {
                     identity: CodexQuotaIdentity(planType: claims?.planType)
                 )]
             } catch CodexCLIQuotaError.httpError(let status) where status == 401 || status == 403 {
-                guard let latest = KeychainHelper.readExternalCredentialRecord(service: "Codex Auth", account: record.account),
+                guard let latest = await externalCredentials.read(
+                    service: "Codex Auth",
+                    account: record.account
+                ),
                       let latestAuth = try? JSONDecoder().decode(CodexCLIAuthFile.self, from: latest.data),
                       let latestTokens = latestAuth.tokens,
                       let refresh = latestTokens.refreshToken else { return [:] }
                 let latestClaims = latestTokens.idToken.flatMap(decodeJWT)
                 let refreshed = try await refreshAccessToken(refreshToken: refresh)
-                persistNativeKeychainRefresh(refreshed, originalRefreshToken: refresh, account: record.account)
+                await persistNativeKeychainRefresh(
+                    refreshed,
+                    originalRefreshToken: refresh,
+                    account: record.account
+                )
                 return [key: try await fetchQuota(
                     accessToken: refreshed.accessToken,
                     accountId: latestTokens.accountId ?? latestClaims?.accountId,
@@ -746,8 +758,8 @@ actor CodexCLIQuotaFetcher {
         _ refreshed: TokenRefresh,
         originalRefreshToken: String,
         account: String
-    ) {
-        guard let latest = KeychainHelper.readExternalCredentialRecord(service: "Codex Auth", account: account),
+    ) async {
+        guard let latest = await externalCredentials.read(service: "Codex Auth", account: account),
               var auth = try? JSONDecoder().decode(CodexCLIAuthFile.self, from: latest.data),
               var tokens = auth.tokens,
               tokens.refreshToken == originalRefreshToken else { return }
@@ -756,7 +768,7 @@ actor CodexCLIQuotaFetcher {
         tokens.idToken = refreshed.idToken ?? tokens.idToken
         auth.tokens = tokens
         guard let data = try? JSONEncoder().encode(auth) else { return }
-        _ = KeychainHelper.compareAndSwapExternalCredential(
+        _ = await externalCredentials.compareAndSwap(
             service: "Codex Auth",
             account: account,
             expectedData: latest.data,

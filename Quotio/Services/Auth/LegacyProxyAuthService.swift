@@ -97,6 +97,12 @@ final class LegacyProxyAuthService {
                         message: "Authentication completed successfully.",
                         deviceCode: nil
                     ))
+                } else {
+                    finish(AuthCommandResult(
+                        success: false,
+                        message: "Authentication was cancelled.",
+                        deviceCode: nil
+                    ))
                 }
             }
 

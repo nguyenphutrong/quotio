@@ -7,6 +7,9 @@
 //
 
 import Foundation
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 
 /// API fetch result type
 nonisolated enum ClaudeAPIResult: Sendable {
@@ -66,6 +69,7 @@ actor ClaudeCodeQuotaFetcher {
 
     /// URLSession for network requests
     private var session: URLSession
+    private let externalCredentials: any ExternalCredentialReading
 
     /// Cache for quota data to reduce API calls
     private var quotaCache: [String: CachedQuota] = [:]
@@ -73,7 +77,8 @@ actor ClaudeCodeQuotaFetcher {
     /// Cache TTL: 5 minutes
     private let cacheTTL: TimeInterval = 300
 
-    init() {
+    init(externalCredentials: any ExternalCredentialReading = ExternalKeychainCredentialReader()) {
+        self.externalCredentials = externalCredentials
         let config = ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15)
         self.session = URLSession(configuration: config)
     }
@@ -362,7 +367,7 @@ actor ClaudeCodeQuotaFetcher {
             return quota
         }
 
-        if nativeKeychainIdentity() == accountKey,
+        if await nativeKeychainIdentity() == accountKey,
            let quota = await fetchNativeKeychainQuotas(forceRefresh: forceRefresh)[accountKey] {
             return quota
         }
@@ -398,8 +403,8 @@ actor ClaudeCodeQuotaFetcher {
         return json["email"] as? String ?? oauth?["email"] as? String ?? "Claude Code"
     }
 
-    private func nativeKeychainIdentity() -> String? {
-        guard let record = KeychainHelper.readExternalCredentialRecord(service: "Claude Code-credentials"),
+    private func nativeKeychainIdentity() async -> String? {
+        guard let record = await externalCredentials.read(service: "Claude Code-credentials", account: nil),
               let json = try? JSONSerialization.jsonObject(with: record.data) as? [String: Any],
               let oauth = json["claudeAiOauth"] as? [String: Any],
               oauth["accessToken"] as? String != nil else { return nil }
@@ -411,7 +416,9 @@ actor ClaudeCodeQuotaFetcher {
         if !forceRefresh, let cached = quotaCache[key], cached.isValid(ttl: cacheTTL) {
             return (key, cached.data)
         }
-        guard let credential = ClaudeDesktopCredentialReader.load() else { return nil }
+        guard let credential = await ClaudeDesktopCredentialReader.load(
+            externalCredentials: externalCredentials
+        ) else { return nil }
         let response = await fetchUsageFromAPI(accessToken: credential.accessToken, email: key)
         guard case .success(let info) = response, let quota = quotaData(from: info) else { return nil }
         quotaCache[key] = CachedQuota(data: quota, timestamp: Date())
@@ -419,7 +426,7 @@ actor ClaudeCodeQuotaFetcher {
     }
 
     private func fetchNativeKeychainQuotas(forceRefresh: Bool) async -> [String: ProviderQuotaData] {
-        guard let record = KeychainHelper.readExternalCredentialRecord(service: "Claude Code-credentials"),
+        guard let record = await externalCredentials.read(service: "Claude Code-credentials", account: nil),
               let json = try? JSONSerialization.jsonObject(with: record.data) as? [String: Any],
               let oauth = json["claudeAiOauth"] as? [String: Any],
               var accessToken = oauth["accessToken"] as? String else { return [:] }
@@ -432,7 +439,7 @@ actor ClaudeCodeQuotaFetcher {
             if isTokenExpired(json: normalizedExpiryJSON(json)), let refreshToken {
                 let refreshed = try await refreshAccessToken(refreshToken: refreshToken)
                 accessToken = refreshed.accessToken
-                persistClaudeKeychainRefresh(
+                await persistClaudeKeychainRefresh(
                     record: record,
                     json: json,
                     accessToken: refreshed.accessToken,
@@ -443,13 +450,16 @@ actor ClaudeCodeQuotaFetcher {
             }
             var response = await fetchUsageFromAPI(accessToken: accessToken, email: email)
             if case .authenticationError = response,
-               let latest = KeychainHelper.readExternalCredentialRecord(service: "Claude Code-credentials", account: record.account),
+               let latest = await externalCredentials.read(
+                service: "Claude Code-credentials",
+                account: record.account
+               ),
                let latestJSON = try? JSONSerialization.jsonObject(with: latest.data) as? [String: Any],
                let latestOAuth = latestJSON["claudeAiOauth"] as? [String: Any],
                let latestRefreshToken = latestOAuth["refreshToken"] as? String {
                 let refreshed = try await refreshAccessToken(refreshToken: latestRefreshToken)
                 accessToken = refreshed.accessToken
-                persistClaudeKeychainRefresh(
+                await persistClaudeKeychainRefresh(
                     record: latest,
                     json: latestJSON,
                     accessToken: refreshed.accessToken,
@@ -468,13 +478,13 @@ actor ClaudeCodeQuotaFetcher {
     }
 
     private func persistClaudeKeychainRefresh(
-        record: (data: Data, account: String),
+        record: ExternalCredentialRecord,
         json: [String: Any],
         accessToken: String,
         expectedRefreshToken: String,
         newRefreshToken: String,
         expiresIn: Int?
-    ) {
+    ) async {
         guard let oauth = json["claudeAiOauth"] as? [String: Any],
               oauth["refreshToken"] as? String == expectedRefreshToken else { return }
         let updated = updatedAuthJSON(
@@ -484,7 +494,7 @@ actor ClaudeCodeQuotaFetcher {
             expiresIn: expiresIn
         )
         guard let data = try? JSONSerialization.data(withJSONObject: updated, options: [.prettyPrinted, .sortedKeys]) else { return }
-        _ = KeychainHelper.compareAndSwapExternalCredential(
+        _ = await externalCredentials.compareAndSwap(
             service: "Claude Code-credentials",
             account: record.account,
             expectedData: record.data,

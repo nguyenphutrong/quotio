@@ -114,7 +114,72 @@ enum CompositionRoot {
             controller: controller,
             initialState: initialState
         )
-        return QuotaViewModel(proxyManager: proxyScreenModel)
+        let authFileRepository = FileAuthFileRepository()
+        let directAuthService = DirectAuthFileService(repository: authFileRepository)
+        let metadataRepository = MonitorAccountMigrationBridge.metadataRepository
+        let credentialVault = MonitorAccountMigrationBridge.credentialVault
+        let accountDiscovery = MonitorAccountDiscovery(
+            vault: credentialVault,
+            directAuthService: directAuthService,
+            metadata: MonitorMetadataStore(repository: metadataRepository),
+            externalCredentials: ExternalKeychainCredentialReader()
+        )
+        let monitorCoordinator = MonitorRefreshCoordinator(discovery: accountDiscovery)
+        let accountService = AccountService(
+            discovery: accountDiscovery,
+            metadataRepository: metadataRepository,
+            credentialVault: credentialVault,
+            reservedLabels: [
+                AccountProviderID(rawValue: AIProvider.amp.rawValue): [AmpQuotaFetcher.localAccountKey],
+            ]
+        )
+        let accountsScreenModel = AccountsScreenModel(
+            accountService: accountService,
+            authFileRepository: authFileRepository
+        )
+        let urlOpener = WorkspaceURLOpener()
+        let monitorAuthorizer = MonitorOAuthAuthorizer(
+            vault: credentialVault,
+            urlOpener: urlOpener,
+            callbackTransport: LoopbackOAuthCallbackTransport(),
+            httpTransport: URLSessionOAuthHTTPTransport()
+        ) { accessToken, expiresAt, clientID, clientSecret, region in
+            await KiroQuotaFetcher().authenticatedAccountIdentity(
+                accessToken: accessToken,
+                expiresAt: expiresAt,
+                clientID: clientID,
+                clientSecret: clientSecret,
+                region: region
+            )
+        }
+        let localProxyAuthorizer = LocalProxyOAuthAuthorizer(
+            proxy: proxyScreenModel,
+            authService: LegacyProxyAuthService(proxy: proxyScreenModel),
+            authFiles: authFileRepository,
+            urlOpener: urlOpener
+        ) {
+            await KiroQuotaFetcher().refreshAllTokensIfNeeded()
+        }
+        let authorizer = OperatingModeOAuthAuthorizer(
+            monitor: monitorAuthorizer,
+            localProxy: localProxyAuthorizer
+        ) {
+            await MainActor.run { OperatingModeManager.shared.isMonitorMode }
+        }
+        let oauthScreenModel = OAuthScreenModel(
+            controller: OAuthFlowController(authorizer: authorizer)
+        )
+        let viewModel = QuotaViewModel(
+            proxyManager: proxyScreenModel,
+            accountsScreenModel: accountsScreenModel,
+            oauthScreenModel: oauthScreenModel,
+            directAuthService: directAuthService,
+            monitorCoordinator: monitorCoordinator
+        )
+        oauthScreenModel.setSuccessHandler { [weak viewModel] in
+            await viewModel?.refreshAfterOAuthSuccess()
+        }
+        return viewModel
     }
 }
 
@@ -307,6 +372,10 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
 
     func stopUpdatePolling() {
         updatePollingService.stopPolling()
+    }
+
+    func shutdownOAuth() async {
+        await viewModel.oauthScreenModel.shutdown()
     }
 
     func stopTunnel() async {

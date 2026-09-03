@@ -180,7 +180,7 @@ struct ProvidersScreen: View {
         .sheet(item: $selectedProvider) { provider in
             OAuthSheet(provider: provider) {
                 selectedProvider = nil
-                viewModel.oauthState = nil
+                viewModel.cancelOAuth()
             }
             .environment(viewModel)
         }
@@ -503,7 +503,7 @@ struct ProvidersScreen: View {
             editingWarpToken = nil
             showWarpConnectionSheet = true
         } else {
-            viewModel.oauthState = nil
+            viewModel.cancelOAuth()
             selectedProvider = provider
         }
     }

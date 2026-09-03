@@ -1,579 +1,193 @@
-//
-//  DirectAuthFileService.swift
-//  Quotio - CLIProxyAPI GUI Wrapper
-//
-//  Service for directly scanning auth files from filesystem
-//  Used in Quota-Only mode to read auth without running proxy
-//
-
 import Foundation
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 
-// MARK: - Direct Auth File
-
-/// Represents an auth file discovered directly from filesystem
-struct DirectAuthFile: Identifiable, Sendable, Hashable {
+/// UI-safe compatibility value used by the quota slice until Phase 7 moves its models.
+nonisolated struct DirectAuthFile: Identifiable, Sendable, Hashable {
     let id: String
     let provider: AIProvider
     let email: String?
-    let login: String?          // GitHub username (for Copilot)
-    let expired: Date?          // Token expiry date
-    let accountType: String?    // pro, free, etc.
+    let login: String?
+    let expired: Date?
+    let accountType: String?
     let filePath: String
     let source: AuthFileSource
     let filename: String
-    /// Identity fields this file also matches, but which are not the canonical
-    /// key. Older Quotio versions keyed Copilot files by the JSON `login` field;
-    /// those keys must still migrate onto the canonical key (#404).
-    nonisolated var legacyIdentityKeys: [String] = []
+    var legacyIdentityKeys: [String] = []
 
-    /// Source location of the auth file
     enum AuthFileSource: String, Sendable {
         case cliProxyApi = "~/.cli-proxy-api"
         case nativeCredential = "Native Credential"
-        
+
         var displayName: String {
             switch self {
-            case .cliProxyApi: return "CLI Proxy API"
-            case .nativeCredential: return "Native Credential"
+            case .cliProxyApi: "CLI Proxy API"
+            case .nativeCredential: "Native Credential"
             }
         }
-    }
-    
-    /// Check if token is expired
-    var isExpired: Bool {
-        guard let expired = expired else { return false }
-        return expired < Date()
-    }
-    
-    /// Display name for UI (email > login > filename)
-    var displayName: String {
-        if let email = email, !email.isEmpty {
-            return email
-        }
-        if let login = login, !login.isEmpty {
-            return login
-        }
-        return filename
     }
 
-    /// Stable key for menu bar selection and quota lookup
-    nonisolated var menuBarAccountKey: String {
-        if provider == .codex {
-            return filename.codexFilenameKey
-        }
-        if provider == .copilot,
-           let key = CopilotQuotaFetcher.canonicalAccountKey(filename: filename, username: login) {
-            return key
-        }
-        if provider == .kiro {
-            if let email = email, !email.isEmpty {
-                return email
-            }
-            return filename.replacingOccurrences(of: ".json", with: "")
-        }
-        if let email = email, !email.isEmpty {
-            return email
-        }
-        return filename
+    var isExpired: Bool { expired.map { $0 < Date() } ?? false }
+    var displayName: String { Self.nonBlank(email) ?? Self.nonBlank(login) ?? filename }
+
+    init(
+        id: String,
+        provider: AIProvider,
+        email: String?,
+        login: String?,
+        expired: Date?,
+        accountType: String?,
+        filePath: String,
+        source: AuthFileSource,
+        filename: String,
+        legacyIdentityKeys: [String] = []
+    ) {
+        self.id = id
+        self.provider = provider
+        self.email = email
+        self.login = login
+        self.expired = expired
+        self.accountType = accountType
+        self.filePath = filePath
+        self.source = source
+        self.filename = filename
+        self.legacyIdentityKeys = legacyIdentityKeys
     }
-    
+
+    init?(_ descriptor: AuthFileDescriptor) {
+        guard let provider = AIProvider(rawValue: descriptor.providerID.rawValue) else { return nil }
+        id = descriptor.id
+        self.provider = provider
+        email = descriptor.email
+        login = descriptor.login
+        expired = descriptor.expired
+        accountType = descriptor.accountType
+        filePath = descriptor.filePath
+        source = descriptor.source == .nativeCredential ? .nativeCredential : .cliProxyApi
+        filename = descriptor.filename
+        legacyIdentityKeys = descriptor.legacyIdentityKeys
+    }
+
+    nonisolated var menuBarAccountKey: String {
+        switch provider {
+        case .codex:
+            filename.codexFilenameKey
+        case .copilot:
+            Self.nonBlank(login) ?? filename.copilotFilenameKey ?? filename
+        case .kiro:
+            Self.nonBlank(email) ?? filename.replacingOccurrences(of: ".json", with: "")
+        default:
+            Self.nonBlank(email) ?? filename
+        }
+    }
+
+    private nonisolated static func nonBlank(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
-    
+
     static func == (lhs: DirectAuthFile, rhs: DirectAuthFile) -> Bool {
         lhs.id == rhs.id
     }
 }
 
-// MARK: - Direct Auth File Service
-
-/// Service for scanning auth files directly from filesystem
-/// Used in Quota-Only mode where proxy server is not running
+/// Migration bridge for the quota slice. Filesystem ownership lives in Infrastructure.
 actor DirectAuthFileService {
-    private let fileManager = FileManager.default
-    private let authDirectory: URL
+    private let repository: any AuthFileRepository
 
-    init(authDirectory: URL? = nil) {
-        self.authDirectory = authDirectory ?? URL(
-            fileURLWithPath: NSString(string: "~/.cli-proxy-api").expandingTildeInPath,
-            isDirectory: true
-        )
+    init(repository: any AuthFileRepository = FileAuthFileRepository()) {
+        self.repository = repository
     }
-    
-    /// Expand tilde in path
-    private func expandPath(_ path: String) -> String {
-        NSString(string: path).expandingTildeInPath
+
+    init(authDirectory: URL) {
+        repository = FileAuthFileRepository(authDirectory: authDirectory)
     }
-    
-    /// Scan all known auth file locations
+
     func scanAllAuthFiles() async -> [DirectAuthFile] {
-        // Only scan ~/.cli-proxy-api (CLIProxyAPI managed)
-        await scanCLIProxyAPIDirectory()
+        await repository.scanAllAuthFiles().compactMap(DirectAuthFile.init)
     }
-    
-    // MARK: - CLI Proxy API Directory
-    
-    /// Scan ~/.cli-proxy-api for managed auth files
-    private func scanCLIProxyAPIDirectory() async -> [DirectAuthFile] {
-        let path = authDirectory.path
-        guard let files = try? fileManager.contentsOfDirectory(atPath: path) else {
-            return []
-        }
-        
-        var authFiles: [DirectAuthFile] = []
-        
-        for file in files where file.hasSuffix(".json") {
-            let filePath = (path as NSString).appendingPathComponent(file)
-            
-            // Try to parse JSON content first
-            if let authFile = parseAuthFileJSON(at: filePath, filename: file) {
-                authFiles.append(authFile)
-                continue
-            } else {
-                // Parse failed
-            }
-            
-            // Fallback: parse from filename if JSON parsing fails
-            guard let (provider, email) = parseAuthFileName(file) else {
-                continue
-            }
-            
-            authFiles.append(DirectAuthFile(
-                id: filePath,
-                provider: provider,
-                email: email,
-                login: nil,
-                expired: nil,
-                accountType: nil,
-                filePath: filePath,
-                source: .cliProxyApi,
-                filename: file
-            ))
-        }
-        
-        return authFiles
-    }
-    
-    // MARK: - JSON Parsing
-    
-    /// Parse auth file JSON content to extract provider, email, and metadata
-    private func parseAuthFileJSON(at filePath: String, filename: String) -> DirectAuthFile? {
-        guard let data = fileManager.contents(atPath: filePath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        
-        // Get provider from "type" field
-        guard let typeString = json["type"] as? String,
-              let provider = mapTypeToProvider(typeString) else {
-            return nil
-        }
-        
-        // Extract metadata
-        var email = json["email"] as? String
-        var login = json["login"] as? String
-        var legacyIdentityKeys: [String] = []
-        if provider == .copilot {
-            // Copilot auth files written by CLIProxyAPI store the GitHub handle as
-            // "username"; older files use "login". The precedence must match
-            // CopilotQuotaFetcher, otherwise the direct-auth item and the quota
-            // result key the same file differently and #404 comes back.
-            let rawLogin = json["login"] as? String
-            login = CopilotQuotaFetcher.canonicalIdentityField(
-                username: json["username"] as? String,
-                login: rawLogin
-            )
-            // Releases before this fix keyed the file by `login`; keep that value
-            // as a migration alias when `username` now wins.
-            if let rawLogin = rawLogin?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !rawLogin.isEmpty, rawLogin != login {
-                legacyIdentityKeys.append(rawLogin)
-            }
-        }
-        let accountType = json["account_type"] as? String
-        
-        // For Kiro: if email is empty, try to use provider (e.g., "Google") as identifier
-        if provider == .kiro && (email == nil || email?.isEmpty == true) {
-            if let authProvider = json["provider"] as? String {
-                email = "Kiro (\(authProvider))"
-            }
-        }
-        
-        // Parse expired date
-        var expiredDate: Date?
-        if let expiredString = json["expired"] as? String {
-            expiredDate = parseISO8601Date(expiredString)
-        } else if let expiredInt = json["expired"] as? Double { // Handle numeric timestamp
-            expiredDate = Date(timeIntervalSince1970: expiredInt)
-        }
-        
-        return DirectAuthFile(
-            id: filePath,
-            provider: provider,
-            email: email,
-            login: login,
-            expired: expiredDate,
-            accountType: accountType,
-            filePath: filePath,
-            source: .cliProxyApi,
-            filename: filename,
-            legacyIdentityKeys: legacyIdentityKeys
+
+    func readAuthToken(from file: DirectAuthFile) async -> AuthTokenData? {
+        let descriptor = Self.descriptor(from: file)
+        guard let credential = await repository.readCredential(from: descriptor) else { return nil }
+        return AuthTokenData(
+            accessToken: credential.accessToken,
+            refreshToken: credential.refreshToken,
+            expiresAt: credential.expiresAt,
+            clientId: credential.clientID,
+            clientSecret: credential.clientSecret,
+            authMethod: credential.authMethod,
+            extras: credential.extras
         )
     }
-    
-    /// Map JSON "type" field to AIProvider
-    private func mapTypeToProvider(_ type: String) -> AIProvider? {
-        let typeMap: [String: AIProvider] = [
-            "antigravity": .antigravity,
-            "claude": .claude,
-            "codex": .codex,
-            "copilot": .copilot,
-            "github-copilot": .copilot,
-            "qwen": .qwen,
-            "iflow": .iflow,
-            "kiro": .kiro,
-            "vertex": .vertex,
-            "cursor": .cursor,
-            "trae": .trae
-        ]
-        return typeMap[type.lowercased()]
-    }
-    
-    /// Parse ISO8601 date string with multiple format support
-    private func parseISO8601Date(_ dateString: String) -> Date? {
-        // Try with fractional seconds
-        let formatterWithFractional = ISO8601DateFormatter()
-        formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatterWithFractional.date(from: dateString) {
-            return date
-        }
-        
-        // Try without fractional seconds
-        let formatterStandard = ISO8601DateFormatter()
-        formatterStandard.formatOptions = [.withInternetDateTime]
-        return formatterStandard.date(from: dateString)
-    }
-    
-    // MARK: - Filename Parsing (Fallback)
-    
-    /// Parse auth file name to extract provider and email
-    private func parseAuthFileName(_ filename: String) -> (AIProvider, String?)? {
-        let prefixes: [(String, AIProvider)] = [
-            ("antigravity-", .antigravity),
-            ("codex-", .codex),
-            ("github-copilot-", .copilot),
-            ("claude-", .claude),
-            ("qwen-", .qwen),
-            ("iflow-", .iflow),
-            ("kiro-", .kiro),
-            ("vertex-", .vertex)
-        ]
-        
-        for (prefix, provider) in prefixes {
-            if filename.hasPrefix(prefix) {
-                let email = extractEmail(from: filename, prefix: prefix)
-                return (provider, email)
-            }
-        }
-        
-        return nil
-    }
-    
-    /// Extract email from filename pattern: prefix-email.json
-    private func extractEmail(from filename: String, prefix: String) -> String {
-        var name = filename
-        name = name.replacingOccurrences(of: prefix, with: "")
-        name = name.replacingOccurrences(of: ".json", with: "")
-        
-        // Handle underscore -> dot conversion for email
-        // e.g., user_example_com -> user.example.com
-        // But we need to be smart about @ sign
-        
-        // Check for common email domain patterns
-        let emailDomains = ["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", 
-                           "yahoo.com", "icloud.com", "protonmail.com", "proton.me"]
-        
-        for domain in emailDomains {
-            let underscoreDomain = domain.replacingOccurrences(of: ".", with: "_")
-            if name.hasSuffix("_\(underscoreDomain)") {
-                let prefix = name.dropLast(underscoreDomain.count + 1)
-                return "\(prefix)@\(domain)"
-            }
-        }
-        
-        // Fallback: try to detect @ pattern
-        // Common pattern: user_domain_com -> user@domain.com
-        let parts = name.components(separatedBy: "_")
-        if parts.count >= 3 {
-            // Assume last two parts are domain (e.g., domain_com)
-            let user = parts.dropLast(2).joined(separator: ".")
-            let domain = parts.suffix(2).joined(separator: ".")
-            return "\(user)@\(domain)"
-        } else if parts.count == 2 {
-            // Could be user_domain or user_com
-            return parts.joined(separator: "@")
-        }
-        
-        return name
-    }
-    
-    // MARK: - Auth File Reading
-    
-    /// Read auth token from file for quota fetching
-    func readAuthToken(from file: DirectAuthFile) async -> AuthTokenData? {
-        guard let data = fileManager.contents(atPath: file.filePath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        
-        // Different providers store tokens differently
-        switch file.provider {
-        case .antigravity:
-            // Google OAuth format
-            if let accessToken = json["access_token"] as? String {
-                let refreshToken = json["refresh_token"] as? String
-                let expiresAt = json["expiry"] as? String ?? json["expires_at"] as? String
-                return AuthTokenData(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt, clientId: nil, clientSecret: nil, authMethod: nil, extras: nil)
-            }
 
-        case .codex:
-            // OpenAI format - uses bearer token or API key
-            if let token = json["access_token"] as? String ?? json["api_key"] as? String {
-                return AuthTokenData(accessToken: token, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, authMethod: nil, extras: nil)
-            }
-
-        case .copilot:
-            // GitHub OAuth format
-            if let accessToken = json["access_token"] as? String ?? json["oauth_token"] as? String {
-                return AuthTokenData(accessToken: accessToken, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, authMethod: nil, extras: nil)
-            }
-
-        case .claude:
-            // Anthropic OAuth
-            if let sessionKey = json["session_key"] as? String ?? json["access_token"] as? String {
-                return AuthTokenData(accessToken: sessionKey, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, authMethod: nil, extras: nil)
-            }
-            
-        case .kiro:
-            // Kiro (AWS CodeWhisperer) format
-            if let accessToken = json["access_token"] as? String ?? json["accessToken"] as? String {
-
-                let refreshToken = json["refresh_token"] as? String ?? json["refreshToken"] as? String
-
-                // Robust parsing for expires_at (could be string or int/double)
-                var expiresAt: String?
-                if let expStr = json["expires_at"] as? String ?? json["expiresAt"] as? String ?? json["expiry"] as? String {
-                    expiresAt = expStr
-                } else if let expNum = json["expires_at"] as? Double ?? json["expiresAt"] as? Double ?? json["expiry"] as? Double {
-                    // Convert numeric timestamp to ISO string for consistency in AuthTokenData
-                    expiresAt = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: expNum))
-                }
-
-                // Get auth method: "Social" (Google) or "IdC" (AWS Builder ID)
-                // Default to "IdC" if not specified for backwards compatibility
-                let authMethod = json["auth_method"] as? String ?? json["authMethod"] as? String ?? "IdC"
-
-                var clientId = json["client_id"] as? String ?? json["clientId"] as? String
-                var clientSecret = json["client_secret"] as? String ?? json["clientSecret"] as? String
-
-                // For IdC auth, if clientId/clientSecret are missing, try to load from AWS SSO cache
-                // Social auth (Google) doesn't need these credentials
-                // Use case-insensitive comparison since CLIProxyAPI stores as "idc" (lowercase)
-                if authMethod.lowercased() == "idc" && (clientId == nil || clientSecret == nil) {
-                    let (loadedClientId, loadedClientSecret) = loadKiroDeviceRegistration()
-                    if let cid = loadedClientId, let csec = loadedClientSecret {
-                        clientId = cid
-                        clientSecret = csec
-                        // Persist to auth file for future use
-                        updateKiroAuthFile(at: file.filePath, withClientId: cid, clientSecret: csec)
-                    }
-                }
-
-                var extras: [String: String] = [:]
-                if let startUrl = json["start_url"] as? String ?? json["startUrl"] as? String {
-                    extras["start_url"] = startUrl
-                }
-                if let region = json["region"] as? String {
-                    extras["region"] = region
-                }
-                if let profileArn = json["profile_arn"] as? String ?? json["profileArn"] as? String {
-                    extras["profileArn"] = profileArn
-                }
-
-                return AuthTokenData(
-                    accessToken: accessToken,
-                    refreshToken: refreshToken,
-                    expiresAt: expiresAt,
-                    clientId: clientId,
-                    clientSecret: clientSecret,
-                    authMethod: authMethod,
-                    extras: extras
-                )
-            }
-            
-        default:
-            // Generic token extraction
-            if let token = json["access_token"] as? String ?? json["token"] as? String {
-                return AuthTokenData(accessToken: token, refreshToken: nil, expiresAt: nil, clientId: nil, clientSecret: nil, authMethod: nil, extras: nil)
-            }
-        }
-        
-        return nil
-    }
-
-    // MARK: - Kiro Builder ID Device Registration Support
-
-    /// Load clientId and clientSecret from Kiro IDE device registration file
-    /// Kiro IDE stores these in ~/.aws/sso/cache/{clientIdHash}.json
-    /// The clientIdHash is found in ~/.aws/sso/cache/kiro-auth-token.json
-    /// - Returns: Tuple of (clientId?, clientSecret?)
-    private func loadKiroDeviceRegistration() -> (clientId: String?, clientSecret: String?) {
-        let cachePath = expandPath("~/.aws/sso/cache")
-
-        // First, try to get clientIdHash from kiro-auth-token.json
-        let kiroAuthTokenPath = (cachePath as NSString).appendingPathComponent("kiro-auth-token.json")
-
-        var clientIdHash: String?
-        if let data = fileManager.contents(atPath: kiroAuthTokenPath),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            clientIdHash = json["clientIdHash"] as? String
-        }
-
-        // If we have a clientIdHash, load from the device registration file
-        if let hash = clientIdHash {
-            let deviceRegPath = (cachePath as NSString).appendingPathComponent("\(hash).json")
-
-            if let data = fileManager.contents(atPath: deviceRegPath),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let clientId = json["clientId"] as? String,
-               let clientSecret = json["clientSecret"] as? String {
-                return (clientId, clientSecret)
-            }
-        }
-
-        // Fallback: scan all .json files in cache directory for device registration
-        // (in case kiro-auth-token.json doesn't exist or has different format)
-        if let files = try? fileManager.contentsOfDirectory(atPath: cachePath) {
-            for file in files where file.hasSuffix(".json") && file != "kiro-auth-token.json" {
-                let filePath = (cachePath as NSString).appendingPathComponent(file)
-                if let data = fileManager.contents(atPath: filePath),
-                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let clientId = json["clientId"] as? String,
-                   let clientSecret = json["clientSecret"] as? String {
-                    // Found a device registration file
-                    return (clientId, clientSecret)
-                }
-            }
-        }
-
-        return (nil, nil)
-    }
-
-    /// Update Kiro auth file with clientId and clientSecret
-    /// This modifies the auth file in place to include missing credentials
-    /// - Parameters:
-    ///   - filePath: Path to auth file to update
-    ///   - clientId: The clientId to add
-    ///   - clientSecret: The clientSecret to add
-    private func updateKiroAuthFile(at filePath: String, withClientId clientId: String, clientSecret: String) {
-        guard let data = fileManager.contents(atPath: filePath),
-              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return
-        }
-
-        // Add missing fields
-        json["client_id"] = clientId
-        json["client_secret"] = clientSecret
-
-        // Write back to file atomically
-        do {
-            let updatedData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
-            try SecureAtomicFileWriter.write(updatedData, to: URL(fileURLWithPath: filePath))
-        } catch {
-            // Silent failure
-        }
-    }
-
-    // MARK: - File Upload/Download Operations
-
-    private func authFileURL(for name: String) throws -> URL {
-        try validateAuthFileName(name)
-        return authDirectory.appendingPathComponent(name, isDirectory: false)
-    }
-
-    private func validateAuthFileName(_ name: String) throws {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty,
-              trimmedName == name,
-              trimmedName != ".",
-              trimmedName != "..",
-              !trimmedName.contains("/"),
-              !trimmedName.contains("\\"),
-              trimmedName.lowercased().hasSuffix(".json") else {
-            throw AuthFileError.invalidFileName
-        }
-    }
-
-    private func validateAuthFileContent(_ content: Data) throws {
-        let object: Any
-        do {
-            object = try JSONSerialization.jsonObject(with: content)
-        } catch {
-            throw AuthFileError.invalidJSON(error.localizedDescription)
-        }
-        guard object is [String: Any] else {
-            throw AuthFileError.invalidJSON("authFile.error.jsonObjectRequired".localizedStatic())
-        }
-    }
-
-    /// Upload (write) an auth file to the auth directory
-    /// - Parameters:
-    ///   - name: Filename for the auth file (e.g., "claude-user@example.com.json")
-    ///   - content: JSON content as Data
     func uploadAuthFile(name: String, content: Data) async throws {
-        let fileURL = try authFileURL(for: name)
-        try validateAuthFileContent(content)
-        try SecureAtomicFileWriter.write(content, to: fileURL)
+        do {
+            try await repository.uploadAuthFile(name: name, content: content)
+        } catch {
+            throw Self.map(error)
+        }
     }
 
     func readAuthFileForImport(from url: URL) async throws -> Data {
-        try validateAuthFileName(url.lastPathComponent)
         do {
-            let content = try Data(contentsOf: url)
-            try validateAuthFileContent(content)
-            return content
-        } catch let error as AuthFileError {
-            throw error
+            return try await repository.readAuthFileForImport(from: url)
         } catch {
-            throw AuthFileError.readFailed(error.localizedDescription)
+            throw Self.map(error)
         }
     }
 
     func writeDownloadedAuthFile(_ content: Data, to url: URL) async throws {
         do {
-            try SecureAtomicFileWriter.write(content, to: url)
+            try await repository.writeDownloadedAuthFile(content, to: url)
         } catch {
-            throw AuthFileError.saveFailed(error.localizedDescription)
+            throw Self.map(error)
         }
     }
 
-    /// Download (read) an auth file from the auth directory
-    /// - Parameter name: Filename to download
-    /// - Returns: File content as Data
     func downloadAuthFile(name: String) async throws -> Data {
-        let fileURL = try authFileURL(for: name)
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: fileURL.path, isDirectory: &isDirectory),
-              !isDirectory.boolValue else {
-            throw AuthFileError.fileNotFound(name)
+        do {
+            return try await repository.downloadAuthFile(name: name)
+        } catch {
+            throw Self.map(error)
         }
+    }
 
-        return try Data(contentsOf: fileURL)
+    private nonisolated static func descriptor(from file: DirectAuthFile) -> AuthFileDescriptor {
+        AuthFileDescriptor(
+            id: file.id,
+            providerID: AccountProviderID(rawValue: file.provider.rawValue),
+            email: file.email,
+            login: file.login,
+            expired: file.expired,
+            accountType: file.accountType,
+            filePath: file.filePath,
+            source: file.source == .nativeCredential ? .nativeCredential : .cliProxyApi,
+            filename: file.filename,
+            legacyIdentityKeys: file.legacyIdentityKeys
+        )
+    }
+
+    private nonisolated static func map(_ error: Error) -> AuthFileError {
+        guard let error = error as? AuthFileRepositoryError else {
+            return .readFailed(error.localizedDescription)
+        }
+        return switch error {
+        case .fileNotFound(let name): AuthFileError.fileNotFound(name)
+        case .invalidFileName: AuthFileError.invalidFileName
+        case .invalidJSON(let reason): AuthFileError.invalidJSON(reason)
+        case .readFailed(let reason): AuthFileError.readFailed(reason)
+        case .saveFailed(let reason): AuthFileError.saveFailed(reason)
+        case .symbolicLinkRefused: AuthFileError.symbolicLinkRefused
+        }
     }
 }
-
-// MARK: - Auth File Error
 
 enum AuthFileError: LocalizedError {
     case fileNotFound(String)
@@ -581,52 +195,40 @@ enum AuthFileError: LocalizedError {
     case invalidJSON(String)
     case readFailed(String)
     case saveFailed(String)
+    case symbolicLinkRefused
 
     var errorDescription: String? {
         switch self {
         case .fileNotFound(let name):
-            return String(format: "authFile.error.fileNotFound".localizedStatic(), name)
+            String(format: "authFile.error.fileNotFound".localizedStatic(), name)
         case .invalidFileName:
-            return "authFile.error.invalidFileName".localizedStatic()
+            "authFile.error.invalidFileName".localizedStatic()
         case .invalidJSON(let reason):
-            return String(format: "authFile.error.invalidJSON".localizedStatic(), reason)
+            String(format: "authFile.error.invalidJSON".localizedStatic(), reason)
         case .readFailed(let reason):
-            return String(format: "authFile.error.readFailed".localizedStatic(), reason)
+            String(format: "authFile.error.readFailed".localizedStatic(), reason)
         case .saveFailed(let reason):
-            return String(format: "authFile.error.saveFailed".localizedStatic(), reason)
+            String(format: "authFile.error.saveFailed".localizedStatic(), reason)
+        case .symbolicLinkRefused:
+            "authFile.error.invalidFileName".localizedStatic()
         }
     }
 }
 
-// MARK: - Auth Token Data
-
-/// Token data extracted from auth file
 nonisolated struct AuthTokenData: Sendable {
     let accessToken: String
     let refreshToken: String?
     let expiresAt: String?
     let clientId: String?
     let clientSecret: String?
-    let authMethod: String?  // "Social" (Google) or "IdC" (AWS Builder ID)
+    let authMethod: String?
     let extras: [String: String]?
-    
+
     var isExpired: Bool {
-        guard let expiresAt = expiresAt else { return false }
-        
-        // Try parsing ISO 8601 date
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        if let date = formatter.date(from: expiresAt) {
-            return date < Date()
-        }
-        
-        // Try without fractional seconds
-        formatter.formatOptions = [.withInternetDateTime]
-        if let date = formatter.date(from: expiresAt) {
-            return date < Date()
-        }
-        
-        return false
+        guard let expiresAt else { return false }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = fractional.date(from: expiresAt) ?? ISO8601DateFormatter().date(from: expiresAt)
+        return date.map { $0 < Date() } ?? false
     }
 }

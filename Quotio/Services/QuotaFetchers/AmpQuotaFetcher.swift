@@ -1,5 +1,7 @@
 import CryptoKit
 import Foundation
+import QuotioApplication
+import QuotioDomain
 
 nonisolated struct AmpNativeCredential: Sendable, Equatable {
     let apiKey: String

@@ -1,6 +1,7 @@
 import CommonCrypto
 import CryptoKit
 import Foundation
+import QuotioApplication
 import SQLite3
 
 /// Read-only access to Claude Desktop's Electron token cache. Refresh tokens are intentionally ignored.
@@ -23,9 +24,14 @@ nonisolated enum ClaudeDesktopCredentialReader {
         return cookiePaths.contains { FileManager.default.fileExists(atPath: $0) }
     }
 
-    static func load() -> ClaudeDesktopCredential? {
+    static func load(
+        externalCredentials: any ExternalCredentialReading
+    ) async -> ClaudeDesktopCredential? {
         guard hasCredentialMaterial(),
-              let passwordData = KeychainHelper.readExternalCredential(service: "Claude Safe Storage", account: "Claude Key"),
+              let passwordData = await externalCredentials.read(
+                service: "Claude Safe Storage",
+                account: "Claude Key"
+              )?.data,
               let password = String(data: passwordData, encoding: .utf8),
               let key = try? deriveKey(password),
               let organization = activeOrganization(key: key),
@@ -119,12 +125,12 @@ nonisolated enum ClaudeDesktopCredentialReader {
                 }
             }
         }
-        guard status == kCCSuccess else { throw MonitorOAuthError.invalidResponse }
+        guard status == kCCSuccess else { throw OAuthFlowFailure.invalidResponse }
         return key
     }
 
     private static func decrypt(_ encrypted: Data, key: Data) throws -> Data {
-        guard encrypted.starts(with: Data("v10".utf8)) else { throw MonitorOAuthError.invalidResponse }
+        guard encrypted.starts(with: Data("v10".utf8)) else { throw OAuthFlowFailure.invalidResponse }
         let payload = encrypted.dropFirst(3)
         let iv = Data(repeating: 0x20, count: kCCBlockSizeAES128)
         var output = Data(count: payload.count + kCCBlockSizeAES128)
@@ -151,7 +157,7 @@ nonisolated enum ClaudeDesktopCredentialReader {
                 }
             }
         }
-        guard status == kCCSuccess else { throw MonitorOAuthError.invalidResponse }
+        guard status == kCCSuccess else { throw OAuthFlowFailure.invalidResponse }
         output.count = outputLength
         return output
     }

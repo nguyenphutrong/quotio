@@ -4,6 +4,8 @@
 //
 
 import Foundation
+import QuotioApplication
+import QuotioDomain
 
 nonisolated struct CopilotQuotaSnapshot: Codable, Sendable {
     let entitlement: Int?

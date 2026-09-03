@@ -35,6 +35,7 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     func checkForUpdates()
     func startUpdatePolling()
     func stopUpdatePolling()
+    func shutdownOAuth() async
     func stopTunnel() async
     func terminateProxyOnShutdown() async
     nonisolated func cleanupTunnelOrphans()
@@ -207,8 +208,10 @@ final class AppRuntime {
         let cleanupTask = Task { @MainActor in
             async let proxy: Void = services.terminateProxyOnShutdown()
             async let tunnel: Void = services.stopTunnel()
+            async let oauth: Void = services.shutdownOAuth()
             await proxy
             await tunnel
+            await oauth
             guard !Task.isCancelled else { return }
             continuation.yield(true)
         }

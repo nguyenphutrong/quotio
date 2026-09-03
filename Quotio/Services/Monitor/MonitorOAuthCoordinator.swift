@@ -1,41 +1,93 @@
-import AppKit
 import CryptoKit
 import Foundation
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 
-actor MonitorOAuthCoordinator {
-    static let shared = MonitorOAuthCoordinator()
+actor MonitorOAuthAuthorizer: OAuthAuthorizing {
+    typealias KiroIdentityResolver = @Sendable (
+        _ accessToken: String,
+        _ expiresAt: Date,
+        _ clientID: String,
+        _ clientSecret: String,
+        _ region: String
+    ) async -> String?
 
     private let githubClientID = "Iv1.b507a08c87ecfe98"
-    private var activeTask: Task<MonitorAccount, Error>?
-    private var callbackServer: MonitorOAuthCallbackServer?
-    private var claudePending: (state: String, verifier: String)?
+    private let vault: any CredentialVault
+    private let urlOpener: any URLOpening
+    private let callbackTransport: any OAuthCallbackTransport
+    private let httpTransport: any OAuthHTTPTransport
+    private let resolveKiroIdentity: KiroIdentityResolver
+    private var activeAttemptID: OAuthAttemptID?
+    private var claudePending: (attemptID: OAuthAttemptID, state: String, verifier: String)?
+    private var persistingAttemptID: OAuthAttemptID?
+    private var persistenceWaiters: [OAuthAttemptID: [CheckedContinuation<Void, Never>]] = [:]
 
-    func login(provider: AIProvider) async throws -> MonitorAccount {
-        let task: Task<MonitorAccount, Error>
+    init(
+        vault: any CredentialVault,
+        urlOpener: any URLOpening,
+        callbackTransport: any OAuthCallbackTransport,
+        httpTransport: any OAuthHTTPTransport,
+        resolveKiroIdentity: @escaping KiroIdentityResolver
+    ) {
+        self.vault = vault
+        self.urlOpener = urlOpener
+        self.callbackTransport = callbackTransport
+        self.httpTransport = httpTransport
+        self.resolveKiroIdentity = resolveKiroIdentity
+    }
+
+    func begin(
+        request: OAuthAuthorizationRequest,
+        attemptID: OAuthAttemptID,
+        progress: @escaping @concurrent @Sendable (OAuthPrompt) async -> Void
+    ) async throws -> OAuthAuthorizationOutcome {
+        guard let provider = AIProvider(rawValue: request.providerID.rawValue) else {
+            throw OAuthFlowFailure.unsupportedProvider
+        }
+        activeAttemptID = attemptID
         switch provider {
         case .copilot:
-            task = Task { try await githubDeviceFlow() }
+            return .completed(try await githubDeviceFlow(attemptID: attemptID, progress: progress))
         case .kiro:
-            task = Task { try await kiroDeviceFlow() }
+            return .completed(try await kiroDeviceFlow(attemptID: attemptID, progress: progress))
         case .codex, .antigravity:
-            task = Task { try await browserPKCEFlow(provider: provider) }
+            return .completed(try await browserPKCEFlow(
+                provider: provider,
+                attemptID: attemptID,
+                progress: progress
+            ))
+        case .claude:
+            return try await beginClaudeLogin(attemptID: attemptID, progress: progress)
         default:
-            throw MonitorOAuthError.flowNotImplemented(provider.displayName)
+            throw OAuthFlowFailure.unsupportedProvider
         }
-        activeTask = task
-        defer { activeTask = nil }
-        return try await task.value
     }
 
-    func cancel() {
-        activeTask?.cancel()
-        activeTask = nil
-        callbackServer?.stop()
-        callbackServer = nil
+    func cancel(attemptID: OAuthAttemptID) async {
+        guard activeAttemptID == attemptID else { return }
+        activeAttemptID = nil
+        await callbackTransport.stop()
         claudePending = nil
+        await waitForPersistence(attemptID: attemptID)
     }
 
-    func beginClaudeLogin() async throws -> (url: URL, state: String) {
+    func completeManualCode(
+        _ code: String,
+        providerID: AccountProviderID,
+        attemptID: OAuthAttemptID
+    ) async throws -> Account {
+        guard providerID.rawValue == AIProvider.claude.rawValue else {
+            throw OAuthFlowFailure.unsupportedProvider
+        }
+        return try await completeClaudeLogin(code: code, attemptID: attemptID)
+    }
+
+    private func beginClaudeLogin(
+        attemptID: OAuthAttemptID,
+        progress: @escaping @concurrent @Sendable (OAuthPrompt) async -> Void
+    ) async throws -> OAuthAuthorizationOutcome {
         let state = UUID().uuidString
         let verifier = Self.randomURLSafeString(byteCount: 48)
         let challenge = Self.base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
@@ -51,19 +103,27 @@ actor MonitorOAuthCoordinator {
             URLQueryItem(name: "code_challenge_method", value: "S256"),
         ]
         guard let url = components.url,
-              await MainActor.run(body: { NSWorkspace.shared.open(url) }) else {
-            throw MonitorOAuthError.browserOpenFailed
+              await urlOpener.open(url) else {
+            throw OAuthFlowFailure.browserOpenFailed
         }
-        claudePending = (state, verifier)
-        return (url, state)
+        try ensureActive(attemptID)
+        claudePending = (attemptID, state, verifier)
+        let prompt = OAuthPrompt(authorizationURL: url)
+        await progress(prompt)
+        return .awaitingManualCode(prompt: prompt, state: state)
     }
 
-    func completeClaudeLogin(code rawCode: String) async throws -> MonitorAccount {
-        guard let pending = claudePending else { throw MonitorOAuthError.expired }
+    private func completeClaudeLogin(
+        code rawCode: String,
+        attemptID: OAuthAttemptID
+    ) async throws -> MonitorAccount {
+        guard let pending = claudePending,
+              pending.attemptID == attemptID,
+              activeAttemptID == attemptID else { throw OAuthFlowFailure.expired }
         defer { claudePending = nil }
         let pieces = rawCode.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "#", maxSplits: 1).map(String.init)
-        guard let code = pieces.first, !code.isEmpty else { throw MonitorOAuthError.invalidResponse }
-        if pieces.count == 2, pieces[1] != pending.state { throw MonitorOAuthError.stateMismatch }
+        guard let code = pieces.first, !code.isEmpty else { throw OAuthFlowFailure.invalidResponse }
+        if pieces.count == 2, pieces[1] != pending.state { throw OAuthFlowFailure.stateMismatch }
         let tokens = try await postJSON(
             url: "https://platform.claude.com/v1/oauth/token",
             body: [
@@ -75,7 +135,8 @@ actor MonitorOAuthCoordinator {
                 "state": pending.state,
             ]
         )
-        guard let accessToken = tokens["access_token"] as? String else { throw MonitorOAuthError.invalidResponse }
+        try ensureActive(attemptID)
+        guard let accessToken = tokens["access_token"] as? String else { throw OAuthFlowFailure.invalidResponse }
         let accountJSON = tokens["account"] as? [String: Any]
         let email = accountJSON?["email_address"] as? String ?? "Claude"
         let accountID = accountJSON?["uuid"] as? String
@@ -94,7 +155,8 @@ actor MonitorOAuthCoordinator {
             expiresAt: (tokens["expires_in"] as? NSNumber).map { Date().addingTimeInterval($0.doubleValue) },
             extra: [:]
         )
-        try await MonitorCredentialVault.shared.save(credential, metadata: account)
+        try await persist(credential, account: account, attemptID: attemptID)
+        activeAttemptID = nil
         return account
     }
 
@@ -109,54 +171,68 @@ actor MonitorOAuthCoordinator {
         let extraAuthorizationValues: [String: String]
     }
 
-    private func browserPKCEFlow(provider: AIProvider) async throws -> MonitorAccount {
-        let config = try browserConfiguration(provider)
-        let server = MonitorOAuthCallbackServer()
-        callbackServer = server
-        defer {
-            server.stop()
-            callbackServer = nil
-        }
-        let port = try await server.start(preferredPort: config.preferredPort)
-        let callbackHost = provider == .codex ? "localhost" : "127.0.0.1"
-        let redirectURI = "http://\(callbackHost):\(port)\(config.callbackPath)"
-        let state = UUID().uuidString
-        let verifier = Self.randomURLSafeString(byteCount: 48)
-        let challenge = Self.base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
+    private func browserPKCEFlow(
+        provider: AIProvider,
+        attemptID: OAuthAttemptID,
+        progress: @escaping @concurrent @Sendable (OAuthPrompt) async -> Void
+    ) async throws -> MonitorAccount {
+        do {
+            let config = try browserConfiguration(provider)
+            let port = try await callbackTransport.start(preferredPort: config.preferredPort)
+            try ensureActive(attemptID)
+            let callbackHost = provider == .codex ? "localhost" : "127.0.0.1"
+            let redirectURI = "http://\(callbackHost):\(port)\(config.callbackPath)"
+            let state = UUID().uuidString
+            let verifier = Self.randomURLSafeString(byteCount: 48)
+            let challenge = Self.base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
 
-        guard var components = URLComponents(string: config.authorizationURL) else {
-            throw MonitorOAuthError.invalidResponse
-        }
-        var values = config.extraAuthorizationValues
-        values.merge([
-            "client_id": config.clientID,
-            "redirect_uri": redirectURI,
-            "response_type": "code",
-            "scope": config.scopes,
-            "state": state,
-            "code_challenge": challenge,
-            "code_challenge_method": "S256",
-        ]) { _, new in new }
-        components.queryItems = values.sorted { $0.key < $1.key }.map {
-            URLQueryItem(name: $0.key, value: $0.value)
-        }
-        guard let authorizationURL = components.url else { throw MonitorOAuthError.invalidResponse }
-        guard await MainActor.run(body: { NSWorkspace.shared.open(authorizationURL) }) else {
-            throw MonitorOAuthError.browserOpenFailed
-        }
+            guard var components = URLComponents(string: config.authorizationURL) else {
+                throw OAuthFlowFailure.invalidResponse
+            }
+            var values = config.extraAuthorizationValues
+            values.merge([
+                "client_id": config.clientID,
+                "redirect_uri": redirectURI,
+                "response_type": "code",
+                "scope": config.scopes,
+                "state": state,
+                "code_challenge": challenge,
+                "code_challenge_method": "S256",
+            ]) { _, new in new }
+            components.queryItems = values.sorted { $0.key < $1.key }.map {
+                URLQueryItem(name: $0.key, value: $0.value)
+            }
+            guard let authorizationURL = components.url else { throw OAuthFlowFailure.invalidResponse }
+            guard await urlOpener.open(authorizationURL) else {
+                throw OAuthFlowFailure.browserOpenFailed
+            }
+            try ensureActive(attemptID)
+            await progress(OAuthPrompt(authorizationURL: authorizationURL))
 
-        let callback = try await server.waitForCallback()
-        let code = try Self.authorizationCode(from: callback, expectedState: state)
-        var exchange = [
-            "client_id": config.clientID,
-            "code": code,
-            "code_verifier": verifier,
-            "grant_type": "authorization_code",
-            "redirect_uri": redirectURI,
-        ]
-        if let secret = config.clientSecret { exchange["client_secret"] = secret }
-        let tokens = try await postForm(url: config.tokenURL, values: exchange)
-        return try await saveBrowserCredential(provider: provider, tokens: tokens)
+            let callback = try await callbackTransport.waitForCallback(timeout: .seconds(180))
+            try ensureActive(attemptID)
+            let code = try Self.authorizationCode(from: callback, expectedState: state)
+            var exchange = [
+                "client_id": config.clientID,
+                "code": code,
+                "code_verifier": verifier,
+                "grant_type": "authorization_code",
+                "redirect_uri": redirectURI,
+            ]
+            if let secret = config.clientSecret { exchange["client_secret"] = secret }
+            let tokens = try await postForm(url: config.tokenURL, values: exchange)
+            try ensureActive(attemptID)
+            let account = try await saveBrowserCredential(
+                provider: provider,
+                tokens: tokens,
+                attemptID: attemptID
+            )
+            await callbackTransport.stop()
+            return account
+        } catch {
+            await callbackTransport.stop()
+            throw error
+        }
     }
 
     private func browserConfiguration(_ provider: AIProvider) throws -> BrowserConfiguration {
@@ -182,7 +258,7 @@ actor MonitorOAuthCoordinator {
                 clientSecret: "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"
             )
         default:
-            throw MonitorOAuthError.flowNotImplemented(provider.displayName)
+            throw OAuthFlowFailure.unsupportedProvider
         }
     }
 
@@ -199,8 +275,12 @@ actor MonitorOAuthCoordinator {
         )
     }
 
-    private func saveBrowserCredential(provider: AIProvider, tokens: [String: Any]) async throws -> MonitorAccount {
-        guard let accessToken = tokens["access_token"] as? String else { throw MonitorOAuthError.invalidResponse }
+    private func saveBrowserCredential(
+        provider: AIProvider,
+        tokens: [String: Any],
+        attemptID: OAuthAttemptID
+    ) async throws -> MonitorAccount {
+        guard let accessToken = tokens["access_token"] as? String else { throw OAuthFlowFailure.invalidResponse }
         let idToken = tokens["id_token"] as? String
         let refreshToken = tokens["refresh_token"] as? String
         let expiresIn = (tokens["expires_in"] as? NSNumber)?.doubleValue
@@ -214,6 +294,7 @@ actor MonitorOAuthCoordinator {
             )
         } else {
             let user = try? await googleUserInfo(accessToken: accessToken)
+            try ensureActive(attemptID)
             email = email ?? user?.email
             accountID = user?.id
         }
@@ -234,49 +315,53 @@ actor MonitorOAuthCoordinator {
             expiresAt: expiresIn.map { Date().addingTimeInterval($0) },
             extra: [:]
         )
-        try await MonitorCredentialVault.shared.save(credential, metadata: account)
+        try ensureActive(attemptID)
+        try await persist(credential, account: account, attemptID: attemptID)
+        activeAttemptID = nil
         return account
     }
 
     private func googleUserInfo(accessToken: String) async throws -> (email: String?, id: String?) {
-        var request = URLRequest(url: URL(string: "https://www.googleapis.com/oauth2/v2/userinfo")!)
-        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, 200...299 ~= http.statusCode,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw MonitorOAuthError.invalidResponse
+        let response = try await httpTransport.send(OAuthHTTPRequest(
+            url: URL(string: "https://www.googleapis.com/oauth2/v2/userinfo")!,
+            headers: ["Authorization": "Bearer \(accessToken)"]
+        ))
+        guard 200...299 ~= response.statusCode,
+              let json = try? JSONSerialization.jsonObject(with: response.body) as? [String: Any] else {
+            throw OAuthFlowFailure.invalidResponse
         }
         return (json["email"] as? String, json["id"] as? String)
     }
 
-    private func githubDeviceFlow() async throws -> MonitorAccount {
+    private func githubDeviceFlow(
+        attemptID: OAuthAttemptID,
+        progress: @escaping @concurrent @Sendable (OAuthPrompt) async -> Void
+    ) async throws -> MonitorAccount {
         let device = try await postForm(
             url: "https://github.com/login/device/code",
             values: ["client_id": githubClientID, "scope": "read:user"]
         )
+        try ensureActive(attemptID)
         guard let deviceCode = device["device_code"] as? String,
               let userCode = device["user_code"] as? String,
               let verification = device["verification_uri"] as? String,
               let verificationURL = URL(string: verification) else {
-            throw MonitorOAuthError.invalidResponse
+            throw OAuthFlowFailure.invalidResponse
         }
 
-        _ = await MainActor.run { NSWorkspace.shared.open(verificationURL) }
+        _ = await urlOpener.open(verificationURL)
+        try ensureActive(attemptID)
         let interval = max(5, device["interval"] as? Int ?? 5)
         let expiresIn = device["expires_in"] as? Int ?? 900
         let deadline = Date().addingTimeInterval(TimeInterval(expiresIn))
-        await MainActor.run {
-            NotificationCenter.default.post(
-                name: .monitorOAuthDeviceCode,
-                object: nil,
-                userInfo: ["code": userCode, "url": verification]
-            )
-        }
+        await progress(OAuthPrompt(authorizationURL: verificationURL, userCode: userCode))
 
         var pollInterval = interval
         while Date() < deadline {
             try Task.checkCancellation()
+            try ensureActive(attemptID)
             try await Task.sleep(for: .seconds(pollInterval))
+            try ensureActive(attemptID)
             let response = try await postForm(
                 url: "https://github.com/login/oauth/access_token",
                 values: [
@@ -286,29 +371,35 @@ actor MonitorOAuthCoordinator {
                 ]
             )
             if let token = response["access_token"] as? String {
-                return try await saveGitHubCredential(token)
+                return try await saveGitHubCredential(token, attemptID: attemptID)
             }
             switch response["error"] as? String {
             case "authorization_pending": continue
             case "slow_down": pollInterval += 5
-            case "expired_token": throw MonitorOAuthError.expired
+            case "expired_token": throw OAuthFlowFailure.expired
             case "access_denied": throw CancellationError()
-            default: throw MonitorOAuthError.invalidResponse
+            default: throw OAuthFlowFailure.invalidResponse
             }
         }
-        throw MonitorOAuthError.expired
+        throw OAuthFlowFailure.expired
     }
 
-    private func saveGitHubCredential(_ token: String) async throws -> MonitorAccount {
-        var request = URLRequest(url: URL(string: "https://api.github.com/user")!)
-        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              200...299 ~= http.statusCode,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+    private func saveGitHubCredential(
+        _ token: String,
+        attemptID: OAuthAttemptID
+    ) async throws -> MonitorAccount {
+        let response = try await httpTransport.send(OAuthHTTPRequest(
+            url: URL(string: "https://api.github.com/user")!,
+            headers: [
+                "Authorization": "Bearer \(token)",
+                "Accept": "application/vnd.github+json",
+            ]
+        ))
+        try ensureActive(attemptID)
+        guard 200...299 ~= response.statusCode,
+              let json = try? JSONSerialization.jsonObject(with: response.body) as? [String: Any],
               let login = json["login"] as? String else {
-            throw MonitorOAuthError.invalidResponse
+            throw OAuthFlowFailure.invalidResponse
         }
         let account = MonitorAccount.make(
             provider: .copilot,
@@ -326,11 +417,16 @@ actor MonitorOAuthCoordinator {
             expiresAt: nil,
             extra: [:]
         )
-        try await MonitorCredentialVault.shared.save(credential, metadata: account)
+        try ensureActive(attemptID)
+        try await persist(credential, account: account, attemptID: attemptID)
+        activeAttemptID = nil
         return account
     }
 
-    private func kiroDeviceFlow() async throws -> MonitorAccount {
+    private func kiroDeviceFlow(
+        attemptID: OAuthAttemptID,
+        progress: @escaping @concurrent @Sendable (OAuthPrompt) async -> Void
+    ) async throws -> MonitorAccount {
         let region = "us-east-1"
         let base = "https://oidc.\(region).amazonaws.com"
         let registration = try await postJSON(
@@ -341,9 +437,10 @@ actor MonitorOAuthCoordinator {
                 "scopes": ["codewhisperer:completions", "codewhisperer:analysis", "codewhisperer:conversations"],
             ]
         )
+        try ensureActive(attemptID)
         guard let clientID = registration["clientId"] as? String,
               let clientSecret = registration["clientSecret"] as? String else {
-            throw MonitorOAuthError.invalidResponse
+            throw OAuthFlowFailure.invalidResponse
         }
         let device = try await postJSON(
             url: "\(base)/device_authorization",
@@ -353,25 +450,23 @@ actor MonitorOAuthCoordinator {
                 "startUrl": "https://view.awsapps.com/start",
             ]
         )
+        try ensureActive(attemptID)
         guard let deviceCode = device["deviceCode"] as? String,
               let userCode = device["userCode"] as? String,
               let verification = (device["verificationUriComplete"] as? String) ?? (device["verificationUri"] as? String),
               let verificationURL = URL(string: verification) else {
-            throw MonitorOAuthError.invalidResponse
+            throw OAuthFlowFailure.invalidResponse
         }
-        _ = await MainActor.run { NSWorkspace.shared.open(verificationURL) }
-        await MainActor.run {
-            NotificationCenter.default.post(
-                name: .monitorOAuthDeviceCode,
-                object: nil,
-                userInfo: ["code": userCode, "url": verification]
-            )
-        }
+        _ = await urlOpener.open(verificationURL)
+        try ensureActive(attemptID)
+        await progress(OAuthPrompt(authorizationURL: verificationURL, userCode: userCode))
         var interval = max(5, device["interval"] as? Int ?? 5)
         let deadline = Date().addingTimeInterval(TimeInterval(device["expiresIn"] as? Int ?? 600))
         while Date() < deadline {
             try Task.checkCancellation()
+            try ensureActive(attemptID)
             try await Task.sleep(for: .seconds(interval))
+            try ensureActive(attemptID)
             let result: [String: Any]
             do {
                 result = try await postJSON(
@@ -383,24 +478,26 @@ actor MonitorOAuthCoordinator {
                         "grantType": "urn:ietf:params:oauth:grant-type:device_code",
                     ]
                 )
-            } catch MonitorOAuthError.provider(let code) where code == "authorization_pending" {
+            } catch OAuthFlowFailure.provider(let code) where code == "authorization_pending" {
                 continue
-            } catch MonitorOAuthError.provider(let code) where code == "slow_down" {
+            } catch OAuthFlowFailure.provider(let code) where code == "slow_down" {
                 interval += 5
                 continue
             }
+            try ensureActive(attemptID)
             guard let accessToken = result["accessToken"] as? String,
                   let refreshToken = result["refreshToken"] as? String else {
-                throw MonitorOAuthError.invalidResponse
+                throw OAuthFlowFailure.invalidResponse
             }
             let expiresAt = Date().addingTimeInterval(TimeInterval(result["expiresIn"] as? Int ?? 3600))
-            let identity = await KiroQuotaFetcher().authenticatedAccountIdentity(
-                accessToken: accessToken,
-                expiresAt: expiresAt,
-                clientID: clientID,
-                clientSecret: clientSecret,
-                region: region
+            let identity = await resolveKiroIdentity(
+                accessToken,
+                expiresAt,
+                clientID,
+                clientSecret,
+                region
             )
+            try ensureActive(attemptID)
             let accountKey = Self.kiroAccountKey(identity: identity, clientID: clientID)
             let account = MonitorAccount.make(
                 provider: .kiro,
@@ -423,10 +520,11 @@ actor MonitorOAuthCoordinator {
                     "region": region,
                 ]
             )
-            try await MonitorCredentialVault.shared.save(credential, metadata: account)
+            try await persist(credential, account: account, attemptID: attemptID)
+            activeAttemptID = nil
             return account
         }
-        throw MonitorOAuthError.expired
+        throw OAuthFlowFailure.expired
     }
 
     nonisolated static func kiroAccountKey(identity: String?, clientID: String) -> String {
@@ -437,42 +535,93 @@ actor MonitorOAuthCoordinator {
     }
 
     private func postJSON(url: String, body: [String: Any]) async throws -> [String: Any] {
-        guard let endpoint = URL(string: url) else { throw MonitorOAuthError.invalidResponse }
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw MonitorOAuthError.invalidResponse
+        guard let endpoint = URL(string: url) else { throw OAuthFlowFailure.invalidResponse }
+        let response = try await httpTransport.send(OAuthHTTPRequest(
+            url: endpoint,
+            method: "POST",
+            headers: ["Content-Type": "application/json"],
+            body: try JSONSerialization.data(withJSONObject: body)
+        ))
+        guard let json = try? JSONSerialization.jsonObject(with: response.body) as? [String: Any] else {
+            throw OAuthFlowFailure.invalidResponse
         }
-        guard 200...299 ~= http.statusCode else {
-            throw MonitorOAuthError.provider(
-                (json["error"] as? String) ?? (json["errorCode"] as? String) ?? "http_\(http.statusCode)"
+        guard 200...299 ~= response.statusCode else {
+            throw OAuthFlowFailure.provider(
+                (json["error"] as? String) ?? (json["errorCode"] as? String) ?? "http_\(response.statusCode)"
             )
         }
         return json
     }
 
     private func postForm(url: String, values: [String: String]) async throws -> [String: Any] {
-        guard let endpoint = URL(string: url) else { throw MonitorOAuthError.invalidResponse }
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = values
+        guard let endpoint = URL(string: url) else { throw OAuthFlowFailure.invalidResponse }
+        let body = values
             .map { "\($0.key.monitorFormEncoded)=\($0.value.monitorFormEncoded)" }
             .sorted()
             .joined(separator: "&")
             .data(using: .utf8)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              200...299 ~= http.statusCode,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw MonitorOAuthError.invalidResponse
+        let response = try await httpTransport.send(OAuthHTTPRequest(
+            url: endpoint,
+            method: "POST",
+            headers: [
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+            ],
+            body: body
+        ))
+        guard 200...299 ~= response.statusCode,
+              let json = try? JSONSerialization.jsonObject(with: response.body) as? [String: Any] else {
+            throw OAuthFlowFailure.invalidResponse
         }
         return json
+    }
+
+    private func ensureActive(_ attemptID: OAuthAttemptID) throws {
+        guard activeAttemptID == attemptID else { throw CancellationError() }
+    }
+
+    private func persist(
+        _ credential: MonitorOAuthCredential,
+        account: MonitorAccount,
+        attemptID: OAuthAttemptID
+    ) async throws {
+        let previousAccount = await vault.accounts().first { $0.id == account.id }
+        let previousCredential = await vault.credential(for: account.id)
+        try ensureActive(attemptID)
+        persistingAttemptID = attemptID
+
+        do {
+            try await vault.save(credential, metadata: account)
+            guard activeAttemptID == attemptID else {
+                if let previousAccount, let previousCredential {
+                    try await vault.save(previousCredential, metadata: previousAccount)
+                } else {
+                    await vault.delete(accountID: account.id)
+                }
+                finishPersistence(attemptID: attemptID)
+                throw CancellationError()
+            }
+            finishPersistence(attemptID: attemptID)
+        } catch {
+            finishPersistence(attemptID: attemptID)
+            throw error
+        }
+    }
+
+    private func waitForPersistence(attemptID: OAuthAttemptID) async {
+        guard persistingAttemptID == attemptID else { return }
+        await withCheckedContinuation { continuation in
+            persistenceWaiters[attemptID, default: []].append(continuation)
+        }
+    }
+
+    private func finishPersistence(attemptID: OAuthAttemptID) {
+        guard persistingAttemptID == attemptID else { return }
+        persistingAttemptID = nil
+        let waiters = persistenceWaiters.removeValue(forKey: attemptID) ?? []
+        for waiter in waiters {
+            waiter.resume()
+        }
     }
 
     nonisolated private static func randomURLSafeString(byteCount: Int) -> String {
@@ -482,10 +631,10 @@ actor MonitorOAuthCoordinator {
     nonisolated static func authorizationCode(from callback: URL, expectedState: String) throws -> String {
         guard let values = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems,
               values.first(where: { $0.name == "state" })?.value == expectedState else {
-            throw MonitorOAuthError.stateMismatch
+            throw OAuthFlowFailure.stateMismatch
         }
         guard let code = values.first(where: { $0.name == "code" })?.value, !code.isEmpty else {
-            throw MonitorOAuthError.invalidResponse
+            throw OAuthFlowFailure.invalidResponse
         }
         return code
     }
@@ -495,30 +644,6 @@ actor MonitorOAuthCoordinator {
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
-    }
-}
-
-extension Notification.Name {
-    static let monitorOAuthDeviceCode = Notification.Name("MonitorOAuth.deviceCode")
-}
-
-nonisolated enum MonitorOAuthError: LocalizedError {
-    case flowNotImplemented(String)
-    case invalidResponse
-    case expired
-    case stateMismatch
-    case browserOpenFailed
-    case provider(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .flowNotImplemented(let provider): "Quotio-managed login for \(provider) is not available yet. Sign in with the provider's native CLI and refresh Monitor Only."
-        case .invalidResponse: "The OAuth provider returned an invalid response."
-        case .expired: "The device authorization expired. Please try again."
-        case .stateMismatch: "The OAuth callback state did not match the login request."
-        case .browserOpenFailed: "Quotio could not open the OAuth page in your browser."
-        case .provider(let code): "The OAuth provider returned \(code)."
-        }
     }
 }
 

@@ -69,7 +69,7 @@ final class AuthFileTransferTests: XCTestCase {
                 content: Data(#"{"token":"replacement"}"#.utf8)
             )
             XCTFail("Expected a symbolic-link destination to be rejected")
-        } catch MonitorRuntimeError.symbolicLinkRefused {
+        } catch AuthFileError.symbolicLinkRefused {
             // Expected.
         } catch {
             XCTFail("Unexpected error: \(error)")

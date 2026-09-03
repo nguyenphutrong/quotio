@@ -1,26 +1,20 @@
 import CryptoKit
 import Foundation
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 
-nonisolated enum MonitorAccountSource: String, Codable, Sendable, CaseIterable {
-    case quotioKeychain
-    case nativeCredential
-    case legacyCLIProxy
-    case localIDE
-    case apiKey
+typealias MonitorAccountSource = QuotioDomain.AccountSource
+typealias MonitorAccount = QuotioDomain.Account
+typealias MonitorCredentialStore = QuotioApplication.CredentialVault
+typealias MonitorOAuthCredential = QuotioApplication.StoredCredential
 
-    var priority: Int {
-        switch self {
-        case .quotioKeychain: 300
-        case .nativeCredential, .localIDE, .apiKey: 200
-        case .legacyCLIProxy: 100
-        }
-    }
-
-    var displayName: String {
+extension QuotioDomain.AccountSource {
+    nonisolated var displayName: String {
         localizationKey.localizedStatic()
     }
 
-    var localizationKey: String {
+    nonisolated var localizationKey: String {
         switch self {
         case .quotioKeychain: "monitor.source.quotio"
         case .nativeCredential: "monitor.source.localLogin"
@@ -31,22 +25,39 @@ nonisolated enum MonitorAccountSource: String, Codable, Sendable, CaseIterable {
     }
 }
 
-nonisolated struct MonitorAccount: Identifiable, Codable, Hashable, Sendable {
-    let id: String
-    let provider: AIProvider
-    let accountKey: String
-    let displayName: String
-    let source: MonitorAccountSource
-    let credentialReference: String?
-    let canDelete: Bool
-    var isDisabled: Bool
-
-    var deduplicationKey: String {
-        let identity = accountKey.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return "\(provider.rawValue):\(identity)"
+extension QuotioDomain.Account {
+    nonisolated var provider: AIProvider {
+        guard let provider = AIProvider(rawValue: providerID.rawValue) else {
+            preconditionFailure("Unsupported account provider: \(providerID.rawValue)")
+        }
+        return provider
     }
 
-    static func make(
+    nonisolated init(
+        id: String,
+        provider: AIProvider,
+        accountKey: String,
+        displayName: String,
+        source: MonitorAccountSource,
+        credentialReference: String?,
+        canDelete: Bool,
+        isDisabled: Bool
+    ) {
+        self.init(
+            identity: AccountIdentity(
+                id: id,
+                providerID: AccountProviderID(rawValue: provider.rawValue),
+                accountKey: accountKey
+            ),
+            displayName: displayName,
+            source: source,
+            credentialReference: credentialReference,
+            capabilities: canDelete ? [.disable, .delete] : [.disable],
+            status: isDisabled ? .disabled : .unknown
+        )
+    }
+
+    nonisolated static func make(
         provider: AIProvider,
         accountKey: String,
         displayName: String? = nil,
@@ -55,21 +66,18 @@ nonisolated struct MonitorAccount: Identifiable, Codable, Hashable, Sendable {
         canDelete: Bool = false,
         isDisabled: Bool = false
     ) -> MonitorAccount {
-        let normalized = accountKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let idSeed = "\(provider.rawValue)|\(normalized.lowercased())"
-        return MonitorAccount(
-            id: "monitor-" + MonitorIdentity.fingerprint(idSeed),
-            provider: provider,
-            accountKey: normalized,
-            displayName: displayName?.nilIfBlank ?? normalized,
+        Account.make(
+            providerID: AccountProviderID(rawValue: provider.rawValue),
+            accountKey: accountKey,
+            displayName: displayName,
             source: source,
             credentialReference: credentialReference,
-            canDelete: canDelete,
-            isDisabled: isDisabled
+            capabilities: canDelete ? [.disable, .delete] : [.disable],
+            status: isDisabled ? .disabled : .unknown
         )
     }
 
-    static func makeLegacy(_ file: DirectAuthFile) -> MonitorAccount {
+    nonisolated static func makeLegacy(_ file: DirectAuthFile) -> MonitorAccount {
         let accountKey: String
         if file.provider == .codex || file.provider == .copilot {
             accountKey = file.menuBarAccountKey
@@ -106,138 +114,83 @@ nonisolated protocol MonitorProviderRuntime: Sendable {
     func refresh(force: Bool) async -> [String: ProviderQuotaData]
 }
 
-nonisolated protocol MonitorCredentialStore: Sendable {
-    func accounts() async -> [MonitorAccount]
-    func credential(for accountID: String) async -> MonitorOAuthCredential?
-    func reloadLatest(accountID: String) async -> MonitorOAuthCredential?
-    func save(_ credential: MonitorOAuthCredential, metadata: MonitorAccount) async throws
-    func delete(accountID: String) async
+nonisolated enum MonitorAccountMigrationBridge {
+    static let metadataRepository = FileAccountMetadataRepository()
+    static let credentialVault = CredentialVaultService(
+        dataStore: KeychainCredentialDataStore(
+            service: AppIdentity.keychainService(suffix: "monitor-auth"),
+            legacyServices: AppIdentity.legacyKeychainServices(suffix: "monitor-auth"),
+            canMigrateLegacy: AppIdentity.isProduction,
+            protectedStore: YubiKeyCredentialDataStore()
+        ),
+        metadataRepository: metadataRepository
+    )
 }
 
-nonisolated struct MonitorOAuthCredential: Codable, Sendable {
-    var accessToken: String
-    var refreshToken: String?
-    var idToken: String?
-    var accountID: String?
-    var expiresAt: Date?
-    var extra: [String: String]
-}
-
+/// Compatibility façade retained until the quota adapters move in Phase 7.
 actor MonitorCredentialVault: MonitorCredentialStore {
     static let shared = MonitorCredentialVault()
 
-    private let metadata: MonitorMetadataStore
-    private var loadedGenerations: [String: String] = [:]
+    private let vault: any CredentialVault
 
-    init(metadata: MonitorMetadataStore = .shared) {
-        self.metadata = metadata
+    init(vault: any CredentialVault = MonitorAccountMigrationBridge.credentialVault) {
+        self.vault = vault
     }
 
     func accounts() async -> [MonitorAccount] {
-        await metadata.accounts()
+        await vault.accounts()
     }
 
-    func credential(for accountID: String) -> MonitorOAuthCredential? {
-        guard let data = KeychainHelper.getMonitorCredential(account: accountID) else { return nil }
-        loadedGenerations[accountID] = MonitorIdentity.fingerprint(data.base64EncodedString())
-        return try? JSONDecoder().decode(MonitorOAuthCredential.self, from: data)
+    func credential(for accountID: String) async -> MonitorOAuthCredential? {
+        await vault.credential(for: accountID)
     }
 
-    func reloadLatest(accountID: String) -> MonitorOAuthCredential? {
-        credential(for: accountID)
+    func reloadLatest(accountID: String) async -> MonitorOAuthCredential? {
+        await vault.reloadLatest(accountID: accountID)
     }
 
     func save(_ credential: MonitorOAuthCredential, metadata account: MonitorAccount) async throws {
-        let data = try JSONEncoder().encode(credential)
-        let saved: Bool
-        if let expected = loadedGenerations[account.id] {
-            saved = KeychainHelper.compareAndSwapMonitorCredential(
-                data,
-                account: account.id,
-                expectedFingerprint: expected
-            )
-        } else {
-            saved = KeychainHelper.saveMonitorCredential(data, account: account.id)
-        }
-        guard saved else {
-            throw MonitorRuntimeError.credentialWriteFailed
-        }
-        loadedGenerations[account.id] = MonitorIdentity.fingerprint(data.base64EncodedString())
-        try await self.metadata.saveAccount(account)
+        try await vault.save(credential, metadata: account)
     }
 
     func delete(accountID: String) async {
-        KeychainHelper.deleteMonitorCredential(account: accountID)
-        loadedGenerations.removeValue(forKey: accountID)
-        try? await metadata.deleteAccount(accountID)
+        await vault.delete(accountID: accountID)
     }
 }
 
+/// Compatibility façade retained until account discovery moves with quota adapters.
 actor MonitorMetadataStore {
     static let shared = MonitorMetadataStore()
 
-    private struct Payload: Codable {
-        var accounts: [MonitorAccount] = []
-        var disabledAccountIDs: Set<String> = []
-    }
-
-    private let url: URL
+    private let repository: any AccountMetadataRepository
 
     init(url: URL? = nil) {
-        self.url = url ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Quotio/Monitor/accounts-v1.json")
+        repository = url.map(FileAccountMetadataRepository.init(url:))
+            ?? MonitorAccountMigrationBridge.metadataRepository
     }
 
-    func accounts() -> [MonitorAccount] { load().accounts }
-    func disabledAccountIDs() -> Set<String> { load().disabledAccountIDs }
-
-    func saveAccount(_ account: MonitorAccount) throws {
-        var payload = load()
-        payload.accounts.removeAll { $0.id == account.id }
-        payload.accounts.append(account)
-        try save(payload)
+    init(repository: any AccountMetadataRepository) {
+        self.repository = repository
     }
 
-    func deleteAccount(_ accountID: String) throws {
-        var payload = load()
-        payload.accounts.removeAll { $0.id == accountID }
-        payload.disabledAccountIDs.remove(accountID)
-        try save(payload)
+    func accounts() async -> [MonitorAccount] {
+        await repository.accounts()
     }
 
-    func setDisabled(_ disabled: Bool, accountID: String) throws {
-        var payload = load()
-        if disabled { payload.disabledAccountIDs.insert(accountID) }
-        else { payload.disabledAccountIDs.remove(accountID) }
-        try save(payload)
+    func disabledAccountIDs() async -> Set<String> {
+        await repository.disabledAccountIDs()
     }
 
-    private func load() -> Payload {
-        guard let data = try? Data(contentsOf: url) else { return Payload() }
-        if let payload = try? JSONDecoder().decode(Payload.self, from: data) {
-            return payload
-        }
-
-        // Drop persisted Gemini CLI accounts after direct provider support is removed.
-        guard var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let accounts = object["accounts"] as? [[String: Any]] else { return Payload() }
-        let removedIDs = Set(accounts.compactMap { account in
-            account["provider"] as? String == "gemini-cli" ? account["id"] as? String : nil
-        })
-        guard !removedIDs.isEmpty else { return Payload() }
-
-        object["accounts"] = accounts.filter { $0["provider"] as? String != "gemini-cli" }
-        if let disabledIDs = object["disabledAccountIDs"] as? [String] {
-            object["disabledAccountIDs"] = disabledIDs.filter { !removedIDs.contains($0) }
-        }
-        guard let migratedData = try? JSONSerialization.data(withJSONObject: object),
-              let payload = try? JSONDecoder().decode(Payload.self, from: migratedData) else { return Payload() }
-        try? save(payload)
-        return payload
+    func saveAccount(_ account: MonitorAccount) async throws {
+        try await repository.saveAccount(account)
     }
 
-    private func save(_ payload: Payload) throws {
-        try SecureAtomicFileWriter.write(try JSONEncoder().encode(payload), to: url)
+    func deleteAccount(_ accountID: String) async throws {
+        try await repository.deleteAccount(accountID)
+    }
+
+    func setDisabled(_ disabled: Bool, accountID: String) async throws {
+        try await repository.setDisabled(disabled, accountID: accountID)
     }
 }
 
@@ -246,22 +199,18 @@ actor MonitorSnapshotStore {
         var quotas: [String: [String: ProviderQuotaData]]
     }
 
-    private let url: URL
+    private let dataStore: any AccountSnapshotDataStore
 
     init(url: URL? = nil) {
-        if let url {
-            self.url = url
-        } else {
-            let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            self.url = base
-                .appendingPathComponent("Quotio", isDirectory: true)
-                .appendingPathComponent("Monitor", isDirectory: true)
-                .appendingPathComponent("snapshots-v1.json")
-        }
+        dataStore = FileAccountSnapshotDataStore(url: url)
     }
 
-    func load() -> [AIProvider: [String: ProviderQuotaData]] {
-        guard let data = try? Data(contentsOf: url),
+    init(dataStore: any AccountSnapshotDataStore) {
+        self.dataStore = dataStore
+    }
+
+    func load() async -> [AIProvider: [String: ProviderQuotaData]] {
+        guard let data = try? await dataStore.read(),
               let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
             return [:]
         }
@@ -272,13 +221,13 @@ actor MonitorSnapshotStore {
         }
     }
 
-    func store(_ quotas: [AIProvider: [String: ProviderQuotaData]]) {
+    func store(_ quotas: [AIProvider: [String: ProviderQuotaData]]) async {
         let encoded = quotas.reduce(into: [String: [String: ProviderQuotaData]]()) {
             $0[$1.key.rawValue] = $1.value
         }
         guard let data = try? JSONEncoder().encode(Payload(quotas: encoded)) else { return }
         do {
-            try SecureAtomicFileWriter.write(data, to: url)
+            try await dataStore.write(data)
         } catch {
             Log.quota("Failed to persist Monitor snapshot: \(error.localizedDescription)")
         }
@@ -294,8 +243,8 @@ actor MonitorSnapshotStore {
     ///
     /// - Returns: `true` when an entry was found and the file was rewritten.
     @discardableResult
-    func removeAccount(provider: AIProvider, accountKey: String) -> Bool {
-        var quotas = load()
+    func removeAccount(provider: AIProvider, accountKey: String) async -> Bool {
+        var quotas = await load()
         guard var accountQuotas = quotas[provider] else { return false }
 
         // Match the identity Monitor itself dedupes on (`MonitorAccount.deduplicationKey`):
@@ -315,7 +264,7 @@ actor MonitorSnapshotStore {
         } else {
             quotas[provider] = accountQuotas
         }
-        store(quotas)
+        await store(quotas)
         return true
     }
 }
@@ -326,19 +275,22 @@ nonisolated protocol MonitorAccountDiscovering: Sendable {
     func disabledAccountIDs() async -> Set<String>
 }
 
-actor MonitorAccountDiscovery: MonitorAccountDiscovering {
+actor MonitorAccountDiscovery: MonitorAccountDiscovering, AccountDiscovering {
     private let vault: MonitorCredentialStore
     private let directAuthService: DirectAuthFileService
     private let metadata: MonitorMetadataStore
+    private let externalCredentials: any ExternalCredentialReading
 
     init(
         vault: MonitorCredentialStore = MonitorCredentialVault.shared,
         directAuthService: DirectAuthFileService = DirectAuthFileService(),
-        metadata: MonitorMetadataStore = .shared
+        metadata: MonitorMetadataStore = .shared,
+        externalCredentials: any ExternalCredentialReading = ExternalKeychainCredentialReader()
     ) {
         self.vault = vault
         self.directAuthService = directAuthService
         self.metadata = metadata
+        self.externalCredentials = externalCredentials
     }
 
     func discover() async -> [MonitorAccount] {
@@ -346,12 +298,16 @@ actor MonitorAccountDiscovery: MonitorAccountDiscovering {
         let codexAliases = Self.codexAliases(from: legacyFiles)
         var candidates = await canonicalizeCodexAccounts(await vault.accounts(), aliases: codexAliases)
         candidates.append(contentsOf: await discoverNativeFiles(codexAliases: codexAliases))
-        candidates.append(contentsOf: discoverNativeKeychains(codexAliases: codexAliases))
+        candidates.append(contentsOf: await discoverNativeKeychains(codexAliases: codexAliases))
         let legacy = legacyFiles.map(MonitorAccount.makeLegacy)
         candidates.append(contentsOf: legacy)
 
         let disabled = await metadata.disabledAccountIDs()
         return Self.selectPreferred(candidates, disabledIDs: disabled)
+    }
+
+    func discoverAccounts() async -> [Account] {
+        await discover()
     }
 
     nonisolated static func selectPreferred(
@@ -459,7 +415,7 @@ actor MonitorAccountDiscovery: MonitorAccountDiscovering {
         }
         accounts.append(contentsOf: discoverCopilotFiles())
         accounts.append(contentsOf: discoverKiroFile())
-        accounts.append(contentsOf: discoverFactoryDroidCredential())
+        accounts.append(contentsOf: await discoverFactoryDroidCredential())
         accounts.append(contentsOf: discoverAmpCredential())
         accounts.append(contentsOf: discoverDevinCredential())
         accounts.append(contentsOf: discoverGrokCredentials())
@@ -476,8 +432,10 @@ actor MonitorAccountDiscovery: MonitorAccountDiscovering {
         return accounts
     }
 
-    private func discoverFactoryDroidCredential() -> [MonitorAccount] {
-        guard let credential = FactoryDroidCredentialReader.load() else { return [] }
+    private func discoverFactoryDroidCredential() async -> [MonitorAccount] {
+        guard let credential = await FactoryDroidCredentialReader.load(
+            externalCredentials: externalCredentials
+        ) else { return [] }
         return [FactoryDroidQuotaFetcher.localAccount(for: credential)]
     }
 
@@ -570,9 +528,9 @@ actor MonitorAccountDiscovery: MonitorAccountDiscovering {
         return [.make(provider: .kiro, accountKey: key, source: .nativeCredential, credentialReference: path)]
     }
 
-    private func discoverNativeKeychains(codexAliases: [String: String]) -> [MonitorAccount] {
+    private func discoverNativeKeychains(codexAliases: [String: String]) async -> [MonitorAccount] {
         var accounts: [MonitorAccount] = []
-        if let data = KeychainHelper.readExternalCredential(service: "Codex Auth"),
+        if let data = await externalCredentials.read(service: "Codex Auth", account: nil)?.data,
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let tokens = json["tokens"] as? [String: Any],
            (tokens["access_token"] as? String)?.isEmpty == false {
@@ -583,7 +541,10 @@ actor MonitorAccountDiscovery: MonitorAccountDiscovering {
             let account = MonitorAccount.make(provider: .codex, accountKey: email, source: .nativeCredential, credentialReference: "keychain:Codex Auth")
             accounts.append(Self.canonicalizeCodexAccount(account, accountID: accountID, aliases: codexAliases))
         }
-        if let data = KeychainHelper.readExternalCredential(service: "Claude Code-credentials"),
+        if let data = await externalCredentials.read(
+            service: "Claude Code-credentials",
+            account: nil
+        )?.data,
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let oauth = json["claudeAiOauth"] as? [String: Any],
            (oauth["accessToken"] as? String)?.isEmpty == false {

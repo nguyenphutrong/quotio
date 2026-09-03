@@ -6,17 +6,11 @@
 //
 
 import Foundation
-import LocalAuthentication
 import Security
 
 // MARK: - Keychain Helper
 
 enum KeychainHelper {
-    nonisolated enum MonitorCredentialBackend: Equatable {
-        case keychain
-        case vault
-    }
-
     nonisolated private static let securityLock = NSRecursiveLock()
     nonisolated private static var localService: String {
         AppIdentity.keychainService(suffix: "local-management")
@@ -28,10 +22,6 @@ enum KeychainHelper {
     private static let warpTokensAccount = "warp-tokens"
     private static let localManagementDefaultsKey = "managementKey"
     private static let warpTokensDefaultsKey = "warpTokens"
-    nonisolated private static var monitorAuthService: String {
-        AppIdentity.keychainService(suffix: "monitor-auth")
-    }
-
     // Legacy service names for keychain migration (newest first)
     nonisolated private static var legacyLocalServices: [String] {
         AppIdentity.legacyKeychainServices(suffix: "local-management")
@@ -39,10 +29,6 @@ enum KeychainHelper {
     nonisolated private static var legacyWarpServices: [String] {
         AppIdentity.legacyKeychainServices(suffix: "warp")
     }
-    nonisolated private static var legacyMonitorAuthServices: [String] {
-        AppIdentity.legacyKeychainServices(suffix: "monitor-auth")
-    }
-
     static func saveLocalManagementKey(_ key: String) -> Bool {
         guard let data = key.data(using: .utf8) else { return false }
         let saved = saveData(data, service: localService, account: localManagementAccount)
@@ -122,137 +108,6 @@ enum KeychainHelper {
             }
         }
         UserDefaults.standard.removeObject(forKey: warpTokensDefaultsKey)
-    }
-
-    // MARK: - Monitor-only credentials
-
-    nonisolated static func saveMonitorCredential(_ data: Data, account: String) -> Bool {
-        saveData(data, service: monitorAuthService, account: account)
-    }
-
-    nonisolated static func getMonitorCredential(account: String) -> Data? {
-        if let data = readData(service: monitorAuthService, account: account) {
-            return data
-        }
-        guard AppIdentity.isProduction else { return nil }
-        return migrateData(from: legacyMonitorAuthServices, to: monitorAuthService, account: account)
-    }
-
-    nonisolated static func deleteMonitorCredential(account: String) {
-        deleteData(service: monitorAuthService, account: account)
-        if AppIdentity.isProduction {
-            for legacy in legacyMonitorAuthServices {
-                deleteData(service: legacy, account: account)
-            }
-        }
-    }
-
-    nonisolated static func compareAndSwapMonitorCredential(
-        _ data: Data,
-        account: String,
-        expectedFingerprint: String
-    ) -> Bool {
-        guard let current = getMonitorCredential(account: account),
-              MonitorIdentity.fingerprint(current.base64EncodedString()) == expectedFingerprint else {
-            return false
-        }
-        if monitorCredentialBackend(vaultEnabled: YubiKeySecretVault.isEnabled) == .vault {
-            return YubiKeySecretVault.save(data, service: monitorAuthService, account: account)
-        }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: monitorAuthService,
-            kSecAttrAccount as String: account,
-        ]
-        return performSecurityCall {
-            SecItemUpdate(
-                query as CFDictionary,
-                [kSecValueData as String: data] as CFDictionary
-            )
-        } == errSecSuccess
-    }
-
-    nonisolated static func monitorCredentialBackend(vaultEnabled: Bool) -> MonitorCredentialBackend {
-        vaultEnabled ? .vault : .keychain
-    }
-
-    /// Read a credential owned by another local CLI/app without mutating it.
-    nonisolated static func readExternalCredential(service: String, account: String? = nil) -> Data? {
-        readExternalCredentialRecord(service: service, account: account)?.data
-    }
-
-    nonisolated static func readExternalCredentialRecord(
-        service: String,
-        account: String? = nil
-    ) -> (data: Data, account: String)? {
-        let query = externalCredentialQuery(service: service, account: account)
-
-        var result: AnyObject?
-        let status = performNonInteractiveSecurityCall {
-            SecItemCopyMatching(query as CFDictionary, &result)
-        }
-        if status == errSecSuccess,
-           let item = result as? [String: Any],
-           let data = item[kSecValueData as String] as? Data,
-           let resolvedAccount = item[kSecAttrAccount as String] as? String {
-            return (data, resolvedAccount)
-        }
-        if status != errSecItemNotFound && status != errSecInteractionNotAllowed && status != errSecAuthFailed {
-            Log.keychain("External keychain read failed (service: \(service)): \(status)")
-        }
-        return nil
-    }
-
-    nonisolated static func externalCredentialQuery(service: String, account: String? = nil) -> [String: Any] {
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecReturnData as String: true,
-            kSecReturnAttributes as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecUseAuthenticationContext as String: context,
-        ]
-        if let account, !account.isEmpty {
-            query[kSecAttrAccount as String] = account
-        }
-        return query
-    }
-
-    /// Update a known writable credential source after an OAuth refresh.
-    nonisolated static func writeExternalCredential(_ data: Data, service: String, account: String) -> Bool {
-        saveData(data, service: service, account: account)
-    }
-
-    nonisolated static func compareAndSwapExternalCredential(
-        service: String,
-        account: String,
-        expectedData: Data,
-        newData: Data
-    ) -> Bool {
-        guard readExternalCredentialRecord(service: service, account: account)?.data == expectedData else {
-            return false
-        }
-        let query = externalCredentialUpdateQuery(service: service, account: account)
-        let status = performNonInteractiveSecurityCall {
-            SecItemUpdate(
-                query as CFDictionary,
-                [kSecValueData as String: newData] as CFDictionary
-            )
-        }
-        return status == errSecSuccess
-    }
-
-    nonisolated static func externalCredentialUpdateQuery(service: String, account: String) -> [String: Any] {
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        return [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecUseAuthenticationContext as String: context,
-        ]
     }
 
     nonisolated private static func migrateData(from oldServices: [String], to newService: String, account: String) -> Data? {
@@ -424,30 +279,4 @@ enum KeychainHelper {
         return operation()
     }
 
-    /// Run a keychain call against a credential owned by another app without letting
-    /// securityd show a password dialog.
-    ///
-    /// `LAContext.interactionNotAllowed` only governs the data-protection keychain. Items
-    /// written by other tools (Claude Code, Codex CLI) live in the legacy login keychain,
-    /// where access is enforced by securityd's ACL and partition-list checks. Those checks
-    /// ignore the `LAContext` flag and raise the "wants to access key ... in your keychain"
-    /// prompt whenever this app is not on the item's allow list. The allow list is reset
-    /// every time the owning tool rewrites the item (token refresh, account switch), so
-    /// "Always Allow" cannot stick and the prompt returns on the next background refresh.
-    ///
-    /// The only supported way to make that path fail silently is the process-wide
-    /// `SecKeychainSetUserInteractionAllowed(false)`, which turns the prompt into
-    /// `errSecAuthFailed` / `errSecInteractionNotAllowed`. The flag is global, so it is only
-    /// flipped while `securityLock` is held and is restored before the lock is released.
-    nonisolated private static func performNonInteractiveSecurityCall(
-        _ operation: () -> OSStatus
-    ) -> OSStatus {
-        performSecurityCall {
-            var previous: DarwinBoolean = true
-            SecKeychainGetUserInteractionAllowed(&previous)
-            SecKeychainSetUserInteractionAllowed(false)
-            defer { SecKeychainSetUserInteractionAllowed(previous.boolValue) }
-            return operation()
-        }
-    }
 }

@@ -1,6 +1,9 @@
 import CryptoKit
 import Darwin
 import Foundation
+import QuotioApplication
+import QuotioDomain
+import QuotioInfrastructure
 
 nonisolated struct FactoryDroidCredential: Sendable, Equatable {
     let accessToken: String
@@ -17,7 +20,17 @@ nonisolated enum FactoryDroidCredentialReader {
     static let credentialsDirectory = "~/.factory"
 
     static func load(directory: URL? = nil) -> FactoryDroidCredential? {
-        load(directory: directory, keychainKey: factoryCLIEncryptionKey())
+        load(directory: directory, keychainKey: nil)
+    }
+
+    static func load(
+        externalCredentials: any ExternalCredentialReading,
+        directory: URL? = nil
+    ) async -> FactoryDroidCredential? {
+        load(
+            directory: directory,
+            keychainKey: await factoryCLIEncryptionKey(using: externalCredentials)
+        )
     }
 
     static func load(directory: URL?, keychainKey: Data?) -> FactoryDroidCredential? {
@@ -69,7 +82,8 @@ nonisolated enum FactoryDroidCredentialReader {
         sourcePath: String,
         expectedRefreshToken: String,
         accessToken: String,
-        refreshToken: String?
+        refreshToken: String?,
+        keychainKey: Data? = nil
     ) throws -> Bool {
         let credentialsURL = URL(fileURLWithPath: sourcePath)
         if let values = try? credentialsURL.resourceValues(forKeys: [.isSymbolicLinkKey]),
@@ -81,7 +95,7 @@ nonisolated enum FactoryDroidCredentialReader {
             let keyData: Data? = if credentialsURL.lastPathComponent == "auth.v2.file" {
                 try? Data(contentsOf: credentialsURL.deletingLastPathComponent().appendingPathComponent("auth.v2.key"))
             } else {
-                factoryCLIEncryptionKey()
+                keychainKey
             }
 
             let cleartext: Data
@@ -117,7 +131,11 @@ nonisolated enum FactoryDroidCredentialReader {
         }
     }
 
-    static func canPersistRefresh(sourcePath: String, expectedRefreshToken: String) -> Bool {
+    static func canPersistRefresh(
+        sourcePath: String,
+        expectedRefreshToken: String,
+        keychainKey: Data? = nil
+    ) -> Bool {
         let credentialsURL = URL(fileURLWithPath: sourcePath)
         let credentialsDirectory = credentialsURL.deletingLastPathComponent()
         if let values = try? credentialsURL.resourceValues(forKeys: [.isSymbolicLinkKey]),
@@ -134,7 +152,7 @@ nonisolated enum FactoryDroidCredentialReader {
         let keyData: Data? = if credentialsURL.lastPathComponent == "auth.v2.file" {
             try? Data(contentsOf: credentialsURL.deletingLastPathComponent().appendingPathComponent("auth.v2.key"))
         } else {
-            factoryCLIEncryptionKey()
+            keychainKey
         }
         guard let encrypted = String(data: storedData, encoding: .utf8),
               let key = normalizedKey(keyData),
@@ -263,10 +281,22 @@ nonisolated enum FactoryDroidCredentialReader {
         }
     }
 
-    private static func factoryCLIEncryptionKey() -> Data? {
-        KeychainHelper.readExternalCredential(service: "Factory CLI", account: "auth-encryption-key-security-cli")
-            ?? KeychainHelper.readExternalCredential(service: "Factory CLI")
-            ?? KeychainHelper.readExternalCredential(service: "Factory CLI", account: "auth-encryption-key")
+    static func factoryCLIEncryptionKey(
+        using externalCredentials: any ExternalCredentialReading
+    ) async -> Data? {
+        if let data = await externalCredentials.read(
+            service: "Factory CLI",
+            account: "auth-encryption-key-security-cli"
+        )?.data {
+            return data
+        }
+        if let data = await externalCredentials.read(service: "Factory CLI", account: nil)?.data {
+            return data
+        }
+        return await externalCredentials.read(
+            service: "Factory CLI",
+            account: "auth-encryption-key"
+        )?.data
     }
 
     private static func normalizedKey(_ data: Data?) -> Data? {
@@ -470,6 +500,7 @@ actor FactoryDroidQuotaFetcher {
 
     private let vault: MonitorCredentialStore
     private let metadata: MonitorMetadataStore
+    private let externalCredentials: any ExternalCredentialReading
     private var session: URLSession
     private var pendingLocalCredentials: [String: (credential: FactoryDroidCredential, replacedRefreshToken: String)] = [:]
     private let limitsURL = URL(string: "https://api.factory.ai/api/billing/limits")!
@@ -478,10 +509,12 @@ actor FactoryDroidQuotaFetcher {
 
     init(
         vault: MonitorCredentialStore = MonitorCredentialVault.shared,
-        metadata: MonitorMetadataStore = .shared
+        metadata: MonitorMetadataStore = .shared,
+        externalCredentials: any ExternalCredentialReading = ExternalKeychainCredentialReader()
     ) {
         self.vault = vault
         self.metadata = metadata
+        self.externalCredentials = externalCredentials
         session = URLSession(configuration: ProxyConfigurationService.createProxiedConfigurationStatic(timeout: 15))
     }
 
@@ -493,7 +526,9 @@ actor FactoryDroidQuotaFetcher {
         var results: [String: ProviderQuotaData] = [:]
         let disabledAccountIDs = await metadata.disabledAccountIDs()
 
-        if let localCredential = FactoryDroidCredentialReader.load() {
+        if let localCredential = await FactoryDroidCredentialReader.load(
+            externalCredentials: externalCredentials
+        ) {
             let account = Self.localAccount(for: localCredential)
             if !disabledAccountIDs.contains(account.id),
                let quota = await fetch(localCredential: localCredential) {
@@ -513,7 +548,9 @@ actor FactoryDroidQuotaFetcher {
     /// Fetches quota using only the local or vaulted credential matching `accountKey`.
     func fetchQuota(accountKey: String) async -> ProviderQuotaData? {
         let disabledAccountIDs = await metadata.disabledAccountIDs()
-        if let localCredential = FactoryDroidCredentialReader.load() {
+        if let localCredential = await FactoryDroidCredentialReader.load(
+            externalCredentials: externalCredentials
+        ) {
             let account = Self.localAccount(for: localCredential)
             if account.accountKey == accountKey && !disabledAccountIDs.contains(account.id) {
                 return await fetch(localCredential: localCredential)
@@ -570,11 +607,15 @@ actor FactoryDroidQuotaFetcher {
         if let pending = pendingLocalCredentials[credential.sourcePath] {
             if credential.refreshToken == pending.replacedRefreshToken {
                 credential = pending.credential
+                let keychainKey = await FactoryDroidCredentialReader.factoryCLIEncryptionKey(
+                    using: externalCredentials
+                )
                 if (try? FactoryDroidCredentialReader.persistRefresh(
                     sourcePath: credential.sourcePath,
                     expectedRefreshToken: pending.replacedRefreshToken,
                     accessToken: credential.accessToken,
-                    refreshToken: credential.refreshToken
+                    refreshToken: credential.refreshToken,
+                    keychainKey: keychainKey
                 )) == true {
                     pendingLocalCredentials.removeValue(forKey: credential.sourcePath)
                 }
@@ -602,11 +643,15 @@ actor FactoryDroidQuotaFetcher {
     }
 
     private func refresh(_ credential: FactoryDroidCredential) async -> FactoryDroidCredential? {
-        guard let refreshToken = credential.refreshToken,
-              FactoryDroidCredentialReader.canPersistRefresh(
-                sourcePath: credential.sourcePath,
-                expectedRefreshToken: refreshToken
-              ) else { return nil }
+        guard let refreshToken = credential.refreshToken else { return nil }
+        let keychainKey = await FactoryDroidCredentialReader.factoryCLIEncryptionKey(
+            using: externalCredentials
+        )
+        guard FactoryDroidCredentialReader.canPersistRefresh(
+            sourcePath: credential.sourcePath,
+            expectedRefreshToken: refreshToken,
+            keychainKey: keychainKey
+        ) else { return nil }
         let request = Self.makeRefreshRequest(
             refreshToken: refreshToken,
             organizationID: credential.activeOrganizationID,
@@ -630,7 +675,8 @@ actor FactoryDroidQuotaFetcher {
                 sourcePath: credential.sourcePath,
                 expectedRefreshToken: refreshToken,
                 accessToken: refreshed.accessToken,
-                refreshToken: refreshed.refreshToken
+                refreshToken: refreshed.refreshToken,
+                keychainKey: keychainKey
             )
             if !persisted {
                 pendingLocalCredentials[credential.sourcePath] = (updatedCredential, refreshToken)

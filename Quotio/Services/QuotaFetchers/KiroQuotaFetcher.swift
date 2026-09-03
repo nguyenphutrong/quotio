@@ -9,6 +9,8 @@
 import Foundation
 import CommonCrypto
 import IOKit
+import QuotioApplication
+import QuotioDomain
 
 // MARK: - Kiro Response Models
 

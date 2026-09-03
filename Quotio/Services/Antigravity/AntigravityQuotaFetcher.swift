@@ -4,6 +4,8 @@
 //
 
 import Foundation
+import QuotioApplication
+import QuotioDomain
 import SwiftUI
 
 // MARK: - Models

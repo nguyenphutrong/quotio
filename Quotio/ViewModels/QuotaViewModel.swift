@@ -6,6 +6,7 @@
 import Foundation
 import AppKit
 import Observation
+import QuotioApplication
 import QuotioDomain
 import QuotioPresentation
 import SwiftUI
@@ -14,7 +15,8 @@ import SwiftUI
 @Observable
 final class QuotaViewModel {
     let proxyManager: ProxyScreenModel
-    @ObservationIgnored private let proxyAuthService: LegacyProxyAuthService
+    let accountsScreenModel: AccountsScreenModel
+    let oauthScreenModel: OAuthScreenModel
     @ObservationIgnored private let authWorkaroundService = LegacyAntigravityAuthWorkaroundService()
     @ObservationIgnored private var _apiClient: ManagementAPIClient?
     
@@ -30,8 +32,8 @@ final class QuotaViewModel {
     @ObservationIgnored private let grokFetcher = GrokQuotaFetcher()
     @ObservationIgnored private let openRouterFetcher = OpenRouterQuotaFetcher()
     @ObservationIgnored private let ampFetcher = AmpQuotaFetcher()
-    @ObservationIgnored private let directAuthService = DirectAuthFileService()
-    @ObservationIgnored private let monitorCoordinator = MonitorRefreshCoordinator()
+    @ObservationIgnored private let directAuthService: DirectAuthFileService
+    @ObservationIgnored private let monitorCoordinator: MonitorRefreshCoordinator
     @ObservationIgnored private let notificationManager = NotificationManager.shared
     @ObservationIgnored private let modeManager = OperatingModeManager.shared
     @ObservationIgnored private let refreshSettings = RefreshSettingsManager.shared
@@ -90,7 +92,9 @@ final class QuotaViewModel {
         }
     }
     var errorMessage: String?
-    var oauthState: OAuthState?
+    var oauthState: OAuthState? {
+        OAuthState(oauthScreenModel.state)
+    }
 
     /// OAuth launch mode for controlling browser behavior
     enum OAuthLaunchMode {
@@ -103,8 +107,12 @@ final class QuotaViewModel {
     @ObservationIgnored var quotaDataDidChangeHandler: (@MainActor () -> Void)?
     
     /// Direct auth files for quota-only mode
-    var directAuthFiles: [DirectAuthFile] = []
-    var monitorAccounts: [MonitorAccount] = []
+    var directAuthFiles: [DirectAuthFile] {
+        accountsScreenModel.authFiles.compactMap(DirectAuthFile.init)
+    }
+    var monitorAccounts: [MonitorAccount] {
+        accountsScreenModel.accounts
+    }
     var monitorIssues: [AIProvider: MonitorRefreshIssue] = [:]
     var monitorAccountIssues: [QuotaAccountID: MonitorRefreshIssue] = [:]
 
@@ -278,9 +286,18 @@ final class QuotaViewModel {
         notifyQuotaDataChanged()
     }
 
-    init(proxyManager: ProxyScreenModel) {
+    init(
+        proxyManager: ProxyScreenModel,
+        accountsScreenModel: AccountsScreenModel,
+        oauthScreenModel: OAuthScreenModel,
+        directAuthService: DirectAuthFileService,
+        monitorCoordinator: MonitorRefreshCoordinator
+    ) {
         self.proxyManager = proxyManager
-        self.proxyAuthService = LegacyProxyAuthService(proxy: proxyManager)
+        self.accountsScreenModel = accountsScreenModel
+        self.oauthScreenModel = oauthScreenModel
+        self.directAuthService = directAuthService
+        self.monitorCoordinator = monitorCoordinator
         loadPersistedIDEQuotas()
         setupRefreshCadenceCallback()
         setupWarmupCallback()
@@ -409,7 +426,7 @@ final class QuotaViewModel {
             _apiClient = nil
         }
         let bootstrap = await monitorCoordinator.bootstrap()
-        monitorAccounts = bootstrap.accounts
+        accountsScreenModel.replaceAccounts(bootstrap.accounts)
         monitorIssues = bootstrap.issues
         providerQuotas = bootstrap.quotas
 
@@ -453,25 +470,29 @@ final class QuotaViewModel {
     
     /// Load auth files directly from filesystem
     func loadDirectAuthFiles() async {
-        directAuthFiles = await directAuthService.scanAllAuthFiles()
+        await accountsScreenModel.reloadAuthFiles()
         if modeManager.isMonitorMode {
-            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            accountsScreenModel.replaceAccounts(
+                await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            )
         }
     }
 
     func setMonitorAccountDisabled(_ disabled: Bool, accountID: String) async {
-        await monitorCoordinator.setDisabled(disabled, accountID: accountID)
+        await accountsScreenModel.setDisabled(disabled, accountID: accountID)
         if disabled, let account = monitorAccounts.first(where: { $0.id == accountID }) {
             providerQuotas[account.provider]?.removeValue(forKey: account.accountKey)
             await monitorCoordinator.finish(quotas: providerQuotas)
         }
-        monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+        accountsScreenModel.replaceAccounts(
+            await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+        )
         syncMenuBarSelection()
     }
 
     func deleteMonitorAccount(accountID: String) async {
         guard let account = monitorAccounts.first(where: { $0.id == accountID }), account.canDelete else { return }
-        await monitorCoordinator.deleteOwnedAccount(accountID: accountID)
+        try? await accountsScreenModel.delete(accountID: accountID)
         removeQuotaEntry(provider: account.provider, accountKey: account.accountKey)
 
         // Drop the entry from the persisted Monitor snapshot directly. Rewriting the
@@ -488,7 +509,9 @@ final class QuotaViewModel {
 
         if modeManager.isMonitorMode {
             await monitorCoordinator.finish(quotas: providerQuotas)
-            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            accountsScreenModel.replaceAccounts(
+                await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            )
         }
         syncMenuBarSelection()
     }
@@ -518,7 +541,9 @@ final class QuotaViewModel {
 
         if modeManager.isMonitorMode {
             await monitorCoordinator.finish(quotas: providerQuotas)
-            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            accountsScreenModel.replaceAccounts(
+                await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            )
         }
         syncMenuBarSelection()
         notifyQuotaDataChanged()
@@ -587,54 +612,25 @@ final class QuotaViewModel {
         guard provider != .amp || trimmedLabel.caseInsensitiveCompare(AmpQuotaFetcher.localAccountKey) != .orderedSame else {
             throw MonitorRuntimeError.invalidCredential
         }
-
-        let account: MonitorAccount
-        if let existingAccountID,
-           let existing = monitorAccounts.first(where: { $0.id == existingAccountID && $0.provider == provider }) {
-            guard !monitorAccounts.contains(where: {
-                $0.id != existing.id
-                    && $0.provider == provider
-                    && $0.accountKey.caseInsensitiveCompare(trimmedLabel) == .orderedSame
-            }) else { throw MonitorRuntimeError.invalidCredential }
-            account = MonitorAccount(
-                id: existing.id,
-                provider: existing.provider,
-                accountKey: trimmedLabel,
-                displayName: trimmedLabel,
-                source: existing.source,
-                credentialReference: existing.credentialReference,
-                canDelete: existing.canDelete,
-                isDisabled: existing.isDisabled
-            )
-            _ = await MonitorCredentialVault.shared.credential(for: existing.id)
-            if existing.accountKey != trimmedLabel {
-                providerQuotas[provider]?.removeValue(forKey: existing.accountKey)
-            }
-        } else {
-            guard !monitorAccounts.contains(where: {
-                $0.provider == provider && $0.accountKey.caseInsensitiveCompare(trimmedLabel) == .orderedSame
-            }) else { throw MonitorRuntimeError.invalidCredential }
-            account = .make(
-                provider: provider,
-                accountKey: trimmedLabel,
-                source: .quotioKeychain,
-                credentialReference: "keychain",
-                canDelete: true
-            )
+        let previousKey = existingAccountID.flatMap { id in
+            monitorAccounts.first(where: { $0.id == id && $0.provider == provider })?.accountKey
         }
-
-        try await MonitorCredentialVault.shared.save(
-            MonitorOAuthCredential(
-                accessToken: trimmedKey,
-                refreshToken: nil,
-                idToken: nil,
-                accountID: nil,
-                expiresAt: nil,
-                extra: [:]
-            ),
-            metadata: account
+        do {
+            try await accountsScreenModel.saveAPIKey(
+                providerID: AccountProviderID(rawValue: provider.rawValue),
+                label: trimmedLabel,
+                apiKey: trimmedKey,
+                existingAccountID: existingAccountID
+            )
+        } catch is AccountServiceFailure {
+            throw MonitorRuntimeError.invalidCredential
+        }
+        if let previousKey, previousKey != trimmedLabel {
+            providerQuotas[provider]?.removeValue(forKey: previousKey)
+        }
+        accountsScreenModel.replaceAccounts(
+            await monitorCoordinator.discoverAccounts(merging: providerQuotas)
         )
-        monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
         await refreshQuotasDirectly(force: true)
     }
     
@@ -815,7 +811,9 @@ final class QuotaViewModel {
         // snapshot is persisted, so the menu bar matches the Providers screen (#163).
         await refreshImportedIDEQuotas()
 
-        monitorAccounts = await coordinator.discoverAccounts(merging: providerQuotas)
+        accountsScreenModel.replaceAccounts(
+            await coordinator.discoverAccounts(merging: providerQuotas)
+        )
         removeDisabledMonitorQuotas()
         monitorIssues = await coordinator.currentIssues()
         await coordinator.finish(quotas: providerQuotas)
@@ -1471,7 +1469,7 @@ final class QuotaViewModel {
     }
     
     func stopProxy() {
-        proxyAuthService.terminate()
+        cancelOAuth()
         refreshTask?.cancel()
         refreshTask = nil
 
@@ -2089,7 +2087,9 @@ final class QuotaViewModel {
         lastQuotaRefreshTime = Date()
 
         if modeManager.isMonitorMode {
-            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            accountsScreenModel.replaceAccounts(
+                await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            )
             removeDisabledMonitorQuotas()
             monitorIssues = await monitorCoordinator.currentIssues()
             await monitorCoordinator.finish(quotas: providerQuotas)
@@ -2223,241 +2223,28 @@ final class QuotaViewModel {
     }
 
     func startOAuth(for provider: AIProvider, authMethod: AuthCommand? = nil, launchMode: OAuthLaunchMode = .manual) async {
-        if modeManager.isMonitorMode {
-            await startMonitorOAuth(for: provider)
-            return
-        }
-
-        // GitHub Copilot uses Device Code Flow via CLI binary, not Management API
-        if provider == .copilot {
-            await startCopilotAuth()
-            return
-        }
-        
-        // Kiro uses CLI-based auth with multiple options
-        if provider == .kiro {
-            await startKiroAuth(method: authMethod ?? .kiroGoogleLogin)
-            return
-        }
-
-        guard let client = apiClient else {
-            oauthState = OAuthState(provider: provider, status: .error, error: "Proxy not running. Please start the proxy first.")
-            return
-        }
-
-        oauthState = OAuthState(provider: provider, status: .waiting)
-        
-        do {
-            let response = try await client.getOAuthURL(for: provider)
-            
-            guard response.status == "ok", let urlString = response.url, let state = response.state else {
-                oauthState = OAuthState(provider: provider, status: .error, error: response.error)
-                return
-            }
-            
-            // Store URL for copy/open buttons
-            oauthState = OAuthState(provider: provider, status: .polling, state: state, authURL: urlString)
-            
-            // Auto-open browser if launchMode is .autoOpen
-            if launchMode == .autoOpen, let url = URL(string: urlString) {
-                NSWorkspace.shared.open(url)
-            }
-            
-            await pollOAuthStatus(state: state, provider: provider)
-            
-        } catch {
-            oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
-        }
-    }
-
-    private func startMonitorOAuth(for provider: AIProvider) async {
-        oauthState = OAuthState(provider: provider, status: .waiting)
-        if provider == .claude {
-            do {
-                let pending = try await MonitorOAuthCoordinator.shared.beginClaudeLogin()
-                oauthState = OAuthState(
-                    provider: provider,
-                    status: .polling,
-                    state: pending.state,
-                    authURL: pending.url.absoluteString
-                )
-            } catch {
-                oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
-            }
-            return
-        }
-        let observer = NotificationCenter.default.addObserver(
-            forName: .monitorOAuthDeviceCode,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            let code = notification.userInfo?["code"] as? String
-            let url = notification.userInfo?["url"] as? String
-            Task { @MainActor [weak self] in
-                self?.oauthState = OAuthState(
-                    provider: provider,
-                    status: .polling,
-                    state: code,
-                    error: code.map { String(format: "oauth.enterDeviceCode".localized(), $0) },
-                    authURL: url
-                )
-            }
-        }
-        defer { NotificationCenter.default.removeObserver(observer) }
-
-        do {
-            _ = try await MonitorOAuthCoordinator.shared.login(provider: provider)
-            oauthState = OAuthState(provider: provider, status: .success)
-            await refreshQuotasDirectly(force: true)
-        } catch is CancellationError {
-            oauthState = nil
-        } catch {
-            oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
-        }
+        await oauthScreenModel.start(OAuthAuthorizationRequest(
+            providerID: AccountProviderID(rawValue: provider.rawValue),
+            method: OAuthAuthorizationMethod(authMethod),
+            automaticallyOpensBrowser: launchMode == .autoOpen
+        ))
     }
 
     func completeMonitorOAuthCode(_ code: String, provider: AIProvider) async {
         guard modeManager.isMonitorMode, provider == .claude else { return }
-        oauthState = OAuthState(provider: provider, status: .waiting)
-        do {
-            _ = try await MonitorOAuthCoordinator.shared.completeClaudeLogin(code: code)
-            oauthState = OAuthState(provider: provider, status: .success)
+        await oauthScreenModel.completeManualCode(code)
+    }
+
+    func refreshAfterOAuthSuccess() async {
+        if modeManager.isMonitorMode {
             await refreshQuotasDirectly(force: true)
-        } catch {
-            oauthState = OAuthState(provider: provider, status: .error, error: error.localizedDescription)
-        }
-    }
-    
-    /// Start GitHub Copilot authentication using Device Code Flow
-    private func startCopilotAuth() async {
-        oauthState = OAuthState(provider: .copilot, status: .waiting)
-        
-        let result = await proxyAuthService.run(.copilotLogin)
-        
-        if result.success {
-            if let deviceCode = result.deviceCode {
-                oauthState = OAuthState(provider: .copilot, status: .polling, state: deviceCode, error: result.message)
-            } else {
-                oauthState = OAuthState(provider: .copilot, status: .polling, error: result.message)
-            }
-            
-            await pollCopilotAuthCompletion()
         } else {
-            oauthState = OAuthState(provider: .copilot, status: .error, error: result.message)
-        }
-    }
-    
-    private func startKiroAuth(method: AuthCommand) async {
-        oauthState = OAuthState(provider: .kiro, status: .waiting)
-        
-        let result = await proxyAuthService.run(method)
-        
-        if result.success {
-            // Check if it's an import - simply wait and refresh, don't poll for new files (files might already exist)
-            if method == .kiroImport {
-                oauthState = OAuthState(provider: .kiro, status: .polling, error: "Importing quotas...")
-
-                // Allow some time for file operations
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-
-                let refreshedCount = await kiroFetcher.refreshAllTokensIfNeeded()
-                if refreshedCount > 0 {
-                    Log.quota("[Kiro] Refreshed \(refreshedCount) token(s) after import")
-                }
-
-                await refreshData()
-
-                // For import, we assume success if the command succeeded
-                oauthState = OAuthState(provider: .kiro, status: .success)
-                return
-            }
-            
-            // For other methods (login), poll for new auth files
-            if let deviceCode = result.deviceCode {
-                oauthState = OAuthState(provider: .kiro, status: .polling, state: deviceCode, error: result.message)
-            } else {
-                oauthState = OAuthState(provider: .kiro, status: .polling, error: result.message)
-            }
-            
-            await pollKiroAuthCompletion()
-        } else {
-            oauthState = OAuthState(provider: .kiro, status: .error, error: result.message)
-        }
-    }
-    
-    /// Poll for Copilot auth completion by monitoring auth files
-    private func pollCopilotAuthCompletion() async {
-        let startFileCount = authFiles.filter { $0.provider == "github-copilot" || $0.provider == "copilot" }.count
-        
-        for _ in 0..<90 {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            
             await refreshData()
-            
-            let currentFileCount = authFiles.filter { $0.provider == "github-copilot" || $0.provider == "copilot" }.count
-            if currentFileCount > startFileCount {
-                oauthState = OAuthState(provider: .copilot, status: .success)
-                return
-            }
         }
-        
-        oauthState = OAuthState(provider: .copilot, status: .error, error: "Authentication timeout")
     }
-    
-    private func pollKiroAuthCompletion() async {
-        let startFileCount = authFiles.filter { $0.provider == "kiro" }.count
 
-        for _ in 0..<90 {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-            await refreshData()
-
-            let currentFileCount = authFiles.filter { $0.provider == "kiro" }.count
-            if currentFileCount > startFileCount {
-                let refreshedCount = await kiroFetcher.refreshAllTokensIfNeeded()
-                if refreshedCount > 0 {
-                    Log.quota("[Kiro] Refreshed \(refreshedCount) token(s) after login")
-                }
-                await refreshData()
-                oauthState = OAuthState(provider: .kiro, status: .success)
-                return
-            }
-        }
-
-        oauthState = OAuthState(provider: .kiro, status: .error, error: "Authentication timeout")
-    }
-    
-    private func pollOAuthStatus(state: String, provider: AIProvider) async {
-        guard let client = apiClient else { return }
-        
-        for _ in 0..<60 {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            
-            do {
-                let response = try await client.pollOAuthStatus(state: state)
-                
-                switch response.status {
-                case "ok":
-                    oauthState = OAuthState(provider: provider, status: .success)
-                    await refreshData()
-                    return
-                case "error":
-                    oauthState = OAuthState(provider: provider, status: .error, error: response.error)
-                    return
-                default:
-                    continue
-                }
-            } catch {
-                continue
-            }
-        }
-        
-        oauthState = OAuthState(provider: provider, status: .error, error: "OAuth timeout")
-    }
-    
     func cancelOAuth() {
-        Task { await MonitorOAuthCoordinator.shared.cancel() }
-        oauthState = nil
+        Task { await oauthScreenModel.cancel() }
     }
     
     func deleteAuthFile(_ file: AuthFile) async {
@@ -2874,7 +2661,9 @@ final class QuotaViewModel {
         savePersistedIDEQuotas()
 
         if modeManager.isMonitorMode {
-            monitorAccounts = await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            accountsScreenModel.replaceAccounts(
+                await monitorCoordinator.discoverAccounts(merging: providerQuotas)
+            )
             removeDisabledMonitorQuotas()
         }
 
@@ -2988,11 +2777,83 @@ final class QuotaViewModel {
 struct OAuthState {
     let provider: AIProvider
     var status: OAuthStatus
-    var state: String?
-    var error: String?
-    var authURL: String?
+    var state: String? = nil
+    var error: String? = nil
+    var authURL: String? = nil
+
+    init?(_ flowState: OAuthFlowState) {
+        let providerID: AccountProviderID
+        let prompt: OAuthPrompt?
+        switch flowState {
+        case .idle:
+            return nil
+        case .authorizing(let id):
+            providerID = id
+            prompt = nil
+            status = .waiting
+        case .awaitingUser(let id, let value):
+            providerID = id
+            prompt = value
+            status = .polling
+        case .awaitingManualCode(let id, let value, let manualState):
+            providerID = id
+            prompt = value
+            state = manualState
+            status = .polling
+        case .succeeded(let id, _):
+            providerID = id
+            prompt = nil
+            status = .success
+        case .failed(let id, let failure):
+            providerID = id
+            prompt = nil
+            status = .error
+            error = failure.displayMessage
+        }
+        guard let provider = AIProvider(rawValue: providerID.rawValue) else { return nil }
+        self.provider = provider
+        state = state ?? prompt?.userCode
+        authURL = prompt?.authorizationURL?.absoluteString
+        if error == nil {
+            error = prompt?.message
+                ?? prompt?.userCode.map { String(format: "oauth.enterDeviceCode".localizedStatic(), $0) }
+        }
+    }
     
     enum OAuthStatus {
         case waiting, polling, success, error
+    }
+}
+
+private extension OAuthAuthorizationMethod {
+    init(_ command: AuthCommand?) {
+        self = switch command {
+        case .kiroGoogleLogin: .kiroGoogle
+        case .kiroAWSLogin: .kiroAWSDeviceCode
+        case .kiroAWSAuthCode: .kiroAWSBrowser
+        case .kiroImport: .kiroImport
+        default: .providerDefault
+        }
+    }
+}
+
+private extension OAuthFlowFailure {
+    var displayMessage: String {
+        switch self {
+        case .unsupportedProvider:
+            "Quotio-managed login is not available for this provider."
+        case .invalidResponse:
+            "The OAuth provider returned an invalid response."
+        case .expired:
+            "The device authorization expired. Please try again."
+        case .stateMismatch:
+            "The OAuth callback state did not match the login request."
+        case .browserOpenFailed:
+            "Quotio could not open the OAuth page in your browser."
+        case .provider(let message):
+            message
+        case .unknown:
+            "The OAuth request failed. Please try again."
+        }
     }
 }

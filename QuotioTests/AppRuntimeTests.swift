@@ -70,6 +70,7 @@ final class AppRuntimeTests: XCTestCase {
         XCTAssertTrue(completedCleanly)
         XCTAssertTrue(runtime.hasShutDown)
         XCTAssertEqual(services.stopUpdatePollingCount, 1)
+        XCTAssertEqual(services.shutdownOAuthCount, 1)
         XCTAssertEqual(services.stopTunnelCount, 1)
         XCTAssertEqual(services.proxyTerminationCount, 1)
     }
@@ -130,6 +131,7 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
     private(set) var foregroundUpdateCheckCount = 0
     private(set) var startUpdatePollingCount = 0
     private(set) var stopUpdatePollingCount = 0
+    private(set) var shutdownOAuthCount = 0
     private(set) var stopTunnelCount = 0
 
     private let proxyTerminations = LockedCounter()
@@ -197,6 +199,10 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
 
     func stopUpdatePolling() {
         stopUpdatePollingCount += 1
+    }
+
+    func shutdownOAuth() async {
+        shutdownOAuthCount += 1
     }
 
     func stopTunnel() async {

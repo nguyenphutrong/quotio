@@ -112,7 +112,7 @@ struct DashboardScreen: View {
         .sheet(item: $selectedProvider) { provider in
             OAuthSheet(provider: provider) {
                 selectedProvider = nil
-                viewModel.oauthState = nil
+                viewModel.cancelOAuth()
                 Task {
                     if modeManager.isMonitorMode {
                         await viewModel.manualRefresh()
@@ -446,7 +446,7 @@ struct DashboardScreen: View {
             if provider == .vertex {
                 isImporterPresented = true
             } else {
-                viewModel.oauthState = nil
+                viewModel.cancelOAuth()
                 selectedProvider = provider
             }
         }
@@ -515,7 +515,7 @@ struct DashboardScreen: View {
                             if provider == .vertex {
                                 isImporterPresented = true
                             } else {
-                                viewModel.oauthState = nil
+                                viewModel.cancelOAuth()
                                 selectedProvider = provider
                             }
                         } label: {

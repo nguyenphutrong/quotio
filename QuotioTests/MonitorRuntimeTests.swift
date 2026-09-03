@@ -1,38 +1,13 @@
 import CryptoKit
 import LocalAuthentication
+import QuotioApplication
+import QuotioInfrastructure
 import Security
 import SQLite3
 import XCTest
 @testable import Quotio
 
 final class MonitorRuntimeTests: XCTestCase {
-    func testMonitorCredentialCASUsesActiveVaultBackend() {
-        XCTAssertEqual(KeychainHelper.monitorCredentialBackend(vaultEnabled: true), .vault)
-        XCTAssertEqual(KeychainHelper.monitorCredentialBackend(vaultEnabled: false), .keychain)
-    }
-
-    func testMonitorCredentialCASDoesNotOverwriteNewerCredential() throws {
-        try XCTSkipIf(
-            YubiKeySecretVault.isEnabled,
-            "Requires the Keychain backend; disable the YubiKey vault in Settings to run."
-        )
-        let account = "cas-test-\(UUID().uuidString)"
-        let original = Data("original".utf8)
-        let newer = Data("newer".utf8)
-        defer { KeychainHelper.deleteMonitorCredential(account: account) }
-
-        XCTAssertTrue(KeychainHelper.saveMonitorCredential(original, account: account))
-        let originalFingerprint = MonitorIdentity.fingerprint(original.base64EncodedString())
-        XCTAssertTrue(KeychainHelper.saveMonitorCredential(newer, account: account))
-
-        XCTAssertFalse(KeychainHelper.compareAndSwapMonitorCredential(
-            Data("stale replacement".utf8),
-            account: account,
-            expectedFingerprint: originalFingerprint
-        ))
-        XCTAssertEqual(KeychainHelper.getMonitorCredential(account: account), newer)
-    }
-
     func testVaultMigrationOnlyFallsBackWhenEnvelopeIsAbsent() {
         XCTAssertTrue(YubiKeySecretVault.shouldMigrateLegacy(.absent))
         XCTAssertFalse(YubiKeySecretVault.shouldMigrateLegacy(.unreadable))
@@ -193,8 +168,14 @@ final class MonitorRuntimeTests: XCTestCase {
     }
 
     func testExternalCredentialOperationsDoNotAllowAuthenticationUI() {
-        let readQuery = KeychainHelper.externalCredentialQuery(service: "fixture.external", account: "fixture-account")
-        let updateQuery = KeychainHelper.externalCredentialUpdateQuery(service: "fixture.external", account: "fixture-account")
+        let readQuery = ExternalKeychainCredentialReader.readQuery(
+            service: "fixture.external",
+            account: "fixture-account"
+        )
+        let updateQuery = ExternalKeychainCredentialReader.updateQuery(
+            service: "fixture.external",
+            account: "fixture-account"
+        )
 
         XCTAssertEqual(readQuery[kSecAttrService as String] as? String, "fixture.external")
         XCTAssertEqual(readQuery[kSecAttrAccount as String] as? String, "fixture-account")
@@ -212,17 +193,23 @@ final class MonitorRuntimeTests: XCTestCase {
     /// login keychain ignores `LAContext.interactionNotAllowed` and would otherwise show the
     /// "wants to access key" password dialog. The flag is process-global, so it must also be
     /// restored once the call returns or every later keychain operation would fail silently.
-    func testExternalCredentialReadRestoresProcessInteractionFlag() {
+    func testExternalCredentialReadRestoresProcessInteractionFlag() async {
         var before: DarwinBoolean = false
         XCTAssertEqual(SecKeychainGetUserInteractionAllowed(&before), errSecSuccess)
 
-        XCTAssertNil(KeychainHelper.readExternalCredential(service: "fixture.external.missing.\(UUID().uuidString)"))
-        XCTAssertFalse(KeychainHelper.compareAndSwapExternalCredential(
+        let reader = ExternalKeychainCredentialReader()
+        let missingCredential = await reader.read(
+            service: "fixture.external.missing.\(UUID().uuidString)",
+            account: nil
+        )
+        let didReplaceMissingCredential = await reader.compareAndSwap(
             service: "fixture.external.missing.\(UUID().uuidString)",
             account: "fixture-account",
             expectedData: Data(),
             newData: Data("unused".utf8)
-        ))
+        )
+        XCTAssertNil(missingCredential)
+        XCTAssertFalse(didReplaceMissingCredential)
 
         var after: DarwinBoolean = false
         XCTAssertEqual(SecKeychainGetUserInteractionAllowed(&after), errSecSuccess)
@@ -1456,7 +1443,13 @@ final class MonitorRuntimeTests: XCTestCase {
             let metadataURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .appendingPathComponent("accounts.json")
-            let vault = MonitorCredentialVault(metadata: MonitorMetadataStore(url: metadataURL))
+            let vault = CredentialVaultService(
+                dataStore: KeychainCredentialDataStore(
+                    service: "quotio-tests-monitor-auth-\(UUID().uuidString)",
+                    canMigrateLegacy: false
+                ),
+                metadataRepository: FileAccountMetadataRepository(url: metadataURL)
+            )
             let account = MonitorAccount.make(
                 provider: provider,
                 accountKey: "Test " + UUID().uuidString,
@@ -1867,12 +1860,12 @@ final class MonitorRuntimeTests: XCTestCase {
     }
 
     func testKiroFallbackAccountKeysDoNotCollide() {
-        let first = MonitorOAuthCoordinator.kiroAccountKey(identity: nil, clientID: "client-1")
-        let second = MonitorOAuthCoordinator.kiroAccountKey(identity: nil, clientID: "client-2")
+        let first = MonitorOAuthAuthorizer.kiroAccountKey(identity: nil, clientID: "client-1")
+        let second = MonitorOAuthAuthorizer.kiroAccountKey(identity: nil, clientID: "client-2")
 
         XCTAssertNotEqual(first, second)
         XCTAssertEqual(
-            MonitorOAuthCoordinator.kiroAccountKey(identity: "builder@example.com", clientID: "client-1"),
+            MonitorOAuthAuthorizer.kiroAccountKey(identity: "builder@example.com", clientID: "client-1"),
             "builder@example.com"
         )
     }
@@ -1951,41 +1944,18 @@ final class MonitorRuntimeTests: XCTestCase {
         try Data("old".utf8).write(to: target)
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
 
-        XCTAssertThrowsError(try SecureAtomicFileWriter.write(Data("new".utf8), to: link))
+        XCTAssertThrowsError(
+            try QuotioInfrastructure.SecureAtomicFileWriter.write(Data("new".utf8), to: link)
+        )
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "old")
-    }
-
-    func testLoopbackCallbackReturnsCodeAndState() async throws {
-        let server = MonitorOAuthCallbackServer()
-        let port = try await server.start()
-        async let callback = server.waitForCallback(timeout: .seconds(2))
-
-        let url = URL(string: "http://127.0.0.1:\(port)/oauth2callback?code=test-code&state=test-state")!
-        _ = try await URLSession.shared.data(from: url)
-        let result = try await callback
-        let items = URLComponents(url: result, resolvingAgainstBaseURL: false)?.queryItems
-
-        XCTAssertEqual(items?.first(where: { $0.name == "code" })?.value, "test-code")
-        XCTAssertEqual(items?.first(where: { $0.name == "state" })?.value, "test-state")
-    }
-
-    func testLoopbackCallbackTimesOut() async throws {
-        let server = MonitorOAuthCallbackServer()
-        _ = try await server.start()
-        do {
-            _ = try await server.waitForCallback(timeout: .milliseconds(30))
-            XCTFail("Expected timeout")
-        } catch MonitorOAuthError.expired {
-            // Expected.
-        }
     }
 
     func testOAuthCallbackRejectsMismatchedState() throws {
         let callback = URL(string: "http://localhost/callback?code=test&state=unexpected")!
         XCTAssertThrowsError(
-            try MonitorOAuthCoordinator.authorizationCode(from: callback, expectedState: "expected")
+            try MonitorOAuthAuthorizer.authorizationCode(from: callback, expectedState: "expected")
         ) { error in
-            guard case MonitorOAuthError.stateMismatch = error else {
+            guard case OAuthFlowFailure.stateMismatch = error else {
                 return XCTFail("Expected state mismatch")
             }
         }
