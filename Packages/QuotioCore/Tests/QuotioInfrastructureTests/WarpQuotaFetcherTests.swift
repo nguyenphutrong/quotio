@@ -6,7 +6,7 @@ import XCTest
 @testable import QuotioInfrastructure
 
 final class WarpQuotaFetcherTests: XCTestCase {
-  func testRepositoryReadsAndWritesLegacySchemaAtExistingKey() throws {
+  func testRepositoryReadsAndWritesLegacySchemaAtExistingKey() async throws {
     let suite = "WarpQuotaFetcherTests.\(UUID())"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -17,9 +17,11 @@ final class WarpQuotaFetcherTests: XCTestCase {
           .utf8), forKey: "warpTokens")
     let repository = UserDefaultsWarpTokenRepository(defaults: defaults)
 
+    let loadedTokens = try await repository.load()
     XCTAssertEqual(
-      try repository.load(), [WarpToken(id: id, name: "Work", token: "secret", isEnabled: false)])
-    try repository.save([WarpToken(id: id, name: "Personal", token: "new", isEnabled: true)])
+      loadedTokens,
+      [WarpToken(id: id, name: "Work", token: "secret", isEnabled: false)])
+    try await repository.save([WarpToken(id: id, name: "Personal", token: "new", isEnabled: true)])
     let object = try XCTUnwrap(
       JSONSerialization.jsonObject(with: defaults.data(forKey: "warpTokens")!) as? [[String: Any]])
     XCTAssertEqual(object.first?["id"] as? String, id.uuidString)
@@ -91,8 +93,8 @@ final class WarpQuotaFetcherTests: XCTestCase {
 
 private struct StubWarpTokenRepository: WarpTokenRepository {
   let tokens: [WarpToken]
-  func load() throws -> [WarpToken] { tokens }
-  func save(_ tokens: [WarpToken]) throws {}
+  func load() async throws -> [WarpToken] { tokens }
+  func save(_ tokens: [WarpToken]) async throws {}
 }
 
 private actor RecordingWarpSession: QuotaHTTPSession {

@@ -50,6 +50,33 @@ final class AccountScreenModelsTests: XCTestCase {
         XCTAssertEqual(model.accounts.first?.source, .localIDE)
     }
 
+    func testDownloadEligibilityRequiresAnAuthFileName() {
+        let authFileAccount = AccountRowData(
+            id: "auth-file",
+            provider: .claude,
+            displayName: "person@example.com",
+            authFileName: "claude-person@example.com.json",
+            source: .direct,
+            status: nil,
+            statusMessage: nil,
+            isDisabled: false,
+            canDelete: false
+        )
+        let customProviderAccount = AccountRowData(
+            id: "custom-provider",
+            provider: .glm,
+            displayName: "GLM",
+            source: .direct,
+            status: "ready",
+            statusMessage: nil,
+            isDisabled: false,
+            canDelete: true
+        )
+
+        XCTAssertTrue(authFileAccount.canDownloadAuthFile)
+        XCTAssertFalse(customProviderAccount.canDownloadAuthFile)
+    }
+
     func testOAuthModelPublishesSuccessAndRunsHandlerOnce() async {
         let providerID = AccountProviderID(rawValue: "claude")
         let controller = OAuthFlowController(authorizer: ImmediateOAuthAuthorizer())

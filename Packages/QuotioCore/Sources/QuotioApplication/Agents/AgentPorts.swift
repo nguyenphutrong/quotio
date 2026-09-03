@@ -19,6 +19,10 @@ public protocol AgentDetecting: Sendable {
     func clearConfigured(_ agent: CLIAgent) async
 }
 
+public protocol CLIToolInstallationProbing: Sendable {
+    func isInstalled(binaryName: String) async -> Bool
+}
+
 public struct ShellProfile: Equatable, Sendable {
     public let shell: ShellType
     public let path: String

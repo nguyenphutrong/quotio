@@ -3,9 +3,6 @@
 //  Quotio - CLIProxyAPI GUI Wrapper
 //
 
-import QuotioApplication
-import QuotioDomain
-import QuotioInfrastructure
 import QuotioPresentation
 import SwiftUI
 
@@ -36,6 +33,7 @@ struct QuotioApp: App {
                     .environment(runtime.accountsScreenModel)
                     .environment(runtime.dashboardScreenModel)
                     .environment(runtime.providersScreenModel)
+                    .environment(runtime.warpTokenScreenModel)
                     .environment(runtime.navigationScreenModel)
                     .environment(runtime.warmupScreenModel)
                     .environment(runtime.ideImportScreenModel)
@@ -52,6 +50,7 @@ struct QuotioApp: App {
                     .environment(runtime.applicationUpdateModel)
                     .environment(runtime.notificationSettingsModel)
                     .environment(runtime.telemetryConsentModel)
+                    .environment(runtime.yubiKeySettingsModel)
                     .environment(runtime.providerImageModel)
                     .environment(runtime.platformActions)
                     .environment(runtime.pasteboard)

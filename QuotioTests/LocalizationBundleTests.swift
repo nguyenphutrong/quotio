@@ -1,7 +1,10 @@
+import QuotioApplication
 import QuotioDomain
 import XCTest
 @testable import Quotio
+@testable import QuotioPresentation
 
+@MainActor
 final class LocalizationBundleTests: XCTestCase {
     func testExecutableContainsAllSupportedLocalizationBundles() throws {
         for language in AppLanguage.allCases {
@@ -17,5 +20,49 @@ final class LocalizationBundleTests: XCTestCase {
                 "Missing nav.settings in \(language.rawValue)"
             )
         }
+    }
+
+    func testCountMetricUnitsUseEnglishSingularAndPluralForms() {
+        let languageManager = LanguageManager(repository: InMemoryLanguagePreferencesRepository(language: .english))
+        defer { languageManager.setLanguage(storedLanguage) }
+
+        withExtendedLifetime(languageManager) {
+            XCTAssertEqual(QuotaMetricUnit.credits.format(1), "1 credit")
+            XCTAssertEqual(QuotaMetricUnit.credits.format(2), "2 credits")
+            XCTAssertEqual(QuotaMetricUnit.requests.format(1), "1 request")
+            XCTAssertEqual(QuotaMetricUnit.requests.format(2), "2 requests")
+            XCTAssertEqual(QuotaMetricUnit.searches.format(1), "1 search")
+            XCTAssertEqual(QuotaMetricUnit.searches.format(2), "2 searches")
+        }
+    }
+
+    func testLocalizedPlanAndEndpointLabelsUseSelectedLanguage() {
+        let languageManager = LanguageManager(repository: InMemoryLanguagePreferencesRepository(language: .vietnamese))
+        defer { languageManager.setLanguage(storedLanguage) }
+
+        withExtendedLifetime(languageManager) {
+            XCTAssertEqual(ProviderQuota(planType: "openrouter-free").planDisplayName, "Gói miễn phí")
+            XCTAssertEqual(GLMEndpoint.zai.displayName, "Z.ai Toàn cầu")
+        }
+    }
+
+    private var storedLanguage: AppLanguage {
+        UserDefaults.standard.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:)) ?? .english
+    }
+}
+
+private final class InMemoryLanguagePreferencesRepository: LanguagePreferencesRepository, @unchecked Sendable {
+    private var preferences: LanguagePreferences
+
+    init(language: AppLanguage) {
+        preferences = LanguagePreferences(language: language)
+    }
+
+    func load() -> LanguagePreferences {
+        preferences
+    }
+
+    func save(_ preferences: LanguagePreferences) {
+        self.preferences = preferences
     }
 }

@@ -40,6 +40,64 @@ Phase 11 must use the same Debug command and measurement definitions. Proxy star
 first-refresh timing require explicit instrumentation in their owning slices before a
 meaningful comparison can be made.
 
+## Phase 11 Final Evidence
+
+The final comparison was captured on 2026-09-03 on the same development machine and
+with the same Debug configuration as the baseline.
+
+### Automated gates
+
+| Gate | Command | Result |
+| --- | --- | --- |
+| Package tests | `swift test --package-path Packages/QuotioCore` | Pass: 488 tests, 0 failures |
+| App integration tests | `xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug -destination 'platform=macOS' test` | Pass |
+| Debug build | `xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug -destination 'platform=macOS' build` | Pass |
+| Architecture boundaries | `./scripts/check_architecture.sh` | Pass |
+| Build, launch, process check | `./scripts/build_and_run.sh --verify` | Pass |
+
+### Runtime comparison
+
+| Measurement | Phase 0 | Phase 11 | Result and limitation |
+| --- | --- | --- | --- |
+| Build and verified launch | 4.44 s | 5.01 s | 0.57 s slower; this wrapper includes incremental Xcode build and is not an app-only startup benchmark |
+| Menu bar usable | approximately 0.82 s | approximately 0.47 s | No regression; measured from the first launch log to the Control Center status-item connection |
+| Idle resident memory | 115,072 KB RSS | 114,288 KB RSS | 784 KB lower after approximately two minutes |
+| Idle physical footprint | 54 MB | 52 MB | 2 MB lower after approximately two minutes |
+| Proxy startup | Not observed | Not observed | The active operating mode/session did not start a proxy |
+| First quota refresh completion | Not observable | Not observable | Network activity is visible, but there is still no stable completion marker |
+
+No meaningful startup or idle-memory regression was observed. Proxy startup and first
+quota-refresh timing remain unmeasurable without changing production instrumentation,
+which is outside this behavior-preserving phase.
+
+### Release-path validation
+
+- `./scripts/build_dmg.sh` completed and produced universal x86_64/arm64
+  `Quotio-0.31.0.dmg` and `Quotio-0.31.0.zip` artifacts targeting macOS 14.0.
+- The ad-hoc app signature passes `codesign --verify --deep --strict`; the bundle keeps
+  identifier `app.bytrong.quotio`, version `0.31.0`, the four localization bundles,
+  AppIcon, and Sparkle.
+- The ZIP is scoped to `Quotio.app` apart from `ditto` metadata. The DMG mounts
+  read-only with `Quotio.app` and `Applications -> /Applications`, and its embedded app
+  passes code-signature verification.
+- `actionlint -shellcheck='' .github/workflows/*.yml`, `bash -n scripts/*.sh`,
+  `plutil -lint Quotio/Info.plist`, and String Catalog JSON parsing pass.
+- The published appcast parses as XML and contains 53 items with 53 EdDSA signatures.
+
+These local artifacts are packaging evidence, not a release candidate: this host has
+no `NOTARYTOOL_KEYCHAIN_PROFILE` or `SPARKLE_PRIVATE_KEY`. Developer ID distribution
+signing, Apple notarization, generation of a release-candidate appcast, and the
+Homebrew dispatch were therefore not run. Triggering the release or Homebrew workflow
+would also mutate shared external state and requires explicit approval.
+
+### Manual acceptance limits
+
+This machine runs macOS 26.6 and has no macOS 14 host. The full macOS 14/current-macOS
+manual matrix across both operating modes, light/dark appearance, all providers, and
+all four locales was not run. Automated contracts and the current-macOS launch smoke
+pass, but the deferred manual matrix and signed/notarized release-candidate validation
+remain external acceptance gates.
+
 ## Persisted Identifier Compatibility Contract
 
 The refactor must continue reading and writing these existing identifiers and layouts.
@@ -106,21 +164,22 @@ Changing one requires an explicit, idempotent migration with legacy and current 
 
 | Invariant | Evidence |
 | --- | --- |
-| Active proxy version is retained | `ProxyCharacterizationTests` |
-| Management endpoint is loopback-only | `ProxyCharacterizationTests` |
-| Port cleanup excludes Quotio's PID | `ProxyCharacterizationTests` |
-| Auth names, symlinks, private directory/file permissions, and round trip | `AuthFileTransferTests` |
-| Atomic writer rejects symbolic-link destinations | `MonitorRuntimeTests.testAtomicWriterRefusesSymbolicLinkDestination` |
-| Agent merge preserves native/unknown content | `CodexAuthConfigTests.testMergePreservesNativeFieldsAndSetsProxyKey` and `MonitorRuntimeTests.testAmpConfigurationMergePreservesNativeAndUnknownSecrets` |
-| Repeated agent reverts retain collision-safe backups | `CodexAuthConfigTests.testRepeatedRevertsKeepEveryBackup` |
-| Monitor credential compare-and-swap rejects stale replacement | `MonitorRuntimeTests.testMonitorCredentialCASDoesNotOverwriteNewerCredential` |
-| Cancelled IDE refresh cannot publish a stale result | `IDEQuotaRefreshReentrancyTests.testCancelledGlobalRefreshDoesNotApplyStaleIDEQuota` |
+| Active proxy version is retained | `ProxyInfrastructureTests.testVersionRepositoryRefusesToDeleteCurrentVersion` and `testCleanupAlwaysKeepsCurrentVersion` |
+| Management endpoint is loopback-only | `ProxyModelsTests.testEndpointUsesIPv4LoopbackForManagementAndLocalhostForClients` |
+| Port cleanup excludes Quotio's PID | `ProxyInfrastructureTests.testProcessControllerUsesConfigArgumentAndExcludesOwnProcessID` |
+| Auth names, JSON shape, symlinks, and private permissions | `AccountPersistenceTests.testAuthFileUploadValidatesNameAndJSONObject` and `testAuthFileUploadIsPrivateAndRefusesSymbolicLinkDestination` |
+| Atomic writer rejects symbolic-link destinations | `AccountPersistenceTests.testAtomicWriterRefusesSymbolicLinkDestination` |
+| Agent merge preserves native/unknown content | `CodexConfigurationCodecTests`, `CodexAgentConfigurationAdapterTests`, and `AgentConfigurationAdaptersTests` |
+| Repeated agent writes retain collision-safe backups | `CodexAgentConfigurationAdapterTests.testAutomaticApplyPreservesAuthSetsPermissionsInspectsAndListsCollisionSafeBackups` |
+| Monitor credential compare-and-swap rejects stale replacement | `CredentialVaultServiceTests.testCompareAndSwapDoesNotOverwriteNewerCredential` |
+| Cancelled refresh cannot publish a stale result | `QuotaRefreshCoordinatorTests.testCancelledRefreshCannotPublishLateResult` and related stale-result tests |
+| Headless and window startup share one runtime | `AppRuntimeTests.testHeadlessAndWindowInitializationShareOneRuntimeAndInitializeServicesOnce` |
+| OAuth callbacks from stale attempts are ignored | `OAuthFlowControllerTests` cancellation and stale-callback coverage |
+| Tunnel callbacks and automatic restart reject stale work | `TunnelLifecycleControllerTests` cancellation, stale-callback, timeout, and retry-cap coverage |
 
-Headless/window runtime identity is added in Phase 2 before lifecycle ownership moves.
-OAuth attempt cancellation is added in Phase 6 before OAuth moves. Tunnel callback and
-restart cancellation are added in Phase 9 before tunnel ownership moves. Those tests
-need the injection seams introduced by their owning phase; the legacy singleton paths
-cannot be isolated without prematurely introducing the target architecture.
+The package owns domain, application, infrastructure, and presentation regression
+tests. `QuotioTests` now contains only executable identity, localization-bundle, and
+runtime/lifecycle integration coverage.
 
 ## Manual Regression Matrix
 

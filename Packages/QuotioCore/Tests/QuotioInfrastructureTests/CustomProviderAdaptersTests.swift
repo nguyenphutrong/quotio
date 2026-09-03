@@ -78,7 +78,7 @@ final class CustomProviderAdaptersTests: XCTestCase {
         let provider = CustomProvider(name: "Gemini", type: .geminiCompatibility,
                                       apiKeys: [CustomAPIKeyEntry(apiKey: "secret")])
         do { try await transport.testConnection(to: provider); XCTFail("Expected unauthorized") }
-        catch { XCTAssertEqual(error as? CustomProviderTransportError, .unauthorized) }
+        catch { XCTAssertEqual(error as? CustomProviderRemoteError, .unauthorized) }
         let request = try await session.request()
         XCTAssertEqual(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "secret")
         XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))

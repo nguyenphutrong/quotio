@@ -153,3 +153,17 @@ public final class PlatformActionScreenModel: Sendable {
         urlOpener.open(url)
     }
 }
+
+@MainActor
+@Observable
+public final class PasteboardScreenModel: Sendable {
+    private let writer: any PasteboardWriting
+
+    public init(writer: any PasteboardWriting) {
+        self.writer = writer
+    }
+
+    public func copy(_ value: String) {
+        writer.copy(value)
+    }
+}

@@ -97,7 +97,11 @@ final class QuotaModelsTests: XCTestCase {
         XCTAssertTrue(QuotaProvider.trae.isImportedFromLocalIDE)
         XCTAssertFalse(QuotaProvider.cursor.supportsManualAuth)
         XCTAssertTrue(QuotaProvider.warp.isQuotaTrackingOnly)
-        XCTAssertFalse(QuotaProvider.warp.supportsLocalProxySetup)
+        for provider in [
+            QuotaProvider.factoryDroid, .devin, .grok, .openRouter, .amp, .warp,
+        ] {
+            XCTAssertFalse(provider.supportsLocalProxySetup)
+        }
         XCTAssertTrue(QuotaProvider.codex.supportsLocalProxySetup)
         XCTAssertEqual(
             Set(QuotaProvider.allCases.filter(\.isImportedFromLocalIDE)),

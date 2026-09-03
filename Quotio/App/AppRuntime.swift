@@ -9,12 +9,13 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     var accountsScreenModel: AccountsScreenModel { get }
     var dashboardScreenModel: DashboardScreenModel { get }
     var providersScreenModel: ProvidersScreenModel { get }
+    var warpTokenScreenModel: WarpTokenScreenModel { get }
     var navigationScreenModel: NavigationScreenModel { get }
     var warmupScreenModel: WarmupScreenModel { get }
     var ideImportScreenModel: IDEImportScreenModel { get }
     var antigravityAccountScreenModel: AntigravityAccountScreenModel { get }
     var logsScreenModel: LogsScreenModel { get }
-    var pasteboard: PasteboardAdapter { get }
+    var pasteboard: PasteboardScreenModel { get }
     var providerImageModel: ProviderImageScreenModel { get }
     var platformActions: PlatformActionScreenModel { get }
     var menuBarSettings: MenuBarSettingsManager { get }
@@ -30,6 +31,7 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     var notificationSettingsModel: NotificationSettingsScreenModel { get }
     var telemetryConsentModel: TelemetryConsentScreenModel { get }
     var applicationUpdateModel: ApplicationUpdateScreenModel { get }
+    var yubiKeySettingsModel: YubiKeySettingsScreenModel { get }
     var hasCompletedOnboarding: Bool { get }
     var showInDock: Bool { get }
     var canCheckForUpdates: Bool { get }
@@ -73,6 +75,7 @@ final class AppRuntime {
     var accountsScreenModel: AccountsScreenModel { services.accountsScreenModel }
     var dashboardScreenModel: DashboardScreenModel { services.dashboardScreenModel }
     var providersScreenModel: ProvidersScreenModel { services.providersScreenModel }
+    var warpTokenScreenModel: WarpTokenScreenModel { services.warpTokenScreenModel }
     var navigationScreenModel: NavigationScreenModel { services.navigationScreenModel }
     var warmupScreenModel: WarmupScreenModel { services.warmupScreenModel }
     var ideImportScreenModel: IDEImportScreenModel { services.ideImportScreenModel }
@@ -80,7 +83,7 @@ final class AppRuntime {
         services.antigravityAccountScreenModel
     }
     var logsScreenModel: LogsScreenModel { services.logsScreenModel }
-    var pasteboard: PasteboardAdapter { services.pasteboard }
+    var pasteboard: PasteboardScreenModel { services.pasteboard }
     var providerImageModel: ProviderImageScreenModel { services.providerImageModel }
     var platformActions: PlatformActionScreenModel { services.platformActions }
     var menuBarSettings: MenuBarSettingsManager { services.menuBarSettings }
@@ -98,6 +101,7 @@ final class AppRuntime {
     }
     var telemetryConsentModel: TelemetryConsentScreenModel { services.telemetryConsentModel }
     var applicationUpdateModel: ApplicationUpdateScreenModel { services.applicationUpdateModel }
+    var yubiKeySettingsModel: YubiKeySettingsScreenModel { services.yubiKeySettingsModel }
     var showInDock: Bool { services.showInDock }
     var canCheckForUpdates: Bool { services.canCheckForUpdates }
 

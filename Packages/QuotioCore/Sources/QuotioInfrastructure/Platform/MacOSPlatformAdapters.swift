@@ -13,6 +13,16 @@ public final class WorkspaceURLOpener: URLOpening {
 }
 
 @MainActor
+public final class MacOSPasteboardAdapter: PasteboardWriting {
+    public init() {}
+
+    public func copy(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+    }
+}
+
+@MainActor
 public final class ServiceManagementLaunchAtLoginAdapter: LaunchAtLoginRegistering {
     public init() {}
 

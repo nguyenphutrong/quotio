@@ -10,12 +10,12 @@ public final class UserDefaultsWarpTokenRepository: WarpTokenRepository, @unchec
         self.defaults = defaults
     }
 
-    public func load() throws -> [WarpToken] {
+    public func load() async throws -> [WarpToken] {
         guard let data = defaults.data(forKey: Self.storageKey) else { return [] }
         return try JSONDecoder().decode([WarpToken].self, from: data)
     }
 
-    public func save(_ tokens: [WarpToken]) throws {
+    public func save(_ tokens: [WarpToken]) async throws {
         defaults.set(try JSONEncoder().encode(tokens), forKey: Self.storageKey)
     }
 }

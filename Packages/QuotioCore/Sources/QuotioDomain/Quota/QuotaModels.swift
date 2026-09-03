@@ -73,6 +73,14 @@ public enum QuotaProvider: String, CaseIterable, Codable, Identifiable, Sendable
     public var supportsLocalProxySetup: Bool {
         supportsManualAuth && !isQuotaTrackingOnly
     }
+
+    public var cliAgent: CLIAgent? {
+        switch self {
+        case .claude: .claudeCode
+        case .codex: .codexCLI
+        default: nil
+        }
+    }
 }
 
 public struct QuotaAccountID: Hashable, Sendable {

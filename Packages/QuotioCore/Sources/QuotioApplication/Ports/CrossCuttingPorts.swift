@@ -25,6 +25,11 @@ public protocol URLOpening: Sendable {
     func open(_ url: URL) -> Bool
 }
 
+@MainActor
+public protocol PasteboardWriting: Sendable {
+    func copy(_ value: String)
+}
+
 public protocol UserNotificationDelivering<Notification>: Sendable {
     associatedtype Notification: Sendable
 

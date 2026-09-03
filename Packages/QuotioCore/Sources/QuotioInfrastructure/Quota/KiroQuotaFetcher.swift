@@ -180,6 +180,47 @@ public actor KiroQuotaFetcher: QuotaFetching {
     return .init(quotas: quotas, credentialAvailability: applicable.isEmpty ? .missing : .present)
   }
 
+  public func refreshAllLocalTokensIfNeeded() async -> Int {
+    var refreshedCount = 0
+    for credential in await credentials.credentials()
+    where credential.expiresAt.map({ $0.timeIntervalSince(now()) < 300 }) == true {
+      if await refresh(credential, account: nil) != nil {
+        refreshedCount += 1
+      }
+    }
+    return refreshedCount
+  }
+
+  public func authenticatedAccountIdentity(
+    accessToken: String,
+    expiresAt: Date,
+    clientID: String,
+    clientSecret: String,
+    region: String
+  ) async -> String? {
+    let credential = KiroQuotaCredential(
+      accessToken: accessToken,
+      expiresAt: expiresAt,
+      clientID: clientID,
+      clientSecret: clientSecret,
+      region: region,
+      accountKey: ""
+    )
+    let response = await usage(credential)
+    guard response.status == 200,
+      let data = response.data,
+      let decoded = try? JSONDecoder().decode(KiroUsageResponse.self, from: data),
+      let user = decoded.userInfo
+    else { return nil }
+    let identities: [String?] = [user.email, user.userId]
+    return identities.compactMap { value -> String? in
+      guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+        !value.isEmpty
+      else { return nil }
+      return value
+    }.first
+  }
+
   private func fetchOne(_ original: KiroQuotaCredential, account: Account?) async -> ProviderQuota?
   {
     var credential = original
@@ -396,7 +437,12 @@ private struct KiroUsageResponse: Decodable {
     let freeTrialExpiry: Double?
   }
   struct Subscription: Decodable { let subscriptionTitle: String? }
+  struct UserInfo: Decodable {
+    let email: String?
+    let userId: String?
+  }
   let usageBreakdownList: [Breakdown]?
   let subscriptionInfo: Subscription?
+  let userInfo: UserInfo?
   let nextDateReset: Double?
 }

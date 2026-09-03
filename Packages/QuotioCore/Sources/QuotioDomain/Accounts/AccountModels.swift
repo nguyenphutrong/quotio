@@ -9,6 +9,10 @@ public struct AccountProviderID: RawRepresentable, Codable, Hashable, Sendable {
     }
 }
 
+public enum ProviderAccountKey {
+    public static let ampNative = "amp:native"
+}
+
 public enum AccountSource: String, Codable, CaseIterable, Sendable {
     case quotioKeychain
     case nativeCredential

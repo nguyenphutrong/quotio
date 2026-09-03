@@ -1,6 +1,8 @@
 import Foundation
+import LocalAuthentication
 import QuotioApplication
 import QuotioDomain
+import Security
 import XCTest
 @testable import QuotioInfrastructure
 
@@ -26,10 +28,16 @@ final class AccountPersistenceTests: XCTestCase {
     func testAuthFileUploadValidatesNameAndJSONObject() async throws {
         let repository = FileAuthFileRepository(authDirectory: temporaryDirectory)
 
-        await XCTAssertThrowsErrorAsync(
-            try await repository.uploadAuthFile(name: "../codex.json", content: Data("{}".utf8))
-        ) { error in
-            XCTAssertEqual(error as? AuthFileRepositoryError, .invalidFileName)
+        for name in [
+            "", " ", ".", "..", "../credentials.json", "nested/credentials.json",
+            #"nested\credentials.json"#, "credentials.txt", " credentials.json",
+            "credentials.json ",
+        ] {
+            await XCTAssertThrowsErrorAsync(
+                try await repository.uploadAuthFile(name: name, content: Data("{}".utf8))
+            ) { error in
+                XCTAssertEqual(error as? AuthFileRepositoryError, .invalidFileName)
+            }
         }
         await XCTAssertThrowsErrorAsync(
             try await repository.uploadAuthFile(name: "codex.json", content: Data("[]".utf8))
@@ -38,22 +46,37 @@ final class AccountPersistenceTests: XCTestCase {
                 return XCTFail("Expected invalid JSON error")
             }
         }
+
+        let importURL = temporaryDirectory.appendingPathComponent("credentials.json")
+        try Data("[]".utf8).write(to: importURL)
+        await XCTAssertThrowsErrorAsync(
+            try await repository.readAuthFileForImport(from: importURL)
+        ) { error in
+            guard case .invalidJSON = error as? AuthFileRepositoryError else {
+                return XCTFail("Expected invalid JSON error")
+            }
+        }
     }
 
     func testAuthFileUploadIsPrivateAndRefusesSymbolicLinkDestination() async throws {
-        let repository = FileAuthFileRepository(authDirectory: temporaryDirectory)
+        let authDirectory = temporaryDirectory.appendingPathComponent("auth", isDirectory: true)
+        let repository = FileAuthFileRepository(authDirectory: authDirectory)
         let content = Data(#"{"type":"codex","access_token":"secret"}"#.utf8)
 
         try await repository.uploadAuthFile(name: "codex-user.json", content: content)
 
-        let fileURL = temporaryDirectory.appendingPathComponent("codex-user.json")
+        let fileURL = authDirectory.appendingPathComponent("codex-user.json")
         let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let directoryAttributes = try FileManager.default.attributesOfItem(
+            atPath: authDirectory.path
+        )
         let downloaded = try await repository.downloadAuthFile(name: "codex-user.json")
         XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        XCTAssertEqual((directoryAttributes[.posixPermissions] as? NSNumber)?.intValue, 0o700)
         XCTAssertEqual(downloaded, content)
 
         try FileManager.default.removeItem(at: fileURL)
-        let targetURL = temporaryDirectory.appendingPathComponent("target.json")
+        let targetURL = authDirectory.appendingPathComponent("target.json")
         try Data("{}".utf8).write(to: targetURL)
         try FileManager.default.createSymbolicLink(at: fileURL, withDestinationURL: targetURL)
 
@@ -169,6 +192,89 @@ final class AccountPersistenceTests: XCTestCase {
         let disabledIDs = await repository.disabledAccountIDs()
         XCTAssertEqual(storedAccounts, [codex])
         XCTAssertEqual(disabledIDs, [codex.id])
+    }
+
+    func testExternalCredentialQueriesDoNotAllowAuthenticationUI() {
+        let readQuery = ExternalKeychainCredentialReader.readQuery(
+            service: "fixture.external",
+            account: "fixture-account"
+        )
+        let updateQuery = ExternalKeychainCredentialReader.updateQuery(
+            service: "fixture.external",
+            account: "fixture-account"
+        )
+
+        XCTAssertEqual(readQuery[kSecAttrService as String] as? String, "fixture.external")
+        XCTAssertEqual(readQuery[kSecAttrAccount as String] as? String, "fixture-account")
+        XCTAssertTrue(
+            (readQuery[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true
+        )
+        XCTAssertEqual(updateQuery[kSecAttrService as String] as? String, "fixture.external")
+        XCTAssertEqual(updateQuery[kSecAttrAccount as String] as? String, "fixture-account")
+        XCTAssertTrue(
+            (updateQuery[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true
+        )
+    }
+
+    func testExternalCredentialReadRestoresProcessInteractionFlag() async {
+        var before: DarwinBoolean = false
+        XCTAssertEqual(SecKeychainGetUserInteractionAllowed(&before), errSecSuccess)
+
+        let reader = ExternalKeychainCredentialReader()
+        let missingCredential = await reader.read(
+            service: "fixture.external.missing.\(UUID().uuidString)",
+            account: nil
+        )
+        let didReplaceMissingCredential = await reader.compareAndSwap(
+            service: "fixture.external.missing.\(UUID().uuidString)",
+            account: "fixture-account",
+            expectedData: Data(),
+            newData: Data("unused".utf8)
+        )
+        XCTAssertNil(missingCredential)
+        XCTAssertFalse(didReplaceMissingCredential)
+
+        var after: DarwinBoolean = false
+        XCTAssertEqual(SecKeychainGetUserInteractionAllowed(&after), errSecSuccess)
+        XCTAssertEqual(after.boolValue, before.boolValue)
+    }
+
+    func testKiroFallbackAccountKeysDoNotCollide() {
+        let first = MonitorOAuthAuthorizer.kiroAccountKey(identity: nil, clientID: "client-1")
+        let second = MonitorOAuthAuthorizer.kiroAccountKey(identity: nil, clientID: "client-2")
+
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(
+            MonitorOAuthAuthorizer.kiroAccountKey(
+                identity: "builder@example.com",
+                clientID: "client-1"
+            ),
+            "builder@example.com"
+        )
+    }
+
+    func testAtomicWriterRefusesSymbolicLinkDestination() throws {
+        let target = temporaryDirectory.appendingPathComponent("target.json")
+        let link = temporaryDirectory.appendingPathComponent("link.json")
+        try Data("old".utf8).write(to: target)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        XCTAssertThrowsError(
+            try SecureAtomicFileWriter.write(Data("new".utf8), to: link)
+        )
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "old")
+    }
+
+    func testOAuthCallbackRejectsMismatchedState() throws {
+        let callback = URL(string: "http://localhost/callback?code=test&state=unexpected")!
+
+        XCTAssertThrowsError(
+            try MonitorOAuthAuthorizer.authorizationCode(from: callback, expectedState: "expected")
+        ) { error in
+            guard case OAuthFlowFailure.stateMismatch = error else {
+                return XCTFail("Expected state mismatch")
+            }
+        }
     }
 
     func testProtectedCredentialStoreRefusesUnreadableOverwrite() async {

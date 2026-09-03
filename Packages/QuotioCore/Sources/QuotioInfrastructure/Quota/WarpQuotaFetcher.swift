@@ -49,7 +49,7 @@ public actor WarpQuotaFetcher: QuotaFetching {
   }
 
   public func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
-    let tokens = try repository.load().filter {
+    let tokens = try await repository.load().filter {
       $0.isEnabled && Self.includes($0.name, in: request.scope)
     }
     let hasCredential = tokens.contains {

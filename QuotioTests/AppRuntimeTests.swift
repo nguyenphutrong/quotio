@@ -99,6 +99,7 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
     var accountsScreenModel: AccountsScreenModel { dependencies.accountsScreenModel }
     var dashboardScreenModel: DashboardScreenModel { dependencies.dashboardScreenModel }
     var providersScreenModel: ProvidersScreenModel { dependencies.providersScreenModel }
+    var warpTokenScreenModel: WarpTokenScreenModel { dependencies.warpTokenScreenModel }
     var navigationScreenModel: NavigationScreenModel { dependencies.navigationScreenModel }
     var warmupScreenModel: WarmupScreenModel { dependencies.warmupScreenModel }
     var ideImportScreenModel: IDEImportScreenModel { dependencies.ideImportScreenModel }
@@ -106,28 +107,29 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
         dependencies.antigravityAccountScreenModel
     }
     let logsScreenModel: LogsScreenModel
-    let pasteboard = PasteboardAdapter()
+    let pasteboard = PasteboardScreenModel(writer: MacOSPasteboardAdapter())
     var providerImageModel: ProviderImageScreenModel { dependencies.providerImageModel }
     var platformActions: PlatformActionScreenModel { dependencies.platformActions }
-    let menuBarSettings = MenuBarSettingsManager.shared
+    var menuBarSettings: MenuBarSettingsManager { dependencies.menuBarSettings }
     let statusBarManager = StatusBarManager()
-    let modeManager = OperatingModeManager.shared
+    var modeManager: OperatingModeManager { dependencies.modeManager }
     var appearanceManager: AppearanceManager { dependencies.appearanceManager }
-    let languageManager = LanguageManager.shared
+    var languageManager: LanguageManager { dependencies.languageManager }
     let settingsScreenModel = SettingsScreenModel(
         proxyRepository: AppRuntimeTestPreferencesRepository(),
         tunnelRepository: AppRuntimeTestPreferencesRepository(),
         appShellRepository: AppRuntimeTestPreferencesRepository()
     )
-    let refreshSettings = RefreshSettingsManager.shared
-    let warmupSettings = WarmupSettingsManager.shared
-    let ideScanSettings = IDEScanSettingsManager.shared
+    var refreshSettings: RefreshSettingsManager { dependencies.refreshSettings }
+    var warmupSettings: WarmupSettingsManager { dependencies.warmupSettings }
+    var ideScanSettings: IDEScanSettingsManager { dependencies.ideScanSettings }
     var launchAtLoginModel: LaunchAtLoginScreenModel { dependencies.launchAtLoginModel }
     var notificationSettingsModel: NotificationSettingsScreenModel {
         dependencies.notificationSettingsModel
     }
     var telemetryConsentModel: TelemetryConsentScreenModel { dependencies.telemetryConsentModel }
     var applicationUpdateModel: ApplicationUpdateScreenModel { dependencies.applicationUpdateModel }
+    var yubiKeySettingsModel: YubiKeySettingsScreenModel { dependencies.yubiKeySettingsModel }
 
     var hasCompletedOnboarding = true
     var showInDock = true

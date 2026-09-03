@@ -52,21 +52,30 @@ public struct AgentBinaryInstallationProbe: Sendable {
         path(for: agent) != nil
     }
 
+    public func isInstalled(binaryName: String) -> Bool {
+        path(forBinaryName: binaryName) != nil
+    }
+
     public func path(for agent: CLIAgent) -> String? {
-        let fileManager = FileManager()
         for name in agent.binaryNames {
-            if let path = commandRunner("/usr/bin/which", [name])?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !path.isEmpty {
-                return path
-            }
-            for basePath in Self.commonBinaryPaths {
-                let path = expand(basePath) + "/" + name
-                if fileManager.isExecutableFile(atPath: path) { return path }
-            }
-            for path in versionManagerPaths(name: name, fileManager: fileManager)
-            where fileManager.isExecutableFile(atPath: path) {
-                return path
-            }
+            if let path = path(forBinaryName: name) { return path }
+        }
+        return nil
+    }
+
+    private func path(forBinaryName name: String) -> String? {
+        let fileManager = FileManager()
+        if let path = commandRunner("/usr/bin/which", [name])?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !path.isEmpty {
+            return path
+        }
+        for basePath in Self.commonBinaryPaths {
+            let path = expand(basePath) + "/" + name
+            if fileManager.isExecutableFile(atPath: path) { return path }
+        }
+        for path in versionManagerPaths(name: name, fileManager: fileManager)
+        where fileManager.isExecutableFile(atPath: path) {
+            return path
         }
         return nil
     }
@@ -90,6 +99,18 @@ public struct AgentBinaryInstallationProbe: Sendable {
 
     private func expand(_ path: String) -> String {
         path.hasPrefix("~") ? homeDirectory + path.dropFirst() : path
+    }
+}
+
+public actor CLIToolInstallationProbe: CLIToolInstallationProbing {
+    private let probe: AgentBinaryInstallationProbe
+
+    public init(probe: AgentBinaryInstallationProbe = AgentBinaryInstallationProbe()) {
+        self.probe = probe
+    }
+
+    public func isInstalled(binaryName: String) -> Bool {
+        probe.isInstalled(binaryName: binaryName)
     }
 }
 

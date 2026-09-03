@@ -186,6 +186,22 @@ public actor AntigravityQuotaFetcher: QuotaFetching {
     )
   }
 
+  /// Refreshes an Antigravity Google OAuth token using the same client and transport as quota fetching.
+  func refreshAccessToken(refreshToken: String) async throws -> QuotaTokenRefresh {
+    let credential = AntigravityCredential(
+      accountKey: "Antigravity",
+      accessToken: "",
+      refreshToken: refreshToken,
+      origin: .native
+    )
+    let refreshed = try await refresh(credential, persist: false)
+    return QuotaTokenRefresh(
+      accessToken: refreshed.accessToken,
+      refreshToken: refreshed.refreshToken,
+      expiresAt: refreshed.expiresAt
+    )
+  }
+
   private func monitorCredentials() async -> [AntigravityCredential] {
     guard let vault else { return [] }
     let disabled = await metadata?.disabledAccountIDs() ?? []
@@ -328,7 +344,10 @@ public actor AntigravityQuotaFetcher: QuotaFetching {
     throw lastError
   }
 
-  private func refresh(_ credential: AntigravityCredential) async throws -> AntigravityCredential {
+  private func refresh(
+    _ credential: AntigravityCredential,
+    persist: Bool = true
+  ) async throws -> AntigravityCredential {
     guard let refreshToken = credential.refreshToken else {
       throw InfrastructureQuotaFetchError.forbidden
     }
@@ -347,6 +366,7 @@ public actor AntigravityQuotaFetcher: QuotaFetching {
     var updated = credential
     updated.accessToken = access
     updated.expiresAt = now().addingTimeInterval(TimeInterval(expiresIn))
+    guard persist else { return updated }
     switch credential.origin {
     case .monitor(let account):
       if let vault {

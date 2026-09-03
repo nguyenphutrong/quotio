@@ -4,6 +4,39 @@ import XCTest
 import QuotioDomain
 
 final class CredentialVaultServiceTests: XCTestCase {
+    func testSaveRotateAndDeleteCredentialWithMetadata() async throws {
+        let dataStore = FakeCredentialDataStore()
+        let metadata = FakeAccountMetadataRepository()
+        let vault = CredentialVaultService(dataStore: dataStore, metadataRepository: metadata)
+        let account = Account.make(
+            providerID: AccountProviderID(rawValue: "openrouter"),
+            accountKey: "Personal",
+            source: .quotioKeychain,
+            capabilities: [.disable, .delete, .edit]
+        )
+        let first = StoredCredential(
+            accessToken: "first", refreshToken: nil, idToken: nil,
+            accountID: nil, expiresAt: nil, extra: [:]
+        )
+        let rotated = StoredCredential(
+            accessToken: "rotated", refreshToken: nil, idToken: nil,
+            accountID: nil, expiresAt: nil, extra: [:]
+        )
+
+        try await vault.save(first, metadata: account)
+        let loadedFirst = await vault.credential(for: account.id)
+        XCTAssertEqual(loadedFirst?.accessToken, "first")
+        try await vault.save(rotated, metadata: account)
+        let loadedRotated = await vault.credential(for: account.id)
+        XCTAssertEqual(loadedRotated?.accessToken, "rotated")
+        await vault.delete(accountID: account.id)
+
+        let deletedCredential = await vault.credential(for: account.id)
+        let remainingAccounts = await vault.accounts()
+        XCTAssertNil(deletedCredential)
+        XCTAssertTrue(remainingAccounts.isEmpty)
+    }
+
     func testCompareAndSwapDoesNotOverwriteNewerCredential() async throws {
         let dataStore = FakeCredentialDataStore()
         let metadata = FakeAccountMetadataRepository()

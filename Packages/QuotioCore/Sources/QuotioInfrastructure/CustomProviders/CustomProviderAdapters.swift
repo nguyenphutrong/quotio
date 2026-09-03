@@ -122,8 +122,6 @@ public protocol CustomProviderHTTPSession: Sendable {
 }
 extension URLSession: CustomProviderHTTPSession {}
 
-public typealias CustomProviderTransportError = CustomProviderRemoteError
-
 public actor URLSessionCustomProviderTransport: CustomProviderModelDiscovering, CustomProviderConnectionTesting {
     private let session: any CustomProviderHTTPSession
 

@@ -9,36 +9,42 @@ configuration, tunnels, updates, and optional telemetry.
 - Swift 6 and SwiftUI, with targeted AppKit integration
 - Minimum deployment target: macOS 14.0
 - Xcode project: `Quotio.xcodeproj`; shared scheme: `Quotio`
-- Targets: `Quotio` (application) and `QuotioTests` (unit tests)
-- Dependency manager: Swift Package Manager through the Xcode project
+- Targets: `Quotio` (application) and `QuotioTests` (executable integration tests)
+- Core package: `Packages/QuotioCore` with four source and four test targets
+- Dependency manager: Swift Package Manager through the local package and Xcode project
 - Packages: Sparkle 2.8.1 and PostHog 3.64.1
 - No CocoaPods, Carthage, Fastlane, root Swift package, or UI-test target
 
-The architecture is pragmatic MVVM. SwiftUI views and observable view models form the
-presentation layer, while services and managers own I/O and application behavior.
-Some views use shared managers or AppKit directly, so this is not strict layered MVVM.
+The app uses Clean Architecture module boundaries with pragmatic MVVM in Presentation.
+`QuotioDomain` owns values and rules, `QuotioApplication` owns use cases and ports,
+`QuotioInfrastructure` owns side effects and SDK adapters, and `QuotioPresentation`
+owns SwiftUI/AppKit views and observable screen state. The executable composes the
+production graph and owns lifecycle only.
 
 ## Project Map
 
-- `Quotio/QuotioApp.swift`: composition root, SwiftUI scenes, `AppDelegate`, startup,
-  and headless/menu-bar lifecycle.
-- `Quotio/Models/`: domain models, DTOs, enums, and observable settings managers.
-- `Quotio/ViewModels/`: screen state and presentation orchestration; primarily
-  `@MainActor @Observable` types.
-- `Quotio/Services/`: networking, OAuth, quota fetching, persistence, proxy/process
-  management, menu bar, tunnels, updates, logging, and agent configuration.
-- `Quotio/Views/Screens/`: top-level SwiftUI screens.
-- `Quotio/Views/Components/`: reusable SwiftUI components.
+- `Packages/QuotioCore/Sources/QuotioDomain/`: entities, value types, settings values,
+  and pure policies.
+- `Packages/QuotioCore/Sources/QuotioApplication/`: use cases, feature controllers,
+  and side-effect ports.
+- `Packages/QuotioCore/Sources/QuotioInfrastructure/`: HTTP, filesystem, process,
+  Keychain, SQLite, Sparkle, PostHog, OAuth, provider, proxy, agent, and tunnel adapters.
+- `Packages/QuotioCore/Sources/QuotioPresentation/`: SwiftUI/AppKit views, observable
+  screen models, settings managers, menu bar UI, and localization helpers.
+- `Packages/QuotioCore/Tests/`: unit and regression tests, split by owning module.
+- `Quotio/QuotioApp.swift`: SwiftUI scene entry point.
+- `Quotio/App/`: `CompositionRoot`, `AppRuntime`, `AppDelegate`, and app-only adapters.
 - `Quotio/Assets.xcassets`: app icon, accent color, provider art, and menu bar assets.
 - `Quotio/Localizable.xcstrings`: String Catalog for `en`, `fr`, `vi`, and `zh-Hans`.
 - `Quotio/Info.plist`, `Quotio/Quotio.entitlements`: app metadata and entitlements.
-- `QuotioTests/`: XCTest unit and regression tests.
+- `QuotioTests/`: executable dependency-graph, lifecycle, identity, and bundle tests.
 - `Config/`: Debug/Release xcconfig files and the template for local overrides.
 - `scripts/`: local build/run helpers and release packaging scripts.
 - `.github/workflows/release.yml`: tag/manual release pipeline.
 
-`Quotio/` and `QuotioTests/` are filesystem-synchronized Xcode groups. Place new files
-in the correct directory; manual edits to `project.pbxproj` are normally unnecessary.
+The Xcode groups and local package use filesystem synchronization. Place new files in
+the owning module or test target; manual edits to `project.pbxproj` are normally
+unnecessary.
 
 ## Build, Test, and Run
 
@@ -51,16 +57,23 @@ Build the Debug app:
 xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug -destination 'platform=macOS' build
 ```
 
+Run all package tests and architecture checks:
+
+```bash
+swift test --package-path Packages/QuotioCore
+./scripts/check_architecture.sh
+```
+
 Run the complete unit-test target:
 
 ```bash
 xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug -destination 'platform=macOS' test
 ```
 
-Run one test class (replace the class name as needed):
+Run one executable integration test class (replace the class name as needed):
 
 ```bash
-xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug -destination 'platform=macOS' -only-testing:QuotioTests/OperatingModeTests test
+xcodebuild -project Quotio.xcodeproj -scheme Quotio -configuration Debug -destination 'platform=macOS' -only-testing:QuotioTests/AppRuntimeTests test
 ```
 
 Build, terminate any running Quotio instance, launch the new Debug app, and verify that
@@ -71,8 +84,8 @@ the process remains running:
 ```
 
 The run script leaves Quotio running and writes derived data under
-`build/DebugDerivedData`. Do not use `swift build` or `swift test`; the repository root
-is not a Swift package.
+`build/DebugDerivedData`. Always pass `--package-path Packages/QuotioCore` to SwiftPM;
+the repository root is not a Swift package.
 
 ## Architecture and Coding Conventions
 
@@ -81,12 +94,17 @@ is not a Swift package.
   for members.
 - Keep one primary type per file and place it in the directory that owns its role.
   Extract a component or service only when it has a coherent responsibility.
+- Keep Domain independent, Application dependent only on Domain, Infrastructure
+  dependent on Application and Domain, and Presentation dependent on Application and
+  Domain. Only `CompositionRoot` may construct concrete Infrastructure adapters.
+- Do not add first-party singleton services. Inject long-lived dependencies from the
+  composition root and pass platform behavior through Application ports.
 - Use the existing Observation flow: `@Observable` models/view models, `@Environment`
   for shared dependencies, `@State` for view-owned state, and `@Bindable` when bindings
   to an observable object are required.
-- Keep networking, persistence, OAuth, and process management out of SwiftUI views.
-  Views render state and forward user intent; view models coordinate presentation;
-  services perform side effects.
+- Keep networking, persistence, OAuth, process management, Keychain, and SQLite out of
+  Presentation. Views render state and forward intent; Application coordinates behavior;
+  Infrastructure performs side effects.
 - UI-facing mutable state belongs on `@MainActor`. Use `actor` for mutable asynchronous
   services and make values crossing isolation boundaries `Sendable` where appropriate.
 - Prefer the codebase's async/await and `Task` patterns. NotificationCenter and limited
@@ -95,21 +113,22 @@ is not a Swift package.
 - Model recoverable failures with typed errors, usually `LocalizedError`. View models
   expose user-presentable failure state such as `errorMessage`. Reserve `try?` or ignored
   failures for explicitly best-effort behavior; do not hide failures on critical paths.
-- Use the existing `Log` API instead of `print`. Keep sensitive values out of every log;
-  debug-only detail belongs in DEBUG-scoped logging.
+- Use the layer-owned logging ports/adapters instead of `print`. Keep sensitive values
+  out of every log; executable lifecycle warnings use the app-only `Log` helper.
 - There is no SwiftLint or SwiftFormat configuration. Match the surrounding Swift and
   Xcode formatting and avoid unrelated reformatting.
 
 ## Testing
 
-- Tests use XCTest with `@testable import Quotio`; add coverage to `QuotioTests/` next
-  to the behavior being changed.
+- Tests use XCTest. Put unit and regression coverage in the owning
+  `Quotio{Domain,Application,Infrastructure,Presentation}Tests` target. Use
+  `QuotioTests` only for executable composition, lifecycle, identity, and bundle behavior.
 - Name test files and `XCTestCase` classes after the subject. Use `test...` methods that
   state the behavior or regression being protected.
 - Use `async`, `throws`, and `@MainActor` where the production contract requires them.
   Prefer temporary directories and injected dependencies over real user configuration.
 - For a bug fix, reproduce the failure with a focused regression test when practical,
-  then run that class and the full unit-test target.
+  then run the owning package tests and the full Xcode test target.
 - There is no UI-test target. For UI work, launch the app and inspect light and dark
   appearances. For provider, OAuth, proxy, tunnel, or menu bar work, manually exercise
   the affected flow in addition to unit tests.
@@ -127,12 +146,12 @@ is not a Swift package.
 
 ## Project Gotchas
 
-- `CLIProxyManager.baseURL` must address CLIProxyAPI directly at
+- `ProxyEndpoint.managementURL` must address CLIProxyAPI directly at
   `http://127.0.0.1:<port>`, even when the proxy binds to `0.0.0.0`. Management access is
   local-only; do not add remote bridge or fallback paths.
-- Preserve `CLIProxyManager.killProcessOnPort` protection that refuses to terminate
-  Quotio's own process.
-- `ProxyStorageManager` stores versioned binaries behind a `current` symlink. Never
+- Preserve `MacOSProxyProcessAdapter.killProcessOnPort` protection that refuses to
+  terminate Quotio's own process.
+- `FileProxyVersionRepository` stores versioned binaries behind a `current` symlink. Never
   remove the active version during cleanup.
 - Agent configuration changes must preserve user-owned keys/content and create
   collision-safe timestamped backups without overwriting an existing backup.
@@ -150,10 +169,11 @@ is not a Swift package.
 
 ## CI, Commits, and Pull Requests
 
-- `.github/workflows/release.yml` is the only CI workflow. `v*` tags and manual dispatch
+- `.github/workflows/ci.yml` runs package tests, architecture checks, Xcode tests, and a
+  Debug build. `.github/workflows/release.yml` handles `v*` tags and manual dispatch to
   build release artifacts, optionally sign/notarize them, publish the GitHub release and
-  appcast, and dispatch the Homebrew tap update. There is no PR validation workflow, so
-  local build and test results are required before review.
+  appcast, and dispatch the Homebrew tap update. Local build and test results are still
+  required before review.
 - Keep commits atomic and limited to one logical change.
 - Follow the repository's Conventional Commit history, for example `fix(proxy): ...`,
   `feat(settings): ...`, `test: ...`, or `docs: ...`. Mark breaking changes explicitly.

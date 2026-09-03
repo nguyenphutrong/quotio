@@ -65,6 +65,25 @@ final class AccountModelsTests: XCTestCase {
         XCTAssertEqual(selected.first?.status, .disabled)
     }
 
+    func testAmpNativeAndNamedAccountsHaveDistinctIdentities() {
+        let providerID = AccountProviderID(rawValue: QuotaProvider.amp.rawValue)
+        let native = Account.make(
+            providerID: providerID,
+            accountKey: ProviderAccountKey.ampNative,
+            displayName: "Amp",
+            source: .nativeCredential
+        )
+        let named = Account.make(
+            providerID: providerID,
+            accountKey: "Amp",
+            source: .quotioKeychain
+        )
+
+        XCTAssertEqual(AccountSelectionPolicy.preferred([native, named]).count, 2)
+        XCTAssertEqual(native.displayName, "Amp")
+        XCTAssertNotEqual(native.accountKey, named.accountKey)
+    }
+
     func testMergingQuotaAccountsAddsImportedIDEAccountWithoutDuplicatingCredentialAccount() {
         let codex = Account.make(
             providerID: AccountProviderID(rawValue: QuotaProvider.codex.rawValue),

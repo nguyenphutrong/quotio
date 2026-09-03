@@ -28,8 +28,13 @@ enum CompositionRoot {
         )
         let urlOpener = WorkspaceURLOpener()
         let applicationPlatform = AppKitApplicationPlatformAdapter()
-        let pasteboard = PasteboardAdapter()
-        let languageManager = LanguageManager.shared
+        let pasteboard = PasteboardScreenModel(writer: MacOSPasteboardAdapter())
+        let yubiKeyVault = YubiKeyVaultAdapter()
+        let languageManager = LanguageManager(
+            repository: UserDefaultsLanguagePreferencesRepository()
+        )
+        let proxyPreferences = UserDefaultsProxyPreferencesRepository()
+        let managementAPIFactory = LiveProxyManagementAPIFactory()
         let notificationController = NotificationController(
             repository: UserDefaultsNotificationPreferencesRepository(),
             delivery: UserNotificationCenterAdapter { [languageManager] key in
@@ -50,7 +55,14 @@ enum CompositionRoot {
             managementChecker: LocalProxyManagementClient(),
             metadataRepository: UserDefaultsProxyRuntimeMetadataRepository(),
             preferencesRepository: UserDefaultsProxyPreferencesRepository(),
-            keyVault: LegacyProxyManagementKeyVault(),
+            keyVault: ProxyManagementKeyVaultAdapter(
+                dataStore: KeychainCredentialDataStore(
+                    service: AppIdentity.keychainService(suffix: "local-management"),
+                    legacyServices: AppIdentity.legacyKeychainServices(suffix: "local-management"),
+                    canMigrateLegacy: AppIdentity.isProduction,
+                    protectedStore: yubiKeyVault
+                )
+            ),
             configurationSupplement: CustomProviderConfigurationSupplement(
                 service: customProviderService
             ),
@@ -70,26 +82,38 @@ enum CompositionRoot {
         )
 
         let authFileRepository = FileAuthFileRepository()
-        let directAuthService = DirectAuthFileService(repository: authFileRepository)
-        let metadataRepository = MonitorAccountMigrationBridge.metadataRepository
-        let credentialVault = MonitorAccountMigrationBridge.credentialVault
-        let accountDiscovery = MonitorAccountDiscovery(
+        let metadataRepository = FileAccountMetadataRepository()
+        let externalCredentials = ExternalKeychainCredentialReader()
+        let credentialVault = CredentialVaultService(
+            dataStore: KeychainCredentialDataStore(
+                service: AppIdentity.keychainService(suffix: "monitor-auth"),
+                legacyServices: AppIdentity.legacyKeychainServices(suffix: "monitor-auth"),
+                canMigrateLegacy: AppIdentity.isProduction,
+                protectedStore: yubiKeyVault
+            ),
+            metadataRepository: metadataRepository
+        )
+        let accountDiscovery = LocalAccountDiscovery(
             vault: credentialVault,
-            directAuthService: directAuthService,
-            metadata: MonitorMetadataStore(repository: metadataRepository),
-            externalCredentials: ExternalKeychainCredentialReader()
+            authFileRepository: authFileRepository,
+            metadataRepository: metadataRepository,
+            externalCredentials: externalCredentials
         )
         let accountService = AccountService(
             discovery: accountDiscovery,
             metadataRepository: metadataRepository,
             credentialVault: credentialVault,
             reservedLabels: [
-                AccountProviderID(rawValue: AIProvider.amp.rawValue): [AmpQuotaFetcher.localAccountKey],
+                AccountProviderID(rawValue: QuotaProvider.amp.rawValue): [ProviderAccountKey.ampNative],
             ]
         )
         let accountsScreenModel = AccountsScreenModel(
             accountService: accountService,
             authFileRepository: authFileRepository
+        )
+        let kiroQuotaFetcher = QuotioInfrastructure.KiroQuotaFetcher(
+            vault: credentialVault,
+            metadata: metadataRepository
         )
 
         let monitorAuthorizer = MonitorOAuthAuthorizer(
@@ -98,7 +122,7 @@ enum CompositionRoot {
             callbackTransport: LoopbackOAuthCallbackTransport(),
             httpTransport: URLSessionOAuthHTTPTransport()
         ) { accessToken, expiresAt, clientID, clientSecret, region in
-            await KiroQuotaFetcher().authenticatedAccountIdentity(
+            await kiroQuotaFetcher.authenticatedAccountIdentity(
                 accessToken: accessToken,
                 expiresAt: expiresAt,
                 clientID: clientID,
@@ -107,17 +131,32 @@ enum CompositionRoot {
             )
         }
         let localProxyAuthorizer = LocalProxyOAuthAuthorizer(
-            proxy: proxyScreenModel,
-            authService: LegacyProxyAuthService(
-                proxy: proxyScreenModel,
-                copyToPasteboard: pasteboard.copy
-            ),
+            runtime: { [proxyScreenModel] in
+                LocalProxyOAuthRuntime(
+                    cli: proxyScreenModel.isBinaryInstalled
+                        ? ProxyCLIAuthRuntime(
+                            binaryPath: proxyScreenModel.effectiveBinaryPath,
+                            configurationPath: proxyScreenModel.configPath
+                        )
+                        : nil,
+                    management: proxyScreenModel.proxyStatus.running
+                        ? ProxyManagementConnection(
+                            baseURL: proxyScreenModel.managementURL,
+                            authKey: proxyScreenModel.managementKey
+                        )
+                        : nil
+                )
+            },
+            authenticator: ProcessProxyCLIAuthenticator(copyDeviceCode: pasteboard.copy),
             authFiles: authFileRepository,
-            urlOpener: urlOpener
+            urlOpener: urlOpener,
+            managementAPIFactory: managementAPIFactory
         ) {
-            await KiroQuotaFetcher().refreshAllTokensIfNeeded()
+            await kiroQuotaFetcher.refreshAllLocalTokensIfNeeded()
         }
-        let modeManager = OperatingModeManager.shared
+        let modeManager = OperatingModeManager(
+            repository: UserDefaultsOperatingModePreferencesRepository()
+        )
         let authorizer = OperatingModeOAuthAuthorizer(
             monitor: monitorAuthorizer,
             localProxy: localProxyAuthorizer
@@ -129,6 +168,14 @@ enum CompositionRoot {
         )
 
         let factoryDroidCredentials = LocalFactoryDroidCredentialStore()
+        let warpTokenRepository = SecureWarpTokenRepository(
+            dataStore: KeychainCredentialDataStore(
+                service: AppIdentity.keychainService(suffix: "warp"),
+                legacyServices: AppIdentity.legacyKeychainServices(suffix: "warp"),
+                canMigrateLegacy: AppIdentity.isProduction
+            )
+        )
+        let warpTokenScreenModel = WarpTokenScreenModel(repository: warpTokenRepository)
         let registry = QuotaProviderRegistry([
             QuotioInfrastructure.ClaudeQuotaFetcher(
                 credentials: CompositeClaudeQuotaCredentialLoader(
@@ -151,10 +198,7 @@ enum CompositionRoot {
                 vault: credentialVault,
                 metadata: metadataRepository
             ),
-            QuotioInfrastructure.KiroQuotaFetcher(
-                vault: credentialVault,
-                metadata: metadataRepository
-            ),
+            kiroQuotaFetcher,
             QuotioInfrastructure.CursorQuotaFetcher(),
             QuotioInfrastructure.TraeQuotaFetcher(),
             QuotioInfrastructure.FactoryDroidQuotaFetcher(
@@ -165,7 +209,7 @@ enum CompositionRoot {
             ),
             QuotioInfrastructure.GLMQuotaFetcher(repository: customProviderRepository),
             QuotioInfrastructure.ClinePassQuotaFetcher(repository: customProviderRepository),
-            QuotioInfrastructure.WarpQuotaFetcher(repository: UserDefaultsWarpTokenRepository()),
+            QuotioInfrastructure.WarpQuotaFetcher(repository: warpTokenRepository),
             QuotioInfrastructure.OpenRouterQuotaFetcher(
                 vault: credentialVault,
                 metadata: metadataRepository
@@ -197,10 +241,18 @@ enum CompositionRoot {
         providersScreenModel.reloadCustomProviders()
 
         let antigravityAccountScreenModel = AntigravityAccountScreenModel(
-            switcher: .shared
+            switcher: AntigravityAccountSwitcherFactory.make()
         )
-        let refreshSettings = RefreshSettingsManager.shared
-        let menuBarSettings = MenuBarSettingsManager.shared
+        let refreshSettings = RefreshSettingsManager(
+            repository: UserDefaultsRefreshPreferencesRepository()
+        )
+        let menuBarSettings = MenuBarSettingsManager(
+            repository: UserDefaultsMenuBarPreferencesRepository()
+        )
+        let warmupSettings = WarmupSettingsManager(
+            repository: UserDefaultsWarmupPreferencesRepository()
+        )
+        let ideScanSettings = IDEScanSettingsManager()
         let quotaController = QuotaFeatureController(
             quota: quotaScreenModel,
             accounts: accountsScreenModel,
@@ -237,12 +289,15 @@ enum CompositionRoot {
                     "tunnel.error.unexpectedExit".localized()
                 case .startTimeout:
                     "tunnel.error.startTimeout".localized()
+                @unknown default:
+                    "tunnel.error.unexpectedExit".localized()
                 }
             }
         )
         let agentFileStore = AgentFileStore()
         let agentDetector = AgentDetectionAdapter()
         let agentInstallationProbe = AgentBinaryInstallationProbe()
+        let copilotAvailableModelCatalog = CopilotAvailableModelCatalog()
         let agentConfigurationService = QuotioApplication.AgentConfigurationService(
             adapters: [
                 ClaudeCodeAgentConfigurationAdapter(fileStore: agentFileStore),
@@ -263,7 +318,7 @@ enum CompositionRoot {
             detector: agentDetector,
             shellProfiles: ShellProfileAdapter(fileStore: agentFileStore),
             modelCatalog: AgentModelCatalogHTTPAdapter {
-                await CopilotQuotaFetcher().fetchUserAvailableModelIds()
+                await copilotAvailableModelCatalog.availableModelIDs()
             }
         )
         weak var proxyManagementReference: ProxyManagementScreenModel?
@@ -283,9 +338,13 @@ enum CompositionRoot {
             oauth: oauthScreenModel,
             tunnel: tunnel,
             agentSetup: agentSetup,
+            authWorkaround: FileAntigravityAuthWorkaround(),
             notifications: notificationController,
             refreshSettings: refreshSettings,
-            tunnelPreferences: tunnelPreferences
+            tunnelPreferences: tunnelPreferences,
+            proxyPreferences: proxyPreferences,
+            authFileState: UserDefaultsManagedAuthFileStateRepository(),
+            managementAPIFactory: managementAPIFactory
         )
         proxyManagementReference = proxyManagement
         quotaController.setAuthFilesProvider { [weak proxyManagement] in
@@ -301,8 +360,8 @@ enum CompositionRoot {
             await quotaController?.refreshAll(force: true)
         }
 
-        let warmupExecutor = LegacyWarmupExecutor { [weak proxyManagement] in
-            proxyManagement?.apiClient
+        let warmupExecutor = ProxyWarmupExecutor { [weak proxyManagement] in
+            proxyManagement?.managementAPI
         }
         let warmupScreenModel = WarmupScreenModel(
             scheduler: WarmupSchedulerService(
@@ -311,12 +370,13 @@ enum CompositionRoot {
                 clock: SystemDateProvider(),
                 sleeper: ContinuousSleeper()
             ),
-            settings: .shared,
+            settings: warmupSettings,
             authFiles: { [weak proxyManagement] in proxyManagement?.authFiles ?? [] }
         )
         let ideImportScreenModel = IDEImportScreenModel(
             quotaController: quotaController,
-            settings: .shared
+            settings: ideScanSettings,
+            cliToolProbe: CLIToolInstallationProbe()
         )
 
         let logRepository = QuotioInfrastructure.ManagementAPIClient(
@@ -356,6 +416,7 @@ enum CompositionRoot {
             updatePreferencesRepository: updatePreferences
         )
         let telemetryConsentModel = TelemetryConsentScreenModel(controller: telemetryController)
+        let yubiKeySettingsModel = YubiKeySettingsScreenModel(vault: yubiKeyVault)
         let launchAtLoginController = LaunchAtLoginController(
             registration: ServiceManagementLaunchAtLoginAdapter(),
             urlOpener: urlOpener
@@ -368,6 +429,8 @@ enum CompositionRoot {
                     "launchAtLogin.error.registrationFailed".localized() + ": \(reason)"
                 case .unregistrationFailed(let reason):
                     "launchAtLogin.error.unregistrationFailed".localized() + ": \(reason)"
+                @unknown default:
+                    "launchAtLogin.error.registrationFailed".localized()
                 }
             }
         )
@@ -383,7 +446,7 @@ enum CompositionRoot {
             sleeper: ContinuousSleeper()
         )
         let settingsScreenModel = SettingsScreenModel(
-            proxyRepository: UserDefaultsProxyPreferencesRepository(),
+            proxyRepository: proxyPreferences,
             tunnelRepository: tunnelPreferences,
             appShellRepository: UserDefaultsAppShellPreferencesRepository(),
             applyNetworkAccess: { [proxyScreenModel] enabled in
@@ -403,13 +466,14 @@ enum CompositionRoot {
             }
         )
         let statusBarManager = StatusBarManager()
-        let services = LegacyAppRuntimeServices(
+        let services = ProductionAppRuntimeServices(
             proxyManagement: proxyManagement,
             quotaController: quotaController,
             quotaScreenModel: quotaScreenModel,
             accountsScreenModel: accountsScreenModel,
             dashboardScreenModel: dashboardScreenModel,
             providersScreenModel: providersScreenModel,
+            warpTokenScreenModel: warpTokenScreenModel,
             navigationScreenModel: NavigationScreenModel(),
             warmupScreenModel: warmupScreenModel,
             ideImportScreenModel: ideImportScreenModel,
@@ -425,12 +489,13 @@ enum CompositionRoot {
             menuBarSettings: menuBarSettings,
             languageManager: languageManager,
             refreshSettings: refreshSettings,
-            warmupSettings: .shared,
-            ideScanSettings: .shared,
+            warmupSettings: warmupSettings,
+            ideScanSettings: ideScanSettings,
             launchAtLoginModel: launchAtLoginModel,
             notificationSettingsModel: notificationSettingsModel,
             telemetryConsentModel: telemetryConsentModel,
             applicationUpdateModel: applicationUpdateModel,
+            yubiKeySettingsModel: yubiKeySettingsModel,
             notificationController: notificationController,
             telemetryController: telemetryController,
             applicationUpdateController: applicationUpdateController,
@@ -440,16 +505,6 @@ enum CompositionRoot {
             isCLIInstalled: agentInstallationProbe.isInstalled
         )
         return AppRuntime(services: services)
-    }
-}
-
-private struct LegacyProxyManagementKeyVault: ProxyManagementKeyVault {
-    func loadManagementKey() async -> String? {
-        await MainActor.run { KeychainHelper.getLocalManagementKey() }
-    }
-
-    func saveManagementKey(_ key: String) async -> Bool {
-        await MainActor.run { KeychainHelper.saveLocalManagementKey(key) }
     }
 }
 
@@ -466,19 +521,20 @@ private struct CustomProviderConfigurationSupplement: ProxyConfigurationSuppleme
 }
 
 @MainActor
-private final class LegacyAppRuntimeServices: AppRuntimeServices {
+private final class ProductionAppRuntimeServices: AppRuntimeServices {
     let proxyManagement: ProxyManagementScreenModel
     let quotaController: QuotaFeatureController
     let quotaScreenModel: QuotaScreenModel
     let accountsScreenModel: AccountsScreenModel
     let dashboardScreenModel: DashboardScreenModel
     let providersScreenModel: ProvidersScreenModel
+    let warpTokenScreenModel: WarpTokenScreenModel
     let navigationScreenModel: NavigationScreenModel
     let warmupScreenModel: WarmupScreenModel
     let ideImportScreenModel: IDEImportScreenModel
     let antigravityAccountScreenModel: AntigravityAccountScreenModel
     let logsScreenModel: LogsScreenModel
-    let pasteboard: PasteboardAdapter
+    let pasteboard: PasteboardScreenModel
     let providerImageModel: ProviderImageScreenModel
     let platformActions: PlatformActionScreenModel
     let settingsScreenModel: SettingsScreenModel
@@ -494,6 +550,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     let notificationSettingsModel: NotificationSettingsScreenModel
     let telemetryConsentModel: TelemetryConsentScreenModel
     let applicationUpdateModel: ApplicationUpdateScreenModel
+    let yubiKeySettingsModel: YubiKeySettingsScreenModel
 
     private let notificationController: NotificationController
     private let telemetryController: TelemetryController
@@ -514,12 +571,13 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         accountsScreenModel: AccountsScreenModel,
         dashboardScreenModel: DashboardScreenModel,
         providersScreenModel: ProvidersScreenModel,
+        warpTokenScreenModel: WarpTokenScreenModel,
         navigationScreenModel: NavigationScreenModel,
         warmupScreenModel: WarmupScreenModel,
         ideImportScreenModel: IDEImportScreenModel,
         antigravityAccountScreenModel: AntigravityAccountScreenModel,
         logsScreenModel: LogsScreenModel,
-        pasteboard: PasteboardAdapter,
+        pasteboard: PasteboardScreenModel,
         providerImageModel: ProviderImageScreenModel,
         platformActions: PlatformActionScreenModel,
         settingsScreenModel: SettingsScreenModel,
@@ -535,6 +593,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         notificationSettingsModel: NotificationSettingsScreenModel,
         telemetryConsentModel: TelemetryConsentScreenModel,
         applicationUpdateModel: ApplicationUpdateScreenModel,
+        yubiKeySettingsModel: YubiKeySettingsScreenModel,
         notificationController: NotificationController,
         telemetryController: TelemetryController,
         applicationUpdateController: ApplicationUpdateController,
@@ -549,6 +608,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         self.accountsScreenModel = accountsScreenModel
         self.dashboardScreenModel = dashboardScreenModel
         self.providersScreenModel = providersScreenModel
+        self.warpTokenScreenModel = warpTokenScreenModel
         self.navigationScreenModel = navigationScreenModel
         self.warmupScreenModel = warmupScreenModel
         self.ideImportScreenModel = ideImportScreenModel
@@ -570,6 +630,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         self.notificationSettingsModel = notificationSettingsModel
         self.telemetryConsentModel = telemetryConsentModel
         self.applicationUpdateModel = applicationUpdateModel
+        self.yubiKeySettingsModel = yubiKeySettingsModel
         self.notificationController = notificationController
         self.telemetryController = telemetryController
         self.applicationUpdateController = applicationUpdateController
@@ -620,7 +681,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
                     await antigravityAccountScreenModel.switchAccount(email: email)
                 },
                 isAntigravityIDERunning: { [antigravityAccountScreenModel] in
-                    antigravityAccountScreenModel.switcher.isIDERunning()
+                    antigravityAccountScreenModel.isIDERunning
                 },
                 confirmAntigravitySwitch: AntigravitySwitchConfirmationPresenter.confirm,
                 openApp: { [weak statusBarManager, settingsScreenModel, windowPresenter] in
@@ -734,11 +795,13 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
             proxyPort: proxyManagement.proxy.port,
             isProxyRunning: proxyManagement.proxy.proxyStatus.running,
             tunnel: tunnel.tunnelState,
-            directAuthProviders: Set(proxyManagement.directAuthFiles.map(\.provider)),
+            directAuthProviders: Set(proxyManagement.directAuthFiles.compactMap {
+                QuotaProvider(rawValue: $0.providerID.rawValue)
+            }),
             monitorAccounts: accountsScreenModel.accounts,
             quota: quotaScreenModel.state,
             installedAgents: installedAgents,
-            activeAntigravityEmail: antigravityAccountScreenModel.switcher.currentActiveAccount?.email,
+            activeAntigravityEmail: antigravityAccountScreenModel.snapshot.activeAccount?.email,
             menuBarPreferences: menuBarSettings.preferences,
             appearanceMode: appearanceManager.appearanceMode,
             language: languageManager.currentLanguage
@@ -785,9 +848,9 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
 
     private func resolveQuotaData(
         for selectedItem: MenuBarQuotaItem,
-        provider: AIProvider,
-        accountQuotas: [String: ProviderQuotaData]
-    ) -> ProviderQuotaData? {
+        provider: QuotaProvider,
+        accountQuotas: [String: ProviderQuota]
+    ) -> ProviderQuota? {
         if let quotaData = accountQuotas[selectedItem.accountKey] {
             return quotaData
         }
@@ -800,9 +863,22 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         }
 
         if provider == .codex {
-            return accountQuotas[selectedItem.accountKey.codexFilenameKey]
+            var filenameKey = selectedItem.accountKey
+            if filenameKey.hasPrefix("codex-") {
+                filenameKey.removeFirst("codex-".count)
+            }
+            if filenameKey.hasSuffix(".json") {
+                filenameKey.removeLast(".json".count)
+            }
+            return accountQuotas[filenameKey]
         }
-        if provider == .copilot, let filenameKey = selectedItem.accountKey.copilotFilenameKey {
+        if provider == .copilot, selectedItem.accountKey.hasPrefix("github-copilot-") {
+            var filenameKey = selectedItem.accountKey
+            filenameKey.removeFirst("github-copilot-".count)
+            if filenameKey.hasSuffix(".json") {
+                filenameKey.removeLast(".json".count)
+            }
+            guard !filenameKey.isEmpty else { return nil }
             return accountQuotas[filenameKey]
         }
         return nil

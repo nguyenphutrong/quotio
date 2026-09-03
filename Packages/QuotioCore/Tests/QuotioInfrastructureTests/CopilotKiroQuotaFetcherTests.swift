@@ -85,6 +85,32 @@ final class CopilotKiroQuotaFetcherTests: XCTestCase {
     XCTAssertNotNil(monitor.quotas["vault-user"])
   }
 
+  func testCopilotAvailableModelCatalogPreservesExchangeAndAvailabilityFiltering() async throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: home) }
+    try FileManager.default.createDirectory(
+      at: home.appendingPathComponent(".cli-proxy-api"), withIntermediateDirectories: true)
+    try Data(#"{"access_token":"github-token"}"#.utf8).write(
+      to: home.appendingPathComponent(".cli-proxy-api/github-copilot-person.json"))
+    let session = AdapterTestSession { request in
+      if request.url?.host == "api.github.com" {
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer github-token")
+        return (#"{"token":"copilot-token"}"#, 200)
+      }
+      XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer copilot-token")
+      XCTAssertEqual(request.value(forHTTPHeaderField: "Editor-Version"), "vscode/1.100.0")
+      return (
+        #"{"data":[{"id":"enabled","model_picker_enabled":true},{"id":"hidden","model_picker_enabled":false}]}"#,
+        200
+      )
+    }
+    let catalog = CopilotAvailableModelCatalog(homeDirectory: home.path, session: session)
+
+    let models = await catalog.availableModelIDs()
+
+    XCTAssertEqual(models, ["enabled"])
+  }
+
   func testKiroScopesBothModesUsesRegionHeadersAndMapsSemanticValues() async throws {
     let credential = KiroQuotaCredential(
       accessToken: "token", expiresAt: Date(timeIntervalSince1970: 2_000_000_000),
@@ -170,6 +196,30 @@ final class CopilotKiroQuotaFetcherTests: XCTestCase {
     XCTAssertTrue(local.quotas.isEmpty)
     XCTAssertEqual(local.credentialAvailability, .missing)
     XCTAssertNotNil(monitor.quotas["vault-user"])
+  }
+
+  func testKiroAuthenticationHelpersPreserveIdentityAndRefreshBehavior() async throws {
+    let expiring = KiroQuotaCredential(
+      accessToken: "old", refreshToken: "refresh",
+      expiresAt: Date(timeIntervalSince1970: 1_700_000_100), clientID: "client",
+      clientSecret: "secret", region: "us-east-1", accountKey: "person")
+    let source = KiroTestSource([expiring])
+    let session = AdapterTestSession { request in
+      if request.url?.host == "oidc.us-east-1.amazonaws.com" {
+        return (#"{"accessToken":"new","expiresIn":3600}"#, 200)
+      }
+      return (#"{"userInfo":{"email":"person@example.com","userId":"person-id"}}"#, 200)
+    }
+    let fetcher = KiroQuotaFetcher(
+      vault: AdapterTestVault(), metadata: AdapterTestMetadata(), credentials: source,
+      session: session, now: { Date(timeIntervalSince1970: 1_700_000_000) })
+
+    let refreshedCount = await fetcher.refreshAllLocalTokensIfNeeded()
+    XCTAssertEqual(refreshedCount, 1)
+    let identity = await fetcher.authenticatedAccountIdentity(
+      accessToken: "new", expiresAt: Date(timeIntervalSince1970: 1_700_003_600),
+      clientID: "client", clientSecret: "secret", region: "us-east-1")
+    XCTAssertEqual(identity, "person@example.com")
   }
 }
 

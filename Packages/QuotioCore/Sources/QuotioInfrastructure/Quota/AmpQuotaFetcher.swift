@@ -26,7 +26,7 @@ public actor AmpQuotaFetcher: QuotaFetching {
     let error: APIError?
   }
 
-  public static let localAccountKey = "amp:native"
+  public static let localAccountKey = ProviderAccountKey.ampNative
   public static let defaultNativePath = "~/.local/share/amp/secrets.json"
   public nonisolated let provider = QuotaProvider.amp
   private let vault: any CredentialVault
