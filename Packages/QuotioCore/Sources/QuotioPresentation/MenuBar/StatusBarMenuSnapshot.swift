@@ -44,6 +44,7 @@ public struct StatusBarMenuSnapshot: Equatable, Sendable {
     let isProxyRunning: Bool
     let tunnel: CloudflareTunnelSnapshot
     let providers: [StatusBarMenuProviderSnapshot]
+    let selectedProvider: QuotaProvider?
     let isLoadingQuotas: Bool
     let displaySettings: StatusBarMenuDisplaySettings
     let appearanceMode: AppearanceMode
@@ -109,6 +110,9 @@ public enum StatusBarMenuSnapshotMapper {
             isProxyRunning: isProxyRunning,
             tunnel: tunnel,
             providers: providers,
+            selectedProvider: menuBarPreferences.selectedProvider.flatMap { selected in
+                providers.contains(where: { $0.provider == selected }) ? selected : nil
+            },
             isLoadingQuotas: !quota.refreshingProviders.isEmpty,
             displaySettings: StatusBarMenuDisplaySettings(
                 quotaDisplayMode: menuBarPreferences.quotaDisplayMode,

@@ -1,8 +1,8 @@
 //
-//  StatusBarMenuBuilder.swift
+//  StatusBarMenuRenderer.swift
 //  QuotioPresentation
 //
-//  Native NSMenu builder that matches MenuBarView layout:
+//  Native NSMenu renderer that matches MenuBarView layout:
 //  - Header
 //  - Proxy Info (Full Mode)
 //  - Provider Segment Picker
@@ -14,16 +14,13 @@ import AppKit
 import QuotioDomain
 import SwiftUI
 
-// MARK: - Status Bar Menu Builder
+// MARK: - Status Bar Menu Renderer
 
 @MainActor
-final class StatusBarMenuBuilder {
+final class StatusBarMenuRenderer {
     private let snapshot: StatusBarMenuSnapshot
     private let commands: StatusBarCommandDispatcher
     private let menuWidth: CGFloat = 360
-
-    // Selected provider persisted by AppStorage.
-    @AppStorage("menuBarSelectedProvider") private var selectedProviderRaw: String = ""
 
     init(
         snapshot: StatusBarMenuSnapshot,
@@ -53,8 +50,9 @@ final class StatusBarMenuBuilder {
         if !providers.isEmpty {
             let pickerView = MenuProviderPickerView(
                 providers: providers.map(\.provider),
-                onProviderChanged: {
-                    self.commands.dispatch(.providerSelectionChanged)
+                selectedProvider: selectedProvider(from: providers),
+                onProviderChanged: { provider in
+                    self.commands.dispatch(.selectProvider(provider))
                 }
             )
             menu.addItem(viewItem(for: pickerView))
@@ -109,8 +107,7 @@ final class StatusBarMenuBuilder {
     private func selectedProvider(
         from providers: [StatusBarMenuProviderSnapshot]
     ) -> QuotaProvider? {
-        guard !selectedProviderRaw.isEmpty,
-              let provider = QuotaProvider(rawValue: selectedProviderRaw),
+        guard let provider = snapshot.selectedProvider,
               providers.contains(where: { $0.provider == provider }) else {
             return nil
         }
@@ -332,26 +329,15 @@ private struct MenuProviderSectionHeader: View {
 // MARK: - Provider Picker View (separate from accounts list)
 
 private struct MenuProviderPickerView: View {
-    @AppStorage("menuBarSelectedProvider") private var selectedProviderRaw: String = ""
-    
     let providers: [QuotaProvider]
-    let onProviderChanged: () -> Void
-    
-    private var selectedProvider: QuotaProvider? {
-        if !selectedProviderRaw.isEmpty,
-           let provider = QuotaProvider(rawValue: selectedProviderRaw),
-           providers.contains(provider) {
-            return provider
-        }
-        return nil
-    }
+    let selectedProvider: QuotaProvider?
+    let onProviderChanged: (QuotaProvider?) -> Void
     
     var body: some View {
         // Wrap providers in a flexible layout
         FlowLayout(spacing: 6) {
             AllProviderFilterButton(isSelected: selectedProvider == nil) {
-                selectedProviderRaw = ""
-                onProviderChanged()
+                onProviderChanged(nil)
             }
 
             ForEach(providers) { provider in
@@ -359,8 +345,7 @@ private struct MenuProviderPickerView: View {
                     provider: provider,
                     isSelected: selectedProvider == provider
                 ) {
-                    selectedProviderRaw = provider.rawValue
-                    onProviderChanged()
+                    onProviderChanged(provider)
                 }
             }
         }

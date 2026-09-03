@@ -11,7 +11,7 @@ enum StatusBarCommand: Equatable {
     case copyProxyURL(String)
     case copyTunnelURL(String)
     case useAntigravityAccount(email: String)
-    case providerSelectionChanged
+    case selectProvider(QuotaProvider?)
     case openApp
     case quit
 }
@@ -27,6 +27,7 @@ public struct StatusBarCommandHandlers {
     fileprivate let switchAntigravityAccount: @MainActor @Sendable (String) async -> Void
     fileprivate let isAntigravityIDERunning: () -> Bool
     fileprivate let confirmAntigravitySwitch: (_ email: String, _ isIDERunning: Bool) -> Bool
+    fileprivate let selectProvider: (QuotaProvider?) -> Void
     fileprivate let openApp: () -> Void
     fileprivate let quit: () -> Void
     fileprivate let menuNeedsRebuild: () -> Void
@@ -41,6 +42,7 @@ public struct StatusBarCommandHandlers {
         switchAntigravityAccount: @escaping @MainActor @Sendable (String) async -> Void,
         isAntigravityIDERunning: @escaping () -> Bool,
         confirmAntigravitySwitch: @escaping (_ email: String, _ isIDERunning: Bool) -> Bool,
+        selectProvider: @escaping (QuotaProvider?) -> Void,
         openApp: @escaping () -> Void,
         quit: @escaping () -> Void,
         menuNeedsRebuild: @escaping () -> Void
@@ -54,6 +56,7 @@ public struct StatusBarCommandHandlers {
         self.switchAntigravityAccount = switchAntigravityAccount
         self.isAntigravityIDERunning = isAntigravityIDERunning
         self.confirmAntigravitySwitch = confirmAntigravitySwitch
+        self.selectProvider = selectProvider
         self.openApp = openApp
         self.quit = quit
         self.menuNeedsRebuild = menuNeedsRebuild
@@ -87,8 +90,8 @@ public final class StatusBarCommandDispatcher {
                 return
             }
             perform { [handlers] in await handlers.switchAntigravityAccount(email) }
-        case .providerSelectionChanged:
-            handlers.menuNeedsRebuild()
+        case .selectProvider(let provider):
+            handlers.selectProvider(provider)
         case .openApp:
             handlers.openApp()
         case .quit:

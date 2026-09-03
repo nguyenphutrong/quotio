@@ -70,6 +70,8 @@ public final class UserDefaultsMenuBarPreferencesRepository: MenuBarPreferencesR
             showQuotaInMenuBar: defaults.bool(forKey: "menuBarShowQuota"),
             menuBarMaxItems: maximum,
             selectedItems: Array(selectedItems.prefix(maximum)),
+            selectedProvider: defaults.string(forKey: "menuBarSelectedProvider")
+                .flatMap(QuotaProvider.init(rawValue:)),
             colorMode: MenuBarColorMode(rawValue: defaults.string(forKey: "menuBarColorMode") ?? "") ?? .colored,
             quotaDisplayMode: QuotaDisplayMode(rawValue: defaults.string(forKey: "quotaDisplayMode") ?? "") ?? .used,
             quotaDisplayStyle: QuotaDisplayStyle(rawValue: defaults.string(forKey: "quotaDisplayStyle") ?? "") ?? .card,
@@ -86,6 +88,7 @@ public final class UserDefaultsMenuBarPreferencesRepository: MenuBarPreferencesR
         defaults.set(preferences.showMenuBarIcon, forKey: "showMenuBarIcon")
         defaults.set(preferences.showQuotaInMenuBar, forKey: "menuBarShowQuota")
         defaults.set(maximum, forKey: "menuBarMaxItems")
+        defaults.set(preferences.selectedProvider?.rawValue ?? "", forKey: "menuBarSelectedProvider")
         defaults.set(preferences.colorMode.rawValue, forKey: "menuBarColorMode")
         defaults.set(preferences.quotaDisplayMode.rawValue, forKey: "quotaDisplayMode")
         defaults.set(preferences.quotaDisplayStyle.rawValue, forKey: "quotaDisplayStyle")

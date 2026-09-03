@@ -89,6 +89,7 @@ public struct MenuBarPreferences: Equatable, Sendable {
     public var showQuotaInMenuBar: Bool
     public var menuBarMaxItems: Int
     public var selectedItems: [MenuBarQuotaItem]
+    public var selectedProvider: QuotaProvider?
     public var colorMode: MenuBarColorMode
     public var quotaDisplayMode: QuotaDisplayMode
     public var quotaDisplayStyle: QuotaDisplayStyle
@@ -103,6 +104,7 @@ public struct MenuBarPreferences: Equatable, Sendable {
         showQuotaInMenuBar: Bool = true,
         menuBarMaxItems: Int = 3,
         selectedItems: [MenuBarQuotaItem] = [],
+        selectedProvider: QuotaProvider? = nil,
         colorMode: MenuBarColorMode = .colored,
         quotaDisplayMode: QuotaDisplayMode = .used,
         quotaDisplayStyle: QuotaDisplayStyle = .card,
@@ -116,6 +118,7 @@ public struct MenuBarPreferences: Equatable, Sendable {
         self.showQuotaInMenuBar = showQuotaInMenuBar
         self.menuBarMaxItems = menuBarMaxItems
         self.selectedItems = selectedItems
+        self.selectedProvider = selectedProvider
         self.colorMode = colorMode
         self.quotaDisplayMode = quotaDisplayMode
         self.quotaDisplayStyle = quotaDisplayStyle

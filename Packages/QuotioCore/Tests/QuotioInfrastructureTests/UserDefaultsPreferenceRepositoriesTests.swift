@@ -75,6 +75,20 @@ final class UserDefaultsPreferenceRepositoriesTests: XCTestCase {
         XCTAssertEqual(repository.load().selectedItems.count, 1)
     }
 
+    func testMenuBarProviderFilterUsesExistingKey() {
+        defaults.set(QuotaProvider.claude.rawValue, forKey: "menuBarSelectedProvider")
+        let repository = UserDefaultsMenuBarPreferencesRepository(defaults: defaults)
+
+        XCTAssertEqual(repository.load().selectedProvider, .claude)
+
+        var preferences = repository.load()
+        preferences.selectedProvider = nil
+        repository.save(preferences)
+
+        XCTAssertEqual(defaults.string(forKey: "menuBarSelectedProvider"), "")
+        XCTAssertNil(repository.load().selectedProvider)
+    }
+
     func testEmptyStoresUseExistingDefaults() {
         let menu = UserDefaultsMenuBarPreferencesRepository(defaults: defaults).load()
         let refresh = UserDefaultsRefreshPreferencesRepository(defaults: defaults).load()
@@ -112,6 +126,7 @@ final class UserDefaultsPreferenceRepositoriesTests: XCTestCase {
             showQuotaInMenuBar: false,
             menuBarMaxItems: 4,
             selectedItems: [MenuBarQuotaItem(provider: "codex", accountKey: "user")],
+            selectedProvider: .codex,
             colorMode: .monochrome,
             quotaDisplayMode: .remaining,
             quotaDisplayStyle: .ring,
@@ -125,6 +140,7 @@ final class UserDefaultsPreferenceRepositoriesTests: XCTestCase {
         menuRepository.save(menuPreferences)
         XCTAssertEqual(menuRepository.load(), menuPreferences)
         XCTAssertNotNil(defaults.data(forKey: "menuBarSelectedQuotaItems"))
+        XCTAssertEqual(defaults.string(forKey: "menuBarSelectedProvider"), "codex")
 
         let warmupPreferences = WarmupPreferences(
             enabledAccountIds: ["codex::user"],

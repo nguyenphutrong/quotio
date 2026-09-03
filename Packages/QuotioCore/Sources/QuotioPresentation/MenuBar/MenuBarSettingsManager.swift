@@ -399,6 +399,11 @@ public final class MenuBarSettingsManager {
     public var selectedItems: [MenuBarQuotaItem] {
         didSet { persist() }
     }
+
+    /// Provider used to filter account cards in the expanded menu.
+    public private(set) var selectedProvider: QuotaProvider? {
+        didSet { persist() }
+    }
     
     /// Color mode (colored vs monochrome)
     public var colorMode: MenuBarColorMode {
@@ -459,6 +464,7 @@ public final class MenuBarSettingsManager {
             showQuotaInMenuBar: showQuotaInMenuBar,
             menuBarMaxItems: menuBarMaxItems,
             selectedItems: selectedItems,
+            selectedProvider: selectedProvider,
             colorMode: colorMode,
             quotaDisplayMode: quotaDisplayMode,
             quotaDisplayStyle: quotaDisplayStyle,
@@ -477,6 +483,7 @@ public final class MenuBarSettingsManager {
         self.showQuotaInMenuBar = preferences.showQuotaInMenuBar
         self.menuBarMaxItems = preferences.menuBarMaxItems
         self.selectedItems = preferences.selectedItems
+        self.selectedProvider = preferences.selectedProvider
         self.colorMode = preferences.colorMode
         self.quotaDisplayMode = preferences.quotaDisplayMode
         self.quotaDisplayStyle = preferences.quotaDisplayStyle
@@ -489,6 +496,10 @@ public final class MenuBarSettingsManager {
 
     public func setDidChangeHandler(_ handler: (@MainActor (MenuBarPreferences) -> Void)?) {
         didChangeHandler = handler
+    }
+
+    public func selectProvider(_ provider: QuotaProvider?) {
+        selectedProvider = provider
     }
     
     public func addItem(_ item: MenuBarQuotaItem) {

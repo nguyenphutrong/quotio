@@ -684,6 +684,9 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
                     antigravityAccountScreenModel.isIDERunning
                 },
                 confirmAntigravitySwitch: AntigravitySwitchConfirmationPresenter.confirm,
+                selectProvider: { [menuBarSettings] provider in
+                    menuBarSettings.selectProvider(provider)
+                },
                 openApp: { [weak statusBarManager, settingsScreenModel, windowPresenter] in
                     if settingsScreenModel.appShellPreferences.showInDock {
                         statusBarManager?.closeMenu()

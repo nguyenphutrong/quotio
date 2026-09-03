@@ -264,11 +264,11 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
         menu.appearance = snapshot.appearanceMode.appKitAppearance
         menu.removeAllItems()
 
-        let builder = StatusBarMenuBuilder(
+        let renderer = StatusBarMenuRenderer(
             snapshot: snapshot,
             commands: commandDispatcher
         )
-        let nativeMenu = builder.buildMenu()
+        let nativeMenu = renderer.buildMenu()
         for item in nativeMenu.items {
             nativeMenu.removeItem(item)
             menu.addItem(item)

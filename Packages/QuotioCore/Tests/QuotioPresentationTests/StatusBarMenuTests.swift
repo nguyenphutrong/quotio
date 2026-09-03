@@ -1,3 +1,4 @@
+import AppKit
 import QuotioApplication
 import QuotioDomain
 import XCTest
@@ -41,6 +42,7 @@ final class StatusBarMenuSnapshotMapperTests: XCTestCase {
             refreshingProviders: [.antigravity]
         )
         let preferences = MenuBarPreferences(
+            selectedProvider: .amp,
             quotaDisplayMode: .remaining,
             quotaDisplayStyle: .ring,
             hideSensitiveInfo: true,
@@ -67,6 +69,7 @@ final class StatusBarMenuSnapshotMapperTests: XCTestCase {
         XCTAssertTrue(snapshot.isProxyRunning)
         XCTAssertEqual(snapshot.tunnel, tunnel)
         XCTAssertEqual(snapshot.providers.map(\.provider), [.amp, .antigravity, .claude])
+        XCTAssertEqual(snapshot.selectedProvider, .amp)
         XCTAssertTrue(snapshot.isLoadingQuotas)
         XCTAssertEqual(snapshot.displaySettings.quotaDisplayMode, .remaining)
         XCTAssertEqual(snapshot.displaySettings.quotaDisplayStyle, .ring)
@@ -98,13 +101,79 @@ final class StatusBarMenuSnapshotMapperTests: XCTestCase {
             quota: QuotaSnapshot(),
             installedAgents: [.codexCLI],
             activeAntigravityEmail: nil,
-            menuBarPreferences: MenuBarPreferences(),
+            menuBarPreferences: MenuBarPreferences(selectedProvider: .claude),
             appearanceMode: .system,
             language: .english
         )
 
         XCTAssertTrue(snapshot.isLocalProxyMode)
         XCTAssertEqual(snapshot.providers.map(\.provider), [.antigravity, .codex])
+        XCTAssertNil(snapshot.selectedProvider)
+    }
+}
+
+@MainActor
+final class StatusBarMenuRendererTests: XCTestCase {
+    func testSelectedProviderRendersOnlyItsAccountGroup() {
+        let unfiltered = makeSnapshot(selectedProvider: nil)
+        let filtered = makeSnapshot(selectedProvider: .claude)
+        let dispatcher = makeNoopDispatcher()
+
+        let unfilteredMenu = StatusBarMenuRenderer(
+            snapshot: unfiltered,
+            commands: dispatcher
+        ).buildMenu()
+        let filteredMenu = StatusBarMenuRenderer(
+            snapshot: filtered,
+            commands: dispatcher
+        ).buildMenu()
+
+        XCTAssertEqual(unfilteredMenu.items.count, 11)
+        XCTAssertEqual(unfilteredMenu.items.filter(\.isSeparatorItem).count, 4)
+        XCTAssertEqual(filteredMenu.items.count, 7)
+        XCTAssertEqual(filteredMenu.items.filter(\.isSeparatorItem).count, 3)
+    }
+
+    private func makeSnapshot(selectedProvider: QuotaProvider?) -> StatusBarMenuSnapshot {
+        StatusBarMenuSnapshotMapper.makeSnapshot(
+            mode: .monitor,
+            proxyPort: 8317,
+            isProxyRunning: false,
+            tunnel: CloudflareTunnelSnapshot(),
+            directAuthProviders: [.claude, .codex],
+            monitorAccounts: [],
+            quota: QuotaSnapshot(quotas: [
+                .claude: [
+                    "claude-key": ProviderQuota(accountDisplayName: "claude@example.com"),
+                ],
+                .codex: [
+                    "codex-key": ProviderQuota(accountDisplayName: "codex@example.com"),
+                ],
+            ]),
+            installedAgents: [],
+            activeAntigravityEmail: nil,
+            menuBarPreferences: MenuBarPreferences(selectedProvider: selectedProvider),
+            appearanceMode: .system,
+            language: .english
+        )
+    }
+
+    private func makeNoopDispatcher() -> StatusBarCommandDispatcher {
+        StatusBarCommandDispatcher(handlers: StatusBarCommandHandlers(
+            refreshAll: {},
+            refreshProvider: { _ in },
+            refreshAccount: { _ in },
+            toggleProxy: {},
+            toggleTunnel: { _ in },
+            copyText: { _ in },
+            switchAntigravityAccount: { _ in },
+            isAntigravityIDERunning: { false },
+            confirmAntigravitySwitch: { _, _ in true },
+            selectProvider: { _ in },
+            openApp: {},
+            quit: {},
+            menuNeedsRebuild: {}
+        ))
     }
 }
 
@@ -148,15 +217,17 @@ final class StatusBarCommandDispatcherTests: XCTestCase {
         dispatcher.dispatch(.copyTunnelURL("https://example.trycloudflare.com"))
         dispatcher.dispatch(.openApp)
         dispatcher.dispatch(.quit)
-        dispatcher.dispatch(.providerSelectionChanged)
+        dispatcher.dispatch(.selectProvider(.claude))
+        dispatcher.dispatch(.selectProvider(nil))
 
         XCTAssertEqual(recorder.copiedText, [
             "http://localhost:8317",
             "https://example.trycloudflare.com",
         ])
+        XCTAssertEqual(recorder.selectedProviders, [.claude, nil])
         XCTAssertEqual(recorder.openAppCount, 1)
         XCTAssertEqual(recorder.quitCount, 1)
-        XCTAssertEqual(recorder.rebuildCount, 1)
+        XCTAssertEqual(recorder.rebuildCount, 0)
     }
 
     func testCancelledAntigravityConfirmationDoesNotSwitchOrRebuild() {
@@ -202,6 +273,7 @@ final class StatusBarCommandDispatcherTests: XCTestCase {
                 recorder.confirmations.append("\(email):\(isRunning)")
                 return recorder.confirmSwitch
             },
+            selectProvider: { recorder.selectedProviders.append($0) },
             openApp: { recorder.openAppCount += 1 },
             quit: { recorder.quitCount += 1 },
             menuNeedsRebuild: menuNeedsRebuild
@@ -214,6 +286,7 @@ private final class StatusBarCommandRecorder {
     var asyncCommands: [String] = []
     var copiedText: [String] = []
     var confirmations: [String] = []
+    var selectedProviders: [QuotaProvider?] = []
     var confirmSwitch = true
     var ideRunningChecks = 0
     var openAppCount = 0
