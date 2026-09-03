@@ -115,8 +115,7 @@ final class OpenCodeAgentConfigurationAdapterTests: XCTestCase {
         home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         configURL = home.appendingPathComponent(".config/opencode/opencode.json")
         adapter = OpenCodeAgentConfigurationAdapter(
-            fileStore: AgentFileStore(homeDirectory: home.path, now: { Date(timeIntervalSince1970: 1234) }),
-            localize: { key in key == "agents.opencode.notConfigured" ? "Not configured" : "Cannot parse %@: %@" }
+            fileStore: AgentFileStore(homeDirectory: home.path, now: { Date(timeIntervalSince1970: 1234) })
         )
     }
 

@@ -307,21 +307,10 @@ public struct AgentConfiguration: Codable, Sendable {
     }
 }
 
-public enum AgentConfigurationValidationError: LocalizedError, Equatable, Sendable {
+public enum AgentConfigurationValidationError: Error, Equatable, Sendable {
     case invalidProxyURL
     case missingAPIKey
     case missingModel
-
-    public var errorDescription: String? {
-        switch self {
-        case .invalidProxyURL:
-            return "The proxy URL must be an absolute HTTP or HTTPS URL."
-        case .missingAPIKey:
-            return "An API key is required for proxy configuration."
-        case .missingModel:
-            return "A required model selection is missing."
-        }
-    }
 }
 
 public struct SavedAgentConfiguration: Sendable {
@@ -389,7 +378,7 @@ public struct RawConfigOutput: Sendable {
     public let content: String
     public let filename: String?
     public let targetPath: String?
-    public let instructions: String
+    public let instructions: AgentConfigurationInstruction
 
     public enum ConfigFormat: String, Sendable {
         case shellExport = "shell"
@@ -403,7 +392,7 @@ public struct RawConfigOutput: Sendable {
         content: String,
         filename: String?,
         targetPath: String?,
-        instructions: String
+        instructions: AgentConfigurationInstruction
     ) {
         self.format = format
         self.content = content
@@ -411,6 +400,55 @@ public struct RawConfigOutput: Sendable {
         self.targetPath = targetPath
         self.instructions = instructions
     }
+}
+
+public enum AgentConfigurationInstruction: Equatable, Sendable {
+    case ampRemoveProxyManually
+    case ampProxyRemoved
+    case ampMergeSettings
+    case ampMergeSecrets
+    case ampUseEnvironmentVariables
+    case ampConfigured
+    case ampMergeAndSaveFiles
+
+    case codexRemoveProxyManually
+    case codexProxyRemoved
+    case codexSaveConfig
+    case codexMergeAuthKey
+    case codexConfigured
+    case codexMergeAndSaveFiles
+
+    case claudeRemoveProxyManually
+    case claudeProxyRemoved
+    case claudeSaveSettings
+    case claudeAddShellExports
+    case claudeSettingsSaved
+    case claudeShellExportsReady
+    case claudeSettingsAndShellSaved
+    case claudeChooseManualOption
+
+    case factoryDroidRemoveProxyManually
+    case factoryDroidProxyRemoved
+    case factoryDroidSaveConfig
+    case factoryDroidConfigured
+    case factoryDroidSaveManualConfig
+
+    case openCodeRemoveProxyManually
+    case openCodeNotConfigured
+    case openCodeProxyRemoved
+    case openCodeMergeProvider
+    case openCodeConfigured(model: String)
+    case openCodeMergeManualConfig
+
+    case shellProfileUpdated(path: String)
+}
+
+public enum AgentConfigurationFailure: Equatable, Sendable {
+    case updateSettingsFailed(details: String)
+    case updateConfigFailed(details: String)
+    case generateConfigFailed(details: String)
+    case openCodeConfigInvalid(path: String, details: String)
+    case operationFailed(details: String)
 }
 
 // MARK: - Configuration Result
@@ -423,9 +461,9 @@ public struct AgentConfigResult: Sendable {
     public var authPath: String?
     public var shellConfig: String?
     public var rawConfigs: [RawConfigOutput]
-    public var instructions: String
+    public var instructions: AgentConfigurationInstruction?
     public var modelsConfigured: Int
-    public var error: String?
+    public var failure: AgentConfigurationFailure?
     public var backupPath: String?
 
     public static func success(
@@ -435,7 +473,7 @@ public struct AgentConfigResult: Sendable {
         authPath: String? = nil,
         shellConfig: String? = nil,
         rawConfigs: [RawConfigOutput] = [],
-        instructions: String,
+        instructions: AgentConfigurationInstruction,
         modelsConfigured: Int = 3,
         backupPath: String? = nil
     ) -> AgentConfigResult {
@@ -449,12 +487,12 @@ public struct AgentConfigResult: Sendable {
             rawConfigs: rawConfigs,
             instructions: instructions,
             modelsConfigured: modelsConfigured,
-            error: nil,
+            failure: nil,
             backupPath: backupPath
         )
     }
 
-    public static func failure(error: String) -> AgentConfigResult {
+    public static func failure(_ failure: AgentConfigurationFailure) -> AgentConfigResult {
         AgentConfigResult(
             success: false,
             configType: .environment,
@@ -463,9 +501,9 @@ public struct AgentConfigResult: Sendable {
             authPath: nil,
             shellConfig: nil,
             rawConfigs: [],
-            instructions: "",
+            instructions: nil,
             modelsConfigured: 0,
-            error: error,
+            failure: failure,
             backupPath: nil
         )
     }
@@ -488,13 +526,27 @@ public enum ShellType: String, CaseIterable, Sendable {
 
 // MARK: - Connection Test Result
 
+public enum AgentConnectionMessage: Equatable, Sendable {
+    case connected
+    case invalidProxyURL
+    case invalidResponse
+    case httpStatus(Int)
+    case server(details: String)
+    case transport(details: String)
+}
+
 public struct ConnectionTestResult: Sendable {
     public let success: Bool
-    public let message: String
+    public let message: AgentConnectionMessage
     public let latencyMs: Int?
     public let modelResponded: String?
 
-    public init(success: Bool, message: String, latencyMs: Int?, modelResponded: String?) {
+    public init(
+        success: Bool,
+        message: AgentConnectionMessage,
+        latencyMs: Int?,
+        modelResponded: String?
+    ) {
         self.success = success
         self.message = message
         self.latencyMs = latencyMs

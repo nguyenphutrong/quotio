@@ -45,18 +45,7 @@ public protocol AgentModelCatalogRepository: Sendable {
     func testConnection(agent: CLIAgent, configuration: AgentConfiguration) async -> ConnectionTestResult
 }
 
-public enum AgentConfigurationServiceError: LocalizedError, Equatable, Sendable {
+public enum AgentConfigurationServiceError: Error, Equatable, Sendable {
     case missingAdapter(CLIAgent)
     case adapterMismatch(expected: CLIAgent, actual: CLIAgent)
-
-    public var errorDescription: String? {
-        switch self {
-        case .missingAdapter(let agent):
-            return "No configuration adapter is registered for \(agent.rawValue)."
-        case .adapterMismatch(let expected, let actual):
-            return "The \(expected.rawValue) adapter cannot configure \(actual.rawValue)."
-        }
-    }
 }
-
-public typealias AgentTextLocalizer = @MainActor @Sendable (_ key: String) -> String

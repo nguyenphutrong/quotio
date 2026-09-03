@@ -170,15 +170,15 @@ private actor ScreenAgentRepository: AgentConfigurationRepository {
     }
 
     func preview(_ request: AgentConfigurationRequest) -> AgentConfigResult {
-        .success(type: agent.configType, mode: request.mode, instructions: "Preview")
+        .success(type: agent.configType, mode: request.mode, instructions: .ampMergeAndSaveFiles)
     }
 
     func apply(_ request: AgentConfigurationRequest) -> AgentConfigResult {
-        .success(type: agent.configType, mode: request.mode, instructions: "Applied")
+        .success(type: agent.configType, mode: request.mode, instructions: .ampConfigured)
     }
 
     func reset(mode: ConfigurationMode) -> AgentConfigResult {
-        .success(type: agent.configType, mode: mode, instructions: "Reset")
+        .success(type: agent.configType, mode: mode, instructions: .ampProxyRemoved)
     }
 
     func listBackups() -> [AgentBackupFile] { [] }
@@ -223,6 +223,6 @@ private actor ScreenModelCatalog: AgentModelCatalogRepository {
         agent: CLIAgent,
         configuration: AgentConfiguration
     ) -> ConnectionTestResult {
-        ConnectionTestResult(success: true, message: "Connected", latencyMs: nil, modelResponded: nil)
+        ConnectionTestResult(success: true, message: .connected, latencyMs: nil, modelResponded: nil)
     }
 }

@@ -53,14 +53,6 @@ public actor ClaudeCodeAgentConfigurationAdapter: AgentConfigurationRepository {
 
     public func reset(mode: ConfigurationMode) async throws -> AgentConfigResult {
         guard mode == .automatic, let data = await fileStore.data(at: configPath) else {
-            let instructions = """
-            To revert to default, remove these environment variables from ~/.claude/settings.json:
-            - ANTHROPIC_BASE_URL
-            - ANTHROPIC_AUTH_TOKEN
-            - ANTHROPIC_DEFAULT_OPUS_MODEL
-            - ANTHROPIC_DEFAULT_SONNET_MODEL
-            - ANTHROPIC_DEFAULT_HAIKU_MODEL
-            """
             return .success(
                 type: .file,
                 mode: mode,
@@ -69,9 +61,9 @@ public actor ClaudeCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                     content: "Remove the above keys from ~/.claude/settings.json env section",
                     filename: "instructions.txt",
                     targetPath: configPath,
-                    instructions: instructions
+                    instructions: .claudeRemoveProxyManually
                 )],
-                instructions: instructions,
+                instructions: .claudeRemoveProxyManually,
                 modelsConfigured: 0
             )
         }
@@ -94,11 +86,11 @@ public actor ClaudeCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                 type: .file,
                 mode: mode,
                 configPath: configPath,
-                instructions: "Removed Quotio proxy configuration. Claude Code will now use its default Anthropic API endpoint.",
+                instructions: .claudeProxyRemoved,
                 modelsConfigured: 0
             )
         } catch {
-            return .failure(error: "Failed to update settings: \(error.localizedDescription)")
+            return .failure(.updateSettingsFailed(details: error.localizedDescription))
         }
     }
 
@@ -155,14 +147,14 @@ public actor ClaudeCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                 content: String(decoding: jsonData, as: UTF8.self),
                 filename: "settings.json",
                 targetPath: configPath,
-                instructions: "Option 1: Save as ~/.claude/settings.json"
+                instructions: .claudeSaveSettings
             ),
             RawConfigOutput(
                 format: .shellExport,
                 content: shellExports,
                 filename: nil,
                 targetPath: shellProfilePath,
-                instructions: "Option 2: Add to your shell profile"
+                instructions: .claudeAddShellExports
             ),
         ]
 
@@ -177,15 +169,15 @@ public actor ClaudeCodeAgentConfigurationAdapter: AgentConfigurationRepository {
         }
         let shellConfig = request.storageOption == .shellOnly || request.storageOption == .both
             ? shellExports : nil
-        let instructions: String
+        let instructions: AgentConfigurationInstruction
         if write {
             switch request.storageOption {
-            case .jsonOnly: instructions = "Configuration saved to ~/.claude/settings.json"
-            case .shellOnly: instructions = "Shell exports ready. Add to your shell profile to complete setup."
-            case .both: instructions = "Configuration saved to ~/.claude/settings.json and shell profile updated."
+            case .jsonOnly: instructions = .claudeSettingsSaved
+            case .shellOnly: instructions = .claudeShellExportsReady
+            case .both: instructions = .claudeSettingsAndShellSaved
             }
         } else {
-            instructions = "Choose one option: save settings.json OR add shell exports to your profile:"
+            instructions = .claudeChooseManualOption
         }
         return .success(
             type: .both,

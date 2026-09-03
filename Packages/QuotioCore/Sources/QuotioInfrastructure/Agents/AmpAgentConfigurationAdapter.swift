@@ -6,18 +6,15 @@ public actor AmpAgentConfigurationAdapter: AgentConfigurationRepository {
     public nonisolated let agent = CLIAgent.ampCLI
 
     private let fileStore: AgentFileStore
-    private let localize: AgentTextLocalizer
     private let settingsPath: String
     private let secretsPath: String
     private let shellProfilePath: String
 
     public init(
         fileStore: AgentFileStore,
-        shellProfilePath: String? = nil,
-        localize: @escaping AgentTextLocalizer = { $0 }
+        shellProfilePath: String? = nil
     ) {
         self.fileStore = fileStore
-        self.localize = localize
         self.settingsPath = fileStore.path("~/.config/amp/settings.json")
         self.secretsPath = fileStore.path("~/.local/share/amp/secrets.json")
         self.shellProfilePath = shellProfilePath ?? fileStore.path("~/.zshrc")
@@ -51,7 +48,7 @@ public actor AmpAgentConfigurationAdapter: AgentConfigurationRepository {
             return .success(
                 type: .file,
                 mode: mode,
-                instructions: "Remove 'amp.url' from ~/.config/amp/settings.json",
+                instructions: .ampRemoveProxyManually,
                 modelsConfigured: 0
             )
         }
@@ -65,11 +62,11 @@ public actor AmpAgentConfigurationAdapter: AgentConfigurationRepository {
                 type: .file,
                 mode: mode,
                 configPath: settingsPath,
-                instructions: "Removed proxy URL. Amp CLI will now use its default endpoint.",
+                instructions: .ampProxyRemoved,
                 modelsConfigured: 0
             )
         } catch {
-            return .failure(error: "Failed to update settings: \(error.localizedDescription)")
+            return .failure(.updateSettingsFailed(details: error.localizedDescription))
         }
     }
 
@@ -108,21 +105,21 @@ public actor AmpAgentConfigurationAdapter: AgentConfigurationRepository {
                 content: String(decoding: managedSettings, as: UTF8.self),
                 filename: "settings.json",
                 targetPath: settingsPath,
-                instructions: await localize("agents.amp.mergeSettings")
+                instructions: .ampMergeSettings
             ),
             RawConfigOutput(
                 format: .json,
                 content: String(decoding: managedSecrets, as: UTF8.self),
                 filename: "secrets.json",
                 targetPath: secretsPath,
-                instructions: await localize("agents.amp.mergeSecrets")
+                instructions: .ampMergeSecrets
             ),
             RawConfigOutput(
                 format: .shellExport,
                 content: shellExports,
                 filename: nil,
                 targetPath: shellProfilePath + " (alternative)",
-                instructions: await localize("agents.amp.useEnvironmentVariables")
+                instructions: .ampUseEnvironmentVariables
             ),
         ]
 
@@ -150,7 +147,7 @@ public actor AmpAgentConfigurationAdapter: AgentConfigurationRepository {
             authPath: secretsPath,
             shellConfig: shellExports,
             rawConfigs: rawConfigs,
-            instructions: await localize(write ? "agents.amp.configSuccess" : "agents.amp.mergeAndSaveFiles"),
+            instructions: write ? .ampConfigured : .ampMergeAndSaveFiles,
             modelsConfigured: 1,
             backupPath: backupPath
         )

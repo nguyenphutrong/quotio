@@ -568,8 +568,9 @@ struct AgentConfigSheet: View {
                     .foregroundStyle(.green)
             }
             
-            if let result = viewModel.configResult {
-                Text(result.instructions)
+            if let result = viewModel.configResult,
+               let instructions = result.instructions {
+                Text(instructions.localizedText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -668,8 +669,8 @@ struct AgentConfigSheet: View {
                 .font(.headline)
                 .foregroundStyle(.red)
             
-            if let error = viewModel.configResult?.error {
-                Text(error)
+            if let failure = viewModel.configResult?.failure {
+                Text(failure.localizedText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -951,7 +952,7 @@ private struct TestResultView: View {
             Image(systemName: result.success ? "checkmark.circle.fill" : "xmark.circle.fill")
                 .foregroundStyle(result.success ? .green : .red)
             
-            Text(result.message)
+            Text(result.message.localizedText)
                 .font(.caption)
                 .foregroundStyle(result.success ? .green : .red)
             

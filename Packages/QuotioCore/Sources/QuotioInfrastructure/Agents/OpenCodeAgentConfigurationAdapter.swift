@@ -6,15 +6,10 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
     public nonisolated let agent = CLIAgent.openCode
 
     private let fileStore: AgentFileStore
-    private let localize: AgentTextLocalizer
     private let configPath: String
 
-    public init(
-        fileStore: AgentFileStore,
-        localize: @escaping AgentTextLocalizer = { $0 }
-    ) {
+    public init(fileStore: AgentFileStore) {
         self.fileStore = fileStore
-        self.localize = localize
         self.configPath = fileStore.path("~/.config/opencode/opencode.json")
     }
 
@@ -63,7 +58,8 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
         let result = await configurationResult(request, mode: request.mode, existingData: existingData)
         guard request.mode == .automatic,
               result.success,
-              let output = result.rawConfigs.first else { return result }
+              let output = result.rawConfigs.first,
+              let instructions = result.instructions else { return result }
 
         do {
             let backups = try await fileStore.apply([
@@ -74,12 +70,12 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                 mode: .automatic,
                 configPath: configPath,
                 rawConfigs: result.rawConfigs,
-                instructions: result.instructions,
+                instructions: instructions,
                 modelsConfigured: result.modelsConfigured,
                 backupPath: backups[configPath]
             )
         } catch {
-            return .failure(error: "Failed to generate config: \(error.localizedDescription)")
+            return .failure(.generateConfigFailed(details: error.localizedDescription))
         }
     }
 
@@ -88,7 +84,7 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
             return .success(
                 type: .file,
                 mode: mode,
-                instructions: "Remove 'provider.quotio' section from ~/.config/opencode/opencode.json",
+                instructions: .openCodeRemoveProxyManually,
                 modelsConfigured: 0
             )
         }
@@ -97,7 +93,7 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                 type: .file,
                 mode: mode,
                 configPath: nil,
-                instructions: "Remove 'provider.quotio' section from ~/.config/opencode/opencode.json",
+                instructions: .openCodeRemoveProxyManually,
                 modelsConfigured: 0
             )
         }
@@ -111,7 +107,7 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                     type: .file,
                     mode: mode,
                     configPath: configPath,
-                    instructions: await localize("agents.opencode.notConfigured"),
+                    instructions: .openCodeNotConfigured,
                     modelsConfigured: 0
                 )
             }
@@ -120,11 +116,11 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                 type: .file,
                 mode: mode,
                 configPath: configPath,
-                instructions: "Removed Quotio provider. OpenCode will use its default providers.",
+                instructions: .openCodeProxyRemoved,
                 modelsConfigured: 0
             )
         } catch {
-            return .failure(error: "Failed to update config: \(error.localizedDescription)")
+            return .failure(.updateConfigFailed(details: error.localizedDescription))
         }
     }
 
@@ -177,8 +173,10 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                 )
             } catch {
                 guard mode == .manual else {
-                    let format = await localize("agents.opencode.parseFailed")
-                    return .failure(error: String(format: format, configPath, error.localizedDescription))
+                    return .failure(.openCodeConfigInvalid(
+                        path: configPath,
+                        details: error.localizedDescription
+                    ))
                 }
                 data = try OpenCodeConfigEditor.merging(existing: nil, providers: ["quotio": provider])
             }
@@ -188,11 +186,11 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                 content: String(decoding: data, as: UTF8.self),
                 filename: "opencode.json",
                 targetPath: configPath,
-                instructions: "Merge provider.quotio into ~/.config/opencode/opencode.json"
+                instructions: .openCodeMergeProvider
             )]
-            let instructions = mode == .automatic
-                ? "Configuration updated. Run 'opencode' and use /models to select a model (e.g., quotio/\(models.first?.name ?? "model"))."
-                : "Merge provider.quotio section into your existing ~/.config/opencode/opencode.json:"
+            let instructions: AgentConfigurationInstruction = mode == .automatic
+                ? .openCodeConfigured(model: models.first?.name ?? "model")
+                : .openCodeMergeManualConfig
             return .success(
                 type: .file,
                 mode: mode,
@@ -202,7 +200,7 @@ public actor OpenCodeAgentConfigurationAdapter: AgentConfigurationRepository {
                 modelsConfigured: modelConfigs.count
             )
         } catch {
-            return .failure(error: "Failed to generate config: \(error.localizedDescription)")
+            return .failure(.generateConfigFailed(details: error.localizedDescription))
         }
     }
 

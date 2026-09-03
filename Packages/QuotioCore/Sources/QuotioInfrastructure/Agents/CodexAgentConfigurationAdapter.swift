@@ -6,16 +6,11 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
     public let agent: CLIAgent = .codexCLI
 
     private let fileStore: AgentFileStore
-    private let localize: AgentTextLocalizer
     private let configPath: String
     private let authPath: String
 
-    public init(
-        fileStore: AgentFileStore,
-        localize: @escaping AgentTextLocalizer = { $0 }
-    ) {
+    public init(fileStore: AgentFileStore) {
         self.fileStore = fileStore
-        self.localize = localize
         self.configPath = fileStore.path("~/.codex/config.toml")
         self.authPath = fileStore.path("~/.codex/auth.json")
     }
@@ -48,7 +43,7 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
             return .success(
                 type: .file,
                 mode: mode,
-                instructions: await localize("agents.codex.revertManualInstructions"),
+                instructions: .codexRemoveProxyManually,
                 modelsConfigured: 0
             )
         }
@@ -66,7 +61,7 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
             type: .file,
             mode: mode,
             configPath: writes.contains { $0.path == configPath } ? configPath : nil,
-            instructions: "Removed CLIProxyAPI configuration. Codex CLI will now use OpenAI API directly.",
+            instructions: .codexProxyRemoved,
             modelsConfigured: 0
         )
     }
@@ -110,14 +105,14 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
                 content: config,
                 filename: "config.toml",
                 targetPath: configPath,
-                instructions: await localize("agents.codex.saveConfigTOML")
+                instructions: .codexSaveConfig
             ),
             RawConfigOutput(
                 format: .json,
                 content: String(decoding: auth.managed, as: UTF8.self),
                 filename: "auth.json",
                 targetPath: authPath,
-                instructions: await localize("agents.codex.authJSONMergeKey")
+                instructions: .codexMergeAuthKey
             ),
         ]
         var backupPath: String?
@@ -134,7 +129,7 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
             configPath: configPath,
             authPath: authPath,
             rawConfigs: rawConfigs,
-            instructions: await localize(write ? "agents.codex.applySuccess" : "agents.codex.mergeAndSaveFiles"),
+            instructions: write ? .codexConfigured : .codexMergeAndSaveFiles,
             modelsConfigured: 1,
             backupPath: backupPath
         )

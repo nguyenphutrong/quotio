@@ -57,6 +57,23 @@ final class LocalizationBundleTests: XCTestCase {
         XCTAssertEqual("nav.settings".localized(), "Cài đặt")
     }
 
+    func testAgentInstructionsResolveLocalizationOnlyInPresentation() {
+        let languageManager = LanguageManager(repository: InMemoryLanguagePreferencesRepository(language: .english))
+        defer { languageManager.setLanguage(storedLanguage) }
+
+        XCTAssertEqual(
+            AgentConfigurationInstruction.ampMergeSettings.localizedText,
+            "Merge this property into ~/.config/amp/settings.json; do not replace the file"
+        )
+
+        languageManager.setLanguage(.vietnamese)
+
+        XCTAssertEqual(
+            AgentConfigurationInstruction.ampMergeSettings.localizedText,
+            "Gộp thuộc tính này vào ~/.config/amp/settings.json; không thay thế tệp"
+        )
+    }
+
     private var storedLanguage: AppLanguage {
         UserDefaults.standard.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:)) ?? .english
     }

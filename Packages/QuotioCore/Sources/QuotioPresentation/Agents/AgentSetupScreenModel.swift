@@ -147,11 +147,12 @@ public final class AgentSetupScreenModel {
             if result.success, configurationMode == .automatic {
                 await refreshAgentStatuses()
             } else if !result.success {
-                errorMessage = result.error
+                errorMessage = result.failure?.localizedText
             }
         } catch {
-            errorMessage = error.localizedDescription
-            configResult = .failure(error: error.localizedDescription)
+            let message = agentConfigurationErrorMessage(error)
+            errorMessage = message
+            configResult = .failure(.operationFailed(details: message))
         }
     }
 
@@ -173,7 +174,7 @@ public final class AgentSetupScreenModel {
                 authPath: result?.authPath,
                 shellConfig: shellConfig,
                 rawConfigs: result?.rawConfigs ?? [],
-                instructions: "Added to \(detectedShellProfilePath). Restart your terminal for changes to take effect.",
+                instructions: .shellProfileUpdated(path: detectedShellProfilePath),
                 modelsConfigured: result?.modelsConfigured ?? 0
             )
             await refreshAgentStatuses()
@@ -282,7 +283,7 @@ public final class AgentSetupScreenModel {
         } catch where error is CancellationError {
         } catch {
             guard !Task.isCancelled else { return }
-            errorMessage = error.localizedDescription
+            errorMessage = agentConfigurationErrorMessage(error)
         }
     }
 

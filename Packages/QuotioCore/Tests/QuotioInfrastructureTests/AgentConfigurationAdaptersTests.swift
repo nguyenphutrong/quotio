@@ -5,6 +5,34 @@ import XCTest
 @testable import QuotioInfrastructure
 
 final class AgentConfigurationAdaptersTests: XCTestCase {
+    func testAdaptersReturnSemanticInstructions() async throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let store = AgentFileStore(homeDirectory: home.path)
+
+        let claude = try await ClaudeCodeAgentConfigurationAdapter(fileStore: store)
+            .preview(request(agent: .claudeCode, mode: .manual))
+        let codex = try await CodexAgentConfigurationAdapter(fileStore: store)
+            .preview(request(agent: .codexCLI, mode: .manual))
+        let amp = try await AmpAgentConfigurationAdapter(fileStore: store)
+            .preview(request(agent: .ampCLI, mode: .manual))
+        let openCode = try await OpenCodeAgentConfigurationAdapter(fileStore: store)
+            .preview(request(agent: .openCode, mode: .manual))
+        let factoryDroid = try await FactoryDroidAgentConfigurationAdapter(fileStore: store)
+            .preview(request(agent: .factoryDroid, mode: .manual))
+
+        XCTAssertEqual(claude.instructions, .claudeChooseManualOption)
+        XCTAssertEqual(codex.instructions, .codexMergeAndSaveFiles)
+        XCTAssertEqual(amp.instructions, .ampMergeAndSaveFiles)
+        XCTAssertEqual(openCode.instructions, .openCodeMergeManualConfig)
+        XCTAssertEqual(factoryDroid.instructions, .factoryDroidSaveManualConfig)
+        XCTAssertEqual(amp.rawConfigs.map(\.instructions), [
+            .ampMergeSettings,
+            .ampMergeSecrets,
+            .ampUseEnvironmentVariables,
+        ])
+    }
+
     func testClaudeApplyPreservesUnknownSettingsAndPermissions() async throws {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }

@@ -132,7 +132,7 @@ private actor StubAgentConfigurationRepository: AgentConfigurationRepository {
             type: agent.configType,
             mode: request.mode,
             shellConfig: "export TEST=1",
-            instructions: "Applied"
+            instructions: .ampConfigured
         )
     }
 
@@ -153,7 +153,7 @@ private actor StubAgentConfigurationRepository: AgentConfigurationRepository {
     func operations() -> [String] { recorded }
 
     private func result(mode: ConfigurationMode) -> AgentConfigResult {
-        .success(type: agent.configType, mode: mode, instructions: "Success")
+        .success(type: agent.configType, mode: mode, instructions: .ampConfigured)
     }
 }
 
@@ -201,6 +201,6 @@ private actor StubAgentModelCatalog: AgentModelCatalogRepository {
         agent: CLIAgent,
         configuration: AgentConfiguration
     ) -> ConnectionTestResult {
-        ConnectionTestResult(success: true, message: "Connected", latencyMs: 1, modelResponded: nil)
+        ConnectionTestResult(success: true, message: .connected, latencyMs: 1, modelResponded: nil)
     }
 }

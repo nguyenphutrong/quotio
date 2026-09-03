@@ -72,7 +72,7 @@ final class AgentModelCatalogHTTPAdapterTests: XCTestCase {
         let adapter = makeAdapter(body: #"{"data":[{"id":"first"},{"id":"second"}]}"#, now: clock.call)
         let result = await adapter.testConnection(agent: .codexCLI, configuration: configuration())
         XCTAssertTrue(result.success)
-        XCTAssertEqual(result.message, "Connected successfully")
+        XCTAssertEqual(result.message, .connected)
         XCTAssertEqual(result.latencyMs, 125)
         XCTAssertEqual(result.modelResponded, "first")
     }
@@ -81,7 +81,7 @@ final class AgentModelCatalogHTTPAdapterTests: XCTestCase {
         let adapter = makeAdapter(body: #"{"error":{"message":"API key rejected"}}"#, statusCode: 401)
         let result = await adapter.testConnection(agent: .claudeCode, configuration: configuration())
         XCTAssertFalse(result.success)
-        XCTAssertEqual(result.message, "API key rejected")
+        XCTAssertEqual(result.message, .server(details: "API key rejected"))
         XCTAssertNotNil(result.latencyMs)
         XCTAssertNil(result.modelResponded)
     }
@@ -91,7 +91,7 @@ final class AgentModelCatalogHTTPAdapterTests: XCTestCase {
         let adapter = makeAdapter(error: expected)
         let result = await adapter.testConnection(agent: .ampCLI, configuration: configuration())
         XCTAssertFalse(result.success)
-        XCTAssertEqual(result.message, expected.localizedDescription)
+        XCTAssertEqual(result.message, .transport(details: expected.localizedDescription))
         XCTAssertNil(result.latencyMs)
         XCTAssertNil(result.modelResponded)
     }

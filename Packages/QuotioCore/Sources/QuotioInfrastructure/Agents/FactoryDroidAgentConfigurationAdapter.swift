@@ -51,7 +51,7 @@ public actor FactoryDroidAgentConfigurationAdapter: AgentConfigurationRepository
             return .success(
                 type: .file,
                 mode: mode,
-                instructions: "Remove custom_models with localhost base_url from ~/.factory/config.json",
+                instructions: .factoryDroidRemoveProxyManually,
                 modelsConfigured: 0
             )
         }
@@ -71,11 +71,11 @@ public actor FactoryDroidAgentConfigurationAdapter: AgentConfigurationRepository
                 type: .file,
                 mode: mode,
                 configPath: configPath,
-                instructions: "Removed proxy models. Factory Droid will use its default configurations.",
+                instructions: .factoryDroidProxyRemoved,
                 modelsConfigured: 0
             )
         } catch {
-            return .failure(error: "Failed to update config: \(error.localizedDescription)")
+            return .failure(.updateConfigFailed(details: error.localizedDescription))
         }
     }
 
@@ -112,7 +112,7 @@ public actor FactoryDroidAgentConfigurationAdapter: AgentConfigurationRepository
             content: String(decoding: managedData, as: UTF8.self),
             filename: "config.json",
             targetPath: configPath,
-            instructions: "Save this as ~/.factory/config.json"
+            instructions: .factoryDroidSaveConfig
         )]
 
         var backupPath: String?
@@ -139,8 +139,8 @@ public actor FactoryDroidAgentConfigurationAdapter: AgentConfigurationRepository
             configPath: configPath,
             rawConfigs: rawConfigs,
             instructions: write
-                ? "Configuration saved. Run 'droid' or 'factory' to start using Factory Droid."
-                : "Copy the configuration below and save it as ~/.factory/config.json:",
+                ? .factoryDroidConfigured
+                : .factoryDroidSaveManualConfig,
             modelsConfigured: managedModels.count,
             backupPath: backupPath
         )

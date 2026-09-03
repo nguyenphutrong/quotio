@@ -49,32 +49,33 @@ public actor AgentModelCatalogHTTPAdapter: AgentModelCatalogRepository {
         do {
             request = try makeRequest(configuration: configuration)
         } catch {
-            return result(success: false, message: "Invalid proxy URL")
+            return result(success: false, message: .invalidProxyURL)
         }
 
         do {
             let (data, response) = try await session.data(for: request)
             let latency = Int(now().timeIntervalSince(startTime) * 1_000)
             guard let response = response as? HTTPURLResponse else {
-                return result(success: false, message: "Invalid response", latency: latency)
+                return result(success: false, message: .invalidResponse, latency: latency)
             }
 
             guard response.statusCode == 200 else {
                 return result(
                     success: false,
-                    message: errorDetail(in: data) ?? "HTTP \(response.statusCode)",
+                    message: errorDetail(in: data).map(AgentConnectionMessage.server)
+                        ?? .httpStatus(response.statusCode),
                     latency: latency
                 )
             }
 
             return result(
                 success: true,
-                message: "Connected successfully",
+                message: .connected,
                 latency: latency,
                 model: firstModelID(in: data)
             )
         } catch {
-            return result(success: false, message: error.localizedDescription)
+            return result(success: false, message: .transport(details: error.localizedDescription))
         }
     }
 
@@ -102,7 +103,7 @@ public actor AgentModelCatalogHTTPAdapter: AgentModelCatalogRepository {
 
     private func result(
         success: Bool,
-        message: String,
+        message: AgentConnectionMessage,
         latency: Int? = nil,
         model: String? = nil
     ) -> ConnectionTestResult {

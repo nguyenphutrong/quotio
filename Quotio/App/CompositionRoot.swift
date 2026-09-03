@@ -301,18 +301,9 @@ enum CompositionRoot {
         let agentConfigurationService = QuotioApplication.AgentConfigurationService(
             adapters: [
                 ClaudeCodeAgentConfigurationAdapter(fileStore: agentFileStore),
-                CodexAgentConfigurationAdapter(
-                    fileStore: agentFileStore,
-                    localize: { $0.localizedStatic() }
-                ),
-                AmpAgentConfigurationAdapter(
-                    fileStore: agentFileStore,
-                    localize: { $0.localizedStatic() }
-                ),
-                OpenCodeAgentConfigurationAdapter(
-                    fileStore: agentFileStore,
-                    localize: { $0.localizedStatic() }
-                ),
+                CodexAgentConfigurationAdapter(fileStore: agentFileStore),
+                AmpAgentConfigurationAdapter(fileStore: agentFileStore),
+                OpenCodeAgentConfigurationAdapter(fileStore: agentFileStore),
                 FactoryDroidAgentConfigurationAdapter(fileStore: agentFileStore),
             ],
             detector: agentDetector,
