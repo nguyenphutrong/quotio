@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		782F8F9C2EFD797D00CE18C5 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 78D386B12EFBF30500C40FB6 /* Sparkle */; };
-		78A4D0012F01000100AA0001 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = 78A4D0032F01000100AA0001 /* PostHog */; };
 		B20000000000000000000021 /* QuotioDomain in Frameworks */ = {isa = PBXBuildFile; productRef = B20000000000000000000011 /* QuotioDomain */; };
 		B20000000000000000000022 /* QuotioApplication in Frameworks */ = {isa = PBXBuildFile; productRef = B20000000000000000000012 /* QuotioApplication */; };
 		B20000000000000000000023 /* QuotioInfrastructure in Frameworks */ = {isa = PBXBuildFile; productRef = B20000000000000000000013 /* QuotioInfrastructure */; };
@@ -71,8 +69,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				782F8F9C2EFD797D00CE18C5 /* Sparkle in Frameworks */,
-				78A4D0012F01000100AA0001 /* PostHog in Frameworks */,
 				B20000000000000000000021 /* QuotioDomain in Frameworks */,
 				B20000000000000000000022 /* QuotioApplication in Frameworks */,
 				B20000000000000000000023 /* QuotioInfrastructure in Frameworks */,
@@ -155,8 +151,6 @@
 			);
 			name = Quotio;
 			packageProductDependencies = (
-				78D386B12EFBF30500C40FB6 /* Sparkle */,
-				78A4D0032F01000100AA0001 /* PostHog */,
 				B20000000000000000000011 /* QuotioDomain */,
 				B20000000000000000000012 /* QuotioApplication */,
 				B20000000000000000000013 /* QuotioInfrastructure */,
@@ -197,8 +191,6 @@
 			mainGroup = 78D3868B2EFBF30400C40FB6;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				78D386B02EFBF30500C40FB6 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				78A4D0022F01000100AA0001 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				B20000000000000000000001 /* XCLocalSwiftPackageReference "Packages/QuotioCore" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -542,36 +534,7 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		78D386B02EFBF30500C40FB6 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
-			};
-		};
-		78A4D0022F01000100AA0001 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 3.59.3;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
-		78D386B12EFBF30500C40FB6 /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 78D386B02EFBF30500C40FB6 /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
-		};
-		78A4D0032F01000100AA0001 /* PostHog */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 78A4D0022F01000100AA0001 /* XCRemoteSwiftPackageReference "posthog-ios" */;
-			productName = PostHog;
-		};
 		B20000000000000000000011 /* QuotioDomain */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B20000000000000000000001 /* XCLocalSwiftPackageReference "Packages/QuotioCore" */;

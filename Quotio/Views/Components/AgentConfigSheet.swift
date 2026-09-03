@@ -13,6 +13,7 @@ struct AgentConfigSheet: View {
     let agent: CLIAgent
     
     @Environment(\.dismiss) private var dismiss
+    @Environment(PasteboardAdapter.self) private var pasteboard
     @State private var previewConfig: AgentConfigResult?
     @State private var showRestoreConfirm = false
     @State private var backupToRestore: AgentBackupFile?
@@ -507,8 +508,7 @@ struct AgentConfigSheet: View {
             content = config.rawConfigs.map { $0.content }.joined(separator: "\n\n---\n\n")
         }
         
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(content, forType: .string)
+        pasteboard.copy(content)
     }
     
     private var testConnectionSection: some View {
@@ -735,8 +735,7 @@ struct AgentConfigSheet: View {
     }
 
     private func copyToClipboard(_ content: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(content, forType: .string)
+        pasteboard.copy(content)
     }
 }
 

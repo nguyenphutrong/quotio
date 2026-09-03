@@ -15,6 +15,8 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     var antigravityAccountScreenModel: AntigravityAccountScreenModel { get }
     var logsScreenModel: LogsScreenModel { get }
     var pasteboard: PasteboardAdapter { get }
+    var providerImageModel: ProviderImageScreenModel { get }
+    var platformActions: PlatformActionScreenModel { get }
     var menuBarSettings: MenuBarSettingsManager { get }
     var statusBarManager: StatusBarManager { get }
     var modeManager: OperatingModeManager { get }
@@ -24,11 +26,10 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     var refreshSettings: RefreshSettingsManager { get }
     var warmupSettings: WarmupSettingsManager { get }
     var ideScanSettings: IDEScanSettingsManager { get }
-    var launchAtLoginManager: LaunchAtLoginManager { get }
-    var updaterService: UpdaterService { get }
-    var notificationManager: NotificationManager { get }
-    var telemetrySettings: TelemetrySettings { get }
-    var updatePollingService: AtomFeedUpdateService { get }
+    var launchAtLoginModel: LaunchAtLoginScreenModel { get }
+    var notificationSettingsModel: NotificationSettingsScreenModel { get }
+    var telemetryConsentModel: TelemetryConsentScreenModel { get }
+    var applicationUpdateModel: ApplicationUpdateScreenModel { get }
     var hasCompletedOnboarding: Bool { get }
     var showInDock: Bool { get }
     var canCheckForUpdates: Bool { get }
@@ -43,8 +44,8 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     func initializeFeatures() async
     func checkForUpdatesInBackground()
     func checkForUpdates()
-    func startUpdatePolling()
-    func stopUpdatePolling()
+    func startUpdatePolling() async
+    func stopUpdatePolling() async
     func shutdownOAuth() async
     func stopTunnel() async
     func terminateProxyOnShutdown() async
@@ -80,6 +81,8 @@ final class AppRuntime {
     }
     var logsScreenModel: LogsScreenModel { services.logsScreenModel }
     var pasteboard: PasteboardAdapter { services.pasteboard }
+    var providerImageModel: ProviderImageScreenModel { services.providerImageModel }
+    var platformActions: PlatformActionScreenModel { services.platformActions }
     var menuBarSettings: MenuBarSettingsManager { services.menuBarSettings }
     var statusBarManager: StatusBarManager { services.statusBarManager }
     var modeManager: OperatingModeManager { services.modeManager }
@@ -89,11 +92,12 @@ final class AppRuntime {
     var refreshSettings: RefreshSettingsManager { services.refreshSettings }
     var warmupSettings: WarmupSettingsManager { services.warmupSettings }
     var ideScanSettings: IDEScanSettingsManager { services.ideScanSettings }
-    var launchAtLoginManager: LaunchAtLoginManager { services.launchAtLoginManager }
-    var updaterService: UpdaterService { services.updaterService }
-    var notificationManager: NotificationManager { services.notificationManager }
-    var telemetrySettings: TelemetrySettings { services.telemetrySettings }
-    var updatePollingService: AtomFeedUpdateService { services.updatePollingService }
+    var launchAtLoginModel: LaunchAtLoginScreenModel { services.launchAtLoginModel }
+    var notificationSettingsModel: NotificationSettingsScreenModel {
+        services.notificationSettingsModel
+    }
+    var telemetryConsentModel: TelemetryConsentScreenModel { services.telemetryConsentModel }
+    var applicationUpdateModel: ApplicationUpdateScreenModel { services.applicationUpdateModel }
     var showInDock: Bool { services.showInDock }
     var canCheckForUpdates: Bool { services.canCheckForUpdates }
 
@@ -119,11 +123,11 @@ final class AppRuntime {
 
         if let initializationTask {
             await initializationTask.value
-            startUpdatePollingIfNeeded()
+            await startUpdatePollingIfNeeded()
             return
         }
         guard !hasInitialized else {
-            startUpdatePollingIfNeeded()
+            await startUpdatePollingIfNeeded()
             return
         }
 
@@ -134,7 +138,7 @@ final class AppRuntime {
         initializationTask = task
         await task.value
         initializationTask = nil
-        startUpdatePollingIfNeeded()
+        await startUpdatePollingIfNeeded()
     }
 
     func completeOnboarding() async {
@@ -206,10 +210,10 @@ final class AppRuntime {
         didCompleteFullInitialization = true
     }
 
-    private func startUpdatePollingIfNeeded() {
+    private func startUpdatePollingIfNeeded() async {
         guard !didStartUpdatePolling else { return }
         didStartUpdatePolling = true
-        services.startUpdatePolling()
+        await services.startUpdatePolling()
     }
 
     private func handleStatusBarStateChange() {
@@ -219,7 +223,7 @@ final class AppRuntime {
 
     private func performShutdown(timeout: Duration) async -> Bool {
         services.setStatusBarStateChangeHandler(nil)
-        services.stopUpdatePolling()
+        await services.stopUpdatePolling()
         initializationTask?.cancel()
         fullInitializationTask?.cancel()
         orphanCleanupTask?.cancel()

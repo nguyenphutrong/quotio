@@ -107,10 +107,12 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
     }
     let logsScreenModel: LogsScreenModel
     let pasteboard = PasteboardAdapter()
+    var providerImageModel: ProviderImageScreenModel { dependencies.providerImageModel }
+    var platformActions: PlatformActionScreenModel { dependencies.platformActions }
     let menuBarSettings = MenuBarSettingsManager.shared
     let statusBarManager = StatusBarManager()
     let modeManager = OperatingModeManager.shared
-    let appearanceManager = AppearanceManager.shared
+    var appearanceManager: AppearanceManager { dependencies.appearanceManager }
     let languageManager = LanguageManager.shared
     let settingsScreenModel = SettingsScreenModel(
         proxyRepository: AppRuntimeTestPreferencesRepository(),
@@ -120,11 +122,12 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
     let refreshSettings = RefreshSettingsManager.shared
     let warmupSettings = WarmupSettingsManager.shared
     let ideScanSettings = IDEScanSettingsManager.shared
-    let launchAtLoginManager = LaunchAtLoginManager.shared
-    let updaterService = UpdaterService.shared
-    let notificationManager = NotificationManager.shared
-    let telemetrySettings = TelemetrySettings.shared
-    let updatePollingService = AtomFeedUpdateService.shared
+    var launchAtLoginModel: LaunchAtLoginScreenModel { dependencies.launchAtLoginModel }
+    var notificationSettingsModel: NotificationSettingsScreenModel {
+        dependencies.notificationSettingsModel
+    }
+    var telemetryConsentModel: TelemetryConsentScreenModel { dependencies.telemetryConsentModel }
+    var applicationUpdateModel: ApplicationUpdateScreenModel { dependencies.applicationUpdateModel }
 
     var hasCompletedOnboarding = true
     var showInDock = true
@@ -206,11 +209,11 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
         foregroundUpdateCheckCount += 1
     }
 
-    func startUpdatePolling() {
+    func startUpdatePolling() async {
         startUpdatePollingCount += 1
     }
 
-    func stopUpdatePolling() {
+    func stopUpdatePolling() async {
         stopUpdatePollingCount += 1
     }
 

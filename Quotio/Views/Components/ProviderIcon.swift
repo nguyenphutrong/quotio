@@ -5,6 +5,7 @@
 
 import AppKit
 import QuotioDomain
+import QuotioPresentation
 import SwiftUI
 
 struct ProviderIcon: View {
@@ -12,6 +13,7 @@ struct ProviderIcon: View {
     var size: CGFloat = 24
     
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(ProviderImageScreenModel.self) private var imageModel
     
     /// Providers that need white icons in dark mode (have dark/black logos)
     private var needsLightModeInDark: Bool {
@@ -25,7 +27,7 @@ struct ProviderIcon: View {
     
     var body: some View {
         Group {
-            if let nsImage = ImageCacheService.shared.image(named: provider.logoAssetName, size: size) {
+            if let nsImage = imageModel.image(named: provider.logoAssetName, size: size) {
                 Image(nsImage: nsImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)

@@ -100,11 +100,23 @@ final class QuotaFeatureControllerTests: XCTestCase {
             modeManager: OperatingModeManager(repository: preferences),
             refreshSettings: RefreshSettingsManager(repository: preferences),
             menuBarSettings: MenuBarSettingsManager(repository: preferences),
-            notificationManager: NotificationManager(repository: preferences, requestsAuthorization: false),
+            notifications: NotificationController(
+                repository: preferences,
+                delivery: QuotaFeatureNotificationDelivery()
+            ),
             authFiles: { [] }
         )
         return (controller, accountService, quota)
     }
+}
+
+@MainActor
+private final class QuotaFeatureNotificationDelivery: NotificationDelivering {
+    func requestAuthorization() async -> NotificationAuthorizationStatus { .denied }
+    func authorizationStatus() async -> NotificationAuthorizationStatus { .denied }
+    func deliver(_ notification: SemanticNotification) {}
+    func removeAllPending() {}
+    func removeAllDelivered() {}
 }
 
 private actor QuotaFeatureAccountService: AccountManaging {

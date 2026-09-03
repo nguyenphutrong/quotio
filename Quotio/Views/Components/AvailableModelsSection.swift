@@ -16,6 +16,7 @@ import SwiftUI
 
 struct AvailableModelsSection: View {
     @Environment(ProxyManagementScreenModel.self) private var proxyManagement
+    @Environment(PasteboardAdapter.self) private var pasteboard
 
     @State private var state = ModelCatalogState()
     @State private var copiedModelId: String?
@@ -194,8 +195,7 @@ struct AvailableModelsSection: View {
     }
 
     private func copyModelId(_ modelId: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(modelId, forType: .string)
+        pasteboard.copy(modelId)
         copiedModelId = modelId
 
         Task {

@@ -20,7 +20,7 @@ final class QuotaFeatureController {
     @ObservationIgnored private let modeManager: OperatingModeManager
     @ObservationIgnored private let refreshSettings: RefreshSettingsManager
     @ObservationIgnored private let menuBarSettings: MenuBarSettingsManager
-    @ObservationIgnored private let notificationManager: NotificationManager
+    @ObservationIgnored private let notifications: any NotificationRequesting
     @ObservationIgnored private var authFiles: () -> [AuthFile]
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var didChangeHandler: (@MainActor () -> Void)?
@@ -49,7 +49,7 @@ final class QuotaFeatureController {
         modeManager: OperatingModeManager,
         refreshSettings: RefreshSettingsManager,
         menuBarSettings: MenuBarSettingsManager,
-        notificationManager: NotificationManager,
+        notifications: any NotificationRequesting,
         authFiles: @escaping () -> [AuthFile]
     ) {
         self.quota = quota
@@ -59,7 +59,7 @@ final class QuotaFeatureController {
         self.modeManager = modeManager
         self.refreshSettings = refreshSettings
         self.menuBarSettings = menuBarSettings
-        self.notificationManager = notificationManager
+        self.notifications = notifications
         self.authFiles = authFiles
         refreshSettings.onRefreshCadenceChanged = { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -319,18 +319,19 @@ final class QuotaFeatureController {
     }
 
     private func checkQuotaNotifications() {
+        let threshold = notifications.snapshot.preferences.quotaAlertThreshold
         for (provider, accountQuotas) in quota.providerQuotas {
             for (account, data) in accountQuotas {
                 let values = data.models.map(\.percentage).filter { $0 >= 0 }
                 guard let minimum = values.min() else { continue }
-                if minimum <= notificationManager.quotaAlertThreshold {
-                    notificationManager.notifyQuotaLow(
+                if minimum <= threshold {
+                    notifications.submit(.quotaLow(
                         provider: provider.displayName,
                         account: account,
                         remainingPercent: minimum
-                    )
+                    ))
                 } else {
-                    notificationManager.clearQuotaNotification(
+                    notifications.clearQuotaNotification(
                         provider: provider.rawValue,
                         account: account
                     )

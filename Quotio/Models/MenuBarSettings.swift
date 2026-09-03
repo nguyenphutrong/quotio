@@ -49,11 +49,8 @@ extension String {
 @MainActor
 @Observable
 final class AppearanceManager {
-    static let shared = AppearanceManager(
-        repository: UserDefaultsAppearancePreferencesRepository()
-    )
-
     @ObservationIgnored private let repository: any AppearancePreferencesRepository
+    @ObservationIgnored private let platform: any ApplicationPlatformControlling
     @ObservationIgnored private var didChangeHandler: (@MainActor (AppearanceMode) -> Void)?
     
     /// Current appearance mode
@@ -65,14 +62,18 @@ final class AppearanceManager {
         }
     }
     
-    init(repository: any AppearancePreferencesRepository) {
+    init(
+        repository: any AppearancePreferencesRepository,
+        platform: any ApplicationPlatformControlling
+    ) {
         self.repository = repository
+        self.platform = platform
         self.appearanceMode = repository.load().mode
     }
     
     /// Apply the current appearance mode to the app
     func applyAppearance() {
-        NSApp.appearance = appearanceMode.appKitAppearance
+        platform.applyAppearance(appearanceMode)
     }
 
     func setDidChangeHandler(_ handler: (@MainActor (AppearanceMode) -> Void)?) {

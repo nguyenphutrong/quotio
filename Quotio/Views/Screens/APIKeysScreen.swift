@@ -10,6 +10,7 @@ import QuotioPresentation
 
 struct APIKeysScreen: View {
     @Environment(ProxyManagementScreenModel.self) private var viewModel
+    @Environment(PasteboardAdapter.self) private var pasteboard
     
     @State private var newAPIKey: String = ""
     @State private var editingKeyIndex: Int? = nil
@@ -151,8 +152,7 @@ struct APIKeysScreen: View {
     }
     
     private func copyToClipboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        pasteboard.copy(text)
     }
 }
 

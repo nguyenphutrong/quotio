@@ -489,6 +489,7 @@ private struct AccountQuotaCardV2: View {
     @Environment(QuotaFeatureController.self) private var quotaController
     @Environment(WarmupScreenModel.self) private var warmup
     @Environment(AntigravityAccountScreenModel.self) private var antigravityAccounts
+    @Environment(PlatformActionScreenModel.self) private var platformActions
     
     @Environment(MenuBarSettingsManager.self) private var settings
     let provider: AIProvider
@@ -749,7 +750,7 @@ private struct AccountQuotaCardV2: View {
                         // When reauthenticating with authURL available, show "Open Link" button
                         if isReauthenticating, let url = reauthURL {
                             Button {
-                                NSWorkspace.shared.open(url)
+                                platformActions.open(url)
                             } label: {
                                 HStack(spacing: 4) {
                                     ProgressView()

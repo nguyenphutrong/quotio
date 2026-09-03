@@ -13,6 +13,10 @@ let package = Package(
         .library(name: "QuotioInfrastructure", targets: ["QuotioInfrastructure"]),
         .library(name: "QuotioPresentation", targets: ["QuotioPresentation"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/PostHog/posthog-ios.git", exact: "3.64.1"),
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.8.1"),
+    ],
     targets: [
         .target(name: "QuotioDomain"),
         .target(
@@ -21,7 +25,12 @@ let package = Package(
         ),
         .target(
             name: "QuotioInfrastructure",
-            dependencies: ["QuotioApplication", "QuotioDomain"]
+            dependencies: [
+                "QuotioApplication",
+                "QuotioDomain",
+                .product(name: "PostHog", package: "posthog-ios"),
+                .product(name: "Sparkle", package: "Sparkle"),
+            ]
         ),
         .target(
             name: "QuotioPresentation",

@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import QuotioPresentation
 
@@ -39,10 +38,15 @@ nonisolated struct AuthCommandResult: Sendable {
 @MainActor
 final class LegacyProxyAuthService {
     private let proxy: ProxyScreenModel
+    private let copyToPasteboard: @MainActor @Sendable (String) -> Void
     private var process: Process?
 
-    init(proxy: ProxyScreenModel) {
+    init(
+        proxy: ProxyScreenModel,
+        copyToPasteboard: @escaping @MainActor @Sendable (String) -> Void
+    ) {
         self.proxy = proxy
+        self.copyToPasteboard = copyToPasteboard
     }
 
     func terminate() {
@@ -61,6 +65,7 @@ final class LegacyProxyAuthService {
             )
         }
 
+        let copyToPasteboard = copyToPasteboard
         return await withCheckedContinuation { continuation in
             let newProcess = Process()
             newProcess.executableURL = URL(fileURLWithPath: proxy.effectiveBinaryPath)
@@ -115,8 +120,7 @@ final class LegacyProxyAuthService {
                         let code = Self.extractDeviceCode(from: state.output)
                         if let code {
                             DispatchQueue.main.async {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(code, forType: .string)
+                                copyToPasteboard(code)
                             }
                             finish(AuthCommandResult(
                                 success: true,

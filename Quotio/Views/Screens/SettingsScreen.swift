@@ -688,6 +688,7 @@ struct LocalPathsSection: View {
 
 struct PathLabel: View {
     let path: String
+    @Environment(PasteboardAdapter.self) private var pasteboard
     
     var body: some View {
         HStack {
@@ -698,9 +699,7 @@ struct PathLabel: View {
                 .textSelection(.enabled)
             
             Button {
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(path, forType: .string)
+                pasteboard.copy(path)
             } label: {
                 Image(systemName: "doc.on.doc")
                     .font(.caption)
@@ -711,44 +710,50 @@ struct PathLabel: View {
 }
 
 struct NotificationSettingsSection: View {
-    @Environment(NotificationManager.self) private var notificationManager
+    @Environment(NotificationSettingsScreenModel.self) private var notificationModel
     
     var body: some View {
-        @Bindable var manager = notificationManager
+        let preferences = notificationModel.snapshot.preferences
         
         Section {
             Toggle("settings.notifications.enabled".localized(), isOn: Binding(
-                get: { manager.notificationsEnabled },
-                set: { manager.notificationsEnabled = $0 }
+                get: { preferences.notificationsEnabled },
+                set: { enabled in
+                    notificationModel.update { $0.notificationsEnabled = enabled }
+                }
             ))
             
-            if manager.notificationsEnabled {
+            if preferences.notificationsEnabled {
                 Toggle("settings.notifications.quotaLow".localized(), isOn: Binding(
-                    get: { manager.notifyOnQuotaLow },
-                    set: { manager.notifyOnQuotaLow = $0 }
+                    get: { preferences.notifyOnQuotaLow },
+                    set: { enabled in notificationModel.update { $0.notifyOnQuotaLow = enabled } }
                 ))
                 
                 Toggle("settings.notifications.cooling".localized(), isOn: Binding(
-                    get: { manager.notifyOnCooling },
-                    set: { manager.notifyOnCooling = $0 }
+                    get: { preferences.notifyOnCooling },
+                    set: { enabled in notificationModel.update { $0.notifyOnCooling = enabled } }
                 ))
                 
                 Toggle("settings.notifications.proxyCrash".localized(), isOn: Binding(
-                    get: { manager.notifyOnProxyCrash },
-                    set: { manager.notifyOnProxyCrash = $0 }
+                    get: { preferences.notifyOnProxyCrash },
+                    set: { enabled in notificationModel.update { $0.notifyOnProxyCrash = enabled } }
                 ))
                 
                 Toggle("settings.notifications.upgradeAvailable".localized(), isOn: Binding(
-                    get: { manager.notifyOnUpgradeAvailable },
-                    set: { manager.notifyOnUpgradeAvailable = $0 }
+                    get: { preferences.notifyOnUpgradeAvailable },
+                    set: { enabled in
+                        notificationModel.update { $0.notifyOnUpgradeAvailable = enabled }
+                    }
                 ))
                 
                 HStack {
                     Text("settings.notifications.threshold".localized())
                     Spacer()
                     Picker("", selection: Binding(
-                        get: { Int(manager.quotaAlertThreshold) },
-                        set: { manager.quotaAlertThreshold = Double($0) }
+                        get: { Int(preferences.quotaAlertThreshold) },
+                        set: { threshold in
+                            notificationModel.update { $0.quotaAlertThreshold = Double(threshold) }
+                        }
                     )) {
                         Text("10%").tag(10)
                         Text("20%").tag(20)
@@ -760,7 +765,7 @@ struct NotificationSettingsSection: View {
                 }
             }
             
-            if !manager.isAuthorized {
+            if notificationModel.snapshot.authorizationStatus != .authorized {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
@@ -774,6 +779,9 @@ struct NotificationSettingsSection: View {
         } footer: {
             Text("settings.notifications.help".localized())
                 .font(.caption)
+        }
+        .task {
+            await notificationModel.refreshAuthorizationStatus()
         }
     }
 }
@@ -863,10 +871,7 @@ struct RefreshCadenceSettingsSection: View {
 
 struct UpdateSettingsSection: View {
     @Environment(SettingsScreenModel.self) private var settingsModel
-    
-    #if canImport(Sparkle)
-    @Environment(UpdaterService.self) private var updaterService
-    #endif
+    @Environment(ApplicationUpdateScreenModel.self) private var updateModel
 
     private var autoCheckUpdatesBinding: Binding<Bool> {
         Binding(
@@ -877,13 +882,12 @@ struct UpdateSettingsSection: View {
     
     var body: some View {
         Section {
-            #if canImport(Sparkle)
             Toggle("settings.autoCheckUpdates".localized(), isOn: autoCheckUpdatesBinding)
             
             HStack {
                 Text("settings.lastChecked".localized())
                 Spacer()
-                if let date = updaterService.lastUpdateCheckDate {
+                if let date = updateModel.snapshot.lastCheckDate {
                     Text(date, style: .relative)
                         .foregroundStyle(.secondary)
                 } else {
@@ -893,12 +897,9 @@ struct UpdateSettingsSection: View {
             }
             
             Button("settings.checkNow".localized()) {
-                updaterService.checkForUpdates()
+                updateModel.checkForUpdates()
             }
-            .disabled(!updaterService.canCheckForUpdates)
-            #else
-            Text("settings.version".localized() + ": " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"))
-            #endif
+            .disabled(!updateModel.snapshot.canCheck)
         } header: {
             Label("settings.updates".localized(), systemImage: "arrow.down.circle")
         }
@@ -909,7 +910,6 @@ struct UpdateSettingsSection: View {
 
 struct ProxyUpdateSettingsSection: View {
     @Environment(ProxyManagementScreenModel.self) private var viewModel
-    @Environment(AtomFeedUpdateService.self) private var atomFeedService
     @State private var isCheckingForUpdate = false
     @State private var isUpgrading = false
     @State private var upgradeError: String?
@@ -992,7 +992,7 @@ struct ProxyUpdateSettingsSection: View {
                 }
 
                 // Last checked time
-                if let lastCheck = atomFeedService.lastCLIProxyCheck {
+                if let lastCheck = proxyManager.lastProxyUpdateCheckDate {
                     HStack {
                         Text("Last checked")
                             .font(.caption)
@@ -1662,7 +1662,7 @@ struct AppearanceSettingsSection: View {
 
 struct PrivacySettingsSection: View {
     @Environment(MenuBarSettingsManager.self) private var settings
-    @Environment(TelemetrySettings.self) private var telemetrySettings
+    @Environment(TelemetryConsentScreenModel.self) private var telemetryModel
     
     private var hideSensitiveBinding: Binding<Bool> {
         Binding(
@@ -1673,8 +1673,8 @@ struct PrivacySettingsSection: View {
 
     private var shareAnonymousUsageBinding: Binding<Bool> {
         Binding(
-            get: { telemetrySettings.shareAnonymousUsage },
-            set: { telemetrySettings.shareAnonymousUsage = $0 }
+            get: { telemetryModel.preferences.shareAnonymousUsage },
+            set: { telemetryModel.setConsent($0) }
         )
     }
     
@@ -1992,7 +1992,7 @@ struct AboutTab: View {
 
 struct AboutScreen: View {
     @Environment(OperatingModeManager.self) private var modeManager
-    @Environment(UpdaterService.self) private var updaterService
+    @Environment(ApplicationUpdateScreenModel.self) private var updateModel
     @State private var showCopiedToast = false
     @State private var isHoveringVersion = false
     
@@ -2038,9 +2038,7 @@ struct AboutScreen: View {
             }
         }
         .onAppear {
-            #if canImport(Sparkle)
-            updaterService.initializeIfNeeded()
-            #endif
+            updateModel.initializeIfNeeded()
         }
         .navigationTitle("nav.about".localized())
     }
@@ -2067,14 +2065,11 @@ struct AboutScreen: View {
                     .frame(width: 160, height: 160)
                     .blur(radius: 40)
                 
-                // App Icon - uses observable currentAppIcon from UpdaterService
-                if let appIcon = updaterService.currentAppIcon {
-                    Image(nsImage: appIcon)
-                        .resizable()
-                        .frame(width: 96, height: 96)
-                        .clipShape(RoundedRectangle(cornerRadius: 22))
-                        .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 8)
-                }
+                Image(updateModel.snapshot.channel == .beta ? "AppIconBetaImage" : "AppIconImage")
+                    .resizable()
+                    .frame(width: 96, height: 96)
+                    .clipShape(RoundedRectangle(cornerRadius: 22))
+                    .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 8)
             }
             
             // App Name & Tagline
@@ -2210,14 +2205,13 @@ struct VersionBadge: View {
     let label: String
     let value: String
     let icon: String
+    @Environment(PasteboardAdapter.self) private var pasteboard
     
     @State private var isHovered = false
     
     var body: some View {
         Button {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(value, forType: .string)
+            pasteboard.copy(value)
         } label: {
             HStack(spacing: 6) {
                     Image(systemName: icon)
@@ -2260,11 +2254,8 @@ struct VersionBadge: View {
 
 struct AboutUpdateCard: View {
     @Environment(SettingsScreenModel.self) private var settingsModel
+    @Environment(ApplicationUpdateScreenModel.self) private var updateModel
     @State private var isHovered = false
-    
-    #if canImport(Sparkle)
-    @Environment(UpdaterService.self) private var updaterService
-    #endif
 
     private var autoCheckUpdatesBinding: Binding<Bool> {
         Binding(
@@ -2281,7 +2272,6 @@ struct AboutUpdateCard: View {
                 color: .blue
             )
             
-            #if canImport(Sparkle)
             HStack {
                 Text("settings.autoCheckUpdates".localized())
                     .font(.subheadline)
@@ -2296,9 +2286,9 @@ struct AboutUpdateCard: View {
                     .font(.subheadline)
                 Spacer()
                 Toggle("", isOn: Binding(
-                    get: { updaterService.updateChannel == .beta },
+                    get: { updateModel.snapshot.channel == .beta },
                     set: { newValue in
-                        updaterService.updateChannel = newValue ? .beta : .stable
+                        updateModel.setChannel(newValue ? .beta : .stable)
                     }
                 ))
                     .toggleStyle(.switch)
@@ -2310,7 +2300,7 @@ struct AboutUpdateCard: View {
             HStack {
                 Text("settings.lastChecked".localized())
                 Spacer()
-                if let date = updaterService.lastUpdateCheckDate {
+                if let date = updateModel.snapshot.lastCheckDate {
                     Text(date, style: .relative)
                         .foregroundStyle(.secondary)
                 } else {
@@ -2325,15 +2315,11 @@ struct AboutUpdateCard: View {
                 Spacer()
 
                 Button("settings.checkNow".localized()) {
-                    updaterService.checkForUpdates()
+                    updateModel.checkForUpdates()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
             }
-            #else
-            Text("settings.version".localized() + ": " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"))
-                .font(.caption)
-            #endif
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2358,7 +2344,6 @@ struct AboutUpdateCard: View {
 
 struct AboutProxyUpdateCard: View {
     @Environment(ProxyManagementScreenModel.self) private var viewModel
-    @Environment(AtomFeedUpdateService.self) private var atomFeedService
     @State private var isHovered = false
     @State private var showAdvancedSheet = false
     @State private var isCheckingForUpdate = false
@@ -2425,7 +2410,7 @@ struct AboutProxyUpdateCard: View {
                     .foregroundStyle(statusColor == .secondary ? .secondary : .primary)
             }
 
-            if let lastCheck = atomFeedService.lastCLIProxyCheck {
+            if let lastCheck = proxyManager.lastProxyUpdateCheckDate {
                 HStack {
                     Text("Last checked")
                         .font(.caption)
@@ -2568,6 +2553,7 @@ struct LinkCard: View {
     let color: Color
     let url: URL?
     let action: (() -> Void)?
+    @Environment(PlatformActionScreenModel.self) private var platformActions
     
     @State private var isHovered = false
     
@@ -2588,7 +2574,7 @@ struct LinkCard: View {
     var body: some View {
         Button {
             if let url = url {
-                NSWorkspace.shared.open(url)
+                platformActions.open(url)
             } else if let action = action {
                 action()
             }
@@ -2652,6 +2638,7 @@ struct LinkCard: View {
 struct ManagementKeyRow: View {
     @Environment(ProxyManagementScreenModel.self) private var viewModel
     @Environment(MenuBarSettingsManager.self) private var settings
+    @Environment(PasteboardAdapter.self) private var pasteboard
     @State private var regenerateError: String?
     @State private var showRegenerateConfirmation = false
     @State private var showCopyConfirmation = false
@@ -2674,9 +2661,7 @@ struct ManagementKeyRow: View {
                     .textSelection(.enabled)
                 
                 Button {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(viewModel.proxy.managementKey, forType: .string)
+                    pasteboard.copy(viewModel.proxy.managementKey)
                     showCopyConfirmation = true
                     Task {
                         try? await Task.sleep(for: .seconds(1.5))
@@ -2742,9 +2727,8 @@ struct ManagementKeyRow: View {
 // MARK: - Launch at Login Toggle
 
 /// Reusable toggle component for Launch at Login functionality
-/// Uses LaunchAtLoginManager for proper SMAppService handling
 struct LaunchAtLoginToggle: View {
-    @Environment(LaunchAtLoginManager.self) private var launchManager
+    @Environment(LaunchAtLoginScreenModel.self) private var launchModel
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showLocationWarning = false
@@ -2752,21 +2736,13 @@ struct LaunchAtLoginToggle: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Toggle("settings.launchAtLogin".localized(), isOn: Binding(
-                get: { launchManager.isEnabled },
+                get: { launchModel.snapshot.status.isEnabled },
                 set: { newValue in
-                    do {
-                        try launchManager.setEnabled(newValue)
-                        
-                        // Show warning if app is not in /Applications when enabling
-                        if newValue && !launchManager.isInValidLocation {
-                            showLocationWarning = true
-                        } else {
-                            showLocationWarning = false
-                        }
-                    } catch {
-                        errorMessage = error.localizedDescription
+                    if !launchModel.setEnabled(newValue) {
+                        errorMessage = launchModel.errorMessage ?? ""
                         showError = true
                     }
+                    showLocationWarning = newValue && !launchModel.snapshot.isInApplicationsFolder
                 }
             ))
             
@@ -2785,12 +2761,12 @@ struct LaunchAtLoginToggle: View {
         }
         .onAppear {
             // Refresh status when view appears to sync with System Settings
-            launchManager.refreshStatus()
+            launchModel.refresh()
         }
         .alert("launchAtLogin.error.title".localized(), isPresented: $showError) {
             Button("OK".localized()) { showError = false }
             Button("launchAtLogin.openSystemSettings".localized()) {
-                launchManager.openSystemSettings()
+                launchModel.openSystemSettings()
                 showError = false
             }
         } message: {

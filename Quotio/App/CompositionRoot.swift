@@ -26,30 +26,41 @@ enum CompositionRoot {
             connectionTester: customProviderTransport,
             configurationSynchronizer: FileCustomProviderConfigurationSynchronizer()
         )
+        let urlOpener = WorkspaceURLOpener()
+        let applicationPlatform = AppKitApplicationPlatformAdapter()
+        let pasteboard = PasteboardAdapter()
+        let languageManager = LanguageManager.shared
+        let notificationController = NotificationController(
+            repository: UserDefaultsNotificationPreferencesRepository(),
+            delivery: UserNotificationCenterAdapter { [languageManager] key in
+                languageManager.localized(key)
+            }
+        )
         let paths = FileProxyConfigurationRepository.defaultPaths()
         let configurationRepository = FileProxyConfigurationRepository(paths: paths)
-        let proxyScreenModel = ProxyScreenModel(
-            controller: ProxyLifecycleController(
-                paths: paths,
-                processController: ProxyProcessController(),
-                versionRepository: FileProxyVersionRepository(),
-                releaseRepository: GitHubProxyReleaseRepository(),
-                updateFeed: LegacyProxyUpdateFeed(service: .shared),
-                configurationRepository: configurationRepository,
-                binaryDownloader: URLSessionProxyBinaryDownloader(),
-                checksumVerifier: SHA256ProxyChecksumVerifier(),
-                managementChecker: LocalProxyManagementClient(),
-                metadataRepository: UserDefaultsProxyRuntimeMetadataRepository(),
-                preferencesRepository: UserDefaultsProxyPreferencesRepository(),
-                keyVault: LegacyProxyManagementKeyVault(),
-                configurationSupplement: CustomProviderConfigurationSupplement(
-                    service: customProviderService
-                ),
-                notificationDelivery: LegacyProxyNotificationDelivery(service: .shared),
-                sleeper: ContinuousSleeper(),
-                dateProvider: SystemDateProvider(),
-                installedVersionLimit: AppConstants.maxInstalledVersions
+        let proxyController = ProxyLifecycleController(
+            paths: paths,
+            processController: ProxyProcessController(),
+            versionRepository: FileProxyVersionRepository(),
+            releaseRepository: GitHubProxyReleaseRepository(),
+            updateFeed: GitHubAtomProxyUpdateFeed(),
+            configurationRepository: configurationRepository,
+            binaryDownloader: URLSessionProxyBinaryDownloader(),
+            checksumVerifier: SHA256ProxyChecksumVerifier(),
+            managementChecker: LocalProxyManagementClient(),
+            metadataRepository: UserDefaultsProxyRuntimeMetadataRepository(),
+            preferencesRepository: UserDefaultsProxyPreferencesRepository(),
+            keyVault: LegacyProxyManagementKeyVault(),
+            configurationSupplement: CustomProviderConfigurationSupplement(
+                service: customProviderService
             ),
+            notificationDelivery: ProxyNotificationRelay(notifications: notificationController),
+            sleeper: ContinuousSleeper(),
+            dateProvider: SystemDateProvider(),
+            installedVersionLimit: AppConstants.maxInstalledVersions
+        )
+        let proxyScreenModel = ProxyScreenModel(
+            controller: proxyController,
             initialState: ProxySnapshot(
                 status: ProxyStatus(
                     port: UserDefaultsProxyRuntimeMetadataRepository().loadPort()
@@ -81,7 +92,6 @@ enum CompositionRoot {
             authFileRepository: authFileRepository
         )
 
-        let urlOpener = WorkspaceURLOpener()
         let monitorAuthorizer = MonitorOAuthAuthorizer(
             vault: credentialVault,
             urlOpener: urlOpener,
@@ -98,7 +108,10 @@ enum CompositionRoot {
         }
         let localProxyAuthorizer = LocalProxyOAuthAuthorizer(
             proxy: proxyScreenModel,
-            authService: LegacyProxyAuthService(proxy: proxyScreenModel),
+            authService: LegacyProxyAuthService(
+                proxy: proxyScreenModel,
+                copyToPasteboard: pasteboard.copy
+            ),
             authFiles: authFileRepository,
             urlOpener: urlOpener
         ) {
@@ -188,7 +201,6 @@ enum CompositionRoot {
         )
         let refreshSettings = RefreshSettingsManager.shared
         let menuBarSettings = MenuBarSettingsManager.shared
-        let notificationManager = NotificationManager.shared
         let quotaController = QuotaFeatureController(
             quota: quotaScreenModel,
             accounts: accountsScreenModel,
@@ -197,7 +209,7 @@ enum CompositionRoot {
             modeManager: modeManager,
             refreshSettings: refreshSettings,
             menuBarSettings: menuBarSettings,
-            notificationManager: notificationManager,
+            notifications: notificationController,
             authFiles: { [] }
         )
         antigravityAccountScreenModel.setDidSwitchHandler { [weak quotaController] in
@@ -271,7 +283,7 @@ enum CompositionRoot {
             oauth: oauthScreenModel,
             tunnel: tunnel,
             agentSetup: agentSetup,
-            notificationManager: notificationManager,
+            notifications: notificationController,
             refreshSettings: refreshSettings,
             tunnelPreferences: tunnelPreferences
         )
@@ -325,7 +337,51 @@ enum CompositionRoot {
             clearLogs: ClearProxyLogsUseCase(repository: logRepository),
             sleeper: ContinuousSleeper()
         )
-        let updaterService = UpdaterService.shared
+        let updatePreferences = UserDefaultsUpdatePreferencesRepository()
+        let applicationUpdateController = ApplicationUpdateController(
+            checker: SparkleApplicationUpdateAdapter(),
+            preferencesRepository: updatePreferences,
+            icon: AppKitUpdaterIconAdapter()
+        )
+        let applicationUpdateModel = ApplicationUpdateScreenModel(
+            controller: applicationUpdateController
+        )
+        let notificationSettingsModel = NotificationSettingsScreenModel(
+            controller: notificationController
+        )
+        let telemetryController = TelemetryController(
+            repository: UserDefaultsTelemetryPreferencesRepository(),
+            tracker: PostHogTelemetryAdapter(),
+            contextProvider: BundleTelemetryRuntimeContextProvider(),
+            updatePreferencesRepository: updatePreferences
+        )
+        let telemetryConsentModel = TelemetryConsentScreenModel(controller: telemetryController)
+        let launchAtLoginController = LaunchAtLoginController(
+            registration: ServiceManagementLaunchAtLoginAdapter(),
+            urlOpener: urlOpener
+        )
+        let launchAtLoginModel = LaunchAtLoginScreenModel(
+            controller: launchAtLoginController,
+            failureMessage: { failure in
+                switch failure {
+                case .registrationFailed(let reason):
+                    "launchAtLogin.error.registrationFailed".localized() + ": \(reason)"
+                case .unregistrationFailed(let reason):
+                    "launchAtLogin.error.unregistrationFailed".localized() + ": \(reason)"
+                }
+            }
+        )
+        let platformActions = PlatformActionScreenModel(urlOpener: urlOpener)
+        let appearanceManager = AppearanceManager(
+            repository: UserDefaultsAppearancePreferencesRepository(),
+            platform: applicationPlatform
+        )
+        let proxyUpdatePolling = ProxyUpdatePollingController(
+            proxy: proxyController,
+            notifications: notificationController,
+            notificationRecord: UserDefaultsProxyUpdateNotificationRecord(),
+            sleeper: ContinuousSleeper()
+        )
         let settingsScreenModel = SettingsScreenModel(
             proxyRepository: UserDefaultsProxyPreferencesRepository(),
             tunnelRepository: tunnelPreferences,
@@ -333,14 +389,19 @@ enum CompositionRoot {
             applyNetworkAccess: { [proxyScreenModel] enabled in
                 proxyScreenModel.setNetworkAccess(enabled)
             },
-            applyAutomaticUpdateChecks: { [updaterService] enabled in
-                updaterService.automaticallyChecksForUpdates = enabled
+            applyAutomaticUpdateChecks: { [applicationUpdateController] enabled in
+                applicationUpdateController.automaticallyChecksForUpdates = enabled
             },
-            applyDockVisibility: { enabled in
-                NSApp.setActivationPolicy(enabled ? .regular : .accessory)
+            applyDockVisibility: { [applicationPlatform] enabled in
+                applicationPlatform.setDockVisibility(enabled)
             }
         )
-        let pasteboard = PasteboardAdapter()
+        let providerImageCache = ProviderImageCacheAdapter()
+        let providerImageModel = ProviderImageScreenModel(
+            loadImage: { [providerImageCache] name, size in
+                providerImageCache.image(named: name, size: size)
+            }
+        )
         let statusBarManager = StatusBarManager()
         let services = LegacyAppRuntimeServices(
             proxyManagement: proxyManagement,
@@ -355,21 +416,26 @@ enum CompositionRoot {
             antigravityAccountScreenModel: antigravityAccountScreenModel,
             logsScreenModel: logsScreenModel,
             pasteboard: pasteboard,
+            providerImageModel: providerImageModel,
+            platformActions: platformActions,
             settingsScreenModel: settingsScreenModel,
             modeManager: modeManager,
-            appearanceManager: .shared,
+            appearanceManager: appearanceManager,
             statusBarManager: statusBarManager,
             menuBarSettings: menuBarSettings,
-            languageManager: .shared,
+            languageManager: languageManager,
             refreshSettings: refreshSettings,
             warmupSettings: .shared,
             ideScanSettings: .shared,
-            launchAtLoginManager: .shared,
-            notificationManager: notificationManager,
-            telemetrySettings: .shared,
-            telemetryService: .shared,
-            updaterService: updaterService,
-            updatePollingService: .shared,
+            launchAtLoginModel: launchAtLoginModel,
+            notificationSettingsModel: notificationSettingsModel,
+            telemetryConsentModel: telemetryConsentModel,
+            applicationUpdateModel: applicationUpdateModel,
+            notificationController: notificationController,
+            telemetryController: telemetryController,
+            applicationUpdateController: applicationUpdateController,
+            applicationPlatform: applicationPlatform,
+            proxyUpdatePolling: proxyUpdatePolling,
             tunnel: tunnel,
             isCLIInstalled: agentInstallationProbe.isInstalled
         )
@@ -387,19 +453,6 @@ private struct LegacyProxyManagementKeyVault: ProxyManagementKeyVault {
     }
 }
 
-private final class LegacyProxyUpdateFeed: ProxyUpdateFeedChecking, @unchecked Sendable {
-    private let service: AtomFeedUpdateService
-
-    init(service: AtomFeedUpdateService) {
-        self.service = service
-    }
-
-    func latestVersion(comparedTo currentVersion: String?) async -> String? {
-        let result = await service.checkForCLIProxyUpdate(currentVersion: currentVersion)
-        return result.isNewRelease ? result.latestVersion : nil
-    }
-}
-
 private struct CustomProviderConfigurationSupplement: ProxyConfigurationSupplementing {
     private let service: QuotioApplication.CustomProviderService
 
@@ -409,34 +462,6 @@ private struct CustomProviderConfigurationSupplement: ProxyConfigurationSuppleme
 
     func synchronize(configurationPath: String) async {
         try? service.synchronizeConfiguration(at: configurationPath)
-    }
-}
-
-private final class LegacyProxyNotificationDelivery:
-    ProxyNotificationDelivering,
-    @unchecked Sendable
-{
-    private let service: NotificationManager
-
-    init(service: NotificationManager) {
-        self.service = service
-    }
-
-    func deliver(_ notification: ProxyNotification) async {
-        await MainActor.run {
-            switch notification {
-            case .crashed(let exitCode):
-                service.notifyProxyCrashed(exitCode: exitCode)
-            case .upgradeSucceeded(let version):
-                service.notifyUpgradeSuccess(version: version)
-            case .upgradeFailed(let version, let reason):
-                service.notifyUpgradeFailed(version: version, reason: reason)
-            case .rolledBack(let version):
-                service.notifyRollback(toVersion: version)
-            case .suppressUpgrade(let version):
-                service.suppressUpgradeNotification(version: version)
-            }
-        }
     }
 }
 
@@ -454,6 +479,8 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     let antigravityAccountScreenModel: AntigravityAccountScreenModel
     let logsScreenModel: LogsScreenModel
     let pasteboard: PasteboardAdapter
+    let providerImageModel: ProviderImageScreenModel
+    let platformActions: PlatformActionScreenModel
     let settingsScreenModel: SettingsScreenModel
     let modeManager: OperatingModeManager
     let appearanceManager: AppearanceManager
@@ -463,19 +490,22 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     let refreshSettings: RefreshSettingsManager
     let warmupSettings: WarmupSettingsManager
     let ideScanSettings: IDEScanSettingsManager
-    let launchAtLoginManager: LaunchAtLoginManager
-    let updaterService: UpdaterService
-    let notificationManager: NotificationManager
-    let telemetrySettings: TelemetrySettings
-    let updatePollingService: AtomFeedUpdateService
+    let launchAtLoginModel: LaunchAtLoginScreenModel
+    let notificationSettingsModel: NotificationSettingsScreenModel
+    let telemetryConsentModel: TelemetryConsentScreenModel
+    let applicationUpdateModel: ApplicationUpdateScreenModel
 
-    private let telemetryService: TelemetryService
+    private let notificationController: NotificationController
+    private let telemetryController: TelemetryController
+    private let applicationUpdateController: ApplicationUpdateController
+    private let applicationPlatform: AppKitApplicationPlatformAdapter
+    private let proxyUpdatePolling: ProxyUpdatePollingController
     private let tunnel: TunnelScreenModel
     private let isCLIInstalled: (CLIAgent) -> Bool
 
     var hasCompletedOnboarding: Bool { modeManager.hasCompletedOnboarding }
     var showInDock: Bool { settingsScreenModel.appShellPreferences.showInDock }
-    var canCheckForUpdates: Bool { updaterService.canCheckForUpdates }
+    var canCheckForUpdates: Bool { applicationUpdateModel.snapshot.canCheck }
 
     init(
         proxyManagement: ProxyManagementScreenModel,
@@ -490,6 +520,8 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         antigravityAccountScreenModel: AntigravityAccountScreenModel,
         logsScreenModel: LogsScreenModel,
         pasteboard: PasteboardAdapter,
+        providerImageModel: ProviderImageScreenModel,
+        platformActions: PlatformActionScreenModel,
         settingsScreenModel: SettingsScreenModel,
         modeManager: OperatingModeManager,
         appearanceManager: AppearanceManager,
@@ -499,12 +531,15 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         refreshSettings: RefreshSettingsManager,
         warmupSettings: WarmupSettingsManager,
         ideScanSettings: IDEScanSettingsManager,
-        launchAtLoginManager: LaunchAtLoginManager,
-        notificationManager: NotificationManager,
-        telemetrySettings: TelemetrySettings,
-        telemetryService: TelemetryService,
-        updaterService: UpdaterService,
-        updatePollingService: AtomFeedUpdateService,
+        launchAtLoginModel: LaunchAtLoginScreenModel,
+        notificationSettingsModel: NotificationSettingsScreenModel,
+        telemetryConsentModel: TelemetryConsentScreenModel,
+        applicationUpdateModel: ApplicationUpdateScreenModel,
+        notificationController: NotificationController,
+        telemetryController: TelemetryController,
+        applicationUpdateController: ApplicationUpdateController,
+        applicationPlatform: AppKitApplicationPlatformAdapter,
+        proxyUpdatePolling: ProxyUpdatePollingController,
         tunnel: TunnelScreenModel,
         isCLIInstalled: @escaping (CLIAgent) -> Bool
     ) {
@@ -520,6 +555,8 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         self.antigravityAccountScreenModel = antigravityAccountScreenModel
         self.logsScreenModel = logsScreenModel
         self.pasteboard = pasteboard
+        self.providerImageModel = providerImageModel
+        self.platformActions = platformActions
         self.settingsScreenModel = settingsScreenModel
         self.modeManager = modeManager
         self.appearanceManager = appearanceManager
@@ -529,18 +566,24 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         self.refreshSettings = refreshSettings
         self.warmupSettings = warmupSettings
         self.ideScanSettings = ideScanSettings
-        self.launchAtLoginManager = launchAtLoginManager
-        self.notificationManager = notificationManager
-        self.telemetrySettings = telemetrySettings
-        self.telemetryService = telemetryService
-        self.updaterService = updaterService
-        self.updatePollingService = updatePollingService
+        self.launchAtLoginModel = launchAtLoginModel
+        self.notificationSettingsModel = notificationSettingsModel
+        self.telemetryConsentModel = telemetryConsentModel
+        self.applicationUpdateModel = applicationUpdateModel
+        self.notificationController = notificationController
+        self.telemetryController = telemetryController
+        self.applicationUpdateController = applicationUpdateController
+        self.applicationPlatform = applicationPlatform
+        self.proxyUpdatePolling = proxyUpdatePolling
         self.tunnel = tunnel
         self.isCLIInstalled = isCLIInstalled
     }
 
     func prepareForLaunch() {
-        telemetryService.configureIfAllowed()
+        telemetryController.prepareForLaunch()
+        Task { [notificationController] in
+            await notificationController.requestAuthorization()
+        }
     }
 
     func applyAppearance() {
@@ -586,8 +629,8 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
                     }
                     windowPresenter.showMainWindow()
                 },
-                quit: {
-                    NSApplication.shared.terminate(nil)
+                quit: { [applicationPlatform] in
+                    applicationPlatform.terminate()
                 },
                 menuNeedsRebuild: { [weak statusBarManager] in
                     statusBarManager?.rebuildMenuInPlace()
@@ -645,21 +688,19 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     }
 
     func checkForUpdatesInBackground() {
-        updaterService.checkForUpdatesInBackground()
+        applicationUpdateController.checkForUpdatesInBackground()
     }
 
     func checkForUpdates() {
-        updaterService.checkForUpdates()
+        applicationUpdateController.checkForUpdates()
     }
 
-    func startUpdatePolling() {
-        updatePollingService.startPolling { [proxy = proxyManagement.proxy] in
-            proxy.currentVersion ?? proxy.installedProxyVersion
-        }
+    func startUpdatePolling() async {
+        await proxyUpdatePolling.start()
     }
 
-    func stopUpdatePolling() {
-        updatePollingService.stopPolling()
+    func stopUpdatePolling() async {
+        await proxyUpdatePolling.stop()
     }
 
     func shutdownOAuth() async {

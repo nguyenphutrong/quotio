@@ -1072,6 +1072,8 @@ private struct OAuthStatusView: View {
     let state: String?
     let authURL: String?
     let provider: AIProvider
+    @Environment(PasteboardAdapter.self) private var pasteboard
+    @Environment(PlatformActionScreenModel.self) private var platformActions
     
     /// Stable rotation angle for spinner animation (fixes UUID() infinite re-render)
     @State private var rotationAngle: Double = 0
@@ -1132,8 +1134,7 @@ private struct OAuthStatusView: View {
                                     .cornerRadius(8)
                                 
                                 Button {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(deviceCode, forType: .string)
+                                    pasteboard.copy(deviceCode)
                                 } label: {
                                     Image(systemName: "doc.on.doc")
                                         .font(.title3)
@@ -1166,8 +1167,7 @@ private struct OAuthStatusView: View {
                                 
                                 HStack(spacing: 12) {
                                     Button {
-                                        NSPasteboard.general.clearContents()
-                                        NSPasteboard.general.setString(urlString, forType: .string)
+                                        pasteboard.copy(urlString)
                                         copied = true
                                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                                             copied = false
@@ -1178,7 +1178,7 @@ private struct OAuthStatusView: View {
                                     .buttonStyle(.bordered)
                                     
                                     Button {
-                                        NSWorkspace.shared.open(url)
+                                        platformActions.open(url)
                                     } label: {
                                         Label("oauth.openLink".localized(), systemImage: "safari")
                                     }

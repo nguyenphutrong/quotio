@@ -25,7 +25,7 @@ final class ProxyManagementScreenModel {
     var apiClient: ManagementAPIClient? { managementClient }
 
     @ObservationIgnored private let authWorkaroundService: LegacyAntigravityAuthWorkaroundService
-    @ObservationIgnored private let notificationManager: NotificationManager
+    @ObservationIgnored private let notifications: any NotificationRequesting
     @ObservationIgnored private let refreshSettings: RefreshSettingsManager
     @ObservationIgnored private let tunnelPreferences: any TunnelPreferencesRepository
     @ObservationIgnored private var managementClient: ManagementAPIClient?
@@ -41,7 +41,7 @@ final class ProxyManagementScreenModel {
         tunnel: TunnelScreenModel,
         agentSetup: AgentSetupScreenModel,
         authWorkaroundService: LegacyAntigravityAuthWorkaroundService = LegacyAntigravityAuthWorkaroundService(),
-        notificationManager: NotificationManager,
+        notifications: any NotificationRequesting,
         refreshSettings: RefreshSettingsManager,
         tunnelPreferences: any TunnelPreferencesRepository
     ) {
@@ -51,7 +51,7 @@ final class ProxyManagementScreenModel {
         self.tunnel = tunnel
         self.agentSetup = agentSetup
         self.authWorkaroundService = authWorkaroundService
-        self.notificationManager = notificationManager
+        self.notifications = notifications
         self.refreshSettings = refreshSettings
         self.tunnelPreferences = tunnelPreferences
     }
@@ -363,12 +363,12 @@ final class ProxyManagementScreenModel {
             let accountKey = "\(file.provider)_\(file.email ?? file.name)"
             let previous = lastKnownAccountStatuses[accountKey]
             if file.status == "cooling", previous != "cooling" {
-                notificationManager.notifyAccountCooling(
+                notifications.submit(.accountCooling(
                     provider: file.providerType?.displayName ?? file.provider,
                     account: file.email ?? file.name
-                )
+                ))
             } else if file.status == "ready", previous == "cooling" {
-                notificationManager.clearCoolingNotification(
+                notifications.clearCoolingNotification(
                     provider: file.provider,
                     account: file.email ?? file.name
                 )
