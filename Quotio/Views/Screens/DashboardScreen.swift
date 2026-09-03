@@ -16,6 +16,7 @@ struct DashboardScreen: View {
     @Environment(QuotaFeatureController.self) private var quotaController
     @Environment(OperatingModeManager.self) private var modeManager
     @Environment(SettingsScreenModel.self) private var settingsModel
+    @Environment(PasteboardAdapter.self) private var pasteboard
 
     @State private var selectedProvider: AIProvider?
     @State private var isImporterPresented = false
@@ -23,7 +24,7 @@ struct DashboardScreen: View {
     @State private var sheetPresentationID = UUID()
     @State private var showTunnelSheet = false
     
-    private var tunnelManager: TunnelManager { TunnelManager.shared }
+    private var tunnel: TunnelScreenModel { proxyManagement.tunnel }
     
     private var showGettingStarted: Bool {
         guard !settingsModel.appShellPreferences.hideGettingStarted else { return false }
@@ -538,8 +539,7 @@ struct DashboardScreen: View {
                 Spacer()
 
                 Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(displayEndpoint, forType: .string)
+                    pasteboard.copy(displayEndpoint)
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
@@ -587,10 +587,10 @@ struct DashboardScreen: View {
                         Text("tunnel.section.title".localized())
                             .font(.headline)
                         
-                        TunnelStatusBadge(status: tunnelManager.tunnelState.status, compact: true)
+                        TunnelStatusBadge(status: tunnel.tunnelState.status, compact: true)
                     }
                     
-                    if tunnelManager.tunnelState.isActive, let url = tunnelManager.tunnelState.publicURL {
+                    if tunnel.tunnelState.isActive, let url = tunnel.tunnelState.publicURL {
                         Text(url)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -605,9 +605,11 @@ struct DashboardScreen: View {
                 
                 Spacer()
                 
-                if tunnelManager.tunnelState.isActive {
+                if tunnel.tunnelState.isActive {
                     Button {
-                        tunnelManager.copyURLToClipboard()
+                        if let url = tunnel.tunnelState.publicURL {
+                            pasteboard.copy(url)
+                        }
                     } label: {
                         Image(systemName: "doc.on.doc")
                             .font(.system(size: 12))

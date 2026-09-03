@@ -6,10 +6,16 @@ import QuotioDomain
 @MainActor
 @Observable
 public final class QuotaScreenModel {
-    public private(set) var state: QuotaSnapshot
+    public private(set) var state: QuotaSnapshot {
+        didSet {
+            guard oldValue != state else { return }
+            didChangeHandler?(state)
+        }
+    }
 
     @ObservationIgnored private let coordinator: QuotaRefreshCoordinator
     @ObservationIgnored private var observationTask: Task<Void, Never>?
+    @ObservationIgnored private var didChangeHandler: (@MainActor (QuotaSnapshot) -> Void)?
 
     public init(
         coordinator: QuotaRefreshCoordinator,
@@ -44,6 +50,12 @@ public final class QuotaScreenModel {
 
     public func supportsScopedRefresh(for provider: QuotaProvider) -> Bool {
         provider.supportsQuotaOnlyMode
+    }
+
+    public func setDidChangeHandler(
+        _ handler: (@MainActor (QuotaSnapshot) -> Void)?
+    ) {
+        didChangeHandler = handler
     }
 
     public func bootstrap(mode: QuotaOperatingMode) async {

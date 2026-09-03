@@ -53,58 +53,11 @@ struct QuotioApp: App {
                     .environment(runtime.notificationManager)
                     .environment(runtime.telemetrySettings)
                     .environment(runtime.updatePollingService)
+                    .environment(runtime.pasteboard)
                     .environment(\.locale, languageManager.locale)
                     .task {
                         await runtime.initializeIfNeeded()
                         showOnboarding = runtime.needsOnboarding
-                    }
-                    .onChange(of: proxyManagement.proxy.proxyStatus.running) {
-                        runtime.updateStatusBar()
-                    }
-                    .onChange(of: quotaScreenModel.isLoadingQuotas) {
-                        runtime.updateStatusBar()
-                        statusBarManager.rebuildMenuInPlace()
-                    }
-                    .onChange(of: languageManager.currentLanguage) { _, _ in
-                        runtime.updateStatusBar()
-                        statusBarManager.rebuildMenuInPlace()
-                    }
-                    .onChange(of: appearanceManager.appearanceMode) {
-                        statusBarManager.rebuildMenuInPlace()
-                    }
-                    .onChange(of: menuBarSettings.showQuotaInMenuBar) {
-                        runtime.updateStatusBar()
-                    }
-                    .onChange(of: menuBarSettings.showMenuBarIcon) {
-                        runtime.updateStatusBar()
-                    }
-                    .onChange(of: menuBarSettings.selectedItems) {
-                        runtime.updateStatusBar()
-                    }
-                    .onChange(of: menuBarSettings.colorMode) {
-                        runtime.updateStatusBar()
-                    }
-                    .onChange(of: menuBarSettings.quotaDisplayMode) {
-                        runtime.updateStatusBar()
-                        statusBarManager.rebuildMenuInPlace()
-                    }
-                    .onChange(of: menuBarSettings.stackPairedQuotaMetrics) {
-                        runtime.updateStatusBar()
-                    }
-                    .onChange(of: menuBarSettings.totalUsageMode) {
-                        runtime.updateStatusBar()
-                        statusBarManager.rebuildMenuInPlace()
-                    }
-                    .onChange(of: menuBarSettings.modelAggregationMode) {
-                        runtime.updateStatusBar()
-                        statusBarManager.rebuildMenuInPlace()
-                    }
-                    .onChange(of: modeManager.currentMode) {
-                        runtime.updateStatusBar()
-                    }
-                    .onChange(of: quotaScreenModel.providerQuotas.count) {
-                        runtime.updateStatusBar()
-                        statusBarManager.rebuildMenuInPlace()
                     }
                     .onChange(of: proxyManagement.directAuthFiles.count) {
                         runtime.updateStatusBar()

@@ -6,10 +6,16 @@ import QuotioDomain
 @MainActor
 @Observable
 public final class ProxyScreenModel {
-    public private(set) var state: ProxySnapshot
+    public private(set) var state: ProxySnapshot {
+        didSet {
+            guard oldValue != state else { return }
+            didChangeHandler?(state)
+        }
+    }
 
     @ObservationIgnored private let controller: any ProxyControlling
     @ObservationIgnored private var observationTask: Task<Void, Never>?
+    @ObservationIgnored private var didChangeHandler: (@MainActor (ProxySnapshot) -> Void)?
 
     public init(controller: any ProxyControlling, initialState: ProxySnapshot) {
         self.controller = controller
@@ -49,6 +55,12 @@ public final class ProxyScreenModel {
     public var currentVersion: String? { state.activeVersion }
     public var installedVersions: [InstalledProxyVersion] { state.installedVersions }
     public var isUsingVersionedStorage: Bool { state.isBinaryInstalled }
+
+    public func setDidChangeHandler(
+        _ handler: (@MainActor (ProxySnapshot) -> Void)?
+    ) {
+        didChangeHandler = handler
+    }
 
     public func errorMessage(for error: Error) -> String {
         guard let failure = error as? ProxyFailure else {

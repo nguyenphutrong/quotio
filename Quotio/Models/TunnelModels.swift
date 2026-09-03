@@ -3,18 +3,10 @@
 //  Quotio - Cloudflare Tunnel Models
 //
 
-import Foundation
+import QuotioDomain
 import SwiftUI
 
-// MARK: - Tunnel Status
-
-enum CloudflareTunnelStatus: String, Sendable {
-    case idle
-    case starting
-    case active
-    case stopping
-    case error
-    
+extension CloudflareTunnelStatus {
     @MainActor
     var displayName: String {
         switch self {
@@ -45,34 +37,4 @@ enum CloudflareTunnelStatus: String, Sendable {
         case .error: return "exclamationmark.triangle"
         }
     }
-}
-
-// MARK: - Tunnel State
-
-@MainActor @Observable
-final class CloudflareTunnelState {
-    var status: CloudflareTunnelStatus = .idle
-    var publicURL: String?
-    var errorMessage: String?
-    var startTime: Date?
-    
-    var isActive: Bool { status == .active }
-    var isTransitioning: Bool { status == .starting || status == .stopping }
-    
-    func reset() {
-        status = .idle
-        publicURL = nil
-        errorMessage = nil
-        startTime = nil
-    }
-}
-
-// MARK: - Cloudflared Installation
-
-struct CloudflaredInstallation: Sendable {
-    let isInstalled: Bool
-    let path: String?
-    let version: String?
-    
-    nonisolated static let notInstalled = CloudflaredInstallation(isInstalled: false, path: nil, version: nil)
 }

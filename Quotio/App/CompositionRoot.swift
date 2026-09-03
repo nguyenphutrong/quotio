@@ -203,7 +203,31 @@ enum CompositionRoot {
         antigravityAccountScreenModel.setDidSwitchHandler { [weak quotaController] in
             await quotaController?.refresh(provider: .antigravity)
         }
-        let tunnelManager = TunnelManager.shared
+        let tunnelPreferences = UserDefaultsTunnelPreferencesRepository()
+        let tunnelController = TunnelLifecycleController(
+            tunnel: CloudflaredService(),
+            remoteAccess: ProxyTunnelRemoteAccessAdapter(proxy: proxyScreenModel),
+            preferences: tunnelPreferences,
+            sleeper: ContinuousSleeper(),
+            clock: SystemDateProvider()
+        )
+        let tunnel = TunnelScreenModel(
+            controller: tunnelController,
+            failureMessage: { failure in
+                switch failure {
+                case .notInstalled:
+                    "tunnel.error.notInstalled".localized()
+                case .alreadyRunning:
+                    "Tunnel is already running"
+                case .startFailed(let reason):
+                    "Failed to start tunnel: \(reason)"
+                case .unexpectedExit:
+                    "tunnel.error.unexpectedExit".localized()
+                case .startTimeout:
+                    "tunnel.error.startTimeout".localized()
+                }
+            }
+        )
         let agentFileStore = AgentFileStore()
         let agentDetector = AgentDetectionAdapter()
         let agentInstallationProbe = AgentBinaryInstallationProbe()
@@ -233,10 +257,10 @@ enum CompositionRoot {
         weak var proxyManagementReference: ProxyManagementScreenModel?
         let agentSetup = AgentSetupScreenModel(
             service: agentConfigurationService,
-            endpointContext: { [weak proxyScreenModel, weak tunnelManager] in
+            endpointContext: { [weak proxyScreenModel, weak tunnel] in
                 guard let proxyScreenModel else { return nil }
                 return AgentEndpointContext(
-                    baseURL: tunnelManager?.tunnelState.publicURL ?? proxyScreenModel.baseURL,
+                    baseURL: tunnel?.tunnelState.publicURL ?? proxyScreenModel.baseURL,
                     apiKey: proxyManagementReference?.apiKeys.first ?? proxyScreenModel.managementKey
                 )
             }
@@ -245,10 +269,11 @@ enum CompositionRoot {
             proxy: proxyScreenModel,
             accounts: accountsScreenModel,
             oauth: oauthScreenModel,
-            tunnelManager: tunnelManager,
+            tunnel: tunnel,
             agentSetup: agentSetup,
             notificationManager: notificationManager,
-            refreshSettings: refreshSettings
+            refreshSettings: refreshSettings,
+            tunnelPreferences: tunnelPreferences
         )
         proxyManagementReference = proxyManagement
         quotaController.setAuthFilesProvider { [weak proxyManagement] in
@@ -303,7 +328,7 @@ enum CompositionRoot {
         let updaterService = UpdaterService.shared
         let settingsScreenModel = SettingsScreenModel(
             proxyRepository: UserDefaultsProxyPreferencesRepository(),
-            tunnelRepository: UserDefaultsTunnelPreferencesRepository(),
+            tunnelRepository: tunnelPreferences,
             appShellRepository: UserDefaultsAppShellPreferencesRepository(),
             applyNetworkAccess: { [proxyScreenModel] enabled in
                 proxyScreenModel.setNetworkAccess(enabled)
@@ -315,9 +340,8 @@ enum CompositionRoot {
                 NSApp.setActivationPolicy(enabled ? .regular : .accessory)
             }
         )
-        tunnelManager.configureProxyRemoteAccess { [proxyScreenModel] enabled in
-            await proxyScreenModel.updateConfigAllowRemote(enabled)
-        }
+        let pasteboard = PasteboardAdapter()
+        let statusBarManager = StatusBarManager()
         let services = LegacyAppRuntimeServices(
             proxyManagement: proxyManagement,
             quotaController: quotaController,
@@ -330,10 +354,11 @@ enum CompositionRoot {
             ideImportScreenModel: ideImportScreenModel,
             antigravityAccountScreenModel: antigravityAccountScreenModel,
             logsScreenModel: logsScreenModel,
+            pasteboard: pasteboard,
             settingsScreenModel: settingsScreenModel,
             modeManager: modeManager,
             appearanceManager: .shared,
-            statusBarManager: .shared,
+            statusBarManager: statusBarManager,
             menuBarSettings: menuBarSettings,
             languageManager: .shared,
             refreshSettings: refreshSettings,
@@ -345,7 +370,7 @@ enum CompositionRoot {
             telemetryService: .shared,
             updaterService: updaterService,
             updatePollingService: .shared,
-            tunnelManager: tunnelManager,
+            tunnel: tunnel,
             isCLIInstalled: agentInstallationProbe.isInstalled
         )
         return AppRuntime(services: services)
@@ -428,6 +453,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     let ideImportScreenModel: IDEImportScreenModel
     let antigravityAccountScreenModel: AntigravityAccountScreenModel
     let logsScreenModel: LogsScreenModel
+    let pasteboard: PasteboardAdapter
     let settingsScreenModel: SettingsScreenModel
     let modeManager: OperatingModeManager
     let appearanceManager: AppearanceManager
@@ -444,7 +470,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     let updatePollingService: AtomFeedUpdateService
 
     private let telemetryService: TelemetryService
-    private let tunnelManager: TunnelManager
+    private let tunnel: TunnelScreenModel
     private let isCLIInstalled: (CLIAgent) -> Bool
 
     var hasCompletedOnboarding: Bool { modeManager.hasCompletedOnboarding }
@@ -463,6 +489,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         ideImportScreenModel: IDEImportScreenModel,
         antigravityAccountScreenModel: AntigravityAccountScreenModel,
         logsScreenModel: LogsScreenModel,
+        pasteboard: PasteboardAdapter,
         settingsScreenModel: SettingsScreenModel,
         modeManager: OperatingModeManager,
         appearanceManager: AppearanceManager,
@@ -478,7 +505,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         telemetryService: TelemetryService,
         updaterService: UpdaterService,
         updatePollingService: AtomFeedUpdateService,
-        tunnelManager: TunnelManager,
+        tunnel: TunnelScreenModel,
         isCLIInstalled: @escaping (CLIAgent) -> Bool
     ) {
         self.proxyManagement = proxyManagement
@@ -492,6 +519,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         self.ideImportScreenModel = ideImportScreenModel
         self.antigravityAccountScreenModel = antigravityAccountScreenModel
         self.logsScreenModel = logsScreenModel
+        self.pasteboard = pasteboard
         self.settingsScreenModel = settingsScreenModel
         self.modeManager = modeManager
         self.appearanceManager = appearanceManager
@@ -507,7 +535,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
         self.telemetryService = telemetryService
         self.updaterService = updaterService
         self.updatePollingService = updatePollingService
-        self.tunnelManager = tunnelManager
+        self.tunnel = tunnel
         self.isCLIInstalled = isCLIInstalled
     }
 
@@ -524,18 +552,68 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     }
 
     func connectStatusBar() {
-        statusBarManager.setDependencies(
-            proxyManagement: proxyManagement,
-            quota: quotaScreenModel,
-            accounts: accountsScreenModel,
-            quotaController: quotaController,
-            antigravityAccounts: antigravityAccountScreenModel,
-            isCLIInstalled: isCLIInstalled
+        let windowPresenter = AppKitWindowPresenter()
+        let dispatcher = StatusBarCommandDispatcher(
+            handlers: StatusBarCommandHandlers(
+                refreshAll: { [quotaController] in
+                    await quotaController.refreshAll(force: true)
+                },
+                refreshProvider: { [quotaController] provider in
+                    await quotaController.refresh(provider: provider)
+                },
+                refreshAccount: { [quotaController] account in
+                    await quotaController.refresh(account: account)
+                },
+                toggleProxy: { [proxyManagement] in
+                    await proxyManagement.toggleProxy()
+                },
+                toggleTunnel: { [tunnel] port in
+                    await tunnel.toggle(port: port)
+                },
+                copyText: { [pasteboard] value in
+                    pasteboard.copy(value)
+                },
+                switchAntigravityAccount: { [antigravityAccountScreenModel] email in
+                    await antigravityAccountScreenModel.switchAccount(email: email)
+                },
+                isAntigravityIDERunning: { [antigravityAccountScreenModel] in
+                    antigravityAccountScreenModel.switcher.isIDERunning()
+                },
+                confirmAntigravitySwitch: AntigravitySwitchConfirmationPresenter.confirm,
+                openApp: { [weak statusBarManager, settingsScreenModel, windowPresenter] in
+                    if settingsScreenModel.appShellPreferences.showInDock {
+                        statusBarManager?.closeMenu()
+                    }
+                    windowPresenter.showMainWindow()
+                },
+                quit: {
+                    NSApplication.shared.terminate(nil)
+                },
+                menuNeedsRebuild: { [weak statusBarManager] in
+                    statusBarManager?.rebuildMenuInPlace()
+                }
+            )
+        )
+        statusBarManager.configureMenu(
+            snapshotProvider: { [weak self] in
+                guard let self else {
+                    preconditionFailure("Status bar outlived application services")
+                }
+                return self.statusBarMenuSnapshot
+            },
+            commandDispatcher: dispatcher
         )
     }
 
-    func setQuotaDataChangeHandler(_ handler: (@MainActor () -> Void)?) {
+    func setStatusBarStateChangeHandler(_ handler: (@MainActor () -> Void)?) {
         quotaController.setDidChangeHandler(handler)
+        quotaScreenModel.setDidChangeHandler { _ in handler?() }
+        proxyManagement.proxy.setDidChangeHandler { _ in handler?() }
+        tunnel.setDidChangeHandler { _ in handler?() }
+        menuBarSettings.setDidChangeHandler { _ in handler?() }
+        modeManager.setDidChangeHandler { _ in handler?() }
+        appearanceManager.setDidChangeHandler { _ in handler?() }
+        languageManager.setDidChangeHandler { _ in handler?() }
     }
 
     func updateStatusBar() {
@@ -545,7 +623,9 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
             quotaDisplayMode: menuBarSettings.quotaDisplayMode,
             isRunning: !quotaScreenModel.providerQuotas.isEmpty,
             showMenuBarIcon: menuBarSettings.showMenuBarIcon,
-            showQuota: menuBarSettings.showQuotaInMenuBar
+            showQuota: menuBarSettings.showQuotaInMenuBar,
+            appearanceMode: appearanceManager.appearanceMode,
+            language: languageManager.currentLanguage
         )
     }
 
@@ -554,6 +634,7 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     }
 
     func initializeFeatures() async {
+        await tunnel.refreshInstallation()
         if modeManager.isLocalProxyMode {
             await proxyManagement.initialize()
         } else {
@@ -587,15 +668,40 @@ private final class LegacyAppRuntimeServices: AppRuntimeServices {
     }
 
     func stopTunnel() async {
-        await tunnelManager.stopTunnel()
+        await tunnel.shutdown()
     }
 
     func terminateProxyOnShutdown() async {
         await proxyManagement.shutdown()
     }
 
-    nonisolated func cleanupTunnelOrphans() {
-        TunnelManager.cleanupOrphans()
+    func cleanupTunnelOrphans() async {
+        await tunnel.cleanupOrphans()
+    }
+
+    private var statusBarMenuSnapshot: StatusBarMenuSnapshot {
+        let knownStatuses = Dictionary(
+            uniqueKeysWithValues: proxyManagement.agentSetup.agentStatuses.map {
+                ($0.agent, $0.installed)
+            }
+        )
+        let installedAgents = Set(CLIAgent.allCases.filter { agent in
+            knownStatuses[agent] ?? isCLIInstalled(agent)
+        })
+        return StatusBarMenuSnapshotMapper.makeSnapshot(
+            mode: modeManager.currentMode,
+            proxyPort: proxyManagement.proxy.port,
+            isProxyRunning: proxyManagement.proxy.proxyStatus.running,
+            tunnel: tunnel.tunnelState,
+            directAuthProviders: Set(proxyManagement.directAuthFiles.map(\.provider)),
+            monitorAccounts: accountsScreenModel.accounts,
+            quota: quotaScreenModel.state,
+            installedAgents: installedAgents,
+            activeAntigravityEmail: antigravityAccountScreenModel.switcher.currentActiveAccount?.email,
+            menuBarPreferences: menuBarSettings.preferences,
+            appearanceMode: appearanceManager.appearanceMode,
+            language: languageManager.currentLanguage
+        )
     }
 
     private var quotaItems: [MenuBarQuotaDisplayItem] {

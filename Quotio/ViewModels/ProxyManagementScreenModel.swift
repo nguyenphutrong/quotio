@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import QuotioApplication
 import QuotioDomain
 import QuotioPresentation
 
@@ -12,7 +13,7 @@ final class ProxyManagementScreenModel {
     let proxy: ProxyScreenModel
     let accounts: AccountsScreenModel
     let oauth: OAuthScreenModel
-    let tunnelManager: TunnelManager
+    let tunnel: TunnelScreenModel
     let agentSetup: AgentSetupScreenModel
 
     private(set) var authFiles: [AuthFile] = []
@@ -26,6 +27,7 @@ final class ProxyManagementScreenModel {
     @ObservationIgnored private let authWorkaroundService: LegacyAntigravityAuthWorkaroundService
     @ObservationIgnored private let notificationManager: NotificationManager
     @ObservationIgnored private let refreshSettings: RefreshSettingsManager
+    @ObservationIgnored private let tunnelPreferences: any TunnelPreferencesRepository
     @ObservationIgnored private var managementClient: ManagementAPIClient?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var isStarting = false
@@ -36,20 +38,22 @@ final class ProxyManagementScreenModel {
         proxy: ProxyScreenModel,
         accounts: AccountsScreenModel,
         oauth: OAuthScreenModel,
-        tunnelManager: TunnelManager,
+        tunnel: TunnelScreenModel,
         agentSetup: AgentSetupScreenModel,
         authWorkaroundService: LegacyAntigravityAuthWorkaroundService = LegacyAntigravityAuthWorkaroundService(),
         notificationManager: NotificationManager,
-        refreshSettings: RefreshSettingsManager
+        refreshSettings: RefreshSettingsManager,
+        tunnelPreferences: any TunnelPreferencesRepository
     ) {
         self.proxy = proxy
         self.accounts = accounts
         self.oauth = oauth
-        self.tunnelManager = tunnelManager
+        self.tunnel = tunnel
         self.agentSetup = agentSetup
         self.authWorkaroundService = authWorkaroundService
         self.notificationManager = notificationManager
         self.refreshSettings = refreshSettings
+        self.tunnelPreferences = tunnelPreferences
     }
 
     deinit {
@@ -112,9 +116,8 @@ final class ProxyManagementScreenModel {
             await refreshQuotas?(true)
             Task { await proxy.checkForUpgrade() }
 
-            let autoStartTunnel = UserDefaults.standard.bool(forKey: "autoStartTunnel")
-            if autoStartTunnel, tunnelManager.installation.isInstalled {
-                await tunnelManager.startTunnel(port: proxy.port)
+            if tunnelPreferences.load().autoStartTunnel, tunnel.installation.isInstalled {
+                await tunnel.startTunnel(port: proxy.port)
             }
         } catch {
             errorMessage = proxy.errorMessage(for: error)
@@ -125,8 +128,8 @@ final class ProxyManagementScreenModel {
         Task { await oauth.cancel() }
         refreshTask?.cancel()
         refreshTask = nil
-        if tunnelManager.tunnelState.isActive || tunnelManager.tunnelState.status == .starting {
-            Task { await tunnelManager.stopTunnel() }
+        if tunnel.tunnelState.isActive || tunnel.tunnelState.status == .starting {
+            Task { await tunnel.stopTunnel() }
         }
         proxy.stop()
 

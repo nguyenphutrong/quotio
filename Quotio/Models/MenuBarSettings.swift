@@ -54,12 +54,14 @@ final class AppearanceManager {
     )
 
     @ObservationIgnored private let repository: any AppearancePreferencesRepository
+    @ObservationIgnored private var didChangeHandler: (@MainActor (AppearanceMode) -> Void)?
     
     /// Current appearance mode
     var appearanceMode: AppearanceMode {
         didSet {
             repository.save(AppearancePreferences(mode: appearanceMode))
             applyAppearance()
+            didChangeHandler?(appearanceMode)
         }
     }
     
@@ -71,6 +73,10 @@ final class AppearanceManager {
     /// Apply the current appearance mode to the app
     func applyAppearance() {
         NSApp.appearance = appearanceMode.appKitAppearance
+    }
+
+    func setDidChangeHandler(_ handler: (@MainActor (AppearanceMode) -> Void)?) {
+        didChangeHandler = handler
     }
 }
 
@@ -345,6 +351,7 @@ final class MenuBarSettingsManager {
     )
 
     @ObservationIgnored private let repository: any MenuBarPreferencesRepository
+    @ObservationIgnored private var didChangeHandler: (@MainActor (MenuBarPreferences) -> Void)?
 
     static let minMenuBarItems = 1
     static let maxMenuBarItems = 10
@@ -425,6 +432,23 @@ final class MenuBarSettingsManager {
     var isAtMaxItems: Bool {
         selectedItems.count >= menuBarMaxItems
     }
+
+    var preferences: MenuBarPreferences {
+        MenuBarPreferences(
+            showMenuBarIcon: showMenuBarIcon,
+            showQuotaInMenuBar: showQuotaInMenuBar,
+            menuBarMaxItems: menuBarMaxItems,
+            selectedItems: selectedItems,
+            colorMode: colorMode,
+            quotaDisplayMode: quotaDisplayMode,
+            quotaDisplayStyle: quotaDisplayStyle,
+            stackPairedQuotaMetrics: stackPairedQuotaMetrics,
+            hideSensitiveInfo: hideSensitiveInfo,
+            totalUsageMode: totalUsageMode,
+            modelAggregationMode: modelAggregationMode,
+            hasUserModifiedMenuBar: hasUserModifiedMenuBar
+        )
+    }
     
     init(repository: any MenuBarPreferencesRepository) {
         self.repository = repository
@@ -441,6 +465,10 @@ final class MenuBarSettingsManager {
         self.totalUsageMode = preferences.totalUsageMode
         self.modelAggregationMode = preferences.modelAggregationMode
         self.hasUserModifiedMenuBar = preferences.hasUserModifiedMenuBar
+    }
+
+    func setDidChangeHandler(_ handler: (@MainActor (MenuBarPreferences) -> Void)?) {
+        didChangeHandler = handler
     }
     
     func addItem(_ item: MenuBarQuotaItem) {
@@ -509,21 +537,8 @@ final class MenuBarSettingsManager {
     }
 
     private func persist() {
-        repository.save(
-            MenuBarPreferences(
-                showMenuBarIcon: showMenuBarIcon,
-                showQuotaInMenuBar: showQuotaInMenuBar,
-                menuBarMaxItems: menuBarMaxItems,
-                selectedItems: selectedItems,
-                colorMode: colorMode,
-                quotaDisplayMode: quotaDisplayMode,
-                quotaDisplayStyle: quotaDisplayStyle,
-                stackPairedQuotaMetrics: stackPairedQuotaMetrics,
-                hideSensitiveInfo: hideSensitiveInfo,
-                totalUsageMode: totalUsageMode,
-                modelAggregationMode: modelAggregationMode,
-                hasUserModifiedMenuBar: hasUserModifiedMenuBar
-            )
-        )
+        let preferences = preferences
+        repository.save(preferences)
+        didChangeHandler?(preferences)
     }
 }

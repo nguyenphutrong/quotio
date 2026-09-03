@@ -14,6 +14,7 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     var ideImportScreenModel: IDEImportScreenModel { get }
     var antigravityAccountScreenModel: AntigravityAccountScreenModel { get }
     var logsScreenModel: LogsScreenModel { get }
+    var pasteboard: PasteboardAdapter { get }
     var menuBarSettings: MenuBarSettingsManager { get }
     var statusBarManager: StatusBarManager { get }
     var modeManager: OperatingModeManager { get }
@@ -36,7 +37,7 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     func applyAppearance()
     func loadDirectAuthFiles() async
     func connectStatusBar()
-    func setQuotaDataChangeHandler(_ handler: (@MainActor () -> Void)?)
+    func setStatusBarStateChangeHandler(_ handler: (@MainActor () -> Void)?)
     func updateStatusBar()
     func rebuildStatusBar()
     func initializeFeatures() async
@@ -47,7 +48,7 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     func shutdownOAuth() async
     func stopTunnel() async
     func terminateProxyOnShutdown() async
-    nonisolated func cleanupTunnelOrphans()
+    func cleanupTunnelOrphans() async
 }
 
 @MainActor
@@ -78,6 +79,7 @@ final class AppRuntime {
         services.antigravityAccountScreenModel
     }
     var logsScreenModel: LogsScreenModel { services.logsScreenModel }
+    var pasteboard: PasteboardAdapter { services.pasteboard }
     var menuBarSettings: MenuBarSettingsManager { services.menuBarSettings }
     var statusBarManager: StatusBarManager { services.statusBarManager }
     var modeManager: OperatingModeManager { services.modeManager }
@@ -97,8 +99,8 @@ final class AppRuntime {
 
     init(services: any AppRuntimeServices) {
         self.services = services
-        services.setQuotaDataChangeHandler { [weak self] in
-            self?.handleQuotaDataChange()
+        services.setStatusBarStateChangeHandler { [weak self] in
+            self?.handleStatusBarStateChange()
         }
     }
 
@@ -107,9 +109,8 @@ final class AppRuntime {
         didPrepareForLaunch = true
         services.prepareForLaunch()
 
-        let services = services
-        orphanCleanupTask = Task.detached(priority: .utility) {
-            services.cleanupTunnelOrphans()
+        orphanCleanupTask = Task(priority: .utility) { [services] in
+            await services.cleanupTunnelOrphans()
         }
     }
 
@@ -211,13 +212,13 @@ final class AppRuntime {
         services.startUpdatePolling()
     }
 
-    private func handleQuotaDataChange() {
+    private func handleStatusBarStateChange() {
         services.updateStatusBar()
         services.rebuildStatusBar()
     }
 
     private func performShutdown(timeout: Duration) async -> Bool {
-        services.setQuotaDataChangeHandler(nil)
+        services.setStatusBarStateChangeHandler(nil)
         services.stopUpdatePolling()
         initializationTask?.cancel()
         fullInitializationTask?.cancel()
@@ -251,8 +252,8 @@ final class AppRuntime {
         timeoutTask.cancel()
 
         if !completedCleanly {
-            orphanCleanupTask = Task.detached(priority: .utility) {
-                services.cleanupTunnelOrphans()
+            orphanCleanupTask = Task(priority: .utility) {
+                await services.cleanupTunnelOrphans()
             }
         }
         return completedCleanly

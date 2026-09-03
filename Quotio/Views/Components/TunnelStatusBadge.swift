@@ -3,6 +3,7 @@
 //  Quotio - Compact tunnel status indicator
 //
 
+import QuotioDomain
 import SwiftUI
 
 struct TunnelStatusBadge: View {

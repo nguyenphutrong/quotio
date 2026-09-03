@@ -21,11 +21,13 @@ final class LanguageManager {
     )
 
     @ObservationIgnored private let repository: any LanguagePreferencesRepository
+    @ObservationIgnored private var didChangeHandler: (@MainActor (AppLanguage) -> Void)?
 
     private(set) var currentLanguage: AppLanguage {
         didSet {
             guard oldValue != currentLanguage else { return }
             repository.save(LanguagePreferences(language: currentLanguage))
+            didChangeHandler?(currentLanguage)
         }
     }
 
@@ -39,6 +41,10 @@ final class LanguageManager {
 
     func setLanguage(_ language: AppLanguage) {
         currentLanguage = language
+    }
+
+    func setDidChangeHandler(_ handler: (@MainActor (AppLanguage) -> Void)?) {
+        didChangeHandler = handler
     }
 
     func localized(_ key: String) -> String {

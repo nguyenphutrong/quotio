@@ -603,10 +603,10 @@ struct LocalProxyServerSection: View {
             Toggle("settings.autoStartProxy".localized(), isOn: autoStartProxyBinding)
             
             Toggle("settings.autoStartTunnel".localized(), isOn: autoStartTunnelBinding)
-                .disabled(!viewModel.tunnelManager.installation.isInstalled)
+                .disabled(!viewModel.tunnel.installation.isInstalled)
             
             Toggle("settings.autoRestartTunnel".localized(), isOn: autoRestartTunnelBinding)
-                .disabled(!viewModel.tunnelManager.installation.isInstalled)
+                .disabled(!viewModel.tunnel.installation.isInstalled)
                 
             NetworkAccessSection(allowNetworkAccess: allowNetworkAccessBinding)
                 

@@ -5,15 +5,17 @@
 //  Improved UI/UX
 //
 
-import SwiftUI
 import AppKit
+import QuotioDomain
 import QuotioPresentation
+import SwiftUI
 
 struct TunnelSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ProxyManagementScreenModel.self) private var proxyManagement
-    
-    private var tunnelManager: TunnelManager { TunnelManager.shared }
+    @Environment(PasteboardAdapter.self) private var pasteboard
+
+    private var tunnel: TunnelScreenModel { proxyManagement.tunnel }
     private var proxyPort: UInt16 { proxyManagement.proxy.port }
     
     @State private var isHoveringCopy = false
@@ -27,16 +29,16 @@ struct TunnelSheet: View {
             
             ScrollView {
                 VStack(spacing: 24) {
-                    if !tunnelManager.installation.isInstalled {
+                    if !tunnel.installation.isInstalled {
                         installationBanner
                     } else {
                         statusSection
                         
-                        if tunnelManager.tunnelState.isActive {
+                        if tunnel.tunnelState.isActive {
                             publicUrlSection
                         }
                         
-                        if let error = tunnelManager.tunnelState.errorMessage {
+                        if let error = tunnel.errorMessage {
                             errorSection(error)
                         }
                         
@@ -127,14 +129,14 @@ struct TunnelSheet: View {
                 
                 Spacer()
                 
-                TunnelStatusBadge(status: tunnelManager.tunnelState.status)
+                TunnelStatusBadge(status: tunnel.tunnelState.status)
             }
             .padding(16)
             
             Divider()
             
             HStack {
-                Text(tunnelManager.tunnelState.isActive ? "tunnel.status.description.active".localized() : "tunnel.status.description.inactive".localized())
+                Text(tunnel.tunnelState.isActive ? "tunnel.status.description.active".localized() : "tunnel.status.description.inactive".localized())
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 
@@ -142,17 +144,17 @@ struct TunnelSheet: View {
                 
                 Button {
                     Task {
-                        await tunnelManager.toggle(port: proxyPort)
+                        await tunnel.toggle(port: proxyPort)
                     }
                 } label: {
-                    Text(tunnelManager.tunnelState.isActive || tunnelManager.tunnelState.status == .starting
+                    Text(tunnel.tunnelState.isActive || tunnel.tunnelState.status == .starting
                          ? "tunnel.action.stop".localized()
                          : "tunnel.action.start".localized())
                         .frame(width: 80)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(tunnelManager.tunnelState.isActive ? .red : .blue)
-                .disabled(tunnelManager.tunnelState.isTransitioning)
+                .tint(tunnel.tunnelState.isActive ? .red : .blue)
+                .disabled(tunnel.tunnelState.isTransitioning)
                 .controlSize(.regular)
             }
             .padding(16)
@@ -174,7 +176,7 @@ struct TunnelSheet: View {
                 .foregroundStyle(.primary)
             
             HStack(spacing: 12) {
-                Text(tunnelManager.tunnelState.publicURL ?? "—")
+                Text(tunnel.tunnelState.publicURL ?? "—")
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -184,7 +186,9 @@ struct TunnelSheet: View {
                 Spacer()
                 
                 Button {
-                    tunnelManager.copyURLToClipboard()
+                    if let url = tunnel.tunnelState.publicURL {
+                        pasteboard.copy(url)
+                    }
                 } label: {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 14))
@@ -204,7 +208,7 @@ struct TunnelSheet: View {
                     .strokeBorder(Color.green.opacity(0.2), lineWidth: 1)
             )
             
-            if let startTime = tunnelManager.tunnelState.startTime {
+            if let startTime = tunnel.tunnelState.startTime {
                 HStack(spacing: 6) {
                     Image(systemName: "clock")
                         .font(.caption2)
@@ -325,8 +329,7 @@ struct TunnelSheet: View {
                         .textSelection(.enabled)
                     
                     Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString("brew install cloudflared", forType: .string)
+                        pasteboard.copy("brew install cloudflared")
                     } label: {
                         Image(systemName: "doc.on.doc")
                     }
@@ -348,8 +351,8 @@ struct TunnelSheet: View {
     
     private var footerView: some View {
         HStack {
-            if tunnelManager.installation.isInstalled {
-                if let version = tunnelManager.installation.version {
+            if tunnel.installation.isInstalled {
+                if let version = tunnel.installation.version {
                     HStack(spacing: 6) {
                         Circle()
                             .fill(.green)
@@ -388,5 +391,6 @@ struct TunnelSheet: View {
     let runtime = CompositionRoot.makeProduction()
     TunnelSheet()
         .environment(runtime.proxyManagement)
+        .environment(PasteboardAdapter())
         .frame(width: 520, height: 450)
 }

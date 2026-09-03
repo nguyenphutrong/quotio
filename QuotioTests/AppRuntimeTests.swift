@@ -50,11 +50,11 @@ final class AppRuntimeTests: XCTestCase {
         XCTAssertEqual(services.backgroundUpdateCheckCount, 1)
     }
 
-    func testQuotaCallbackUpdatesAndRebuildsStatusBarWithoutNotificationCenter() {
+    func testStatusBarStateCallbackUpdatesAndRebuildsHeadlessMenu() {
         let services = FakeAppRuntimeServices()
         let runtime = AppRuntime(services: services)
 
-        services.quotaDataDidChangeHandler?()
+        services.statusBarStateDidChangeHandler?()
 
         XCTAssertEqual(services.updateStatusBarCount, 1)
         XCTAssertEqual(services.rebuildStatusBarCount, 1)
@@ -106,8 +106,9 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
         dependencies.antigravityAccountScreenModel
     }
     let logsScreenModel: LogsScreenModel
+    let pasteboard = PasteboardAdapter()
     let menuBarSettings = MenuBarSettingsManager.shared
-    let statusBarManager = StatusBarManager.shared
+    let statusBarManager = StatusBarManager()
     let modeManager = OperatingModeManager.shared
     let appearanceManager = AppearanceManager.shared
     let languageManager = LanguageManager.shared
@@ -130,7 +131,7 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
     var canCheckForUpdates = true
     var initializationDelay = Duration.zero
     var tunnelStopDelay = Duration.zero
-    var quotaDataDidChangeHandler: (@MainActor () -> Void)?
+    var statusBarStateDidChangeHandler: (@MainActor () -> Void)?
 
     private(set) var prepareForLaunchCount = 0
     private(set) var applyAppearanceCount = 0
@@ -181,8 +182,8 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
         connectStatusBarCount += 1
     }
 
-    func setQuotaDataChangeHandler(_ handler: (@MainActor () -> Void)?) {
-        quotaDataDidChangeHandler = handler
+    func setStatusBarStateChangeHandler(_ handler: (@MainActor () -> Void)?) {
+        statusBarStateDidChangeHandler = handler
     }
 
     func updateStatusBar() {
@@ -226,7 +227,7 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
         proxyTerminations.increment()
     }
 
-    nonisolated func cleanupTunnelOrphans() {
+    func cleanupTunnelOrphans() async {
         orphanCleanups.increment()
     }
 }

@@ -219,10 +219,10 @@ final class MonitorRuntimeTests: XCTestCase {
     func testMonitorProvidersDoNotRequireInstalledCLI() {
         let providers: Set<AIProvider> = [.codex, .claude, .factoryDroid, .devin, .grok, .openRouter, .amp]
 
-        let filtered = StatusBarMenuBuilder.filterProviders(
+        let filtered = StatusBarMenuSnapshotMapper.filterProviders(
             providers,
             isMonitorMode: true,
-            isCLIInstalled: { _ in false }
+            installedAgents: []
         )
 
         XCTAssertEqual(Set(filtered), providers)
@@ -248,7 +248,7 @@ final class MonitorRuntimeTests: XCTestCase {
         )
         disabled.isDisabled = true
 
-        XCTAssertEqual(StatusBarMenuBuilder.monitorProviders([enabled, disabled]), Set([.claude]))
+        XCTAssertEqual(StatusBarMenuSnapshotMapper.monitorProviders([enabled, disabled]), Set([.claude]))
     }
 
     func testMonitorAccountSourcesUseLocalizationKeys() {

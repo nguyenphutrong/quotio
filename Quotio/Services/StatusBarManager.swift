@@ -8,27 +8,25 @@
 
 import AppKit
 import QuotioDomain
-import QuotioPresentation
 import SwiftUI
 
 @MainActor
 @Observable
 final class StatusBarManager: NSObject, NSMenuDelegate {
-    static let shared = StatusBarManager()
-
     private struct Configuration: Equatable {
         let items: [MenuBarQuotaDisplayItem]
         let colorMode: MenuBarColorMode
         let quotaDisplayMode: QuotaDisplayMode
         let isRunning: Bool
         let showQuota: Bool
+        let appearanceMode: AppearanceMode
+        let language: AppLanguage
     }
 
     private struct RenderSignature: Equatable {
         let configuration: Configuration
         let usesDarkColorScheme: Bool
         let backingScaleFactor: CGFloat
-        let language: AppLanguage
     }
     
     private var statusItem: NSStatusItem?
@@ -40,30 +38,19 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
     private var lastRenderSignature: RenderSignature?
     private var appearanceObservation: NSKeyValueObservation?
     
-    // Native menu builder
-    private var menuBuilder: StatusBarMenuBuilder?
-    
-    private override init() {
+    private var menuSnapshotProvider: (@MainActor () -> StatusBarMenuSnapshot)?
+    private var commandDispatcher: StatusBarCommandDispatcher?
+
+    override init() {
         super.init()
     }
     
-    func setDependencies(
-        proxyManagement: ProxyManagementScreenModel,
-        quota: QuotaScreenModel,
-        accounts: AccountsScreenModel,
-        quotaController: QuotaFeatureController,
-        antigravityAccounts: AntigravityAccountScreenModel,
-        isCLIInstalled: @escaping (CLIAgent) -> Bool
+    func configureMenu(
+        snapshotProvider: @escaping @MainActor () -> StatusBarMenuSnapshot,
+        commandDispatcher: StatusBarCommandDispatcher
     ) {
-        menuBuilder = StatusBarMenuBuilder(
-            proxyManagement: proxyManagement,
-            quota: quota,
-            accounts: accounts,
-            quotaController: quotaController,
-            antigravityAccounts: antigravityAccounts,
-            isCLIInstalled: isCLIInstalled
-        )
-        MenuActionHandler.shared.quotaController = quotaController
+        menuSnapshotProvider = snapshotProvider
+        self.commandDispatcher = commandDispatcher
     }
     
     /// Highest backing scale factor across all active screens to ensure sharp rendering in multi-monitor setups
@@ -77,7 +64,9 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         quotaDisplayMode: QuotaDisplayMode,
         isRunning: Bool,
         showMenuBarIcon: Bool,
-        showQuota: Bool
+        showQuota: Bool,
+        appearanceMode: AppearanceMode,
+        language: AppLanguage
     ) {
         guard showMenuBarIcon else {
             removeStatusItem()
@@ -89,7 +78,9 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             colorMode: colorMode,
             quotaDisplayMode: quotaDisplayMode,
             isRunning: isRunning,
-            showQuota: showQuota
+            showQuota: showQuota,
+            appearanceMode: appearanceMode,
+            language: language
         )
         menuContentVersion += 1
 
@@ -109,7 +100,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             menu = NSMenu()
             menu?.autoenablesItems = false
             menu?.delegate = self
-            menu?.appearance = AppearanceManager.shared.appearanceMode.appKitAppearance
+            menu?.appearance = configuration.appearanceMode.appKitAppearance
         }
         
         // Attach menu to status item
@@ -123,8 +114,7 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
         let signature = RenderSignature(
             configuration: configuration,
             usesDarkColorScheme: usesDarkColorScheme,
-            backingScaleFactor: scale,
-            language: LanguageManager.shared.currentLanguage
+            backingScaleFactor: scale
         )
         guard signature != lastRenderSignature else { return }
         
@@ -266,11 +256,18 @@ final class StatusBarManager: NSObject, NSMenuDelegate {
             }
         }
 
-        menu.appearance = AppearanceManager.shared.appearanceMode.appKitAppearance
+        guard let snapshotProvider = menuSnapshotProvider,
+              let commandDispatcher else {
+            return
+        }
+        let snapshot = snapshotProvider()
+        menu.appearance = snapshot.appearanceMode.appKitAppearance
         menu.removeAllItems()
 
-        guard let builder = menuBuilder else { return }
-        
+        let builder = StatusBarMenuBuilder(
+            snapshot: snapshot,
+            commands: commandDispatcher
+        )
         let nativeMenu = builder.buildMenu()
         for item in nativeMenu.items {
             nativeMenu.removeItem(item)

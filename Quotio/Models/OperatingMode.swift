@@ -23,6 +23,7 @@ final class OperatingModeManager {
     )
 
     @ObservationIgnored private let repository: any OperatingModePreferencesRepository
+    @ObservationIgnored private var didChangeHandler: (@MainActor (OperatingModePreferences) -> Void)?
     
     // MARK: - Observable State
     
@@ -84,12 +85,18 @@ final class OperatingModeManager {
         persist()
     }
 
+    func setDidChangeHandler(
+        _ handler: (@MainActor (OperatingModePreferences) -> Void)?
+    ) {
+        didChangeHandler = handler
+    }
+
     private func persist() {
-        repository.save(
-            OperatingModePreferences(
-                mode: currentMode,
-                hasCompletedOnboarding: hasCompletedOnboarding
-            )
+        let preferences = OperatingModePreferences(
+            mode: currentMode,
+            hasCompletedOnboarding: hasCompletedOnboarding
         )
+        repository.save(preferences)
+        didChangeHandler?(preferences)
     }
 }

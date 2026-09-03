@@ -20,13 +20,17 @@ final class QuotaScreenModelsTests: XCTestCase {
             clock: PresentationClock()
         )
         let model = QuotaScreenModel(coordinator: coordinator)
+        var observedStates: [QuotaSnapshot] = []
+        model.setDidChangeHandler { observedStates.append($0) }
 
         await model.bootstrap(mode: .monitor)
+        observedStates.removeAll()
         await model.refresh(provider: .codex, mode: .monitor)
 
         XCTAssertEqual(model.providerQuotas[.codex]?["account"], fresh)
         XCTAssertEqual(model.lastRefreshTime, PresentationClock.date)
         XCTAssertFalse(model.isLoadingQuotas)
+        XCTAssertEqual(observedStates.last, model.state)
         await model.shutdown()
     }
 
