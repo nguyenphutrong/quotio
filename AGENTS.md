@@ -110,9 +110,10 @@ the repository root is not a Swift package.
 - Prefer the codebase's async/await and `Task` patterns. NotificationCenter and limited
   GCD/AppKit interop are appropriate for lifecycle and menu bar integration; do not add
   Combine solely to implement a flow already expressible with Observation and concurrency.
-- Model recoverable failures with typed errors, usually `LocalizedError`. View models
-  expose user-presentable failure state such as `errorMessage`. Reserve `try?` or ignored
-  failures for explicitly best-effort behavior; do not hide failures on critical paths.
+- Model recoverable failures as typed semantic errors in Domain/Application and map them
+  to localized user-presentable copy in Presentation. Infrastructure may retain sanitized
+  technical context for logs. Reserve `try?` or ignored failures for explicitly
+  best-effort behavior; do not hide failures on critical paths.
 - Use the layer-owned logging ports/adapters instead of `print`. Keep sensitive values
   out of every log; executable lifecycle warnings use the app-only `Log` helper.
 - There is no SwiftLint or SwiftFormat configuration. Match the surrounding Swift and
