@@ -77,6 +77,10 @@ which is outside this behavior-preserving phase.
 - The ad-hoc app signature passes `codesign --verify --deep --strict`; the bundle keeps
   identifier `app.bytrong.quotio`, version `0.31.0`, the four localization bundles,
   AppIcon, and Sparkle.
+- A copy of the packaged app was signed locally with the available Developer ID
+  Application identity. The signature passes strict deep verification, includes the
+  hardened runtime and expected entitlements, and reports TeamIdentifier `C48F8UHK3M`.
+  Gatekeeper correctly rejects this unstapled copy as `Unnotarized Developer ID`.
 - The ZIP is scoped to `Quotio.app` apart from `ditto` metadata. The DMG mounts
   read-only with `Quotio.app` and `Applications -> /Applications`, and its embedded app
   passes code-signature verification.
@@ -84,11 +88,11 @@ which is outside this behavior-preserving phase.
   `plutil -lint Quotio/Info.plist`, and String Catalog JSON parsing pass.
 - The published appcast parses as XML and contains 53 items with 53 EdDSA signatures.
 
-These local artifacts are packaging evidence, not a release candidate: this host has
-no `NOTARYTOOL_KEYCHAIN_PROFILE` or `SPARKLE_PRIVATE_KEY`. Developer ID distribution
-signing, Apple notarization, generation of a release-candidate appcast, and the
-Homebrew dispatch were therefore not run. Triggering the release or Homebrew workflow
-would also mutate shared external state and requires explicit approval.
+These local artifacts are packaging and signing-path evidence, not a release candidate:
+this host has no `NOTARYTOOL_KEYCHAIN_PROFILE` or `SPARKLE_PRIVATE_KEY`. Apple
+notarization, generation of a release-candidate appcast, and the Homebrew dispatch were
+therefore not run. Triggering the release or Homebrew workflow would also mutate shared
+external state and requires explicit approval.
 
 ### Manual acceptance limits
 
