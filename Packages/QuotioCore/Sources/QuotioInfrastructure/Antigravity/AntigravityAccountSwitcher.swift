@@ -216,15 +216,22 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
     private func removeContinuation(_ id: UUID) { continuations[id] = nil }
 
     static func isExpired(_ value: String?, now: Date) -> Bool {
-        guard let value, let date = ISO8601DateFormatter().date(from: value) else { return false }
+        guard let date = expiryDate(value) else { return true }
         return date < now
     }
 
     static func expiry(_ value: String?, now: Date) -> Int64 {
-        guard let value, let date = ISO8601DateFormatter().date(from: value) else {
+        guard let date = expiryDate(value) else {
             return Int64(now.timeIntervalSince1970) + 3_600
         }
         return Int64(date.timeIntervalSince1970)
+    }
+
+    private static func expiryDate(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
     }
 
     private static func authFilePath(email: String, directory: String) -> String? {

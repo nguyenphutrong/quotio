@@ -53,6 +53,18 @@ final class AntigravitySwitchInfrastructureTests: XCTestCase {
         XCTAssertTrue(warnings[0].contains("machine identity synchronization failed"))
     }
 
+    func testTokenExpirySupportsFractionalDatesAndRefreshesUnknownExpiry() throws {
+        let now = try XCTUnwrap(
+            ISO8601DateFormatter().date(from: "2030-01-01T00:00:00Z"))
+
+        XCTAssertTrue(
+            AntigravityAccountSwitcher.isExpired("2029-12-31T23:59:59.500Z", now: now))
+        XCTAssertFalse(
+            AntigravityAccountSwitcher.isExpired("2030-01-01T00:00:00.500Z", now: now))
+        XCTAssertTrue(AntigravityAccountSwitcher.isExpired(nil, now: now))
+        XCTAssertTrue(AntigravityAccountSwitcher.isExpired("not-a-date", now: now))
+    }
+
     func testVersionComponentsSupportThresholdAndShortVersions() {
         XCTAssertEqual(AntigravityVersionDetection.components("1.16.5"), [1, 16, 5])
         XCTAssertEqual(AntigravityVersionDetection.components("2"), [2, 0, 0])
