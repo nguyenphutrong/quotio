@@ -343,6 +343,40 @@ final class AccountPersistenceTests: XCTestCase {
         await store.delete(accountID: accountID)
     }
 
+    func testProtectedCredentialStoreMigratesEnvelopeFromLegacyServiceAfterVerifiedWrite() async {
+        let currentService = "test-current-\(UUID().uuidString)"
+        let legacyService = "test-legacy-\(UUID().uuidString)"
+        let accountID = "account"
+        let data = Data("legacy-protected-secret".utf8)
+        let protectedStore = FakeProtectedCredentialStore(
+            readResult: .absent,
+            serviceResults: [legacyService: .success(data)]
+        )
+        let store = KeychainCredentialDataStore(
+            service: currentService,
+            legacyServices: [legacyService],
+            canMigrateLegacy: true,
+            protectedStore: protectedStore
+        )
+
+        let migrated = await store.read(accountID: accountID)
+        let currentResult = await protectedStore.read(service: currentService, account: accountID)
+        let legacyResult = await protectedStore.read(service: legacyService, account: accountID)
+        let events = await protectedStore.events
+        let migrationEvents = Array(events.prefix(5))
+
+        XCTAssertEqual(migrated?.data, data)
+        XCTAssertEqual(currentResult, .success(data))
+        XCTAssertEqual(legacyResult, .absent)
+        XCTAssertEqual(migrationEvents, [
+            "read:\(currentService)",
+            "read:\(legacyService)",
+            "save:\(currentService)",
+            "read:\(currentService)",
+            "delete:\(legacyService)",
+        ])
+    }
+
     func testLoopbackCallbackReturnsCodeAndState() async throws {
         let transport = LoopbackOAuthCallbackTransport()
         let port = try await transport.start()
@@ -371,26 +405,37 @@ final class AccountPersistenceTests: XCTestCase {
 
 private actor FakeProtectedCredentialStore: ProtectedCredentialDataStoring {
     let isEnabled = true
-    private var result: ProtectedCredentialReadResult
+    private let defaultReadResult: ProtectedCredentialReadResult
+    private var serviceResults: [String: ProtectedCredentialReadResult]
     private(set) var readCount = 0
     private(set) var saveCount = 0
+    private(set) var events: [String] = []
 
-    init(readResult: ProtectedCredentialReadResult) {
-        result = readResult
+    init(
+        readResult: ProtectedCredentialReadResult,
+        serviceResults: [String: ProtectedCredentialReadResult] = [:]
+    ) {
+        defaultReadResult = readResult
+        self.serviceResults = serviceResults
     }
 
     func read(service: String, account: String) -> ProtectedCredentialReadResult {
         readCount += 1
-        return result
+        events.append("read:\(service)")
+        return serviceResults[service] ?? defaultReadResult
     }
 
     func save(_ data: Data, service: String, account: String) -> Bool {
         saveCount += 1
-        result = .success(data)
+        events.append("save:\(service)")
+        serviceResults[service] = .success(data)
         return true
     }
 
-    func delete(service: String, account: String) {}
+    func delete(service: String, account: String) {
+        events.append("delete:\(service)")
+        serviceResults[service] = .absent
+    }
 }
 
 private func XCTAssertThrowsErrorAsync<T>(

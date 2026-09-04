@@ -91,20 +91,44 @@ public actor KeychainCredentialDataStore: CredentialDataStoring {
             let result = await protectedStore.read(service: service, account: accountID)
             if case .success(let data) = result { return data }
             guard result == .absent else { return nil }
-            let plaintextServices = [service] + (canMigrateLegacy ? legacyServices : [])
-            for plaintextService in plaintextServices {
-                guard let plaintext = Self.readKeychainData(
-                    service: plaintextService,
-                    account: accountID
-                ) else { continue }
-                guard await protectedStore.save(plaintext, service: service, account: accountID),
-                      case .success(let roundTripped) = await protectedStore.read(
-                        service: service,
-                        account: accountID
-                      ),
-                      roundTripped == plaintext else { return nil }
-                Self.deleteKeychainData(service: plaintextService, account: accountID)
+
+            if let plaintext = Self.readKeychainData(service: service, account: accountID) {
+                guard await migrateToProtectedStore(
+                    plaintext,
+                    accountID: accountID,
+                    protectedStore: protectedStore
+                ) else { return nil }
+                Self.deleteKeychainData(service: service, account: accountID)
                 return plaintext
+            }
+
+            guard canMigrateLegacy else { return nil }
+            for legacyService in legacyServices {
+                switch await protectedStore.read(service: legacyService, account: accountID) {
+                case .success(let legacyData):
+                    guard await migrateToProtectedStore(
+                        legacyData,
+                        accountID: accountID,
+                        protectedStore: protectedStore
+                    ) else { return nil }
+                    await protectedStore.delete(service: legacyService, account: accountID)
+                    Self.deleteKeychainData(service: legacyService, account: accountID)
+                    return legacyData
+                case .unreadable:
+                    continue
+                case .absent:
+                    guard let plaintext = Self.readKeychainData(
+                        service: legacyService,
+                        account: accountID
+                    ) else { continue }
+                    guard await migrateToProtectedStore(
+                        plaintext,
+                        accountID: accountID,
+                        protectedStore: protectedStore
+                    ) else { return nil }
+                    Self.deleteKeychainData(service: legacyService, account: accountID)
+                    return plaintext
+                }
             }
             return nil
         }
@@ -123,6 +147,19 @@ public actor KeychainCredentialDataStore: CredentialDataStoring {
             return data
         }
         return nil
+    }
+
+    private func migrateToProtectedStore(
+        _ data: Data,
+        accountID: String,
+        protectedStore: any ProtectedCredentialDataStoring
+    ) async -> Bool {
+        guard await protectedStore.save(data, service: service, account: accountID),
+              case .success(let roundTripped) = await protectedStore.read(
+                service: service,
+                account: accountID
+              ) else { return false }
+        return roundTripped == data
     }
 
     private nonisolated static func generation(for data: Data) -> String {
