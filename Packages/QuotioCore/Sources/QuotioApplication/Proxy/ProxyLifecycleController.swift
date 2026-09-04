@@ -418,9 +418,6 @@ public actor ProxyLifecycleController: ProxyControlling {
             }
             try ensureCurrentOperation(operationID)
             try await versionRepository.activate(version: previousVersion)
-            if let replacedVersion, replacedVersion != previousVersion {
-                try? await versionRepository.delete(version: replacedVersion)
-            }
             await refreshVersionState()
             if wasRunning {
                 try transition(to: .starting)
@@ -431,6 +428,10 @@ public actor ProxyLifecycleController: ProxyControlling {
                 )
             } else {
                 try transition(to: .idle)
+            }
+            if let replacedVersion, replacedVersion != previousVersion {
+                try? await versionRepository.delete(version: replacedVersion)
+                await refreshVersionState()
             }
             await notificationDelivery.deliver(.rolledBack(version: previousVersion))
             publish()

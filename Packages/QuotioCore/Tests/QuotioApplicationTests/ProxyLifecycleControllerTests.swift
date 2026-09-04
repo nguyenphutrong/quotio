@@ -245,6 +245,29 @@ final class ProxyLifecycleControllerTests: XCTestCase {
         XCTAssertEqual(notifications, [.rolledBack(version: "1.0.0")])
     }
 
+    func testFailedRollbackStartupRetainsReplacedVersion() async throws {
+        let process = TestProcessController(startRunningOutcomes: [true, false])
+        let versions = TestVersionRepository(
+            installedVersions: ["1.0.0", "2.0.0"],
+            currentVersion: "2.0.0"
+        )
+        let harness = makeHarness(process: process, versions: versions)
+        try await harness.controller.start()
+
+        do {
+            try await harness.controller.rollback()
+            XCTFail("Expected rollback startup failure")
+        } catch {
+            XCTAssertEqual(error as? ProxyFailure, .startupFailed)
+        }
+
+        let containsReplacedVersion = await versions.contains("2.0.0")
+        let versionEvents = await versions.events
+        XCTAssertTrue(containsReplacedVersion)
+        XCTAssertEqual(versionEvents, ["activate:1.0.0"])
+        await harness.controller.shutdown()
+    }
+
     func testSupersededDownloadCannotPublishStaleFailureOrNotification() async throws {
         let downloader = GatedBinaryDownloader()
         let harness = makeHarness(downloader: downloader)
