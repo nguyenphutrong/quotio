@@ -252,6 +252,27 @@ final class ClaudeCodexQuotaFetcherTests: XCTestCase {
     XCTAssertEqual(quota.models.first?.usedPercentage, 85)
   }
 
+  func testCodexSkipsMalformedAdditionalLimitWithoutDiscardingPrimaryQuota() throws {
+    let quota = try CodexQuotaFetcher.mapUsage(Data(#"""
+      {
+      "plan_type":"plus",
+      "rate_limit":{
+        "primary_window":{"used_percent":25,"limit_window_seconds":18000},
+        "secondary_window":{"used_percent":10,"limit_window_seconds":604800}
+      },
+      "additional_rate_limits":[
+        {"limit_name":"Broken","rate_limit":{"primary_window":{"used_percent":"invalid"}}},
+        {"limit_name":"GPT Spark","rate_limit":{"primary_window":{"used_percent":20,"limit_window_seconds":18000}}}
+      ]
+      }
+      """#.utf8))
+
+    XCTAssertEqual(
+      quota.models.map(\.name),
+      ["codex-session", "codex-weekly", "codex-spark"])
+    XCTAssertEqual(quota.models.map(\.usedPercentage), [25, 10, 20])
+  }
+
   func testCodexPublishesOnlySafeLegacyAliases() async throws {
     let session = RecordingQuotaSession(
       body: #"{"rate_limit":{"primary_window":{"used_percent":10}}}"#)

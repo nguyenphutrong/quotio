@@ -515,10 +515,19 @@ public actor CodexQuotaFetcher: QuotaFetching {
     let plan: String?
     let rateLimit: Limit?
     let additional: [Additional]?
+
     enum CodingKeys: String, CodingKey {
       case plan = "plan_type"
       case rateLimit = "rate_limit"
       case additional = "additional_rate_limits"
+    }
+
+    init(from decoder: Decoder) throws {
+      let values = try decoder.container(keyedBy: CodingKeys.self)
+      plan = try? values.decode(String.self, forKey: .plan)
+      rateLimit = try? values.decode(Limit.self, forKey: .rateLimit)
+      additional = try? values.decode([LossyAdditional].self, forKey: .additional)
+        .compactMap(\.value)
     }
   }
   private struct Limit: Decodable {
@@ -539,6 +548,13 @@ public actor CodexQuotaFetcher: QuotaFetching {
       case name = "limit_name"
       case feature = "metered_feature"
       case rateLimit = "rate_limit"
+    }
+  }
+  private struct LossyAdditional: Decodable {
+    let value: Additional?
+
+    init(from decoder: Decoder) throws {
+      value = try? Additional(from: decoder)
     }
   }
   private struct Window: Decodable {
