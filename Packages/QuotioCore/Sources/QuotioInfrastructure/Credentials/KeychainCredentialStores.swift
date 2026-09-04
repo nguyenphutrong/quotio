@@ -75,12 +75,19 @@ public actor KeychainCredentialDataStore: CredentialDataStoring {
     }
 
     public func delete(accountID: String) async {
+        let enabledProtectedStore: (any ProtectedCredentialDataStoring)?
         if let protectedStore, await protectedStore.isEnabled {
+            enabledProtectedStore = protectedStore
             await protectedStore.delete(service: service, account: accountID)
+        } else {
+            enabledProtectedStore = nil
         }
         Self.deleteKeychainData(service: service, account: accountID)
         if canMigrateLegacy {
             for legacyService in legacyServices {
+                if let enabledProtectedStore {
+                    await enabledProtectedStore.delete(service: legacyService, account: accountID)
+                }
                 Self.deleteKeychainData(service: legacyService, account: accountID)
             }
         }

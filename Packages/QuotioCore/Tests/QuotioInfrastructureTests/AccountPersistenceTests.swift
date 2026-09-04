@@ -377,6 +377,27 @@ final class AccountPersistenceTests: XCTestCase {
         ])
     }
 
+    func testDeletingCredentialRemovesCurrentAndLegacyProtectedCopies() async {
+        let currentService = "test-current-\(UUID().uuidString)"
+        let legacyServices = [
+            "test-legacy-one-\(UUID().uuidString)",
+            "test-legacy-two-\(UUID().uuidString)",
+        ]
+        let accountID = "account"
+        let protectedStore = FakeProtectedCredentialStore(readResult: .absent)
+        let store = KeychainCredentialDataStore(
+            service: currentService,
+            legacyServices: legacyServices,
+            canMigrateLegacy: true,
+            protectedStore: protectedStore
+        )
+
+        await store.delete(accountID: accountID)
+
+        let events = await protectedStore.events
+        XCTAssertEqual(events, ([currentService] + legacyServices).map { "delete:\($0)" })
+    }
+
     func testLoopbackCallbackReturnsCodeAndState() async throws {
         let transport = LoopbackOAuthCallbackTransport()
         let port = try await transport.start()
