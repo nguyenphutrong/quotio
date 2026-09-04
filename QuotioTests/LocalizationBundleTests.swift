@@ -19,7 +19,7 @@ final class LocalizationBundleTests: XCTestCase {
                 "nav.settings",
                 "Missing nav.settings in \(language.rawValue)"
             )
-            for key in ["agents.codex.saveConfigTOML", "agents.codex.applySuccess"] {
+            for key in agentPresentationLocalizationKeys {
                 XCTAssertNotEqual(
                     NSLocalizedString(key, bundle: bundle, comment: ""),
                     key,
@@ -72,6 +72,14 @@ final class LocalizationBundleTests: XCTestCase {
             AgentConfigurationInstruction.ampMergeSettings.localizedText,
             "Merge this property into ~/.config/amp/settings.json; do not replace the file"
         )
+        XCTAssertEqual(
+            OpenCodeConfigIssue.invalidSyntax(line: 4, column: 9).localizedText,
+            "Unexpected character at line 4, column 9."
+        )
+        XCTAssertEqual(
+            AgentConfigurationFailure.updateSettingsFailed(details: "Disk full").localizedText,
+            "Failed to update settings: Disk full"
+        )
 
         languageManager.setLanguage(.vietnamese)
 
@@ -79,10 +87,87 @@ final class LocalizationBundleTests: XCTestCase {
             AgentConfigurationInstruction.ampMergeSettings.localizedText,
             "Gộp thuộc tính này vào ~/.config/amp/settings.json; không thay thế tệp"
         )
+        XCTAssertEqual(
+            AgentConfigurationInstruction.openCodeConfigured(model: "gpt-5").localizedText,
+            "Đã cập nhật cấu hình. Chạy 'opencode' và dùng /models để chọn mô hình (ví dụ: quotio/gpt-5)."
+        )
+        XCTAssertEqual(
+            OpenCodeConfigIssue.invalidSyntax(line: 4, column: 9).localizedText,
+            "Ký tự không hợp lệ tại dòng 4, cột 9."
+        )
+        XCTAssertEqual(
+            AgentConfigurationFailure.updateSettingsFailed(details: "Disk full").localizedText,
+            "Không thể cập nhật cài đặt: Disk full"
+        )
+        XCTAssertEqual(AgentConnectionMessage.connected.localizedText, "Kết nối thành công")
+        XCTAssertEqual(
+            agentConfigurationErrorMessage(ModelCatalogError.proxyUnavailable),
+            "Proxy hiện không khả dụng."
+        )
     }
 
     private var storedLanguage: AppLanguage {
         UserDefaults.standard.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:)) ?? .english
+    }
+
+    private var agentPresentationLocalizationKeys: [String] {
+        [
+            "agents.amp.configSuccess",
+            "agents.amp.mergeAndSaveFiles",
+            "agents.amp.mergeSecrets",
+            "agents.amp.mergeSettings",
+            "agents.amp.proxyRemoved",
+            "agents.amp.removeProxyManually",
+            "agents.amp.useEnvironmentVariables",
+            "agents.claude.addShellExports",
+            "agents.claude.chooseManualOption",
+            "agents.claude.proxyRemoved",
+            "agents.claude.removeProxyManually",
+            "agents.claude.saveSettings",
+            "agents.claude.settingsAndShellSaved",
+            "agents.claude.settingsSaved",
+            "agents.claude.shellExportsReady",
+            "agents.codex.proxyRemoved",
+            "agents.codex.applySuccess",
+            "agents.codex.authJSONMergeKey",
+            "agents.codex.mergeAndSaveFiles",
+            "agents.codex.revertManualInstructions",
+            "agents.codex.saveConfigTOML",
+            "agents.connection.connected",
+            "agents.connection.httpStatus",
+            "agents.connection.invalidProxyURL",
+            "agents.connection.invalidResponse",
+            "agents.error.generateConfigFailed",
+            "agents.error.updateConfigFailed",
+            "agents.error.updateSettingsFailed",
+            "agents.factoryDroid.configured",
+            "agents.factoryDroid.proxyRemoved",
+            "agents.factoryDroid.removeProxyManually",
+            "agents.factoryDroid.saveConfig",
+            "agents.factoryDroid.saveManualConfig",
+            "agents.opencode.configured",
+            "agents.opencode.mergeManualConfig",
+            "agents.opencode.mergeProvider",
+            "agents.opencode.notConfigured",
+            "agents.opencode.parseError.duplicateKey",
+            "agents.opencode.parseError.notObject",
+            "agents.opencode.parseError.notUTF8",
+            "agents.opencode.parseError.providerNotObject",
+            "agents.opencode.parseError.syntax",
+            "agents.opencode.parseError.unterminatedComment",
+            "agents.opencode.parseError.unterminatedString",
+            "agents.opencode.parseError.verification",
+            "agents.opencode.parseFailed",
+            "agents.opencode.proxyRemoved",
+            "agents.opencode.removeProxyManually",
+            "agents.service.adapterMismatch",
+            "agents.service.missingAdapter",
+            "agents.shellProfileUpdated",
+            "agents.validation.invalidProxyURL",
+            "agents.validation.missingAPIKey",
+            "agents.validation.missingModel",
+            "agents.validation.proxyUnavailable",
+        ]
     }
 }
 

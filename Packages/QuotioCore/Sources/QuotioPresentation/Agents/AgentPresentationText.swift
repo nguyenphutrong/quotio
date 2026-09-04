@@ -7,9 +7,9 @@ public extension AgentConfigurationInstruction {
     var localizedText: String {
         switch self {
         case .ampRemoveProxyManually:
-            "Remove 'amp.url' from ~/.config/amp/settings.json"
+            "agents.amp.removeProxyManually".localized()
         case .ampProxyRemoved:
-            "Removed proxy URL. Amp CLI will now use its default endpoint."
+            "agents.amp.proxyRemoved".localized()
         case .ampMergeSettings:
             "agents.amp.mergeSettings".localized()
         case .ampMergeSecrets:
@@ -24,7 +24,7 @@ public extension AgentConfigurationInstruction {
         case .codexRemoveProxyManually:
             "agents.codex.revertManualInstructions".localized()
         case .codexProxyRemoved:
-            "Removed CLIProxyAPI configuration. Codex CLI will now use OpenAI API directly."
+            "agents.codex.proxyRemoved".localized()
         case .codexSaveConfig:
             "agents.codex.saveConfigTOML".localized()
         case .codexMergeAuthKey:
@@ -35,55 +35,48 @@ public extension AgentConfigurationInstruction {
             "agents.codex.mergeAndSaveFiles".localized()
 
         case .claudeRemoveProxyManually:
-            """
-            To revert to default, remove these environment variables from ~/.claude/settings.json:
-            - ANTHROPIC_BASE_URL
-            - ANTHROPIC_AUTH_TOKEN
-            - ANTHROPIC_DEFAULT_OPUS_MODEL
-            - ANTHROPIC_DEFAULT_SONNET_MODEL
-            - ANTHROPIC_DEFAULT_HAIKU_MODEL
-            """
+            "agents.claude.removeProxyManually".localized()
         case .claudeProxyRemoved:
-            "Removed Quotio proxy configuration. Claude Code will now use its default Anthropic API endpoint."
+            "agents.claude.proxyRemoved".localized()
         case .claudeSaveSettings:
-            "Option 1: Save as ~/.claude/settings.json"
+            "agents.claude.saveSettings".localized()
         case .claudeAddShellExports:
-            "Option 2: Add to your shell profile"
+            "agents.claude.addShellExports".localized()
         case .claudeSettingsSaved:
-            "Configuration saved to ~/.claude/settings.json"
+            "agents.claude.settingsSaved".localized()
         case .claudeShellExportsReady:
-            "Shell exports ready. Add to your shell profile to complete setup."
+            "agents.claude.shellExportsReady".localized()
         case .claudeSettingsAndShellSaved:
-            "Configuration saved to ~/.claude/settings.json and shell profile updated."
+            "agents.claude.settingsAndShellSaved".localized()
         case .claudeChooseManualOption:
-            "Choose one option: save settings.json OR add shell exports to your profile:"
+            "agents.claude.chooseManualOption".localized()
 
         case .factoryDroidRemoveProxyManually:
-            "Remove custom_models with localhost base_url from ~/.factory/config.json"
+            "agents.factoryDroid.removeProxyManually".localized()
         case .factoryDroidProxyRemoved:
-            "Removed proxy models. Factory Droid will use its default configurations."
+            "agents.factoryDroid.proxyRemoved".localized()
         case .factoryDroidSaveConfig:
-            "Save this as ~/.factory/config.json"
+            "agents.factoryDroid.saveConfig".localized()
         case .factoryDroidConfigured:
-            "Configuration saved. Run 'droid' or 'factory' to start using Factory Droid."
+            "agents.factoryDroid.configured".localized()
         case .factoryDroidSaveManualConfig:
-            "Copy the configuration below and save it as ~/.factory/config.json:"
+            "agents.factoryDroid.saveManualConfig".localized()
 
         case .openCodeRemoveProxyManually:
-            "Remove 'provider.quotio' section from ~/.config/opencode/opencode.json"
+            "agents.opencode.removeProxyManually".localized()
         case .openCodeNotConfigured:
             "agents.opencode.notConfigured".localized()
         case .openCodeProxyRemoved:
-            "Removed Quotio provider. OpenCode will use its default providers."
+            "agents.opencode.proxyRemoved".localized()
         case .openCodeMergeProvider:
-            "Merge provider.quotio into ~/.config/opencode/opencode.json"
+            "agents.opencode.mergeProvider".localized()
         case .openCodeConfigured(let model):
-            "Configuration updated. Run 'opencode' and use /models to select a model (e.g., quotio/\(model))."
+            String(format: "agents.opencode.configured".localized(), model)
         case .openCodeMergeManualConfig:
-            "Merge provider.quotio section into your existing ~/.config/opencode/opencode.json:"
+            "agents.opencode.mergeManualConfig".localized()
 
         case .shellProfileUpdated(let path):
-            "Added to \(path). Restart your terminal for changes to take effect."
+            String(format: "agents.shellProfileUpdated".localized(), path)
         }
     }
 }
@@ -93,11 +86,11 @@ public extension AgentConfigurationFailure {
     var localizedText: String {
         switch self {
         case .updateSettingsFailed(let details):
-            "Failed to update settings: \(details)"
+            String(format: "agents.error.updateSettingsFailed".localized(), details)
         case .updateConfigFailed(let details):
-            "Failed to update config: \(details)"
+            String(format: "agents.error.updateConfigFailed".localized(), details)
         case .generateConfigFailed(let details):
-            "Failed to generate config: \(details)"
+            String(format: "agents.error.generateConfigFailed".localized(), details)
         case .openCodeConfigInvalid(let path, let issue):
             String(format: "agents.opencode.parseFailed".localized(), path, issue.localizedText)
         case .operationFailed(let details):
@@ -111,36 +104,41 @@ public extension OpenCodeConfigIssue {
     var localizedText: String {
         switch self {
         case .notUTF8:
-            "The OpenCode configuration is not valid UTF-8."
+            "agents.opencode.parseError.notUTF8".localized()
         case .unterminatedBlockComment:
-            "The OpenCode configuration contains an unterminated block comment."
+            "agents.opencode.parseError.unterminatedComment".localized()
         case .unterminatedString:
-            "The OpenCode configuration contains an unterminated string."
+            "agents.opencode.parseError.unterminatedString".localized()
         case .invalidSyntax(let line, let column):
-            "The OpenCode configuration has invalid syntax at line \(line), column \(column)."
+            String(
+                format: "agents.opencode.parseError.syntax".localized(),
+                String(line),
+                String(column)
+            )
         case .rootNotObject:
-            "The OpenCode configuration root must be a JSON object."
+            "agents.opencode.parseError.notObject".localized()
         case .duplicateKey(let key):
-            "The OpenCode configuration contains the duplicate key '\(key)'."
+            String(format: "agents.opencode.parseError.duplicateKey".localized(), key)
         case .providerNotObject:
-            "The OpenCode provider value must be a JSON object."
+            "agents.opencode.parseError.providerNotObject".localized()
         case .verificationFailed:
-            "The updated OpenCode configuration could not be verified."
+            "agents.opencode.parseError.verification".localized()
         }
     }
 }
 
 public extension AgentConnectionMessage {
+    @MainActor
     var localizedText: String {
         switch self {
         case .connected:
-            "Connected successfully"
+            "agents.connection.connected".localized()
         case .invalidProxyURL:
-            "Invalid proxy URL"
+            "agents.connection.invalidProxyURL".localized()
         case .invalidResponse:
-            "Invalid response"
+            "agents.connection.invalidResponse".localized()
         case .httpStatus(let statusCode):
-            "HTTP \(statusCode)"
+            String(format: "agents.connection.httpStatus".localized(), Int64(statusCode))
         case .server(let details), .transport(let details):
             details
         }
@@ -151,17 +149,21 @@ public extension AgentConnectionMessage {
 func agentConfigurationErrorMessage(_ error: Error) -> String {
     switch error {
     case ModelCatalogError.proxyUnavailable:
-        "The proxy is not available."
+        "agents.validation.proxyUnavailable".localized()
     case AgentConfigurationValidationError.invalidProxyURL:
-        "The proxy URL must be an absolute HTTP or HTTPS URL."
+        "agents.validation.invalidProxyURL".localized()
     case AgentConfigurationValidationError.missingAPIKey:
-        "An API key is required for proxy configuration."
+        "agents.validation.missingAPIKey".localized()
     case AgentConfigurationValidationError.missingModel:
-        "A required model selection is missing."
+        "agents.validation.missingModel".localized()
     case AgentConfigurationServiceError.missingAdapter(let agent):
-        "No configuration adapter is registered for \(agent.rawValue)."
+        String(format: "agents.service.missingAdapter".localized(), agent.rawValue)
     case AgentConfigurationServiceError.adapterMismatch(let expected, let actual):
-        "The \(expected.rawValue) adapter cannot configure \(actual.rawValue)."
+        String(
+            format: "agents.service.adapterMismatch".localized(),
+            expected.rawValue,
+            actual.rawValue
+        )
     default:
         error.localizedDescription
     }
