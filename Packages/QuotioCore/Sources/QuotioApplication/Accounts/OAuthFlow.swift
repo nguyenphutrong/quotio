@@ -12,13 +12,18 @@ public struct OAuthAttemptID: Hashable, Sendable {
 public struct OAuthPrompt: Equatable, Sendable {
     public let authorizationURL: URL?
     public let userCode: String?
-    public let message: String?
+    public let status: OAuthPromptStatus?
 
-    public init(authorizationURL: URL? = nil, userCode: String? = nil, message: String? = nil) {
+    public init(authorizationURL: URL? = nil, userCode: String? = nil, status: OAuthPromptStatus? = nil) {
         self.authorizationURL = authorizationURL
         self.userCode = userCode
-        self.message = message
+        self.status = status
     }
+}
+
+public enum OAuthPromptStatus: Equatable, Sendable {
+    case proxyCLI(ProxyCLIAuthStatus)
+    case importingQuotas
 }
 
 public enum OAuthAuthorizationMethod: String, Equatable, Sendable {
@@ -56,6 +61,7 @@ public enum OAuthFlowFailure: Error, Equatable, Sendable {
     case expired
     case stateMismatch
     case browserOpenFailed
+    case proxyCLI(ProxyCLIAuthStatus)
     case provider(String)
     case unknown
 }

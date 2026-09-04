@@ -38,14 +38,22 @@ public struct LocalProxyOAuthRuntime: Equatable, Sendable {
     }
 }
 
+public enum ProxyCLIAuthStatus: Equatable, Sendable {
+    case authenticationCompleted
+    case authenticationCancelled
+    case copilotBrowserOpened(deviceCode: String?)
+    case browserOpened
+    case failedToStart(details: String)
+}
+
 public struct ProxyCLIAuthResult: Equatable, Sendable {
     public let success: Bool
-    public let message: String
+    public let status: ProxyCLIAuthStatus
     public let deviceCode: String?
 
-    public init(success: Bool, message: String, deviceCode: String?) {
+    public init(success: Bool, status: ProxyCLIAuthStatus, deviceCode: String?) {
         self.success = success
-        self.message = message
+        self.status = status
         self.deviceCode = deviceCode
     }
 }

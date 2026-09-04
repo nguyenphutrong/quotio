@@ -1,4 +1,5 @@
 import Foundation
+import QuotioApplication
 @testable import QuotioInfrastructure
 import XCTest
 
@@ -12,6 +13,43 @@ final class ProxyCLIAuthenticationTests: XCTestCase {
             ProcessProxyCLIAuthenticator.extractDeviceCode(from: "notice\nenter the code: WXYZ-9876"),
             "WXYZ-9876"
         )
+    }
+
+    func testRunReturnsSemanticCompletionStatus() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("auth-success")
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let authenticator = ProcessProxyCLIAuthenticator(copyDeviceCode: { _ in })
+
+        let result = await authenticator.run(
+            .kiroImport,
+            runtime: ProxyCLIAuthRuntime(binaryPath: executable.path, configurationPath: "/tmp/config.yaml")
+        )
+
+        XCTAssertTrue(result.success)
+        XCTAssertEqual(result.status, .authenticationCompleted)
+        XCTAssertNil(result.deviceCode)
+    }
+
+    func testRunReturnsSemanticLaunchFailure() async {
+        let authenticator = ProcessProxyCLIAuthenticator(copyDeviceCode: { _ in })
+
+        let result = await authenticator.run(
+            .kiroImport,
+            runtime: ProxyCLIAuthRuntime(
+                binaryPath: "/path/that/does/not/exist",
+                configurationPath: "/tmp/config.yaml"
+            )
+        )
+
+        XCTAssertFalse(result.success)
+        guard case .failedToStart(let details) = result.status else {
+            return XCTFail("Expected a semantic launch failure")
+        }
+        XCTAssertFalse(details.isEmpty)
+        XCTAssertNil(result.deviceCode)
     }
 
     func testApplyCreatesBackupAndAddsBaseURL() async throws {

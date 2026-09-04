@@ -19,7 +19,7 @@ final class LocalizationBundleTests: XCTestCase {
                 "nav.settings",
                 "Missing nav.settings in \(language.rawValue)"
             )
-            for key in agentPresentationLocalizationKeys {
+            for key in requiredLocalizationKeys {
                 XCTAssertNotEqual(
                     NSLocalizedString(key, bundle: bundle, comment: ""),
                     key,
@@ -106,11 +106,33 @@ final class LocalizationBundleTests: XCTestCase {
         )
     }
 
+    func testProxyCLIOAuthStatusesResolveLocalizationInPresentation() throws {
+        let languageManager = LanguageManager(repository: InMemoryLanguagePreferencesRepository(language: .english))
+        defer { languageManager.setLanguage(storedLanguage) }
+        let providerID = AccountProviderID(rawValue: QuotaProvider.copilot.rawValue)
+
+        var state = try XCTUnwrap(QuotaOAuthState(.awaitingUser(
+            providerID: providerID,
+            prompt: OAuthPrompt(status: .proxyCLI(.copilotBrowserOpened(deviceCode: "ABCD-1234")))
+        )))
+        XCTAssertEqual(
+            state.error,
+            "Browser opened for GitHub authentication.\n\nCode copied to clipboard:\n\nABCD-1234\n\nJust paste it in the browser!"
+        )
+
+        languageManager.setLanguage(.vietnamese)
+        state = try XCTUnwrap(QuotaOAuthState(.awaitingUser(
+            providerID: providerID,
+            prompt: OAuthPrompt(status: .importingQuotas)
+        )))
+        XCTAssertEqual(state.error, "Đang nhập hạn mức...")
+    }
+
     private var storedLanguage: AppLanguage {
         UserDefaults.standard.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:)) ?? .english
     }
 
-    private var agentPresentationLocalizationKeys: [String] {
+    private var requiredLocalizationKeys: [String] {
         [
             "agents.amp.configSuccess",
             "agents.amp.mergeAndSaveFiles",
@@ -167,6 +189,13 @@ final class LocalizationBundleTests: XCTestCase {
             "agents.validation.missingAPIKey",
             "agents.validation.missingModel",
             "agents.validation.proxyUnavailable",
+            "oauth.cli.authenticationCancelled",
+            "oauth.cli.authenticationCompleted",
+            "oauth.cli.browserOpened",
+            "oauth.cli.copilotBrowserOpenedWithCode",
+            "oauth.cli.copilotBrowserOpenedWithoutCode",
+            "oauth.cli.failedToStart",
+            "oauth.cli.importingQuotas",
         ]
     }
 }

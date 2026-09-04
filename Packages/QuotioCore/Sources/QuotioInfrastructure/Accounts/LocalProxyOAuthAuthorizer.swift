@@ -160,8 +160,8 @@ public actor LocalProxyOAuthAuthorizer: OAuthAuthorizing {
         if command == .kiroImport {
             let result = try await runAuthCommand(command)
             try ensureActive(attemptID)
-            guard result.success else { throw OAuthFlowFailure.provider(result.message) }
-            await progress(OAuthPrompt(message: "Importing quotas..."))
+            guard result.success else { throw OAuthFlowFailure.proxyCLI(result.status) }
+            await progress(OAuthPrompt(status: .importingQuotas))
             try await Task.sleep(for: .milliseconds(1_500))
             try ensureActive(attemptID)
             _ = await refreshKiroTokens()
@@ -184,8 +184,8 @@ public actor LocalProxyOAuthAuthorizer: OAuthAuthorizing {
         let initialCount = await authFileCount(for: provider)
         let result = try await runAuthCommand(command)
         try ensureActive(attemptID)
-        guard result.success else { throw OAuthFlowFailure.provider(result.message) }
-        await progress(OAuthPrompt(userCode: result.deviceCode, message: result.message))
+        guard result.success else { throw OAuthFlowFailure.proxyCLI(result.status) }
+        await progress(OAuthPrompt(userCode: result.deviceCode, status: .proxyCLI(result.status)))
 
         for _ in 0..<90 {
             try Task.checkCancellation()

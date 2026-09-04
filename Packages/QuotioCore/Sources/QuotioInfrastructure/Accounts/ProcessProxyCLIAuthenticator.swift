@@ -53,9 +53,9 @@ public actor ProcessProxyCLIAuthenticator: ProxyCLIAuthenticating {
                 Task { await self?.clearProcess() }
                 finish(ProxyCLIAuthResult(
                     success: terminatedProcess.terminationStatus == 0,
-                    message: terminatedProcess.terminationStatus == 0
-                        ? "Authentication completed successfully."
-                        : "Authentication was cancelled.",
+                    status: terminatedProcess.terminationStatus == 0
+                        ? .authenticationCompleted
+                        : .authenticationCancelled,
                     deviceCode: nil
                 ))
             }
@@ -71,15 +71,13 @@ public actor ProcessProxyCLIAuthenticator: ProxyCLIAuthenticating {
                         if let code { await copyDeviceCode(code) }
                         finish(ProxyCLIAuthResult(
                             success: true,
-                            message: code.map {
-                                "Browser opened for GitHub authentication.\n\nCode copied to clipboard:\n\n\($0)\n\nJust paste it in the browser!"
-                            } ?? "Browser opened for GitHub authentication.\n\nCheck your browser for the device code.",
+                            status: .copilotBrowserOpened(deviceCode: code),
                             deviceCode: code
                         ))
                     } else {
                         finish(ProxyCLIAuthResult(
                             success: true,
-                            message: "Browser opened for authentication.\n\nPlease complete the login in your browser.",
+                            status: .browserOpened,
                             deviceCode: nil
                         ))
                     }
@@ -87,7 +85,7 @@ public actor ProcessProxyCLIAuthenticator: ProxyCLIAuthenticating {
             } catch {
                 finish(ProxyCLIAuthResult(
                     success: false,
-                    message: "Failed to start auth process: \(error.localizedDescription)",
+                    status: .failedToStart(details: error.localizedDescription),
                     deviceCode: nil
                 ))
             }

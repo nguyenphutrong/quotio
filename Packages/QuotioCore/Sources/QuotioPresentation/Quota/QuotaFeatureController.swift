@@ -395,7 +395,7 @@ struct QuotaOAuthState: Identifiable, Equatable {
         state = state ?? prompt?.userCode
         authURL = prompt?.authorizationURL?.absoluteString
         if error == nil {
-            error = prompt?.message
+            error = prompt?.status?.localizedText
                 ?? prompt?.userCode.map { String(format: "oauth.enterDeviceCode".localizedStatic(), $0) }
         }
     }
@@ -408,6 +408,7 @@ struct QuotaOAuthState: Identifiable, Equatable {
 }
 
 private extension OAuthFlowFailure {
+    @MainActor
     var displayMessage: String {
         switch self {
         case .unsupportedProvider:
@@ -420,10 +421,44 @@ private extension OAuthFlowFailure {
             "The OAuth callback state did not match the login request."
         case .browserOpenFailed:
             "Quotio could not open the OAuth page in your browser."
+        case .proxyCLI(let status):
+            status.localizedText
         case .provider(let message):
             message
         case .unknown:
             "The OAuth request failed. Please try again."
+        }
+    }
+}
+
+private extension OAuthPromptStatus {
+    @MainActor
+    var localizedText: String {
+        switch self {
+        case .proxyCLI(let status): status.localizedText
+        case .importingQuotas: "oauth.cli.importingQuotas".localized()
+        }
+    }
+}
+
+private extension ProxyCLIAuthStatus {
+    @MainActor
+    var localizedText: String {
+        switch self {
+        case .authenticationCompleted:
+            "oauth.cli.authenticationCompleted".localized()
+        case .authenticationCancelled:
+            "oauth.cli.authenticationCancelled".localized()
+        case .copilotBrowserOpened(let deviceCode):
+            if let deviceCode {
+                String(format: "oauth.cli.copilotBrowserOpenedWithCode".localized(), deviceCode)
+            } else {
+                "oauth.cli.copilotBrowserOpenedWithoutCode".localized()
+            }
+        case .browserOpened:
+            "oauth.cli.browserOpened".localized()
+        case .failedToStart(let details):
+            String(format: "oauth.cli.failedToStart".localized(), details)
         }
     }
 }
