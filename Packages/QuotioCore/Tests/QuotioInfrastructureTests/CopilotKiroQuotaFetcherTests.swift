@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import QuotioApplication
 import QuotioDomain
@@ -122,6 +123,9 @@ final class CopilotKiroQuotaFetcherTests: XCTestCase {
       XCTAssertEqual(request.url?.query?.contains("origin=AI_EDITOR"), true)
       XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer token")
       XCTAssertEqual(request.value(forHTTPHeaderField: "amz-sdk-request"), "attempt=1; max=1")
+      XCTAssertTrue(request.value(forHTTPHeaderField: "User-Agent")?.hasSuffix("-machine-id") == true)
+      XCTAssertTrue(
+        request.value(forHTTPHeaderField: "x-amz-user-agent")?.hasSuffix("-machine-id") == true)
       return (
         #"{"nextDateReset":1900000000,"subscriptionInfo":{"subscriptionTitle":"Kiro Pro"},"usageBreakdownList":[{"displayName":"Agentic requests","resourceType":"AGENTIC_REQUEST","currentUsageWithPrecision":20,"usageLimitWithPrecision":100,"freeTrialInfo":{"currentUsage":5,"usageLimit":10,"freeTrialStatus":"ACTIVE","freeTrialExpiry":1800000000}}]}"#,
         200
@@ -130,7 +134,7 @@ final class CopilotKiroQuotaFetcherTests: XCTestCase {
     let fetcher = KiroQuotaFetcher(
       vault: AdapterTestVault(), metadata: AdapterTestMetadata(), credentials: source,
       session: session, now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      machineSeed: { _ in "machine" })
+      machineIdentifier: { _ in "machine-id" })
     for mode in [QuotaOperatingMode.localProxy, .monitor] {
       let output = try await fetcher.fetch(
         .init(provider: .kiro, scope: .account("person@example.com"), mode: mode))
@@ -142,6 +146,36 @@ final class CopilotKiroQuotaFetcherTests: XCTestCase {
       XCTAssertEqual(quota.models.last?.used, 20)
       XCTAssertTrue(quota.models.last?.resetTime.contains("T") == true)
     }
+  }
+
+  func testKiroMachineIdentifierPreservesOverrideAndHardwareFallback() {
+    let defaults = UserDefaults(suiteName: #function)!
+    defer { defaults.removePersistentDomain(forName: #function) }
+    let credential = KiroQuotaCredential(accessToken: "token", accountKey: "person")
+    let override = String(repeating: "a", count: 64)
+    defaults.set(override, forKey: "KiroMachineId")
+
+    XCTAssertEqual(
+      KiroQuotaFetcher.machineIdentifier(
+        for: credential,
+        defaults: defaults,
+        hardwareUUID: { "hardware" }
+      ),
+      override
+    )
+
+    defaults.set("invalid", forKey: "KiroMachineId")
+    let expectedFallback = SHA256.hash(data: Data("hardware".utf8)).map {
+      String(format: "%02x", $0)
+    }.joined()
+    XCTAssertEqual(
+      KiroQuotaFetcher.machineIdentifier(
+        for: credential,
+        defaults: defaults,
+        hardwareUUID: { "hardware" }
+      ),
+      expectedFallback
+    )
   }
 
   func testKiroRefreshesBeforeExpiryRetriesForbiddenOnceAndPersistsUnknownFileData() async throws {

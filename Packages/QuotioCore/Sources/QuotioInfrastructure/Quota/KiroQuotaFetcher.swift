@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import IOKit
 import QuotioApplication
 import QuotioDomain
 
@@ -136,7 +137,7 @@ public actor KiroQuotaFetcher: QuotaFetching {
   private let credentials: any KiroQuotaCredentialSourcing
   private let session: any QuotaHTTPSession
   private let now: @Sendable () -> Date
-  private let machineSeed: @Sendable (KiroQuotaCredential) -> String
+  private let machineIdentifier: @Sendable (KiroQuotaCredential) -> String
 
   public init(
     vault: any CredentialVault, metadata: any AccountMetadataRepository,
@@ -144,16 +145,21 @@ public actor KiroQuotaFetcher: QuotaFetching {
     session: any QuotaHTTPSession = URLSession(
       configuration: ProxyURLSessionFactory.makeConfiguration(timeout: 20)),
     now: @escaping @Sendable () -> Date = Date.init,
-    machineSeed: @escaping @Sendable (KiroQuotaCredential) -> String = {
-      $0.clientID ?? $0.refreshToken ?? "Quotio"
-    }
+    machineIdentifier: (@Sendable (KiroQuotaCredential) -> String)? = nil
   ) {
     self.vault = vault
     self.metadata = metadata
     self.credentials = credentials
     self.session = session
     self.now = now
-    self.machineSeed = machineSeed
+    if let machineIdentifier {
+      self.machineIdentifier = machineIdentifier
+    } else {
+      let hardwareUUID = Self.systemHardwareUUID()
+      self.machineIdentifier = {
+        Self.machineIdentifier(for: $0, hardwareUUID: { hardwareUUID })
+      }
+    }
   }
 
   public func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
@@ -266,9 +272,7 @@ public actor KiroQuotaFetcher: QuotaFetching {
       components.queryItems?.append(.init(name: "profileArn", value: arn))
     }
     var request = URLRequest(url: components.url!)
-    let machineID = SHA256.hash(data: Data(machineSeed(credential).utf8)).map {
-      String(format: "%02x", $0)
-    }.joined()
+    let machineID = machineIdentifier(credential)
     request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
     request.setValue("q.\(region).amazonaws.com", forHTTPHeaderField: "Host")
     request.setValue(
@@ -282,6 +286,33 @@ public actor KiroQuotaFetcher: QuotaFetching {
       let http = response as? HTTPURLResponse
     else { return (nil, nil) }
     return (data, http.statusCode)
+  }
+
+  nonisolated static func machineIdentifier(
+    for credential: KiroQuotaCredential,
+    defaults: UserDefaults = .standard,
+    hardwareUUID: @Sendable () -> String = systemHardwareUUID
+  ) -> String {
+    if let override = defaults.string(forKey: "KiroMachineId"), override.count == 64 {
+      return override
+    }
+    let seed = credential.clientID ?? credential.refreshToken ?? hardwareUUID()
+    return SHA256.hash(data: Data(seed.utf8)).map { String(format: "%02x", $0) }.joined()
+  }
+
+  private nonisolated static func systemHardwareUUID() -> String {
+    let service = IOServiceGetMatchingService(
+      kIOMainPortDefault,
+      IOServiceMatching("IOPlatformExpertDevice")
+    )
+    guard service != IO_OBJECT_NULL else { return UUID().uuidString }
+    defer { IOObjectRelease(service) }
+    return IORegistryEntryCreateCFProperty(
+      service,
+      kIOPlatformUUIDKey as CFString,
+      kCFAllocatorDefault,
+      0
+    )?.takeRetainedValue() as? String ?? UUID().uuidString
   }
 
   private func refresh(_ credential: KiroQuotaCredential, account: Account?) async
