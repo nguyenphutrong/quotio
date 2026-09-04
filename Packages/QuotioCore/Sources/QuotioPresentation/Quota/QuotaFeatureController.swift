@@ -60,10 +60,8 @@ public final class QuotaFeatureController {
         self.menuBarSettings = menuBarSettings
         self.notifications = notifications
         self.authFiles = authFiles
-        refreshSettings.onRefreshCadenceChanged = { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.restartAutomaticRefresh()
-            }
+        refreshSettings.addCadenceChangeHandler { [weak self] _ in
+            self?.restartAutomaticRefresh()
         }
     }
 

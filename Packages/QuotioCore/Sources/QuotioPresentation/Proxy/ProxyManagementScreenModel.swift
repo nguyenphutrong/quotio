@@ -60,6 +60,10 @@ public final class ProxyManagementScreenModel {
         self.proxyPreferences = proxyPreferences
         self.authFileState = authFileState
         self.managementAPIFactory = managementAPIFactory
+        refreshSettings.addCadenceChangeHandler { [weak self] _ in
+            guard self?.managementClient != nil else { return }
+            self?.startAutomaticRefresh()
+        }
     }
 
     deinit {

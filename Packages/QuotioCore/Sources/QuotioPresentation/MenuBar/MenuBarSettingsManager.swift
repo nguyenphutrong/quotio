@@ -176,21 +176,23 @@ public extension MenuBarSettingsManager {
 @Observable
 public final class RefreshSettingsManager {
     @ObservationIgnored private let repository: any RefreshPreferencesRepository
+    @ObservationIgnored private var cadenceChangeHandlers: [(RefreshCadence) -> Void] = []
     
     /// Current refresh cadence
     public var refreshCadence: RefreshCadence {
         didSet {
             repository.save(RefreshPreferences(cadence: refreshCadence))
-            onRefreshCadenceChanged?(refreshCadence)
+            cadenceChangeHandlers.forEach { $0(refreshCadence) }
         }
     }
-    
-    /// Callback when refresh cadence changes (for ViewModel to restart timer)
-    public var onRefreshCadenceChanged: ((RefreshCadence) -> Void)?
     
     public init(repository: any RefreshPreferencesRepository) {
         self.repository = repository
         self.refreshCadence = repository.load().cadence
+    }
+
+    public func addCadenceChangeHandler(_ handler: @escaping (RefreshCadence) -> Void) {
+        cadenceChangeHandlers.append(handler)
     }
 }
 
