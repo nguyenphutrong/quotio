@@ -84,6 +84,15 @@ enum CompositionRoot {
         let authFileRepository = FileAuthFileRepository()
         let metadataRepository = FileAccountMetadataRepository()
         let externalCredentials = ExternalKeychainCredentialReader()
+        let quotaHTTPSession = ReloadableQuotaHTTPSession {
+            URLSession(configuration: ProxyURLSessionFactory.makeConfiguration(timeout: 15))
+        }
+        let kiroHTTPSession = ReloadableQuotaHTTPSession {
+            URLSession(configuration: ProxyURLSessionFactory.makeConfiguration(timeout: 20))
+        }
+        let ampHTTPSession = ReloadableQuotaHTTPSession {
+            AmpQuotaFetcher.makeSession()
+        }
         let credentialVault = CredentialVaultService(
             dataStore: KeychainCredentialDataStore(
                 service: AppIdentity.keychainService(suffix: "monitor-auth"),
@@ -113,7 +122,8 @@ enum CompositionRoot {
         )
         let kiroQuotaFetcher = QuotioInfrastructure.KiroQuotaFetcher(
             vault: credentialVault,
-            metadata: metadataRepository
+            metadata: metadataRepository,
+            session: kiroHTTPSession
         )
 
         let monitorAuthorizer = MonitorOAuthAuthorizer(
@@ -182,45 +192,61 @@ enum CompositionRoot {
                 credentials: CompositeClaudeQuotaCredentialLoader(
                     vault: credentialVault,
                     metadata: metadataRepository
-                )
+                ),
+                session: quotaHTTPSession
             ),
             QuotioInfrastructure.CodexQuotaFetcher(
                 credentials: CompositeCodexQuotaCredentialLoader(
                     vault: credentialVault,
                     metadata: metadataRepository
-                )
+                ),
+                session: quotaHTTPSession
             ),
             QuotioInfrastructure.AntigravityQuotaFetcher(
                 vault: credentialVault,
                 metadata: metadataRepository,
-                nativeCredentials: NativeAntigravityCredentialReader()
+                nativeCredentials: NativeAntigravityCredentialReader(session: quotaHTTPSession),
+                session: quotaHTTPSession
             ),
             QuotioInfrastructure.CopilotQuotaFetcher(
                 vault: credentialVault,
-                metadata: metadataRepository
+                metadata: metadataRepository,
+                session: quotaHTTPSession
             ),
             kiroQuotaFetcher,
-            QuotioInfrastructure.CursorQuotaFetcher(),
-            QuotioInfrastructure.TraeQuotaFetcher(),
+            QuotioInfrastructure.CursorQuotaFetcher(session: quotaHTTPSession),
+            QuotioInfrastructure.TraeQuotaFetcher(session: quotaHTTPSession),
             QuotioInfrastructure.FactoryDroidQuotaFetcher(
                 vault: credentialVault,
                 metadata: metadataRepository,
                 localCredentials: factoryDroidCredentials,
-                credentialWriter: factoryDroidCredentials
+                credentialWriter: factoryDroidCredentials,
+                session: quotaHTTPSession
             ),
-            QuotioInfrastructure.GLMQuotaFetcher(repository: customProviderRepository),
-            QuotioInfrastructure.ClinePassQuotaFetcher(repository: customProviderRepository),
-            QuotioInfrastructure.WarpQuotaFetcher(repository: warpTokenRepository),
+            QuotioInfrastructure.GLMQuotaFetcher(
+                repository: customProviderRepository,
+                session: quotaHTTPSession
+            ),
+            QuotioInfrastructure.ClinePassQuotaFetcher(
+                repository: customProviderRepository,
+                session: quotaHTTPSession
+            ),
+            QuotioInfrastructure.WarpQuotaFetcher(
+                repository: warpTokenRepository,
+                session: quotaHTTPSession
+            ),
             QuotioInfrastructure.OpenRouterQuotaFetcher(
                 vault: credentialVault,
-                metadata: metadataRepository
+                metadata: metadataRepository,
+                session: quotaHTTPSession
             ),
             QuotioInfrastructure.AmpQuotaFetcher(
                 vault: credentialVault,
-                metadata: metadataRepository
+                metadata: metadataRepository,
+                session: ampHTTPSession
             ),
-            QuotioInfrastructure.DevinQuotaFetcher(),
-            QuotioInfrastructure.GrokQuotaFetcher(),
+            QuotioInfrastructure.DevinQuotaFetcher(session: quotaHTTPSession),
+            QuotioInfrastructure.GrokQuotaFetcher(session: quotaHTTPSession),
         ])
         let quotaScreenModel = QuotaScreenModel(
             coordinator: QuotaRefreshCoordinator(
@@ -449,6 +475,12 @@ enum CompositionRoot {
             },
             applyDockVisibility: { [applicationPlatform] enabled in
                 applicationPlatform.setDockVisibility(enabled)
+            },
+            reloadQuotaNetwork: {
+                async let reloadQuota: Void = quotaHTTPSession.reload()
+                async let reloadKiro: Void = kiroHTTPSession.reload()
+                async let reloadAmp: Void = ampHTTPSession.reload()
+                _ = await (reloadQuota, reloadKiro, reloadAmp)
             }
         )
         let providerImageCache = ProviderImageCacheAdapter()

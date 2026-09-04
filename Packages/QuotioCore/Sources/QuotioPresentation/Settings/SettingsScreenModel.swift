@@ -15,6 +15,7 @@ public final class SettingsScreenModel {
     private let applyNetworkAccess: (Bool) -> Void
     private let applyAutomaticUpdateChecks: (Bool) -> Void
     private let applyDockVisibility: (Bool) -> Void
+    private let reloadQuotaNetwork: () async -> Void
 
     public init(
         proxyRepository: any ProxyPreferencesRepository,
@@ -22,7 +23,8 @@ public final class SettingsScreenModel {
         appShellRepository: any AppShellPreferencesRepository,
         applyNetworkAccess: @escaping (Bool) -> Void = { _ in },
         applyAutomaticUpdateChecks: @escaping (Bool) -> Void = { _ in },
-        applyDockVisibility: @escaping (Bool) -> Void = { _ in }
+        applyDockVisibility: @escaping (Bool) -> Void = { _ in },
+        reloadQuotaNetwork: @escaping () async -> Void = {}
     ) {
         self.proxyRepository = proxyRepository
         self.tunnelRepository = tunnelRepository
@@ -30,6 +32,7 @@ public final class SettingsScreenModel {
         self.applyNetworkAccess = applyNetworkAccess
         self.applyAutomaticUpdateChecks = applyAutomaticUpdateChecks
         self.applyDockVisibility = applyDockVisibility
+        self.reloadQuotaNetwork = reloadQuotaNetwork
         self.proxyPreferences = proxyRepository.load()
         self.tunnelPreferences = tunnelRepository.load()
         self.appShellPreferences = appShellRepository.load()
@@ -78,8 +81,9 @@ public final class SettingsScreenModel {
         appShellRepository.setHideGettingStarted(hidden)
     }
 
-    public func setProxyURL(_ proxyURL: String?) {
+    public func setProxyURL(_ proxyURL: String?) async {
         proxyPreferences.proxyURL = proxyURL
         proxyRepository.setProxyURL(proxyURL)
+        await reloadQuotaNetwork()
     }
 }

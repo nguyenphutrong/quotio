@@ -26,7 +26,7 @@ final class SettingsScreenModelTests: XCTestCase {
         XCTAssertEqual(model.appShellPreferences, appShellPreferences)
     }
 
-    func testSettersPersistOnlyTheirFeatureValues() {
+    func testSettersPersistOnlyTheirFeatureValues() async {
         let repository = InMemorySettingsPreferencesRepository()
         let model = makeModel(repository: repository)
 
@@ -35,7 +35,7 @@ final class SettingsScreenModelTests: XCTestCase {
         model.setAutoRestartTunnel(true)
         model.setLoggingToFile(false)
         model.setHideGettingStarted(true)
-        model.setProxyURL("http://localhost:8080")
+        await model.setProxyURL("http://localhost:8080")
 
         XCTAssertEqual(repository.proxyPreferences, model.proxyPreferences)
         XCTAssertEqual(repository.tunnelPreferences, model.tunnelPreferences)
@@ -73,6 +73,23 @@ final class SettingsScreenModelTests: XCTestCase {
         XCTAssertTrue(repository.proxyPreferences.allowNetworkAccess)
         XCTAssertFalse(repository.appShellPreferences.autoCheckUpdates)
         XCTAssertFalse(repository.appShellPreferences.showInDock)
+    }
+
+    func testProxyURLReloadsQuotaNetworkAfterPersistence() async {
+        let repository = InMemorySettingsPreferencesRepository()
+        var persistedValueWhenReloaded: String?
+        let model = SettingsScreenModel(
+            proxyRepository: repository,
+            tunnelRepository: repository,
+            appShellRepository: repository,
+            reloadQuotaNetwork: {
+                persistedValueWhenReloaded = repository.proxyPreferences.proxyURL
+            }
+        )
+
+        await model.setProxyURL("http://localhost:8080")
+
+        XCTAssertEqual(persistedValueWhenReloaded, "http://localhost:8080")
     }
 
     private func makeModel(repository: InMemorySettingsPreferencesRepository) -> SettingsScreenModel {

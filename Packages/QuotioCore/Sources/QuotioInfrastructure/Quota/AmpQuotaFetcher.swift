@@ -52,13 +52,7 @@ public actor AmpQuotaFetcher: QuotaFetching {
     self.nativePath = nativePath
     self.endpoint = endpoint
     self.now = now
-    self.session =
-      session
-      ?? URLSession(
-        configuration: Self.sessionConfiguration(),
-        delegate: AmpNoRedirectDelegate(),
-        delegateQueue: nil
-      )
+    self.session = session ?? Self.makeSession()
   }
 
   public func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
@@ -125,6 +119,14 @@ public actor AmpQuotaFetcher: QuotaFetching {
     configuration.httpShouldSetCookies = false
     configuration.urlCache = nil
     return configuration
+  }
+
+  public nonisolated static func makeSession() -> any QuotaHTTPSession {
+    URLSession(
+      configuration: sessionConfiguration(),
+      delegate: AmpNoRedirectDelegate(),
+      delegateQueue: nil
+    )
   }
 
   private func nativeToken() async -> String? {

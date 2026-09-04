@@ -154,6 +154,21 @@ final class ProxyInfrastructureTests: XCTestCase {
         XCTAssertEqual(repository.loadLastUpdateCheckDate(), checkedAt)
     }
 
+    func testReloadableQuotaSessionReplacesItsBackingSession() async throws {
+        let factory = SequencedQuotaSessionFactory(responses: ["before", "after"])
+        let session = ReloadableQuotaHTTPSession {
+            factory.makeSession()
+        }
+        let request = URLRequest(url: URL(string: "https://example.com")!)
+
+        let before = try await session.data(for: request).0
+        await session.reload()
+        let after = try await session.data(for: request).0
+
+        XCTAssertEqual(String(decoding: before, as: UTF8.self), "before")
+        XCTAssertEqual(String(decoding: after, as: UTF8.self), "after")
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let directory = fileManager.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -168,6 +183,40 @@ final class ProxyInfrastructureTests: XCTestCase {
         try fileManager.createDirectory(at: versionDirectory, withIntermediateDirectories: true)
         try Data("fixture".utf8).write(
             to: versionDirectory.appendingPathComponent("CLIProxyAPI")
+        )
+    }
+}
+
+private final class SequencedQuotaSessionFactory: @unchecked Sendable {
+    private let lock = NSLock()
+    private var responses: [String]
+
+    init(responses: [String]) {
+        self.responses = responses
+    }
+
+    func makeSession() -> any QuotaHTTPSession {
+        let response = lock.withLock { responses.removeFirst() }
+        return FixedQuotaSession(response: response)
+    }
+}
+
+private actor FixedQuotaSession: QuotaHTTPSession {
+    private let response: String
+
+    init(response: String) {
+        self.response = response
+    }
+
+    func data(for request: URLRequest) -> (Data, URLResponse) {
+        (
+            Data(response.utf8),
+            HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
         )
     }
 }

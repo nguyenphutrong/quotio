@@ -437,9 +437,9 @@ struct ProxySettingsSection: View {
     /// proxy API to take effect immediately. Only valid or empty URLs are saved.
     private func saveProxyURL() async {
         if proxyURL.isEmpty {
-            settingsModel.setProxyURL("")
+            await settingsModel.setProxyURL("")
         } else if proxyURLValidation == .valid {
-            settingsModel.setProxyURL(ProxyURLValidator.sanitize(proxyURL))
+            await settingsModel.setProxyURL(ProxyURLValidator.sanitize(proxyURL))
         }
 
         do {
