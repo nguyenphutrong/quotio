@@ -236,11 +236,13 @@ final class AppRuntime {
 
         let (events, continuation) = AsyncStream<Bool>.makeStream()
         let services = services
+        let proxyCleanupTask = Task { @MainActor in
+            await services.terminateProxyOnShutdown()
+        }
         let cleanupTask = Task { @MainActor in
-            async let proxy: Void = services.terminateProxyOnShutdown()
             async let tunnel: Void = services.stopTunnel()
             async let oauth: Void = services.shutdownOAuth()
-            await proxy
+            await proxyCleanupTask.value
             await tunnel
             await oauth
             guard !Task.isCancelled else { return }
@@ -264,6 +266,7 @@ final class AppRuntime {
         if !completedCleanly {
             await services.cleanupTunnelOrphans()
         }
+        await proxyCleanupTask.value
         return completedCleanly
     }
 }

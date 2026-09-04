@@ -87,6 +87,18 @@ final class AppRuntimeTests: XCTestCase {
         XCTAssertFalse(completedCleanly)
         XCTAssertEqual(services.orphanCleanupCount, 1)
     }
+
+    func testShutdownWaitsForProxyTerminationAfterSharedTimeout() async {
+        let services = FakeAppRuntimeServices()
+        services.proxyTerminationDelay = .milliseconds(50)
+        let runtime = AppRuntime(services: services)
+
+        let completedCleanly = await runtime.shutdown(timeout: .milliseconds(10))
+
+        XCTAssertFalse(completedCleanly)
+        XCTAssertEqual(services.proxyTerminationCount, 1)
+        XCTAssertEqual(services.orphanCleanupCount, 1)
+    }
 }
 
 @MainActor
@@ -135,6 +147,7 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
     var canCheckForUpdates = true
     var initializationDelay = Duration.zero
     var tunnelStopDelay = Duration.zero
+    var proxyTerminationDelay = Duration.zero
     var statusBarStateDidChangeHandler: (@MainActor () -> Void)?
 
     private(set) var prepareForLaunchCount = 0
@@ -227,7 +240,8 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
         try? await Task.sleep(for: tunnelStopDelay)
     }
 
-    nonisolated func terminateProxyOnShutdown() async {
+    func terminateProxyOnShutdown() async {
+        try? await Task.sleep(for: proxyTerminationDelay)
         proxyTerminations.increment()
     }
 
