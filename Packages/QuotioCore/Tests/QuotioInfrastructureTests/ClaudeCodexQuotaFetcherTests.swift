@@ -100,6 +100,81 @@ final class ClaudeCodexQuotaFetcherTests: XCTestCase {
       requests.allSatisfy { $0.value(forHTTPHeaderField: "ChatGPT-Account-Id") == "account-1" })
   }
 
+  func testCodexMergesUsageResetCreditAndProfileAnalytics() async throws {
+    let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2030-01-01T12:00:00Z"))
+    let usage = #"{"rate_limit":{"primary_window":{"used_percent":25}},"credits":{"balance":"125.9"},"rate_limit_reset_credits":{"available_count":9}}"#
+    let resetCredits = #"{"available_count":2,"credits":[{"id":"future","status":"available","expires_at":"2030-01-02T00:00:00.500Z"},{"id":"expired","status":"available","expires_at":"2029-12-31T00:00:00Z"}]}"#
+    let profile = #"{"stats":{"lifetime_tokens":4200000,"peak_daily_tokens":12000,"current_streak_days":3,"longest_streak_days":8,"longest_running_turn_sec":3725,"daily_usage_buckets":[{"date":"2029-12-31","tokens":1000},{"date":"2030-01-01","input_tokens":2000,"output_tokens":500}]}}"#
+    let session = RecordingQuotaSession(responses: [
+      (usage, 200),
+      (resetCredits, 200),
+      (profile, 200),
+    ])
+    let fetcher = CodexQuotaFetcher(
+      credentials: CodexLoader([
+        .init(accountKey: "Codex", accessToken: "token", accountID: "account-1")
+      ]),
+      session: session,
+      now: { now }
+    )
+
+    let output = try await fetcher.fetch(.init(provider: .codex, mode: .monitor))
+
+    let quota = try XCTUnwrap(output.quotas["Codex"])
+    let analytics = try XCTUnwrap(quota.analytics)
+    XCTAssertEqual(
+      analytics.rows.prefix(2).map(\.id),
+      ["codex-extra-usage", "codex-rate-limit-resets"])
+    XCTAssertEqual(analytics.rows[0].value, "$5.00 - 125 credits")
+    XCTAssertEqual(analytics.rows[1].value, "2 available")
+    XCTAssertEqual(
+      analytics.rows.filter { $0.id.hasPrefix("codex-rate-limit-reset-") }.count,
+      1)
+    XCTAssertEqual(
+      analytics.rows.first { $0.id == "codex-lifetime-tokens" }?.value,
+      "4.2M tokens")
+    XCTAssertEqual(
+      analytics.rows.first { $0.id == "codex-longest-task" }?.value,
+      "1h 2m")
+    XCTAssertEqual(analytics.trend.map(\.date), ["2029-12-31", "2030-01-01"])
+    XCTAssertEqual(analytics.trend.map(\.value), [1_000, 2_500])
+
+    let requests = await session.requests()
+    XCTAssertEqual(
+      requests.map { $0.url?.absoluteString },
+      [
+        CodexQuotaFetcher.usageURL.absoluteString,
+        CodexResetCreditInventoryFetcher.inventoryURL.absoluteString,
+        CodexProfileAnalyticsFetcher.profileURL.absoluteString,
+      ])
+    XCTAssertTrue(
+      requests.allSatisfy {
+        $0.value(forHTTPHeaderField: "Authorization") == "Bearer token"
+          && $0.value(forHTTPHeaderField: "ChatGPT-Account-Id") == "account-1"
+      })
+    XCTAssertEqual(requests[1].value(forHTTPHeaderField: "OpenAI-Beta"), "codex-1")
+    XCTAssertEqual(requests[1].value(forHTTPHeaderField: "originator"), "Codex Desktop")
+    XCTAssertEqual(requests[2].value(forHTTPHeaderField: "Originator"), "Codex Desktop")
+  }
+
+  func testCodexKeepsQuotaWhenOptionalAnalyticsRequestsFail() async throws {
+    let usage = #"{"rate_limit":{"primary_window":{"used_percent":25}}}"#
+    let session = RecordingQuotaSession(responses: [
+      (usage, 200),
+      ("not-json", 200),
+      ("", 503),
+    ])
+    let fetcher = CodexQuotaFetcher(
+      credentials: CodexLoader([.init(accountKey: "Codex", accessToken: "token")]),
+      session: session
+    )
+
+    let output = try await fetcher.fetch(.init(provider: .codex, mode: .monitor))
+
+    XCTAssertEqual(output.quotas["Codex"]?.models.first?.percentage, 75)
+    XCTAssertNil(output.quotas["Codex"]?.analytics)
+  }
+
   func testCodexFreeWeeklyWindowAndCanonicalAliasesMatchLegacyBehavior() throws {
     let quota = try CodexQuotaFetcher.mapUsage(
       Data(
@@ -424,12 +499,12 @@ private actor RecordingQuotaSession: QuotaHTTPSession {
   private var queued: [(String, Int)]
   private var recorded: [URLRequest] = []
 
-  init(body: String) { queued = [(body, 200), (body, 200)] }
+  init(body: String) { queued = Array(repeating: (body, 200), count: 8) }
   init(responses: [(String, Int)]) { queued = responses }
 
   func data(for request: URLRequest) throws -> (Data, URLResponse) {
     recorded.append(request)
-    let response = queued.removeFirst()
+    let response = queued.isEmpty ? ("", 404) : queued.removeFirst()
     return (
       Data(response.0.utf8),
       HTTPURLResponse(

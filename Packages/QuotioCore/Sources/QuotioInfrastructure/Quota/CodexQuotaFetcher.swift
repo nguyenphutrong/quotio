@@ -297,6 +297,7 @@ public actor CodexQuotaFetcher: QuotaFetching {
     _ data: Data, planFallback: String? = nil, now: Date = Date()
   ) throws -> ProviderQuota {
     let response = try JSONDecoder().decode(Response.self, from: data)
+    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     var metrics: [QuotaMetric] = []
     var kinds = Set<String>()
     for (window, fallback) in [
@@ -355,7 +356,8 @@ public actor CodexQuotaFetcher: QuotaFetching {
     }
     return ProviderQuota(
       models: metrics, lastUpdated: now, isForbidden: response.rateLimit?.reached ?? false,
-      planType: response.plan ?? planFallback)
+      planType: response.plan ?? planFallback,
+      analytics: analytics(from: json))
   }
 
   private func fetchQuota(
@@ -399,9 +401,23 @@ public actor CodexQuotaFetcher: QuotaFetching {
     guard 200...299 ~= http.statusCode else {
       throw InfrastructureQuotaFetchError.httpError(http.statusCode)
     }
-    return try Self.mapUsage(
+    let updatedAt = now()
+    var quota = try Self.mapUsage(
       data, planFallback: LocalCodexQuotaCredentialLoader.claims(credential.idToken)["plan"],
-      now: now())
+      now: updatedAt)
+    if let analytics = try? await CodexResetCreditInventoryFetcher(
+      session: session,
+      now: { updatedAt }
+    ).fetch(accessToken: token, accountID: credential.accountID) {
+      quota.analytics = CodexResetCreditInventoryFetcher.merge(analytics, into: quota.analytics)
+    }
+    if let analytics = try? await CodexProfileAnalyticsFetcher(
+      session: session,
+      now: { updatedAt }
+    ).fetch(accessToken: token, accountID: credential.accountID) {
+      quota.analytics = quota.analytics?.merging(analytics) ?? analytics
+    }
+    return quota
   }
 
   private func refresh(_ refreshToken: String) async throws -> QuotaTokenRefresh {
@@ -451,6 +467,48 @@ public actor CodexQuotaFetcher: QuotaFetching {
       return nil
     }
     return value
+  }
+
+  private nonisolated static func analytics(from json: [String: Any]?) -> QuotaAnalytics? {
+    guard let json else { return nil }
+    var rows: [QuotaAnalyticsRow] = []
+    if let credits = json["credits"] as? [String: Any],
+      let balance = number(credits["balance"])
+        ?? ((credits["has_credits"] as? Bool) == false ? 0 : nil)
+    {
+      let creditCount = Int(max(0, balance).rounded(.down))
+      rows.append(
+        QuotaAnalyticsRow(
+          id: "codex-extra-usage",
+          title: "Extra Usage",
+          value: "\(formatDollars(Double(creditCount) * 0.04)) - \(creditCount) credits"))
+    }
+    if let resets = json["rate_limit_reset_credits"] as? [String: Any],
+      let count = number(resets["available_count"]), count >= 0
+    {
+      rows.append(
+        QuotaAnalyticsRow(
+          id: "codex-rate-limit-resets",
+          title: "Rate Limit Resets",
+          value: "\(Int(count.rounded(.down))) available"))
+    }
+    return rows.isEmpty ? nil : QuotaAnalytics(rows: rows)
+  }
+
+  private nonisolated static func number(_ value: Any?) -> Double? {
+    switch value {
+    case let value as Double: value
+    case let value as Int: Double(value)
+    case let value as String: Double(value)
+    default: nil
+    }
+  }
+
+  private nonisolated static func formatDollars(_ value: Double) -> String {
+    if value >= 1_000 {
+      return String(format: "$%.1fK", value / 1_000)
+    }
+    return String(format: "$%.2f", value)
   }
 
   private struct Response: Decodable {
