@@ -23,13 +23,16 @@ public struct CompositeCodexQuotaCredentialLoader: CodexQuotaCredentialLoading {
   public func credentials(for mode: QuotaOperatingMode) async -> [CodexQuotaCredential] {
     var result = await local.credentials(for: mode)
     let aliases = LocalCodexQuotaCredentialLoader.uniqueLegacyAliases(result)
+    let disabled = mode == .monitor ? await metadata.disabledAccountIDs() : []
+    var disabledAccountKeys = Set<String>()
 
     if mode == .monitor {
-      let disabled = await metadata.disabledAccountIDs()
       for account in await vault.accounts()
-      where account.providerID.rawValue == QuotaProvider.codex.rawValue
-        && !account.isDisabled && !disabled.contains(account.id)
-      {
+      where account.providerID.rawValue == QuotaProvider.codex.rawValue {
+        if account.isDisabled || disabled.contains(account.id) {
+          disabledAccountKeys.insert(account.accountKey.lowercased())
+          continue
+        }
         guard let credential = await vault.credential(for: account.id) else { continue }
         result.insert(
           .init(
@@ -49,8 +52,10 @@ public struct CompositeCodexQuotaCredentialLoader: CodexQuotaCredentialLoading {
         data: record.data, fallbackAccountKey: "Codex")
     {
       if let accountID = credential.accountID, let alias = aliases[accountID] {
+        let nativeAccountKey = credential.accountKey
         credential = .init(
           accountKey: alias,
+          aliases: mode == .monitor ? [nativeAccountKey] : [],
           accessToken: credential.accessToken,
           refreshToken: credential.refreshToken,
           idToken: credential.idToken,
@@ -60,8 +65,14 @@ public struct CompositeCodexQuotaCredentialLoader: CodexQuotaCredentialLoading {
       result.insert(credential, at: mode == .monitor ? min(result.count, 1) : 0)
     }
 
+    for credential in result where Self.isDisabled(credential, disabledIDs: disabled) {
+      disabledAccountKeys.insert(credential.accountKey.lowercased())
+    }
     var seen = Set<String>()
-    return result.filter { seen.insert($0.accountKey).inserted }
+    return result.filter {
+      !disabledAccountKeys.contains($0.accountKey.lowercased())
+        && seen.insert($0.accountKey).inserted
+    }
   }
 
   public func persist(
@@ -114,5 +125,17 @@ public struct CompositeCodexQuotaCredentialLoader: CodexQuotaCredentialLoading {
       for: credential,
       mode: mode
     )
+  }
+
+  private static func isDisabled(
+    _ credential: CodexQuotaCredential,
+    disabledIDs: Set<String>
+  ) -> Bool {
+    credential.aliases.union([credential.accountKey]).contains { accountKey in
+      disabledIDs.contains(AccountIdentity.make(
+        providerID: AccountProviderID(rawValue: QuotaProvider.codex.rawValue),
+        accountKey: accountKey
+      ).id)
+    }
   }
 }

@@ -350,6 +350,49 @@ final class ClaudeCodexQuotaFetcherTests: XCTestCase {
     XCTAssertEqual(monitor.first?.aliases, ["same@example.com"])
   }
 
+  func testCodexRefreshExcludesNativeKeychainAccountAfterItIsDisabled() async throws {
+    let accountKey = "person@example.com"
+    let account = Account.make(
+      providerID: AccountProviderID(rawValue: QuotaProvider.codex.rawValue),
+      accountKey: accountKey,
+      source: .nativeCredential
+    )
+    let claims = try JSONSerialization.data(withJSONObject: ["email": accountKey])
+      .base64EncodedString()
+      .replacingOccurrences(of: "+", with: "-")
+      .replacingOccurrences(of: "/", with: "_")
+      .replacingOccurrences(of: "=", with: "")
+    let credential = try JSONSerialization.data(withJSONObject: [
+      "tokens": [
+        "access_token": "native-token",
+        "id_token": "header.\(claims).signature",
+      ]
+    ])
+    let metadata = CodexMetadata()
+    let loader = CompositeCodexQuotaCredentialLoader(
+      local: CodexLoader([]),
+      vault: CodexVault(),
+      metadata: metadata,
+      external: CodexExternalCredentials(record: ExternalCredentialRecord(
+        data: credential,
+        account: "Codex Auth"
+      ))
+    )
+    let session = RecordingQuotaSession(
+      body: #"{"rate_limit":{"primary_window":{"used_percent":10}}}"#)
+    let fetcher = CodexQuotaFetcher(credentials: loader, session: session)
+
+    let initial = try await fetcher.fetch(.init(provider: .codex, mode: .monitor))
+    try await metadata.setDisabled(true, accountID: account.id)
+    let refreshed = try await fetcher.fetch(.init(provider: .codex, mode: .monitor))
+
+    XCTAssertNotNil(initial.quotas[accountKey])
+    XCTAssertTrue(refreshed.quotas.isEmpty)
+    XCTAssertEqual(refreshed.credentialAvailability, .missing)
+    let requests = await session.requests()
+    XCTAssertEqual(requests.count, 3)
+  }
+
   func testCodexPersistsAllRotatedTokensBeforeRetryingUsage() async throws {
     let now = Date(timeIntervalSince1970: 2_000)
     let usage =
@@ -445,6 +488,48 @@ private struct CodexLoader: CodexQuotaCredentialLoading {
   let values: [CodexQuotaCredential]
   init(_ values: [CodexQuotaCredential]) { self.values = values }
   func credentials(for mode: QuotaOperatingMode) async -> [CodexQuotaCredential] { values }
+}
+
+private actor CodexVault: CredentialVault {
+  func accounts() -> [Account] { [] }
+  func credential(for accountID: String) -> StoredCredential? { nil }
+  func reloadLatest(accountID: String) -> StoredCredential? { nil }
+  func save(_ credential: StoredCredential, metadata: Account) throws {}
+  func delete(accountID: String) {}
+}
+
+private actor CodexMetadata: AccountMetadataRepository {
+  private var disabledIDs = Set<String>()
+
+  func accounts() -> [Account] { [] }
+  func disabledAccountIDs() -> Set<String> { disabledIDs }
+  func saveAccount(_ account: Account) throws {}
+  func deleteAccount(_ accountID: String) throws {}
+
+  func setDisabled(_ disabled: Bool, accountID: String) throws {
+    if disabled {
+      disabledIDs.insert(accountID)
+    } else {
+      disabledIDs.remove(accountID)
+    }
+  }
+}
+
+private actor CodexExternalCredentials: ExternalCredentialReading {
+  private let record: ExternalCredentialRecord?
+
+  init(record: ExternalCredentialRecord?) {
+    self.record = record
+  }
+
+  func read(service: String, account: String?) -> ExternalCredentialRecord? { record }
+
+  func compareAndSwap(
+    service: String,
+    account: String,
+    expectedData: Data,
+    newData: Data
+  ) -> Bool { false }
 }
 
 private actor RecordingClaudeLoader: ClaudeQuotaCredentialLoading {
