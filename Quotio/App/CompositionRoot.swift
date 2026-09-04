@@ -268,7 +268,12 @@ enum CompositionRoot {
         providersScreenModel.reloadCustomProviders()
 
         let antigravityAccountScreenModel = AntigravityAccountScreenModel(
-            switcher: AntigravityAccountSwitcherFactory.make()
+            switcher: AntigravityAccountSwitcherFactory.make(
+                logger: OSApplicationLogger(
+                    subsystem: AppIdentity.bundleIdentifier,
+                    category: "Antigravity"
+                )
+            )
         )
         let refreshSettings = RefreshSettingsManager(
             repository: UserDefaultsRefreshPreferencesRepository()

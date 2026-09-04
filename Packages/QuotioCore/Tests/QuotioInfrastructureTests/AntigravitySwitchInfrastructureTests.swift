@@ -1,3 +1,4 @@
+import QuotioApplication
 import SQLite3
 import XCTest
 @testable import QuotioInfrastructure
@@ -8,7 +9,7 @@ final class AntigravitySwitchInfrastructureTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let switcher = AntigravityAccountSwitcher()
+        let switcher = AntigravityAccountSwitcher(logger: RecordingAntigravityLogger())
 
         await switcher.switchAccount(
             email: "person@example.com",
@@ -30,12 +31,26 @@ final class AntigravitySwitchInfrastructureTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let authFile = directory.appendingPathComponent("antigravity-person.json")
         try Data("not-json".utf8).write(to: authFile)
-        let switcher = AntigravityAccountSwitcher()
+        let switcher = AntigravityAccountSwitcher(logger: RecordingAntigravityLogger())
 
         await switcher.switchAccount(authFilePath: authFile.path, restartIDE: false)
 
         let snapshot = await switcher.snapshot()
         XCTAssertEqual(snapshot.state, .failed(.authFileUnreadable))
+    }
+
+    func testMachineIdentitySyncFailureIsLoggedAsNonfatalWarning() async {
+        let logger = RecordingAntigravityLogger()
+        let switcher = AntigravityAccountSwitcher(
+            logger: logger,
+            machineIdentitySync: { _ in throw CocoaError(.fileWriteNoPermission) }
+        )
+
+        await switcher.synchronizeMachineIdentity(for: "person@example.com")
+
+        let warnings = await logger.warnings
+        XCTAssertEqual(warnings.count, 1)
+        XCTAssertTrue(warnings[0].contains("machine identity synchronization failed"))
     }
 
     func testVersionComponentsSupportThresholdAndShortVersions() {
@@ -68,5 +83,14 @@ final class AntigravitySwitchInfrastructureTests: XCTestCase {
     func testUnifiedPayloadIsBase64EncodedProtobuf() throws {
         let payload = AntigravityProtobuf.createUnified("token", "refresh", 123)
         XCTAssertFalse(try XCTUnwrap(Data(base64Encoded: payload)).isEmpty)
+    }
+}
+
+private actor RecordingAntigravityLogger: ApplicationLogging {
+    private(set) var warnings: [String] = []
+
+    func write(_ level: ApplicationLogLevel, message: String) {
+        guard case .warning = level else { return }
+        warnings.append(message)
     }
 }

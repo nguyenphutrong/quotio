@@ -5,8 +5,8 @@ import QuotioDomain
 import SQLite3
 
 public enum AntigravityAccountSwitcherFactory {
-    public static func make() -> any AntigravityAccountSwitching {
-        AntigravityAccountSwitcher()
+    public static func make(logger: any ApplicationLogging) -> any AntigravityAccountSwitching {
+        AntigravityAccountSwitcher(logger: logger)
     }
 }
 
@@ -25,17 +25,31 @@ private struct AntigravitySwitchAuthFile: Decodable, Sendable {
 }
 
 actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
-    private let database = AntigravitySwitchDatabase()
+    private let database: AntigravitySwitchDatabase
     private let process = AntigravityIDEProcess()
-    private let devices = AntigravityDeviceStore()
     private let quota = AntigravityQuotaFetcher()
     private let credentialStore = LocalAntigravityCredentialStore()
+    private let logger: any ApplicationLogging
+    private let machineIdentitySync: @Sendable (String) async throws -> Void
     private let now: @Sendable () -> Date
     private var current = AntigravitySwitchSnapshot()
     private var continuations: [UUID: AsyncStream<AntigravitySwitchSnapshot>.Continuation] = [:]
     private var operationID: UUID?
 
-    init(now: @escaping @Sendable () -> Date = Date.init) {
+    init(
+        logger: any ApplicationLogging,
+        now: @escaping @Sendable () -> Date = Date.init,
+        machineIdentitySync: (@Sendable (String) async throws -> Void)? = nil
+    ) {
+        let database = AntigravitySwitchDatabase()
+        let devices = AntigravityDeviceStore()
+        self.database = database
+        self.logger = logger
+        self.machineIdentitySync = machineIdentitySync ?? { email in
+            let profile = await devices.loadOrCreate(email: email)
+            try await devices.writeToIDE(profile)
+            try await database.syncMachineID(profile.deviceID)
+        }
         self.now = now
     }
 
@@ -132,9 +146,7 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
 
             pendingFailure = .credentialInjectionFailed
             update(.switching(progress: .injectingToken))
-            let profile = await devices.loadOrCreate(email: auth.email)
-            try? await devices.writeToIDE(profile)
-            try? await database.syncMachineID(profile.deviceID)
+            await synchronizeMachineIdentity(for: auth.email)
             try ensureCurrent(id)
 
             let expiry = Self.expiry(auth.expired, now: now())
@@ -177,6 +189,17 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
     private func ensureCurrent(_ id: UUID) throws {
         try Task.checkCancellation()
         guard operationID == id else { throw CancellationError() }
+    }
+
+    func synchronizeMachineIdentity(for email: String) async {
+        do {
+            try await machineIdentitySync(email)
+        } catch {
+            await logger.write(
+                .warning,
+                message: "Antigravity machine identity synchronization failed: \(error.localizedDescription)"
+            )
+        }
     }
 
     private func update(_ state: AntigravitySwitchState) {
