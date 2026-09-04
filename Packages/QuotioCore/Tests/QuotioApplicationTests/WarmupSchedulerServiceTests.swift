@@ -23,7 +23,7 @@ final class WarmupSchedulerServiceTests: XCTestCase {
         XCTAssertEqual(status.progressCompleted, 2)
         XCTAssertEqual(status.lastRun, Self.now)
         XCTAssertEqual(status.nextRun, Self.now.addingTimeInterval(3_600))
-        XCTAssertNil(status.lastFailure)
+        XCTAssertEqual(status.lastFailure, .failed)
         await service.cancelForTermination()
     }
 

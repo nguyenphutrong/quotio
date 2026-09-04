@@ -200,18 +200,9 @@ public actor WarmupSchedulerService: LifecycleCancelling {
             let finishedAt = clock.now()
             let date = scheduledDate(for: target, after: finishedAt, initial: false)
             nextRun[target.account] = date
-            updateStatus(for: target.account) {
-                $0.nextRun = date
-                $0.lastFailure = nil
-            }
+            updateStatus(for: target.account) { $0.nextRun = date }
             publish()
         }
-
-        let dueAccounts = Set(dueTargets.map(\.account))
-        for target in sortedTargets() where !dueAccounts.contains(target.account) {
-            updateStatus(for: target.account) { $0.lastFailure = nil }
-        }
-        publish()
     }
 
     public func cancelForTermination() {
