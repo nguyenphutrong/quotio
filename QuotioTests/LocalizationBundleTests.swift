@@ -19,6 +19,13 @@ final class LocalizationBundleTests: XCTestCase {
                 "nav.settings",
                 "Missing nav.settings in \(language.rawValue)"
             )
+            for key in ["agents.codex.saveConfigTOML", "agents.codex.applySuccess"] {
+                XCTAssertNotEqual(
+                    NSLocalizedString(key, bundle: bundle, comment: ""),
+                    key,
+                    "Missing \(key) in \(language.rawValue)"
+                )
+            }
         }
     }
 

@@ -1422,6 +1422,35 @@
         }
       }
     },
+    "agents.codex.applySuccess" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration files created. Codex CLI is now configured to use CLIProxyAPI."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fichiers de configuration créés. Codex CLI est maintenant configuré pour utiliser CLIProxyAPI."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã tạo các tệp cấu hình. Codex CLI hiện được cấu hình để sử dụng CLIProxyAPI."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置文件已创建。Codex CLI 现已配置为使用 CLIProxyAPI。"
+          }
+        }
+      }
+    },
     "agents.codex.mergeAndSaveFiles" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1476,6 +1505,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "从 ~/.codex/config.toml 中移除 [model_providers.cliproxyapi] 部分，并从 ~/.codex/auth.json 中移除由 Quotio 管理的 OPENAI_API_KEY 条目，同时保留该文件中的其他条目。"
+          }
+        }
+      }
+    },
+    "agents.codex.saveConfigTOML" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save this as ~/.codex/config.toml"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrez ceci dans ~/.codex/config.toml"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu nội dung này vào ~/.codex/config.toml"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将此内容保存到 ~/.codex/config.toml"
           }
         }
       }
