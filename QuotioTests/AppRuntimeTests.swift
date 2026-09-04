@@ -85,9 +85,6 @@ final class AppRuntimeTests: XCTestCase {
         let completedCleanly = await runtime.shutdown(timeout: .milliseconds(10))
 
         XCTAssertFalse(completedCleanly)
-        for _ in 0..<100 where services.orphanCleanupCount == 0 {
-            await Task.yield()
-        }
         XCTAssertEqual(services.orphanCleanupCount, 1)
     }
 }

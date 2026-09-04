@@ -262,9 +262,7 @@ final class AppRuntime {
         timeoutTask.cancel()
 
         if !completedCleanly {
-            orphanCleanupTask = Task(priority: .utility) {
-                await services.cleanupTunnelOrphans()
-            }
+            await services.cleanupTunnelOrphans()
         }
         return completedCleanly
     }
