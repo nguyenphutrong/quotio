@@ -205,6 +205,7 @@ public actor TunnelLifecycleController: TunnelLifecycleControlling {
         }
 
         cancelStartTimeout()
+        autoRestartAttempts = 0
         currentSnapshot.status = .active
         currentSnapshot.publicURL = url
         currentSnapshot.failure = nil

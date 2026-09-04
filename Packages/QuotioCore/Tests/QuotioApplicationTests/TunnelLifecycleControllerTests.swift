@@ -122,7 +122,7 @@ final class TunnelLifecycleControllerTests: XCTestCase {
         await controller.shutdown()
     }
 
-    func testAutomaticRestartStopsAtConfiguredRetryCap() async {
+    func testSuccessfulAutomaticRestartResetsRetryBudget() async {
         let process = TunnelProcessDouble(installation: installed)
         let remoteAccess = TunnelRemoteAccessDouble()
         let sleeper = TunnelSleeperDouble()
@@ -131,7 +131,7 @@ final class TunnelLifecycleControllerTests: XCTestCase {
             remoteAccess: remoteAccess,
             sleeper: sleeper,
             autoRestart: true,
-            maximumAutoRestartAttempts: 3
+            maximumAutoRestartAttempts: 1
         )
 
         await controller.start(port: 8317)
@@ -139,7 +139,7 @@ final class TunnelLifecycleControllerTests: XCTestCase {
         let initiallyActive = await eventually { await controller.snapshot.status == .active }
         XCTAssertTrue(initiallyActive)
 
-        for retry in 1...3 {
+        for recovery in 1...2 {
             await process.setRunning(false)
             let monitoring = await eventually {
                 await sleeper.waitingCount(for: .seconds(2)) == 1
@@ -153,24 +153,65 @@ final class TunnelLifecycleControllerTests: XCTestCase {
             }
             XCTAssertTrue(scheduledRestart)
             await sleeper.resumeFirst(for: .seconds(5))
-            let restarted = await eventually { await process.startCount == retry + 1 }
+            let restarted = await eventually { await process.startCount == recovery + 1 }
             XCTAssertTrue(restarted)
             await process.emitURL(
-                "https://retry-\(retry).trycloudflare.com",
-                callbackIndex: retry
+                "https://recovery-\(recovery).trycloudflare.com",
+                callbackIndex: recovery
             )
-            let retryBecameActive = await eventually { await controller.snapshot.status == .active }
-            XCTAssertTrue(retryBecameActive)
+            let recoveryBecameActive = await eventually {
+                await controller.snapshot.status == .active
+            }
+            XCTAssertTrue(recoveryBecameActive)
         }
 
+        let startCount = await process.startCount
+        XCTAssertEqual(startCount, 3)
+        await controller.shutdown()
+    }
+
+    func testConsecutiveFailedAutomaticRestartsStopAtConfiguredRetryCap() async {
+        let process = TunnelProcessDouble(installation: installed)
+        let sleeper = TunnelSleeperDouble()
+        let controller = makeController(
+            process: process,
+            remoteAccess: TunnelRemoteAccessDouble(),
+            sleeper: sleeper,
+            autoRestart: true,
+            maximumAutoRestartAttempts: 3
+        )
+
+        await controller.start(port: 8317)
+        await process.emitURL("https://initial.trycloudflare.com", callbackIndex: 0)
+        let initiallyActive = await eventually { await controller.snapshot.status == .active }
+        XCTAssertTrue(initiallyActive)
+        await process.setStartFailures([
+            .startFailed("first"),
+            .startFailed("second"),
+            .startFailed("third"),
+        ])
         await process.setRunning(false)
-        let finalMonitoring = await eventually {
+        let monitoring = await eventually {
             await sleeper.waitingCount(for: .seconds(2)) == 1
         }
-        XCTAssertTrue(finalMonitoring)
+        XCTAssertTrue(monitoring)
         await sleeper.resumeFirst(for: .seconds(2))
-        let finalExit = await eventually { await controller.snapshot.status == .error }
-        XCTAssertTrue(finalExit)
+        let detectedExit = await eventually { await controller.snapshot.status == .error }
+        XCTAssertTrue(detectedExit)
+
+        for attempt in 1...3 {
+            let scheduledRestart = await eventually {
+                await sleeper.waitingCount(for: .seconds(5)) == 1
+            }
+            XCTAssertTrue(scheduledRestart)
+            await sleeper.resumeFirst(for: .seconds(5))
+            let failed = await eventually {
+                let startCount = await process.startCount
+                let status = await controller.snapshot.status
+                return startCount == attempt + 1 && status == .error
+            }
+            XCTAssertTrue(failed)
+        }
         await Task.yield()
 
         let startCount = await process.startCount
@@ -311,6 +352,10 @@ private actor TunnelProcessDouble: TunnelControlling {
 
     func setRunning(_ running: Bool) {
         self.running = running
+    }
+
+    func setStartFailures(_ failures: [TunnelFailure]) {
+        startFailures = failures
     }
 
     func resumeStart() {
