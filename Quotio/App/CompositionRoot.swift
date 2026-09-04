@@ -172,7 +172,8 @@ enum CompositionRoot {
             dataStore: KeychainCredentialDataStore(
                 service: AppIdentity.keychainService(suffix: "warp"),
                 legacyServices: AppIdentity.legacyKeychainServices(suffix: "warp"),
-                canMigrateLegacy: AppIdentity.isProduction
+                canMigrateLegacy: AppIdentity.isProduction,
+                protectedStore: yubiKeyVault
             )
         )
         let warpTokenScreenModel = WarpTokenScreenModel(repository: warpTokenRepository)

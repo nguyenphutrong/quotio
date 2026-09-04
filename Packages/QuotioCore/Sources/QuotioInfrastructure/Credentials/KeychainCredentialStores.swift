@@ -91,15 +91,22 @@ public actor KeychainCredentialDataStore: CredentialDataStoring {
             let result = await protectedStore.read(service: service, account: accountID)
             if case .success(let data) = result { return data }
             guard result == .absent else { return nil }
-            guard let legacy = Self.readKeychainData(service: service, account: accountID),
-                  await protectedStore.save(legacy, service: service, account: accountID),
-                  case .success(let roundTripped) = await protectedStore.read(
-                    service: service,
+            let plaintextServices = [service] + (canMigrateLegacy ? legacyServices : [])
+            for plaintextService in plaintextServices {
+                guard let plaintext = Self.readKeychainData(
+                    service: plaintextService,
                     account: accountID
-                  ),
-                  roundTripped == legacy else { return nil }
-            Self.deleteKeychainData(service: service, account: accountID)
-            return legacy
+                ) else { continue }
+                guard await protectedStore.save(plaintext, service: service, account: accountID),
+                      case .success(let roundTripped) = await protectedStore.read(
+                        service: service,
+                        account: accountID
+                      ),
+                      roundTripped == plaintext else { return nil }
+                Self.deleteKeychainData(service: plaintextService, account: accountID)
+                return plaintext
+            }
+            return nil
         }
 
         if let data = Self.readKeychainData(service: service, account: accountID) {

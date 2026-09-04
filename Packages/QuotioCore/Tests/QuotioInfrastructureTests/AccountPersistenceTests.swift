@@ -309,6 +309,40 @@ final class AccountPersistenceTests: XCTestCase {
         XCTAssertEqual(saveCount, 1)
     }
 
+    func testProtectedCredentialStoreMigratesPlaintextFromLegacyService() async throws {
+        let currentService = "test-current-\(UUID().uuidString)"
+        let legacyService = "test-legacy-\(UUID().uuidString)"
+        let accountID = "account"
+        let data = Data("legacy-secret".utf8)
+        let plaintextStore = KeychainCredentialDataStore(
+            service: legacyService,
+            canMigrateLegacy: false
+        )
+        let protectedStore = FakeProtectedCredentialStore(readResult: .absent)
+        let store = KeychainCredentialDataStore(
+            service: currentService,
+            legacyServices: [legacyService],
+            canMigrateLegacy: true,
+            protectedStore: protectedStore
+        )
+        let plaintextRecord = await plaintextStore.save(data, accountID: accountID)
+        try XCTSkipIf(plaintextRecord == nil, "The test keychain is unavailable")
+
+        let migrated = await store.read(accountID: accountID)
+
+        XCTAssertEqual(migrated?.data, data)
+        let protectedResult = await protectedStore.read(
+            service: currentService,
+            account: accountID
+        )
+        XCTAssertEqual(protectedResult, .success(data))
+        let legacyRecord = await plaintextStore.read(accountID: accountID)
+        XCTAssertNil(legacyRecord)
+
+        await plaintextStore.delete(accountID: accountID)
+        await store.delete(accountID: accountID)
+    }
+
     func testLoopbackCallbackReturnsCodeAndState() async throws {
         let transport = LoopbackOAuthCallbackTransport()
         let port = try await transport.start()
@@ -337,7 +371,7 @@ final class AccountPersistenceTests: XCTestCase {
 
 private actor FakeProtectedCredentialStore: ProtectedCredentialDataStoring {
     let isEnabled = true
-    private let result: ProtectedCredentialReadResult
+    private var result: ProtectedCredentialReadResult
     private(set) var readCount = 0
     private(set) var saveCount = 0
 
@@ -352,6 +386,7 @@ private actor FakeProtectedCredentialStore: ProtectedCredentialDataStoring {
 
     func save(_ data: Data, service: String, account: String) -> Bool {
         saveCount += 1
+        result = .success(data)
         return true
     }
 
