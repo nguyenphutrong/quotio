@@ -41,17 +41,20 @@ public struct QuotaProviderOutput: Sendable {
     public var quotas: [String: ProviderQuota]
     public var subscriptions: [String: QuotaSubscriptionInfo]
     public var credentialAvailability: QuotaCredentialAvailability
+    public var credentialAccountKeys: Set<String>?
     public var accountAliases: [String: String]
 
     public init(
         quotas: [String: ProviderQuota],
         subscriptions: [String: QuotaSubscriptionInfo] = [:],
         credentialAvailability: QuotaCredentialAvailability = .unknown,
+        credentialAccountKeys: Set<String>? = nil,
         accountAliases: [String: String] = [:]
     ) {
         self.quotas = quotas
         self.subscriptions = subscriptions
         self.credentialAvailability = credentialAvailability
+        self.credentialAccountKeys = credentialAccountKeys
         self.accountAliases = accountAliases
     }
 }

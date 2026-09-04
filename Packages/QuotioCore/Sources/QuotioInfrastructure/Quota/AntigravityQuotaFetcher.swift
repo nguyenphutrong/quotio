@@ -182,7 +182,8 @@ public actor AntigravityQuotaFetcher: QuotaFetching {
     return QuotaProviderOutput(
       quotas: quotas,
       subscriptions: subscriptions,
-      credentialAvailability: candidates.isEmpty ? .missing : .present
+      credentialAvailability: candidates.isEmpty ? .missing : .present,
+      credentialAccountKeys: Set(candidates.map(\.accountKey))
     )
   }
 

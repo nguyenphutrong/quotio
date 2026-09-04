@@ -98,7 +98,9 @@ public actor GrokQuotaFetcher: QuotaFetching {
 
   public func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
     guard let data = await files.read(path: authPath) else {
-      return .init(quotas: [:], credentialAvailability: .missing)
+      return .init(
+        quotas: [:], credentialAvailability: .missing, credentialAccountKeys: []
+      )
     }
     let candidates = Self.loadCandidates(data: data).filter {
       Self.includes($0.entryKey, in: request.scope)
@@ -107,7 +109,11 @@ public actor GrokQuotaFetcher: QuotaFetching {
     for candidate in candidates {
       if let quota = try? await fetchQuota(candidate) { quotas[candidate.entryKey] = quota }
     }
-    return .init(quotas: quotas, credentialAvailability: candidates.isEmpty ? .missing : .present)
+    return .init(
+      quotas: quotas,
+      credentialAvailability: candidates.isEmpty ? .missing : .present,
+      credentialAccountKeys: Set(candidates.map(\.entryKey))
+    )
   }
 
   public nonisolated static func loadCandidates(data: Data) -> [Candidate] {

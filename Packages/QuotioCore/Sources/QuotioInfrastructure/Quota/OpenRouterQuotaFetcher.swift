@@ -37,7 +37,9 @@ public actor OpenRouterQuotaFetcher: QuotaFetching {
 
   public func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
     guard request.mode == .monitor else {
-      return QuotaProviderOutput(quotas: [:], credentialAvailability: .missing)
+      return QuotaProviderOutput(
+        quotas: [:], credentialAvailability: .missing, credentialAccountKeys: []
+      )
     }
     let disabled = await metadata.disabledAccountIDs()
     let accounts = await vault.accounts().filter {
@@ -45,12 +47,12 @@ public actor OpenRouterQuotaFetcher: QuotaFetching {
         && Self.includes($0.accountKey, in: request.scope)
     }
     var quotas: [String: ProviderQuota] = [:]
-    var hasCredential = false
+    var credentialAccountKeys = Set<String>()
     for account in accounts {
       guard let credential = await vault.credential(for: account.id),
         !credential.accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       else { continue }
-      hasCredential = true
+      credentialAccountKeys.insert(account.accountKey)
       async let credits = endpoint(creditsURL, token: credential.accessToken)
       async let key = endpoint(keyURL, token: credential.accessToken)
       if let quota = Self.map(credits: await credits, key: await key, now: now()) {
@@ -58,7 +60,10 @@ public actor OpenRouterQuotaFetcher: QuotaFetching {
       }
     }
     return QuotaProviderOutput(
-      quotas: quotas, credentialAvailability: hasCredential ? .present : .missing)
+      quotas: quotas,
+      credentialAvailability: credentialAccountKeys.isEmpty ? .missing : .present,
+      credentialAccountKeys: credentialAccountKeys
+    )
   }
 
   private func endpoint(_ url: URL, token: String) async -> EndpointResult {

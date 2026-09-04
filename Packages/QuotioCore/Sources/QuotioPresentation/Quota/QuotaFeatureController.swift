@@ -260,23 +260,37 @@ public final class QuotaFeatureController {
     }
 
     func synchronizeMenuBarSelection() {
+        let disabledItemIDs = Set(accounts.accounts.compactMap { account -> String? in
+            guard account.isDisabled,
+                  let provider = QuotaProvider(rawValue: account.providerID.rawValue) else { return nil }
+            return MenuBarQuotaItem(
+                provider: provider.rawValue,
+                accountKey: account.accountKey
+            ).id.lowercased()
+        })
         var available: [MenuBarQuotaItem] = []
         var seen = Set<String>()
         for (provider, quotas) in quota.providerQuotas {
             for key in quotas.keys {
                 let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: key)
-                if seen.insert(item.id).inserted { available.append(item) }
+                if !disabledItemIDs.contains(item.id.lowercased()), seen.insert(item.id).inserted {
+                    available.append(item)
+                }
             }
         }
-        for file in authFiles() {
+        for file in authFiles() where !file.disabled {
             guard let provider = file.providerID else { continue }
             let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey)
-            if seen.insert(item.id).inserted { available.append(item) }
+            if !disabledItemIDs.contains(item.id.lowercased()), seen.insert(item.id).inserted {
+                available.append(item)
+            }
         }
         for file in accounts.authFiles {
             guard let provider = QuotaProvider(rawValue: file.providerID.rawValue) else { continue }
             let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey)
-            if seen.insert(item.id).inserted { available.append(item) }
+            if !disabledItemIDs.contains(item.id.lowercased()), seen.insert(item.id).inserted {
+                available.append(item)
+            }
         }
         menuBarSettings.pruneInvalidItems(validItems: available)
         menuBarSettings.autoSelectNewAccounts(availableItems: available)
@@ -291,6 +305,7 @@ public final class QuotaFeatureController {
 
     private func finishRefresh() async {
         await reloadAccounts()
+        await removeDisabledMonitorQuotas()
         checkQuotaNotifications()
         synchronizeMenuBarSelection()
         didChangeHandler?()
@@ -298,6 +313,20 @@ public final class QuotaFeatureController {
 
     private func reloadAccounts() async {
         await accounts.reloadAccounts(merging: quota.providerQuotas)
+    }
+
+    private func removeDisabledMonitorQuotas() async {
+        guard operatingMode == .monitor else { return }
+        for account in accounts.accounts where account.isDisabled {
+            guard let provider = QuotaProvider(rawValue: account.providerID.rawValue),
+                  let quotaKey = quota.providerQuotas[provider]?.keys.first(where: {
+                      $0.caseInsensitiveCompare(account.accountKey) == .orderedSame
+                  }) else { continue }
+            await quota.removeQuota(
+                for: QuotaAccountID(provider: provider, accountKey: quotaKey),
+                mode: operatingMode
+            )
+        }
     }
 
     private func restartAutomaticRefresh() {

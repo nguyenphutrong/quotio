@@ -52,9 +52,9 @@ public actor WarpQuotaFetcher: QuotaFetching {
     let tokens = try await repository.load().filter {
       $0.isEnabled && Self.includes($0.name, in: request.scope)
     }
-    let hasCredential = tokens.contains {
-      !$0.token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    let credentialAccountKeys = Set(tokens.compactMap { entry in
+      entry.token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.name
+    })
     var quotas: [String: ProviderQuota] = [:]
     for entry in tokens {
       guard !entry.token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
@@ -64,7 +64,8 @@ public actor WarpQuotaFetcher: QuotaFetching {
     }
     return QuotaProviderOutput(
       quotas: quotas,
-      credentialAvailability: hasCredential ? .present : .missing
+      credentialAvailability: credentialAccountKeys.isEmpty ? .missing : .present,
+      credentialAccountKeys: credentialAccountKeys
     )
   }
 

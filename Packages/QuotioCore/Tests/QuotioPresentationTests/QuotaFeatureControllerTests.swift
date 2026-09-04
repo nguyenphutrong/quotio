@@ -21,6 +21,25 @@ final class QuotaFeatureControllerTests: XCTestCase {
         )
     }
 
+    func testRefreshRemovesQuotaForDisabledNativeAccount() async {
+        let account = Account.make(
+            providerID: AccountProviderID(rawValue: QuotaProvider.kiro.rawValue),
+            accountKey: "Person@example.com",
+            source: .nativeCredential,
+            status: .disabled
+        )
+        let fixture = await makeFixture(
+            account: account,
+            provider: .kiro,
+            quotaAccountKey: "person@example.com"
+        )
+
+        await fixture.controller.refresh(provider: .kiro)
+
+        XCTAssertNil(fixture.quota.providerQuotas[.kiro])
+        await fixture.controller.shutdown()
+    }
+
     func testRemoveImportedIDEAccountClearsDisabledMetadataWithoutDeletingCredential() async {
         let account = Account.make(
             providerID: AccountProviderID(rawValue: QuotaProvider.cursor.rawValue),
@@ -70,7 +89,8 @@ final class QuotaFeatureControllerTests: XCTestCase {
 
     private func makeFixture(
         account: Account,
-        provider: QuotaProvider
+        provider: QuotaProvider,
+        quotaAccountKey: String? = nil
     ) async -> (
         controller: QuotaFeatureController,
         accountService: QuotaFeatureAccountService,
@@ -84,7 +104,11 @@ final class QuotaFeatureControllerTests: XCTestCase {
         let quota = QuotaScreenModel(coordinator: QuotaRefreshCoordinator(
             registry: QuotaProviderRegistry([]),
             snapshots: QuotaFeatureSnapshotStore(initial: QuotaSnapshot(quotas: [
-                provider: [account.accountKey: ProviderQuota(lastUpdated: Date(timeIntervalSince1970: 1_000))],
+                provider: [
+                    quotaAccountKey ?? account.accountKey: ProviderQuota(
+                        lastUpdated: Date(timeIntervalSince1970: 1_000)
+                    ),
+                ],
             ])),
             clock: QuotaFeatureClock()
         ))

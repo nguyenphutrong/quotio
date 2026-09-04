@@ -38,7 +38,7 @@ public actor ClinePassQuotaFetcher: QuotaFetching {
     let providers = try repository.load().filter {
       $0.type == .clinePass && $0.isEnabled && Self.includes($0.name, in: request.scope)
     }
-    let hasCredential = providers.contains { !$0.apiKeys.isEmpty }
+    let credentialAccountKeys = Set(providers.filter { !$0.apiKeys.isEmpty }.map(\.name))
     var quotas: [String: ProviderQuota] = [:]
     for customProvider in providers {
       guard let apiKey = customProvider.apiKeys.first?.apiKey else { continue }
@@ -48,7 +48,8 @@ public actor ClinePassQuotaFetcher: QuotaFetching {
     }
     return QuotaProviderOutput(
       quotas: quotas,
-      credentialAvailability: hasCredential ? .present : .missing
+      credentialAvailability: credentialAccountKeys.isEmpty ? .missing : .present,
+      credentialAccountKeys: credentialAccountKeys
     )
   }
 

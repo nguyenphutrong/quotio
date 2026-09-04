@@ -187,6 +187,7 @@ final class DevinGrokQuotaFetcherTests: XCTestCase {
       let output = try await fetcher.fetch(
         .init(provider: .grok, scope: .account("account-a::client+a"), mode: mode))
       XCTAssertEqual(output.quotas.keys.sorted(), ["account-a::client+a"])
+      XCTAssertEqual(output.credentialAccountKeys, ["account-a::client+a"])
       XCTAssertEqual(output.quotas["account-a::client+a"]?.planType, "SuperGrok")
       XCTAssertEqual(
         output.quotas["account-a::client+a"]?.models.first { $0.name == "grok-weekly" }?.percentage,
@@ -198,6 +199,7 @@ final class DevinGrokQuotaFetcherTests: XCTestCase {
     let denied = try await fetcher.fetch(
       .init(provider: .grok, scope: .account("account-b"), mode: .monitor))
     XCTAssertEqual(denied.quotas["account-b"]?.isForbidden, true)
+    XCTAssertEqual(denied.credentialAccountKeys, ["account-b"])
     XCTAssertEqual(denied.quotas["account-b"]?.accountDisplayName, "Grok account-")
     let persistedCount = await writer.persistedCount()
     XCTAssertEqual(persistedCount, 2)

@@ -289,6 +289,7 @@ public actor CodexQuotaFetcher: QuotaFetching {
     return QuotaProviderOutput(
       quotas: quotas,
       credentialAvailability: loaded.isEmpty ? .missing : .present,
+      credentialAccountKeys: Set(loaded.map(\.accountKey)),
       accountAliases: aliases
     )
   }

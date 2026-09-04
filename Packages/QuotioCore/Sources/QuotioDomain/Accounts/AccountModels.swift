@@ -284,7 +284,8 @@ public enum AccountSelectionPolicy {
             }
         }
 
-        merged = preferred(merged)
+        let disabledIDs = Set(merged.lazy.filter(\.isDisabled).map(\.id))
+        merged = preferred(merged, disabledIDs: disabledIDs)
         return merged.filter { account in
             guard let provider = QuotaProvider(rawValue: account.providerID.rawValue),
                   placeholderAccountKeys[provider]?.contains(account.accountKey.lowercased()) == true else {

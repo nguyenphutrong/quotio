@@ -367,7 +367,7 @@ public actor FactoryDroidQuotaFetcher: QuotaFetching {
   public func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
     let disabled = await metadata.disabledAccountIDs()
     var quotas: [String: ProviderQuota] = [:]
-    var hasCredential = false
+    var credentialAccountKeys = Set<String>()
 
     if let local = await localCredentials.load(), Self.includes(local.accountKey, in: request.scope)
     {
@@ -375,7 +375,7 @@ public actor FactoryDroidQuotaFetcher: QuotaFetching {
         providerID: .init(rawValue: provider.rawValue), accountKey: local.accountKey
       ).id
       if !disabled.contains(id) {
-        hasCredential = true
+        credentialAccountKeys.insert(local.accountKey)
         if let quota = try? await fetchLocal(local) { quotas[local.accountKey] = quota }
       }
     }
@@ -388,13 +388,17 @@ public actor FactoryDroidQuotaFetcher: QuotaFetching {
         guard let credential = await vault.credential(for: account.id),
           !credential.accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { continue }
-        hasCredential = true
+        credentialAccountKeys.insert(account.accountKey)
         if let quota = await fetchQuota(token: credential.accessToken).quota {
           quotas[account.accountKey] = quota
         }
       }
     }
-    return .init(quotas: quotas, credentialAvailability: hasCredential ? .present : .missing)
+    return .init(
+      quotas: quotas,
+      credentialAvailability: credentialAccountKeys.isEmpty ? .missing : .present,
+      credentialAccountKeys: credentialAccountKeys
+    )
   }
 
   public nonisolated static func makeRefreshRequest(

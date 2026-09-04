@@ -58,13 +58,13 @@ public actor AmpQuotaFetcher: QuotaFetching {
   public func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
     let disabled = await metadata.disabledAccountIDs()
     var quotas: [String: ProviderQuota] = [:]
-    var hasCredential = false
+    var credentialAccountKeys = Set<String>()
 
     if Self.includes(Self.localAccountKey, in: request.scope),
       !disabled.contains(Self.localAccountID(path: nativePath)),
       let token = await nativeToken()
     {
-      hasCredential = true
+      credentialAccountKeys.insert(Self.localAccountKey)
       if let quota = try? await fetchQuota(token: token) { quotas[Self.localAccountKey] = quota }
     }
 
@@ -77,14 +77,17 @@ public actor AmpQuotaFetcher: QuotaFetching {
         guard let credential = await vault.credential(for: account.id),
           !credential.accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { continue }
-        hasCredential = true
+        credentialAccountKeys.insert(account.accountKey)
         if let quota = try? await fetchQuota(token: credential.accessToken) {
           quotas[account.accountKey] = quota
         }
       }
     }
     return QuotaProviderOutput(
-      quotas: quotas, credentialAvailability: hasCredential ? .present : .missing)
+      quotas: quotas,
+      credentialAvailability: credentialAccountKeys.isEmpty ? .missing : .present,
+      credentialAccountKeys: credentialAccountKeys
+    )
   }
 
   public nonisolated static func localAccountID(path: String = defaultNativePath) -> String {

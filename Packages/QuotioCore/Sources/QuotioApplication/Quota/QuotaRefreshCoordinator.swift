@@ -56,6 +56,7 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
     private struct InFlight {
         let id: UUID
         let request: QuotaFetchRequest
+        let removalGeneration: UInt64
         let task: Task<QuotaProviderOutput?, Never>
         var waiters: Set<UUID>
     }
@@ -70,6 +71,8 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
     private var activeMode: QuotaOperatingMode?
     private var bootstrapGeneration: UInt64?
     private var generation: UInt64 = 0
+    private var removalGeneration: UInt64 = 0
+    private var accountRemovalGenerations: [QuotaAccountID: UInt64] = [:]
     private(set) public var snapshot = QuotaSnapshot()
 
     public init(
@@ -145,7 +148,13 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
                     return nil
                 }
             }
-            operation = InFlight(id: id, request: request, task: task, waiters: [waiterID])
+            operation = InFlight(
+                id: id,
+                request: request,
+                removalGeneration: removalGeneration,
+                task: task,
+                waiters: [waiterID]
+            )
             inFlight[request.provider] = operation
             snapshot.refreshingProviders.insert(request.provider)
             publish()
@@ -167,7 +176,11 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
             return snapshot
         }
 
-        apply(output, request: request)
+        apply(
+            output,
+            request: request,
+            operationRemovalGeneration: operation.removalGeneration
+        )
         await snapshots.save(snapshot.persisted, for: request.mode)
         publish()
         return snapshot
@@ -210,16 +223,29 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
     }
 
     public func removeQuota(for account: QuotaAccountID, mode: QuotaOperatingMode) async {
-        snapshot.quotas[account.provider]?.removeValue(forKey: account.accountKey)
+        removalGeneration &+= 1
+        accountRemovalGenerations[normalized(account)] = removalGeneration
+        snapshot.quotas[account.provider] = snapshot.quotas[account.provider]?.filter {
+            $0.key.caseInsensitiveCompare(account.accountKey) != .orderedSame
+        }
         if snapshot.quotas[account.provider]?.isEmpty == true {
             snapshot.quotas.removeValue(forKey: account.provider)
         }
-        snapshot.subscriptions[account.provider]?.removeValue(forKey: account.accountKey)
+        snapshot.subscriptions[account.provider] = snapshot.subscriptions[account.provider]?.filter {
+            $0.key.caseInsensitiveCompare(account.accountKey) != .orderedSame
+        }
         if snapshot.subscriptions[account.provider]?.isEmpty == true {
             snapshot.subscriptions.removeValue(forKey: account.provider)
         }
-        snapshot.accountIssues.removeValue(forKey: account)
-        retryAfter.removeValue(forKey: .account(account))
+        snapshot.accountIssues = snapshot.accountIssues.filter {
+            $0.key.provider != account.provider
+                || $0.key.accountKey.caseInsensitiveCompare(account.accountKey) != .orderedSame
+        }
+        retryAfter = retryAfter.filter { scope, _ in
+            guard case .account(let retryAccount) = scope else { return true }
+            return retryAccount.provider != account.provider
+                || retryAccount.accountKey.caseInsensitiveCompare(account.accountKey) != .orderedSame
+        }
         snapshot.lastUpdated = clock.now()
         await snapshots.save(snapshot.persisted, for: mode)
         publish()
@@ -239,11 +265,15 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
         continuations.removeAll()
     }
 
-    private func apply(_ output: QuotaProviderOutput?, request: QuotaFetchRequest) {
+    private func apply(
+        _ fetchedOutput: QuotaProviderOutput?,
+        request: QuotaFetchRequest,
+        operationRemovalGeneration: UInt64
+    ) {
         let provider = request.provider
         let now = clock.now()
 
-        guard let output else {
+        guard var output = fetchedOutput else {
             let previous = snapshot.quotas[provider] ?? [:]
             if hasPreviousQuota(for: request, in: previous) {
                 recordFailure(for: request, at: now)
@@ -252,10 +282,37 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
             return
         }
 
+        output.quotas = output.quotas.filter { accountKey, _ in
+            !wasRemoved(
+                provider: provider,
+                accountKey: accountKey,
+                aliases: output.accountAliases,
+                after: operationRemovalGeneration
+            )
+        }
+        output.subscriptions = output.subscriptions.filter { accountKey, _ in
+            !wasRemoved(
+                provider: provider,
+                accountKey: accountKey,
+                aliases: output.accountAliases,
+                after: operationRemovalGeneration
+            )
+        }
         let previous = QuotaPolicy.canonicalizedAccounts(
             snapshot.quotas[provider] ?? [:],
             aliases: output.accountAliases
         )
+        let credentialAccountKeys = output.credentialAccountKeys.map { keys in
+            Set(keys.compactMap { key in
+                let canonicalKey = output.accountAliases[key] ?? key
+                return wasRemoved(
+                    provider: provider,
+                    accountKey: canonicalKey,
+                    aliases: output.accountAliases,
+                    after: operationRemovalGeneration
+                ) ? nil : canonicalKey
+            })
+        }
 
         let refreshed: [String: ProviderQuota]
         switch request.scope {
@@ -264,13 +321,32 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
                 output.quotas,
                 previous: previous,
                 availability: output.credentialAvailability,
+                credentialAccountKeys: credentialAccountKeys,
                 provider: provider,
                 now: now
             )
+            if let credentialAccountKeys {
+                let normalizedCredentialKeys = Set(credentialAccountKeys.map { $0.lowercased() })
+                let subscriptions = snapshot.subscriptions[provider]?.filter {
+                    normalizedCredentialKeys.contains($0.key.lowercased())
+                } ?? [:]
+                if subscriptions.isEmpty {
+                    snapshot.subscriptions.removeValue(forKey: provider)
+                } else {
+                    snapshot.subscriptions[provider] = subscriptions
+                }
+            }
         case .account(let accountKey):
             let account = QuotaAccountID(provider: provider, accountKey: accountKey)
             let canonicalKey = output.accountAliases[accountKey] ?? accountKey
-            if let quota = output.quotas[canonicalKey] {
+            if wasRemoved(
+                provider: provider,
+                accountKey: canonicalKey,
+                aliases: output.accountAliases,
+                after: operationRemovalGeneration
+            ) {
+                refreshed = previous
+            } else if let quota = output.quotas[canonicalKey] {
                 var merged = previous
                 merged[canonicalKey] = quota
                 refreshed = merged
@@ -299,9 +375,14 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
         _ fresh: [String: ProviderQuota],
         previous: [String: ProviderQuota],
         availability: QuotaCredentialAvailability,
+        credentialAccountKeys: Set<String>?,
         provider: QuotaProvider,
         now: Date
     ) -> [String: ProviderQuota] {
+        let previous = credentialAccountKeys.map { keys in
+            let normalizedKeys = Set(keys.map { $0.lowercased() })
+            return previous.filter { normalizedKeys.contains($0.key.lowercased()) }
+        } ?? previous
         if fresh.isEmpty, availability == .missing {
             clearIssue(for: provider)
             return [:]
@@ -318,7 +399,12 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
 
         var merged = previous
         merged.merge(fresh) { _, fresh in fresh }
-        if fresh.count < previous.count {
+        let missingCredentialQuota = credentialAccountKeys.map { keys in
+            let normalizedKeys = Set(keys.map { $0.lowercased() })
+            let normalizedFreshKeys = Set(fresh.keys.map { $0.lowercased() })
+            return !normalizedKeys.isSubset(of: normalizedFreshKeys)
+        } ?? (fresh.count < previous.count)
+        if missingCredentialQuota {
             snapshot.issues[provider] = QuotaRefreshIssue(kind: .partial, occurredAt: now)
             retryAfter[.provider(provider)] = now.addingTimeInterval(retryDelay)
         } else {
@@ -360,6 +446,26 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
         case .account(let accountKey): previous[accountKey] != nil
         case .provider, .importedAccounts: !previous.isEmpty
         }
+    }
+
+    private func wasRemoved(
+        provider: QuotaProvider,
+        accountKey: String,
+        aliases: [String: String],
+        after generation: UInt64
+    ) -> Bool {
+        let canonicalKey = aliases[accountKey] ?? accountKey
+        let keys = aliases.compactMap { alias, canonical in
+            canonical == canonicalKey ? alias : nil
+        } + [accountKey, canonicalKey]
+        return keys.contains { key in
+            let account = normalized(QuotaAccountID(provider: provider, accountKey: key))
+            return accountRemovalGenerations[account, default: 0] > generation
+        }
+    }
+
+    private func normalized(_ account: QuotaAccountID) -> QuotaAccountID {
+        QuotaAccountID(provider: account.provider, accountKey: account.accountKey.lowercased())
     }
 
     private func recordFailure(for request: QuotaFetchRequest, at date: Date) {

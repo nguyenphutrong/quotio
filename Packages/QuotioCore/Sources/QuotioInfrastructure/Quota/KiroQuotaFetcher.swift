@@ -183,7 +183,11 @@ public actor KiroQuotaFetcher: QuotaFetching {
         quotas[credential.accountKey] = quota
       }
     }
-    return .init(quotas: quotas, credentialAvailability: applicable.isEmpty ? .missing : .present)
+    return .init(
+      quotas: quotas,
+      credentialAvailability: applicable.isEmpty ? .missing : .present,
+      credentialAccountKeys: Set(applicable.map { $0.0.accountKey })
+    )
   }
 
   public func refreshAllLocalTokensIfNeeded() async -> Int {
@@ -262,8 +266,11 @@ public actor KiroQuotaFetcher: QuotaFetching {
   }
 
   private func usage(_ credential: KiroQuotaCredential) async -> (data: Data?, status: Int?) {
-    let region = Self.region(profileARN: credential.profileARN) ?? credential.region ?? "us-east-1"
-    var components = URLComponents(string: "https://q.\(region).amazonaws.com/getUsageLimits")!
+    guard let region = Self.resolvedRegion(for: credential),
+      var components = URLComponents(
+        string: "https://q.\(region).amazonaws.com/getUsageLimits"
+      )
+    else { return (nil, nil) }
     components.queryItems = [
       .init(name: "origin", value: "AI_EDITOR"),
       .init(name: "resourceType", value: "AGENTIC_REQUEST"),
@@ -271,7 +278,8 @@ public actor KiroQuotaFetcher: QuotaFetching {
     if let arn = credential.profileARN, !arn.isEmpty {
       components.queryItems?.append(.init(name: "profileArn", value: arn))
     }
-    var request = URLRequest(url: components.url!)
+    guard let url = components.url else { return (nil, nil) }
+    var request = URLRequest(url: url)
     let machineID = machineIdentifier(credential)
     request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
     request.setValue("q.\(region).amazonaws.com", forHTTPHeaderField: "Host")
@@ -318,8 +326,9 @@ public actor KiroQuotaFetcher: QuotaFetching {
   private func refresh(_ credential: KiroQuotaCredential, account: Account?) async
     -> KiroQuotaCredential?
   {
-    guard let refreshToken = credential.refreshToken else { return nil }
-    let region = credential.region ?? "us-east-1"
+    guard let refreshToken = credential.refreshToken,
+      let region = Self.validatedRegion(credential.region ?? "us-east-1")
+    else { return nil }
     let social = credential.authMethod.lowercased() == "social"
     let endpoint =
       social
@@ -395,11 +404,33 @@ public actor KiroQuotaFetcher: QuotaFetching {
     case .importedAccounts(let values): values.contains(key)
     }
   }
-  private nonisolated static func region(profileARN: String?) -> String? {
-    guard let parts = profileARN?.split(separator: ":"), parts.count >= 6, parts[0] == "arn",
-      parts[2] == "codewhisperer", parts[3].contains("-")
+  private nonisolated static func resolvedRegion(
+    for credential: KiroQuotaCredential
+  ) -> String? {
+    if let profileARN = credential.profileARN {
+      let parts = profileARN.split(separator: ":")
+      if parts.count >= 6, parts[0] == "arn", parts[2] == "codewhisperer" {
+        return validatedRegion(String(parts[3]))
+      }
+    }
+    return validatedRegion(credential.region ?? "us-east-1")
+  }
+  private nonisolated static func validatedRegion(_ value: String) -> String? {
+    let region = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let parts = region.split(separator: "-", omittingEmptySubsequences: false)
+    guard parts.count >= 3,
+      parts[0].count == 2,
+      parts[0].utf8.allSatisfy({ $0 >= 97 && $0 <= 122 }),
+      parts.dropFirst().dropLast().allSatisfy({ part in
+        !part.isEmpty && part.utf8.allSatisfy {
+          ($0 >= 97 && $0 <= 122) || ($0 >= 48 && $0 <= 57)
+        }
+      }),
+      let suffix = parts.last,
+      !suffix.isEmpty,
+      suffix.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 })
     else { return nil }
-    return String(parts[3])
+    return region
   }
   private nonisolated static func map(_ response: KiroUsageResponse, expiry: Date?, now: Date)
     -> ProviderQuota

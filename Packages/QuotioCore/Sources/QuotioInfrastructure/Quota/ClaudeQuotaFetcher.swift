@@ -212,7 +212,10 @@ public actor ClaudeQuotaFetcher: QuotaFetching {
       }
     }
     return QuotaProviderOutput(
-      quotas: quotas, credentialAvailability: loaded.isEmpty ? .missing : .present)
+      quotas: quotas,
+      credentialAvailability: loaded.isEmpty ? .missing : .present,
+      credentialAccountKeys: Set(loaded.map(\.accountKey))
+    )
   }
 
   public nonisolated static func mapUsage(_ data: Data, now: Date = Date()) -> ProviderQuota? {

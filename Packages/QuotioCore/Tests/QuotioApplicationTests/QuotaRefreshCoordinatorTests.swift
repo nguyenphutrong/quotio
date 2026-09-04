@@ -142,6 +142,27 @@ final class QuotaRefreshCoordinatorTests: XCTestCase {
         XCTAssertNil(snapshot.issues[.amp])
     }
 
+    func testCredentialIdentityReconciliationIsCaseInsensitive() async {
+        let fetcher = StubQuotaFetcher(provider: .kiro, outputs: [
+            QuotaProviderOutput(
+                quotas: [:],
+                credentialAvailability: .present,
+                credentialAccountKeys: ["person@example.com"]
+            ),
+        ])
+        let previous = Self.quota(20)
+        let store = MemoryQuotaStore(initial: QuotaSnapshot(quotas: [
+            .kiro: ["Person@example.com": previous],
+        ]))
+        let coordinator = makeCoordinator(fetchers: [fetcher], store: store)
+        _ = await coordinator.bootstrap(mode: .monitor)
+
+        let snapshot = await coordinator.refresh(QuotaFetchRequest(provider: .kiro, mode: .monitor))
+
+        XCTAssertEqual(snapshot.quotas[.kiro]?["Person@example.com"], previous)
+        XCTAssertEqual(snapshot.issues[.kiro]?.kind, .failed)
+    }
+
     func testAccountFailureDoesNotBlockAnotherAccountRefresh() async {
         let fetcher = StubQuotaFetcher(provider: .codex, outputs: [nil, QuotaProviderOutput(quotas: [
             "second": Self.quota(90),
@@ -185,6 +206,33 @@ final class QuotaRefreshCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshot.quotas[.copilot]?["fresh"], Self.quota(80))
         XCTAssertEqual(snapshot.quotas[.copilot]?["missing"], Self.quota(30))
         XCTAssertEqual(snapshot.issues[.copilot]?.kind, .partial)
+    }
+
+    func testProviderRefreshDropsAccountsWhoseCredentialsNoLongerExist() async {
+        let fetcher = StubQuotaFetcher(provider: .grok, outputs: [
+            QuotaProviderOutput(
+                quotas: ["fresh": Self.quota(80), "new": Self.quota(90)],
+                credentialAvailability: .present,
+                credentialAccountKeys: ["fresh", "failed", "new"]
+            ),
+        ])
+        let store = MemoryQuotaStore(initial: QuotaSnapshot(quotas: [
+            .grok: [
+                "fresh": Self.quota(10),
+                "failed": Self.quota(20),
+                "removed": Self.quota(30),
+            ],
+        ]))
+        let coordinator = makeCoordinator(fetchers: [fetcher], store: store)
+        _ = await coordinator.bootstrap(mode: .monitor)
+
+        let snapshot = await coordinator.refresh(QuotaFetchRequest(provider: .grok, mode: .monitor))
+
+        XCTAssertEqual(snapshot.quotas[.grok]?["fresh"], Self.quota(80))
+        XCTAssertEqual(snapshot.quotas[.grok]?["failed"], Self.quota(20))
+        XCTAssertEqual(snapshot.quotas[.grok]?["new"], Self.quota(90))
+        XCTAssertNil(snapshot.quotas[.grok]?["removed"])
+        XCTAssertEqual(snapshot.issues[.grok]?.kind, .partial)
     }
 
     func testImportedRefreshCannotResurrectRemovedAccount() async {
@@ -283,6 +331,72 @@ final class QuotaRefreshCoordinatorTests: XCTestCase {
         ))
 
         XCTAssertEqual(snapshot.quotas[.copilot], ["user": fresh])
+    }
+
+    func testRemovingQuotaInvalidatesInFlightProviderRefresh() async {
+        let gate = AsyncGate()
+        let fetcher = StubQuotaFetcher(
+            provider: .cursor,
+            outputs: [QuotaProviderOutput(quotas: ["deleted": Self.quota(90)])],
+            gate: gate
+        )
+        let store = MemoryQuotaStore(initial: QuotaSnapshot(quotas: [
+            .cursor: [
+                "deleted": Self.quota(10),
+                "DELETED": Self.quota(20),
+            ],
+        ]))
+        let coordinator = makeCoordinator(fetchers: [fetcher], store: store)
+        _ = await coordinator.bootstrap(mode: .monitor)
+
+        let refresh = Task {
+            await coordinator.refresh(QuotaFetchRequest(provider: .cursor, mode: .monitor))
+        }
+        await fetcher.waitUntilCalled()
+        await coordinator.removeQuota(
+            for: QuotaAccountID(provider: .cursor, accountKey: "deleted"),
+            mode: .monitor
+        )
+        await gate.open()
+        _ = await refresh.value
+
+        let snapshot = await coordinator.snapshot
+        XCTAssertNil(snapshot.quotas[.cursor]?["deleted"])
+        XCTAssertFalse(snapshot.refreshingProviders.contains(.cursor))
+    }
+
+    func testRemovingAliasInvalidatesCanonicalResultFromInFlightRefresh() async {
+        let gate = AsyncGate()
+        let alias = "github-copilot-octocat.json"
+        let fetcher = StubQuotaFetcher(
+            provider: .copilot,
+            outputs: [QuotaProviderOutput(
+                quotas: ["octocat": Self.quota(90)],
+                credentialAvailability: .present,
+                credentialAccountKeys: ["octocat"],
+                accountAliases: [alias: "octocat"]
+            )],
+            gate: gate
+        )
+        let store = MemoryQuotaStore(initial: QuotaSnapshot(quotas: [
+            .copilot: [alias: Self.quota(10)],
+        ]))
+        let coordinator = makeCoordinator(fetchers: [fetcher], store: store)
+        _ = await coordinator.bootstrap(mode: .monitor)
+
+        let refresh = Task {
+            await coordinator.refresh(QuotaFetchRequest(provider: .copilot, mode: .monitor))
+        }
+        await fetcher.waitUntilCalled()
+        await coordinator.removeQuota(
+            for: QuotaAccountID(provider: .copilot, accountKey: alias),
+            mode: .monitor
+        )
+        await gate.open()
+        _ = await refresh.value
+
+        let snapshot = await coordinator.snapshot
+        XCTAssertNil(snapshot.quotas[.copilot]?["octocat"])
     }
 
     func testCancelledRefreshCannotPublishLateResult() async {

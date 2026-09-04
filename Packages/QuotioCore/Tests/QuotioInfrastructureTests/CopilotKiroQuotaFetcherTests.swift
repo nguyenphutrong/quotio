@@ -148,6 +148,28 @@ final class CopilotKiroQuotaFetcherTests: XCTestCase {
     }
   }
 
+  func testKiroRejectsMalformedCredentialRegionWithoutConstructingARequest() async throws {
+    let credentials = [
+      KiroQuotaCredential(
+        accessToken: "token", expiresAt: Date(timeIntervalSince1970: 2_000_000_000),
+        region: "us east 1", accountKey: "person@example.com"),
+      KiroQuotaCredential(
+        accessToken: "token", expiresAt: Date(timeIntervalSince1970: 2_000_000_000),
+        profileARN: "arn:aws:codewhisperer:us east 1:123:profile/test",
+        accountKey: "other@example.com"),
+    ]
+    let fetcher = KiroQuotaFetcher(
+      vault: AdapterTestVault(), metadata: AdapterTestMetadata(),
+      credentials: KiroTestSource(credentials),
+      session: AdapterTestSession { _ in (#"{"usageBreakdownList":[]}"#, 200) },
+      now: { Date(timeIntervalSince1970: 1_700_000_000) })
+
+    let output = try await fetcher.fetch(.init(provider: .kiro, mode: .monitor))
+
+    XCTAssertTrue(output.quotas.isEmpty)
+    XCTAssertEqual(output.credentialAvailability, .present)
+  }
+
   func testKiroMachineIdentifierPreservesOverrideAndHardwareFallback() {
     let defaults = UserDefaults(suiteName: #function)!
     defer { defaults.removePersistentDomain(forName: #function) }

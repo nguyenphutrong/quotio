@@ -172,6 +172,7 @@ public actor CopilotQuotaFetcher: QuotaFetching {
     return QuotaProviderOutput(
       quotas: quotas,
       credentialAvailability: hasApplicableCredential ? .present : .missing,
+      credentialAccountKeys: canonicalKeys,
       accountAliases: aliases
     )
   }
