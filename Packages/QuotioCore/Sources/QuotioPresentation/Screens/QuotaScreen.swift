@@ -40,21 +40,14 @@ struct QuotaScreen: View {
     
     /// Get account count for a provider
     private func accountCount(for provider: QuotaProvider) -> Int {
-        var accounts = Set<String>()
-        
-        // From auth files
-        for file in proxyManagement.authFiles where file.providerID == provider {
-            accounts.insert(file.quotaLookupKey)
-        }
-        
-        // From quota data
-        if let quotaAccounts = quota.providerQuotas[provider] {
-            for key in quotaAccounts.keys {
-                accounts.insert(key)
-            }
-        }
-        
-        return accounts.count
+        AccountInfo.merged(
+            provider: provider,
+            authFiles: proxyManagement.authFiles.filter { $0.providerID == provider },
+            quotaData: quota.providerQuotas[provider] ?? [:],
+            subscriptionInfos: quota.subscriptionInfos[provider] ?? [:],
+            directAccounts: accounts.accounts,
+            aliases: quota.state.accountAliases[provider] ?? [:]
+        ).count
     }
     
     private func lowestQuotaPercent(for provider: QuotaProvider) -> Double? {
@@ -199,6 +192,7 @@ struct QuotaScreen: View {
                         authFiles: proxyManagement.authFiles.filter { $0.providerID == provider },
                         quotaData: quota.providerQuotas[provider] ?? [:],
                         subscriptionInfos: quota.subscriptionInfos[provider] ?? [:],
+                        aliases: quota.state.accountAliases[provider] ?? [:],
                         isLoading: quota.refreshingProviders.contains(provider)
                     )
                     .padding(.horizontal, 24)
@@ -381,49 +375,19 @@ private struct ProviderQuotaView: View {
     let authFiles: [ManagedAuthFile]
     let quotaData: [String: ProviderQuota]
     let subscriptionInfos: [String: QuotaSubscriptionInfo]
+    let aliases: [String: String]
     let isLoading: Bool
     
     /// Get all accounts (from auth files or quota data keys)
     private var allAccounts: [AccountInfo] {
-        var accounts: [AccountInfo] = []
-        
-        // From auth files
-        for file in authFiles {
-            let key = file.quotaLookupKey
-            accounts.append(AccountInfo(
-                key: key,
-                email: file.email ?? file.name,
-                status: file.status,
-                statusColor: file.statusColor,
-                authFile: file,
-                quotaData: quotaData[key],
-                subscriptionInfo: subscriptionInfos[key]
-            ))
-        }
-        
-        // From quota data (if not already added)
-        let existingKeys = Set(accounts.map { $0.key })
-        // Only Codex needs direct-auth email backfill because its quota key is
-        // filename-based to distinguish same-email Plus/Team accounts.
-        let directAuthEmailsByKey: [String: String] = provider == .codex
-            ? accountsModel.accounts
-                .filter { $0.provider == .codex }
-                .reduce(into: [:]) { $0[$1.accountKey] = $1.displayName }
-            : [:]
-        for (key, data) in quotaData {
-            if !existingKeys.contains(key) {
-                accounts.append(AccountInfo(
-                    key: key,
-                    email: data.accountDisplayName ?? directAuthEmailsByKey[key] ?? key,
-                    status: "active",
-                    statusColor: .green,
-                    authFile: nil,
-                    quotaData: data,
-                    subscriptionInfo: subscriptionInfos[key]
-                ))
-            }
-        }
-        
+        let accounts = AccountInfo.merged(
+            provider: provider,
+            authFiles: authFiles,
+            quotaData: quotaData,
+            subscriptionInfos: subscriptionInfos,
+            directAccounts: accountsModel.accounts,
+            aliases: aliases
+        )
         let sorted = accounts.sorted { $0.email < $1.email }
 
         // Float the account currently in use (Antigravity IDE) to the top,
@@ -472,7 +436,60 @@ private struct ProviderQuotaView: View {
 
 // MARK: - Account Info
 
-private struct AccountInfo {
+struct AccountInfo {
+    static func merged(
+        provider: QuotaProvider,
+        authFiles: [ManagedAuthFile],
+        quotaData: [String: ProviderQuota],
+        subscriptionInfos: [String: QuotaSubscriptionInfo],
+        directAccounts: [Account],
+        aliases: [String: String]
+    ) -> [AccountInfo] {
+        var accounts: [AccountInfo] = []
+
+        // From auth files
+        var seen = Set<String>()
+        for file in authFiles {
+            let key = aliases[file.quotaLookupKey] ?? file.quotaLookupKey
+            guard seen.insert(key).inserted else { continue }
+            accounts.append(AccountInfo(
+                key: key,
+                email: file.email ?? file.name,
+                status: file.status,
+                statusColor: file.statusColor,
+                authFile: file,
+                quotaData: quotaData[key],
+                subscriptionInfo: subscriptionInfos[key]
+            ))
+        }
+
+        // From quota data (if not already added)
+        let existingKeys = Set(accounts.map { $0.key })
+        // Only Codex needs direct-auth email backfill because its quota key is
+        // filename-based to distinguish same-email Plus/Team accounts.
+        let directAuthEmailsByKey: [String: String] = provider == .codex
+            ? directAccounts
+                .filter { $0.provider == .codex }
+                .reduce(into: [:]) { $0[$1.accountKey] = $1.displayName }
+            : [:]
+        for (key, data) in quotaData {
+            if !existingKeys.contains(key) {
+                accounts.append(AccountInfo(
+                    key: key,
+                    email: data.accountDisplayName ?? directAuthEmailsByKey[key] ?? key,
+                    status: "active",
+                    statusColor: .green,
+                    authFile: nil,
+                    quotaData: data,
+                    subscriptionInfo: subscriptionInfos[key]
+                ))
+            }
+        }
+
+        return accounts
+    }
+
+
     let key: String
     let email: String
     let status: String

@@ -69,10 +69,36 @@ public struct CompositeCodexQuotaCredentialLoader: CodexQuotaCredentialLoading {
       disabledAccountKeys.insert(credential.accountKey.lowercased())
     }
     var seen = Set<String>()
-    return result.filter {
+    let enabled = result.filter {
       !disabledAccountKeys.contains($0.accountKey.lowercased())
         && seen.insert($0.accountKey).inserted
     }
+    guard mode == .monitor else { return enabled }
+
+    var merged: [CodexQuotaCredential] = []
+    var indices: [String: Int] = [:]
+    for credential in enabled {
+      guard let accountID = credential.accountID, !accountID.isEmpty else {
+        merged.append(credential)
+        continue
+      }
+      if let index = indices[accountID] {
+        let preferred = merged[index]
+        merged[index] = .init(
+          accountKey: preferred.accountKey,
+          aliases: preferred.aliases.union(credential.aliases)
+            .union([credential.accountKey]).subtracting([preferred.accountKey]),
+          accessToken: preferred.accessToken,
+          refreshToken: preferred.refreshToken,
+          idToken: preferred.idToken,
+          accountID: accountID
+        )
+      } else {
+        indices[accountID] = merged.count
+        merged.append(credential)
+      }
+    }
+    return merged
   }
 
   public func persist(

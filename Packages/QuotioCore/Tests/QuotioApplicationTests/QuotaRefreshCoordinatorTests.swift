@@ -28,19 +28,22 @@ final class QuotaRefreshCoordinatorTests: XCTestCase {
         let fresh = Self.quota(90)
         let fetcher = StubQuotaFetcher(provider: .codex, outputs: [
             QuotaProviderOutput(
-                quotas: ["same@example.com-plus": fresh],
-                accountAliases: ["same@example.com": "same@example.com-plus"]
+                quotas: ["same@example.com": fresh],
+                credentialAccountKeys: ["same@example.com"],
+                accountAliases: ["same@example.com-pro": "same@example.com"]
             ),
         ])
         let store = MemoryQuotaStore(initial: QuotaSnapshot(quotas: [
-            .codex: ["same@example.com": stale],
+            .codex: ["same@example.com": stale, "same@example.com-pro": stale],
         ]))
         let coordinator = makeCoordinator(fetchers: [fetcher], store: store)
         _ = await coordinator.bootstrap(mode: .monitor)
 
         let snapshot = await coordinator.refresh(QuotaFetchRequest(provider: .codex, mode: .monitor))
 
-        XCTAssertEqual(snapshot.quotas[.codex], ["same@example.com-plus": fresh])
+        XCTAssertEqual(snapshot.quotas[.codex], ["same@example.com": fresh])
+        let saved = await store.saved
+        XCTAssertEqual(saved.last?.snapshot.quotas[.codex], ["same@example.com": fresh])
     }
 
     func testConcurrentRefreshesForProviderShareOneFetch() async {

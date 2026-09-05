@@ -350,6 +350,74 @@ final class ClaudeCodexQuotaFetcherTests: XCTestCase {
     XCTAssertEqual(monitor.first?.aliases, ["same@example.com"])
   }
 
+  func testCodexMonitorMergesVaultAndLegacyIdentityAndExportsCacheAlias() async throws {
+    let account = Account.make(
+      providerID: AccountProviderID(rawValue: "codex"),
+      accountKey: "same@example.com",
+      source: .nativeCredential
+    )
+    let loader = CompositeCodexQuotaCredentialLoader(
+      local: CodexLoader([
+        .init(accountKey: "same@example.com-pro", accessToken: "legacy", accountID: "shared-id")
+      ]),
+      vault: CodexVault(account: account, credential: StoredCredential(
+        accessToken: "vault", refreshToken: nil, idToken: nil,
+        accountID: "shared-id", expiresAt: nil, extra: [:]
+      )),
+      metadata: CodexMetadata(),
+      external: CodexExternalCredentials(record: nil)
+    )
+
+    let credentials = await loader.credentials(for: .monitor)
+    XCTAssertEqual(credentials.map(\.accountKey), ["same@example.com"])
+    XCTAssertEqual(credentials.map(\.accessToken), ["vault"])
+    XCTAssertEqual(credentials.first?.aliases, ["same@example.com-pro"])
+
+    let output = try await CodexQuotaFetcher(
+      credentials: loader,
+      session: RecordingQuotaSession(body: #"{"rate_limit":{"primary_window":{"used_percent":10}}}"#)
+    ).fetch(.init(provider: .codex, mode: .monitor))
+    XCTAssertEqual(output.credentialAccountKeys, ["same@example.com"])
+    XCTAssertEqual(output.accountAliases, ["same@example.com-pro": "same@example.com"])
+    XCTAssertEqual(Set(output.quotas.keys), ["same@example.com"])
+  }
+
+  func testCodexMonitorPreservesAliasesWhileProxyRetainsSeparateSourceKeys() async {
+    let values: [CodexQuotaCredential] = [
+      .init(accountKey: "same@example.com", aliases: ["native-alias"],
+        accessToken: "native", accountID: "shared-id"),
+      .init(accountKey: "same@example.com-pro", aliases: ["older-alias"],
+        accessToken: "legacy", accountID: "shared-id"),
+    ]
+    let loader = CompositeCodexQuotaCredentialLoader(
+      local: CodexLoader(values), vault: CodexVault(), metadata: CodexMetadata(),
+      external: CodexExternalCredentials(record: nil)
+    )
+    let monitor = await loader.credentials(for: .monitor)
+    let proxy = await loader.credentials(for: .localProxy)
+    XCTAssertEqual(monitor.count, 1)
+    XCTAssertEqual(monitor.first?.aliases,
+      ["native-alias", "older-alias", "same@example.com-pro"])
+    XCTAssertEqual(proxy, values)
+  }
+
+  func testCodexIdentityMergePreservesDistinctAndUnknownAccountsAndProxyKeys() async {
+    let values: [CodexQuotaCredential] = [
+      .init(accountKey: "same@example.com-pro", accessToken: "a", accountID: "personal"),
+      .init(accountKey: "same@example.com-team", accessToken: "b", accountID: "workspace"),
+      .init(accountKey: "unknown-a", accessToken: "c"),
+      .init(accountKey: "unknown-b", accessToken: "d"),
+    ]
+    let loader = CompositeCodexQuotaCredentialLoader(
+      local: CodexLoader(values), vault: CodexVault(), metadata: CodexMetadata(),
+      external: CodexExternalCredentials(record: nil)
+    )
+    let monitor = await loader.credentials(for: .monitor)
+    let proxy = await loader.credentials(for: .localProxy)
+    XCTAssertEqual(monitor, values)
+    XCTAssertEqual(proxy, values)
+  }
+
   func testCodexRefreshExcludesNativeKeychainAccountAfterItIsDisabled() async throws {
     let accountKey = "person@example.com"
     let account = Account.make(
@@ -491,8 +559,18 @@ private struct CodexLoader: CodexQuotaCredentialLoading {
 }
 
 private actor CodexVault: CredentialVault {
-  func accounts() -> [Account] { [] }
-  func credential(for accountID: String) -> StoredCredential? { nil }
+  private let account: Account?
+  private let stored: StoredCredential?
+
+  init(account: Account? = nil, credential: StoredCredential? = nil) {
+    self.account = account
+    stored = credential
+  }
+
+  func accounts() -> [Account] { account.map { [$0] } ?? [] }
+  func credential(for accountID: String) -> StoredCredential? {
+    account?.id == accountID ? stored : nil
+  }
   func reloadLatest(accountID: String) -> StoredCredential? { nil }
   func save(_ credential: StoredCredential, metadata: Account) throws {}
   func delete(accountID: String) {}

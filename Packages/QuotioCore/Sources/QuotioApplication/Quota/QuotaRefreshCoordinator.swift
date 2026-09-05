@@ -18,6 +18,7 @@ public struct QuotaRefreshIssue: Equatable, Sendable {
 
 public struct QuotaSnapshot: Equatable, Sendable {
     public var quotas: [QuotaProvider: [String: ProviderQuota]]
+    public var accountAliases: [QuotaProvider: [String: String]]
     public var subscriptions: [QuotaProvider: [String: QuotaSubscriptionInfo]]
     public var issues: [QuotaProvider: QuotaRefreshIssue]
     public var accountIssues: [QuotaAccountID: QuotaRefreshIssue]
@@ -26,6 +27,7 @@ public struct QuotaSnapshot: Equatable, Sendable {
 
     public init(
         quotas: [QuotaProvider: [String: ProviderQuota]] = [:],
+        accountAliases: [QuotaProvider: [String: String]] = [:],
         subscriptions: [QuotaProvider: [String: QuotaSubscriptionInfo]] = [:],
         issues: [QuotaProvider: QuotaRefreshIssue] = [:],
         accountIssues: [QuotaAccountID: QuotaRefreshIssue] = [:],
@@ -33,6 +35,7 @@ public struct QuotaSnapshot: Equatable, Sendable {
         lastUpdated: Date? = nil
     ) {
         self.quotas = quotas
+        self.accountAliases = accountAliases
         self.subscriptions = subscriptions
         self.issues = issues
         self.accountIssues = accountIssues
@@ -297,6 +300,12 @@ public actor QuotaRefreshCoordinator: LifecycleCancelling {
                 aliases: output.accountAliases,
                 after: operationRemovalGeneration
             )
+        }
+        switch request.scope {
+        case .provider:
+            snapshot.accountAliases[provider] = output.accountAliases
+        case .account, .importedAccounts:
+            snapshot.accountAliases[provider, default: [:]].merge(output.accountAliases) { _, fresh in fresh }
         }
         let previous = QuotaPolicy.canonicalizedAccounts(
             snapshot.quotas[provider] ?? [:],

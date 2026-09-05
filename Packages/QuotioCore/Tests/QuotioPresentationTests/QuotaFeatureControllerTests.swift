@@ -87,14 +87,48 @@ final class QuotaFeatureControllerTests: XCTestCase {
         await fixture.controller.shutdown()
     }
 
+    func testMenuBarSelectionMigratesAliasesWithoutDuplicatingAccounts() async {
+        let canonical = MenuBarQuotaItem(provider: "codex", accountKey: "same@example.com")
+        let legacy = MenuBarQuotaItem(provider: "codex", accountKey: "same@example.com-pro")
+        let account = Account.make(
+            providerID: AccountProviderID(rawValue: "codex"),
+            accountKey: canonical.accountKey,
+            source: .nativeCredential
+        )
+        let fixture = await makeFixture(
+            account: account, provider: .codex,
+            aliases: [legacy.accountKey: canonical.accountKey]
+        )
+        await fixture.controller.refresh(provider: .codex)
+        XCTAssertNotNil(fixture.quota.providerQuotas[.codex]?[canonical.accountKey])
+        fixture.menuBar.selectedItems = []
+        fixture.menuBar.toggleItem(legacy)
+
+        fixture.controller.synchronizeMenuBarSelection()
+
+        XCTAssertEqual(fixture.menuBar.selectedItems, [canonical])
+        fixture.menuBar.selectedItems = [legacy, canonical]
+        fixture.controller.synchronizeMenuBarSelection()
+        XCTAssertEqual(fixture.menuBar.selectedItems, [canonical])
+        fixture.menuBar.selectedItems = [
+            MenuBarQuotaItem(provider: "codex", accountKey: "codex-same@example.com-pro.json")
+        ]
+        fixture.controller.synchronizeMenuBarSelection()
+        XCTAssertEqual(fixture.menuBar.selectedItems, [canonical])
+        XCTAssertTrue(fixture.menuBar.hasUserModifiedMenuBar)
+        await fixture.controller.shutdown()
+    }
+
     private func makeFixture(
         account: Account,
         provider: QuotaProvider,
-        quotaAccountKey: String? = nil
+        quotaAccountKey: String? = nil,
+        aliases: [String: String] = [:]
     ) async -> (
         controller: QuotaFeatureController,
         accountService: QuotaFeatureAccountService,
-        quota: QuotaScreenModel
+        quota: QuotaScreenModel,
+        menuBar: MenuBarSettingsManager
     ) {
         let accountService = QuotaFeatureAccountService(accounts: [account])
         let accounts = AccountsScreenModel(
@@ -102,7 +136,9 @@ final class QuotaFeatureControllerTests: XCTestCase {
             authFileRepository: QuotaFeatureAuthFileRepository()
         )
         let quota = QuotaScreenModel(coordinator: QuotaRefreshCoordinator(
-            registry: QuotaProviderRegistry([]),
+            registry: QuotaProviderRegistry(aliases.isEmpty ? [] : [
+                QuotaFeatureFetcher(provider: provider, key: account.accountKey, aliases: aliases)
+            ]),
             snapshots: QuotaFeatureSnapshotStore(initial: QuotaSnapshot(quotas: [
                 provider: [
                     quotaAccountKey ?? account.accountKey: ProviderQuota(
@@ -115,6 +151,7 @@ final class QuotaFeatureControllerTests: XCTestCase {
         await quota.bootstrap(mode: .monitor)
         await accounts.reloadAccounts()
         let preferences = QuotaFeaturePreferencesRepository()
+        let menuBar = MenuBarSettingsManager(repository: preferences)
         let controller = QuotaFeatureController(
             quota: quota,
             accounts: accounts,
@@ -122,14 +159,14 @@ final class QuotaFeatureControllerTests: XCTestCase {
             antigravityAccounts: AntigravityAccountScreenModel(switcher: QuotaFeatureAntigravitySwitcher()),
             modeManager: OperatingModeManager(repository: preferences),
             refreshSettings: RefreshSettingsManager(repository: preferences),
-            menuBarSettings: MenuBarSettingsManager(repository: preferences),
+            menuBarSettings: menuBar,
             notifications: NotificationController(
                 repository: preferences,
                 delivery: QuotaFeatureNotificationDelivery()
             ),
             authFiles: { [] }
         )
-        return (controller, accountService, quota)
+        return (controller, accountService, quota, menuBar)
     }
 }
 
@@ -266,4 +303,18 @@ private final class QuotaFeaturePreferencesRepository:
     }
 
     func save(_ preferences: NotificationPreferences) {}
+}
+
+private struct QuotaFeatureFetcher: QuotaFetching {
+    let provider: QuotaProvider
+    let key: String
+    let aliases: [String: String]
+
+    func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
+        QuotaProviderOutput(
+            quotas: [key: ProviderQuota(lastUpdated: Date(timeIntervalSince1970: 2_000))],
+            credentialAccountKeys: [key],
+            accountAliases: aliases
+        )
+    }
 }

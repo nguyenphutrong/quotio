@@ -260,6 +260,26 @@ public final class QuotaFeatureController {
     }
 
     func synchronizeMenuBarSelection() {
+        func canonicalItem(_ item: MenuBarQuotaItem) -> MenuBarQuotaItem {
+            guard let provider = QuotaProvider(rawValue: item.provider),
+                  let aliases = quota.state.accountAliases[provider] else { return item }
+            var key = item.accountKey
+            if provider == .codex {
+                if key.hasPrefix("codex-") { key.removeFirst("codex-".count) }
+                if key.hasSuffix(".json") { key.removeLast(".json".count) }
+            }
+            guard let canonical = aliases[key],
+                  quota.providerQuotas[provider]?[canonical] != nil else { return item }
+            return MenuBarQuotaItem(provider: item.provider, accountKey: canonical)
+        }
+
+        var selectedIDs = Set<String>()
+        let selected = menuBarSettings.selectedItems.map(canonicalItem).filter {
+            selectedIDs.insert($0.id).inserted
+        }
+        if selected != menuBarSettings.selectedItems {
+            menuBarSettings.selectedItems = selected
+        }
         let disabledItemIDs = Set(accounts.accounts.compactMap { account -> String? in
             guard account.isDisabled,
                   let provider = QuotaProvider(rawValue: account.providerID.rawValue) else { return nil }
@@ -280,14 +300,14 @@ public final class QuotaFeatureController {
         }
         for file in authFiles() where !file.disabled {
             guard let provider = file.providerID else { continue }
-            let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey)
+            let item = canonicalItem(MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey))
             if !disabledItemIDs.contains(item.id.lowercased()), seen.insert(item.id).inserted {
                 available.append(item)
             }
         }
         for file in accounts.authFiles {
             guard let provider = QuotaProvider(rawValue: file.providerID.rawValue) else { continue }
-            let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey)
+            let item = canonicalItem(MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey))
             if !disabledItemIDs.contains(item.id.lowercased()), seen.insert(item.id).inserted {
                 available.append(item)
             }
