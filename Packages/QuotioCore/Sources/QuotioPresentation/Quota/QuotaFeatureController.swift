@@ -332,7 +332,10 @@ public final class QuotaFeatureController {
     }
 
     private func reloadAccounts() async {
-        await accounts.reloadAccounts(merging: quota.providerQuotas)
+        await accounts.reloadAccounts(
+            merging: quota.providerQuotas,
+            aliases: quota.state.accountAliases
+        )
     }
 
     private func removeDisabledMonitorQuotas() async {

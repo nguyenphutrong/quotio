@@ -50,6 +50,61 @@ final class AccountScreenModelsTests: XCTestCase {
         XCTAssertEqual(model.accounts.first?.source, .localIDE)
     }
 
+    func testQuotaAliasesDoNotCreateSyntheticDuplicateOfOwnedAccount() async throws {
+        let owned = Account(
+            identity: AccountIdentity(id: "vault-id", providerID: .init(rawValue: "codex"),
+                accountKey: "same@example.com-pro"),
+            displayName: "same@example.com", source: .quotioKeychain,
+            credentialReference: "keychain", capabilities: [.disable, .delete], status: .disabled
+        )
+        let service = AccountScreenModelService(accounts: [owned])
+        let model = AccountsScreenModel(accountService: service,
+            authFileRepository: AccountScreenModelAuthFiles(files: []))
+
+        await model.reloadAccounts(
+            merging: [.codex: ["same@example.com": ProviderQuota()]],
+            aliases: [.codex: ["same@example.com-pro": "same@example.com"]]
+        )
+
+        XCTAssertEqual(model.accounts.count, 1)
+        let account = try XCTUnwrap(model.accounts.first)
+        XCTAssertEqual(account.accountKey, "same@example.com")
+        XCTAssertEqual(account.id, owned.id)
+        XCTAssertEqual(account.source, owned.source)
+        XCTAssertEqual(account.credentialReference, owned.credentialReference)
+        XCTAssertEqual(account.capabilities, owned.capabilities)
+        XCTAssertTrue(account.isDisabled)
+        await model.setDisabled(false, accountID: account.id)
+        XCTAssertEqual(model.accounts.map(\.accountKey), ["same@example.com"])
+        try await model.delete(accountID: account.id)
+        let disabledID = await service.lastDisabledID
+        let deletedID = await service.lastDeletedID
+        XCTAssertEqual(disabledID, owned.id)
+        XCTAssertEqual(deletedID, owned.id)
+    }
+
+    func testAliasesMergeSourcesButKeepDistinctWorkspaceAndOtherProvider() async {
+        let provider = AccountProviderID(rawValue: "codex")
+        let owned = Account.make(providerID: provider, accountKey: "same@example.com",
+            source: .quotioKeychain, capabilities: [.disable, .delete])
+        let legacy = Account.make(providerID: provider, accountKey: "same@example.com-pro",
+            source: .legacyCLIProxy)
+        let workspace = Account.make(providerID: provider, accountKey: "same@example.com-team",
+            source: .legacyCLIProxy)
+        let other = Account.make(providerID: .init(rawValue: "claude"),
+            accountKey: "same@example.com-pro", source: .nativeCredential)
+        let model = AccountsScreenModel(
+            accountService: AccountScreenModelService(accounts: [legacy, owned, workspace, other]),
+            authFileRepository: AccountScreenModelAuthFiles(files: []))
+
+        await model.reloadAccounts(merging: [:],
+            aliases: [.codex: ["same@example.com-pro": "same@example.com"]])
+
+        XCTAssertEqual(Set(model.accounts.map(\.id)), [owned.id, workspace.id, other.id])
+        await model.reloadAccounts()
+        XCTAssertEqual(Set(model.accounts.map(\.id)), [owned.id, workspace.id, other.id])
+    }
+
     func testDownloadEligibilityRequiresAnAuthFileName() {
         let authFileAccount = AccountRowData(
             id: "auth-file",
@@ -113,14 +168,16 @@ final class AccountScreenModelsTests: XCTestCase {
 
 private actor AccountScreenModelService: AccountManaging {
     private let storedAccounts: [Account]
+    private(set) var lastDisabledID: String?
+    private(set) var lastDeletedID: String?
 
     init(accounts: [Account]) {
         storedAccounts = accounts
     }
 
     func accounts() -> [Account] { storedAccounts }
-    func setDisabled(_ disabled: Bool, accountID: String) {}
-    func delete(accountID: String) {}
+    func setDisabled(_ disabled: Bool, accountID: String) { lastDisabledID = accountID }
+    func delete(accountID: String) { lastDeletedID = accountID }
 
     func saveAPIKey(
         providerID: AccountProviderID,

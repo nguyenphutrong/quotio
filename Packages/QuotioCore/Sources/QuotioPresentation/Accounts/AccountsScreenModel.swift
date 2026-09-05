@@ -10,6 +10,7 @@ public final class AccountsScreenModel {
     public private(set) var authFiles: [AuthFileDescriptor] = []
     public private(set) var failure: AccountServiceFailure?
 
+    @ObservationIgnored private var accountAliases: [QuotaProvider: [String: String]] = [:]
     @ObservationIgnored private let accountService: any AccountManaging
     @ObservationIgnored private let authFileRepository: any AuthFileRepository
 
@@ -22,15 +23,38 @@ public final class AccountsScreenModel {
     }
 
     public func reloadAccounts() async {
-        accounts = await accountService.accounts()
+        accounts = canonicalized(await accountService.accounts())
     }
 
     public func reloadAccounts(
-        merging quotas: [QuotaProvider: [String: ProviderQuota]]
+        merging quotas: [QuotaProvider: [String: ProviderQuota]],
+        aliases: [QuotaProvider: [String: String]] = [:]
     ) async {
+        accountAliases = aliases
         accounts = AccountSelectionPolicy.mergingQuotaAccounts(
-            await accountService.accounts(),
+            canonicalized(await accountService.accounts()),
             quotas: quotas
+        )
+    }
+
+    private func canonicalized(_ candidates: [Account]) -> [Account] {
+        guard !accountAliases.isEmpty else { return candidates }
+        let canonical = candidates.map { account in
+            guard let provider = QuotaProvider(rawValue: account.providerID.rawValue),
+                  let key = accountAliases[provider]?[account.accountKey] else { return account }
+            return Account(
+                identity: AccountIdentity(id: account.id, providerID: account.providerID, accountKey: key),
+                displayName: account.displayName,
+                source: account.source,
+                credentialReference: account.credentialReference,
+                capabilities: account.capabilities,
+                status: account.status,
+                credentialMetadata: account.credentialMetadata
+            )
+        }
+        return AccountSelectionPolicy.preferred(
+            canonical,
+            disabledIDs: Set(canonical.filter(\.isDisabled).map(\.id))
         )
     }
 
