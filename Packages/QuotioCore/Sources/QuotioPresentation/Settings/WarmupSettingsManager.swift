@@ -49,6 +49,7 @@ public final class WarmupSettingsManager {
     public var selectedModelsByAccount: [String: [String]] {
         didSet {
             persistSelectedModels()
+            onWarmupScheduleChanged?()
         }
     }
 
