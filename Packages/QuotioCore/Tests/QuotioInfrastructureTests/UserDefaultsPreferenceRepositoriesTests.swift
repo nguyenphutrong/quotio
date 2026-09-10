@@ -103,6 +103,7 @@ final class UserDefaultsPreferenceRepositoriesTests: XCTestCase {
         let appShell = UserDefaultsAppShellPreferencesRepository(defaults: defaults).load()
 
         XCTAssertEqual(menu, MenuBarPreferences())
+        XCTAssertFalse(menu.showClaudeFableWeekly)
         XCTAssertEqual(refresh, RefreshPreferences())
         XCTAssertEqual(warmup, WarmupPreferences())
         XCTAssertEqual(appearance, AppearancePreferences())
@@ -131,6 +132,7 @@ final class UserDefaultsPreferenceRepositoriesTests: XCTestCase {
             quotaDisplayMode: .remaining,
             quotaDisplayStyle: .ring,
             stackPairedQuotaMetrics: false,
+            showClaudeFableWeekly: true,
             hideSensitiveInfo: true,
             totalUsageMode: .combined,
             modelAggregationMode: .average,

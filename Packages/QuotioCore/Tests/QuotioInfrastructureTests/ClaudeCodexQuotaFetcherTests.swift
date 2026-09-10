@@ -6,6 +6,14 @@ import XCTest
 @testable import QuotioInfrastructure
 
 final class ClaudeCodexQuotaFetcherTests: XCTestCase {
+  func testClaudeMapsFableWeeklyScopedLimitIndependently() throws {
+    let data = Data(#"{"five_hour":{"utilization":25},"seven_day":{"utilization":70},"limits":[{"kind":"weekly_scoped","percent":12,"scope":{"model":{"display_name":"Sonnet"}}},{"kind":"weekly_scoped","percent":67,"resets_at":"2030-01-02T00:00:00Z","scope":{"model":{"display_name":"Fable"}}}]}"#.utf8)
+    let quota = try XCTUnwrap(ClaudeQuotaFetcher.mapUsage(data))
+    XCTAssertEqual(quota.models.map(\.name), ["five-hour-session", "seven-day-weekly", "seven-day-fable"])
+    XCTAssertEqual(quota.models.map(\.percentage), [75, 30, 33])
+    XCTAssertEqual(quota.models.last?.resetTime, "2030-01-02T00:00:00Z")
+  }
+
   func testClaudeMapsStableMetricsAndUsesSameRequestInBothModes() async throws {
     let body =
       #"{"five_hour":{"utilization":25,"resets_at":"2030-01-01T00:00:00Z"},"seven_day":{"utilization":70,"resets_at":null},"extra_usage":{"is_enabled":true,"monthly_limit":200,"used_credits":50,"utilization":25}}"#

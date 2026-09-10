@@ -1555,6 +1555,12 @@ struct MenuBarSettingsSection: View {
             Toggle("settings.menubar.showIcon".localized(), isOn: showMenuBarIconBinding)
             
             if settings.showMenuBarIcon {
+                Toggle("settings.menubar.showClaudeFableWeekly".localized(), isOn: Binding(
+                    get: { settings.showClaudeFableWeekly },
+                    set: { settings.showClaudeFableWeekly = $0 }
+                ))
+                .help("settings.menubar.showClaudeFableWeekly.help".localized())
+
                 Toggle("settings.menubar.showQuota".localized(), isOn: showQuotaBinding)
                 
                 if settings.showQuotaInMenuBar {

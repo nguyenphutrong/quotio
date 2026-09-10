@@ -45,6 +45,7 @@ final class StatusBarMenuSnapshotMapperTests: XCTestCase {
             selectedProvider: .amp,
             quotaDisplayMode: .remaining,
             quotaDisplayStyle: .ring,
+            showClaudeFableWeekly: true,
             hideSensitiveInfo: true,
             modelAggregationMode: .average
         )
@@ -73,6 +74,7 @@ final class StatusBarMenuSnapshotMapperTests: XCTestCase {
         XCTAssertTrue(snapshot.isLoadingQuotas)
         XCTAssertEqual(snapshot.displaySettings.quotaDisplayMode, .remaining)
         XCTAssertEqual(snapshot.displaySettings.quotaDisplayStyle, .ring)
+        XCTAssertTrue(snapshot.displaySettings.showClaudeFableWeekly)
         XCTAssertTrue(snapshot.displaySettings.hideSensitiveInfo)
         XCTAssertEqual(snapshot.displaySettings.modelAggregationMode, .average)
         XCTAssertEqual(snapshot.appearanceMode, .dark)

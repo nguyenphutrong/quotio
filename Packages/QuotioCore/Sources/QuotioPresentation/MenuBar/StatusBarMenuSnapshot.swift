@@ -22,6 +22,7 @@ struct StatusBarMenuProviderSnapshot: Equatable, Sendable {
 struct StatusBarMenuDisplaySettings: Equatable, Sendable {
     let quotaDisplayMode: QuotaDisplayMode
     let quotaDisplayStyle: QuotaDisplayStyle
+    let showClaudeFableWeekly: Bool
     let hideSensitiveInfo: Bool
     let modelAggregationMode: ModelAggregationMode
 
@@ -117,6 +118,7 @@ public enum StatusBarMenuSnapshotMapper {
             displaySettings: StatusBarMenuDisplaySettings(
                 quotaDisplayMode: menuBarPreferences.quotaDisplayMode,
                 quotaDisplayStyle: menuBarPreferences.quotaDisplayStyle,
+                showClaudeFableWeekly: menuBarPreferences.showClaudeFableWeekly,
                 hideSensitiveInfo: menuBarPreferences.hideSensitiveInfo,
                 modelAggregationMode: menuBarPreferences.modelAggregationMode
             ),

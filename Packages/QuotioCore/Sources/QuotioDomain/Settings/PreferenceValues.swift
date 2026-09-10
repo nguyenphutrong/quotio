@@ -93,6 +93,7 @@ public struct MenuBarPreferences: Equatable, Sendable {
     public var colorMode: MenuBarColorMode
     public var quotaDisplayMode: QuotaDisplayMode
     public var quotaDisplayStyle: QuotaDisplayStyle
+    public var showClaudeFableWeekly: Bool
     public var stackPairedQuotaMetrics: Bool
     public var hideSensitiveInfo: Bool
     public var totalUsageMode: TotalUsageMode
@@ -109,6 +110,7 @@ public struct MenuBarPreferences: Equatable, Sendable {
         quotaDisplayMode: QuotaDisplayMode = .used,
         quotaDisplayStyle: QuotaDisplayStyle = .card,
         stackPairedQuotaMetrics: Bool = true,
+        showClaudeFableWeekly: Bool = false,
         hideSensitiveInfo: Bool = false,
         totalUsageMode: TotalUsageMode = .sessionOnly,
         modelAggregationMode: ModelAggregationMode = .lowest,
@@ -123,6 +125,7 @@ public struct MenuBarPreferences: Equatable, Sendable {
         self.quotaDisplayMode = quotaDisplayMode
         self.quotaDisplayStyle = quotaDisplayStyle
         self.stackPairedQuotaMetrics = stackPairedQuotaMetrics
+        self.showClaudeFableWeekly = showClaudeFableWeekly
         self.hideSensitiveInfo = hideSensitiveInfo
         self.totalUsageMode = totalUsageMode
         self.modelAggregationMode = modelAggregationMode

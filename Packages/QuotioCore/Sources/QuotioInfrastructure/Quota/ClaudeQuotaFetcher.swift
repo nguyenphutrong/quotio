@@ -236,6 +236,19 @@ public actor ClaudeQuotaFetcher: QuotaFetching {
         name: name, percentage: max(0, min(100, 100 - used)),
         resetTime: value["resets_at"] as? String ?? "")
     }
+    if let limits = json["limits"] as? [[String: Any]],
+      let fable = limits.first(where: { limit in
+        let scope = limit["scope"] as? [String: Any]
+        let model = scope?["model"] as? [String: Any]
+        return limit["kind"] as? String == "weekly_scoped"
+          && (model?["display_name"] as? String)?.lowercased() == "fable"
+      }),
+      let used = (fable["percent"] as? NSNumber)?.doubleValue, used.isFinite
+    {
+      metrics.insert(QuotaMetric(
+        name: "seven-day-fable", percentage: max(0, min(100, 100 - used)),
+        resetTime: fable["resets_at"] as? String ?? ""), at: min(2, metrics.count))
+    }
     if let extra = json["extra_usage"] as? [String: Any], extra["is_enabled"] as? Bool == true,
       let usedPercent = (extra["utilization"] as? NSNumber)?.doubleValue
     {
