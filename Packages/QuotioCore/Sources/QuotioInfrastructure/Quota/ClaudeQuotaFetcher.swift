@@ -7,14 +7,23 @@ public struct ClaudeQuotaCredential: Equatable, Sendable {
   public let accessToken: String
   public let refreshToken: String?
   public let expiresAt: Date?
+  /// Whether Quotio may spend this credential's refresh token.
+  ///
+  /// `false` for credentials the Claude Code CLI or Claude Desktop own: their
+  /// refresh tokens are single-use and the CLI marks one it did not spend itself
+  /// as dead, so renewing on its behalf can sign the user out. See
+  /// ``ClaudeCredentialOwnership``.
+  public let allowsRefresh: Bool
 
   public init(
-    accountKey: String, accessToken: String, refreshToken: String? = nil, expiresAt: Date? = nil
+    accountKey: String, accessToken: String, refreshToken: String? = nil, expiresAt: Date? = nil,
+    allowsRefresh: Bool = true
   ) {
     self.accountKey = accountKey
     self.accessToken = accessToken
     self.refreshToken = refreshToken
     self.expiresAt = expiresAt
+    self.allowsRefresh = allowsRefresh
   }
 }
 
@@ -48,9 +57,10 @@ public struct LocalClaudeQuotaCredentialLoader: ClaudeQuotaCredentialLoading {
   }
 
   public func credentials(for mode: QuotaOperatingMode) async -> [ClaudeQuotaCredential] {
-    let paths = credentialPaths()
     var seen = Set<String>()
-    return paths.compactMap(Self.load(path:)).filter { seen.insert($0.accountKey).inserted }
+    return credentialPaths().compactMap { path in
+      Self.load(path: path, allowsRefresh: allowsRefresh(path: path))
+    }.filter { seen.insert($0.accountKey).inserted }
   }
 
   public func persist(
@@ -62,17 +72,19 @@ public struct LocalClaudeQuotaCredentialLoader: ClaudeQuotaCredentialLoading {
     guard let path = credentialPaths().first(where: {
       Self.load(path: $0)?.accountKey == credential.accountKey
     }) else { return }
+    // Never write back to a file the Claude Code CLI owns, even if the caller
+    // asked: the write would replace a refresh token the CLI still expects.
+    guard allowsRefresh(path: path) else { return }
     Self.persist(refresh, replacing: expectedRefreshToken, path: path)
+  }
+
+  private func allowsRefresh(path: String) -> Bool {
+    ClaudeCredentialOwnership.forAuthFile(at: path, environment: environment).allowsRefresh
   }
 
   private func credentialPaths() -> [String] {
     var paths: [String] = []
-    let configured = environment["CLAUDE_CONFIG_DIR"]?.trimmingCharacters(
-      in: .whitespacesAndNewlines)
-    let nativeBase =
-      configured?.isEmpty == false
-      ? configured!
-      : NSString(string: "~/.claude").expandingTildeInPath
+    let nativeBase = ClaudeCredentialOwnership.configDirectory(environment: environment)
     paths.append((nativeBase as NSString).appendingPathComponent(".credentials.json"))
 
     let directory = NSString(string: Self.legacyDirectory).expandingTildeInPath
@@ -83,13 +95,15 @@ public struct LocalClaudeQuotaCredentialLoader: ClaudeQuotaCredentialLoading {
     return paths
   }
 
-  public static func load(path: String) -> ClaudeQuotaCredential? {
+  public static func load(path: String, allowsRefresh: Bool = true) -> ClaudeQuotaCredential? {
     let expanded = NSString(string: path).expandingTildeInPath
     guard let data = try? Data(contentsOf: URL(fileURLWithPath: expanded)) else { return nil }
-    return load(data: data)
+    return load(data: data, allowsRefresh: allowsRefresh)
   }
 
-  public static func load(data: Data, fallbackAccountKey: String = "Claude Code")
+  public static func load(
+    data: Data, fallbackAccountKey: String = "Claude Code", allowsRefresh: Bool = true
+  )
     -> ClaudeQuotaCredential?
   {
     guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -109,7 +123,8 @@ public struct LocalClaudeQuotaCredentialLoader: ClaudeQuotaCredentialLoading {
       expiry = (json["expired"] as? String).flatMap(parseDate)
     }
     return ClaudeQuotaCredential(
-      accountKey: key, accessToken: access, refreshToken: refresh, expiresAt: expiry)
+      accountKey: key, accessToken: access, refreshToken: refresh, expiresAt: expiry,
+      allowsRefresh: allowsRefresh)
   }
 
   static func updatedData(
@@ -256,13 +271,22 @@ public actor ClaudeQuotaFetcher: QuotaFetching {
     return metrics.isEmpty ? nil : ProviderQuota(models: metrics, lastUpdated: now)
   }
 
+  /// Quota for one Claude credential.
+  ///
+  /// A credential Quotio does not own is read-only: its refresh token is never
+  /// spent and it is never written back. `claude` serializes token refresh behind
+  /// a cross-process lock and marks a refresh token it did not spend itself as
+  /// dead on `invalid_grant`, so renewing on its behalf can sign the user out of
+  /// Claude Code. An expired access token there simply yields no fresh quota
+  /// until the CLI renews it itself, which is the correct outcome for an observer.
   private func fetchQuota(
     _ original: ClaudeQuotaCredential,
     mode: QuotaOperatingMode
   ) async -> ProviderQuota? {
     var credential = original
     var token = credential.accessToken
-    if let expiry = credential.expiresAt, expiry.timeIntervalSince(now()) < 60,
+    if credential.allowsRefresh, let expiry = credential.expiresAt,
+      expiry.timeIntervalSince(now()) < 60,
       let refresh = credential.refreshToken,
       let refreshed = try? await refreshToken(refresh)
     {
@@ -276,10 +300,12 @@ public actor ClaudeQuotaFetcher: QuotaFetching {
       token = refreshed.accessToken
     }
     var response = try? await usage(token: token)
-    if let status = response?.1.statusCode, status == 401 || status == 403,
+    if credential.allowsRefresh, let status = response?.1.statusCode,
+      status == 401 || status == 403,
       let latest = await credentials.credentials(for: mode).first(where: {
         $0.accountKey == credential.accountKey
       }),
+      latest.allowsRefresh,
       let refresh = latest.refreshToken,
       let refreshed = try? await refreshToken(refresh)
     {
@@ -293,6 +319,11 @@ public actor ClaudeQuotaFetcher: QuotaFetching {
     }
     guard let (data, http) = response else { return cache[credential.accountKey]?.quota }
     if http.statusCode == 401 || http.statusCode == 403 {
+      // A credential we may not renew has no re-authentication story in Quotio:
+      // the CLI refreshes it on its own schedule. Reporting `isForbidden` would
+      // ask the user to sign in to Quotio for a credential Quotio does not
+      // manage, so fall back to cached data instead.
+      guard credential.allowsRefresh else { return cache[credential.accountKey]?.quota }
       return ProviderQuota(lastUpdated: now(), isForbidden: true)
     }
     guard 200...299 ~= http.statusCode else { return cache[credential.accountKey]?.quota }
@@ -344,7 +375,8 @@ public actor ClaudeQuotaFetcher: QuotaFetching {
       accountKey: credential.accountKey,
       accessToken: refresh.accessToken,
       refreshToken: refresh.refreshToken ?? credential.refreshToken,
-      expiresAt: refresh.expiresAt ?? credential.expiresAt
+      expiresAt: refresh.expiresAt ?? credential.expiresAt,
+      allowsRefresh: credential.allowsRefresh
     )
   }
 

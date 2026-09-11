@@ -59,9 +59,11 @@ public struct ClaudeDesktopCredentialReader: ClaudeDesktopCredentialLoading {
         organization: organization,
         now: now()
       )
+    // Claude Desktop's token cache belongs to Claude Desktop; Quotio only reads it.
     return cached.map {
       ClaudeQuotaCredential(
-        accountKey: "Claude Desktop", accessToken: $0.accessToken, expiresAt: $0.expiresAt)
+        accountKey: "Claude Desktop", accessToken: $0.accessToken, expiresAt: $0.expiresAt,
+        allowsRefresh: false)
     }
   }
 

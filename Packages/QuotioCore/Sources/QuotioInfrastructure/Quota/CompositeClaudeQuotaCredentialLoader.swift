@@ -46,8 +46,11 @@ public struct CompositeClaudeQuotaCredentialLoader: ClaudeQuotaCredentialLoading
       }
     }
 
+    // The CLI's own keychain item: read-only. Its refresh token is single-use and
+    // shared with a running `claude`, so Quotio must never spend it.
     if let record = await external.read(service: "Claude Code-credentials", account: nil),
-      let credential = LocalClaudeQuotaCredentialLoader.load(data: record.data)
+      let credential = LocalClaudeQuotaCredentialLoader.load(
+        data: record.data, allowsRefresh: false)
     {
       result.append(credential)
     }
@@ -78,23 +81,6 @@ public struct CompositeClaudeQuotaCredentialLoader: ClaudeQuotaCredentialLoading
       stored.refreshToken = refresh.refreshToken ?? expectedRefreshToken
       stored.expiresAt = refresh.expiresAt ?? stored.expiresAt
       try? await vault.save(stored, metadata: account)
-      return
-    }
-
-    if let record = await external.read(service: "Claude Code-credentials", account: nil),
-      LocalClaudeQuotaCredentialLoader.load(data: record.data)?.accountKey == credential.accountKey,
-      let updated = LocalClaudeQuotaCredentialLoader.updatedData(
-        record.data,
-        refresh: refresh,
-        replacing: expectedRefreshToken
-      )
-    {
-      _ = await external.compareAndSwap(
-        service: "Claude Code-credentials",
-        account: record.account,
-        expectedData: record.data,
-        newData: updated
-      )
       return
     }
 
