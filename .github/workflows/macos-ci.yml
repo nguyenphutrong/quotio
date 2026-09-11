@@ -38,6 +38,9 @@ jobs:
       - name: Test core package
         run: swift test --package-path Packages/QuotioCore
 
+      - name: Install ripgrep
+        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install ripgrep
+
       - name: Check architecture boundaries
         run: ./apps/macos/scripts/check_architecture.sh
 

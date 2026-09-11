@@ -13,11 +13,23 @@ report_matches() {
     local pattern="$2"
     shift 2
 
-    local matches
-    if matches="$(rg --line-number --glob '*.swift' "${pattern}" "$@")"; then
-        printf 'Architecture violation: %s\n%s\n' "${description}" "${matches}" >&2
-        failure_count=$((failure_count + 1))
-    fi
+    # rg exits 0 on a match, 1 on no match, and 2 or higher on error. Only 1
+    # means the check ran and found nothing; anything else must not be read as
+    # a clean result.
+    local matches status=0
+    matches="$(rg --line-number --glob '*.swift' "${pattern}" "$@")" || status=$?
+
+    case "${status}" in
+        0)
+            printf 'Architecture violation: %s\n%s\n' "${description}" "${matches}" >&2
+            failure_count=$((failure_count + 1))
+            ;;
+        1) ;;
+        *)
+            printf 'Architecture check could not run: %s (rg exited %s)\n' "${description}" "${status}" >&2
+            exit 2
+            ;;
+    esac
 }
 
 report_files() {
@@ -50,6 +62,11 @@ unexpected_app_tests() {
         esac
     done < <(rg --files --glob '*.swift' "${app_test_root}" 2>/dev/null || true)
 }
+
+if ! command -v rg >/dev/null 2>&1; then
+    printf 'Architecture check requires ripgrep (rg), which was not found on PATH.\n' >&2
+    exit 2
+fi
 
 domain="${source_root}/QuotioDomain"
 application="${source_root}/QuotioApplication"
