@@ -56,12 +56,17 @@ public struct GroupedModelQuota: Identifiable, Sendable {
         Self.relativeResetTime(resetTime)
     }
 
+    /// Wall-clock moment of the next reset, e.g. "14:30" or "Thu 14:30". Nil when unknown or already past.
+    public var formattedResetMoment: String? {
+        QuotaResetMoment.label(for: resetTime)
+    }
+
     public init(group: AntigravityModelGroup, models: [QuotaMetric]) {
         self.group = group
         self.models = models
     }
 
-    private static func parseISO8601Date(_ value: String) -> Date? {
+    static func parseISO8601Date(_ value: String) -> Date? {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let standard = ISO8601DateFormatter()
@@ -230,6 +235,45 @@ public extension QuotaMetric {
 
     var formattedResetTime: String {
         GroupedModelQuota.relativeResetTime(resetTime)
+    }
+
+    /// Wall-clock moment of the next reset, e.g. "14:30" or "Thu 14:30". Nil when unknown or already past.
+    var formattedResetMoment: String? {
+        QuotaResetMoment.label(for: resetTime)
+    }
+}
+
+/// Formats an ISO 8601 reset timestamp as the wall-clock moment it lands on, so users can see
+/// *when* a window resets and not only how long that is from now.
+public enum QuotaResetMoment {
+    /// "14:30" when the reset lands within the next 24 hours, otherwise "Thu 14:30".
+    /// Returns nil for empty / unparseable values and for resets that already passed.
+    public static func label(
+        for isoValue: String,
+        now: Date = Date(),
+        locale: Locale = .autoupdatingCurrent,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> String? {
+        guard !isoValue.isEmpty,
+              let date = GroupedModelQuota.parseISO8601Date(isoValue),
+              date > now else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        let withinDay = date.timeIntervalSince(now) < 24 * 60 * 60
+        formatter.setLocalizedDateFormatFromTemplate(withinDay ? "jm" : "EEEjm")
+        return formatter.string(from: date)
+    }
+
+    /// Joins a relative countdown with the absolute moment: "2h 13m · 14:30".
+    /// Falls back to whichever part is available.
+    public static func summary(countdown: String?, moment: String?) -> String? {
+        switch (countdown, moment) {
+        case let (countdown?, moment?): "\(countdown) · \(moment)"
+        case let (countdown?, nil): countdown
+        case let (nil, moment?): moment
+        case (nil, nil): nil
+        }
     }
 }
 
