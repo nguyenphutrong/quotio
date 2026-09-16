@@ -16,6 +16,7 @@ public final class QuotaScreenModel {
     @ObservationIgnored private let coordinator: QuotaRefreshCoordinator
     @ObservationIgnored private var observationTask: Task<Void, Never>?
     @ObservationIgnored private var didChangeHandler: (@MainActor (QuotaSnapshot) -> Void)?
+    @ObservationIgnored private var isShutdown = false
 
     public init(
         coordinator: QuotaRefreshCoordinator,
@@ -108,6 +109,7 @@ public final class QuotaScreenModel {
     }
 
     public func shutdown() async {
+        isShutdown = true
         observationTask?.cancel()
         observationTask = nil
         await coordinator.cancelForTermination()
@@ -115,6 +117,7 @@ public final class QuotaScreenModel {
     }
 
     private func observe() {
+        guard !isShutdown else { return }
         let coordinator = coordinator
         observationTask = Task { [weak self] in
             let states = await coordinator.states()
@@ -126,6 +129,7 @@ public final class QuotaScreenModel {
     }
 
     private func resetObservation(to state: QuotaSnapshot) {
+        guard !isShutdown else { return }
         observationTask?.cancel()
         self.state = state
         observe()

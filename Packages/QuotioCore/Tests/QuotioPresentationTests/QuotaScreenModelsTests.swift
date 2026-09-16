@@ -57,6 +57,32 @@ final class QuotaScreenModelsTests: XCTestCase {
         await quota.shutdown()
     }
 
+    func testShutdownPreventsSuspendedRefreshFromRestartingObservation() async {
+        let gate = PresentationGate()
+        let fetcher = SuspendedPresentationQuotaFetcher(gate: gate)
+        let coordinator = QuotaRefreshCoordinator(
+            registry: QuotaProviderRegistry([fetcher]),
+            snapshots: PresentationQuotaStore(initial: QuotaSnapshot()),
+            clock: PresentationClock()
+        )
+        let model = QuotaScreenModel(coordinator: coordinator)
+        await model.bootstrap(mode: .monitor)
+
+        let refresh = Task {
+            await model.refresh(provider: .codex, mode: .monitor, force: true)
+        }
+        await fetcher.waitUntilCalled()
+        await model.shutdown()
+        await gate.resume()
+        await refresh.value
+
+        await coordinator.replaceQuotas(
+            ["late": Self.quota(90)], for: .codex, mode: .monitor)
+        for _ in 0..<10 { await Task.yield() }
+
+        XCTAssertNil(model.providerQuotas[.codex]?["late"])
+    }
+
     private static func quota(_ percentage: Double) -> ProviderQuota {
         ProviderQuota(
             models: [QuotaMetric(name: "usage", percentage: percentage, resetTime: "")],
@@ -76,6 +102,43 @@ private actor PresentationQuotaFetcher: QuotaFetching {
 
     func fetch(_ request: QuotaFetchRequest) -> QuotaProviderOutput {
         QuotaProviderOutput(quotas: ["account": quota])
+    }
+}
+
+private actor SuspendedPresentationQuotaFetcher: QuotaFetching {
+    nonisolated let provider: QuotaProvider = .codex
+    private let gate: PresentationGate
+    private var callContinuations: [CheckedContinuation<Void, Never>] = []
+    private var wasCalled = false
+
+    init(gate: PresentationGate) {
+        self.gate = gate
+    }
+
+    func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
+        wasCalled = true
+        callContinuations.forEach { $0.resume() }
+        callContinuations.removeAll()
+        await gate.wait()
+        return QuotaProviderOutput(quotas: [:])
+    }
+
+    func waitUntilCalled() async {
+        if wasCalled { return }
+        await withCheckedContinuation { callContinuations.append($0) }
+    }
+}
+
+private actor PresentationGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
     }
 }
 
