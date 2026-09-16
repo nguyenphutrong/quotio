@@ -477,6 +477,42 @@ impl Document {
             Err(AccountError::NotFound)
         }
     }
+
+    pub fn replace_api_key(
+        &mut self,
+        id: &str,
+        provider: Provider,
+        identity: String,
+        credential: Credential,
+    ) -> Result<(), AccountError> {
+        let account = self
+            .accounts
+            .iter()
+            .find(|account| account.id == id)
+            .ok_or(AccountError::NotFound)?;
+        if account.provider != provider
+            || !matches!(
+                (&account.credential, &credential),
+                (Credential::ApiKey { .. }, Credential::ApiKey { .. })
+                    | (Credential::CatalogKey { .. }, Credential::CatalogKey { .. })
+            )
+        {
+            return Err(AccountError::Unsupported);
+        }
+        if self.accounts.iter().any(|candidate| {
+            candidate.id != id && candidate.provider == provider && candidate.identity == identity
+        }) {
+            return Err(AccountError::Duplicate);
+        }
+        let account = self
+            .accounts
+            .iter_mut()
+            .find(|account| account.id == id)
+            .expect("account was checked");
+        account.identity = identity;
+        account.credential = credential;
+        Ok(())
+    }
 }
 pub fn validate_label(label: &str) -> Result<String, AccountError> {
     let label = label.trim();

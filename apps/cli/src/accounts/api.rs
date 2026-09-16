@@ -58,6 +58,10 @@ pub struct AccountPatch {
     pub enabled: Option<bool>,
     pub label: Option<String>,
     pub active: Option<bool>,
+    pub api_key: Option<String>,
+    pub settings: Option<BTreeMap<String, String>>,
+    pub region: Option<String>,
+    pub organization: Option<String>,
 }
 fn credential(input: ApiKeyInput, context: &ProviderContext) -> Result<Credential, AccountError> {
     let ApiKeyInput {
@@ -276,6 +280,12 @@ pub struct PreparedAccount {
     credential: Credential,
     identity: String,
 }
+pub struct PreparedPatch {
+    label: Option<String>,
+    active: Option<bool>,
+    enabled: Option<bool>,
+    replacement: Option<(Provider, String, Credential)>,
+}
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SourceInput {
@@ -454,6 +464,55 @@ pub async fn prepare(
         identity: usage.account.id,
     })
 }
+pub async fn prepare_update(
+    vault: Vault,
+    context: &ProviderContext,
+    id: &str,
+    patch: AccountPatch,
+) -> Result<PreparedPatch, AccountError> {
+    let AccountPatch {
+        enabled,
+        label,
+        active,
+        api_key,
+        settings,
+        region,
+        organization,
+    } = patch;
+    let replacement = match api_key {
+        Some(api_key) => {
+            let account = service::get(vault, id.to_owned()).await?;
+            let credential = credential(
+                ApiKeyInput {
+                    provider: account.provider,
+                    label: None,
+                    api_key,
+                    settings: settings.unwrap_or_default(),
+                    region,
+                    organization,
+                },
+                context,
+            )?;
+            let usage = tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                service::validate(context, account.provider, &credential),
+            )
+            .await
+            .map_err(|_| AccountError::Cancelled)??;
+            Some((account.provider, usage.account.id, credential))
+        }
+        None if settings.is_some() || region.is_some() || organization.is_some() => {
+            return Err(AccountError::Input);
+        }
+        None => None,
+    };
+    Ok(PreparedPatch {
+        label,
+        active,
+        enabled,
+        replacement,
+    })
+}
 pub async fn save(vault: Vault, prepared: PreparedAccount) -> Result<AccountDto, AccountError> {
     let account = service::add_persisted(
         vault,
@@ -483,11 +542,14 @@ pub async fn save_once(
 pub async fn update_once(
     vault: Vault,
     id: String,
-    patch: AccountPatch,
+    patch: PreparedPatch,
     intent: service::MutationIntent,
 ) -> Result<String, AccountError> {
     service::commit_once(vault, intent, move |document| {
         document.patch(&id, patch.label.as_deref(), patch.active, patch.enabled)?;
+        if let Some((provider, identity, credential)) = patch.replacement {
+            document.replace_api_key(&id, provider, identity, credential)?;
+        }
         Ok(id)
     })
     .await
@@ -527,6 +589,13 @@ pub async fn update(
     id: String,
     patch: AccountPatch,
 ) -> Result<AccountDto, AccountError> {
+    if patch.api_key.is_some()
+        || patch.settings.is_some()
+        || patch.region.is_some()
+        || patch.organization.is_some()
+    {
+        return Err(AccountError::Unsupported);
+    }
     let account = service::patch(vault, id, patch.label, patch.active, patch.enabled).await?;
     Ok(AccountDto::from(&account))
 }
@@ -844,7 +913,11 @@ mod tests {
                 AccountPatch {
                     enabled: None,
                     label: Some("first".into()),
-                    active: Some(true)
+                    active: Some(true),
+                    api_key: None,
+                    settings: None,
+                    region: None,
+                    organization: None,
                 }
             )
             .await,
@@ -869,5 +942,58 @@ mod tests {
             serde_json::from_str::<AccountPatch>(r#"{"active":true,"credential":"secret"}"#)
                 .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn api_key_replacement_preserves_account_id() {
+        use crate::accounts::vault::tests::Memory;
+        use std::sync::Arc;
+
+        let vault = Vault::new(
+            Arc::new(Memory::default()),
+            std::env::temp_dir().join(format!(
+                "quotio-api-key-replacement-{}.lock",
+                crate::accounts::random_string().unwrap()
+            )),
+        );
+        let id = service::add(
+            vault.clone(),
+            Provider::Amp,
+            "Amp".into(),
+            Credential::ApiKey {
+                token: "old".into(),
+                region: None,
+                organization: None,
+            },
+            "old-identity".into(),
+        )
+        .await
+        .unwrap();
+        let prepared = PreparedPatch {
+            label: Some("Updated Amp".into()),
+            active: None,
+            enabled: None,
+            replacement: Some((
+                Provider::Amp,
+                "new-identity".into(),
+                Credential::ApiKey {
+                    token: "new".into(),
+                    region: None,
+                    organization: None,
+                },
+            )),
+        };
+        let intent = service::MutationIntent::new("replace-key", "request".into()).unwrap();
+
+        let updated = update_once(vault.clone(), id.clone(), prepared, intent)
+            .await
+            .unwrap();
+        let account = service::get(vault, id.clone()).await.unwrap();
+
+        assert_eq!(updated, id);
+        assert_eq!(account.id, id);
+        assert_eq!(account.label, "Updated Amp");
+        assert_eq!(account.identity, "new-identity");
+        assert!(matches!(account.credential, Credential::ApiKey { token, .. } if token == "new"));
     }
 }

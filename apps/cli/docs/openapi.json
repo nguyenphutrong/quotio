@@ -2306,6 +2306,8 @@
                 "add_account",
                 "rename_account",
                 "select_account",
+                "set_account_enabled",
+                "update_api_key",
                 "remove_account",
                 "start_oauth"
               ]
@@ -2553,6 +2555,22 @@
               "null"
             ],
             "description": "Enable or disable quota collection for an account without changing its provider login or source configuration."
+          },
+          "api_key": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 16384,
+            "description": "Replace the credential for an owned API-key account while preserving its account ID. Provider settings are replaced with this request."
+          },
+          "settings": {
+            "type": ["object", "null"],
+            "additionalProperties": {"type": "string"}
+          },
+          "region": {
+            "type": ["string", "null"]
+          },
+          "organization": {
+            "type": ["string", "null"]
           }
         },
         "additionalProperties": false

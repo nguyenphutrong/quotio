@@ -289,6 +289,9 @@ async fn mutate(
                         Ok(json!({"account_id":account_id}))
                     }
                     Mutation::Update(id, patch) => {
+                        let patch = api::prepare_update(vault.clone(), &work.context, &id, patch)
+                            .await
+                            .map_err(|e| account_code(&e))?;
                         let _guard = crate::accounts::service::mutation_guard(&work.commit_guard)
                             .await
                             .map_err(|e| account_code(&e))?;

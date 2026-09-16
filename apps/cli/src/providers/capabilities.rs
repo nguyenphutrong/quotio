@@ -26,6 +26,8 @@ pub enum Operation {
     AddAccount,
     RenameAccount,
     SelectAccount,
+    SetAccountEnabled,
+    UpdateApiKey,
     RemoveAccount,
     #[serde(rename = "start_oauth")]
     StartOAuth,
@@ -155,8 +157,12 @@ pub fn capability(provider: Provider) -> ProviderCapability {
             Operation::AddAccount,
             Operation::RenameAccount,
             Operation::SelectAccount,
+            Operation::SetAccountEnabled,
             Operation::RemoveAccount,
         ]);
+        if provider.api_key_name().is_some() {
+            operations.push(Operation::UpdateApiKey);
+        }
     }
     let oauth_workflow = match provider {
         Provider::Codex => Some(crate::accounts::oauth::Workflow::BrowserCallback),
