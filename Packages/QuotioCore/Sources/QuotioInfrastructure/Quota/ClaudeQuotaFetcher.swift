@@ -260,13 +260,7 @@ final class SecureClaudeCredentialFile {
   private let inode: ino_t
 
   init?(path: String) {
-    let expanded = NSString(string: path).expandingTildeInPath
-    var standardized = URL(fileURLWithPath: expanded).standardizedFileURL.path
-    if standardized == "/var" || standardized.hasPrefix("/var/")
-      || standardized == "/tmp" || standardized.hasPrefix("/tmp/")
-    {
-      standardized = "/private" + standardized
-    }
+    let standardized = ClaudeCredentialOwnership.canonicalPath(path)
     let components = URL(fileURLWithPath: standardized).pathComponents.dropFirst()
     guard let name = components.last, name != ".", name != ".." else { return nil }
 

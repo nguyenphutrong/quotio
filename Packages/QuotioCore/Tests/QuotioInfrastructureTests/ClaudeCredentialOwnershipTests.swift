@@ -79,6 +79,17 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
     )
   }
 
+  func testOpenedFileAndConfiguredDirectoryUseTheSameSystemAlias() {
+    XCTAssertEqual(
+      ClaudeCredentialOwnership.forOpenedAuthFile(
+        at: "/private/tmp/claude/.credentials.json",
+        referenceCount: 1,
+        environment: ["CLAUDE_CONFIG_DIR": "/tmp/claude"]
+      ),
+      .externalCLI
+    )
+  }
+
   // MARK: - Symlinks
 
   /// A `claude-*.json` entry under `~/.cli-proxy-api` that links to the CLI's

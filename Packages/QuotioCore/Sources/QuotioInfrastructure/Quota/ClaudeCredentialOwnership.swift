@@ -71,10 +71,20 @@ public enum ClaudeCredentialOwnership: Equatable, Sendable {
     // symlinks. Leave all multiply linked credentials read-only.
     if referenceCount > 1 { return .externalCLI }
 
-    let file = URL(fileURLWithPath: path).standardizedFileURL.path
-    let cliDirectory = URL(fileURLWithPath: configDirectory(environment: environment))
-      .standardizedFileURL.path
+    let file = canonicalPath(path)
+    let cliDirectory = canonicalPath(configDirectory(environment: environment))
     return file == cliDirectory || file.hasPrefix(cliDirectory + "/") ? .externalCLI : .quotio
+  }
+
+  static func canonicalPath(_ path: String) -> String {
+    let expanded = NSString(string: path).expandingTildeInPath
+    var standardized = URL(fileURLWithPath: expanded).standardizedFileURL.path
+    if standardized == "/var" || standardized.hasPrefix("/var/")
+      || standardized == "/tmp" || standardized.hasPrefix("/tmp/")
+    {
+      standardized = "/private" + standardized
+    }
+    return standardized
   }
 
   static func containsSymbolicLink(
