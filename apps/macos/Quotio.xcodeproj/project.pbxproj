@@ -141,6 +141,7 @@
 				78D386902EFBF30400C40FB6 /* Sources */,
 				78D386912EFBF30400C40FB6 /* Frameworks */,
 				78D386922EFBF30400C40FB6 /* Resources */,
+				C10000000000000000000001 /* Embed Quotio CLI */,
 			);
 			buildRules = (
 			);
@@ -220,6 +221,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		C10000000000000000000001 /* Embed Quotio CLI */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Embed Quotio CLI";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/quotio-cli",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"${SRCROOT}/scripts/build_cli_helper.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A10000000000000000000005 /* Sources */ = {
@@ -402,6 +422,7 @@
 				CURRENT_PROJECT_VERSION = 74;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				EXCLUDED_SOURCE_FILE_NAMES = AGENTS.md;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -449,6 +470,7 @@
 				CURRENT_PROJECT_VERSION = 74;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				EXCLUDED_SOURCE_FILE_NAMES = AGENTS.md;
 				GENERATE_INFOPLIST_FILE = YES;

@@ -6,6 +6,13 @@ final class AppIdentityTests: XCTestCase {
         XCTAssertEqual(AppIdentity.productionBundleIdentifier, "app.bytrong.quotio")
     }
 
+    func testApplicationBundleContainsExecutableQuotioCLIHelper() {
+        let helper = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Helpers/quotio-cli")
+
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: helper.path))
+    }
+
     func testLegacyDefaultsMergePreservesCurrentValuesAndNewestLegacyDomain() {
         let merged = AppIdentity.mergingUserDefaults(
             current: ["existing": "current"],

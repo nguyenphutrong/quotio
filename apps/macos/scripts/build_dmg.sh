@@ -376,11 +376,15 @@ xcodebuild "${ARCHIVE_ARGS[@]}" 2>&1 | tee "${BUILD_DIR}/release-build.log"
 ARCHIVED_APP="${ARCHIVE_PATH}/Products/Applications/${PROJECT_NAME}.app"
 [ -d "${ARCHIVED_APP}" ] || fail "archive did not contain ${PROJECT_NAME}.app"
 cp -R "${ARCHIVED_APP}" "${APP_PATH}"
+CLI_HELPER="${APP_PATH}/Contents/Helpers/quotio-cli"
+[ -x "${CLI_HELPER}" ] || fail "archive did not contain an executable Quotio CLI helper"
 if [ "${DISTRIBUTION}" = true ]; then
     sign_app_for_distribution
     notarize_app
 else
-    codesign --force --deep --sign - "${APP_PATH}"
+    codesign --force --sign - "${CLI_HELPER}"
+    codesign --force --sign - "${APP_PATH}"
+    codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
 fi
 
 ZIP_FILE="${RELEASE_DIR}/${PROJECT_NAME}-${VERSION}.zip"
