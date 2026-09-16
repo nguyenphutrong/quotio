@@ -862,24 +862,27 @@ private struct MenuAccountCardView: View {
     // MARK: - Quota Content
     
     private var quotaContentSection: some View {
+        let quotaModels = data.models.filter { model in
+            !(provider == .codex && settings.hideCodexSpark && model.name.hasPrefix("codex-spark"))
+        }
         let isCardStyle = displayStyle == .card
         let models: [ModelBadgeData] = {
             if isAntigravity {
                 return antigravityGroups.map { ModelBadgeData(name: $0.name, percentage: $0.percentage, resetTime: $0.resetTime) }
             } else {
-                let meterModels = data.models.filter { !$0.isStandaloneMetric }.map {
+                let meterModels = quotaModels.filter { !$0.isStandaloneMetric }.map {
                     ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime)
                 }
                 guard isCardStyle else { return meterModels }
-                let standaloneModels = data.models.filter(\.isStandaloneMetric).map {
+                let standaloneModels = quotaModels.filter(\.isStandaloneMetric).map {
                     ModelBadgeData(name: $0.displayName, percentage: $0.percentage, resetTime: $0.resetTime, usage: $0.formattedUsage)
                 }
                 return meterModels + standaloneModels
             }
         }()
-        let standaloneModels = isAntigravity || isCardStyle ? [] : data.models.filter(\.isStandaloneMetric)
+        let standaloneModels = isAntigravity || isCardStyle ? [] : quotaModels.filter(\.isStandaloneMetric)
         let factorySections = provider == .factoryDroid
-            ? FactoryDroidQuotaSection.sections(from: data.models.filter { !$0.isStandaloneMetric })
+            ? FactoryDroidQuotaSection.sections(from: quotaModels.filter { !$0.isStandaloneMetric })
             : []
         
         return VStack(spacing: 8) {
