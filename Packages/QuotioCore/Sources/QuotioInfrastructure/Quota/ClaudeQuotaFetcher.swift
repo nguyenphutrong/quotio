@@ -34,7 +34,9 @@ public struct ClaudeQuotaCredential: Equatable, Sendable {
 
     for credential in credentials {
       if let index = positions[credential.accountKey] {
-        if credential.allowsRefresh && !result[index].allowsRefresh {
+        if credential.allowsRefresh, credential.refreshToken != nil,
+          !result[index].allowsRefresh || result[index].refreshToken == nil
+        {
           result[index] = credential
         }
       } else {

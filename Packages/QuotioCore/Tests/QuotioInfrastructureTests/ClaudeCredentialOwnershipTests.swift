@@ -329,6 +329,24 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
 
   // MARK: - Composite loader
 
+  func testDuplicateWithoutRefreshTokenDoesNotHideCLICredential() {
+    let cli = ClaudeQuotaCredential(
+      accountKey: "user@example.com", accessToken: "usable-cli", refreshToken: "cli-refresh",
+      expiresAt: .distantFuture, allowsRefresh: false)
+    let accessOnly = ClaudeQuotaCredential(
+      accountKey: "user@example.com", accessToken: "expired-proxy", expiresAt: .distantPast)
+    let refreshable = ClaudeQuotaCredential(
+      accountKey: "user@example.com", accessToken: "owned", refreshToken: "owned-refresh")
+
+    XCTAssertEqual(ClaudeQuotaCredential.uniqueByAccountKey([cli, accessOnly]), [cli])
+    XCTAssertEqual(
+      ClaudeQuotaCredential.uniqueByAccountKey([cli, accessOnly, refreshable]), [refreshable])
+    XCTAssertEqual(
+      ClaudeQuotaCredential.uniqueByAccountKey([accessOnly, refreshable, cli]), [refreshable])
+    XCTAssertEqual(
+      ClaudeQuotaCredential.uniqueByAccountKey([refreshable, accessOnly, cli]), [refreshable])
+  }
+
   func testCompositeMarksCLIKeychainItemReadOnlyAndNeverSwapsIt() async throws {
     let data = Data(
       #"{"claudeAiOauth":{"accessToken":"cli-access","refreshToken":"cli-refresh","email":"user@example.com"}}"#
@@ -363,7 +381,8 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
       #"{"claudeAiOauth":{"accessToken":"cli-access","email":"user@example.com"}}"#.utf8)
     let loader = CompositeClaudeQuotaCredentialLoader(
       local: StaticClaudeLoader([
-        .init(accountKey: "user@example.com", accessToken: "proxy-access")
+        .init(
+          accountKey: "user@example.com", accessToken: "proxy-access", refreshToken: "proxy-refresh")
       ]),
       vault: EmptyVault(),
       metadata: EmptyMetadata(),
