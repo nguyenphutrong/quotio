@@ -224,9 +224,7 @@ final class AppRuntime {
 
     private func handleStatusBarStateChange() {
         services.updateStatusBar()
-        Task { @MainActor [weak self] in
-            self?.services.rebuildStatusBar()
-        }
+        services.rebuildStatusBar()
     }
 
     private func performShutdown(timeout: Duration) async -> Bool {

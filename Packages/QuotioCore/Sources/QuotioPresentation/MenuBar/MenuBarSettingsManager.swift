@@ -403,9 +403,7 @@ public final class MenuBarSettingsManager {
     }
 
     /// Provider used to filter account cards in the expanded menu.
-    public private(set) var selectedProvider: QuotaProvider? {
-        didSet { persist() }
-    }
+    public private(set) var selectedProvider: QuotaProvider?
     
     /// Color mode (colored vs monochrome)
     public var colorMode: MenuBarColorMode {
@@ -502,6 +500,7 @@ public final class MenuBarSettingsManager {
 
     public func selectProvider(_ provider: QuotaProvider?) {
         selectedProvider = provider
+        repository.save(preferences)
     }
     
     public func addItem(_ item: MenuBarQuotaItem) {

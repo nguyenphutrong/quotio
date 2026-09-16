@@ -128,10 +128,37 @@ final class StatusBarMenuRendererTests: XCTestCase {
             commands: dispatcher
         ).buildMenu()
 
-        XCTAssertEqual(unfilteredMenu.items.count, 11)
-        XCTAssertEqual(unfilteredMenu.items.filter(\.isSeparatorItem).count, 4)
-        XCTAssertEqual(filteredMenu.items.count, 7)
-        XCTAssertEqual(filteredMenu.items.filter(\.isSeparatorItem).count, 3)
+        let unfilteredItems = unfilteredMenu.items.filter { !$0.isHidden }
+        let filteredItems = filteredMenu.items.filter { !$0.isHidden }
+        XCTAssertEqual(unfilteredItems.count, 11)
+        XCTAssertEqual(unfilteredItems.filter(\.isSeparatorItem).count, 4)
+        XCTAssertEqual(filteredItems.count, 7)
+        XCTAssertEqual(filteredItems.filter(\.isSeparatorItem).count, 3)
+    }
+
+    func testProviderFilterHidesItemsWithoutReplacingTrackedMenuContents() {
+        var selections: [QuotaProvider?] = []
+        let controller = StatusBarProviderFilterController(selectedProvider: nil) {
+            selections.append($0)
+        }
+        let menu = NSMenu()
+        let claudeItem = NSMenuItem(title: "Claude", action: nil, keyEquivalent: "")
+        let codexItem = NSMenuItem(title: "Codex", action: nil, keyEquivalent: "")
+        let providerHeader = NSMenuItem(title: "Header", action: nil, keyEquivalent: "")
+        menu.items = [providerHeader, claudeItem, codexItem]
+        controller.register(providerHeader, scope: .allProvidersOnly)
+        controller.register(claudeItem, scope: .provider(.claude))
+        controller.register(codexItem, scope: .provider(.codex))
+        controller.activate(in: menu)
+        let originalItems = menu.items.map(ObjectIdentifier.init)
+
+        controller.select(.claude)
+
+        XCTAssertEqual(menu.items.map(ObjectIdentifier.init), originalItems)
+        XCTAssertTrue(providerHeader.isHidden)
+        XCTAssertFalse(claudeItem.isHidden)
+        XCTAssertTrue(codexItem.isHidden)
+        XCTAssertEqual(selections, [.claude])
     }
 
     private func makeSnapshot(selectedProvider: QuotaProvider?) -> StatusBarMenuSnapshot {

@@ -273,6 +273,7 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
             nativeMenu.removeItem(item)
             menu.addItem(item)
         }
+        renderer.activateProviderFilter(in: menu)
     }
     
     // MARK: - Menu Actions

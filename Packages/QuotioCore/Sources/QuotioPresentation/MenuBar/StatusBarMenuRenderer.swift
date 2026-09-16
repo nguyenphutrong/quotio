@@ -14,12 +14,71 @@ import AppKit
 import QuotioDomain
 import SwiftUI
 
+@MainActor
+@Observable
+final class StatusBarProviderFilterController {
+    enum Scope {
+        case provider(QuotaProvider)
+        case allProvidersOnly
+    }
+
+    var selectedProvider: QuotaProvider?
+
+    @ObservationIgnored private weak var menu: NSMenu?
+    @ObservationIgnored private var scopes: [ObjectIdentifier: Scope] = [:]
+    @ObservationIgnored private let onSelectionChanged: (QuotaProvider?) -> Void
+
+    init(
+        selectedProvider: QuotaProvider?,
+        onSelectionChanged: @escaping (QuotaProvider?) -> Void
+    ) {
+        self.selectedProvider = selectedProvider
+        self.onSelectionChanged = onSelectionChanged
+    }
+
+    func register(_ item: NSMenuItem, scope: Scope) {
+        scopes[ObjectIdentifier(item)] = scope
+        item.isHidden = !isVisible(scope)
+    }
+
+    func activate(in menu: NSMenu) {
+        self.menu = menu
+        applySelection()
+    }
+
+    func select(_ provider: QuotaProvider?) {
+        guard selectedProvider != provider else { return }
+        selectedProvider = provider
+        applySelection()
+        onSelectionChanged(provider)
+    }
+
+    private func applySelection() {
+        guard let menu else { return }
+        for item in menu.items {
+            guard let scope = scopes[ObjectIdentifier(item)] else { continue }
+            item.isHidden = !isVisible(scope)
+        }
+        menu.update()
+    }
+
+    private func isVisible(_ scope: Scope) -> Bool {
+        switch scope {
+        case .provider(let provider):
+            selectedProvider == nil || selectedProvider == provider
+        case .allProvidersOnly:
+            selectedProvider == nil
+        }
+    }
+}
+
 // MARK: - Status Bar Menu Renderer
 
 @MainActor
 final class StatusBarMenuRenderer {
     private let snapshot: StatusBarMenuSnapshot
     private let commands: StatusBarCommandDispatcher
+    private let providerFilterController: StatusBarProviderFilterController
     private let menuWidth: CGFloat = 360
 
     init(
@@ -28,6 +87,16 @@ final class StatusBarMenuRenderer {
     ) {
         self.snapshot = snapshot
         self.commands = commands
+        let availableProviders = snapshot.providers.map(\.provider)
+        let selectedProvider = snapshot.selectedProvider.flatMap { provider in
+            availableProviders.contains(provider) ? provider : nil
+        }
+        self.providerFilterController = StatusBarProviderFilterController(
+            selectedProvider: selectedProvider,
+            onSelectionChanged: { provider in
+                commands.dispatch(.selectProvider(provider))
+            }
+        )
     }
     
     // MARK: - Build Menu
@@ -50,41 +119,47 @@ final class StatusBarMenuRenderer {
         if !providers.isEmpty {
             let pickerView = MenuProviderPickerView(
                 providers: providers.map(\.provider),
-                selectedProvider: selectedProvider(from: providers),
-                onProviderChanged: { provider in
-                    self.commands.dispatch(.selectProvider(provider))
-                }
+                controller: providerFilterController
             )
             menu.addItem(viewItem(for: pickerView))
             menu.addItem(NSMenuItem.separator())
 
-            let visibleProviders = visibleProviders(from: providers)
-            let showsProviderHeaders = selectedProvider(from: providers) == nil
-            for (index, providerSnapshot) in visibleProviders.enumerated() {
-                if showsProviderHeaders {
-                    let headerView = MenuProviderSectionHeader(
-                        provider: providerSnapshot.provider,
-                        isRefreshing: providerSnapshot.isRefreshing,
-                        supportsScopedRefresh: providerSnapshot.supportsScopedRefresh,
-                        onRefresh: {
-                            self.commands.dispatch(.refreshProvider(providerSnapshot.provider))
-                        }
-                    )
-                    menu.addItem(viewItem(for: headerView))
-                }
+            for (index, providerSnapshot) in providers.enumerated() {
+                let headerView = MenuProviderSectionHeader(
+                    provider: providerSnapshot.provider,
+                    isRefreshing: providerSnapshot.isRefreshing,
+                    supportsScopedRefresh: providerSnapshot.supportsScopedRefresh,
+                    onRefresh: {
+                        self.commands.dispatch(.refreshProvider(providerSnapshot.provider))
+                    }
+                )
+                let headerItem = viewItem(for: headerView)
+                providerFilterController.register(headerItem, scope: .allProvidersOnly)
+                menu.addItem(headerItem)
 
                 if providerSnapshot.accounts.isEmpty {
-                    menu.addItem(buildEmptyStateItem())
+                    let emptyItem = buildEmptyStateItem()
+                    providerFilterController.register(
+                        emptyItem,
+                        scope: .provider(providerSnapshot.provider)
+                    )
+                    menu.addItem(emptyItem)
                 } else {
                     for account in providerSnapshot.accounts {
                         let cardItem = buildAccountCardItem(account)
+                        providerFilterController.register(
+                            cardItem,
+                            scope: .provider(providerSnapshot.provider)
+                        )
                         menu.addItem(cardItem)
                     }
                 }
 
                 // Separator between provider groups (not after the last one)
-                if index < visibleProviders.count - 1 {
-                    menu.addItem(NSMenuItem.separator())
+                if index < providers.count - 1 {
+                    let separator = NSMenuItem.separator()
+                    providerFilterController.register(separator, scope: .allProvidersOnly)
+                    menu.addItem(separator)
                 }
             }
 
@@ -98,29 +173,14 @@ final class StatusBarMenuRenderer {
         for item in buildActionItems() {
             menu.addItem(item)
         }
+
+        providerFilterController.activate(in: menu)
         
         return menu
     }
-    
-    // MARK: - Data Helpers
 
-    private func selectedProvider(
-        from providers: [StatusBarMenuProviderSnapshot]
-    ) -> QuotaProvider? {
-        guard let provider = snapshot.selectedProvider,
-              providers.contains(where: { $0.provider == provider }) else {
-            return nil
-        }
-        return provider
-    }
-
-    private func visibleProviders(
-        from providers: [StatusBarMenuProviderSnapshot]
-    ) -> [StatusBarMenuProviderSnapshot] {
-        guard let provider = selectedProvider(from: providers) else {
-            return providers
-        }
-        return providers.filter { $0.provider == provider }
+    func activateProviderFilter(in menu: NSMenu) {
+        providerFilterController.activate(in: menu)
     }
 
     // MARK: - Header Item
@@ -330,22 +390,21 @@ private struct MenuProviderSectionHeader: View {
 
 private struct MenuProviderPickerView: View {
     let providers: [QuotaProvider]
-    let selectedProvider: QuotaProvider?
-    let onProviderChanged: (QuotaProvider?) -> Void
+    let controller: StatusBarProviderFilterController
     
     var body: some View {
         // Wrap providers in a flexible layout
         FlowLayout(spacing: 6) {
-            AllProviderFilterButton(isSelected: selectedProvider == nil) {
-                onProviderChanged(nil)
+            AllProviderFilterButton(isSelected: controller.selectedProvider == nil) {
+                controller.select(nil)
             }
 
             ForEach(providers) { provider in
                 ProviderFilterButton(
                     provider: provider,
-                    isSelected: selectedProvider == provider
+                    isSelected: controller.selectedProvider == provider
                 ) {
-                    onProviderChanged(provider)
+                    controller.select(provider)
                 }
             }
         }
