@@ -29,27 +29,37 @@ public struct ClaudeQuotaCredential: Equatable, Sendable {
 
   /// Keeps one credential per account without letting an external read-only
   /// credential hide a refreshable credential owned by Quotio.
-  static func uniqueByAccountKey(_ credentials: [Self]) -> [Self] {
+  static func uniqueByAccountKey(_ credentials: [Self], now: Date = Date()) -> [Self] {
+    let externalRefreshTokens = Set(
+      credentials.compactMap { credential in
+        credential.allowsRefresh ? nil : credential.refreshToken
+      })
     var positions: [String: Int] = [:]
     var result: [Self] = []
 
-    for credential in credentials {
-      // A copied CLI token is still CLI-owned, regardless of its file location.
-      // Inspect all external entries before deduplication so input order cannot
-      // hide a shared single-use refresh token. Keep the external entry instead.
+    for original in credentials {
+      var credential = original
+      // A copied CLI token is still CLI-owned, regardless of its file location
+      // or account key. Keep it readable for scoped requests, but never refresh it.
       if credential.allowsRefresh, let refreshToken = credential.refreshToken,
-        credentials.contains(where: {
-          !$0.allowsRefresh && $0.refreshToken == refreshToken
-        })
+        externalRefreshTokens.contains(refreshToken)
       {
-        continue
+        credential = Self(
+          accountKey: credential.accountKey,
+          accessToken: credential.accessToken,
+          refreshToken: credential.refreshToken,
+          expiresAt: credential.expiresAt,
+          allowsRefresh: false
+        )
       }
       if let index = positions[credential.accountKey] {
         let selected = result[index]
-        if (credential.allowsRefresh && credential.refreshToken != nil
-          && (!selected.allowsRefresh || selected.refreshToken == nil))
-          || (!credential.allowsRefresh && selected.allowsRefresh && selected.refreshToken == nil)
-        {
+        let selectedCanRefresh = selected.allowsRefresh && selected.refreshToken != nil
+        let credentialCanRefresh = credential.allowsRefresh && credential.refreshToken != nil
+        let selectedIsUsable = selected.expiresAt.map { $0 > now } ?? true
+        let credentialIsUsable = credential.expiresAt.map { $0 > now } ?? true
+        if (credentialCanRefresh && !selectedCanRefresh)
+          || (!selectedCanRefresh && credentialIsUsable && !selectedIsUsable) {
           result[index] = credential
         }
       } else {

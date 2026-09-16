@@ -80,14 +80,16 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
   }
 
   func testOpenedFileAndConfiguredDirectoryUseTheSameSystemAlias() {
-    XCTAssertEqual(
-      ClaudeCredentialOwnership.forOpenedAuthFile(
-        at: "/private/tmp/claude/.credentials.json",
-        referenceCount: 1,
-        environment: ["CLAUDE_CONFIG_DIR": "/tmp/claude"]
-      ),
-      .externalCLI
-    )
+    for alias in ["etc", "tmp", "var"] {
+      XCTAssertEqual(
+        ClaudeCredentialOwnership.forOpenedAuthFile(
+          at: "/private/\(alias)/claude/.credentials.json",
+          referenceCount: 1,
+          environment: ["CLAUDE_CONFIG_DIR": "/\(alias)/claude"]
+        ),
+        .externalCLI
+      )
+    }
   }
 
   // MARK: - Symlinks
@@ -372,14 +374,19 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
     let independent = ClaudeQuotaCredential(
       accountKey: "user@example.com", accessToken: "independent", refreshToken: "owned")
 
-    XCTAssertEqual(ClaudeQuotaCredential.uniqueByAccountKey([cli, copy]), [cli])
-    XCTAssertEqual(ClaudeQuotaCredential.uniqueByAccountKey([copy, cli]), [cli])
+    for values in [[cli, copy], [copy, cli]] {
+      let result = ClaudeQuotaCredential.uniqueByAccountKey(values)
+      XCTAssertEqual(Set(result.map(\.accountKey)), Set([cli.accountKey, copy.accountKey]))
+      XCTAssertTrue(result.allSatisfy { !$0.allowsRefresh })
+    }
     for values in [
       [cli, copy, independent], [cli, independent, copy],
       [copy, cli, independent], [copy, independent, cli],
       [independent, cli, copy], [independent, copy, cli],
     ] {
-      XCTAssertEqual(ClaudeQuotaCredential.uniqueByAccountKey(values), [independent])
+      let result = ClaudeQuotaCredential.uniqueByAccountKey(values)
+      XCTAssertEqual(result.first { $0.accountKey == independent.accountKey }, independent)
+      XCTAssertEqual(result.first { $0.accountKey == copy.accountKey }?.allowsRefresh, false)
     }
   }
 
@@ -436,6 +443,21 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
       ClaudeQuotaCredential.uniqueByAccountKey([accessOnly, refreshable, cli]), [refreshable])
     XCTAssertEqual(
       ClaudeQuotaCredential.uniqueByAccountKey([refreshable, accessOnly, cli]), [refreshable])
+  }
+
+  func testDuplicateSelectionKeepsTheUsableAccessOnlyCredential() {
+    let now = Date(timeIntervalSince1970: 10_000)
+    let validAccessOnly = ClaudeQuotaCredential(
+      accountKey: "user@example.com", accessToken: "owned-valid",
+      expiresAt: now.addingTimeInterval(60))
+    let expiredCLI = ClaudeQuotaCredential(
+      accountKey: "user@example.com", accessToken: "cli-expired", refreshToken: "cli-refresh",
+      expiresAt: now.addingTimeInterval(-60), allowsRefresh: false)
+
+    XCTAssertEqual(
+      ClaudeQuotaCredential.uniqueByAccountKey([validAccessOnly, expiredCLI], now: now),
+      [validAccessOnly]
+    )
   }
 
   func testCompositeMarksCLIKeychainItemReadOnlyAndNeverSwapsIt() async throws {

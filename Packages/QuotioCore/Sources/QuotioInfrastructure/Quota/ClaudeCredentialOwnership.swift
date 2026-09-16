@@ -78,11 +78,10 @@ public enum ClaudeCredentialOwnership: Equatable, Sendable {
 
   static func canonicalPath(_ path: String) -> String {
     let expanded = NSString(string: path).expandingTildeInPath
-    var standardized = URL(fileURLWithPath: expanded).standardizedFileURL.path
-    if standardized == "/var" || standardized.hasPrefix("/var/")
-      || standardized == "/tmp" || standardized.hasPrefix("/tmp/")
-    {
-      standardized = "/private" + standardized
+    let standardized = URL(fileURLWithPath: expanded).standardizedFileURL.path
+    for alias in ["/etc", "/tmp", "/var"]
+    where standardized == alias || standardized.hasPrefix(alias + "/") {
+      return "/private" + standardized
     }
     return standardized
   }
