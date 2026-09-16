@@ -133,6 +133,23 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
     XCTAssertNil(LocalClaudeQuotaCredentialLoader.load(path: link.path))
   }
 
+  func testCredentialLoaderDoesNotReadThroughSymlinkedDirectory() throws {
+    let root = try makeTemporaryDirectory()
+    let targetDirectory = root.appendingPathComponent("credentials")
+    try FileManager.default.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
+    let target = targetDirectory.appendingPathComponent("claude-user.json")
+    try Data(
+      #"{"claudeAiOauth":{"accessToken":"linked-access","email":"user@example.com"}}"#.utf8
+    ).write(to: target)
+    let linkedDirectory = root.appendingPathComponent("linked-credentials")
+    try FileManager.default.createSymbolicLink(
+      at: linkedDirectory, withDestinationURL: targetDirectory)
+
+    XCTAssertNil(
+      LocalClaudeQuotaCredentialLoader.load(
+        path: linkedDirectory.appendingPathComponent("claude-user.json").path))
+  }
+
   // MARK: - Local loader
 
   func testLocalLoaderMarksCLIFileReadOnlyAndLeavesItUnchangedOnPersist() async throws {
@@ -160,6 +177,42 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
     XCTAssertEqual(
       try Data(contentsOf: file), original,
       "Writing back would replace a refresh token the running CLI still expects")
+  }
+
+  func testLocalLoaderPersistsOwnedDuplicateRatherThanCLIFile() async throws {
+    let root = try makeTemporaryDirectory()
+    let configDirectory = root.appendingPathComponent(".claude")
+    let proxyDirectory = root.appendingPathComponent(".cli-proxy-api")
+    try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: proxyDirectory, withIntermediateDirectories: true)
+
+    let nativeFile = configDirectory.appendingPathComponent(".credentials.json")
+    let nativeData = Data(
+      #"{"claudeAiOauth":{"accessToken":"cli-access","refreshToken":"cli-refresh","email":"user@example.com"}}"#
+        .utf8)
+    try nativeData.write(to: nativeFile)
+    let proxyFile = proxyDirectory.appendingPathComponent("claude-user.json")
+    try Data(
+      #"{"access_token":"proxy-access","refresh_token":"proxy-refresh","email":"user@example.com"}"#
+        .utf8
+    ).write(to: proxyFile)
+
+    let loader = LocalClaudeQuotaCredentialLoader(
+      environment: ["CLAUDE_CONFIG_DIR": configDirectory.path],
+      legacyDirectory: proxyDirectory.path)
+    let credentials = await loader.credentials(for: .localProxy)
+    let credential = try XCTUnwrap(
+      credentials.first { $0.accountKey == "user@example.com" })
+
+    await loader.persist(
+      QuotaTokenRefresh(accessToken: "rotated", refreshToken: "rotated-refresh", expiresAt: nil),
+      replacing: "proxy-refresh",
+      for: credential,
+      mode: .localProxy
+    )
+
+    XCTAssertEqual(try Data(contentsOf: nativeFile), nativeData)
+    XCTAssertEqual(LocalClaudeQuotaCredentialLoader.load(path: proxyFile.path)?.accessToken, "rotated")
   }
 
   // MARK: - Fetcher
@@ -287,7 +340,10 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
   // MARK: - Helpers
 
   private func makeTemporaryDirectory() throws -> URL {
-    let root = URL(fileURLWithPath: NSTemporaryDirectory())
+    let temporaryDirectory = NSTemporaryDirectory()
+    let canonicalDirectory =
+      temporaryDirectory.hasPrefix("/var/") ? "/private\(temporaryDirectory)" : temporaryDirectory
+    let root = URL(fileURLWithPath: canonicalDirectory)
       .appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     addTeardownBlock { try? FileManager.default.removeItem(at: root) }

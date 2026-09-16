@@ -70,9 +70,16 @@ public struct LocalClaudeQuotaCredentialLoader: ClaudeQuotaCredentialLoading {
   public static let nativePath = "~/.claude/.credentials.json"
 
   private let environment: [String: String]
+  private let legacyDirectory: String
 
   public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
     self.environment = environment
+    self.legacyDirectory = Self.legacyDirectory
+  }
+
+  init(environment: [String: String], legacyDirectory: String) {
+    self.environment = environment
+    self.legacyDirectory = legacyDirectory
   }
 
   public func credentials(for mode: QuotaOperatingMode) async -> [ClaudeQuotaCredential] {
@@ -88,12 +95,11 @@ public struct LocalClaudeQuotaCredentialLoader: ClaudeQuotaCredentialLoading {
     for credential: ClaudeQuotaCredential,
     mode: QuotaOperatingMode
   ) async {
-    guard let path = credentialPaths().first(where: {
-      Self.load(path: $0)?.accountKey == credential.accountKey
+    guard let path = credentialPaths().first(where: { path in
+      guard allowsRefresh(path: path), let current = Self.load(path: path) else { return false }
+      return current.accountKey == credential.accountKey
+        && current.refreshToken == expectedRefreshToken
     }) else { return }
-    // Never write back to a file the Claude Code CLI owns, even if the caller
-    // asked: the write would replace a refresh token the CLI still expects.
-    guard allowsRefresh(path: path) else { return }
     Self.persist(refresh, replacing: expectedRefreshToken, path: path)
   }
 
@@ -106,7 +112,7 @@ public struct LocalClaudeQuotaCredentialLoader: ClaudeQuotaCredentialLoading {
     let nativeBase = ClaudeCredentialOwnership.configDirectory(environment: environment)
     paths.append((nativeBase as NSString).appendingPathComponent(".credentials.json"))
 
-    let directory = NSString(string: Self.legacyDirectory).expandingTildeInPath
+    let directory = NSString(string: legacyDirectory).expandingTildeInPath
     let legacy = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
     paths.append(
       contentsOf: legacy.filter { $0.hasPrefix("claude-") && $0.hasSuffix(".json") }
@@ -116,7 +122,7 @@ public struct LocalClaudeQuotaCredentialLoader: ClaudeQuotaCredentialLoading {
 
   public static func load(path: String, allowsRefresh: Bool = true) -> ClaudeQuotaCredential? {
     let expanded = NSString(string: path).expandingTildeInPath
-    guard !ClaudeCredentialOwnership.isSymbolicLink(at: expanded) else { return nil }
+    guard !ClaudeCredentialOwnership.containsSymbolicLink(at: expanded) else { return nil }
     guard let data = try? Data(contentsOf: URL(fileURLWithPath: expanded)) else { return nil }
     return load(data: data, allowsRefresh: allowsRefresh)
   }

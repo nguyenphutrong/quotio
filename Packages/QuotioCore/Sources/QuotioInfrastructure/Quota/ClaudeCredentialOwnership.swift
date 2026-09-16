@@ -52,7 +52,7 @@ public enum ClaudeCredentialOwnership: Equatable, Sendable {
     environment: [String: String] = ProcessInfo.processInfo.environment,
     fileManager: FileManager = .default
   ) -> ClaudeCredentialOwnership {
-    if isSymbolicLink(at: path, fileManager: fileManager) { return .externalCLI }
+    if containsSymbolicLink(at: path, fileManager: fileManager) { return .externalCLI }
 
     let file = (path as NSString).resolvingSymlinksInPath
     let cliDirectory = (configDirectory(environment: environment) as NSString)
@@ -60,8 +60,16 @@ public enum ClaudeCredentialOwnership: Equatable, Sendable {
     return file == cliDirectory || file.hasPrefix(cliDirectory + "/") ? .externalCLI : .quotio
   }
 
-  static func isSymbolicLink(at path: String, fileManager: FileManager = .default) -> Bool {
-    let attributes = try? fileManager.attributesOfItem(atPath: path)
-    return attributes?[.type] as? FileAttributeType == .typeSymbolicLink
+  static func containsSymbolicLink(
+    at path: String, fileManager: FileManager = .default
+  ) -> Bool {
+    let url = URL(fileURLWithPath: path)
+    var current = URL(fileURLWithPath: "/", isDirectory: true)
+    for component in url.pathComponents.dropFirst() {
+      current.appendPathComponent(component)
+      let attributes = try? fileManager.attributesOfItem(atPath: current.path)
+      if attributes?[.type] as? FileAttributeType == .typeSymbolicLink { return true }
+    }
+    return false
   }
 }
