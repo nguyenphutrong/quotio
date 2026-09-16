@@ -33,6 +33,17 @@ public struct ClaudeQuotaCredential: Equatable, Sendable {
     var result: [Self] = []
 
     for credential in credentials {
+      // A copied CLI token is still CLI-owned, regardless of its file location.
+      // Inspect all external entries before deduplication so input order cannot
+      // hide a shared single-use refresh token. Keep the external entry instead.
+      if credential.allowsRefresh, let refreshToken = credential.refreshToken,
+        credentials.contains(where: {
+          !$0.allowsRefresh && $0.accountKey == credential.accountKey
+            && $0.refreshToken == refreshToken
+        })
+      {
+        continue
+      }
       if let index = positions[credential.accountKey] {
         if credential.allowsRefresh, credential.refreshToken != nil,
           !result[index].allowsRefresh || result[index].refreshToken == nil

@@ -329,6 +329,62 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
 
   // MARK: - Composite loader
 
+  func testCopiedRefreshTokenIsNeverPreferredRegardlessOfOrder() {
+    let cli = ClaudeQuotaCredential(
+      accountKey: "user@example.com", accessToken: "cli", refreshToken: "shared",
+      allowsRefresh: false)
+    let copy = ClaudeQuotaCredential(
+      accountKey: "user@example.com", accessToken: "copy", refreshToken: "shared")
+    let independent = ClaudeQuotaCredential(
+      accountKey: "user@example.com", accessToken: "independent", refreshToken: "owned")
+
+    XCTAssertEqual(ClaudeQuotaCredential.uniqueByAccountKey([cli, copy]), [cli])
+    XCTAssertEqual(ClaudeQuotaCredential.uniqueByAccountKey([copy, cli]), [cli])
+    for values in [
+      [cli, copy, independent], [cli, independent, copy],
+      [copy, cli, independent], [copy, independent, cli],
+      [independent, cli, copy], [independent, copy, cli],
+    ] {
+      XCTAssertEqual(ClaudeQuotaCredential.uniqueByAccountKey(values), [independent])
+    }
+  }
+
+  func testCopiedCLIFileNeverRefreshesOrChangesEitherFile() async throws {
+    let root = try makeTemporaryDirectory()
+    let configDirectory = root.appendingPathComponent(".claude")
+    let proxyDirectory = root.appendingPathComponent(".cli-proxy-api")
+    try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: proxyDirectory, withIntermediateDirectories: true)
+    let nativeFile = configDirectory.appendingPathComponent(".credentials.json")
+    let proxyFile = proxyDirectory.appendingPathComponent("claude-copy.json")
+    let original = Data(
+      #"{"claudeAiOauth":{"accessToken":"cli-access","refreshToken":"shared-refresh","email":"user@example.com","expiresAt":1000}}"#
+        .utf8)
+    try original.write(to: nativeFile)
+    try FileManager.default.copyItem(at: nativeFile, to: proxyFile)
+    let environment = ["CLAUDE_CONFIG_DIR": configDirectory.path]
+    // This is an ordinary copy, so the hard-link ownership guard does not help.
+    XCTAssertEqual(
+      ClaudeCredentialOwnership.forAuthFile(at: proxyFile.path, environment: environment), .quotio)
+    let loader = LocalClaudeQuotaCredentialLoader(
+      environment: environment, legacyDirectory: proxyDirectory.path)
+    let credentials = await loader.credentials(for: .localProxy)
+    XCTAssertEqual(credentials.count, 1)
+    XCTAssertEqual(credentials.first?.allowsRefresh, false)
+
+    let session = RecordingClaudeSession(responses: [("", 401), ("", 403)])
+    let fetcher = ClaudeQuotaFetcher(credentials: loader, session: session)
+    for _ in 0..<2 {
+      let output = try await fetcher.fetch(
+        .init(provider: .claude, mode: .localProxy, force: true))
+      XCTAssertNil(output.quotas["user@example.com"])
+    }
+    let requests = await session.requests()
+    XCTAssertEqual(requests.map(\.url), [ClaudeQuotaFetcher.usageURL, ClaudeQuotaFetcher.usageURL])
+    XCTAssertEqual(try Data(contentsOf: nativeFile), original)
+    XCTAssertEqual(try Data(contentsOf: proxyFile), original)
+  }
+
   func testDuplicateWithoutRefreshTokenDoesNotHideCLICredential() {
     let cli = ClaudeQuotaCredential(
       accountKey: "user@example.com", accessToken: "usable-cli", refreshToken: "cli-refresh",
