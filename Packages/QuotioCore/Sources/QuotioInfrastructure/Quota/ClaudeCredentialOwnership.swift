@@ -54,6 +54,14 @@ public enum ClaudeCredentialOwnership: Equatable, Sendable {
   ) -> ClaudeCredentialOwnership {
     if containsSymbolicLink(at: path, fileManager: fileManager) { return .externalCLI }
 
+    // Multiple names can share the CLI's single-use refresh token even without
+    // symlinks. Leave all multiply linked credentials read-only.
+    let expanded = (path as NSString).expandingTildeInPath
+    let attributes = try? fileManager.attributesOfItem(atPath: expanded)
+    if let count = attributes?[.referenceCount] as? NSNumber, count.intValue > 1 {
+      return .externalCLI
+    }
+
     let file = (path as NSString).resolvingSymlinksInPath
     let cliDirectory = (configDirectory(environment: environment) as NSString)
       .resolvingSymlinksInPath

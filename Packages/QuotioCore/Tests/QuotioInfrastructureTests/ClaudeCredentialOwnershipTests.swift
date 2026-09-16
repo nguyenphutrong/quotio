@@ -152,6 +152,48 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
 
   // MARK: - Local loader
 
+  func testHardLinkedProxyCredentialRemainsReadOnly() async throws {
+    let root = try makeTemporaryDirectory()
+    let configDirectory = root.appendingPathComponent(".claude")
+    let proxyDirectory = root.appendingPathComponent(".cli-proxy-api")
+    try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: proxyDirectory, withIntermediateDirectories: true)
+    let nativeFile = configDirectory.appendingPathComponent(".credentials.json")
+    let proxyFile = proxyDirectory.appendingPathComponent("claude-linked.json")
+    let original = Data(
+      #"{"claudeAiOauth":{"accessToken":"cli-access","refreshToken":"cli-refresh","email":"user@example.com","expiresAt":1000}}"#
+        .utf8)
+    try original.write(to: nativeFile)
+    try FileManager.default.linkItem(at: nativeFile, to: proxyFile)
+    let environment = ["CLAUDE_CONFIG_DIR": configDirectory.path]
+    XCTAssertEqual(
+      ClaudeCredentialOwnership.forAuthFile(at: proxyFile.path, environment: environment),
+      .externalCLI)
+    let loader = LocalClaudeQuotaCredentialLoader(
+      environment: environment, legacyDirectory: proxyDirectory.path)
+    let credentials = await loader.credentials(for: .localProxy)
+    XCTAssertEqual(credentials.count, 1)
+    let credential = try XCTUnwrap(credentials.first)
+    XCTAssertFalse(credential.allowsRefresh)
+
+    let session = RecordingClaudeSession(responses: [("", 401)])
+    _ = try await ClaudeQuotaFetcher(credentials: loader, session: session)
+      .fetch(.init(provider: .claude, mode: .localProxy, force: true))
+    let requests = await session.requests()
+    XCTAssertEqual(requests.map(\.url), [ClaudeQuotaFetcher.usageURL])
+
+    await loader.persist(
+      QuotaTokenRefresh(accessToken: "rotated", refreshToken: "rotated-refresh", expiresAt: nil),
+      replacing: "cli-refresh", for: credential, mode: .localProxy)
+    XCTAssertEqual(try Data(contentsOf: nativeFile), original)
+    XCTAssertEqual(try Data(contentsOf: proxyFile), original)
+
+    // A single-link proxy file remains refreshable after the alias is removed.
+    try FileManager.default.removeItem(at: nativeFile)
+    XCTAssertEqual(
+      ClaudeCredentialOwnership.forAuthFile(at: proxyFile.path, environment: environment), .quotio)
+  }
+
   func testLocalLoaderMarksCLIFileReadOnlyAndLeavesItUnchangedOnPersist() async throws {
     let root = try makeTemporaryDirectory()
     let configDirectory = root.appendingPathComponent(".claude")
