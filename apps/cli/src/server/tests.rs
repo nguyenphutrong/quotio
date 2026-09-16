@@ -68,6 +68,7 @@ pub(super) async fn fixture() -> (Arc<ApiState>, std::path::PathBuf, String) {
             status: Mutex::new(RefreshStatus::default()),
             context,
             no_saved_accounts: true,
+            proxy_auth_directory: None,
             manage: true,
             vault: Some(vault),
             oauth: Some(manager),
@@ -106,6 +107,32 @@ async fn account_scoped_refresh_does_not_require_scheduled_provider() {
         job.abort();
     }
     drop(refresh_guard);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn account_scoped_refresh_accepts_borrowed_proxy_account() {
+    let (mut state, dir, _) = fixture().await;
+    let auth = dir.join("proxy-auth");
+    std::fs::create_dir(&auth).unwrap();
+    let auth = auth.canonicalize().unwrap();
+    std::fs::write(
+        auth.join("claude.json"),
+        br#"{"type":"claude","access_token":"borrowed-test-token"}"#,
+    )
+    .unwrap();
+    Arc::get_mut(&mut state).unwrap().proxy_auth_directory = Some(auth.clone());
+    let account = crate::accounts::proxy::adapters(&auth, &[Provider::Catalog("claude")], None)
+        .unwrap()
+        .remove(0)
+        .account_ref()
+        .unwrap();
+
+    assert!(
+        management::validate_refresh_account(&state, Provider::Catalog("claude"), &account.id)
+            .await
+            .is_ok()
+    );
     std::fs::remove_dir_all(dir).unwrap();
 }
 

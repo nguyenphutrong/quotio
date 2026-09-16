@@ -116,6 +116,7 @@ struct ApiState {
     status: Mutex<RefreshStatus>,
     context: ProviderContext,
     no_saved_accounts: bool,
+    proxy_auth_directory: Option<std::path::PathBuf>,
     manage: bool,
     vault: Option<crate::accounts::vault::Vault>,
     oauth: Option<crate::accounts::oauth::OAuthSessionManager>,
@@ -445,19 +446,39 @@ async fn refresh(state: &ApiState, request: Option<RefreshRequest>) -> Result<Va
     }
     state.status.lock().await.refreshing = true;
     let timeout = Duration::from_secs(config.provider_timeout);
-    let adapters = if state.no_saved_accounts {
-        crate::accounts::service::adapters(selected.clone(), false, timeout, account.as_deref())
-            .await
-    } else if let Some(vault) = state.vault.clone() {
-        crate::accounts::service::adapters_in_vault(
-            selected.clone(),
-            timeout,
-            account.as_deref(),
-            vault,
-        )
-        .await
+    let borrowed = state
+        .proxy_auth_directory
+        .as_deref()
+        .map(|directory| crate::accounts::proxy::adapters(directory, &selected, account.as_deref()))
+        .transpose()
+        .unwrap_or_else(|_| {
+            tracing::warn!("CLIProxyAPI auth directory is unavailable or unsafe");
+            None
+        })
+        .unwrap_or_default();
+    let adapters = if account.is_some() && !borrowed.is_empty() {
+        Ok(borrowed)
     } else {
-        Err(crate::accounts::AccountError::Storage)
+        let managed = if state.no_saved_accounts {
+            crate::accounts::service::adapters(selected.clone(), false, timeout, account.as_deref())
+                .await
+        } else if let Some(vault) = state.vault.clone() {
+            crate::accounts::service::adapters_in_vault(
+                selected.clone(),
+                timeout,
+                account.as_deref(),
+                vault,
+            )
+            .await
+        } else {
+            Err(crate::accounts::AccountError::Storage)
+        };
+        managed.map(|mut adapters| {
+            if account.is_none() {
+                adapters.extend(borrowed);
+            }
+            adapters
+        })
     };
     let collector = Collector {
         context: state.context.clone(),
@@ -591,6 +612,9 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
     if !args.listen.ip().is_loopback() {
         return Err(ServerError::Listen);
     }
+    if let Some(directory) = args.cli_proxy_auth_dir.as_deref() {
+        crate::accounts::proxy::validate_directory(directory).map_err(|_| ServerError::Config)?;
+    }
     let path = args
         .config
         .clone()
@@ -688,6 +712,7 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
         status: Mutex::new(RefreshStatus::default()),
         context,
         no_saved_accounts: args.no_saved_accounts,
+        proxy_auth_directory: args.cli_proxy_auth_dir,
         manage: args.manage,
         vault,
         oauth,

@@ -5,6 +5,7 @@ pub mod discovery;
 mod encrypted_file;
 mod input;
 pub mod oauth;
+pub(crate) mod proxy;
 pub mod service;
 pub mod sources;
 pub mod staging;

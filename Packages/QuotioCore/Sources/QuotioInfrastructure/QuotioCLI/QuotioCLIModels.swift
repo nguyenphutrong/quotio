@@ -21,6 +21,41 @@ struct QuotioCLIProviderUsage: Decodable, Sendable {
     let accountRef: QuotioCLIAccountReference?
     let windows: [QuotioCLIUsageWindow]
     let antigravitySubscription: QuotioCLISubscription?
+    let resetCredits: QuotioCLIResetCredits?
+    let codexProfile: QuotioCLICodexProfile?
+    let codexResetCredits: QuotioCLICodexResetCredits?
+}
+
+struct QuotioCLIResetCredits: Decodable, Sendable {
+    let availableCount: UInt64
+    let fetchedAt: Date
+}
+
+struct QuotioCLICodexProfile: Decodable, Sendable {
+    struct DailyUsage: Decodable, Sendable {
+        let date: String
+        let tokens: UInt64
+    }
+
+    let dailyUsage: [DailyUsage]
+    let latest30BucketsTokens: UInt64
+    let lifetimeTokens: UInt64?
+    let peakDailyTokens: UInt64?
+    let longestRunningTurnSeconds: UInt64?
+    let currentStreakDays: UInt64?
+    let longestStreakDays: UInt64?
+    let fetchedAt: Date
+}
+
+struct QuotioCLICodexResetCredits: Decodable, Sendable {
+    struct Credit: Decodable, Sendable {
+        let id: String
+        let expiresAt: Date?
+    }
+
+    let availableCount: UInt64
+    let credits: [Credit]
+    let fetchedAt: Date
 }
 
 struct QuotioCLIAccountReference: Decodable, Sendable {
@@ -160,12 +195,176 @@ enum QuotioCLIUsageMapper {
     }
 
     private static func quota(_ usage: QuotioCLIProviderUsage) -> ProviderQuota {
-        ProviderQuota(
+        let updatedAt = usage.windows.map(\.fetchedAt)
+            + [usage.codexProfile?.fetchedAt, usage.codexResetCredits?.fetchedAt, usage.resetCredits?.fetchedAt]
+                .compactMap { $0 }
+        return ProviderQuota(
             models: usage.windows.map { metric($0, provider: usage.provider) },
-            lastUpdated: usage.windows.map(\.fetchedAt).min() ?? .distantPast,
+            lastUpdated: updatedAt.min() ?? .distantPast,
             planType: usage.account.plan,
+            analytics: analytics(usage),
             accountDisplayName: usage.account.label
         )
+    }
+
+    private static func analytics(_ usage: QuotioCLIProviderUsage) -> QuotaAnalytics? {
+        var analytics = usage.codexProfile.map(profileAnalytics) ?? QuotaAnalytics()
+        let resetRows = resetCreditRows(usage)
+        if !resetRows.isEmpty {
+            analytics = analytics.merging(QuotaAnalytics(rows: resetRows))
+        }
+        return analytics.isEmpty ? nil : analytics
+    }
+
+    private static func profileAnalytics(_ profile: QuotioCLICodexProfile) -> QuotaAnalytics {
+        let calendar = Calendar.current
+        let buckets = Dictionary(uniqueKeysWithValues: profile.dailyUsage.map { ($0.date, $0.tokens) })
+        let today = dayString(profile.fetchedAt, calendar: calendar)
+        let yesterday = dayString(
+            calendar.date(byAdding: .day, value: -1, to: profile.fetchedAt) ?? profile.fetchedAt,
+            calendar: calendar
+        )
+        var rows = [
+            dayRow(id: "today", title: "Today", tokens: buckets[today]),
+            dayRow(id: "yesterday", title: "Yesterday", tokens: buckets[yesterday]),
+            profile.latest30BucketsTokens > 0
+                ? QuotaAnalyticsRow(
+                    id: "last-30-days",
+                    title: "Last 30 Days",
+                    value: tokenLabel(profile.latest30BucketsTokens)
+                )
+                : noDataRow(id: "last-30-days", title: "Last 30 Days"),
+        ]
+        appendTokenRow(&rows, id: "codex-lifetime-tokens", title: "Lifetime Tokens", value: profile.lifetimeTokens)
+        appendTokenRow(&rows, id: "codex-peak-daily", title: "Peak Daily", value: profile.peakDailyTokens)
+        if let seconds = profile.longestRunningTurnSeconds, seconds > 0 {
+            rows.append(QuotaAnalyticsRow(
+                id: "codex-longest-task",
+                title: "Longest Task",
+                value: durationLabel(seconds)
+            ))
+        }
+        appendDaysRow(&rows, id: "codex-current-streak", title: "Current Streak", value: profile.currentStreakDays)
+        appendDaysRow(&rows, id: "codex-longest-streak", title: "Longest Streak", value: profile.longestStreakDays)
+        return QuotaAnalytics(
+            trend: profile.dailyUsage.map {
+                QuotaAnalyticsPoint(
+                    date: $0.date,
+                    value: Double($0.tokens),
+                    label: $0.date,
+                    valueLabel: tokenLabel($0.tokens)
+                )
+            },
+            rows: rows,
+            note: "Account analytics from Codex"
+        )
+    }
+
+    private static func resetCreditRows(_ usage: QuotioCLIProviderUsage) -> [QuotaAnalyticsRow] {
+        guard let count = usage.codexResetCredits?.availableCount ?? usage.resetCredits?.availableCount else {
+            return []
+        }
+        var rows = [QuotaAnalyticsRow(
+            id: "codex-rate-limit-resets",
+            title: "Rate Limit Resets",
+            value: "\(count) available"
+        )]
+        if let inventory = usage.codexResetCredits {
+            rows.append(contentsOf: inventory.credits.map { credit in
+                QuotaAnalyticsRow(
+                    id: "codex-rate-limit-reset-\(credit.id)",
+                    title: expiryDateLabel(credit.expiresAt),
+                    value: expiryRelativeLabel(credit.expiresAt, from: inventory.fetchedAt)
+                )
+            })
+        }
+        return rows
+    }
+
+    private static func dayRow(id: String, title: String, tokens: UInt64?) -> QuotaAnalyticsRow {
+        guard let tokens, tokens > 0 else { return noDataRow(id: id, title: title) }
+        return QuotaAnalyticsRow(id: id, title: title, value: tokenLabel(tokens))
+    }
+
+    private static func noDataRow(id: String, title: String) -> QuotaAnalyticsRow {
+        QuotaAnalyticsRow(id: id, title: title, value: "No data", isAvailable: false)
+    }
+
+    private static func appendTokenRow(
+        _ rows: inout [QuotaAnalyticsRow],
+        id: String,
+        title: String,
+        value: UInt64?
+    ) {
+        guard let value, value > 0 else { return }
+        rows.append(QuotaAnalyticsRow(id: id, title: title, value: tokenLabel(value)))
+    }
+
+    private static func appendDaysRow(
+        _ rows: inout [QuotaAnalyticsRow],
+        id: String,
+        title: String,
+        value: UInt64?
+    ) {
+        guard let value else { return }
+        rows.append(QuotaAnalyticsRow(
+            id: id,
+            title: title,
+            value: "\(integerLabel(value)) \(value == 1 ? "day" : "days")"
+        ))
+    }
+
+    private static func dayString(_ date: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    private static func tokenLabel(_ value: UInt64) -> String {
+        let number = Double(value)
+        let text: String
+        if number >= 1_000_000_000 {
+            text = String(format: "%.1fB", number / 1_000_000_000).replacingOccurrences(of: ".0B", with: "B")
+        } else if number >= 1_000_000 {
+            text = String(format: "%.1fM", number / 1_000_000).replacingOccurrences(of: ".0M", with: "M")
+        } else if number >= 1_000 {
+            text = String(format: "%.1fK", number / 1_000).replacingOccurrences(of: ".0K", with: "K")
+        } else {
+            text = integerLabel(value)
+        }
+        return "\(text) tokens"
+    }
+
+    private static func integerLabel(_ value: UInt64) -> String {
+        NumberFormatter.localizedString(from: NSNumber(value: value), number: .decimal)
+    }
+
+    private static func durationLabel(_ seconds: UInt64) -> String {
+        let hours = seconds / 3_600
+        let minutes = (seconds % 3_600) / 60
+        let remaining = seconds % 60
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        if minutes > 0 { return "\(minutes)m \(remaining)s" }
+        return "\(remaining)s"
+    }
+
+    private static func expiryDateLabel(_ date: Date?) -> String {
+        guard let date else { return "No expiry" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "d MMM · HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private static func expiryRelativeLabel(_ expiry: Date?, from date: Date) -> String {
+        guard let expiry else { return "" }
+        let seconds = expiry.timeIntervalSince(date)
+        if seconds <= 0 { return "expired" }
+        let days = Int(ceil(seconds / 86_400))
+        if days >= 1 { return "in \(days) \(days == 1 ? "day" : "days")" }
+        let hours = Int(ceil(seconds / 3_600))
+        if hours >= 1 { return "in \(hours) \(hours == 1 ? "hour" : "hours")" }
+        let minutes = max(1, Int(ceil(seconds / 60)))
+        return "in \(minutes) \(minutes == 1 ? "minute" : "minutes")"
     }
 
     private static func metric(_ window: QuotioCLIUsageWindow, provider: String) -> QuotaMetric {

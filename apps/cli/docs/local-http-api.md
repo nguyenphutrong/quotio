@@ -290,10 +290,16 @@ shutdown. This mode requires a Unix pipe, not a terminal or regular file. A nati
 parent must close unused pipe endpoints, keep the token private and stop only its
 owned child. The normal CLI stderr announcement is unchanged without this flag.
 
+The native parent may pass an absolute `--cli-proxy-auth-dir`. The helper reads
+supported Codex, Claude, GitHub Copilot, Antigravity, Kiro, and Vertex JSON auth
+files from that directory as borrowed credentials. It does not import, refresh,
+edit, or delete those files; their owner remains responsible for token rotation.
+
 ## Native migration scope
 
-The native migration is limited to quota/usage. Agent configuration, proxy lifecycle,
-proxy keys, tunnels and proxy notification policy remain in the existing Swift app.
+The native migration covers quota/usage and Quotio-managed provider accounts. Agent
+configuration, CLIProxyAPI auth-file management, proxy lifecycle, proxy keys, tunnels,
+and proxy notification policy remain in the existing Swift app.
 The unreleased notification endpoint has been removed. An existing `notifications`
 config table is retained on settings writes for compatibility but does not control
 behavior. No migration step edits or stops a separately running CLIProxyAPI engine.

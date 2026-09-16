@@ -24,7 +24,7 @@ public enum QuotaProvider: String, CaseIterable, Codable, Identifiable, Sendable
 
     public var supportsQuotaOnlyMode: Bool {
         switch self {
-        case .qwen, .iflow, .vertex:
+        case .qwen, .iflow, .vertex, .trae:
             false
         default:
             true

@@ -84,6 +84,7 @@ enum CompositionRoot {
         let authFileRepository = FileAuthFileRepository()
         let quotioBackend = QuotioCLIBackend()
         let quotioServer = QuotioCLIServerProcess(
+            proxyAuthDirectory: URL(fileURLWithPath: paths.authDirectoryPath, isDirectory: true),
             providers: [
                 "claude", "codex", "antigravity", "kiro", "copilot", "cursor",
                 "factory", "devin-desktop", "grok", "openrouter", "amp", "zai",

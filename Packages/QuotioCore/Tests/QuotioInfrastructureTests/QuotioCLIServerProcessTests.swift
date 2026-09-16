@@ -10,10 +10,14 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let marker = directory.appendingPathComponent("stopped")
+        let arguments = directory.appendingPathComponent("arguments")
+        let proxyAuthDirectory = directory.appendingPathComponent("proxy-auth")
+        try FileManager.default.createDirectory(at: proxyAuthDirectory, withIntermediateDirectories: true)
         let helper = directory.appendingPathComponent("quotio-cli")
         let script = """
         #!/bin/sh
         trap 'printf stopped > "\(marker.path)"' EXIT
+        printf '%s\n' "$@" > "\(arguments.path)"
         IFS= read -r token
         [ -n "$token" ] || exit 2
         printf '{"bootstrap_version":1,"api_version":1,"pid":%s,"host":"127.0.0.1","port":43210}\n' "$$"
@@ -27,13 +31,16 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         let server = QuotioCLIServerProcess(
             executableURL: helper,
             configurationURL: directory.appendingPathComponent("config.toml"),
-            accountDataDirectory: directory.appendingPathComponent("accounts")
+            accountDataDirectory: directory.appendingPathComponent("accounts"),
+            proxyAuthDirectory: proxyAuthDirectory
         )
 
         let connection = try await server.start()
 
         XCTAssertEqual(connection.baseURL.absoluteString, "http://127.0.0.1:43210")
         XCTAssertFalse(connection.token.isEmpty)
+        let launchedArguments = try String(contentsOf: arguments, encoding: .utf8)
+        XCTAssertTrue(launchedArguments.contains("--cli-proxy-auth-dir\n\(proxyAuthDirectory.path)\n"))
         await server.stop()
         for _ in 0..<20 where !FileManager.default.fileExists(atPath: marker.path) {
             try await Task.sleep(for: .milliseconds(25))

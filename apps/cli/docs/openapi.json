@@ -2338,7 +2338,8 @@
                     "factory_native",
                     "kiro_native",
                     "antigravity_native",
-                    "devin_desktop_native"
+                    "devin_desktop_native",
+                    "cli_proxy_auth_file"
                   ]
                 },
                 "platforms": {
@@ -3375,7 +3376,7 @@
   "x-quotio-parent-pipe": {
     "version": 1,
     "bootstrap_schema": "#/components/schemas/Bootstrap",
-    "description": "Inherited stdin token line and lifetime pipe; one stdout JSON record after bind. Authenticate /v1/status before use."
+    "description": "Inherited stdin token line and lifetime pipe; one stdout JSON record after bind. Authenticate /v1/status before use. An absolute --cli-proxy-auth-dir may provide read-only borrowed Codex, Claude, GitHub Copilot, Antigravity, Kiro, and Vertex auth files."
   },
   "x-quotio-account-idempotency": {
     "successful_writes": "atomic protected-vault receipt across restart",

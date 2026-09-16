@@ -321,14 +321,18 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     }
 
     private func accountID(provider: String, accountKey: String) async -> String? {
-        guard let client,
-              let list: QuotioCLIAccountList = try? await client.request("v1/accounts") else {
-            return nil
-        }
-        return list.accounts.first {
+        guard let client else { return nil }
+        if let list: QuotioCLIAccountList = try? await client.request("v1/accounts"),
+           let id = list.accounts.first(where: {
             $0.provider == provider
                 && ($0.id == accountKey || $0.label.caseInsensitiveCompare(accountKey) == .orderedSame)
-        }?.id
+           })?.id {
+            return id
+        }
+        guard let domainProvider = QuotioCLIProviderMap.domain(provider) else { return nil }
+        guard let aliases = snapshot.accountAliases[domainProvider] else { return nil }
+        if let key = aliases[accountKey], key != accountKey { return accountKey }
+        return aliases.first { $0.key != accountKey && $0.value == accountKey }?.key
     }
 
     private func mutate(

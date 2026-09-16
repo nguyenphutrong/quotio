@@ -96,6 +96,7 @@ final class QuotaModelsTests: XCTestCase {
         XCTAssertTrue(QuotaProvider.cursor.isImportedFromLocalIDE)
         XCTAssertTrue(QuotaProvider.trae.isImportedFromLocalIDE)
         XCTAssertFalse(QuotaProvider.cursor.supportsManualAuth)
+        XCTAssertFalse(QuotaProvider.trae.supportsQuotaOnlyMode)
         XCTAssertTrue(QuotaProvider.warp.isQuotaTrackingOnly)
         for provider in [
             QuotaProvider.factoryDroid, .devin, .grok, .openRouter, .amp, .warp,

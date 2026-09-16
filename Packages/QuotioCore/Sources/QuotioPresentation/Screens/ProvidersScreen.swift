@@ -49,6 +49,7 @@ struct ProvidersScreen: View {
         } else {
             return QuotaProvider.allCases.filter {
                 $0.supportsQuotaOnlyMode
+                    && ![.antigravity, .kiro].contains($0)
                     && ($0.supportsManualAuth || $0 == .glm || $0 == .clinePass)
                     && ($0 != .amp || modeManager.isMonitorMode)
             }

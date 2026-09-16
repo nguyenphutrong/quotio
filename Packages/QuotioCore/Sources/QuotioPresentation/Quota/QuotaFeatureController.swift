@@ -131,7 +131,7 @@ public final class QuotaFeatureController {
     }
 
     func refreshImportedIDEQuotas() async {
-        for provider in [QuotaProvider.cursor, .trae] {
+        for provider in [QuotaProvider.cursor, .trae] where provider.supportsQuotaOnlyMode {
             let keys = Set(quota.providerQuotas[provider]?.keys.map { $0 } ?? [])
             guard !keys.isEmpty else { continue }
             await quota.refresh(
@@ -144,7 +144,7 @@ public final class QuotaFeatureController {
     }
 
     func importIDEProvider(_ provider: QuotaProvider) async -> [String: ProviderQuota] {
-        guard provider.isImportedFromLocalIDE else { return [:] }
+        guard provider.isImportedFromLocalIDE, provider.supportsQuotaOnlyMode else { return [:] }
         await quota.refresh(provider: provider, mode: operatingMode, force: true)
         await finishRefresh()
         return quota.providerQuotas[provider] ?? [:]

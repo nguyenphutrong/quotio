@@ -173,20 +173,8 @@ pub fn capability(provider: Provider) -> ProviderCapability {
     if oauth_workflow.is_some() {
         operations.push(Operation::StartOAuth);
     }
-    ProviderCapability {
-        provider,
-        oauth_workflow,
-        auth,
-        settings,
-        usage_platform: "all",
-        account_storage_platform: provider.supports_accounts().then_some("macos"),
-        account_storage_platforms: if provider.supports_accounts() {
-            vec!["macos", "linux"]
-        } else {
-            vec![]
-        },
-        source_discovery_endpoint: "/v1/account-sources/discover",
-        source_references: if matches!(provider, Provider::Catalog("clinepass") | Provider::Zai) {
+    let mut source_references =
+        if matches!(provider, Provider::Catalog("clinepass") | Provider::Zai) {
             vec![SourceCapability {
                 kind: "quotio_custom_provider",
                 platforms: vec!["macos"],
@@ -265,7 +253,34 @@ pub fn capability(provider: Provider) -> ProviderCapability {
             }]
         } else {
             vec![]
+        };
+    if matches!(
+        provider,
+        Provider::Codex
+            | Provider::Antigravity
+            | Provider::Catalog("claude" | "copilot" | "kiro" | "vertexai")
+    ) {
+        source_references.push(SourceCapability {
+            kind: "cli_proxy_auth_file",
+            platforms: vec!["macos", "linux"],
+            origin: "borrowed_proxy",
+            credential_refresh: false,
+        });
+    }
+    ProviderCapability {
+        provider,
+        oauth_workflow,
+        auth,
+        settings,
+        usage_platform: "all",
+        account_storage_platform: provider.supports_accounts().then_some("macos"),
+        account_storage_platforms: if provider.supports_accounts() {
+            vec!["macos", "linux"]
+        } else {
+            vec![]
         },
+        source_discovery_endpoint: "/v1/account-sources/discover",
+        source_references,
         native_instructions: native,
         operations,
     }

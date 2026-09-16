@@ -32,6 +32,11 @@ curl http://127.0.0.1:6767/v1/usage
 loopback. It shares the CLI's provider adapters, saved accounts, and JSON report
 schema. Add `--manage` with `QUOTIO_SERVER_TOKEN` to enable managed account, Codex OAuth relay/loopback, settings, and refresh operations. `--public-url` records an HTTPS reverse-proxy origin and `--allow-origin` enables exact CORS origins; neither provisions TLS or changes the loopback listener. See [local REST API](docs/local-http-api.md) for routes, authentication, refresh behavior, and startup options. The complete contract is [OpenAPI 3.1](docs/openapi.json). Managed writes use idempotency keys, with up to 128 running operations. The most recent 128 refresh results are retained for up to 15 minutes; up to 4096 account write results and retry keys are retained until restart. Linux supports an encrypted account vault with a separately supplied master key. Adding a provider still requires its supported login or credential path.
 
+Native parents may also pass `--cli-proxy-auth-dir` with `--manage --parent-pipe`.
+Quotio reads supported Codex, Claude, GitHub Copilot, Antigravity, Kiro, and Vertex
+JSON auth files from that directory for usage collection without importing, refreshing,
+editing, or deleting them.
+
 ## Run
 
 Use Rust stable with edition 2024 support. The package declares Rust 1.88 or newer;
