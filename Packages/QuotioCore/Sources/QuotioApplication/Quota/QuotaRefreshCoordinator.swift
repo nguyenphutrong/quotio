@@ -50,7 +50,7 @@ public struct QuotaSnapshot: Equatable, Sendable {
     }
 }
 
-public actor QuotaRefreshCoordinator: LifecycleCancelling {
+public actor QuotaRefreshCoordinator: LifecycleCancelling, QuotaCoordinating {
     private enum RetryScope: Hashable {
         case provider(QuotaProvider)
         case account(QuotaAccountID)

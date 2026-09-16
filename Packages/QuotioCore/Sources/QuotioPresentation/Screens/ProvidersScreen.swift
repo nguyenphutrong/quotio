@@ -67,7 +67,7 @@ struct ProvidersScreen: View {
                 groups[provider, default: []].append(data)
             }
         } else if modeManager.isMonitorMode {
-            for account in accounts.accounts where ![.glm, .warp, .clinePass].contains(account.provider) {
+            for account in accounts.accounts {
                 let state = quotaController.monitorStatus(for: account)
                 let data = AccountRowData.from(
                     monitorAccount: account,
@@ -95,9 +95,9 @@ struct ProvidersScreen: View {
             }
         }
 
-        // Add GLM providers from CustomProviderService
+        // Local-proxy credentials stay owned by CLIProxyAPI/custom-provider storage.
         for glmProvider in providersModel.customProviders.filter({
-            $0.type == .glmCompatibility && $0.isEnabled
+            !modeManager.isMonitorMode && $0.type == .glmCompatibility && $0.isEnabled
         }) {
             // Use provider name as display name (store provider ID for editing)
             let data = AccountRowData(
@@ -117,7 +117,7 @@ struct ProvidersScreen: View {
 
         // ClinePass API keys are stored as custom providers but shown as first-class accounts.
         for clinePassProvider in providersModel.customProviders.filter({
-            $0.type == .clinePass && $0.isEnabled
+            !modeManager.isMonitorMode && $0.type == .clinePass && $0.isEnabled
         }) {
             let data = AccountRowData(
                 id: clinePassProvider.id.uuidString,
@@ -134,7 +134,7 @@ struct ProvidersScreen: View {
             groups[.clinePass, default: []].append(data)
         }
 
-        for warpToken in warpTokens.tokens.filter({ $0.isEnabled }) {
+        for warpToken in warpTokens.tokens.filter({ !modeManager.isMonitorMode && $0.isEnabled }) {
             let data = AccountRowData(
                 id: warpToken.id.uuidString,
                 provider: .warp,
@@ -202,7 +202,7 @@ struct ProvidersScreen: View {
         }
         .task {
             providersModel.reloadCustomProviders()
-            await warpTokens.load()
+            if modeManager.isLocalProxyMode { await warpTokens.load() }
             await proxyManagement.loadDirectAuthFiles()
         }
         .alert("providers.proxyRequired.title".localized(), isPresented: $showProxyRequiredAlert) {
@@ -360,7 +360,9 @@ struct ProvidersScreen: View {
                             Task { await deleteAccount(account) }
                         },
                         onEditAccount: { account in
-                            if provider == .glm {
+                            if modeManager.isMonitorMode {
+                                handleEditMonitorAPIKeyAccount(account)
+                            } else if provider == .glm {
                                 handleEditGlmAccount(account)
                             } else if provider == .clinePass {
                                 handleEditClinePassAccount(account)
@@ -457,6 +459,11 @@ struct ProvidersScreen: View {
     // MARK: - Helper Functions
 
     private func handleAddProvider(_ provider: QuotaProvider) {
+        if modeManager.isMonitorMode, provider.usesAPIKeyAuth {
+            editingMonitorAPIKeyAccount = nil
+            monitorAPIKeyProvider = provider
+            return
+        }
         if provider == .clinePass {
             customProviderSheetMode = .add(.clinePass)
             return

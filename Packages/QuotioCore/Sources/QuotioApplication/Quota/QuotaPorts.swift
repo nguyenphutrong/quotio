@@ -69,6 +69,27 @@ public protocol QuotaSnapshotStoring: Sendable {
     func save(_ snapshot: QuotaSnapshot, for mode: QuotaOperatingMode) async
 }
 
+public protocol QuotaCoordinating: Sendable {
+    var snapshot: QuotaSnapshot { get async }
+
+    func states() async -> AsyncStream<QuotaSnapshot>
+    func bootstrap(mode: QuotaOperatingMode) async -> QuotaSnapshot
+    func refresh(_ request: QuotaFetchRequest) async -> QuotaSnapshot
+    func refreshAll(
+        mode: QuotaOperatingMode,
+        providers: Set<QuotaProvider>?,
+        force: Bool
+    ) async -> QuotaSnapshot
+    func replaceQuotas(
+        _ quotas: [String: ProviderQuota],
+        for provider: QuotaProvider,
+        mode: QuotaOperatingMode
+    ) async
+    func removeQuota(for account: QuotaAccountID, mode: QuotaOperatingMode) async
+    func cancel(provider: QuotaProvider) async
+    func cancelForTermination() async
+}
+
 public struct QuotaProviderRegistry: Sendable {
     private let fetchers: [QuotaProvider: any QuotaFetching]
 

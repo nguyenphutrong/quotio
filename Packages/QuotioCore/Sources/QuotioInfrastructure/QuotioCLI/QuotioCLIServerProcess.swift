@@ -48,6 +48,7 @@ public final class QuotioCLIServerProcess {
     private let configurationURL: URL?
     private let accountDataDirectory: URL?
     private let proxyAuthDirectory: URL?
+    private let providers: [String]
     private var process: Process?
     private var input: Pipe?
     private var output: Pipe?
@@ -59,12 +60,14 @@ public final class QuotioCLIServerProcess {
             .appendingPathComponent("Contents/Helpers/quotio-cli"),
         configurationURL: URL? = nil,
         accountDataDirectory: URL? = nil,
-        proxyAuthDirectory: URL? = nil
+        proxyAuthDirectory: URL? = nil,
+        providers: [String] = []
     ) {
         self.executableURL = executableURL
         self.configurationURL = configurationURL
         self.accountDataDirectory = accountDataDirectory
         self.proxyAuthDirectory = proxyAuthDirectory
+        self.providers = providers
     }
 
     public func start() async throws -> QuotioCLIConnection {
@@ -90,6 +93,9 @@ public final class QuotioCLIServerProcess {
         ]
         if let proxyAuthDirectory {
             process.arguments?.append(contentsOf: ["--cli-proxy-auth-dir", proxyAuthDirectory.path])
+        }
+        for provider in providers {
+            process.arguments?.append(contentsOf: ["--provider", provider])
         }
         var environment = ProcessInfo.processInfo.environment
         environment.removeValue(forKey: "QUOTIO_SERVER_TOKEN")
@@ -165,10 +171,20 @@ public final class QuotioCLIServerProcess {
         let accounts = accountDataDirectory
             ?? support.appendingPathComponent("QuotioCLI", isDirectory: true)
         try FileManager.default.createDirectory(at: accounts, withIntermediateDirectories: true)
-        return (
-            configurationURL ?? support.appendingPathComponent("quotio-cli.toml"),
-            accounts
+        let configuration = configurationURL ?? support.appendingPathComponent("quotio-cli.toml")
+        try FileManager.default.createDirectory(
+            at: configuration.deletingLastPathComponent(),
+            withIntermediateDirectories: true
         )
+        if !FileManager.default.fileExists(atPath: configuration.path),
+           !FileManager.default.createFile(
+               atPath: configuration.path,
+               contents: Data(),
+               attributes: [.posixPermissions: 0o600]
+           ) {
+            throw QuotioCLIServerError.startupFailed
+        }
+        return (configuration, accounts)
     }
 
     private func outputStream(from pipe: Pipe) -> AsyncStream<Data> {

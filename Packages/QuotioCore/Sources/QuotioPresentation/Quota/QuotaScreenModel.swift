@@ -13,13 +13,13 @@ public final class QuotaScreenModel {
         }
     }
 
-    @ObservationIgnored private let coordinator: QuotaRefreshCoordinator
+    @ObservationIgnored private let coordinator: any QuotaCoordinating
     @ObservationIgnored private var observationTask: Task<Void, Never>?
     @ObservationIgnored private var didChangeHandler: (@MainActor (QuotaSnapshot) -> Void)?
     @ObservationIgnored private var isShutdown = false
 
     public init(
-        coordinator: QuotaRefreshCoordinator,
+        coordinator: any QuotaCoordinating,
         initialState: QuotaSnapshot = QuotaSnapshot()
     ) {
         self.coordinator = coordinator
