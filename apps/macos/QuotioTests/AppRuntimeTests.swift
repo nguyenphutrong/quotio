@@ -52,13 +52,17 @@ final class AppRuntimeTests: XCTestCase {
         XCTAssertEqual(services.backgroundUpdateCheckCount, 1)
     }
 
-    func testStatusBarStateCallbackUpdatesAndRebuildsHeadlessMenu() async {
+    func testStatusBarStateCallbackUpdatesImmediatelyAndDefersMenuRebuild() async {
         let services = FakeAppRuntimeServices()
         let runtime = AppRuntime(services: services)
 
         services.statusBarStateDidChangeHandler?()
 
         XCTAssertEqual(services.updateStatusBarCount, 1)
+        XCTAssertEqual(services.rebuildStatusBarCount, 0)
+
+        await Task.yield()
+
         XCTAssertEqual(services.rebuildStatusBarCount, 1)
         withExtendedLifetime(runtime) {}
     }
