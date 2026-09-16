@@ -210,7 +210,7 @@ public extension QuotaMetric {
         case "factory-core-weekly": "factory.quota.coreWeekly".localizedStatic()
         case "factory-core-monthly": "factory.quota.coreMonthly".localizedStatic()
         case "factory-billing-mode": "factory.quota.billingMode".localizedStatic()
-        case "openrouter-credits": "quota.metric.credits".localizedStatic()
+        case "openrouter-credits", "codex-credits": "quota.metric.credits".localizedStatic()
         case "openrouter-balance": "quota.metric.balance".localizedStatic()
         case "openrouter-today": "quota.metric.today".localizedStatic()
         case "openrouter-week": "quota.metric.thisWeek".localizedStatic()
