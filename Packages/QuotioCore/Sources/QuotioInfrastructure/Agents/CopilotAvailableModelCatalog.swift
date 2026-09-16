@@ -1,14 +1,20 @@
 import Foundation
 
+public protocol HTTPDataSession: Sendable {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse)
+}
+
+extension URLSession: HTTPDataSession {}
+
 public actor CopilotAvailableModelCatalog {
     private let authDirectory: URL
-    private let session: any QuotaHTTPSession
+    private let session: any HTTPDataSession
     private let now: @Sendable () -> Date
     private var cache: [String: (models: [Model], expiry: Date)] = [:]
 
     public init(
         homeDirectory: String = NSHomeDirectory(),
-        session: any QuotaHTTPSession = URLSession(
+        session: any HTTPDataSession = URLSession(
             configuration: ProxyURLSessionFactory.makeConfiguration(timeout: 15)
         ),
         now: @escaping @Sendable () -> Date = Date.init

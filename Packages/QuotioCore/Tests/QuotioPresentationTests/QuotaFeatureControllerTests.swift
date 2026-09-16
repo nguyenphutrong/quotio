@@ -135,18 +135,17 @@ final class QuotaFeatureControllerTests: XCTestCase {
             accountService: accountService,
             authFileRepository: QuotaFeatureAuthFileRepository()
         )
-        let quota = QuotaScreenModel(coordinator: QuotaRefreshCoordinator(
-            registry: QuotaProviderRegistry(aliases.isEmpty ? [] : [
-                QuotaFeatureFetcher(provider: provider, key: account.accountKey, aliases: aliases)
-            ]),
-            snapshots: QuotaFeatureSnapshotStore(initial: QuotaSnapshot(quotas: [
+        let quota = QuotaScreenModel(coordinator: TestQuotaCoordinator(
+            snapshot: QuotaSnapshot(
+                quotas: [
                 provider: [
                     quotaAccountKey ?? account.accountKey: ProviderQuota(
                         lastUpdated: Date(timeIntervalSince1970: 1_000)
                     ),
                 ],
-            ])),
-            clock: QuotaFeatureClock()
+                ],
+                accountAliases: aliases.isEmpty ? [:] : [provider: aliases]
+            )
         ))
         await quota.bootstrap(mode: .monitor)
         await accounts.reloadAccounts()
@@ -241,21 +240,6 @@ private actor QuotaFeatureAuthFileRepository: AuthFileRepository {
     func downloadAuthFile(name: String) -> Data { Data() }
 }
 
-private actor QuotaFeatureSnapshotStore: QuotaSnapshotStoring {
-    private let initial: QuotaSnapshot
-
-    init(initial: QuotaSnapshot) {
-        self.initial = initial
-    }
-
-    func load(for mode: QuotaOperatingMode) -> QuotaSnapshot { initial }
-    func save(_ snapshot: QuotaSnapshot, for mode: QuotaOperatingMode) {}
-}
-
-private struct QuotaFeatureClock: DateProviding {
-    func now() -> Date { Date(timeIntervalSince1970: 2_000) }
-}
-
 private actor QuotaFeatureOAuthAuthorizer: OAuthAuthorizing {
     func begin(
         request: OAuthAuthorizationRequest,
@@ -303,18 +287,4 @@ private final class QuotaFeaturePreferencesRepository:
     }
 
     func save(_ preferences: NotificationPreferences) {}
-}
-
-private struct QuotaFeatureFetcher: QuotaFetching {
-    let provider: QuotaProvider
-    let key: String
-    let aliases: [String: String]
-
-    func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
-        QuotaProviderOutput(
-            quotas: [key: ProviderQuota(lastUpdated: Date(timeIntervalSince1970: 2_000))],
-            credentialAccountKeys: [key],
-            accountAliases: aliases
-        )
-    }
 }

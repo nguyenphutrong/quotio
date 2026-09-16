@@ -31,42 +31,47 @@ public struct QuotaFetchRequest: Equatable, Sendable {
     }
 }
 
-public enum QuotaCredentialAvailability: Equatable, Sendable {
-    case unknown
-    case present
-    case missing
+public enum QuotaRefreshIssueKind: Equatable, Sendable {
+    case failed
+    case partial
 }
 
-public struct QuotaProviderOutput: Sendable {
-    public var quotas: [String: ProviderQuota]
-    public var subscriptions: [String: QuotaSubscriptionInfo]
-    public var credentialAvailability: QuotaCredentialAvailability
-    public var credentialAccountKeys: Set<String>?
-    public var accountAliases: [String: String]
+public struct QuotaRefreshIssue: Equatable, Sendable {
+    public let kind: QuotaRefreshIssueKind
+    public let occurredAt: Date
 
-    public init(
-        quotas: [String: ProviderQuota],
-        subscriptions: [String: QuotaSubscriptionInfo] = [:],
-        credentialAvailability: QuotaCredentialAvailability = .unknown,
-        credentialAccountKeys: Set<String>? = nil,
-        accountAliases: [String: String] = [:]
-    ) {
-        self.quotas = quotas
-        self.subscriptions = subscriptions
-        self.credentialAvailability = credentialAvailability
-        self.credentialAccountKeys = credentialAccountKeys
-        self.accountAliases = accountAliases
+    public init(kind: QuotaRefreshIssueKind, occurredAt: Date) {
+        self.kind = kind
+        self.occurredAt = occurredAt
     }
 }
 
-public protocol QuotaFetching: Sendable {
-    var provider: QuotaProvider { get }
-    func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput
-}
+public struct QuotaSnapshot: Equatable, Sendable {
+    public var quotas: [QuotaProvider: [String: ProviderQuota]]
+    public var accountAliases: [QuotaProvider: [String: String]]
+    public var subscriptions: [QuotaProvider: [String: QuotaSubscriptionInfo]]
+    public var issues: [QuotaProvider: QuotaRefreshIssue]
+    public var accountIssues: [QuotaAccountID: QuotaRefreshIssue]
+    public var refreshingProviders: Set<QuotaProvider>
+    public var lastUpdated: Date?
 
-public protocol QuotaSnapshotStoring: Sendable {
-    func load(for mode: QuotaOperatingMode) async -> QuotaSnapshot
-    func save(_ snapshot: QuotaSnapshot, for mode: QuotaOperatingMode) async
+    public init(
+        quotas: [QuotaProvider: [String: ProviderQuota]] = [:],
+        accountAliases: [QuotaProvider: [String: String]] = [:],
+        subscriptions: [QuotaProvider: [String: QuotaSubscriptionInfo]] = [:],
+        issues: [QuotaProvider: QuotaRefreshIssue] = [:],
+        accountIssues: [QuotaAccountID: QuotaRefreshIssue] = [:],
+        refreshingProviders: Set<QuotaProvider> = [],
+        lastUpdated: Date? = nil
+    ) {
+        self.quotas = quotas
+        self.accountAliases = accountAliases
+        self.subscriptions = subscriptions
+        self.issues = issues
+        self.accountIssues = accountIssues
+        self.refreshingProviders = refreshingProviders
+        self.lastUpdated = lastUpdated
+    }
 }
 
 public protocol QuotaCoordinating: Sendable {
@@ -88,22 +93,4 @@ public protocol QuotaCoordinating: Sendable {
     func removeQuota(for account: QuotaAccountID, mode: QuotaOperatingMode) async
     func cancel(provider: QuotaProvider) async
     func cancelForTermination() async
-}
-
-public struct QuotaProviderRegistry: Sendable {
-    private let fetchers: [QuotaProvider: any QuotaFetching]
-
-    public init(_ fetchers: [any QuotaFetching]) {
-        self.fetchers = fetchers.reduce(into: [:]) { result, fetcher in
-            result[fetcher.provider] = fetcher
-        }
-    }
-
-    public var providers: Set<QuotaProvider> {
-        Set(fetchers.keys)
-    }
-
-    public func fetcher(for provider: QuotaProvider) -> (any QuotaFetching)? {
-        fetchers[provider]
-    }
 }

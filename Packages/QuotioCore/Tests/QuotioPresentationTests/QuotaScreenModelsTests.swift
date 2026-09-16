@@ -9,15 +9,15 @@ final class QuotaScreenModelsTests: XCTestCase {
     func testQuotaScreenModelBootstrapsAndRefreshesThroughCoordinator() async {
         let initial = Self.quota(20)
         let fresh = Self.quota(80)
-        let store = PresentationQuotaStore(initial: QuotaSnapshot(quotas: [
+        let initialSnapshot = QuotaSnapshot(quotas: [
             .codex: ["account": initial],
-        ]))
-        let coordinator = QuotaRefreshCoordinator(
-            registry: QuotaProviderRegistry([
-                PresentationQuotaFetcher(provider: .codex, quota: fresh),
-            ]),
-            snapshots: store,
-            clock: PresentationClock()
+        ])
+        let coordinator = TestQuotaCoordinator(
+            snapshot: initialSnapshot,
+            refreshedSnapshot: QuotaSnapshot(
+                quotas: [.codex: ["account": fresh]],
+                lastUpdated: PresentationClock.date
+            )
         )
         let model = QuotaScreenModel(coordinator: coordinator)
         var observedStates: [QuotaSnapshot] = []
@@ -35,15 +35,10 @@ final class QuotaScreenModelsTests: XCTestCase {
     }
 
     func testDashboardModelDerivesQuotaOverview() async {
-        let store = PresentationQuotaStore(initial: QuotaSnapshot(quotas: [
+        let coordinator = TestQuotaCoordinator(snapshot: QuotaSnapshot(quotas: [
             .codex: ["one": Self.quota(70)],
             .claude: ["two": Self.quota(30)],
         ]))
-        let coordinator = QuotaRefreshCoordinator(
-            registry: QuotaProviderRegistry([]),
-            snapshots: store,
-            clock: PresentationClock()
-        )
         let quota = QuotaScreenModel(coordinator: coordinator)
         let accounts = AccountsScreenModel(
             accountService: EmptyAccountManager(),
@@ -58,20 +53,15 @@ final class QuotaScreenModelsTests: XCTestCase {
     }
 
     func testShutdownPreventsSuspendedRefreshFromRestartingObservation() async {
-        let gate = PresentationGate()
-        let fetcher = SuspendedPresentationQuotaFetcher(gate: gate)
-        let coordinator = QuotaRefreshCoordinator(
-            registry: QuotaProviderRegistry([fetcher]),
-            snapshots: PresentationQuotaStore(initial: QuotaSnapshot()),
-            clock: PresentationClock()
-        )
+        let gate = TestAsyncGate()
+        let coordinator = TestQuotaCoordinator(refreshGate: gate)
         let model = QuotaScreenModel(coordinator: coordinator)
         await model.bootstrap(mode: .monitor)
 
         let refresh = Task {
             await model.refresh(provider: .codex, mode: .monitor, force: true)
         }
-        await fetcher.waitUntilCalled()
+        await coordinator.waitUntilRefreshStarts()
         await model.shutdown()
         await gate.resume()
         await refresh.value
@@ -89,68 +79,6 @@ final class QuotaScreenModelsTests: XCTestCase {
             lastUpdated: PresentationClock.date
         )
     }
-}
-
-private actor PresentationQuotaFetcher: QuotaFetching {
-    nonisolated let provider: QuotaProvider
-    private let quota: ProviderQuota
-
-    init(provider: QuotaProvider, quota: ProviderQuota) {
-        self.provider = provider
-        self.quota = quota
-    }
-
-    func fetch(_ request: QuotaFetchRequest) -> QuotaProviderOutput {
-        QuotaProviderOutput(quotas: ["account": quota])
-    }
-}
-
-private actor SuspendedPresentationQuotaFetcher: QuotaFetching {
-    nonisolated let provider: QuotaProvider = .codex
-    private let gate: PresentationGate
-    private var callContinuations: [CheckedContinuation<Void, Never>] = []
-    private var wasCalled = false
-
-    init(gate: PresentationGate) {
-        self.gate = gate
-    }
-
-    func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
-        wasCalled = true
-        callContinuations.forEach { $0.resume() }
-        callContinuations.removeAll()
-        await gate.wait()
-        return QuotaProviderOutput(quotas: [:])
-    }
-
-    func waitUntilCalled() async {
-        if wasCalled { return }
-        await withCheckedContinuation { callContinuations.append($0) }
-    }
-}
-
-private actor PresentationGate {
-    private var continuation: CheckedContinuation<Void, Never>?
-
-    func wait() async {
-        await withCheckedContinuation { continuation = $0 }
-    }
-
-    func resume() {
-        continuation?.resume()
-        continuation = nil
-    }
-}
-
-private actor PresentationQuotaStore: QuotaSnapshotStoring {
-    private let initial: QuotaSnapshot
-
-    init(initial: QuotaSnapshot) {
-        self.initial = initial
-    }
-
-    func load(for mode: QuotaOperatingMode) -> QuotaSnapshot { initial }
-    func save(_ snapshot: QuotaSnapshot, for mode: QuotaOperatingMode) {}
 }
 
 private struct PresentationClock: DateProviding {

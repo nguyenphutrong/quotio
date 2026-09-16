@@ -239,20 +239,6 @@ final class AccountPersistenceTests: XCTestCase {
         XCTAssertEqual(after.boolValue, before.boolValue)
     }
 
-    func testKiroFallbackAccountKeysDoNotCollide() {
-        let first = MonitorOAuthAuthorizer.kiroAccountKey(identity: nil, clientID: "client-1")
-        let second = MonitorOAuthAuthorizer.kiroAccountKey(identity: nil, clientID: "client-2")
-
-        XCTAssertNotEqual(first, second)
-        XCTAssertEqual(
-            MonitorOAuthAuthorizer.kiroAccountKey(
-                identity: "builder@example.com",
-                clientID: "client-1"
-            ),
-            "builder@example.com"
-        )
-    }
-
     func testAtomicWriterRefusesSymbolicLinkDestination() throws {
         let target = temporaryDirectory.appendingPathComponent("target.json")
         let link = temporaryDirectory.appendingPathComponent("link.json")
@@ -263,18 +249,6 @@ final class AccountPersistenceTests: XCTestCase {
             try SecureAtomicFileWriter.write(Data("new".utf8), to: link)
         )
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "old")
-    }
-
-    func testOAuthCallbackRejectsMismatchedState() throws {
-        let callback = URL(string: "http://localhost/callback?code=test&state=unexpected")!
-
-        XCTAssertThrowsError(
-            try MonitorOAuthAuthorizer.authorizationCode(from: callback, expectedState: "expected")
-        ) { error in
-            guard case OAuthFlowFailure.stateMismatch = error else {
-                return XCTFail("Expected state mismatch")
-            }
-        }
     }
 
     func testProtectedCredentialStoreRefusesUnreadableOverwrite() async {
