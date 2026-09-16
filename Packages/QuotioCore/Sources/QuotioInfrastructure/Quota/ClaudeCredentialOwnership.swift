@@ -54,17 +54,26 @@ public enum ClaudeCredentialOwnership: Equatable, Sendable {
   ) -> ClaudeCredentialOwnership {
     if containsSymbolicLink(at: path, fileManager: fileManager) { return .externalCLI }
 
-    // Multiple names can share the CLI's single-use refresh token even without
-    // symlinks. Leave all multiply linked credentials read-only.
     let expanded = (path as NSString).expandingTildeInPath
     let attributes = try? fileManager.attributesOfItem(atPath: expanded)
-    if let count = attributes?[.referenceCount] as? NSNumber, count.intValue > 1 {
-      return .externalCLI
-    }
+    let referenceCount = (attributes?[.referenceCount] as? NSNumber)?.uint64Value ?? 1
+    return forOpenedAuthFile(
+      at: expanded, referenceCount: referenceCount, environment: environment)
+  }
 
-    let file = (path as NSString).resolvingSymlinksInPath
-    let cliDirectory = (configDirectory(environment: environment) as NSString)
-      .resolvingSymlinksInPath
+  /// Classifies a file already opened without following symlinks.
+  static func forOpenedAuthFile(
+    at path: String,
+    referenceCount: UInt64,
+    environment: [String: String]
+  ) -> ClaudeCredentialOwnership {
+    // Multiple names can share the CLI's single-use refresh token even without
+    // symlinks. Leave all multiply linked credentials read-only.
+    if referenceCount > 1 { return .externalCLI }
+
+    let file = URL(fileURLWithPath: path).standardizedFileURL.path
+    let cliDirectory = URL(fileURLWithPath: configDirectory(environment: environment))
+      .standardizedFileURL.path
     return file == cliDirectory || file.hasPrefix(cliDirectory + "/") ? .externalCLI : .quotio
   }
 

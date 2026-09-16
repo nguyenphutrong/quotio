@@ -150,6 +150,29 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
         path: linkedDirectory.appendingPathComponent("claude-user.json").path))
   }
 
+  func testOpenedCredentialCannotBeRedirectedByPathSwap() throws {
+    let root = try makeTemporaryDirectory()
+    let credential = root.appendingPathComponent("claude-user.json")
+    let original = Data(
+      #"{"access_token":"owned-access","refresh_token":"owned-refresh","email":"user@example.com"}"#
+        .utf8)
+    try original.write(to: credential)
+    let opened = try XCTUnwrap(SecureClaudeCredentialFile(path: credential.path))
+
+    let cliCredential = root.appendingPathComponent("cli-credential.json")
+    let cliData = Data(
+      #"{"access_token":"cli-access","refresh_token":"cli-refresh","email":"user@example.com"}"#
+        .utf8)
+    try cliData.write(to: cliCredential)
+    try FileManager.default.removeItem(at: credential)
+    try FileManager.default.createSymbolicLink(
+      at: credential, withDestinationURL: cliCredential)
+
+    XCTAssertEqual(opened.read(), original, "The read remains bound to the opened inode")
+    XCTAssertFalse(opened.replaceAtomically(with: Data("updated".utf8)))
+    XCTAssertEqual(try Data(contentsOf: cliCredential), cliData)
+  }
+
   // MARK: - Local loader
 
   func testHardLinkedProxyCredentialRemainsReadOnly() async throws {
