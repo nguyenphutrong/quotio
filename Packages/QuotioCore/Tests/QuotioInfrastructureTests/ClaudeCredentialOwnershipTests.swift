@@ -418,6 +418,7 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
       accountKey: "user@example.com", accessToken: "owned", refreshToken: "owned-refresh")
 
     XCTAssertEqual(ClaudeQuotaCredential.uniqueByAccountKey([cli, accessOnly]), [cli])
+    XCTAssertEqual(ClaudeQuotaCredential.uniqueByAccountKey([accessOnly, cli]), [cli])
     XCTAssertEqual(
       ClaudeQuotaCredential.uniqueByAccountKey([cli, accessOnly, refreshable]), [refreshable])
     XCTAssertEqual(
