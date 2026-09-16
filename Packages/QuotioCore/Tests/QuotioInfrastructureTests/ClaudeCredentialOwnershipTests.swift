@@ -334,7 +334,7 @@ final class ClaudeCredentialOwnershipTests: XCTestCase {
       accountKey: "user@example.com", accessToken: "cli", refreshToken: "shared",
       allowsRefresh: false)
     let copy = ClaudeQuotaCredential(
-      accountKey: "user@example.com", accessToken: "copy", refreshToken: "shared")
+      accountKey: "different@example.com", accessToken: "copy", refreshToken: "shared")
     let independent = ClaudeQuotaCredential(
       accountKey: "user@example.com", accessToken: "independent", refreshToken: "owned")
 

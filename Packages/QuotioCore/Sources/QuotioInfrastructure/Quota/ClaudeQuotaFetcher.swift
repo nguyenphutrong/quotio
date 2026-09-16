@@ -38,8 +38,7 @@ public struct ClaudeQuotaCredential: Equatable, Sendable {
       // hide a shared single-use refresh token. Keep the external entry instead.
       if credential.allowsRefresh, let refreshToken = credential.refreshToken,
         credentials.contains(where: {
-          !$0.allowsRefresh && $0.accountKey == credential.accountKey
-            && $0.refreshToken == refreshToken
+          !$0.allowsRefresh && $0.refreshToken == refreshToken
         })
       {
         continue
