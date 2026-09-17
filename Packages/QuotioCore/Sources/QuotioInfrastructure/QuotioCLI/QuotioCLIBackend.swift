@@ -384,7 +384,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             guard operation.status == "completed" else {
                 throw QuotioCLIBackendError.response(500, operation.error ?? operation.status)
             }
-            await loadSnapshot(mode: mode)
+            await loadSnapshot(mode: mode, refreshedProviders: domainProviders)
         } catch {
             guard activeMode == mode else { return }
             snapshot.refreshingProviders.subtract(domainProviders)
@@ -392,7 +392,10 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         }
     }
 
-    private func loadSnapshot(mode: QuotaOperatingMode) async {
+    private func loadSnapshot(
+        mode: QuotaOperatingMode,
+        refreshedProviders: Set<QuotaProvider>? = nil
+    ) async {
         guard let client else {
             markFailure(for: Set(Self.supportedProviders))
             return
@@ -401,8 +404,15 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             let report: QuotioCLIUsageReport = try await client.request("v1/usage")
             guard activeMode == mode else { return }
             guard report.schemaVersion == 1 else { throw QuotioCLIBackendError.incompatible }
+            let importedCursorQuotas = snapshot.quotas[.cursor]
             snapshot = QuotioCLIUsageMapper.snapshot(report, mode: mode)
-            mergeImportedIDEQuotas()
+            if let refreshedProviders {
+                if !refreshedProviders.contains(.cursor), snapshot.quotas[.cursor]?.isEmpty != false {
+                    snapshot.quotas[.cursor] = importedCursorQuotas
+                }
+            } else {
+                mergeImportedIDEQuotas()
+            }
             saveImportedIDEQuotas()
             let references = report.providers.map { ($0.provider, $0.accountRef) }
                 + report.failures.map { ($0.provider, $0.accountRef) }
@@ -488,7 +498,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
               let stored = try? JSONDecoder().decode([String: [String: ProviderQuota]].self, from: data) else {
             return
         }
-        for provider in [QuotaProvider.cursor, .trae]
+        for provider in [QuotaProvider.cursor]
             where snapshot.quotas[provider]?.isEmpty != false {
             snapshot.quotas[provider] = stored[provider.rawValue]
         }

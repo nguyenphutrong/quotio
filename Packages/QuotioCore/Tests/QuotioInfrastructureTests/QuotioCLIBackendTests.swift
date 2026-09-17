@@ -300,7 +300,10 @@ final class QuotioCLIBackendTests: XCTestCase {
             models: [QuotaMetric(name: "monthly", percentage: 42, resetTime: "")]
         )
         defaults.set(
-            try JSONEncoder().encode([QuotaProvider.cursor.rawValue: ["person@example.com": quota]]),
+            try JSONEncoder().encode([
+                QuotaProvider.cursor.rawValue: ["person@example.com": quota],
+                QuotaProvider.trae.rawValue: ["person@example.com": quota],
+            ]),
             forKey: "persisted.ideQuotas"
         )
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
@@ -313,6 +316,19 @@ final class QuotioCLIBackendTests: XCTestCase {
         let snapshot = await backend.bootstrap(mode: .monitor)
 
         XCTAssertEqual(snapshot.quotas[.cursor]?["person@example.com"], quota)
+        XCTAssertNil(snapshot.quotas[.trae])
+
+        for provider in [QuotaProvider.claude, .cursor] {
+            QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed","error":null}"#)
+            QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
+            let refreshed = await backend.refresh(QuotaFetchRequest(provider: provider, mode: .monitor))
+            if provider == .claude {
+                XCTAssertEqual(refreshed.quotas[.cursor]?["person@example.com"], quota)
+            } else {
+                XCTAssertNil(refreshed.quotas[.cursor])
+                XCTAssertNil(UserDefaults(suiteName: suite)?.data(forKey: "persisted.ideQuotas"))
+            }
+        }
     }
 
     func testFailedBorrowedAccountRemainsVisibleAndCanBeRefreshed() async throws {
