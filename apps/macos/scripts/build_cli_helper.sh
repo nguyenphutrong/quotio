@@ -51,6 +51,6 @@ else
 fi
 chmod 755 "${DESTINATION}"
 for arch in ${ARCHS:-$(uname -m)}; do
-    lipo -verify_arch "${arch}" "${DESTINATION}"
+    lipo "${DESTINATION}" -verify_arch "${arch}"
 done
 "${DESTINATION}" --version >/dev/null
