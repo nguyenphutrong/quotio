@@ -158,6 +158,32 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(accounts.map(\.source), [.legacyCLIProxy])
     }
 
+    func testLocalProxyModeKeepsOwnedWarpUsage() throws {
+        let data = Data(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"warp","account_ref":{"origin":"owned","id":"warp-1","label":"Work"},"account":{"id":"warp","label":"Work","plan":null},"windows":[]}],"failures":[]}"#.utf8)
+        let report = try makeQuotioCLIDecoder().decode(QuotioCLIUsageReport.self, from: data)
+
+        let snapshot = QuotioCLIUsageMapper.snapshot(report, mode: .localProxy)
+
+        XCTAssertNotNil(snapshot.quotas[.warp]?["Work"])
+    }
+
+    func testSynchronizeWarpTokensUpdatesCurrentAccountAndRemovesStaleAccount() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"warp-1","provider":"warp","label":"Work","origin":"owned","enabled":true,"source_kind":null},{"id":"warp-2","provider":"warp","label":"Old","origin":"owned","enabled":true,"source_kind":null}]}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"id":"operation-1","status":"completed","error":null}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"id":"operation-2","status":"completed","error":null}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+
+        try await backend.synchronizeWarpTokens([WarpToken(name: "Work", token: "new-token")])
+
+        let requests = QuotioCLIURLProtocol.requests()
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "PATCH", "DELETE"])
+        XCTAssertEqual(requests.map { $0.url?.path }, ["/v1/accounts", "/v1/accounts/warp-1", "/v1/accounts/warp-2"])
+    }
+
     func testLocalProxyRefreshExcludesOwnedSources() async throws {
         QuotioCLIURLProtocol.enqueue(#"{"id":"operation-1","status":"completed","error":null}"#)
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)

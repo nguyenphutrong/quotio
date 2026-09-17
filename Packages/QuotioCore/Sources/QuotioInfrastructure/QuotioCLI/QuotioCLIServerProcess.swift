@@ -49,6 +49,8 @@ public final class QuotioCLIServerProcess {
     private let accountDataDirectory: URL?
     private let proxyAuthDirectory: URL?
     private let providers: [String]
+    private let executableDirectories: [URL]
+    private let proxyURL: @MainActor () -> String?
     private var process: Process?
     private var input: Pipe?
     private var output: Pipe?
@@ -61,13 +63,19 @@ public final class QuotioCLIServerProcess {
         configurationURL: URL? = nil,
         accountDataDirectory: URL? = nil,
         proxyAuthDirectory: URL? = nil,
-        providers: [String] = []
+        providers: [String] = [],
+        executableDirectories: [URL] = [],
+        proxyURL: @escaping @MainActor () -> String? = {
+            UserDefaults.standard.string(forKey: "proxyURL")
+        }
     ) {
         self.executableURL = executableURL
         self.configurationURL = configurationURL
         self.accountDataDirectory = accountDataDirectory
         self.proxyAuthDirectory = proxyAuthDirectory
         self.providers = providers
+        self.executableDirectories = executableDirectories
+        self.proxyURL = proxyURL
     }
 
     public func start() async throws -> QuotioCLIConnection {
@@ -100,6 +108,27 @@ public final class QuotioCLIServerProcess {
         }
         var environment = ProcessInfo.processInfo.environment
         environment.removeValue(forKey: "QUOTIO_SERVER_TOKEN")
+        let searchPath = executableDirectories.map(\.path) + [environment["PATH"] ?? ""]
+        environment["PATH"] = searchPath.filter { !$0.isEmpty }.joined(separator: ":")
+        if let value = proxyURL(),
+           let url = URL(string: value),
+           url.host?.isEmpty == false {
+            switch url.scheme?.lowercased() {
+            case "http":
+                environment["HTTP_PROXY"] = value
+                environment["http_proxy"] = value
+                environment["HTTPS_PROXY"] = value
+                environment["https_proxy"] = value
+            case "https":
+                environment["HTTPS_PROXY"] = value
+                environment["https_proxy"] = value
+            case "socks5":
+                environment["ALL_PROXY"] = value
+                environment["all_proxy"] = value
+            default:
+                break
+            }
+        }
         process.environment = environment
         process.standardInput = input
         process.standardOutput = output

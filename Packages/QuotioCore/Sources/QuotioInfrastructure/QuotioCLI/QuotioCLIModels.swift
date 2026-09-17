@@ -173,7 +173,8 @@ enum QuotioCLIUsageMapper {
         mode: QuotaOperatingMode = .monitor
     ) -> QuotaSnapshot {
         var snapshot = QuotaSnapshot(lastUpdated: report.generatedAt)
-        for usage in report.providers where mode == .monitor || usage.accountRef?.origin != "owned" {
+        for usage in report.providers
+        where mode == .monitor || usage.accountRef?.origin != "owned" || usage.provider == "warp" {
             guard let provider = QuotioCLIProviderMap.domain(usage.provider) else { continue }
             let preferredKey = usage.accountRef?.label.nilIfEmpty
                 ?? usage.account.label.nilIfEmpty
@@ -194,7 +195,8 @@ enum QuotioCLIUsageMapper {
                 snapshot.subscriptions[provider, default: [:]][key] = subscription
             }
         }
-        for failure in report.failures where mode == .monitor || failure.accountRef?.origin != "owned" {
+        for failure in report.failures
+        where mode == .monitor || failure.accountRef?.origin != "owned" || failure.provider == "warp" {
             guard let provider = QuotioCLIProviderMap.domain(failure.provider) else { continue }
             let issue = QuotaRefreshIssue(kind: .failed, occurredAt: report.generatedAt)
             if let account = failure.accountRef {

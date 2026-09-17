@@ -481,8 +481,9 @@ async fn refresh(state: &ApiState, request: Option<RefreshRequest>) -> Result<Va
         managed.map(|mut adapters| {
             if !include_owned {
                 adapters.retain(|adapter| {
-                    adapter.account_ref().and_then(|reference| reference.origin)
-                        != Some(crate::domain::AccountOrigin::Owned)
+                    adapter.id().0 == "warp"
+                        || adapter.account_ref().and_then(|reference| reference.origin)
+                            != Some(crate::domain::AccountOrigin::Owned)
                 });
             }
             if account.is_none() {
@@ -586,9 +587,17 @@ fn merge_refresh_report(
         return true;
     }
 
-    let Some((old_generation, previous)) = &mut *snapshot else {
-        return false;
-    };
+    let (old_generation, previous) = snapshot.get_or_insert_with(|| {
+        (
+            generation,
+            UsageReport {
+                schema_version: 1,
+                generated_at: report.generated_at,
+                providers: vec![],
+                failures: vec![],
+            },
+        )
+    });
     if *old_generation != generation {
         return false;
     }

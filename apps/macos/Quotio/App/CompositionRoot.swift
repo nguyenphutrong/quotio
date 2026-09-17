@@ -83,14 +83,32 @@ enum CompositionRoot {
 
         let authFileRepository = FileAuthFileRepository()
         let quotioBackend = QuotioCLIBackend()
+        let agentInstallationProbe = AgentBinaryInstallationProbe()
         let quotioServer = QuotioCLIServerProcess(
             proxyAuthDirectory: URL(fileURLWithPath: paths.authDirectoryPath, isDirectory: true),
             providers: [
                 "claude", "codex", "antigravity", "kiro", "copilot", "cursor",
                 "factory", "devin-desktop", "grok", "openrouter", "amp", "zai",
                 "vertexai", "warp", "clinepass",
-            ]
+            ],
+            executableDirectories: [CLIAgent.codexCLI, .ampCLI]
+                .compactMap(agentInstallationProbe.path)
+                .map { URL(fileURLWithPath: $0).deletingLastPathComponent() }
         )
+        let reconnectQuotioServer: @MainActor @Sendable () async -> Bool = {
+            await quotioBackend.disconnect()
+            guard let connection = try? await quotioServer.start() else { return false }
+            await quotioBackend.connect(connection)
+            return true
+        }
+        quotioServer.onUnexpectedTermination = {
+            Task {
+                for delay in [1, 2, 4] {
+                    try? await Task.sleep(for: .seconds(delay))
+                    if await reconnectQuotioServer() { return }
+                }
+            }
+        }
         let accountsScreenModel = AccountsScreenModel(
             accountService: quotioBackend,
             authFileRepository: authFileRepository
@@ -144,7 +162,10 @@ enum CompositionRoot {
                 protectedStore: yubiKeyVault
             )
         )
-        let warpTokenScreenModel = WarpTokenScreenModel(repository: warpTokenRepository)
+        let warpTokenScreenModel = WarpTokenScreenModel(
+            repository: warpTokenRepository,
+            synchronize: quotioBackend.synchronizeWarpTokens
+        )
         let quotaScreenModel = QuotaScreenModel(
             coordinator: quotioBackend
         )
@@ -221,7 +242,6 @@ enum CompositionRoot {
         )
         let agentFileStore = AgentFileStore()
         let agentDetector = AgentDetectionAdapter()
-        let agentInstallationProbe = AgentBinaryInstallationProbe()
         let copilotAvailableModelCatalog = CopilotAvailableModelCatalog()
         let agentConfigurationService = QuotioApplication.AgentConfigurationService(
             adapters: [
@@ -374,7 +394,7 @@ enum CompositionRoot {
             applyDockVisibility: { [applicationPlatform] enabled in
                 applicationPlatform.setDockVisibility(enabled)
             },
-            reloadQuotaNetwork: {}
+            reloadQuotaNetwork: { _ = await reconnectQuotioServer() }
         )
         let providerImageCache = ProviderImageCacheAdapter()
         let providerImageModel = ProviderImageScreenModel(
@@ -421,6 +441,7 @@ enum CompositionRoot {
             tunnel: tunnel,
             quotioServer: quotioServer,
             quotioBackend: quotioBackend,
+            reconnectQuotioServer: reconnectQuotioServer,
             isCLIInstalled: agentInstallationProbe.isInstalled
         )
         return AppRuntime(services: services)
@@ -479,6 +500,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     private let tunnel: TunnelScreenModel
     private let quotioServer: QuotioCLIServerProcess
     private let quotioBackend: QuotioCLIBackend
+    private let reconnectQuotioServer: @MainActor @Sendable () async -> Bool
     private let isCLIInstalled: (CLIAgent) -> Bool
 
     var hasCompletedOnboarding: Bool { modeManager.hasCompletedOnboarding }
@@ -523,6 +545,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         tunnel: TunnelScreenModel,
         quotioServer: QuotioCLIServerProcess,
         quotioBackend: QuotioCLIBackend,
+        reconnectQuotioServer: @escaping @MainActor @Sendable () async -> Bool,
         isCLIInstalled: @escaping (CLIAgent) -> Bool
     ) {
         self.proxyManagement = proxyManagement
@@ -562,11 +585,8 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         self.tunnel = tunnel
         self.quotioServer = quotioServer
         self.quotioBackend = quotioBackend
+        self.reconnectQuotioServer = reconnectQuotioServer
         self.isCLIInstalled = isCLIInstalled
-
-        quotioServer.onUnexpectedTermination = { [weak quotioBackend] in
-            Task { await quotioBackend?.disconnect() }
-        }
     }
 
     func prepareForLaunch() {
@@ -670,11 +690,8 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     }
 
     func initializeFeatures() async {
-        if let connection = try? await quotioServer.start() {
-            await quotioBackend.connect(connection)
-        } else {
-            await quotioBackend.disconnect()
-        }
+        _ = await reconnectQuotioServer()
+        await warpTokenScreenModel.load()
         await tunnel.refreshInstallation()
         if modeManager.isLocalProxyMode {
             await proxyManagement.initialize()

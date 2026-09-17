@@ -11,6 +11,7 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let marker = directory.appendingPathComponent("stopped")
         let arguments = directory.appendingPathComponent("arguments")
+        let environment = directory.appendingPathComponent("environment")
         let proxyAuthDirectory = directory.appendingPathComponent("proxy-auth")
         try FileManager.default.createDirectory(at: proxyAuthDirectory, withIntermediateDirectories: true)
         let helper = directory.appendingPathComponent("quotio-cli")
@@ -18,6 +19,7 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         #!/bin/sh
         trap 'printf stopped > "\(marker.path)"' EXIT
         printf '%s\n' "$@" > "\(arguments.path)"
+        printf '%s\n%s\n' "$PATH" "$HTTPS_PROXY" > "\(environment.path)"
         IFS= read -r token
         [ -n "$token" ] || exit 2
         printf '{"bootstrap_version":1,"api_version":1,"pid":%s,"host":"127.0.0.1","port":43210}\n' "$$"
@@ -32,7 +34,9 @@ final class QuotioCLIServerProcessTests: XCTestCase {
             executableURL: helper,
             configurationURL: directory.appendingPathComponent("config.toml"),
             accountDataDirectory: directory.appendingPathComponent("accounts"),
-            proxyAuthDirectory: proxyAuthDirectory
+            proxyAuthDirectory: proxyAuthDirectory,
+            executableDirectories: [directory.appendingPathComponent("bin")],
+            proxyURL: { "http://proxy.example:8080" }
         )
 
         let connection = try await server.start()
@@ -42,6 +46,9 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         let launchedArguments = try String(contentsOf: arguments, encoding: .utf8)
         XCTAssertTrue(launchedArguments.contains("--refresh-interval\n0\n"))
         XCTAssertTrue(launchedArguments.contains("--cli-proxy-auth-dir\n\(proxyAuthDirectory.path)\n"))
+        let launchedEnvironment = try String(contentsOf: environment, encoding: .utf8)
+        XCTAssertTrue(launchedEnvironment.hasPrefix("\(directory.path)/bin:"))
+        XCTAssertTrue(launchedEnvironment.contains("\nhttp://proxy.example:8080\n"))
         await server.stop()
         for _ in 0..<20 where !FileManager.default.fileExists(atPath: marker.path) {
             try await Task.sleep(for: .milliseconds(25))

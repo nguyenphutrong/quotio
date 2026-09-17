@@ -188,7 +188,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             let response: QuotioCLIAccountList = try await client.request("v1/accounts")
             guard response.schemaVersion == 1 else { return [] }
             let accounts = response.accounts
-                .filter { activeMode == .monitor || $0.origin != "owned" }
+                .filter { activeMode == .monitor || $0.origin != "owned" || $0.provider == "warp" }
                 .compactMap(Self.account)
             return AccountSelectionPolicy.preferred(accounts + visibleReportedAccounts())
         } catch {
@@ -219,6 +219,39 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             )
         } catch {
             throw Self.accountFailure(error)
+        }
+    }
+
+    public func synchronizeWarpTokens(_ tokens: [WarpToken]) async throws {
+        guard let client else { throw QuotioCLIBackendError.disconnected }
+        let response: QuotioCLIAccountList = try await client.request("v1/accounts")
+        guard response.schemaVersion == 1 else { throw QuotioCLIBackendError.incompatible }
+        let existing = response.accounts.filter { $0.provider == "warp" && $0.origin == "owned" }
+        var retained = Set<String>()
+        for token in tokens where token.isEnabled {
+            let account = existing.first {
+                $0.label.caseInsensitiveCompare(token.name) == .orderedSame
+            }
+            let body = try JSONEncoder.quotioCLI.encode(APIKeyBody(
+                provider: account == nil ? "warp" : nil,
+                label: token.name,
+                apiKey: token.token
+            ))
+            try await mutate(
+                client: client,
+                path: account.map { "v1/accounts/\($0.id)" } ?? "v1/accounts",
+                method: account == nil ? "POST" : "PATCH",
+                body: body
+            )
+            if let account { retained.insert(account.id) }
+        }
+        for account in existing where !retained.contains(account.id) {
+            try await mutate(
+                client: client,
+                path: "v1/accounts/\(account.id)",
+                method: "DELETE",
+                body: nil
+            )
         }
     }
 
@@ -361,7 +394,11 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     }
 
     private func visibleReportedAccounts() -> [Account] {
-        reportedAccounts.filter { activeMode == .monitor || $0.source != .quotioKeychain }
+        reportedAccounts.filter {
+            activeMode == .monitor
+                || $0.source != .quotioKeychain
+                || $0.providerID.rawValue == QuotaProvider.warp.rawValue
+        }
     }
 
     private func accountID(provider: String, accountKey: String) async -> String? {
@@ -392,7 +429,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             body: body,
             idempotencyKey: UUID().uuidString
         )
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(60)
         while operation.status == "running" {
             guard ContinuousClock.now < deadline else { throw QuotioCLIBackendError.timeout }
             try await Task.sleep(for: .milliseconds(100))

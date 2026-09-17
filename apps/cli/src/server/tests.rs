@@ -224,7 +224,7 @@ fn disabled_provider_account_refresh_does_not_replace_the_scheduled_snapshot() {
 }
 
 #[test]
-fn account_refresh_cannot_initialize_the_scheduled_snapshot() {
+fn first_scoped_refresh_seeds_the_snapshot() {
     let report = UsageReport {
         schema_version: 1,
         generated_at: time::OffsetDateTime::UNIX_EPOCH,
@@ -233,7 +233,7 @@ fn account_refresh_cannot_initialize_the_scheduled_snapshot() {
     };
     let mut snapshot = None;
 
-    assert!(!merge_refresh_report(
+    assert!(merge_refresh_report(
         &mut snapshot,
         0,
         &[Provider::Amp],
@@ -241,7 +241,7 @@ fn account_refresh_cannot_initialize_the_scheduled_snapshot() {
         Some("account-id"),
         report,
     ));
-    assert!(snapshot.is_none());
+    assert!(snapshot.is_some());
 }
 
 #[test]
@@ -1105,6 +1105,7 @@ async fn local_mode_refresh_excludes_owned_accounts() {
     }));
     std::fs::remove_dir_all(dir).unwrap();
 }
+
 #[tokio::test]
 async fn scheduler_clears_deadline_on_timer_and_config_wake() {
     let (state, dir, _) = fixture().await;
