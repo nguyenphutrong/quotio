@@ -27,6 +27,12 @@ commits = [
 paths = ['''^Packages/QuotioCore/Sources/QuotioInfrastructure/Quota/AntigravityQuotaFetcher\.swift$''']
 
 [[allowlists]]
+description = "Reviewed Antigravity OAuth client constant moved into account switcher history"
+condition = "AND"
+commits = ["247b55c2917469208c8e5ed39980623d41f03efe"]
+paths = ['''^Packages/QuotioCore/Sources/QuotioInfrastructure/Antigravity/AntigravityAccountSwitcher\.swift$''']
+
+[[allowlists]]
 description = "Synthetic YubiKey identifier in pre-package test history"
 condition = "AND"
 commits = ["0f976d4078239cce1dfe513e14bf9a0c4652e63e"]
