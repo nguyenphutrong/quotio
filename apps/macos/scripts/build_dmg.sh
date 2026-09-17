@@ -382,8 +382,7 @@ if [ "${DISTRIBUTION}" = true ]; then
     sign_app_for_distribution
     notarize_app
 else
-    codesign --force --sign - "${CLI_HELPER}"
-    codesign --force --sign - "${APP_PATH}"
+    codesign --force --deep --sign - "${APP_PATH}"
     codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
 fi
 
