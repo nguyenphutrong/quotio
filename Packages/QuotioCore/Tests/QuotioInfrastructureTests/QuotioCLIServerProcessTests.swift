@@ -58,6 +58,32 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: marker.path))
     }
 
+    func testStartupExitDoesNotNotifyRestartHandler() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let helper = directory.appendingPathComponent("quotio-cli")
+        try Data("#!/bin/sh\nread token\nexit 1\n".utf8).write(to: helper)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
+        let server = QuotioCLIServerProcess(
+            executableURL: helper,
+            configurationURL: directory.appendingPathComponent("config.toml"),
+            accountDataDirectory: directory.appendingPathComponent("accounts")
+        )
+        var terminations = 0
+        server.onUnexpectedTermination = { terminations += 1 }
+        for _ in 0..<3 {
+            do {
+                _ = try await server.start()
+                XCTFail("Expected startup failure")
+            } catch {
+                XCTAssertEqual(error as? QuotioCLIServerError, .startupFailed)
+            }
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(terminations, 0)
+    }
+
     func testRejectsBootstrapForAnotherProcess() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

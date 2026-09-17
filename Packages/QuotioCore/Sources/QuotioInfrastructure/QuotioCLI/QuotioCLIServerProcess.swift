@@ -53,6 +53,7 @@ public final class QuotioCLIServerProcess {
     private let applicationSupportDirectoryName: String
     private let accountVaultNamespace: String
     private let proxyURL: @MainActor () -> String?
+    private var isStarting = false
     private var process: Process?
     private var input: Pipe?
     private var output: Pipe?
@@ -90,6 +91,8 @@ public final class QuotioCLIServerProcess {
             throw QuotioCLIServerError.helperUnavailable
         }
 
+        isStarting = true
+        defer { isStarting = false }
         let token = try makeToken()
         let locations = try makeLocations()
         let process = Process()
@@ -147,7 +150,7 @@ public final class QuotioCLIServerProcess {
                 self?.process = nil
                 self?.input = nil
                 self?.output = nil
-                self?.onUnexpectedTermination?()
+                if self?.isStarting == false { self?.onUnexpectedTermination?() }
             }
         }
         self.process = process
@@ -166,6 +169,7 @@ public final class QuotioCLIServerProcess {
                   let baseURL = URL(string: "http://127.0.0.1:\(bootstrap.port)") else {
                 throw QuotioCLIServerError.incompatibleBootstrap
             }
+            guard process.isRunning else { throw QuotioCLIServerError.startupFailed }
             return QuotioCLIConnection(baseURL: baseURL, token: token)
         } catch {
             await stop()
