@@ -50,6 +50,8 @@ public final class QuotioCLIServerProcess {
     private let proxyAuthDirectory: URL?
     private let providers: [String]
     private let executableDirectories: [URL]
+    private let applicationSupportDirectoryName: String
+    private let accountVaultNamespace: String
     private let proxyURL: @MainActor () -> String?
     private var process: Process?
     private var input: Pipe?
@@ -65,6 +67,8 @@ public final class QuotioCLIServerProcess {
         proxyAuthDirectory: URL? = nil,
         providers: [String] = [],
         executableDirectories: [URL] = [],
+        applicationSupportDirectoryName: String = "app.bytrong.quotio",
+        accountVaultNamespace: String = "quotio-macos",
         proxyURL: @escaping @MainActor () -> String? = {
             UserDefaults.standard.string(forKey: "proxyURL")
         }
@@ -75,6 +79,8 @@ public final class QuotioCLIServerProcess {
         self.proxyAuthDirectory = proxyAuthDirectory
         self.providers = providers
         self.executableDirectories = executableDirectories
+        self.applicationSupportDirectoryName = applicationSupportDirectoryName
+        self.accountVaultNamespace = accountVaultNamespace
         self.proxyURL = proxyURL
     }
 
@@ -97,7 +103,7 @@ public final class QuotioCLIServerProcess {
             "--listen", "127.0.0.1:0",
             "--refresh-interval", "0",
             "--config", locations.configuration.path,
-            "--account-vault-namespace", "quotio-macos",
+            "--account-vault-namespace", accountVaultNamespace,
             "--account-data-dir", locations.accounts.path,
         ]
         if let proxyAuthDirectory {
@@ -197,7 +203,7 @@ public final class QuotioCLIServerProcess {
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
-        ).appendingPathComponent("app.bytrong.quotio", isDirectory: true)
+        ).appendingPathComponent(applicationSupportDirectoryName, isDirectory: true)
         let accounts = accountDataDirectory
             ?? support.appendingPathComponent("QuotioCLI", isDirectory: true)
         try FileManager.default.createDirectory(at: accounts, withIntermediateDirectories: true)

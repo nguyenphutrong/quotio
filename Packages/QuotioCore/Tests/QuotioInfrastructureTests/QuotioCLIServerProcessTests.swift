@@ -36,6 +36,7 @@ final class QuotioCLIServerProcessTests: XCTestCase {
             accountDataDirectory: directory.appendingPathComponent("accounts"),
             proxyAuthDirectory: proxyAuthDirectory,
             executableDirectories: [directory.appendingPathComponent("bin")],
+            accountVaultNamespace: "quotio-macos-test",
             proxyURL: { "http://proxy.example:8080" }
         )
 
@@ -45,6 +46,7 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         XCTAssertFalse(connection.token.isEmpty)
         let launchedArguments = try String(contentsOf: arguments, encoding: .utf8)
         XCTAssertTrue(launchedArguments.contains("--refresh-interval\n0\n"))
+        XCTAssertTrue(launchedArguments.contains("--account-vault-namespace\nquotio-macos-test\n"))
         XCTAssertTrue(launchedArguments.contains("--cli-proxy-auth-dir\n\(proxyAuthDirectory.path)\n"))
         let launchedEnvironment = try String(contentsOf: environment, encoding: .utf8)
         XCTAssertTrue(launchedEnvironment.hasPrefix("\(directory.path)/bin:"))

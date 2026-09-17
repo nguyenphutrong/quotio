@@ -2216,6 +2216,10 @@
               "copilot_native",
               "quotio_custom_provider"
             ]
+          },
+          "source_id": {
+            "type": "string",
+            "description": "Opaque stable identity for a registered custom provider source."
           }
         },
         "additionalProperties": false,

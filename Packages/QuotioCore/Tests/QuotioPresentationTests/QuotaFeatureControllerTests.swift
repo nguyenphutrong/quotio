@@ -10,13 +10,13 @@ final class QuotaFeatureControllerTests: XCTestCase {
     func testAutomaticRefreshProvidersPreserveOperatingModeBehavior() {
         XCTAssertEqual(
             QuotaFeatureController.automaticallyRefreshedProviders(for: .localProxy),
-            [.antigravity, .codex, .copilot, .claude, .glm, .warp, .kiro, .clinePass]
+            [.antigravity, .vertex, .codex, .copilot, .claude, .glm, .warp, .kiro, .clinePass]
         )
         XCTAssertEqual(
             QuotaFeatureController.automaticallyRefreshedProviders(for: .monitor),
             [
                 .codex, .claude, .copilot, .kiro, .glm, .clinePass, .warp,
-                .antigravity, .factoryDroid, .devin, .grok, .openRouter, .amp,
+                .antigravity, .vertex, .factoryDroid, .devin, .grok, .openRouter, .amp,
             ]
         )
     }

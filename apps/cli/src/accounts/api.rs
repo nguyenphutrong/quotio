@@ -14,6 +14,8 @@ pub struct AccountDto {
     pub enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_kind: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_id: Option<String>,
 }
 impl From<&super::Account> for AccountDto {
     fn from(account: &super::Account) -> Self {
@@ -38,6 +40,8 @@ impl From<&super::Account> for AccountDto {
                 Credential::QuotioCustomProvider { .. } => Some("quotio_custom_provider"),
                 _ => None,
             },
+            source_id: matches!(account.credential, Credential::QuotioCustomProvider { .. })
+                .then(|| account.identity.clone()),
         }
     }
 }

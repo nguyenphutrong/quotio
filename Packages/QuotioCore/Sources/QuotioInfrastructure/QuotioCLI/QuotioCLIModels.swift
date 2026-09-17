@@ -123,6 +123,7 @@ struct QuotioCLIAccount: Decodable, Sendable {
     let origin: String
     let enabled: Bool
     let sourceKind: String?
+    let sourceId: String?
 }
 
 struct QuotioCLIOperation: Decodable, Sendable {

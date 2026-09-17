@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import QuotioApplication
 import QuotioDomain
 
@@ -43,11 +44,13 @@ private struct QuotioCLIHTTPClient: Sendable {
         _ path: String,
         method: String = "GET",
         body: Data? = nil,
-        idempotencyKey: String? = nil
+        idempotencyKey: String? = nil,
+        timeout: TimeInterval? = nil
     ) async throws -> T {
         var request = URLRequest(url: connection.baseURL.appendingPathComponent(path))
         request.httpMethod = method
         request.httpBody = body
+        if let timeout { request.timeoutInterval = timeout }
         request.setValue("Bearer \(connection.token)", forHTTPHeaderField: "Authorization")
         if body != nil { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         if let idempotencyKey {
@@ -83,6 +86,15 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         let apiKey: String
     }
     private struct EnabledBody: Encodable { let enabled: Bool }
+    private struct CustomProviderSourceBody: Encodable {
+        struct Source: Encodable {
+            let domain: String
+            let recordId: String
+        }
+
+        let kind = "quotio_custom_provider"
+        let source: Source
+    }
 
     public private(set) var snapshot = QuotaSnapshot()
     private var client: QuotioCLIHTTPClient?
@@ -90,9 +102,20 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     private var activeMode: QuotaOperatingMode = .monitor
     private var continuations: [UUID: AsyncStream<QuotaSnapshot>.Continuation] = [:]
     private let session: URLSession?
+    private let userDefaults: UserDefaults
+    private let customProviders: (@Sendable () throws -> [CustomProvider])?
+    private let customProviderDomain: String
 
-    public init(session: URLSession? = nil) {
+    public init(
+        session: URLSession? = nil,
+        userDefaults: UserDefaults = .standard,
+        customProviders: (@Sendable () throws -> [CustomProvider])? = nil,
+        customProviderDomain: String = "production"
+    ) {
         self.session = session
+        self.userDefaults = userDefaults
+        self.customProviders = customProviders
+        self.customProviderDomain = customProviderDomain
     }
 
     public func connect(_ connection: QuotioCLIConnection) {
@@ -158,6 +181,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         mode: QuotaOperatingMode
     ) {
         snapshot.quotas[provider] = quotas.isEmpty ? nil : quotas
+        saveImportedIDEQuotas()
         publish()
     }
 
@@ -168,6 +192,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             .forEach { snapshot.accountAliases[account.provider]?[$0.key] = nil }
         snapshot.subscriptions[account.provider]?[account.accountKey] = nil
         snapshot.accountIssues[account] = nil
+        saveImportedIDEQuotas()
         publish()
     }
 
@@ -312,7 +337,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         return try await client.request(
             "v1/auth/sessions/\(id)/callback",
             method: "POST",
-            body: body
+            body: body,
+            timeout: 60
         )
     }
 
@@ -335,6 +361,9 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         snapshot.refreshingProviders.formUnion(domainProviders)
         publish()
         do {
+            if providers.contains("zai") || providers.contains("clinepass") {
+                try await synchronizeCustomProviders(client: client)
+            }
             let body = try JSONEncoder.quotioCLI.encode(RefreshBody(
                 providers: providers,
                 accountId: accountID,
@@ -373,6 +402,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             guard activeMode == mode else { return }
             guard report.schemaVersion == 1 else { throw QuotioCLIBackendError.incompatible }
             snapshot = QuotioCLIUsageMapper.snapshot(report, mode: mode)
+            mergeImportedIDEQuotas()
+            saveImportedIDEQuotas()
             reportedAccounts = report.providers.compactMap { usage in
                 guard let reference = usage.accountRef,
                       let provider = QuotioCLIProviderMap.domain(usage.provider),
@@ -416,6 +447,74 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             return id
         }
         return nil
+    }
+
+    private func synchronizeCustomProviders(client: QuotioCLIHTTPClient) async throws {
+        guard let customProviders else { return }
+        let desired = try customProviders().compactMap { provider -> (CustomProvider, String)? in
+            guard provider.isEnabled, !provider.apiKeys.isEmpty else { return nil }
+            let sourceID = Self.customProviderSourceID(
+                domain: customProviderDomain,
+                recordID: provider.id
+            )
+            switch provider.type {
+            case .glmCompatibility, .clinePass: return (provider, sourceID)
+            default: return nil
+            }
+        }
+        let response: QuotioCLIAccountList = try await client.request("v1/accounts")
+        guard response.schemaVersion == 1 else { throw QuotioCLIBackendError.incompatible }
+        var existing = response.accounts.filter { $0.sourceKind == "quotio_custom_provider" }
+        for account in existing where !desired.contains(where: {
+            $0.1 == account.sourceId
+        }) {
+            try await mutate(client: client, path: "v1/accounts/\(account.id)", method: "DELETE", body: nil)
+            existing.removeAll { $0.id == account.id }
+        }
+        for (provider, sourceID) in desired where !existing.contains(where: {
+            $0.sourceId == sourceID
+        }) {
+            let body = try JSONEncoder.quotioCLI.encode(CustomProviderSourceBody(
+                source: .init(domain: customProviderDomain, recordId: provider.id.uuidString)
+            ))
+            try await mutate(client: client, path: "v1/account-sources", method: "POST", body: body)
+        }
+    }
+
+    private func mergeImportedIDEQuotas() {
+        guard let data = userDefaults.data(forKey: "persisted.ideQuotas"),
+              let stored = try? JSONDecoder().decode([String: [String: ProviderQuota]].self, from: data) else {
+            return
+        }
+        for provider in [QuotaProvider.cursor, .trae]
+            where snapshot.quotas[provider]?.isEmpty != false {
+            snapshot.quotas[provider] = stored[provider.rawValue]
+        }
+    }
+
+    private func saveImportedIDEQuotas() {
+        let stored = [QuotaProvider.cursor, .trae].reduce(into: [String: [String: ProviderQuota]]()) {
+            if let quotas = snapshot.quotas[$1], !quotas.isEmpty { $0[$1.rawValue] = quotas }
+        }
+        guard !stored.isEmpty else {
+            userDefaults.removeObject(forKey: "persisted.ideQuotas")
+            return
+        }
+        if let data = try? JSONEncoder().encode(stored) {
+            userDefaults.set(data, forKey: "persisted.ideQuotas")
+        }
+    }
+
+    private static func customProviderSourceID(domain: String, recordID: UUID) -> String {
+        let identifier = domain == "production" ? "app.bytrong.quotio" : "app.bytrong.quotio.dev"
+        let parts = ["quotio_custom_provider", identifier, recordID.uuidString.lowercased()]
+        var data = Data()
+        for part in parts {
+            var length = UInt64(part.utf8.count).bigEndian
+            withUnsafeBytes(of: &length) { data.append(contentsOf: $0) }
+            data.append(contentsOf: part.utf8)
+        }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     private func mutate(

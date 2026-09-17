@@ -82,7 +82,10 @@ enum CompositionRoot {
         )
 
         let authFileRepository = FileAuthFileRepository()
-        let quotioBackend = QuotioCLIBackend()
+        let quotioBackend = QuotioCLIBackend(
+            customProviders: customProviderRepository.load,
+            customProviderDomain: AppIdentity.isProduction ? "production" : "development"
+        )
         let agentInstallationProbe = AgentBinaryInstallationProbe()
         let quotioServer = QuotioCLIServerProcess(
             proxyAuthDirectory: URL(fileURLWithPath: paths.authDirectoryPath, isDirectory: true),
@@ -93,7 +96,9 @@ enum CompositionRoot {
             ],
             executableDirectories: [CLIAgent.codexCLI, .ampCLI]
                 .compactMap(agentInstallationProbe.path)
-                .map { URL(fileURLWithPath: $0).deletingLastPathComponent() }
+                .map { URL(fileURLWithPath: $0).deletingLastPathComponent() },
+            applicationSupportDirectoryName: AppIdentity.bundleIdentifier,
+            accountVaultNamespace: AppIdentity.quotioCLIVaultNamespace()
         )
         let reconnectQuotioServer: @MainActor @Sendable () async -> Bool = {
             await quotioBackend.disconnect()

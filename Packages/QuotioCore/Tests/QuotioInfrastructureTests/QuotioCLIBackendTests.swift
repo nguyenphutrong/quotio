@@ -215,6 +215,106 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(QuotioCLIURLProtocol.requests().count, 2)
     }
 
+    func testOAuthCallbackUsesExchangeTimeout() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"provider":"codex","workflow":"browser_redirect","user_code":null,"id":"session-1","url":"https://example.com","expires_at":4102444800,"status":"completed","account_id":"account-1","error_code":null}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+
+        _ = try await backend.completeOAuth(id: "session-1", code: "code")
+
+        XCTAssertEqual(QuotioCLIURLProtocol.requests().first?.timeoutInterval, 60)
+    }
+
+    func testRefreshSynchronizesSavedCustomProviderReference() async throws {
+        let providerID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        let provider = CustomProvider(
+            id: providerID,
+            name: "Work Z.ai",
+            type: .glmCompatibility,
+            apiKeys: [CustomAPIKeyEntry(apiKey: "secret")]
+        )
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[]}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"id":"source-operation","status":"completed","error":null}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh-operation","status":"completed","error":null}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
+        let backend = QuotioCLIBackend(
+            session: stubSession(),
+            customProviders: { [provider] },
+            customProviderDomain: "development"
+        )
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+
+        _ = await backend.refresh(QuotaFetchRequest(
+            provider: .glm,
+            mode: .monitor,
+            force: true
+        ))
+
+        let data = try XCTUnwrap(QuotioCLIURLProtocol.body(forPath: "/v1/account-sources"))
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let source = try XCTUnwrap(body["source"] as? [String: Any])
+        XCTAssertEqual(body["kind"] as? String, "quotio_custom_provider")
+        XCTAssertEqual(source["domain"] as? String, "development")
+        XCTAssertEqual(source["record_id"] as? String, providerID.uuidString)
+    }
+
+    func testRefreshKeepsMatchingCustomProviderReference() async throws {
+        let provider = CustomProvider(
+            id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            name: "Work Z.ai",
+            type: .glmCompatibility,
+            apiKeys: [CustomAPIKeyEntry(apiKey: "secret")]
+        )
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"custom-1","provider":"zai","label":"zai native account","origin":"borrowed_native","enabled":true,"source_kind":"quotio_custom_provider","source_id":"d5574884f9212e73f35e79c3eb293f4c2a61ec284f7752e39cb41af5694e82d7"}]}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh-operation","status":"completed","error":null}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
+        let backend = QuotioCLIBackend(
+            session: stubSession(),
+            customProviders: { [provider] },
+            customProviderDomain: "development"
+        )
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+
+        _ = await backend.refresh(QuotaFetchRequest(provider: .glm, mode: .monitor, force: true))
+
+        XCTAssertEqual(
+            QuotioCLIURLProtocol.requests().compactMap { $0.url?.path },
+            ["/v1/accounts", "/v1/refresh", "/v1/usage"]
+        )
+    }
+
+    func testBootstrapRestoresImportedIDEQuotaSelection() async throws {
+        let suite = "QuotioCLIBackendTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let quota = ProviderQuota(
+            models: [QuotaMetric(name: "monthly", percentage: 42, resetTime: "")]
+        )
+        defaults.set(
+            try JSONEncoder().encode([QuotaProvider.cursor.rawValue: ["person@example.com": quota]]),
+            forKey: "persisted.ideQuotas"
+        )
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
+        let backend = QuotioCLIBackend(session: stubSession(), userDefaults: defaults)
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+
+        let snapshot = await backend.bootstrap(mode: .monitor)
+
+        XCTAssertEqual(snapshot.quotas[.cursor]?["person@example.com"], quota)
+    }
+
     func testLocalProxyRefreshExcludesOwnedSources() async throws {
         QuotioCLIURLProtocol.enqueue(#"{"id":"operation-1","status":"completed","error":null}"#)
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)

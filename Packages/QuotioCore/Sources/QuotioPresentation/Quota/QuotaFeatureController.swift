@@ -25,11 +25,11 @@ public final class QuotaFeatureController {
     @ObservationIgnored private var didChangeHandler: (@MainActor () -> Void)?
 
     private static let localProxyProviders: Set<QuotaProvider> = [
-        .claude, .codex, .antigravity, .kiro, .copilot, .glm, .warp, .clinePass,
+        .claude, .codex, .antigravity, .vertex, .kiro, .copilot, .glm, .warp, .clinePass,
     ]
 
     private static let monitorProviders: Set<QuotaProvider> = [
-        .claude, .codex, .antigravity, .kiro, .copilot, .factoryDroid,
+        .claude, .codex, .antigravity, .vertex, .kiro, .copilot, .factoryDroid,
         .devin, .grok, .openRouter, .amp, .glm, .warp, .clinePass,
     ]
 

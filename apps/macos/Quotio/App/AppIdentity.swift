@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import CryptoKit
 
 nonisolated enum AppIdentity {
     static let productionBundleIdentifier = "app.bytrong.quotio"
@@ -24,6 +25,12 @@ nonisolated enum AppIdentity {
 
     static func keychainService(suffix: String) -> String {
         "\(bundleIdentifier).\(suffix)"
+    }
+
+    static func quotioCLIVaultNamespace(for bundleIdentifier: String = bundleIdentifier) -> String {
+        guard bundleIdentifier != productionBundleIdentifier else { return "quotio-macos" }
+        let digest = SHA256.hash(data: Data(bundleIdentifier.utf8))
+        return "quotio-macos-" + digest.prefix(8).map { String(format: "%02x", $0) }.joined()
     }
 
     static func legacyKeychainServices(suffix: String) -> [String] {
