@@ -404,9 +404,11 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             snapshot = QuotioCLIUsageMapper.snapshot(report, mode: mode)
             mergeImportedIDEQuotas()
             saveImportedIDEQuotas()
-            reportedAccounts = report.providers.compactMap { usage in
-                guard let reference = usage.accountRef,
-                      let provider = QuotioCLIProviderMap.domain(usage.provider),
+            let references = report.providers.map { ($0.provider, $0.accountRef) }
+                + report.failures.map { ($0.provider, $0.accountRef) }
+            reportedAccounts = references.compactMap { name, reference in
+                guard let reference,
+                      let provider = QuotioCLIProviderMap.domain(name),
                       let key = snapshot.accountAliases[provider]?[reference.id] else { return nil }
                 return Self.account(reference, provider: provider, accountKey: key)
             }

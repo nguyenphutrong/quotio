@@ -315,6 +315,28 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(snapshot.quotas[.cursor]?["person@example.com"], quota)
     }
 
+    func testFailedBorrowedAccountRemainsVisibleAndCanBeRefreshed() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[{"provider":"claude","account_ref":{"origin":"borrowed_proxy","id":"proxy-1","label":"Work"},"code":"authentication"}]}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[]}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!, token: "private-token"
+        ))
+
+        let snapshot = await backend.bootstrap(mode: .monitor)
+        let accounts = await backend.accounts()
+        XCTAssertEqual(accounts.map(\.id), ["proxy-1"])
+        XCTAssertEqual(accounts.map(\.accountKey), ["Work"])
+        XCTAssertNotNil(snapshot.accountIssues[QuotaAccountID(provider: .claude, accountKey: "Work")])
+
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed","error":null}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
+        _ = await backend.refresh(QuotaFetchRequest(provider: .claude, scope: .account("Work"), mode: .monitor))
+        let data = try XCTUnwrap(QuotioCLIURLProtocol.body(forPath: "/v1/refresh"))
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(body["account_id"] as? String, "proxy-1")
+    }
+
     func testLocalProxyRefreshExcludesOwnedSources() async throws {
         QuotioCLIURLProtocol.enqueue(#"{"id":"operation-1","status":"completed","error":null}"#)
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)

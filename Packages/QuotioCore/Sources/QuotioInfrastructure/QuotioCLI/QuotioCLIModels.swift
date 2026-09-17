@@ -224,8 +224,11 @@ enum QuotioCLIUsageMapper {
             guard let provider = QuotioCLIProviderMap.domain(failure.provider) else { continue }
             let issue = QuotaRefreshIssue(kind: .failed, occurredAt: report.generatedAt)
             if let account = failure.accountRef {
+                let label = QuotioCLIWarpMirror.displayLabel(account.label, provider: failure.provider)
                 let key = snapshot.accountAliases[provider]?[account.id]
-                    ?? QuotioCLIWarpMirror.displayLabel(account.label, provider: failure.provider)
+                    ?? (snapshot.accountIDs[provider]?[label] == nil ? label : account.id)
+                snapshot.accountAliases[provider, default: [:]][account.id] = key
+                snapshot.accountIDs[provider, default: [:]][key] = account.id
                 snapshot.accountIssues[QuotaAccountID(provider: provider, accountKey: key)] = issue
             } else {
                 snapshot.issues[provider] = issue
