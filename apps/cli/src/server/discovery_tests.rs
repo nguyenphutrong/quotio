@@ -83,6 +83,9 @@ async fn discovery_rest_registers_opaque_exact_entries_without_credentials() {
         let account: Value = client.get(format!("{base}/v1/accounts/{id}")).bearer_auth(token).send().await.unwrap().json().await.unwrap();
         assert_eq!(account["provider"], request["provider"]);
         assert!(!account.to_string().contains("planted-secret"));
+        if request["kind"] == "quotio_custom_provider" {
+            assert_eq!(account["source_id"].as_str().unwrap().len(), 64);
+        }
         }
     }
     for request in [

@@ -10,14 +10,20 @@ public final class WarpTokenScreenModel {
     public private(set) var errorMessage: String?
 
     private let repository: any WarpTokenRepository
+    private let synchronize: ([WarpToken]) async throws -> Void
 
-    public init(repository: any WarpTokenRepository) {
+    public init(
+        repository: any WarpTokenRepository,
+        synchronize: @escaping ([WarpToken]) async throws -> Void = { _ in }
+    ) {
         self.repository = repository
+        self.synchronize = synchronize
     }
 
     public func load() async {
         do {
             tokens = try await repository.load()
+            try await synchronize(tokens)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -49,6 +55,7 @@ public final class WarpTokenScreenModel {
     private func persistTokens() async {
         do {
             try await repository.save(tokens)
+            try await synchronize(tokens)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription

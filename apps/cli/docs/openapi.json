@@ -2216,6 +2216,10 @@
               "copilot_native",
               "quotio_custom_provider"
             ]
+          },
+          "source_id": {
+            "type": "string",
+            "description": "Opaque stable identity for a registered custom provider source."
           }
         },
         "additionalProperties": false,
@@ -2306,6 +2310,8 @@
                 "add_account",
                 "rename_account",
                 "select_account",
+                "set_account_enabled",
+                "update_api_key",
                 "remove_account",
                 "start_oauth"
               ]
@@ -2336,7 +2342,8 @@
                     "factory_native",
                     "kiro_native",
                     "antigravity_native",
-                    "devin_desktop_native"
+                    "devin_desktop_native",
+                    "cli_proxy_auth_file"
                   ]
                 },
                 "platforms": {
@@ -2553,6 +2560,22 @@
               "null"
             ],
             "description": "Enable or disable quota collection for an account without changing its provider login or source configuration."
+          },
+          "api_key": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 16384,
+            "description": "Replace the credential for an owned API-key account while preserving its account ID. Provider settings are replaced with this request."
+          },
+          "settings": {
+            "type": ["object", "null"],
+            "additionalProperties": {"type": "string"}
+          },
+          "region": {
+            "type": ["string", "null"]
+          },
+          "organization": {
+            "type": ["string", "null"]
           }
         },
         "additionalProperties": false
@@ -2664,7 +2687,7 @@
           },
           "refresh_interval": {
             "type": "integer",
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 86400
           },
           "provider_timeout": {
@@ -2731,7 +2754,7 @@
               "integer",
               "null"
             ],
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 86400
           },
           "provider_timeout": {
@@ -2790,6 +2813,11 @@
           },
           "force": {
             "type": "boolean"
+          },
+          "include_owned": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include credentials owned by the selected Quotio vault. Set false to refresh only borrowed native and CLIProxyAPI sources."
           }
         },
         "additionalProperties": false
@@ -2941,7 +2969,7 @@
           "provider": {"$ref": "#/components/schemas/ProviderId"},
           "kind": {"type": "string", "enum": ["grok_native", "copilot_native", "quotio_custom_provider", "codex_native", "claude_native", "kiro_native", "factory_native", "devin_desktop_native", "antigravity_native", "amp_native", "cursor_native"]},
           "location": {"type": ["string", "null"], "description": "One location supported by this kind's registration input. Required for Copilot inspection. Omit for kinds without locations."},
-          "domain": {"type": ["string", "null"], "enum": ["production", "development", null], "description": "Required only for quotio_custom_provider; selected provider must be clinepass or zai."},
+          "domain": {"type": ["string", "null"], "maxLength": 255, "pattern": "^(production|development|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+)$", "description": "Required only for quotio_custom_provider; selected provider must be clinepass or zai."},
           "inspect": {"type": "boolean", "default": false}
         }
       },
@@ -3035,10 +3063,8 @@
                 "properties": {
                   "domain": {
                     "type": "string",
-                    "enum": [
-                      "production",
-                      "development"
-                    ]
+                    "maxLength": 255,
+                    "pattern": "^(production|development|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+)$"
                   },
                   "record_id": {
                     "type": "string",
@@ -3357,7 +3383,7 @@
   "x-quotio-parent-pipe": {
     "version": 1,
     "bootstrap_schema": "#/components/schemas/Bootstrap",
-    "description": "Inherited stdin token line and lifetime pipe; one stdout JSON record after bind. Authenticate /v1/status before use."
+    "description": "Inherited stdin token line and lifetime pipe; one stdout JSON record after bind. Authenticate /v1/status before use. An absolute --cli-proxy-auth-dir may provide read-only borrowed Codex, Claude, GitHub Copilot, Antigravity, Kiro, and Vertex auth files."
   },
   "x-quotio-account-idempotency": {
     "successful_writes": "atomic protected-vault receipt across restart",

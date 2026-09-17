@@ -43,6 +43,12 @@ jobs:
         with:
           xcode-version: '26.1'
 
+      - name: Setup Rust
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          rustup default 1.88.0
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
       # ===========================================
       # 3. Extract version from tag or input
       # ===========================================

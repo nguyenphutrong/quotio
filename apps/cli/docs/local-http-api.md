@@ -28,7 +28,7 @@ port, or `--listen '[::1]:6767'` for IPv6 loopback.
 | `--listen` | `127.0.0.1:6767` | Loopback IP address and port; non-loopback addresses are rejected |
 | `--provider` | Config selection | Repeat to enable multiple providers; duplicates are removed |
 | `--config` | Platform config path | Read `enabled_providers` and `cache_ttl_seconds` from this TOML file |
-| `--refresh-interval` | Config, then `60` | Seconds to wait after each completed refresh, from 1 to 86400 |
+| `--refresh-interval` | Config, then `60` | Seconds to wait after each completed refresh, from 1 to 86400; `0` disables scheduled refreshes |
 | `--timeout` | Config, then `10` | Per-provider collection deadline, including retries, from 1 to 3600 seconds |
 | `--no-saved-accounts` | Off | Skip the Quotio account vault and use environment/local sources |
 | `--manage` | Off | Enable account, OAuth, settings, and refresh writes; requires `QUOTIO_SERVER_TOKEN` |
@@ -56,7 +56,7 @@ The read-only default has no account or settings write routes. `--manage` adds t
 | `POST /v1/auth/sessions` and callback routes | Managed Codex, Claude and Copilot sessions (requires `--manage`) |
 | `GET /v1/settings` | Current settings and revision; available in read-only mode |
 | `PATCH /v1/settings` | Optimistic revision patch; requires `--manage` |
-| `POST /v1/refresh` | Asynchronous refresh request (requires `--manage`) |
+| `POST /v1/refresh` | Asynchronous refresh request (requires `--manage`); `include_owned: false` limits collection to borrowed native and CLIProxyAPI sources |
 | `GET /v1/operations/{id}` | Operation status; recent refresh results expire after 15 minutes; account write results persist until restart |
 
 Usage responses use Quotio's existing `schema_version: 1` JSON contract, matching
@@ -290,10 +290,16 @@ shutdown. This mode requires a Unix pipe, not a terminal or regular file. A nati
 parent must close unused pipe endpoints, keep the token private and stop only its
 owned child. The normal CLI stderr announcement is unchanged without this flag.
 
+The native parent may pass an absolute `--cli-proxy-auth-dir`. The helper reads
+supported Codex, Claude, GitHub Copilot, Antigravity, Kiro, and Vertex JSON auth
+files from that directory as borrowed credentials. It does not import, refresh,
+edit, or delete those files; their owner remains responsible for token rotation.
+
 ## Native migration scope
 
-The native migration is limited to quota/usage. Agent configuration, proxy lifecycle,
-proxy keys, tunnels and proxy notification policy remain in the existing Swift app.
+The native migration covers quota/usage and Quotio-managed provider accounts. Agent
+configuration, CLIProxyAPI auth-file management, proxy lifecycle, proxy keys, tunnels,
+and proxy notification policy remain in the existing Swift app.
 The unreleased notification endpoint has been removed. An existing `notifications`
 config table is retained on settings writes for compatibility but does not control
 behavior. No migration step edits or stops a separately running CLIProxyAPI engine.
@@ -341,7 +347,9 @@ ID. The request contains references only:
 ```
 
 `production` addresses `app.bytrong.quotio`; `development` addresses
-`app.bytrong.quotio.dev`. Arbitrary domains, file paths, credentials and ownership
+`app.bytrong.quotio.dev`. An effective app bundle identifier (for example,
+`com.example.quotio`) is also accepted: up to 255 ASCII alphanumeric, hyphen,
+and dot characters, with nonempty dot-separated components. File paths, credentials and ownership
 flags are rejected. This operation does not discover groups, copy their keys,
 change the proxy configuration, or refresh their credentials. The group must exist,
 be enabled and contain a usable key. As in the Swift implementation, quota uses the

@@ -296,8 +296,8 @@ pub struct ServeArgs {
     /// Read this TOML config instead of the platform default
     #[arg(long)]
     pub config: Option<PathBuf>,
-    /// Seconds between completed refresh cycles
-    #[arg(long, value_parser = clap::value_parser!(u64).range(1..=86400))]
+    /// Seconds between completed refresh cycles; zero disables scheduled refreshes
+    #[arg(long, value_parser = clap::value_parser!(u64).range(0..=86400))]
     pub refresh_interval: Option<u64>,
     /// Total seconds allowed for each provider, including retries
     #[arg(long, value_parser = clap::value_parser!(u64).range(1..=3600))]
@@ -311,6 +311,9 @@ pub struct ServeArgs {
     /// Store isolated account locks and platform vault data in this absolute directory
     #[arg(long, requires = "account_vault_namespace")]
     pub account_data_dir: Option<PathBuf>,
+    /// Read supported CLIProxyAPI auth files without importing or modifying them
+    #[arg(long, requires_all = ["manage", "parent_pipe"])]
+    pub cli_proxy_auth_dir: Option<PathBuf>,
     /// Enable account/auth/settings/refresh writes; requires QUOTIO_SERVER_TOKEN
     #[arg(long)]
     pub manage: bool,

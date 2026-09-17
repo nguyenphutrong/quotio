@@ -24,11 +24,19 @@ private struct AntigravitySwitchAuthFile: Decodable, Sendable {
     }
 }
 
+private struct AntigravityTokenRefresh: Decodable {
+    let accessToken: String
+    let expiresIn: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case expiresIn = "expires_in"
+    }
+}
+
 actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
     private let database: AntigravitySwitchDatabase
     private let process = AntigravityIDEProcess()
-    private let quota = AntigravityQuotaFetcher()
-    private let credentialStore = LocalAntigravityCredentialStore()
     private let logger: any ApplicationLogging
     private let machineIdentitySync: @Sendable (String) async throws -> Void
     private let now: @Sendable () -> Date
@@ -87,13 +95,7 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
 
     func switchAccount(email: String, authDirectory: String, restartIDE: Bool) async {
         let expanded = NSString(string: authDirectory).expandingTildeInPath
-        let credentials = await LocalAntigravityCredentialStore(authDirectory: expanded).credentials()
-        let credentialPath = credentials.first(where: {
-            $0.accountKey.caseInsensitiveCompare(email) == .orderedSame
-        }).flatMap { credential -> String? in
-            guard case .authFile(let path, _) = credential.origin else { return nil }
-            return path
-        } ?? Self.authFilePath(email: email, directory: expanded)
+        let credentialPath = Self.authFilePath(email: email, directory: expanded)
         guard let credentialPath else {
             fail(.authFileNotFound(accountEmail: email))
             return
@@ -116,19 +118,17 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
 
         do {
             if Self.isExpired(auth.expired, now: now()), let refreshToken = auth.refreshToken {
-                let refreshed = try await quota.refreshAccessToken(refreshToken: refreshToken)
+                let refreshed = try await Self.refreshAccessToken(refreshToken)
                 auth.accessToken = refreshed.accessToken
-                auth.expired = refreshed.expiresAt.map { ISO8601DateFormatter().string(from: $0) }
-                let credential = AntigravityCredential(
-                    accountKey: auth.email,
+                let expiresIn = refreshed.expiresIn ?? 3_600
+                let expiresAt = now().addingTimeInterval(TimeInterval(expiresIn))
+                auth.expired = ISO8601DateFormatter().string(from: expiresAt)
+                try Self.saveRefreshedAuthFile(
+                    path: path,
+                    originalData: data,
                     accessToken: refreshed.accessToken,
-                    refreshToken: refreshed.refreshToken ?? refreshToken,
-                    expiresAt: refreshed.expiresAt,
-                    origin: .authFile(path: path, originalData: data)
-                )
-                await credentialStore.save(
-                    credential,
-                    expiresIn: max(0, Int((refreshed.expiresAt ?? now()).timeIntervalSince(now())))
+                    expiresAt: expiresAt,
+                    expiresIn: expiresIn
                 )
             }
             try ensureCurrent(id)
@@ -248,6 +248,55 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
             return path
         }
         return nil
+    }
+
+    private static func refreshAccessToken(_ refreshToken: String) async throws -> AntigravityTokenRefresh {
+        var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let values = [
+            "client_id": "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
+            "client_secret": "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",
+            "refresh_token": refreshToken,
+            "grant_type": "refresh_token",
+        ]
+        request.httpBody = values
+            .map { "\(form($0.key))=\(form($0.value))" }
+            .sorted()
+            .joined(separator: "&")
+            .data(using: .utf8)
+        let session = URLSession(configuration: ProxyURLSessionFactory.makeConfiguration(timeout: 15))
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, 200...299 ~= http.statusCode else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(AntigravityTokenRefresh.self, from: data)
+    }
+
+    private static func saveRefreshedAuthFile(
+        path: String,
+        originalData: Data,
+        accessToken: String,
+        expiresAt: Date,
+        expiresIn: Int
+    ) throws {
+        let url = URL(fileURLWithPath: path)
+        guard try Data(contentsOf: url) == originalData,
+              var json = try JSONSerialization.jsonObject(with: originalData) as? [String: Any] else {
+            throw CocoaError(.fileWriteFileExists)
+        }
+        json["access_token"] = accessToken
+        json["expired"] = ISO8601DateFormatter().string(from: expiresAt)
+        json["expires_in"] = expiresIn
+        json["timestamp"] = Int64(Date().timeIntervalSince1970 * 1_000)
+        let data = try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys])
+        try SecureAtomicFileWriter.write(data, to: url)
+    }
+
+    private static func form(_ value: String) -> String {
+        value.addingPercentEncoding(
+            withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "+&="))
+        ) ?? value
     }
 }
 

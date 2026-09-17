@@ -68,6 +68,7 @@ pub(super) async fn fixture() -> (Arc<ApiState>, std::path::PathBuf, String) {
             status: Mutex::new(RefreshStatus::default()),
             context,
             no_saved_accounts: true,
+            proxy_auth_directory: None,
             manage: true,
             vault: Some(vault),
             oauth: Some(manager),
@@ -97,6 +98,7 @@ async fn account_scoped_refresh_does_not_require_scheduled_provider() {
             providers: vec![Provider::Amp],
             account_id: Some(id),
             force: true,
+            include_owned: true,
         }),
     )
     .await;
@@ -106,6 +108,32 @@ async fn account_scoped_refresh_does_not_require_scheduled_provider() {
         job.abort();
     }
     drop(refresh_guard);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn account_scoped_refresh_accepts_borrowed_proxy_account() {
+    let (mut state, dir, _) = fixture().await;
+    let auth = dir.join("proxy-auth");
+    std::fs::create_dir(&auth).unwrap();
+    let auth = auth.canonicalize().unwrap();
+    std::fs::write(
+        auth.join("claude.json"),
+        br#"{"type":"claude","access_token":"borrowed-test-token"}"#,
+    )
+    .unwrap();
+    Arc::get_mut(&mut state).unwrap().proxy_auth_directory = Some(auth.clone());
+    let account = crate::accounts::proxy::adapters(&auth, &[Provider::Catalog("claude")], None)
+        .unwrap()
+        .remove(0)
+        .account_ref()
+        .unwrap();
+
+    assert!(
+        management::validate_refresh_account(&state, Provider::Catalog("claude"), &account.id)
+            .await
+            .is_ok()
+    );
     std::fs::remove_dir_all(dir).unwrap();
 }
 
@@ -126,6 +154,7 @@ async fn account_scoped_refresh_requires_an_explicit_provider() {
             providers: vec![],
             account_id: Some(id),
             force: true,
+            include_owned: true,
         }),
     )
     .await;
@@ -147,6 +176,7 @@ async fn account_scoped_refresh_rejects_duplicate_providers() {
             providers: vec![Provider::Amp, Provider::Amp],
             account_id: Some(id),
             force: true,
+            include_owned: true,
         }),
     )
     .await;
@@ -194,7 +224,7 @@ fn disabled_provider_account_refresh_does_not_replace_the_scheduled_snapshot() {
 }
 
 #[test]
-fn account_refresh_cannot_initialize_the_scheduled_snapshot() {
+fn first_scoped_refresh_seeds_the_snapshot() {
     let report = UsageReport {
         schema_version: 1,
         generated_at: time::OffsetDateTime::UNIX_EPOCH,
@@ -203,7 +233,7 @@ fn account_refresh_cannot_initialize_the_scheduled_snapshot() {
     };
     let mut snapshot = None;
 
-    assert!(!merge_refresh_report(
+    assert!(merge_refresh_report(
         &mut snapshot,
         0,
         &[Provider::Amp],
@@ -211,7 +241,7 @@ fn account_refresh_cannot_initialize_the_scheduled_snapshot() {
         Some("account-id"),
         report,
     ));
-    assert!(snapshot.is_none());
+    assert!(snapshot.is_some());
 }
 
 #[test]
@@ -246,6 +276,7 @@ async fn account_scoped_refresh_reports_account_removed_before_collection() {
             providers: vec![Provider::Amp],
             account_id: Some(id.clone()),
             force: true,
+            include_owned: true,
         }),
     )
     .await;
@@ -285,6 +316,7 @@ async fn unscoped_refresh_still_requires_enabled_provider() {
             providers: vec![Provider::Amp],
             account_id: None,
             force: true,
+            include_owned: true,
         }),
     )
     .await;
@@ -374,6 +406,7 @@ async fn grok_local_alias_child() {
                 providers: vec![Provider::Catalog("grok")],
                 account_id: Some("local".into()),
                 force: true,
+                include_owned: true,
             }),
         )
         .await;
@@ -971,6 +1004,7 @@ async fn external_config_conflict_recovers_and_refresh_requests_coalesce() {
         providers: vec![Provider::Mock],
         account_id: None,
         force: true,
+        include_owned: true,
     };
     let (_, Json(first)) = manual_refresh(State(state.clone()), ApiJson(request()))
         .await
@@ -1027,6 +1061,7 @@ async fn manual_refresh_preserves_the_schedulers_deadline() {
             providers: vec![Provider::Mock],
             account_id: None,
             force: false,
+            include_owned: true,
         }),
     )
     .await
@@ -1037,6 +1072,40 @@ async fn manual_refresh_preserves_the_schedulers_deadline() {
     );
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[tokio::test]
+async fn local_mode_refresh_excludes_owned_accounts() {
+    let (mut state, dir, owned_id) = fixture().await;
+    Arc::get_mut(&mut state).unwrap().no_saved_accounts = false;
+    state.settings.write().await.values.enabled_providers = vec!["amp".into()];
+    refresh(
+        &state,
+        Some(RefreshRequest {
+            providers: vec![Provider::Amp],
+            account_id: None,
+            force: true,
+            include_owned: false,
+        }),
+    )
+    .await
+    .unwrap();
+    let snapshot = state.snapshot.read().await;
+    let report = &snapshot.as_ref().unwrap().1;
+    assert!(report.providers.iter().all(|usage| {
+        usage.account_ref.as_ref().is_none_or(|reference| {
+            reference.origin != Some(crate::domain::AccountOrigin::Owned)
+                && reference.id != owned_id
+        })
+    }));
+    assert!(report.failures.iter().all(|failure| {
+        failure.account_ref.as_ref().is_none_or(|reference| {
+            reference.origin != Some(crate::domain::AccountOrigin::Owned)
+                && reference.id != owned_id
+        })
+    }));
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 #[tokio::test]
 async fn scheduler_clears_deadline_on_timer_and_config_wake() {
     let (state, dir, _) = fixture().await;
@@ -1056,6 +1125,20 @@ async fn scheduler_clears_deadline_on_timer_and_config_wake() {
         assert!(state.status.lock().await.next_refresh_at.is_none());
     }
     tokio::time::resume();
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn zero_refresh_interval_waits_without_scheduling_a_deadline() {
+    let (state, dir, _) = fixture().await;
+    state.settings.write().await.values.refresh_interval = 0;
+    let worker = state.clone();
+    let task = tokio::spawn(async move { wait_for_next_refresh(&worker).await });
+    tokio::task::yield_now().await;
+    assert!(state.status.lock().await.next_refresh_at.is_none());
+    assert!(!task.is_finished());
+    state.wake.notify_one();
+    task.await.unwrap();
     std::fs::remove_dir_all(dir).unwrap();
 }
 

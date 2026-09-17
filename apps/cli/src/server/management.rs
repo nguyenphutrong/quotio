@@ -289,6 +289,9 @@ async fn mutate(
                         Ok(json!({"account_id":account_id}))
                     }
                     Mutation::Update(id, patch) => {
+                        let patch = api::prepare_update(vault.clone(), &work.context, &id, patch)
+                            .await
+                            .map_err(|e| account_code(&e))?;
                         let _guard = crate::accounts::service::mutation_guard(&work.commit_guard)
                             .await
                             .map_err(|e| account_code(&e))?;
@@ -451,6 +454,16 @@ pub(super) async fn validate_refresh_account(
     provider: Provider,
     id: &str,
 ) -> Result<(), ApiError> {
+    if state
+        .proxy_auth_directory
+        .as_deref()
+        .is_some_and(|directory| {
+            crate::accounts::proxy::adapters(directory, &[provider], Some(id))
+                .is_ok_and(|accounts| !accounts.is_empty())
+        })
+    {
+        return Ok(());
+    }
     if id == "local" {
         if !state.no_saved_accounts && provider.supports_accounts() {
             let accounts = crate::accounts::service::list(vault(state)?)

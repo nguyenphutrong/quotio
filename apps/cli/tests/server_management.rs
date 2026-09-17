@@ -363,12 +363,14 @@ async fn source_registration_uses_existing_management_and_storage_guards() {
     assert_eq!(denied.status(), 405);
     let managed = Server::start(&["--manage"]).await;
     let invalid = managed.request(reqwest::Method::POST, "/v1/account-sources")
-        .header("Idempotency-Key", "source-fixture").json(&json!({"kind":"quotio_custom_provider","source":{"domain":"com.other.app","record_id":"fixture"}})).send().await.unwrap();
+        .header("Idempotency-Key", "source-fixture").json(&json!({"kind":"quotio_custom_provider","source":{"domain":"../other.app","record_id":"01234567-89ab-cdef-0123-456789abcdef"}})).send().await.unwrap();
     assert_eq!(invalid.status(), 400);
+    let mut custom_domain = body.clone();
+    custom_domain["source"]["domain"] = "com.other.app".into();
     let disabled = managed
         .request(reqwest::Method::POST, "/v1/account-sources")
         .header("Idempotency-Key", "source-fixture")
-        .json(&body)
+        .json(&custom_domain)
         .send()
         .await
         .unwrap();

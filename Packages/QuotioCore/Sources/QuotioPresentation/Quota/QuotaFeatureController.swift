@@ -25,11 +25,11 @@ public final class QuotaFeatureController {
     @ObservationIgnored private var didChangeHandler: (@MainActor () -> Void)?
 
     private static let localProxyProviders: Set<QuotaProvider> = [
-        .claude, .codex, .antigravity, .kiro, .copilot, .glm, .warp, .clinePass,
+        .claude, .codex, .antigravity, .vertex, .kiro, .copilot, .glm, .warp, .clinePass,
     ]
 
     private static let monitorProviders: Set<QuotaProvider> = [
-        .claude, .codex, .antigravity, .kiro, .copilot, .factoryDroid,
+        .claude, .codex, .antigravity, .vertex, .kiro, .copilot, .factoryDroid,
         .devin, .grok, .openRouter, .amp, .glm, .warp, .clinePass,
     ]
 
@@ -131,7 +131,7 @@ public final class QuotaFeatureController {
     }
 
     func refreshImportedIDEQuotas() async {
-        for provider in [QuotaProvider.cursor, .trae] {
+        for provider in [QuotaProvider.cursor, .trae] where provider.supportsQuotaOnlyMode {
             let keys = Set(quota.providerQuotas[provider]?.keys.map { $0 } ?? [])
             guard !keys.isEmpty else { continue }
             await quota.refresh(
@@ -144,7 +144,7 @@ public final class QuotaFeatureController {
     }
 
     func importIDEProvider(_ provider: QuotaProvider) async -> [String: ProviderQuota] {
-        guard provider.isImportedFromLocalIDE else { return [:] }
+        guard provider.isImportedFromLocalIDE, provider.supportsQuotaOnlyMode else { return [:] }
         await quota.refresh(provider: provider, mode: operatingMode, force: true)
         await finishRefresh()
         return quota.providerQuotas[provider] ?? [:]
@@ -362,7 +362,8 @@ public final class QuotaFeatureController {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: interval)
                 guard !Task.isCancelled else { return }
-                await self?.refreshAll()
+                guard let self else { return }
+                await refreshAll(force: true)
             }
         }
     }
