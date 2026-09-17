@@ -29,7 +29,7 @@ paths = ['''^Packages/QuotioCore/Sources/QuotioInfrastructure/Quota/AntigravityQ
 [[allowlists]]
 description = "Reviewed Antigravity OAuth client constant moved into account switcher history"
 condition = "AND"
-commits = ["247b55c2917469208c8e5ed39980623d41f03efe"]
+commits = ["84a05793fda0e82e419d36d63d5324fffe6c02a0"]
 paths = ['''^Packages/QuotioCore/Sources/QuotioInfrastructure/Antigravity/AntigravityAccountSwitcher\.swift$''']
 
 [[allowlists]]
