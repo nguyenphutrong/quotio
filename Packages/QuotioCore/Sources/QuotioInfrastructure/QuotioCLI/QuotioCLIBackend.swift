@@ -75,6 +75,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         let providers: [String]
         let accountId: String?
         let force: Bool
+        let includeOwned: Bool
     }
     private struct APIKeyBody: Encodable {
         let provider: String?
@@ -85,6 +86,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
 
     public private(set) var snapshot = QuotaSnapshot()
     private var client: QuotioCLIHTTPClient?
+    private var reportedAccounts: [Account] = []
+    private var activeMode: QuotaOperatingMode = .monitor
     private var continuations: [UUID: AsyncStream<QuotaSnapshot>.Continuation] = [:]
     private let session: URLSession?
 
@@ -113,11 +116,13 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     }
 
     public func bootstrap(mode: QuotaOperatingMode) async -> QuotaSnapshot {
-        await loadSnapshot()
+        selectMode(mode)
+        await loadSnapshot(mode: mode)
         return snapshot
     }
 
     public func refresh(_ request: QuotaFetchRequest) async -> QuotaSnapshot {
+        selectMode(request.mode)
         guard let provider = QuotioCLIProviderMap.cli(request.provider) else { return snapshot }
         var resolvedAccountID: String?
         if case .account(let accountKey) = request.scope {
@@ -127,7 +132,12 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
                 return snapshot
             }
         }
-        await performRefresh(providers: [provider], accountID: resolvedAccountID, force: request.force)
+        await performRefresh(
+            providers: [provider],
+            accountID: resolvedAccountID,
+            mode: request.mode,
+            force: request.force
+        )
         return snapshot
     }
 
@@ -136,8 +146,9 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         providers: Set<QuotaProvider>? = nil,
         force: Bool = false
     ) async -> QuotaSnapshot {
+        selectMode(mode)
         let selected = (providers ?? Set(Self.supportedProviders)).compactMap(QuotioCLIProviderMap.cli)
-        await performRefresh(providers: selected, accountID: nil, force: force)
+        await performRefresh(providers: selected, accountID: nil, mode: mode, force: force)
         return snapshot
     }
 
@@ -152,6 +163,9 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
 
     public func removeQuota(for account: QuotaAccountID, mode: QuotaOperatingMode) {
         snapshot.quotas[account.provider]?[account.accountKey] = nil
+        snapshot.accountIDs[account.provider]?[account.accountKey] = nil
+        snapshot.accountAliases[account.provider]?.filter { $0.value != account.accountKey }
+            .forEach { snapshot.accountAliases[account.provider]?[$0.key] = nil }
         snapshot.subscriptions[account.provider]?[account.accountKey] = nil
         snapshot.accountIssues[account] = nil
         publish()
@@ -169,13 +183,16 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     }
 
     public func accounts() async -> [Account] {
-        guard let client else { return [] }
+        guard let client else { return visibleReportedAccounts() }
         do {
             let response: QuotioCLIAccountList = try await client.request("v1/accounts")
             guard response.schemaVersion == 1 else { return [] }
-            return response.accounts.compactMap(Self.account)
+            let accounts = response.accounts
+                .filter { activeMode == .monitor || $0.origin != "owned" }
+                .compactMap(Self.account)
+            return AccountSelectionPolicy.preferred(accounts + visibleReportedAccounts())
         } catch {
-            return []
+            return visibleReportedAccounts()
         }
     }
 
@@ -273,8 +290,13 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         )
     }
 
-    private func performRefresh(providers: [String], accountID: String?, force: Bool) async {
-        guard let client, !providers.isEmpty else { return }
+    private func performRefresh(
+        providers: [String],
+        accountID: String?,
+        mode: QuotaOperatingMode,
+        force: Bool
+    ) async {
+        guard let client, !providers.isEmpty, activeMode == mode else { return }
         let domainProviders = Set(providers.compactMap(QuotioCLIProviderMap.domain))
         snapshot.refreshingProviders.formUnion(domainProviders)
         publish()
@@ -282,7 +304,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             let body = try JSONEncoder.quotioCLI.encode(RefreshBody(
                 providers: providers,
                 accountId: accountID,
-                force: force
+                force: force,
+                includeOwned: mode == .monitor
             ))
             var operation: QuotioCLIOperation = try await client.request(
                 "v1/refresh",
@@ -298,30 +321,55 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             guard operation.status == "completed" else {
                 throw QuotioCLIBackendError.response(500, operation.error ?? operation.status)
             }
-            await loadSnapshot()
+            await loadSnapshot(mode: mode)
         } catch {
+            guard activeMode == mode else { return }
             snapshot.refreshingProviders.subtract(domainProviders)
             markFailure(for: domainProviders)
         }
     }
 
-    private func loadSnapshot() async {
+    private func loadSnapshot(mode: QuotaOperatingMode) async {
         guard let client else {
             markFailure(for: Set(Self.supportedProviders))
             return
         }
         do {
             let report: QuotioCLIUsageReport = try await client.request("v1/usage")
+            guard activeMode == mode else { return }
             guard report.schemaVersion == 1 else { throw QuotioCLIBackendError.incompatible }
-            snapshot = QuotioCLIUsageMapper.snapshot(report)
+            snapshot = QuotioCLIUsageMapper.snapshot(report, mode: mode)
+            reportedAccounts = report.providers.compactMap { usage in
+                guard let reference = usage.accountRef,
+                      let provider = QuotioCLIProviderMap.domain(usage.provider),
+                      let key = snapshot.accountAliases[provider]?[reference.id] else { return nil }
+                return Self.account(reference, provider: provider, accountKey: key)
+            }
             publish()
         } catch {
+            guard activeMode == mode else { return }
             markFailure(for: Set(Self.supportedProviders))
         }
     }
 
+    private func selectMode(_ mode: QuotaOperatingMode) {
+        guard activeMode != mode else { return }
+        activeMode = mode
+        snapshot = QuotaSnapshot()
+        reportedAccounts = []
+        publish()
+    }
+
+    private func visibleReportedAccounts() -> [Account] {
+        reportedAccounts.filter { activeMode == .monitor || $0.source != .quotioKeychain }
+    }
+
     private func accountID(provider: String, accountKey: String) async -> String? {
         guard let client else { return nil }
+        if let domainProvider = QuotioCLIProviderMap.domain(provider) {
+            let quotaKey = snapshot.accountAliases[domainProvider]?[accountKey] ?? accountKey
+            if let id = snapshot.accountIDs[domainProvider]?[quotaKey] { return id }
+        }
         if let list: QuotioCLIAccountList = try? await client.request("v1/accounts"),
            let id = list.accounts.first(where: {
             $0.provider == provider
@@ -329,10 +377,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
            })?.id {
             return id
         }
-        guard let domainProvider = QuotioCLIProviderMap.domain(provider) else { return nil }
-        guard let aliases = snapshot.accountAliases[domainProvider] else { return nil }
-        if let key = aliases[accountKey], key != accountKey { return accountKey }
-        return aliases.first { $0.key != accountKey && $0.value == accountKey }?.key
+        return nil
     }
 
     private func mutate(
@@ -400,6 +445,30 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             credentialMetadata: RedactedCredentialMetadata(
                 kind: value.origin == "owned" && provider.usesAPIKeyAuth ? .apiKey : .external
             )
+        )
+    }
+
+    private static func account(
+        _ reference: QuotioCLIAccountReference,
+        provider: QuotaProvider,
+        accountKey: String
+    ) -> Account {
+        let source: AccountSource = switch reference.origin {
+        case "borrowed_proxy": .legacyCLIProxy
+        case "borrowed_native": .nativeCredential
+        default: .quotioKeychain
+        }
+        return Account(
+            identity: AccountIdentity(
+                id: reference.id,
+                providerID: AccountProviderID(rawValue: provider.rawValue),
+                accountKey: accountKey
+            ),
+            displayName: reference.label,
+            source: source,
+            credentialReference: nil,
+            capabilities: [],
+            status: .ready
         )
     }
 

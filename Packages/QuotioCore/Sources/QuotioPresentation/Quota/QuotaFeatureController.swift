@@ -363,8 +363,7 @@ public final class QuotaFeatureController {
                 try? await Task.sleep(nanoseconds: interval)
                 guard !Task.isCancelled else { return }
                 guard let self else { return }
-                await quota.bootstrap(mode: operatingMode)
-                await finishRefresh()
+                await refreshAll(force: true)
             }
         }
     }

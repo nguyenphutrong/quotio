@@ -168,25 +168,38 @@ enum QuotioCLIProviderMap {
 }
 
 enum QuotioCLIUsageMapper {
-    static func snapshot(_ report: QuotioCLIUsageReport) -> QuotaSnapshot {
+    static func snapshot(
+        _ report: QuotioCLIUsageReport,
+        mode: QuotaOperatingMode = .monitor
+    ) -> QuotaSnapshot {
         var snapshot = QuotaSnapshot(lastUpdated: report.generatedAt)
-        for usage in report.providers {
+        for usage in report.providers where mode == .monitor || usage.accountRef?.origin != "owned" {
             guard let provider = QuotioCLIProviderMap.domain(usage.provider) else { continue }
-            let key = usage.account.label.isEmpty ? usage.account.id : usage.account.label
+            let preferredKey = usage.accountRef?.label.nilIfEmpty
+                ?? usage.account.label.nilIfEmpty
+                ?? usage.accountRef?.id
+                ?? usage.account.id
+            let key = snapshot.quotas[provider]?[preferredKey] == nil
+                ? preferredKey
+                : usage.accountRef?.id ?? usage.account.id
             snapshot.quotas[provider, default: [:]][key] = quota(usage)
             if let reference = usage.accountRef {
                 snapshot.accountAliases[provider, default: [:]][reference.id] = key
-                snapshot.accountAliases[provider, default: [:]][reference.label] = key
+                if snapshot.accountAliases[provider]?[reference.label] == nil {
+                    snapshot.accountAliases[provider, default: [:]][reference.label] = key
+                }
+                snapshot.accountIDs[provider, default: [:]][key] = reference.id
             }
             if let subscription = subscription(usage) {
                 snapshot.subscriptions[provider, default: [:]][key] = subscription
             }
         }
-        for failure in report.failures {
+        for failure in report.failures where mode == .monitor || failure.accountRef?.origin != "owned" {
             guard let provider = QuotioCLIProviderMap.domain(failure.provider) else { continue }
             let issue = QuotaRefreshIssue(kind: .failed, occurredAt: report.generatedAt)
             if let account = failure.accountRef {
-                snapshot.accountIssues[QuotaAccountID(provider: provider, accountKey: account.label)] = issue
+                let key = snapshot.accountAliases[provider]?[account.id] ?? account.label
+                snapshot.accountIssues[QuotaAccountID(provider: provider, accountKey: key)] = issue
             } else {
                 snapshot.issues[provider] = issue
             }
@@ -203,7 +216,7 @@ enum QuotioCLIUsageMapper {
             lastUpdated: updatedAt.min() ?? .distantPast,
             planType: usage.account.plan,
             analytics: analytics(usage),
-            accountDisplayName: usage.account.label
+            accountDisplayName: usage.accountRef?.label.nilIfEmpty ?? usage.account.label
         )
     }
 
@@ -458,6 +471,10 @@ enum QuotioCLIUsageMapper {
             paidTier: tier(subscription.paidTier)
         )
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 func makeQuotioCLIDecoder() -> JSONDecoder {

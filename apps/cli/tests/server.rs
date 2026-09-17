@@ -53,7 +53,6 @@ fn server_argument_contract() {
         Some(PathBuf::from("/tmp/quotio-proxy-auth"))
     );
     for args in [
-        vec!["--refresh-interval", "0"],
         vec!["--refresh-interval", "86401"],
         vec!["--timeout", "0"],
         vec!["--listen", "example.com:6767"],
@@ -72,6 +71,14 @@ fn server_argument_contract() {
     ] {
         assert!(Cli::try_parse_from(["quotio", "serve"].into_iter().chain(args)).is_err());
     }
+    let Command::Serve(disabled) =
+        Cli::try_parse_from(["quotio", "serve", "--refresh-interval", "0"])
+            .unwrap()
+            .command
+    else {
+        panic!()
+    };
+    assert_eq!(disabled.refresh_interval, Some(0));
 }
 
 #[tokio::test]

@@ -296,8 +296,8 @@ pub struct ServeArgs {
     /// Read this TOML config instead of the platform default
     #[arg(long)]
     pub config: Option<PathBuf>,
-    /// Seconds between completed refresh cycles
-    #[arg(long, value_parser = clap::value_parser!(u64).range(1..=86400))]
+    /// Seconds between completed refresh cycles; zero disables scheduled refreshes
+    #[arg(long, value_parser = clap::value_parser!(u64).range(0..=86400))]
     pub refresh_interval: Option<u64>,
     /// Total seconds allowed for each provider, including retries
     #[arg(long, value_parser = clap::value_parser!(u64).range(1..=3600))]

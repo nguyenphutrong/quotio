@@ -198,9 +198,7 @@ fn validate(config: &Config) -> Result<(), SettingsError> {
     config
         .disabled_providers()
         .map_err(|_| SettingsError::Invalid)?;
-    if !(1..=86400).contains(&config.refresh_interval)
-        || !(1..=3600).contains(&config.provider_timeout)
-    {
+    if config.refresh_interval > 86400 || !(1..=3600).contains(&config.provider_timeout) {
         return Err(SettingsError::Invalid);
     }
     Ok(())

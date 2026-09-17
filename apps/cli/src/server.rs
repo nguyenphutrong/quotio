@@ -353,8 +353,13 @@ struct RefreshRequest {
     account_id: Option<String>,
     #[serde(default = "force_default")]
     force: bool,
+    #[serde(default = "include_owned_default")]
+    include_owned: bool,
 }
 fn force_default() -> bool {
+    true
+}
+fn include_owned_default() -> bool {
     true
 }
 async fn manual_refresh(
@@ -437,9 +442,9 @@ async fn refresh(state: &ApiState, request: Option<RefreshRequest>) -> Result<Va
     let generation = state.generation.load(Ordering::SeqCst);
     let config = state.settings.read().await.values.clone();
     let enabled = config.providers().map_err(|_| "invalid_settings")?;
-    let (selected, account, force) = match request {
-        Some(r) => (r.providers, r.account_id, r.force),
-        None => (enabled.clone(), None, false),
+    let (selected, account, force, include_owned) = match request {
+        Some(r) => (r.providers, r.account_id, r.force, r.include_owned),
+        None => (enabled.clone(), None, false, true),
     };
     if account.is_none() && selected.iter().any(|p| !enabled.contains(p)) {
         return Err("refresh_scope_changed");
@@ -474,6 +479,12 @@ async fn refresh(state: &ApiState, request: Option<RefreshRequest>) -> Result<Va
             Err(crate::accounts::AccountError::Storage)
         };
         managed.map(|mut adapters| {
+            if !include_owned {
+                adapters.retain(|adapter| {
+                    adapter.account_ref().and_then(|reference| reference.origin)
+                        != Some(crate::domain::AccountOrigin::Owned)
+                });
+            }
             if account.is_none() {
                 adapters.extend(borrowed);
             }
@@ -598,6 +609,11 @@ fn merge_refresh_report(
 }
 async fn wait_for_next_refresh(state: &ApiState) {
     let interval = state.settings.read().await.values.refresh_interval;
+    if interval == 0 {
+        state.status.lock().await.next_refresh_at = None;
+        state.wake.notified().await;
+        return;
+    }
     let deadline = tokio::time::Instant::now() + Duration::from_secs(interval);
     state.status.lock().await.next_refresh_at = Some(timestamp(
         state.context.clock.now() + time::Duration::seconds(interval as i64),
@@ -730,6 +746,10 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
     let worker_state = state.clone();
     let mut worker = tokio::spawn(async move {
         loop {
+            if worker_state.settings.read().await.values.refresh_interval == 0 {
+                wait_for_next_refresh(&worker_state).await;
+                continue;
+            }
             if let Err(code) = refresh(&worker_state, None).await {
                 tracing::warn!(code, "scheduled refresh failed");
             }

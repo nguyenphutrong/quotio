@@ -34,6 +34,28 @@ final class QuotioCLIBackendTests: XCTestCase {
 
         XCTAssertEqual(snapshot.quotas[.factoryDroid]?["Work"]?.models.first?.percentage, 75)
         XCTAssertEqual(snapshot.accountAliases[.factoryDroid]?["account-1"], "Work")
+        XCTAssertEqual(snapshot.accountIDs[.factoryDroid]?["Work"], "account-1")
+    }
+
+    func testUsageReportUsesReferenceLabelsAndKeepsCollidingProviderLabelsDistinct() throws {
+        let data = Data(#"""
+        {
+          "schema_version":1,"generated_at":"2026-09-16T12:00:00Z","failures":[],
+          "providers":[
+            {"provider":"openrouter","account_ref":{"origin":"owned","id":"account-1","label":"Work"},"account":{"id":"api-key","label":"API Key","plan":null},"windows":[]},
+            {"provider":"openrouter","account_ref":{"origin":"owned","id":"account-2","label":"Personal"},"account":{"id":"api-key","label":"API Key","plan":null},"windows":[]}
+          ]
+        }
+        """#.utf8)
+
+        let report = try makeQuotioCLIDecoder().decode(QuotioCLIUsageReport.self, from: data)
+        let snapshot = QuotioCLIUsageMapper.snapshot(report)
+
+        XCTAssertEqual(Set(snapshot.quotas[.openRouter]?.keys.map(\.self) ?? []), ["Work", "Personal"])
+        XCTAssertEqual(snapshot.quotas[.openRouter]?["Work"]?.accountDisplayName, "Work")
+        XCTAssertEqual(snapshot.quotas[.openRouter]?["Personal"]?.accountDisplayName, "Personal")
+        XCTAssertEqual(snapshot.accountIDs[.openRouter]?["Work"], "account-1")
+        XCTAssertEqual(snapshot.accountIDs[.openRouter]?["Personal"], "account-2")
     }
 
     func testUsageReportMapsCodexAnalyticsAndResetCredits() throws {
@@ -93,7 +115,6 @@ final class QuotioCLIBackendTests: XCTestCase {
         for accountKey in ["CLI User", "borrowed-1"] {
             QuotioCLIURLProtocol.reset()
             QuotioCLIURLProtocol.enqueue(report)
-            QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[]}"#)
             QuotioCLIURLProtocol.enqueue(#"{"id":"operation-1","status":"completed","error":null}"#)
             QuotioCLIURLProtocol.enqueue(report)
             let backend = QuotioCLIBackend(session: stubSession())
@@ -113,7 +134,61 @@ final class QuotioCLIBackendTests: XCTestCase {
             let body = try XCTUnwrap(QuotioCLIURLProtocol.body(forPath: "/v1/refresh"))
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertEqual(json["account_id"] as? String, "borrowed-1")
+            XCTAssertEqual(json["include_owned"] as? Bool, true)
+            XCTAssertFalse(QuotioCLIURLProtocol.requests().contains { $0.url?.path == "/v1/accounts" })
         }
+    }
+
+    func testLocalProxyModeExcludesOwnedUsageAndPreservesBorrowedAccountSource() async throws {
+        let report = #"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"claude","account_ref":{"origin":"owned","id":"owned-1","label":"Managed"},"account":{"id":"managed","label":"Managed","plan":null},"windows":[]},{"provider":"claude","account_ref":{"origin":"borrowed_proxy","id":"borrowed-1","label":"CLI User"},"account":{"id":"user-1","label":"CLI User","plan":null},"windows":[]}],"failures":[{"provider":"claude","account_ref":{"origin":"owned","id":"owned-1","label":"Managed"},"code":"authentication"}]}"#
+        QuotioCLIURLProtocol.enqueue(report)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"owned-1","provider":"claude","label":"Managed","origin":"owned","enabled":true,"source_kind":null}]}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+
+        let snapshot = await backend.bootstrap(mode: .localProxy)
+        let accounts = await backend.accounts()
+
+        XCTAssertNil(snapshot.quotas[.claude]?["Managed"])
+        XCTAssertTrue(snapshot.accountIssues.isEmpty)
+        XCTAssertNotNil(snapshot.quotas[.claude]?["CLI User"])
+        XCTAssertEqual(accounts.map(\.source), [.legacyCLIProxy])
+    }
+
+    func testLocalProxyRefreshExcludesOwnedSources() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"id":"operation-1","status":"completed","error":null}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+
+        _ = await backend.refreshAll(mode: .localProxy, providers: [.claude], force: true)
+
+        let body = try XCTUnwrap(QuotioCLIURLProtocol.body(forPath: "/v1/refresh"))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json["include_owned"] as? Bool, false)
+    }
+
+    func testModeSwitchClearsPreviousSnapshotWhenReloadFails() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"claude","account_ref":{"origin":"owned","id":"owned-1","label":"Managed"},"account":{"id":"managed","label":"Managed","plan":null},"windows":[]}],"failures":[]}"#)
+        QuotioCLIURLProtocol.enqueue("{}")
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+
+        let monitorSnapshot = await backend.bootstrap(mode: .monitor)
+        let localSnapshot = await backend.bootstrap(mode: .localProxy)
+
+        XCTAssertNotNil(monitorSnapshot.quotas[.claude]?["Managed"])
+        XCTAssertTrue(localSnapshot.quotas.isEmpty)
+        XCTAssertNotNil(localSnapshot.issues[.claude])
     }
 
     private func stubSession() -> URLSession {

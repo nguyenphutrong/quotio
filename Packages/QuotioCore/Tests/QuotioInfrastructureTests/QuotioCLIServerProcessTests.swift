@@ -40,6 +40,7 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         XCTAssertEqual(connection.baseURL.absoluteString, "http://127.0.0.1:43210")
         XCTAssertFalse(connection.token.isEmpty)
         let launchedArguments = try String(contentsOf: arguments, encoding: .utf8)
+        XCTAssertTrue(launchedArguments.contains("--refresh-interval\n0\n"))
         XCTAssertTrue(launchedArguments.contains("--cli-proxy-auth-dir\n\(proxyAuthDirectory.path)\n"))
         await server.stop()
         for _ in 0..<20 where !FileManager.default.fileExists(atPath: marker.path) {

@@ -2683,7 +2683,7 @@
           },
           "refresh_interval": {
             "type": "integer",
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 86400
           },
           "provider_timeout": {
@@ -2750,7 +2750,7 @@
               "integer",
               "null"
             ],
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 86400
           },
           "provider_timeout": {
@@ -2809,6 +2809,11 @@
           },
           "force": {
             "type": "boolean"
+          },
+          "include_owned": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include credentials owned by the selected Quotio vault. Set false to refresh only borrowed native and CLIProxyAPI sources."
           }
         },
         "additionalProperties": false

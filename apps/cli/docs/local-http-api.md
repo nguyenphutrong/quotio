@@ -28,7 +28,7 @@ port, or `--listen '[::1]:6767'` for IPv6 loopback.
 | `--listen` | `127.0.0.1:6767` | Loopback IP address and port; non-loopback addresses are rejected |
 | `--provider` | Config selection | Repeat to enable multiple providers; duplicates are removed |
 | `--config` | Platform config path | Read `enabled_providers` and `cache_ttl_seconds` from this TOML file |
-| `--refresh-interval` | Config, then `60` | Seconds to wait after each completed refresh, from 1 to 86400 |
+| `--refresh-interval` | Config, then `60` | Seconds to wait after each completed refresh, from 1 to 86400; `0` disables scheduled refreshes |
 | `--timeout` | Config, then `10` | Per-provider collection deadline, including retries, from 1 to 3600 seconds |
 | `--no-saved-accounts` | Off | Skip the Quotio account vault and use environment/local sources |
 | `--manage` | Off | Enable account, OAuth, settings, and refresh writes; requires `QUOTIO_SERVER_TOKEN` |
@@ -56,7 +56,7 @@ The read-only default has no account or settings write routes. `--manage` adds t
 | `POST /v1/auth/sessions` and callback routes | Managed Codex, Claude and Copilot sessions (requires `--manage`) |
 | `GET /v1/settings` | Current settings and revision; available in read-only mode |
 | `PATCH /v1/settings` | Optimistic revision patch; requires `--manage` |
-| `POST /v1/refresh` | Asynchronous refresh request (requires `--manage`) |
+| `POST /v1/refresh` | Asynchronous refresh request (requires `--manage`); `include_owned: false` limits collection to borrowed native and CLIProxyAPI sources |
 | `GET /v1/operations/{id}` | Operation status; recent refresh results expire after 15 minutes; account write results persist until restart |
 
 Usage responses use Quotio's existing `schema_version: 1` JSON contract, matching

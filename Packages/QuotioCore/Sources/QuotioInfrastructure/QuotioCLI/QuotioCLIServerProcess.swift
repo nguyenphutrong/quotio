@@ -87,6 +87,7 @@ public final class QuotioCLIServerProcess {
             "--manage",
             "--parent-pipe",
             "--listen", "127.0.0.1:0",
+            "--refresh-interval", "0",
             "--config", locations.configuration.path,
             "--account-vault-namespace", "quotio-macos",
             "--account-data-dir", locations.accounts.path,
