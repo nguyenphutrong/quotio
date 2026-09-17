@@ -159,7 +159,7 @@ final class QuotioCLIBackendTests: XCTestCase {
     }
 
     func testLocalProxyModeKeepsOwnedWarpUsage() throws {
-        let data = Data(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"warp","account_ref":{"origin":"owned","id":"warp-1","label":"Work"},"account":{"id":"warp","label":"Work","plan":null},"windows":[]}],"failures":[]}"#.utf8)
+        let data = Data(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"warp","account_ref":{"origin":"owned","id":"warp-1","label":"__quotio_local_warp__:Work"},"account":{"id":"warp","label":"Work","plan":null},"windows":[]}],"failures":[]}"#.utf8)
         let report = try makeQuotioCLIDecoder().decode(QuotioCLIUsageReport.self, from: data)
 
         let snapshot = QuotioCLIUsageMapper.snapshot(report, mode: .localProxy)
@@ -167,8 +167,8 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertNotNil(snapshot.quotas[.warp]?["Work"])
     }
 
-    func testSynchronizeWarpTokensUpdatesCurrentAccountAndRemovesStaleAccount() async throws {
-        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"warp-1","provider":"warp","label":"Work","origin":"owned","enabled":true,"source_kind":null},{"id":"warp-2","provider":"warp","label":"Old","origin":"owned","enabled":true,"source_kind":null}]}"#)
+    func testSynchronizeWarpTokensOnlyUpdatesAndRemovesMirroredAccounts() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"monitor","provider":"warp","label":"Monitor","origin":"owned","enabled":true,"source_kind":null},{"id":"warp-1","provider":"warp","label":"__quotio_local_warp__:Work","origin":"owned","enabled":true,"source_kind":null},{"id":"warp-2","provider":"warp","label":"__quotio_local_warp__:Old","origin":"owned","enabled":true,"source_kind":null}]}"#)
         QuotioCLIURLProtocol.enqueue(#"{"id":"operation-1","status":"completed","error":null}"#)
         QuotioCLIURLProtocol.enqueue(#"{"id":"operation-2","status":"completed","error":null}"#)
         let backend = QuotioCLIBackend(session: stubSession())
@@ -182,6 +182,37 @@ final class QuotioCLIBackendTests: XCTestCase {
         let requests = QuotioCLIURLProtocol.requests()
         XCTAssertEqual(requests.map(\.httpMethod), ["GET", "PATCH", "DELETE"])
         XCTAssertEqual(requests.map { $0.url?.path }, ["/v1/accounts", "/v1/accounts/warp-1", "/v1/accounts/warp-2"])
+    }
+
+    func testExpiredDeviceCodeUsesProviderDeadline() async throws {
+        let expired = Int64(Date().timeIntervalSince1970) - 1
+        QuotioCLIURLProtocol.enqueue(#"{"provider":"copilot","workflow":"device_code","user_code":"CODE","id":"session-1","url":"https://github.com/login/device","expires_at":\#(expired),"status":"waiting","account_id":null,"error_code":null}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"provider":"copilot","workflow":"device_code","user_code":"CODE","id":"session-1","url":"https://github.com/login/device","expires_at":\#(expired),"status":"waiting","account_id":null,"error_code":null}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"provider":"copilot","workflow":"device_code","user_code":"CODE","id":"session-1","url":"https://github.com/login/device","expires_at":\#(expired),"status":"failed","account_id":null,"error_code":"unexpected_poll"}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+        let authorizer = QuotioCLIOAuthAuthorizer(
+            backend: backend,
+            urlOpener: QuotioCLIURLOpenerStub(),
+            callbackTransport: QuotioCLICallbackTransportStub()
+        )
+
+        do {
+            _ = try await authorizer.begin(
+                request: OAuthAuthorizationRequest(
+                    providerID: AccountProviderID(rawValue: QuotaProvider.copilot.rawValue)
+                ),
+                attemptID: OAuthAttemptID(),
+                progress: { _ in }
+            )
+            XCTFail("Expected the provider deadline to expire the session")
+        } catch {
+            XCTAssertEqual(error as? OAuthFlowFailure, .expired)
+        }
+        XCTAssertEqual(QuotioCLIURLProtocol.requests().count, 2)
     }
 
     func testLocalProxyRefreshExcludesOwnedSources() async throws {
@@ -222,6 +253,19 @@ final class QuotioCLIBackendTests: XCTestCase {
         configuration.protocolClasses = [QuotioCLIURLProtocol.self]
         return URLSession(configuration: configuration)
     }
+}
+
+@MainActor
+private struct QuotioCLIURLOpenerStub: URLOpening {
+    func open(_ url: URL) -> Bool { true }
+}
+
+private actor QuotioCLICallbackTransportStub: OAuthCallbackTransport {
+    func start(preferredPort: UInt16?) async throws -> UInt16 { preferredPort ?? 0 }
+    func waitForCallback(timeout: Duration) async throws -> URL {
+        throw OAuthFlowFailure.expired
+    }
+    func stop() async {}
 }
 
 private final class QuotioCLIURLProtocol: URLProtocol, @unchecked Sendable {

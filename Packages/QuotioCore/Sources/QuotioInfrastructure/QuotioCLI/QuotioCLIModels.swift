@@ -137,9 +137,25 @@ struct QuotioCLIOAuthSession: Decodable, Sendable {
     let userCode: String?
     let id: String
     let url: String
+    let expiresAt: Int64
     let status: String
     let accountId: String?
     let errorCode: String?
+}
+
+enum QuotioCLIWarpMirror {
+    private static let prefix = "__quotio_local_warp__:"
+
+    static func storageLabel(_ label: String) -> String { prefix + label }
+
+    static func displayLabel(_ label: String, provider: String) -> String {
+        guard provider == "warp", label.hasPrefix(prefix) else { return label }
+        return String(label.dropFirst(prefix.count))
+    }
+
+    static func isMirror(_ account: QuotioCLIAccount) -> Bool {
+        account.provider == "warp" && account.origin == "owned" && account.label.hasPrefix(prefix)
+    }
 }
 
 enum QuotioCLIProviderMap {
@@ -176,7 +192,10 @@ enum QuotioCLIUsageMapper {
         for usage in report.providers
         where mode == .monitor || usage.accountRef?.origin != "owned" || usage.provider == "warp" {
             guard let provider = QuotioCLIProviderMap.domain(usage.provider) else { continue }
-            let preferredKey = usage.accountRef?.label.nilIfEmpty
+            let referenceLabel = usage.accountRef.map {
+                QuotioCLIWarpMirror.displayLabel($0.label, provider: usage.provider)
+            }
+            let preferredKey = referenceLabel?.nilIfEmpty
                 ?? usage.account.label.nilIfEmpty
                 ?? usage.accountRef?.id
                 ?? usage.account.id
@@ -189,6 +208,10 @@ enum QuotioCLIUsageMapper {
                 if snapshot.accountAliases[provider]?[reference.label] == nil {
                     snapshot.accountAliases[provider, default: [:]][reference.label] = key
                 }
+                if let referenceLabel,
+                   snapshot.accountAliases[provider]?[referenceLabel] == nil {
+                    snapshot.accountAliases[provider, default: [:]][referenceLabel] = key
+                }
                 snapshot.accountIDs[provider, default: [:]][key] = reference.id
             }
             if let subscription = subscription(usage) {
@@ -200,7 +223,8 @@ enum QuotioCLIUsageMapper {
             guard let provider = QuotioCLIProviderMap.domain(failure.provider) else { continue }
             let issue = QuotaRefreshIssue(kind: .failed, occurredAt: report.generatedAt)
             if let account = failure.accountRef {
-                let key = snapshot.accountAliases[provider]?[account.id] ?? account.label
+                let key = snapshot.accountAliases[provider]?[account.id]
+                    ?? QuotioCLIWarpMirror.displayLabel(account.label, provider: failure.provider)
                 snapshot.accountIssues[QuotaAccountID(provider: provider, accountKey: key)] = issue
             } else {
                 snapshot.issues[provider] = issue
@@ -218,7 +242,9 @@ enum QuotioCLIUsageMapper {
             lastUpdated: updatedAt.min() ?? .distantPast,
             planType: usage.account.plan,
             analytics: analytics(usage),
-            accountDisplayName: usage.accountRef?.label.nilIfEmpty ?? usage.account.label
+            accountDisplayName: usage.accountRef.map {
+                QuotioCLIWarpMirror.displayLabel($0.label, provider: usage.provider)
+            }?.nilIfEmpty ?? usage.account.label
         )
     }
 

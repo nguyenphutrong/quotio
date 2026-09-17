@@ -226,15 +226,16 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         guard let client else { throw QuotioCLIBackendError.disconnected }
         let response: QuotioCLIAccountList = try await client.request("v1/accounts")
         guard response.schemaVersion == 1 else { throw QuotioCLIBackendError.incompatible }
-        let existing = response.accounts.filter { $0.provider == "warp" && $0.origin == "owned" }
+        let existing = response.accounts.filter(QuotioCLIWarpMirror.isMirror)
         var retained = Set<String>()
         for token in tokens where token.isEnabled {
             let account = existing.first {
-                $0.label.caseInsensitiveCompare(token.name) == .orderedSame
+                QuotioCLIWarpMirror.displayLabel($0.label, provider: $0.provider)
+                    .caseInsensitiveCompare(token.name) == .orderedSame
             }
             let body = try JSONEncoder.quotioCLI.encode(APIKeyBody(
                 provider: account == nil ? "warp" : nil,
-                label: token.name,
+                label: QuotioCLIWarpMirror.storageLabel(token.name),
                 apiKey: token.token
             ))
             try await mutate(
@@ -460,6 +461,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
 
     private static func account(_ value: QuotioCLIAccount) -> Account? {
         guard let provider = QuotioCLIProviderMap.domain(value.provider) else { return nil }
+        let label = QuotioCLIWarpMirror.displayLabel(value.label, provider: value.provider)
         let source: AccountSource = switch value.origin {
         case "borrowed_proxy": .legacyCLIProxy
         case "borrowed_native": .nativeCredential
@@ -472,9 +474,9 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             identity: AccountIdentity(
                 id: value.id,
                 providerID: AccountProviderID(rawValue: provider.rawValue),
-                accountKey: value.label
+                accountKey: label
             ),
-            displayName: value.label,
+            displayName: label,
             source: source,
             credentialReference: value.sourceKind,
             capabilities: capabilities,
@@ -490,6 +492,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         provider: QuotaProvider,
         accountKey: String
     ) -> Account {
+        let label = QuotioCLIWarpMirror.displayLabel(reference.label, provider: provider.rawValue)
         let source: AccountSource = switch reference.origin {
         case "borrowed_proxy": .legacyCLIProxy
         case "borrowed_native": .nativeCredential
@@ -501,7 +504,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
                 providerID: AccountProviderID(rawValue: provider.rawValue),
                 accountKey: accountKey
             ),
-            displayName: reference.label,
+            displayName: label,
             source: source,
             credentialReference: nil,
             capabilities: [],

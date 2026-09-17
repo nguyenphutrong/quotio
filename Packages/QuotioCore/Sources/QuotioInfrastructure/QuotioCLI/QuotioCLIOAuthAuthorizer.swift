@@ -49,7 +49,11 @@ public actor QuotioCLIOAuthAuthorizer: OAuthAuthorizing {
                 await callbackTransport.stop()
                 return .completed(try await completedAccount(sessionID: session.id, provider: provider))
             case "device_code":
-                return .completed(try await completedAccount(sessionID: session.id, provider: provider))
+                return .completed(try await completedAccount(
+                    sessionID: session.id,
+                    provider: provider,
+                    expiresAt: session.expiresAt
+                ))
             default:
                 throw OAuthFlowFailure.invalidResponse
             }
@@ -86,11 +90,17 @@ public actor QuotioCLIOAuthAuthorizer: OAuthAuthorizing {
         await callbackTransport.stop()
     }
 
-    private func completedAccount(sessionID: String, provider: QuotaProvider) async throws -> Account {
-        let deadline = ContinuousClock.now + .seconds(180)
+    private func completedAccount(
+        sessionID: String,
+        provider: QuotaProvider,
+        expiresAt: Int64? = nil
+    ) async throws -> Account {
+        let fallbackDeadline = ContinuousClock.now + .seconds(180)
         var session = try await backend.oauthSession(id: sessionID)
         while ["waiting", "processing"].contains(session.status) {
-            guard ContinuousClock.now < deadline else { throw OAuthFlowFailure.expired }
+            let expired = expiresAt.map { Int64(Date().timeIntervalSince1970) >= $0 }
+                ?? (ContinuousClock.now >= fallbackDeadline)
+            guard !expired else { throw OAuthFlowFailure.expired }
             try await Task.sleep(for: .milliseconds(500))
             session = try await backend.oauthSession(id: sessionID)
         }
