@@ -347,7 +347,9 @@ ID. The request contains references only:
 ```
 
 `production` addresses `app.bytrong.quotio`; `development` addresses
-`app.bytrong.quotio.dev`. Arbitrary domains, file paths, credentials and ownership
+`app.bytrong.quotio.dev`. An effective app bundle identifier (for example,
+`com.example.quotio`) is also accepted: up to 255 ASCII alphanumeric, hyphen,
+and dot characters, with nonempty dot-separated components. File paths, credentials and ownership
 flags are rejected. This operation does not discover groups, copy their keys,
 change the proxy configuration, or refresh their credentials. The group must exist,
 be enabled and contain a usable key. As in the Swift implementation, quota uses the

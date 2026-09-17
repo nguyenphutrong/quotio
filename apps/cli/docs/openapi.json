@@ -2969,7 +2969,7 @@
           "provider": {"$ref": "#/components/schemas/ProviderId"},
           "kind": {"type": "string", "enum": ["grok_native", "copilot_native", "quotio_custom_provider", "codex_native", "claude_native", "kiro_native", "factory_native", "devin_desktop_native", "antigravity_native", "amp_native", "cursor_native"]},
           "location": {"type": ["string", "null"], "description": "One location supported by this kind's registration input. Required for Copilot inspection. Omit for kinds without locations."},
-          "domain": {"type": ["string", "null"], "enum": ["production", "development", null], "description": "Required only for quotio_custom_provider; selected provider must be clinepass or zai."},
+          "domain": {"type": ["string", "null"], "maxLength": 255, "pattern": "^(production|development|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+)$", "description": "Required only for quotio_custom_provider; selected provider must be clinepass or zai."},
           "inspect": {"type": "boolean", "default": false}
         }
       },
@@ -3063,10 +3063,8 @@
                 "properties": {
                   "domain": {
                     "type": "string",
-                    "enum": [
-                      "production",
-                      "development"
-                    ]
+                    "maxLength": 255,
+                    "pattern": "^(production|development|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+)$"
                   },
                   "record_id": {
                     "type": "string",

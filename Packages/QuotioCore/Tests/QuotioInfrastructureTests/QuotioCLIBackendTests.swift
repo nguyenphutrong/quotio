@@ -243,7 +243,7 @@ final class QuotioCLIBackendTests: XCTestCase {
         let backend = QuotioCLIBackend(
             session: stubSession(),
             customProviders: { [provider] },
-            customProviderDomain: "development"
+            customProviderDomain: "com.example.quotio"
         )
         await backend.connect(QuotioCLIConnection(
             baseURL: URL(string: "http://127.0.0.1:43210")!,
@@ -260,7 +260,7 @@ final class QuotioCLIBackendTests: XCTestCase {
         let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let source = try XCTUnwrap(body["source"] as? [String: Any])
         XCTAssertEqual(body["kind"] as? String, "quotio_custom_provider")
-        XCTAssertEqual(source["domain"] as? String, "development")
+        XCTAssertEqual(source["domain"] as? String, "com.example.quotio")
         XCTAssertEqual(source["record_id"] as? String, providerID.uuidString)
     }
 
@@ -271,13 +271,13 @@ final class QuotioCLIBackendTests: XCTestCase {
             type: .glmCompatibility,
             apiKeys: [CustomAPIKeyEntry(apiKey: "secret")]
         )
-        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"custom-1","provider":"zai","label":"zai native account","origin":"borrowed_native","enabled":true,"source_kind":"quotio_custom_provider","source_id":"d5574884f9212e73f35e79c3eb293f4c2a61ec284f7752e39cb41af5694e82d7"}]}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"custom-1","provider":"zai","label":"zai native account","origin":"borrowed_native","enabled":true,"source_kind":"quotio_custom_provider","source_id":"8c5323370293dc7d3ad3b61ed18ce2bb8191ebc3e743d93fdc5e5b6d8504c20e"}]}"#)
         QuotioCLIURLProtocol.enqueue(#"{"id":"refresh-operation","status":"completed","error":null}"#)
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
         let backend = QuotioCLIBackend(
             session: stubSession(),
             customProviders: { [provider] },
-            customProviderDomain: "development"
+            customProviderDomain: "com.example.quotio"
         )
         await backend.connect(QuotioCLIConnection(
             baseURL: URL(string: "http://127.0.0.1:43210")!,

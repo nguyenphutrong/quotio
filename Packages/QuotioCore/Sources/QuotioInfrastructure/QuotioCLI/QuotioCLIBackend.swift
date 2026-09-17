@@ -518,7 +518,11 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     }
 
     private static func customProviderSourceID(domain: String, recordID: UUID) -> String {
-        let identifier = domain == "production" ? "app.bytrong.quotio" : "app.bytrong.quotio.dev"
+        let identifier = switch domain {
+        case "production": "app.bytrong.quotio"
+        case "development": "app.bytrong.quotio.dev"
+        default: domain
+        }
         let parts = ["quotio_custom_provider", identifier, recordID.uuidString.lowercased()]
         var data = Data()
         for part in parts {

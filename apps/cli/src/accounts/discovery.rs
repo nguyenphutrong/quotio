@@ -50,7 +50,9 @@ impl Reference {
                 let selected = source.clone();
                 let resolved = tokio::time::timeout(
                     Duration::from_secs(10),
-                    tokio::task::spawn_blocking(move || selected.parse(&read(selected.domain)?)),
+                    tokio::task::spawn_blocking(move || {
+                        selected.parse(&read(selected.domain.clone())?)
+                    }),
                 )
                 .await
                 .map_err(|_| AccountError::Busy)?
@@ -200,7 +202,7 @@ impl Registry {
             let domain = domain.ok_or(AccountError::Input)?;
             return custom_references(
                 provider,
-                domain,
+                domain.clone(),
                 &(self.preferences)(domain)?,
                 self.preferences,
             );
@@ -291,7 +293,7 @@ fn custom_references(
             continue;
         };
         let source = CustomProviderReference {
-            domain,
+            domain: domain.clone(),
             record_id: id.into(),
         };
         if source.identity().is_ok() {
@@ -488,7 +490,7 @@ mod tests {
         };
         assert_eq!(
             source
-                .parse(&rotated(source.domain).unwrap())
+                .parse(&rotated(source.domain.clone()).unwrap())
                 .unwrap()
                 .provider,
             Provider::Zai

@@ -744,17 +744,40 @@ impl Credential {
     }
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum QuotioDomain {
     Production,
     Development,
+    #[serde(untagged)]
+    BundleIdentifier(#[serde(deserialize_with = "deserialize_bundle_identifier")] String),
+}
+fn deserialize_bundle_identifier<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<String, D::Error> {
+    let value = String::deserialize(deserializer)?;
+    let domain = QuotioDomain::BundleIdentifier(value.clone());
+    domain
+        .identifier()
+        .map_err(|_| serde::de::Error::custom("invalid bundle identifier"))?;
+    Ok(value)
 }
 impl QuotioDomain {
-    fn identifier(self) -> &'static str {
+    fn identifier(&self) -> Result<&str, AccountError> {
         match self {
-            Self::Production => "app.bytrong.quotio",
-            Self::Development => "app.bytrong.quotio.dev",
+            Self::Production => Ok("app.bytrong.quotio"),
+            Self::Development => Ok("app.bytrong.quotio.dev"),
+            Self::BundleIdentifier(value)
+                if value.len() <= 255
+                    && value.contains('.')
+                    && value.split('.').all(|part| {
+                        !part.is_empty()
+                            && part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                    }) =>
+            {
+                Ok(value)
+            }
+            Self::BundleIdentifier(_) => Err(AccountError::Input),
         }
     }
 }
@@ -806,7 +829,7 @@ impl CustomProviderReference {
         }
         Ok(crate::cache::fingerprint(&[
             "quotio_custom_provider",
-            self.domain.identifier(),
+            self.domain.identifier()?,
             &id.to_ascii_lowercase(),
         ]))
     }
@@ -891,7 +914,9 @@ impl CustomProviderReference {
         let source = self.clone();
         tokio::time::timeout(
             std::time::Duration::from_secs(10),
-            tokio::task::spawn_blocking(move || source.parse(&read_preferences(source.domain)?)),
+            tokio::task::spawn_blocking(move || {
+                source.parse(&read_preferences(source.domain.clone())?)
+            }),
         )
         .await
         .map_err(|_| AccountError::Busy)?
@@ -900,7 +925,7 @@ impl CustomProviderReference {
 }
 #[cfg(target_os = "macos")]
 pub(super) fn read_preferences(domain: QuotioDomain) -> Result<Vec<u8>, AccountError> {
-    read_preferences_domain(domain.identifier())
+    read_preferences_domain(domain.identifier()?)
 }
 #[cfg(target_os = "macos")]
 fn read_preferences_domain(identifier: &str) -> Result<Vec<u8>, AccountError> {
@@ -1420,6 +1445,25 @@ mod tests {
         }
     }
     #[test]
+    fn custom_bundle_domains_round_trip_and_preserve_alias_identity() {
+        let mut source = source();
+        let production = source.identity().unwrap();
+        source.domain = serde_json::from_str(r#""app.bytrong.quotio""#).unwrap();
+        assert_eq!(source.identity().unwrap(), production);
+        source.domain = serde_json::from_str(r#""com.example.quotio""#).unwrap();
+        assert_eq!(source.domain.identifier().unwrap(), "com.example.quotio");
+        assert_eq!(
+            serde_json::to_string(&source.domain).unwrap(),
+            r#""com.example.quotio""#
+        );
+        assert_ne!(source.identity().unwrap(), production);
+        for invalid in ["", "../quotio", "a..b", "a/b.c", "a. b"] {
+            source.domain = QuotioDomain::BundleIdentifier(invalid.into());
+            assert!(matches!(source.identity(), Err(AccountError::Input)));
+        }
+    }
+
+    #[test]
     fn reference_preserves_group_identity_and_selects_first_key() {
         let source = source();
         let bytes = serde_json::to_vec(&records()).unwrap();
@@ -1518,7 +1562,7 @@ mod tests {
             assert!(serde_json::from_value::<crate::accounts::api::SourceInput>(value).is_err());
         }
         let mut value = base;
-        value["source"]["domain"] = "com.other.application".into();
+        value["source"]["domain"] = "../other.application".into();
         assert!(serde_json::from_value::<crate::accounts::api::SourceInput>(value).is_err());
     }
     #[cfg(target_os = "macos")]
@@ -1568,7 +1612,7 @@ mod tests {
     fn native_preferences_observe_changes_from_another_process() {
         let domain = format!(
             "app.quotio.cli.fixture.{}",
-            super::super::random_string().unwrap()
+            super::super::random_string().unwrap().replace('_', "-")
         );
         let write = |mode| {
             let result = std::process::Command::new(std::env::current_exe().unwrap())
@@ -1583,9 +1627,9 @@ mod tests {
             assert!(result.status.success());
         };
         write("first-fixture");
-        let first = read_preferences_domain(&domain);
+        let first = read_preferences(QuotioDomain::BundleIdentifier(domain.clone()));
         write("second-fixture");
-        let second = read_preferences_domain(&domain);
+        let second = read_preferences(QuotioDomain::BundleIdentifier(domain.clone()));
         write("clear");
         assert_eq!(first.unwrap(), b"first-fixture");
         assert_eq!(second.unwrap(), b"second-fixture");
