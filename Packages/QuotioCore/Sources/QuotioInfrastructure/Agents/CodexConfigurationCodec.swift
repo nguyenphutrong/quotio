@@ -14,22 +14,42 @@ public struct CodexConfigurationSnapshot: Sendable {
 }
 
 public enum CodexConfigurationCodec {
+    /// The block Quotio owns in `~/.codex/config.toml`.
+    ///
+    /// Two of these keys exist because Codex will not otherwise reach the proxy at all:
+    ///
+    /// - `experimental_bearer_token` carries the proxy's API key. Codex reads the key in
+    ///   `auth.json` only while it is in api-key mode; a user signed in with ChatGPT keeps
+    ///   that auth for itself and sends a custom provider no credential, so the proxy
+    ///   answers `401 {"error":"Missing API key"}` on the first turn.
+    /// - `model_catalog_json` points at the metadata Quotio writes for the models the proxy
+    ///   serves. Without it Codex falls back to a template made for OpenAI's own models and
+    ///   declares two tools Muse Code refuses — see `CodexModelCatalog`.
     public static func managedTOML(
         model: String,
         proxyURL: String,
-        reasoningEffort: CodexReasoningEffort = .defaultEffort
+        reasoningEffort: CodexReasoningEffort = .defaultEffort,
+        apiKey: String = "",
+        catalogPath: String? = nil
     ) -> String {
-        """
-        # CLIProxyAPI Configuration for Codex CLI
-        model_provider = "cliproxyapi"
-        model = "\(escape(model))"
-        model_reasoning_effort = "\(escape(reasoningEffort.rawValue))"
-
-        [model_providers.cliproxyapi]
-        name = "cliproxyapi"
-        base_url = "\(escape(proxyURL))"
-        wire_api = "responses"
-        """
+        var lines = ["# CLIProxyAPI Configuration for Codex CLI"]
+        if let catalogPath, !catalogPath.isEmpty {
+            lines.append("model_catalog_json = \"\(escape(catalogPath))\"")
+        }
+        lines.append(contentsOf: [
+            "model_provider = \"cliproxyapi\"",
+            "model = \"\(escape(model))\"",
+            "model_reasoning_effort = \"\(escape(reasoningEffort.rawValue))\"",
+            "",
+            "[model_providers.cliproxyapi]",
+            "name = \"cliproxyapi\"",
+            "base_url = \"\(escape(proxyURL))\"",
+            "wire_api = \"responses\"",
+        ])
+        if !apiKey.isEmpty {
+            lines.append("experimental_bearer_token = \"\(escape(apiKey))\"")
+        }
+        return lines.joined(separator: "\n")
     }
 
     public static func snapshot(from content: String) -> CodexConfigurationSnapshot {
@@ -143,6 +163,11 @@ public enum CodexConfigurationCodec {
         var key = line[..<equal].trimmingCharacters(in: .whitespaces)
         if key.count >= 2, let first = key.first, key.last == first, first == "\"" || first == "'" {
             key = String(key.dropFirst().dropLast())
+        }
+        if key == "model_catalog_json" {
+            // Someone else's catalog — opencodex writes one too — is theirs to keep; only the
+            // file Quotio wrote goes away with Quotio's block.
+            return stringValue(from: line, key: key)?.hasSuffix(CodexModelCatalog.fileName) == true
         }
         return ["model_provider", "model", "model_reasoning_effort"].contains(key)
     }

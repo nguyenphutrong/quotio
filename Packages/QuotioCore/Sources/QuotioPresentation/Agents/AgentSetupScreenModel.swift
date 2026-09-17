@@ -21,6 +21,15 @@ public extension AvailableModel {
     }
 }
 
+/// Why an agent's model list is missing, so the sheet can say so instead of showing a
+/// list the proxy never confirmed.
+public enum ModelListFailure: Equatable, Sendable {
+    /// The proxy could not be reached or refused the request.
+    case unreachable(String)
+    /// The proxy answered, and serves no models.
+    case emptyRoster
+}
+
 @MainActor
 @Observable
 public final class AgentSetupScreenModel {
@@ -44,7 +53,10 @@ public final class AgentSetupScreenModel {
     public var selectedRawConfigIndex = 0
     public private(set) var savedConfig: SavedAgentConfiguration?
     public private(set) var availableBackups: [AgentBackupFile] = []
-    public var selectedSetupMode: ConfigurationSetup = .proxy
+    public private(set) var selectedSetupMode: ConfigurationSetup = .proxy
+    /// Why the proxy's roster could not be read, when it could not. Nil means the list
+    /// on screen is the one the proxy actually serves.
+    public private(set) var modelListFailure: ModelListFailure?
 
     @ObservationIgnored private let service: AgentConfigurationService
     @ObservationIgnored private let endpointContext: @MainActor () -> AgentEndpointContext?
@@ -105,14 +117,32 @@ public final class AgentSetupScreenModel {
         }
     }
 
-    public func switchToProxySetup() {
-        selectedSetupMode = .proxy
-        currentConfiguration?.setupMode = .proxy
+    /// The models the configuration already holds, slot by slot. They are on disk and stay
+    /// true whether or not the proxy is up, so the sheet can keep showing them when the
+    /// roster cannot be read. Codex keeps its single model in the sonnet slot, so that is
+    /// the only slot that means anything for it.
+    public var savedModelSlots: [(slot: ModelSlot, model: String)] {
+        let slots: [ModelSlot] = selectedAgent == .codexCLI ? [.sonnet] : ModelSlot.allCases
+        return slots.compactMap { slot in
+            guard let model = currentConfiguration?.modelSlots[slot], !model.isEmpty else {
+                return nil
+            }
+            return (slot, model)
+        }
     }
 
-    public func switchToDefaultSetup() {
-        selectedSetupMode = .defaultSetup
-        currentConfiguration?.setupMode = .defaultSetup
+    /// The setup mode decides where a truthful model list comes from: the direct setup
+    /// has no proxy to ask and falls back to the built-in list, while the proxy setup may
+    /// only offer what the proxy actually serves. Carrying the previous list across the
+    /// switch would present built-in models as if the proxy had confirmed them, so the
+    /// list is dropped and read again for the mode now selected.
+    public func selectSetupMode(_ mode: ConfigurationSetup) async {
+        guard selectedSetupMode != mode else { return }
+        selectedSetupMode = mode
+        currentConfiguration?.setupMode = mode
+        availableModels = []
+        modelListFailure = nil
+        await loadModels(forceRefresh: true)
     }
 
     public func restoreFromBackup(_ backup: AgentBackupFile) async {
@@ -235,6 +265,7 @@ public final class AgentSetupScreenModel {
 
     @discardableResult
     public func loadModels(forceRefresh _: Bool = false) async -> Bool {
+        syncEndpointFromProxy()
         guard let config = modelRequestConfiguration() else { return false }
         isFetchingModels = true
         defer { isFetchingModels = false }
@@ -243,14 +274,39 @@ public final class AgentSetupScreenModel {
             let fetched = try await service.fetchAvailableModels(configuration: config)
             let processed = processModels(fetched)
             availableModels = processed
+            modelListFailure = processed.isEmpty ? .emptyRoster : nil
             log("Loaded \(processed.count) models")
-            return true
+            return !processed.isEmpty
         } catch {
-            log("Failed to load models: \(agentConfigurationErrorMessage(error))")
-            if availableModels.isEmpty {
+            let reason = agentConfigurationErrorMessage(error)
+            log("Failed to load models: \(reason)")
+            // Routing through the proxy means the proxy's roster is the only true one.
+            // Substituting the built-in list here would offer models it does not serve
+            // and let the user write one into the agent's config, where it fails at the
+            // first request with nothing pointing back at this moment.
+            if selectedSetupMode == .proxy {
+                availableModels = []
+                modelListFailure = .unreachable(reason)
+            } else if availableModels.isEmpty {
                 availableModels = AvailableModel.allModels
+                modelListFailure = nil
             }
             return false
+        }
+    }
+
+    /// Starting the proxy returns before it is listening, so a single read right after it
+    /// would fail on a proxy that is still coming up and leave the sheet saying the proxy
+    /// is not running while it plainly is. This keeps asking for a few seconds, which is
+    /// what a person would do with the button.
+    public func loadModelsAfterProxyStart(
+        attempts: Int = 10,
+        delay: Duration = .milliseconds(500)
+    ) async {
+        for attempt in 1...max(attempts, 1) {
+            if await loadModels(forceRefresh: true) { return }
+            guard attempt < attempts else { return }
+            try? await Task.sleep(for: delay)
         }
     }
 
@@ -296,6 +352,17 @@ public final class AgentSetupScreenModel {
         )
     }
 
+    /// Reads the proxy's endpoint again instead of reusing the one captured when the sheet
+    /// opened. The proxy hands out its API key only once it is up, so for anyone who starts
+    /// it from inside the sheet that captured key is stale, and a stale key is refused at
+    /// the first request. The configuration the user is about to save follows along, so
+    /// what gets written into the agent is what just answered.
+    private func syncEndpointFromProxy() {
+        guard let context = endpointContext(), currentConfiguration != nil else { return }
+        currentConfiguration?.proxyURL = context.baseURL + "/v1"
+        currentConfiguration?.apiKey = context.apiKey
+    }
+
     private func modelRequestConfiguration() -> AgentConfiguration? {
         if let currentConfiguration { return currentConfiguration }
         guard let context = endpointContext() else { return nil }
@@ -307,7 +374,11 @@ public final class AgentSetupScreenModel {
     }
 
     private func processModels(_ fetchedModels: [AvailableModel]) -> [AvailableModel] {
-        let models = fetchedModels.isEmpty ? AvailableModel.allModels : fetchedModels
+        // An empty answer from the proxy is an answer: it serves nothing right now. Only
+        // the direct setup, which has no proxy to ask, falls back to the built-in list.
+        let models = fetchedModels.isEmpty && selectedSetupMode != .proxy
+            ? AvailableModel.allModels
+            : fetchedModels
         return models.sorted { $0.displayName < $1.displayName }
     }
 

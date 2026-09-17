@@ -14,6 +14,7 @@ struct AgentConfigSheet: View {
     
     @Environment(\.dismiss) private var dismiss
     @Environment(PasteboardScreenModel.self) private var pasteboard
+    @Environment(ProxyManagementScreenModel.self) private var proxyManagement
     @State private var previewConfig: AgentConfigResult?
     @State private var showRestoreConfirm = false
     @State private var backupToRestore: AgentBackupFile?
@@ -134,6 +135,7 @@ struct AgentConfigSheet: View {
                 }
 
                 if agent == .codexCLI {
+                    codexModelSection
                     reasoningEffortSection
                 }
 
@@ -179,8 +181,7 @@ struct AgentConfigSheet: View {
                         setup: setup,
                         isSelected: viewModel.selectedSetupMode == setup,
                         action: {
-                            viewModel.selectedSetupMode = setup
-                            viewModel.currentConfiguration?.setupMode = setup
+                            Task { await viewModel.selectSetupMode(setup) }
                         }
                     )
                 }
@@ -336,6 +337,73 @@ struct AgentConfigSheet: View {
         return String(key.prefix(4)) + "••••" + String(key.suffix(4))
     }
     
+    /// Codex writes a single `model` key, so it gets one picker rather than the per-tier
+    /// slots Claude Code needs. It decides what Quotio writes into config.toml: without it
+    /// the model stays whatever was there, which the proxy may not serve at all. It is the
+    /// starting point, not the last word — Codex lists the proxy's models in its own picker
+    /// (that is what `CodexModelCatalog` is for) and writes the choice back to the same file.
+    private var codexModelSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("agents.codexModel".localized())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Spacer()
+
+                Button {
+                    Task { await viewModel.loadModels(forceRefresh: true) }
+                } label: {
+                    if viewModel.isFetchingModels {
+                        SmallProgressView()
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.borderless)
+                .help("Refresh models from proxy".localized())
+                .disabled(viewModel.isFetchingModels)
+            }
+
+            if let failure = viewModel.modelListFailure {
+                ModelListUnavailableView(
+                    failure: failure,
+                    savedModels: viewModel.savedModelSlots.map {
+                        ("agents.codexModel.label".localized(), $0.model)
+                    },
+                    onStartProxy: {
+                        await proxyManagement.startProxy()
+                        await viewModel.loadModelsAfterProxyStart()
+                    },
+                    onRetry: { await viewModel.loadModels(forceRefresh: true) }
+                )
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ModelPickerRow(
+                        label: "agents.codexModel.label".localized(),
+                        selectedModel: viewModel.currentConfiguration?.modelSlots[.sonnet] ?? "",
+                        availableModels: viewModel.availableModels,
+                        preferredFallback: AgentConfiguration.defaultCodexModel,
+                        preferredProvider: "openai",
+                        onModelChange: { model in
+                            // The Codex adapter stores its single model in the sonnet slot.
+                            viewModel.updateModelSlot(.sonnet, model: model)
+                        }
+                    )
+
+                    Text("agents.codexModel.hint".localized())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(14)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
     private var modelSlotsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -360,16 +428,28 @@ struct AgentConfigSheet: View {
                 .disabled(viewModel.isFetchingModels)
             }
             
-            VStack(spacing: 8) {
-                ForEach(ModelSlot.allCases) { slot in
-                    ModelSlotRow(
-                        slot: slot,
-                        selectedModel: viewModel.currentConfiguration?.modelSlots[slot] ?? "",
-                        availableModels: viewModel.availableModels,
-                        onModelChange: { model in
-                            viewModel.updateModelSlot(slot, model: model)
-                        }
-                    )
+            if let failure = viewModel.modelListFailure {
+                ModelListUnavailableView(
+                    failure: failure,
+                    savedModels: viewModel.savedModelSlots.map { ($0.slot.displayName, $0.model) },
+                    onStartProxy: {
+                        await proxyManagement.startProxy()
+                        await viewModel.loadModelsAfterProxyStart()
+                    },
+                    onRetry: { await viewModel.loadModels(forceRefresh: true) }
+                )
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(ModelSlot.allCases) { slot in
+                        ModelSlotRow(
+                            slot: slot,
+                            selectedModel: viewModel.currentConfiguration?.modelSlots[slot] ?? "",
+                            availableModels: viewModel.availableModels,
+                            onModelChange: { model in
+                                viewModel.updateModelSlot(slot, model: model)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -894,35 +974,61 @@ private struct ModelSlotRow: View {
     let selectedModel: String
     let availableModels: [AvailableModel]
     let onModelChange: (String) -> Void
-    
-    private var effectiveSelection: String {
-        // Check if selected model exists in available list
-        if !selectedModel.isEmpty && availableModels.contains(where: { $0.name == selectedModel }) {
-            return selectedModel
-        }
-        // Check if default model is available
-        if let defaultModel = AvailableModel.defaultModels[slot],
-           availableModels.contains(where: { $0.name == defaultModel.name }) {
-            return defaultModel.name
-        }
-        // Final fallback to first available model
-        return availableModels.first?.name ?? ""
+
+    var body: some View {
+        ModelPickerRow(
+            label: slot.displayName,
+            selectedModel: selectedModel,
+            availableModels: availableModels,
+            preferredFallback: AvailableModel.defaultModels[slot]?.name,
+            preferredProvider: nil,
+            onModelChange: onModelChange
+        )
     }
-    
+}
+
+/// One labelled model picker, grouped by provider.
+///
+/// Shared by Claude Code's per-tier slots and Codex's single model so both resolve a
+/// selection the same way: keep what is configured when the proxy still serves it, fall
+/// back to the caller's preference when it does not, and to the first model on offer
+/// otherwise. A configured model the proxy no longer serves would silently fail at the
+/// agent, so it is corrected here — and still only written when the user applies.
+private struct ModelPickerRow: View {
+    let label: String
+    let selectedModel: String
+    let availableModels: [AvailableModel]
+    let preferredFallback: String?
+    /// Owner to prefer when neither the configured model nor the fallback is served.
+    /// Codex is OpenAI's agent, so an OpenAI-owned model is the least surprising
+    /// substitute; without it the first model in the list wins, which is whatever the
+    /// proxy happens to sort first — a Claude id offered to Codex.
+    let preferredProvider: String?
+    let onModelChange: (String) -> Void
+
+    private var effectiveSelection: String {
+        ProxyModelSelection.shown(
+            for: selectedModel,
+            from: availableModels,
+            preferredFallback: preferredFallback,
+            preferredProvider: preferredProvider
+        )
+    }
+
     var body: some View {
         HStack {
-            Text(slot.displayName)
+            Text(label)
                 .font(.caption)
                 .fontWeight(.medium)
-            
+
             Spacer(minLength: 12)
-            
+
             Picker("", selection: Binding(
                 get: { effectiveSelection },
                 set: { onModelChange($0) }
             )) {
                 let providers = Set(availableModels.map { $0.provider }).sorted()
-                
+
                 ForEach(providers, id: \.self) { provider in
                     Section(header: Text(provider.capitalized)) {
                         ForEach(availableModels.filter { $0.provider == provider }) { model in
@@ -935,12 +1041,71 @@ private struct ModelSlotRow: View {
             .pickerStyle(.menu)
             .frame(maxWidth: 280)
         }
-        .onAppear {
-            // Trigger fallback update if model is empty or not in available list
-            if selectedModel.isEmpty || !availableModels.contains(where: { $0.name == selectedModel }) {
-                onModelChange(effectiveSelection)
-            }
+        .onAppear { adoptSelectionIfNeeded() }
+        // The roster usually arrives after this row is on screen. Without this the row
+        // would show the substitute it computed while the list was empty and leave the
+        // slot holding a model the proxy does not serve.
+        .onChange(of: availableModels.map(\.name)) { _, _ in adoptSelectionIfNeeded() }
+    }
+
+    private func adoptSelectionIfNeeded() {
+        if let adopted = ProxyModelSelection.adoption(
+            for: selectedModel,
+            from: availableModels,
+            preferredFallback: preferredFallback,
+            preferredProvider: preferredProvider
+        ) {
+            onModelChange(adopted)
         }
+    }
+}
+
+/// Which model a picker shows, and which one it writes back.
+///
+/// The two differ while the roster is still loading: the row is on screen before the
+/// proxy answers, and with nothing to judge the saved model against there is no
+/// substitute worth adopting. Writing one then would clear the model the configuration
+/// already holds, leaving a setup that cannot be saved while the picker still displays
+/// a model — so the decision lives here, where it can be tested.
+enum ProxyModelSelection {
+    /// The model to display: the saved one when the proxy serves it, else the closest
+    /// substitute among the models it does serve.
+    static func shown(
+        for selected: String,
+        from available: [AvailableModel],
+        preferredFallback: String?,
+        preferredProvider: String?
+    ) -> String {
+        if !selected.isEmpty && available.contains(where: { $0.name == selected }) {
+            return selected
+        }
+        if let preferredFallback, available.contains(where: { $0.name == preferredFallback }) {
+            return preferredFallback
+        }
+        if let preferredProvider,
+           let sameFamily = available.first(where: { $0.provider == preferredProvider }) {
+            return sameFamily.name
+        }
+        return available.first?.name ?? ""
+    }
+
+    /// The model to write into the configuration, or nil to leave it as it is.
+    static func adoption(
+        for selected: String,
+        from available: [AvailableModel],
+        preferredFallback: String?,
+        preferredProvider: String?
+    ) -> String? {
+        guard !available.isEmpty else { return nil }
+        guard selected.isEmpty || !available.contains(where: { $0.name == selected }) else {
+            return nil
+        }
+        return shown(
+            for: selected,
+            from: available,
+            preferredFallback: preferredFallback,
+            preferredProvider: preferredProvider
+        )
     }
 }
 
@@ -1044,6 +1209,78 @@ private struct RawConfigView: View {
             .padding(10)
             .background(Color.black.opacity(0.03))
             .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+}
+
+
+/// Shown instead of a model picker when the proxy's roster could not be read.
+///
+/// It states why, keeps the model already saved in the agent's config visible — that
+/// value is on disk and true whether or not the proxy is up — and offers the action that
+/// actually resolves it. What it deliberately does not do is offer a list of models
+/// nobody confirmed are served.
+private struct ModelListUnavailableView: View {
+    let failure: ModelListFailure
+    let savedModels: [(String, String)]
+    let onStartProxy: () async -> Void
+    let onRetry: () async -> Void
+
+    @State private var isWorking = false
+
+    private var message: String {
+        switch failure {
+        case .unreachable: "agents.models.unavailable.proxyStopped".localized()
+        case .emptyRoster: "agents.models.unavailable.emptyRoster".localized()
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(message, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !savedModels.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("agents.models.savedModel".localized())
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    ForEach(savedModels, id: \.1) { label, model in
+                        HStack {
+                            Text(label)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer(minLength: 12)
+                            Text(model)
+                                .font(.caption.monospaced())
+                        }
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                if case .unreachable = failure {
+                    Button("agents.models.startProxy".localized()) {
+                        Task {
+                            isWorking = true
+                            await onStartProxy()
+                            isWorking = false
+                        }
+                    }
+                    .disabled(isWorking)
+                }
+                Button("agents.models.retry".localized()) {
+                    Task {
+                        isWorking = true
+                        await onRetry()
+                        isWorking = false
+                    }
+                }
+                .disabled(isWorking)
+                if isWorking { SmallProgressView() }
+            }
         }
     }
 }

@@ -25,6 +25,7 @@ pub mod devin_desktop;
 pub mod doubao;
 pub mod gateways;
 pub mod infrastructure;
+pub mod muse;
 pub mod oauth_cloud;
 pub mod oauth_editors;
 pub mod oauth_primary;
@@ -36,6 +37,7 @@ pub fn definitions() -> impl Iterator<Item = &'static Definition> {
         balances::DEFINITIONS,
         infrastructure::DEFINITIONS,
         coding::DEFINITIONS,
+        muse::DEFINITIONS,
         gateways::DEFINITIONS,
         tools::DEFINITIONS,
         devin_desktop::DEFINITIONS,
@@ -72,6 +74,7 @@ impl crate::providers::ProviderAdapter for CatalogProvider {
                     oauth_primary::cache_token(self.0, context).await
                 }
                 "cursor" | "grok" => oauth_editors::cache_token(self.0, context).await,
+                "muse" => muse::cache_token(context).await,
                 _ => None,
             }?;
             let mut parts = vec![self.0.to_owned(), token.0];

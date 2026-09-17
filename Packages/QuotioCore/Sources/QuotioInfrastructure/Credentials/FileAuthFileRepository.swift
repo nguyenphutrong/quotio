@@ -183,6 +183,9 @@ public actor FileAuthFileRepository: AuthFileRepository {
             ("iflow-", "iflow"),
             ("kiro-", "kiro"),
             ("vertex-", "vertex"),
+            // CLIProxyAPI files a Meta login under Meta's own name; Quotio calls the
+            // product Muse Code.
+            ("meta-", "muse"),
         ]
         guard let match = prefixes.first(where: { url.lastPathComponent.hasPrefix($0.0) }) else {
             return nil
@@ -374,6 +377,7 @@ public actor FileAuthFileRepository: AuthFileRepository {
             "vertex": "vertex",
             "cursor": "cursor",
             "trae": "trae",
+            "meta": "muse",
         ]
         return canonical[type.lowercased()].map(AccountProviderID.init(rawValue:))
     }

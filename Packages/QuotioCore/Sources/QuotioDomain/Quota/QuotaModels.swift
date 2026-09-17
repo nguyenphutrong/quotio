@@ -19,6 +19,7 @@ public enum QuotaProvider: String, CaseIterable, Codable, Identifiable, Sendable
     case glm
     case warp
     case clinePass = "clinepass"
+    case muse
 
     public var id: String { rawValue }
 

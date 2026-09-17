@@ -243,6 +243,16 @@ pub fn capability(provider: Provider) -> ProviderCapability {
                 origin: "borrowed_native",
                 credential_refresh: false,
             }]
+        } else if provider == Provider::Catalog("muse") {
+            // Meta stores the credential in the macOS login keychain; the Muse Code CLI
+            // pointer next to it carries no secret. There is nothing to refresh: the
+            // account token from the device grant cannot be exchanged.
+            vec![SourceCapability {
+                kind: "muse_native",
+                platforms: vec!["macos"],
+                origin: "borrowed_native",
+                credential_refresh: false,
+            }]
         } else if provider == Provider::Codex {
             vec![SourceCapability {
                 kind: "codex_native",

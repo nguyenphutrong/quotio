@@ -8,11 +8,13 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
     private let fileStore: AgentFileStore
     private let configPath: String
     private let authPath: String
+    private let catalogPath: String
 
     public init(fileStore: AgentFileStore) {
         self.fileStore = fileStore
         self.configPath = fileStore.path("~/.codex/config.toml")
         self.authPath = fileStore.path("~/.codex/auth.json")
+        self.catalogPath = fileStore.path("~/.codex/\(CodexModelCatalog.fileName)")
     }
 
     public func inspect() async -> SavedAgentConfiguration? {
@@ -86,10 +88,19 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
 
     private func result(for request: AgentConfigurationRequest, write: Bool) async throws -> AgentConfigResult {
         let configuration = request.configuration
+        let model = configuration.modelSlots[.sonnet] ?? AgentConfiguration.defaultCodexModel
+        // The roster the proxy answered with, so Codex knows every model it can be switched
+        // to; when it could not be read, the one being configured is still better than none.
+        let catalogModels = request.availableModels.isEmpty
+            ? [model]
+            : request.availableModels.map(\.id)
+        let catalog = try CodexModelCatalog.json(models: catalogModels)
         let managed = CodexConfigurationCodec.managedTOML(
-            model: configuration.modelSlots[.sonnet] ?? "gpt-5-codex",
+            model: model,
             proxyURL: configuration.proxyURL,
-            reasoningEffort: configuration.codexReasoningEffort
+            reasoningEffort: configuration.codexReasoningEffort,
+            apiKey: configuration.apiKey,
+            catalogPath: catalogPath
         )
         let existingConfig = try? await fileStore.string(at: configPath)
         let config = existingConfig.map {
@@ -114,12 +125,23 @@ public struct CodexAgentConfigurationAdapter: AgentConfigurationRepository {
                 targetPath: authPath,
                 instructions: .codexMergeAuthKey
             ),
+            RawConfigOutput(
+                format: .json,
+                content: String(decoding: catalog, as: UTF8.self),
+                filename: CodexModelCatalog.fileName,
+                targetPath: catalogPath,
+                instructions: .codexSaveModelCatalog
+            ),
         ]
         var backupPath: String?
         if write {
             let backups = try await fileStore.apply([
-                AgentFileWrite(path: configPath, data: Data(config.utf8)),
+                // The proxy's API key now lives in this file, so it gets the same
+                // owner-only permissions auth.json has; left alone, an existing config
+                // keeps whatever it had (commonly 0644) and a new one follows the umask.
+                AgentFileWrite(path: configPath, data: Data(config.utf8), permissions: 0o600),
                 AgentFileWrite(path: authPath, data: auth.merged, permissions: 0o600),
+                AgentFileWrite(path: catalogPath, data: catalog),
             ])
             backupPath = backups[configPath]
         }

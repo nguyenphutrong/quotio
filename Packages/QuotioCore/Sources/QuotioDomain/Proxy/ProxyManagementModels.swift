@@ -72,7 +72,12 @@ public struct ManagedAuthFile: Codable, Identifiable, Hashable, Sendable {
     }
 
     public var providerID: QuotaProvider? {
-        provider == "copilot" ? .copilot : QuotaProvider(rawValue: provider)
+        // CLIProxyAPI files Muse Code under Meta's own provider id.
+        switch provider {
+        case "copilot": return .copilot
+        case "meta": return .muse
+        default: return QuotaProvider(rawValue: provider)
+        }
     }
 
     public var quotaLookupKey: String {
@@ -259,6 +264,7 @@ public enum ProxyManagementOAuthProvider: String, Sendable {
     case qwen
     case iflow
     case antigravity
+    case meta
 }
 
 public struct ProxyLatestVersion: Codable, Equatable, Sendable {

@@ -184,6 +184,7 @@ public actor LocalAccountDiscovery: AccountDiscovering {
         accounts.append(contentsOf: await discoverAmpCredential())
         accounts.append(contentsOf: await discoverDevinCredential())
         accounts.append(contentsOf: await discoverGrokCredentials())
+        accounts.append(contentsOf: await discoverMuseCredential())
         if await antigravityDatabase.hasCredential() {
             accounts.append(Self.account(
                 provider: .antigravity,
@@ -248,6 +249,21 @@ public actor LocalAccountDiscovery: AccountDiscovering {
             source: .localIDE,
             credentialReference: databasePath
         )]
+    }
+
+    /// Meta accounts come from the auth file CLIProxyAPI writes after a Meta login,
+    /// the same place every other proxy-backed account lives.
+    private func discoverMuseCredential() async -> [Account] {
+        let directory = homeDirectory.appendingPathComponent(".cli-proxy-api").path
+        return MuseQuotaFetcher.loadCredentials(directory: directory).map { credential in
+            Self.account(
+                provider: .muse,
+                accountKey: credential.accountKey,
+                displayName: credential.displayName,
+                source: .legacyCLIProxy,
+                credentialReference: directory
+            )
+        }
     }
 
     private func discoverGrokCredentials() async -> [Account] {
