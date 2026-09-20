@@ -424,6 +424,11 @@ public final class MenuBarSettingsManager {
     public var stackPairedQuotaMetrics: Bool {
         didSet { persist() }
     }
+
+    /// Show the separate Fable weekly limit in the menu panel.
+    public var showClaudeFableWeekly: Bool {
+        didSet { persist() }
+    }
     
     /// Whether to hide sensitive information (emails, account names)
     public var hideSensitiveInfo: Bool {
@@ -469,6 +474,7 @@ public final class MenuBarSettingsManager {
             quotaDisplayMode: quotaDisplayMode,
             quotaDisplayStyle: quotaDisplayStyle,
             stackPairedQuotaMetrics: stackPairedQuotaMetrics,
+            showClaudeFableWeekly: showClaudeFableWeekly,
             hideSensitiveInfo: hideSensitiveInfo,
             totalUsageMode: totalUsageMode,
             modelAggregationMode: modelAggregationMode,
@@ -488,6 +494,7 @@ public final class MenuBarSettingsManager {
         self.quotaDisplayMode = preferences.quotaDisplayMode
         self.quotaDisplayStyle = preferences.quotaDisplayStyle
         self.stackPairedQuotaMetrics = preferences.stackPairedQuotaMetrics
+        self.showClaudeFableWeekly = preferences.showClaudeFableWeekly
         self.hideSensitiveInfo = preferences.hideSensitiveInfo
         self.totalUsageMode = preferences.totalUsageMode
         self.modelAggregationMode = preferences.modelAggregationMode

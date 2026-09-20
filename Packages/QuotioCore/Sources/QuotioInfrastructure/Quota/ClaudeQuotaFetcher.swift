@@ -415,6 +415,23 @@ public actor ClaudeQuotaFetcher: QuotaFetching {
     )
   }
 
+  /// The weekly limit scoped to the Fable model, which Claude reports only inside
+  /// `limits` and never as a top-level `seven_day_*` key.
+  public nonisolated static func parseFableWeekly(from json: [String: Any]) -> QuotaMetric? {
+    guard let limits = json["limits"] as? [[String: Any]],
+      let limit = limits.first(where: { limit in
+        let scope = limit["scope"] as? [String: Any]
+        let model = scope?["model"] as? [String: Any]
+        let name = model?["display_name"] as? String
+        return limit["kind"] as? String == "weekly_scoped" && name?.lowercased() == "fable"
+      }),
+      let used = (limit["percent"] as? NSNumber)?.doubleValue, used.isFinite
+    else { return nil }
+    return QuotaMetric(
+      name: "seven-day-fable", percentage: max(0, min(100, 100 - used)),
+      resetTime: limit["resets_at"] as? String ?? "")
+  }
+
   public nonisolated static func mapUsage(_ data: Data, now: Date = Date()) -> ProviderQuota? {
     guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
       json["type"] as? String != "error"
@@ -432,6 +449,10 @@ public actor ClaudeQuotaFetcher: QuotaFetching {
       return QuotaMetric(
         name: name, percentage: max(0, min(100, 100 - used)),
         resetTime: value["resets_at"] as? String ?? "")
+    }
+    if let fable = parseFableWeekly(from: json) {
+      let afterWeekly = metrics.firstIndex { $0.name == "seven-day-weekly" }.map { $0 + 1 }
+      metrics.insert(fable, at: afterWeekly ?? metrics.count)
     }
     if let extra = json["extra_usage"] as? [String: Any], extra["is_enabled"] as? Bool == true,
       let usedPercent = (extra["utilization"] as? NSNumber)?.doubleValue
