@@ -24,6 +24,7 @@ struct StatusBarMenuDisplaySettings: Equatable, Sendable {
     let quotaDisplayStyle: QuotaDisplayStyle
     let hideSensitiveInfo: Bool
     let modelAggregationMode: ModelAggregationMode
+    let showClaudeFableWeekly: Bool
 
     func aggregateModelPercentages(_ percentages: [Double]) -> Double {
         let validPercentages = percentages.filter { $0 >= 0 }
@@ -118,7 +119,8 @@ public enum StatusBarMenuSnapshotMapper {
                 quotaDisplayMode: menuBarPreferences.quotaDisplayMode,
                 quotaDisplayStyle: menuBarPreferences.quotaDisplayStyle,
                 hideSensitiveInfo: menuBarPreferences.hideSensitiveInfo,
-                modelAggregationMode: menuBarPreferences.modelAggregationMode
+                modelAggregationMode: menuBarPreferences.modelAggregationMode,
+                showClaudeFableWeekly: menuBarPreferences.showClaudeFableWeekly
             ),
             appearanceMode: appearanceMode,
             language: language

@@ -182,7 +182,12 @@ private struct MenuNativeTooltipView: NSViewRepresentable {
 }
 
 extension View {
+    /// An empty string means no tooltip, so no tracking view is installed at all.
     func menuNativeTooltip(_ text: String) -> some View {
-        overlay(MenuNativeTooltipView(text: text))
+        overlay {
+            if !text.isEmpty {
+                MenuNativeTooltipView(text: text)
+            }
+        }
     }
 }
