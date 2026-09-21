@@ -86,6 +86,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         let apiKey: String
     }
     private struct EnabledBody: Encodable { let enabled: Bool }
+    private struct LabelBody: Encodable { let label: String }
     private struct CustomProviderSourceBody: Encodable {
         struct Source: Encodable {
             let domain: String
@@ -496,9 +497,14 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             try await mutate(client: client, path: "v1/accounts/\(account.id)", method: "DELETE", body: nil)
             existing.removeAll { $0.id == account.id }
         }
-        for (provider, sourceID) in desired where !existing.contains(where: {
-            $0.sourceId == sourceID
-        }) {
+        for (provider, sourceID) in desired {
+            if let account = existing.first(where: { $0.sourceId == sourceID }) {
+                if account.label != provider.name {
+                    let body = try JSONEncoder.quotioCLI.encode(LabelBody(label: provider.name))
+                    try await mutate(client: client, path: "v1/accounts/\(account.id)", method: "PATCH", body: body)
+                }
+                continue
+            }
             let body = try JSONEncoder.quotioCLI.encode(CustomProviderSourceBody(
                 source: .init(domain: customProviderDomain, recordId: provider.id.uuidString)
             ))
