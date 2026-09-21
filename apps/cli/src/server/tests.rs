@@ -1194,3 +1194,124 @@ async fn account_retry_survives_loss_of_in_memory_operations() {
     assert_eq!(conflict.1, "idempotency_conflict");
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[tokio::test]
+async fn legacy_migration_preserves_disabled_credentials_and_survives_restart() {
+    let (state, dir, _) = fixture().await;
+    for provider in [
+        "claude",
+        "codex",
+        "copilot",
+        "kiro",
+        "openrouter",
+        "factory",
+        "warp",
+        "amp",
+        "zai",
+        "clinepass",
+        "antigravity",
+    ] {
+        let oauth = matches!(provider, "claude" | "codex" | "kiro" | "antigravity");
+        let extra = match provider {
+            "kiro" => {
+                json!({"authMethod":"IdC", "clientId":"test-client", "clientSecret":"test-client-secret", "region":"us-east-1"})
+            }
+            "antigravity" => {
+                json!({"clientId":"1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com", "clientSecret":"test-client-secret"})
+            }
+            _ => json!({}),
+        };
+        let body = json!({"legacy_id":format!("old-{provider}"), "provider":provider, "label":format!("Legacy {provider}"), "enabled":false,
+            "credential":{"access_token":"synthetic-old-access", "refresh_token":oauth.then_some("synthetic-old-refresh"),
+                "id_token":(provider == "codex").then_some("synthetic-id-token"), "account_id":"old-user", "expires_at":0, "extra":extra}});
+        let key_value = format!("migrate-{provider}");
+        let (_, Json(op)) =
+            management::migrate(State(state.clone()), key(&key_value), ApiJson(body.clone()))
+                .await
+                .unwrap_or_else(|_| panic!("intake {provider}"));
+        let completed = done(&state, &op.id).await;
+        assert_eq!(
+            completed.status, "completed",
+            "{provider}: {:?}",
+            completed.error
+        );
+        let id = completed.result.unwrap()["account_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let vault = state.vault.clone().unwrap();
+        let mut tx = vault.begin().unwrap();
+        let account = tx
+            .document
+            .accounts
+            .iter_mut()
+            .find(|a| a.id == id)
+            .unwrap();
+        assert!(!account.enabled);
+        // Simulate a later refresh/change: replay must not replace current credentials.
+        if let Credential::ClaudeOAuth { access_token, .. } = &mut account.credential {
+            *access_token = "rotated-access".into();
+        }
+        tx.commit().unwrap();
+        *state.operations.lock().await = Operations::default();
+        let (_, Json(retry)) =
+            management::migrate(State(state.clone()), key(&key_value), ApiJson(body))
+                .await
+                .unwrap_or_else(|_| panic!());
+        let repeated = done(&state, &retry.id).await;
+        assert_eq!(repeated.result.unwrap()["account_id"], id);
+        let tx = vault.begin().unwrap();
+        assert_eq!(
+            tx.document
+                .accounts
+                .iter()
+                .filter(|a| a.provider.id() == provider && a.label.starts_with("Legacy"))
+                .count(),
+            1
+        );
+        if provider == "claude" {
+            assert!(
+                matches!(&tx.document.accounts.iter().find(|a| a.id == id).unwrap().credential, Credential::ClaudeOAuth { access_token, .. } if access_token == "rotated-access")
+            );
+        }
+        assert!(
+            !serde_json::to_string(&repeated.error)
+                .unwrap()
+                .contains("synthetic")
+        );
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn legacy_migration_rejects_invalid_and_conflicting_imports() {
+    let (state, dir, _) = fixture().await;
+    for (name, body) in [
+        (
+            "missing-refresh",
+            json!({"legacy_id":"old", "provider":"claude", "label":"Work", "enabled":true,"credential":{"access_token":"synthetic"}}),
+        ),
+        (
+            "duplicate-label",
+            json!({"legacy_id":"old", "provider":"amp", "label":"old label", "enabled":true,"credential":{"access_token":"synthetic"}}),
+        ),
+    ] {
+        let (_, Json(op)) = management::migrate(State(state.clone()), key(name), ApiJson(body))
+            .await
+            .unwrap_or_else(|_| panic!());
+        assert_eq!(done(&state, &op.id).await.status, "failed");
+    }
+    assert_eq!(
+        state
+            .vault
+            .as_ref()
+            .unwrap()
+            .begin()
+            .unwrap()
+            .document
+            .accounts
+            .len(),
+        1
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}

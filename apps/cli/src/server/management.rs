@@ -85,6 +85,7 @@ pub(super) async fn usage(State(state): State<Arc<ApiState>>, Path(id): Path<Str
 }
 enum Mutation {
     Create(api::AccountCreateInput),
+    Migrate(api::migration::Input),
     Reference(api::SourceInput),
     Update(String, api::AccountPatch),
     Remove(String),
@@ -103,6 +104,23 @@ pub(super) async fn create(
         "",
         body,
         Mutation::Create(input),
+    )
+    .await
+}
+pub(super) async fn migrate(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    ApiJson(body): ApiJson<Value>,
+) -> Result<(StatusCode, Json<Operation>), ApiError> {
+    let input = serde_json::from_value(body.clone())
+        .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "invalid_request"))?;
+    mutate(
+        state,
+        headers,
+        "account_migrate",
+        "",
+        body,
+        Mutation::Migrate(input),
     )
     .await
 }
@@ -237,6 +255,18 @@ async fn mutate(
                     return Ok(json!({"account_id":id}));
                 }
                 match mutation {
+                    Mutation::Migrate(input) => {
+                        let (prepared, enabled) = api::migration::prepare(input, &work.context)
+                            .map_err(|e| account_code(&e))?;
+                        let _guard = crate::accounts::service::mutation_guard(&work.commit_guard)
+                            .await
+                            .map_err(|e| account_code(&e))?;
+                        let id = api::migration::save_once(vault, prepared, enabled, intent)
+                            .await
+                            .map_err(|e| account_code(&e))?;
+                        work.invalidate().await;
+                        Ok(json!({"account_id":id}))
+                    }
                     Mutation::Create(input) => {
                         let prepared = match input {
                             api::AccountCreateInput::ApiKey(input) => {

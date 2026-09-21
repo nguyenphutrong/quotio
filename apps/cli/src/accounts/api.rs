@@ -1,4 +1,6 @@
 //! API-neutral account operations. These types deliberately exclude credentials.
+pub mod migration;
+
 use super::{AccountError, Credential, service, vault::Vault};
 use crate::{cli::Provider, providers::ProviderContext};
 use serde::{Deserialize, Serialize};

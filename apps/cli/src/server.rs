@@ -159,6 +159,7 @@ fn router(state: Arc<ApiState>, policy: Arc<security::Policy>) -> Router {
                 .patch(management::patch)
                 .delete(management::remove),
         )
+        .route("/v1/accounts/migrate", post(management::migrate))
         .route("/v1/account-sources", post(management::reference))
         .route("/v1/account-sources/discover", post(management::discover))
         .route("/v1/accounts/{id}/usage", get(management::usage))

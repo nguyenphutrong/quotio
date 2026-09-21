@@ -366,6 +366,161 @@
         ]
       }
     },
+    "/v1/accounts/migrate": {
+      "post": {
+        "summary": "Import a legacy Quotio monitor account without refreshing its credentials",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "500": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "Internal error"
+          },
+          "408": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "Request body timeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "JSON body exceeds 64 KiB"
+          },
+          "415": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "JSON content type required"
+          },
+          "422": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "Invalid JSON request"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "legacy_id",
+                  "provider",
+                  "label",
+                  "enabled",
+                  "credential"
+                ],
+                "properties": {
+                  "legacy_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "provider": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "credential": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "access_token"
+                    ],
+                    "properties": {
+                      "access_token": {
+                        "type": "string",
+                        "writeOnly": true
+                      },
+                      "refresh_token": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "writeOnly": true
+                      },
+                      "id_token": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "writeOnly": true
+                      },
+                      "account_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "expires_at": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 0
+                      },
+                      "extra": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "writeOnly": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Management only. Use a stable Idempotency-Key per legacy account. Commits the credential and enabled state atomically; retries never replace a rotated credential. Source data must be retained until completion."
+      }
+    },
     "/v1/accounts": {
       "get": {
         "summary": "List managed accounts",
