@@ -182,7 +182,18 @@ fn inspect(path: PathBuf) -> Result<Option<BorrowedProxyProvider>, AccountError>
         .and_then(|value| value.to_str())
         .ok_or(AccountError::Input)?;
     let id = crate::cache::fingerprint(&["cli_proxy_auth_file", provider.id(), filename]);
-    let label = label(&value).unwrap_or_else(|| format!("{} {}", provider.id(), &id[..8]));
+    let label = label(&value).unwrap_or_else(|| {
+        let key = filename.strip_suffix(".json").unwrap_or(filename);
+        let prefix = if provider == Provider::Codex {
+            "codex-"
+        } else {
+            "github-copilot-"
+        };
+        key.strip_prefix(prefix).unwrap_or(key).to_owned()
+    });
+    if !valid(&label, 512) {
+        return Err(AccountError::Input);
+    }
     Ok(Some(BorrowedProxyProvider {
         path,
         provider,
@@ -436,8 +447,53 @@ mod tests {
     }
 
     #[test]
+    fn unlabeled_files_use_swift_compatible_filename_keys() {
+        let directory = directory();
+        for (filename, provider, expected, extra) in [
+            ("kiro-work.json", "kiro", "kiro-work", ""),
+            (
+                "kiro-profile.json",
+                "kiro",
+                "kiro-profile",
+                r#", "profileArn":"arn:aws:codewhisperer:us-east-1:123:profile/example""#,
+            ),
+            (
+                "codex-work.json",
+                "codex",
+                "work",
+                r#", "account_id":"account""#,
+            ),
+            ("github-copilot-work.json", "github-copilot", "work", ""),
+            ("claude-work.json", "claude", "claude-work", ""),
+        ] {
+            let path = directory.join(filename);
+            std::fs::write(
+                &path,
+                format!(r#"{{"type":"{provider}","accessToken":"test-token"{extra}}}"#),
+            )
+            .unwrap();
+            let source = inspect(path).unwrap().unwrap();
+            assert_eq!(source.reference.label, expected);
+            assert_eq!(
+                source.reference.id,
+                crate::cache::fingerprint(&["cli_proxy_auth_file", source.provider.id(), filename])
+            );
+            let selected =
+                adapters(&directory, &[source.provider], Some(&source.reference.id)).unwrap();
+            assert_eq!(selected.len(), 1);
+            assert_eq!(selected[0].account_ref().unwrap().label, expected);
+        }
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn skips_unknown_oversized_and_symbolic_link_files() {
         let directory = directory();
+        std::fs::write(
+            directory.join("claude-\n.json"),
+            br#"{"type":"claude","access_token":"test-token"}"#,
+        )
+        .unwrap();
         std::fs::write(
             directory.join("unknown.json"),
             br#"{"type":"qwen","access_token":"x"}"#,
