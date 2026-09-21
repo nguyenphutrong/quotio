@@ -147,6 +147,39 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertNotNil(request.value(forHTTPHeaderField: "Idempotency-Key"))
     }
 
+    func testLegacyImportUsesStableReceiptAndUnixExpiry() async throws {
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "private-token"))
+        let account = Account.make(providerID: AccountProviderID(rawValue: "kiro"), accountKey: "Work", source: .quotioKeychain)
+        let credential = StoredCredential(accessToken: "synthetic-access", refreshToken: "synthetic-refresh", idToken: nil, accountID: "user", expiresAt: Date(timeIntervalSince1970: 1_700_000_000.9), extra: ["authMethod": "IdC", "clientId": "synthetic-client", "clientSecret": "synthetic-secret"])
+        for _ in 0..<2 {
+            QuotioCLIURLProtocol.enqueue(#"{"id":"import","status":"completed"}"#)
+            try await backend.importLegacyAccount(account, credential: credential, disabled: true)
+        }
+        let requests = QuotioCLIURLProtocol.requests()
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertEqual(requests[0].value(forHTTPHeaderField: "Idempotency-Key"), requests[1].value(forHTTPHeaderField: "Idempotency-Key"))
+        let body = try XCTUnwrap(QuotioCLIURLProtocol.body(forPath: "/v1/accounts/migrate"))
+        let value = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(value["enabled"] as? Bool, false)
+        XCTAssertEqual(value["provider"] as? String, "kiro")
+        let imported = try XCTUnwrap(value["credential"] as? [String: Any])
+        XCTAssertEqual(imported["expires_at"] as? Int64, 1_700_000_000)
+        XCTAssertEqual((imported["extra"] as? [String: String])?["clientSecret"], "synthetic-secret")
+    }
+
+    func testLegacyImportRejectsOutOfRangeExpiryWithoutSendingCredential() async throws {
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "private-token"))
+        let account = Account.make(providerID: AccountProviderID(rawValue: "claude"), accountKey: "Work", source: .quotioKeychain)
+        let credential = StoredCredential(accessToken: "synthetic", refreshToken: "synthetic-refresh", idToken: nil, accountID: "user", expiresAt: Date(timeIntervalSince1970: 1e100), extra: [:])
+        do {
+            try await backend.importLegacyAccount(account, credential: credential, disabled: false)
+            XCTFail("Invalid dates must be reported without trapping")
+        } catch { }
+        XCTAssertTrue(QuotioCLIURLProtocol.requests().isEmpty)
+    }
+
     func testAccountsPreserveDisabledStateWhenMergingUsageReferences() async throws {
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"claude","account_ref":{"origin":"owned","id":"owned-1","label":"Work"},"account":{"id":"user","label":"Work"},"windows":[]}],"failures":[]}"#)
         let backend = QuotioCLIBackend(session: stubSession())

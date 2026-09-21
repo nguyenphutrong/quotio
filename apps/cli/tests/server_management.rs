@@ -383,3 +383,36 @@ async fn source_registration_uses_existing_management_and_storage_guards() {
             .contains("account_storage_disabled")
     );
 }
+
+#[tokio::test]
+async fn legacy_migration_requires_authentication_management_and_storage() {
+    let body = json!({"legacy_id":"legacy-test", "provider":"claude", "label":"Work", "enabled":false,
+        "credential":{"access_token":"synthetic-migration-access", "refresh_token":"synthetic-migration-refresh"}});
+    for (arguments, expected) in [(vec![], 405), (vec!["--manage"], 503)] {
+        let server = Server::start(&arguments).await;
+        let unauthorized = server
+            .client
+            .post(format!("{}/v1/accounts/migrate", server.base))
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), 401);
+        let response = server
+            .request(reqwest::Method::POST, "/v1/accounts/migrate")
+            .header("Idempotency-Key", "legacy-fixture")
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status().as_u16(), expected);
+        assert!(
+            !response
+                .text()
+                .await
+                .unwrap()
+                .contains("synthetic-migration")
+        );
+        assert!(!server.logs.lock().unwrap().contains("synthetic-migration"));
+    }
+}

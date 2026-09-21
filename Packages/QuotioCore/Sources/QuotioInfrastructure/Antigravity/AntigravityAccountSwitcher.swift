@@ -250,16 +250,21 @@ actor AntigravityAccountSwitcher: AntigravityAccountSwitching {
         return nil
     }
 
+    static var oauthClientParameters: [String: String] {
+        let values = [
+            "client_id": "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
+            "client_secret": "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",
+        ]
+        return values
+    }
+
     private static func refreshAccessToken(_ refreshToken: String) async throws -> AntigravityTokenRefresh {
         var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        let values = [
-            "client_id": "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
-            "client_secret": "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",
-            "refresh_token": refreshToken,
-            "grant_type": "refresh_token",
-        ]
+        var values = oauthClientParameters
+        values["refresh_token"] = refreshToken
+        values["grant_type"] = "refresh_token"
         request.httpBody = values
             .map { "\(form($0.key))=\(form($0.value))" }
             .sorted()

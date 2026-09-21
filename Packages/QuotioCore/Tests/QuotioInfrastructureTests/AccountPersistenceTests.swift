@@ -251,125 +251,31 @@ final class AccountPersistenceTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "old")
     }
 
-    func testProtectedCredentialStoreRefusesUnreadableOverwrite() async {
+    func testLegacyProtectedCredentialIsReadOnlyAndDoesNotResurrectAfterDeletion() async throws {
+        let service = "test-legacy-readonly-\(UUID().uuidString)"
+        let protectedStore = FakeProtectedCredentialStore(readResult: .success(Data("old".utf8)))
+        let store = KeychainCredentialDataStore(service: service, canMigrateLegacy: false, legacyProtectedStore: protectedStore)
+        let migrated = await store.read(accountID: "account")
+        try XCTSkipIf(migrated == nil, "The test keychain is unavailable")
+        XCTAssertEqual(migrated?.data, Data("old".utf8))
+        let saved = await store.save(Data("new".utf8), accountID: "account")
+        XCTAssertEqual(saved?.data, Data("new".utf8))
+        let current = await store.read(accountID: "account")
+        XCTAssertEqual(current?.data, Data("new".utf8))
+        await store.delete(accountID: "account")
+        let deleted = await store.read(accountID: "account")
+        XCTAssertNil(deleted)
+        let original = await protectedStore.read(service: service, account: "account")
+        XCTAssertEqual(original, .success(Data("old".utf8)))
+    }
+
+    func testUnreadableLegacyEnvelopePreventsFallbackAndOverwrite() async {
         let protectedStore = FakeProtectedCredentialStore(readResult: .unreadable)
-        let store = KeychainCredentialDataStore(
-            service: "test-\(UUID().uuidString)",
-            canMigrateLegacy: false,
-            protectedStore: protectedStore
-        )
-
-        let record = await store.save(Data("new".utf8), accountID: "account")
-        let saveCount = await protectedStore.saveCount
+        let store = KeychainCredentialDataStore(service: "test-\(UUID().uuidString)", canMigrateLegacy: true, legacyProtectedStore: protectedStore)
+        let record = await store.read(accountID: "account")
+        let saved = await store.save(Data("new".utf8), accountID: "account")
         XCTAssertNil(record)
-        XCTAssertEqual(saveCount, 0)
-    }
-
-    func testProtectedCredentialStoreDoesNotReadBackAfterSuccessfulWrite() async {
-        let protectedStore = FakeProtectedCredentialStore(readResult: .absent)
-        let store = KeychainCredentialDataStore(
-            service: "test-\(UUID().uuidString)",
-            canMigrateLegacy: false,
-            protectedStore: protectedStore
-        )
-        let data = Data("new".utf8)
-
-        let record = await store.save(data, accountID: "account")
-        let readCount = await protectedStore.readCount
-        let saveCount = await protectedStore.saveCount
-
-        XCTAssertEqual(record?.data, data)
-        XCTAssertEqual(readCount, 1)
-        XCTAssertEqual(saveCount, 1)
-    }
-
-    func testProtectedCredentialStoreMigratesPlaintextFromLegacyService() async throws {
-        let currentService = "test-current-\(UUID().uuidString)"
-        let legacyService = "test-legacy-\(UUID().uuidString)"
-        let accountID = "account"
-        let data = Data("legacy-secret".utf8)
-        let plaintextStore = KeychainCredentialDataStore(
-            service: legacyService,
-            canMigrateLegacy: false
-        )
-        let protectedStore = FakeProtectedCredentialStore(readResult: .absent)
-        let store = KeychainCredentialDataStore(
-            service: currentService,
-            legacyServices: [legacyService],
-            canMigrateLegacy: true,
-            protectedStore: protectedStore
-        )
-        let plaintextRecord = await plaintextStore.save(data, accountID: accountID)
-        try XCTSkipIf(plaintextRecord == nil, "The test keychain is unavailable")
-
-        let migrated = await store.read(accountID: accountID)
-
-        XCTAssertEqual(migrated?.data, data)
-        let protectedResult = await protectedStore.read(
-            service: currentService,
-            account: accountID
-        )
-        XCTAssertEqual(protectedResult, .success(data))
-        let legacyRecord = await plaintextStore.read(accountID: accountID)
-        XCTAssertNil(legacyRecord)
-
-        await plaintextStore.delete(accountID: accountID)
-        await store.delete(accountID: accountID)
-    }
-
-    func testProtectedCredentialStoreMigratesEnvelopeFromLegacyServiceAfterVerifiedWrite() async {
-        let currentService = "test-current-\(UUID().uuidString)"
-        let legacyService = "test-legacy-\(UUID().uuidString)"
-        let accountID = "account"
-        let data = Data("legacy-protected-secret".utf8)
-        let protectedStore = FakeProtectedCredentialStore(
-            readResult: .absent,
-            serviceResults: [legacyService: .success(data)]
-        )
-        let store = KeychainCredentialDataStore(
-            service: currentService,
-            legacyServices: [legacyService],
-            canMigrateLegacy: true,
-            protectedStore: protectedStore
-        )
-
-        let migrated = await store.read(accountID: accountID)
-        let currentResult = await protectedStore.read(service: currentService, account: accountID)
-        let legacyResult = await protectedStore.read(service: legacyService, account: accountID)
-        let events = await protectedStore.events
-        let migrationEvents = Array(events.prefix(5))
-
-        XCTAssertEqual(migrated?.data, data)
-        XCTAssertEqual(currentResult, .success(data))
-        XCTAssertEqual(legacyResult, .absent)
-        XCTAssertEqual(migrationEvents, [
-            "read:\(currentService)",
-            "read:\(legacyService)",
-            "save:\(currentService)",
-            "read:\(currentService)",
-            "delete:\(legacyService)",
-        ])
-    }
-
-    func testDeletingCredentialRemovesCurrentAndLegacyProtectedCopies() async {
-        let currentService = "test-current-\(UUID().uuidString)"
-        let legacyServices = [
-            "test-legacy-one-\(UUID().uuidString)",
-            "test-legacy-two-\(UUID().uuidString)",
-        ]
-        let accountID = "account"
-        let protectedStore = FakeProtectedCredentialStore(readResult: .absent)
-        let store = KeychainCredentialDataStore(
-            service: currentService,
-            legacyServices: legacyServices,
-            canMigrateLegacy: true,
-            protectedStore: protectedStore
-        )
-
-        await store.delete(accountID: accountID)
-
-        let events = await protectedStore.events
-        XCTAssertEqual(events, ([currentService] + legacyServices).map { "delete:\($0)" })
+        XCTAssertNil(saved)
     }
 
     func testLoopbackCallbackReturnsCodeAndState() async throws {
@@ -398,39 +304,10 @@ final class AccountPersistenceTests: XCTestCase {
     }
 }
 
-private actor FakeProtectedCredentialStore: ProtectedCredentialDataStoring {
-    let isEnabled = true
-    private let defaultReadResult: ProtectedCredentialReadResult
-    private var serviceResults: [String: ProtectedCredentialReadResult]
-    private(set) var readCount = 0
-    private(set) var saveCount = 0
-    private(set) var events: [String] = []
-
-    init(
-        readResult: ProtectedCredentialReadResult,
-        serviceResults: [String: ProtectedCredentialReadResult] = [:]
-    ) {
-        defaultReadResult = readResult
-        self.serviceResults = serviceResults
-    }
-
-    func read(service: String, account: String) -> ProtectedCredentialReadResult {
-        readCount += 1
-        events.append("read:\(service)")
-        return serviceResults[service] ?? defaultReadResult
-    }
-
-    func save(_ data: Data, service: String, account: String) -> Bool {
-        saveCount += 1
-        events.append("save:\(service)")
-        serviceResults[service] = .success(data)
-        return true
-    }
-
-    func delete(service: String, account: String) {
-        events.append("delete:\(service)")
-        serviceResults[service] = .absent
-    }
+private actor FakeProtectedCredentialStore: LegacyProtectedCredentialReading {
+    private let result: ProtectedCredentialReadResult
+    init(readResult: ProtectedCredentialReadResult) { result = readResult }
+    func read(service: String, account: String) -> ProtectedCredentialReadResult { result }
 }
 
 private func XCTAssertThrowsErrorAsync<T>(

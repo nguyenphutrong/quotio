@@ -230,6 +230,44 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         }
     }
 
+    public func importLegacyAccount(_ account: Account, credential: StoredCredential, disabled: Bool) async throws {
+        guard let client else { throw QuotioCLIBackendError.disconnected }
+        struct Import: Encodable {
+            let legacyId: String
+            let provider: String
+            let label: String
+            let enabled: Bool
+            let credential: StoredCredential
+        }
+        guard let domainProvider = QuotaProvider(rawValue: account.providerID.rawValue),
+              let provider = QuotioCLIProviderMap.cli(domainProvider) else {
+            throw QuotioCLIBackendError.incompatible
+        }
+        var credential = credential
+        if domainProvider == .antigravity {
+            let parameters = AntigravityAccountSwitcher.oauthClientParameters
+            credential.extra["clientId"] = parameters["client_id"]
+            credential.extra["clientSecret"] = parameters["client_secret"]
+        }
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            let seconds = date.timeIntervalSince1970
+            guard seconds.isFinite, seconds >= 0, seconds < Double(Int64.max) else {
+                throw QuotioCLIBackendError.incompatible
+            }
+            var container = encoder.singleValueContainer()
+            try container.encode(Int64(seconds))
+        }
+        encoder.outputFormatting = [.sortedKeys]
+        let body = try encoder.encode(Import(
+            legacyId: account.id, provider: provider, label: account.accountKey,
+            enabled: !disabled, credential: credential
+        ))
+        try await mutate(client: client, path: "v1/accounts/migrate", method: "POST", body: body,
+                         idempotencyKey: "quotio-monitor-v1-" + SHA256.hash(data: Data(account.id.utf8)).map { String(format: "%02x", $0) }.joined())
+    }
+
     public func setDisabled(_ disabled: Bool, accountID: String) async {
         guard let client else { return }
         let body = try? JSONEncoder.quotioCLI.encode(EnabledBody(enabled: !disabled))
@@ -580,13 +618,14 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         client: QuotioCLIHTTPClient,
         path: String,
         method: String,
-        body: Data?
+        body: Data?,
+        idempotencyKey: String = UUID().uuidString
     ) async throws {
         var operation: QuotioCLIOperation = try await client.request(
             path,
             method: method,
             body: body,
-            idempotencyKey: UUID().uuidString
+            idempotencyKey: idempotencyKey
         )
         let deadline = ContinuousClock.now + .seconds(60)
         while operation.status == "running" {

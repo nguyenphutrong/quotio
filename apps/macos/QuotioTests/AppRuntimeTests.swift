@@ -140,7 +140,7 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
     }
     var telemetryConsentModel: TelemetryConsentScreenModel { dependencies.telemetryConsentModel }
     var applicationUpdateModel: ApplicationUpdateScreenModel { dependencies.applicationUpdateModel }
-    var yubiKeySettingsModel: YubiKeySettingsScreenModel { dependencies.yubiKeySettingsModel }
+    var credentialMigrationModel: CredentialMigrationScreenModel { dependencies.credentialMigrationModel }
 
     var hasCompletedOnboarding = true
     var showInDock = true

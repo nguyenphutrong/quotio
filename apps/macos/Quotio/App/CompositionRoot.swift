@@ -29,7 +29,7 @@ enum CompositionRoot {
         let urlOpener = WorkspaceURLOpener()
         let applicationPlatform = AppKitApplicationPlatformAdapter()
         let pasteboard = PasteboardScreenModel(writer: MacOSPasteboardAdapter())
-        let yubiKeyVault = YubiKeyVaultAdapter()
+        let legacyYubiKey = LegacyYubiKeyCredentialReader()
         let languageManager = LanguageManager(
             repository: UserDefaultsLanguagePreferencesRepository()
         )
@@ -60,7 +60,7 @@ enum CompositionRoot {
                     service: AppIdentity.keychainService(suffix: "local-management"),
                     legacyServices: AppIdentity.legacyKeychainServices(suffix: "local-management"),
                     canMigrateLegacy: AppIdentity.isProduction,
-                    protectedStore: yubiKeyVault
+                    legacyProtectedStore: legacyYubiKey
                 )
             ),
             configurationSupplement: CustomProviderConfigurationSupplement(
@@ -165,7 +165,7 @@ enum CompositionRoot {
                 service: AppIdentity.keychainService(suffix: "warp"),
                 legacyServices: AppIdentity.legacyKeychainServices(suffix: "warp"),
                 canMigrateLegacy: AppIdentity.isProduction,
-                protectedStore: yubiKeyVault
+                legacyProtectedStore: legacyYubiKey
             )
         )
         let warpTokenScreenModel = WarpTokenScreenModel(
@@ -358,7 +358,23 @@ enum CompositionRoot {
             updatePreferencesRepository: updatePreferences
         )
         let telemetryConsentModel = TelemetryConsentScreenModel(controller: telemetryController)
-        let yubiKeySettingsModel = YubiKeySettingsScreenModel(vault: yubiKeyVault)
+        let legacyMigration = QuotioCLILegacyAccountMigration(
+            credentials: KeychainCredentialDataStore(
+                service: AppIdentity.keychainService(suffix: "monitor-auth"),
+                legacyServices: AppIdentity.legacyKeychainServices(suffix: "monitor-auth"),
+                canMigrateLegacy: AppIdentity.isProduction,
+                legacyProtectedStore: legacyYubiKey
+            ),
+            importAccount: { account, credential, disabled in
+                try await quotioBackend.importLegacyAccount(account, credential: credential, disabled: disabled)
+            }
+        )
+        let credentialMigrationModel = CredentialMigrationScreenModel {
+            let result = await legacyMigration.migrate()
+            await warpTokenScreenModel.load()
+            await accountsScreenModel.reloadAccounts()
+            return result
+        }
         let launchAtLoginController = LaunchAtLoginController(
             registration: ServiceManagementLaunchAtLoginAdapter(),
             urlOpener: urlOpener
@@ -438,7 +454,7 @@ enum CompositionRoot {
             notificationSettingsModel: notificationSettingsModel,
             telemetryConsentModel: telemetryConsentModel,
             applicationUpdateModel: applicationUpdateModel,
-            yubiKeySettingsModel: yubiKeySettingsModel,
+            credentialMigrationModel: credentialMigrationModel,
             notificationController: notificationController,
             telemetryController: telemetryController,
             applicationUpdateController: applicationUpdateController,
@@ -496,7 +512,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     let notificationSettingsModel: NotificationSettingsScreenModel
     let telemetryConsentModel: TelemetryConsentScreenModel
     let applicationUpdateModel: ApplicationUpdateScreenModel
-    let yubiKeySettingsModel: YubiKeySettingsScreenModel
+    let credentialMigrationModel: CredentialMigrationScreenModel
 
     private let notificationController: NotificationController
     private let telemetryController: TelemetryController
@@ -542,7 +558,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         notificationSettingsModel: NotificationSettingsScreenModel,
         telemetryConsentModel: TelemetryConsentScreenModel,
         applicationUpdateModel: ApplicationUpdateScreenModel,
-        yubiKeySettingsModel: YubiKeySettingsScreenModel,
+        credentialMigrationModel: CredentialMigrationScreenModel,
         notificationController: NotificationController,
         telemetryController: TelemetryController,
         applicationUpdateController: ApplicationUpdateController,
@@ -582,7 +598,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         self.notificationSettingsModel = notificationSettingsModel
         self.telemetryConsentModel = telemetryConsentModel
         self.applicationUpdateModel = applicationUpdateModel
-        self.yubiKeySettingsModel = yubiKeySettingsModel
+        self.credentialMigrationModel = credentialMigrationModel
         self.notificationController = notificationController
         self.telemetryController = telemetryController
         self.applicationUpdateController = applicationUpdateController
@@ -696,8 +712,11 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     }
 
     func initializeFeatures() async {
-        _ = await reconnectQuotioServer()
-        await warpTokenScreenModel.load()
+        if await reconnectQuotioServer() {
+            await credentialMigrationModel.migrate()
+        } else {
+            await warpTokenScreenModel.load()
+        }
         await tunnel.refreshInstallation()
         if modeManager.isLocalProxyMode {
             await proxyManagement.initialize()
