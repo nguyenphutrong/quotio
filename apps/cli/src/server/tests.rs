@@ -124,11 +124,12 @@ async fn account_scoped_refresh_accepts_borrowed_proxy_account() {
     )
     .unwrap();
     Arc::get_mut(&mut state).unwrap().proxy_auth_directory = Some(auth.clone());
-    let account = crate::accounts::proxy::adapters(&auth, &[Provider::Catalog("claude")], None, &[])
-        .unwrap()
-        .remove(0)
-        .account_ref()
-        .unwrap();
+    let account =
+        crate::accounts::proxy::adapters(&auth, &[Provider::Catalog("claude")], None, &[])
+            .unwrap()
+            .remove(0)
+            .account_ref()
+            .unwrap();
 
     assert!(
         management::validate_refresh_account(&state, Provider::Catalog("claude"), &account.id)

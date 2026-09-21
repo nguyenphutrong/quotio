@@ -160,7 +160,11 @@ pub fn adapters(
     paths.sort_by_key(|entry| entry.file_name());
     Ok(paths
         .into_iter()
-        .filter(|entry| !disabled_files.iter().any(|name| entry.file_name() == name.as_str()))
+        .filter(|entry| {
+            !disabled_files
+                .iter()
+                .any(|name| entry.file_name() == name.as_str())
+        })
         .filter_map(|entry| inspect(entry.path()).ok().flatten())
         .filter(|source| providers.contains(&source.provider))
         .filter(|source| account.is_none_or(|id| source.reference.id == id))
@@ -480,8 +484,13 @@ mod tests {
                 source.reference.id,
                 crate::cache::fingerprint(&["cli_proxy_auth_file", source.provider.id(), filename])
             );
-            let selected =
-                adapters(&directory, &[source.provider], Some(&source.reference.id), &[]).unwrap();
+            let selected = adapters(
+                &directory,
+                &[source.provider],
+                Some(&source.reference.id),
+                &[],
+            )
+            .unwrap();
             assert_eq!(selected.len(), 1);
             assert_eq!(selected[0].account_ref().unwrap().label, expected);
         }
