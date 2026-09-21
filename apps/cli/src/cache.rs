@@ -277,6 +277,7 @@ impl UsageCache {
                 usage.account_ref = adapter.account_ref();
                 // Stale quota remains useful, but do not advertise an old banked balance.
                 usage.reset_credits = None;
+                usage.diagnostics.clear();
                 report.providers.push(usage);
             }
         }

@@ -348,6 +348,18 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertNotNil(reimported.quotas[.cursor]?["Work"])
     }
 
+    func testUsageDiagnosticsArePartialButRetainedQuotaFailuresAreFailed() throws {
+        for diagnostics in ["[]", #"[{"source":"supplemental","code":"transient"}]"#] {
+            for extraFailure in ["", #",{"provider":"openrouter","account_ref":{"id":"work","label":"Work"},"code":"authentication"}"#] {
+                let data = Data(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"openrouter","account_ref":{"id":"work","label":"Work"},"account":{"id":"user","label":"Work"},"windows":[],"diagnostics":\#(diagnostics)}],"failures":[{"provider":"openrouter","account_ref":{"id":"work","label":"Work"},"code":"transient"}\#(extraFailure)]}"#.utf8)
+                let report = try makeQuotioCLIDecoder().decode(QuotioCLIUsageReport.self, from: data)
+                let snapshot = QuotioCLIUsageMapper.snapshot(report)
+                let issue = snapshot.accountIssues[QuotaAccountID(provider: .openRouter, accountKey: "Work")]
+                XCTAssertEqual(issue?.kind, diagnostics == "[]" || !extraFailure.isEmpty ? .failed : .partial)
+            }
+        }
+    }
+
     func testBootstrapRestoresImportedIDEQuotaSelection() async throws {
         let suite = "QuotioCLIBackendTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

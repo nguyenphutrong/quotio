@@ -554,3 +554,25 @@ async fn partial_diagnostics_survive_fresh_cache_without_refetching() {
     }
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn failed_refresh_clears_diagnostics_from_retained_usage() {
+    let fixture = Fixture::new();
+    let adapter = Adapter::new("partial-account");
+    adapter.partial.store(true, Ordering::SeqCst);
+    for fails in [false, true] {
+        adapter.fails.store(fails, Ordering::SeqCst);
+        let report = fixture.collect(vec![adapter.clone()], true).await;
+        assert_eq!(report.providers.len(), 1);
+        assert_eq!(report.failures.len(), 1);
+        assert_eq!(report.providers[0].diagnostics.is_empty(), fails);
+        assert_eq!(
+            report.failures[0].code,
+            if fails {
+                ProviderError::Unavailable
+            } else {
+                ProviderError::Transient
+            }
+        );
+    }
+}

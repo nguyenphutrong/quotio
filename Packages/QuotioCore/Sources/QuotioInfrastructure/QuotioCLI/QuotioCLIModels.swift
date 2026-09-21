@@ -10,6 +10,9 @@ struct QuotioCLIUsageReport: Decodable, Sendable {
 }
 
 struct QuotioCLIProviderUsage: Decodable, Sendable {
+    struct Diagnostic: Decodable, Sendable {
+        let code: String
+    }
     struct Identity: Decodable, Sendable {
         let id: String
         let label: String
@@ -24,6 +27,7 @@ struct QuotioCLIProviderUsage: Decodable, Sendable {
     let resetCredits: QuotioCLIResetCredits?
     let codexProfile: QuotioCLICodexProfile?
     let codexResetCredits: QuotioCLICodexResetCredits?
+    let diagnostics: [Diagnostic]?
 }
 
 struct QuotioCLIResetCredits: Decodable, Sendable {
@@ -222,16 +226,22 @@ enum QuotioCLIUsageMapper {
         for failure in report.failures
         where mode == .monitor || failure.accountRef?.origin != "owned" || failure.provider == "warp" {
             guard let provider = QuotioCLIProviderMap.domain(failure.provider) else { continue }
-            let issue = QuotaRefreshIssue(kind: .failed, occurredAt: report.generatedAt)
+            let isDiagnostic = report.providers.contains { usage in
+                usage.provider == failure.provider
+                    && usage.accountRef?.id == failure.accountRef?.id
+                    && usage.diagnostics?.contains(where: { $0.code == failure.code }) == true
+            }
+            let issue = QuotaRefreshIssue(kind: isDiagnostic ? .partial : .failed, occurredAt: report.generatedAt)
             if let account = failure.accountRef {
                 let label = QuotioCLIWarpMirror.displayLabel(account.label, provider: failure.provider)
                 let key = snapshot.accountAliases[provider]?[account.id]
                     ?? (snapshot.accountIDs[provider]?[label] == nil ? label : account.id)
                 snapshot.accountAliases[provider, default: [:]][account.id] = key
                 snapshot.accountIDs[provider, default: [:]][key] = account.id
-                snapshot.accountIssues[QuotaAccountID(provider: provider, accountKey: key)] = issue
+                let id = QuotaAccountID(provider: provider, accountKey: key)
+                if snapshot.accountIssues[id]?.kind != .failed { snapshot.accountIssues[id] = issue }
             } else {
-                snapshot.issues[provider] = issue
+                if snapshot.issues[provider]?.kind != .failed { snapshot.issues[provider] = issue }
             }
         }
         return snapshot
