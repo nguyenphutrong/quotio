@@ -221,7 +221,10 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             let accounts = response.accounts
                 .filter { activeMode == .monitor || $0.origin != "owned" || $0.provider == "warp" }
                 .compactMap(Self.account)
-            return AccountSelectionPolicy.preferred(accounts + visibleReportedAccounts())
+            return AccountSelectionPolicy.preferred(
+                accounts + visibleReportedAccounts(),
+                disabledIDs: Set(accounts.filter(\.isDisabled).map(\.id))
+            )
         } catch {
             return visibleReportedAccounts()
         }

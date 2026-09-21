@@ -147,6 +147,21 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertNotNil(request.value(forHTTPHeaderField: "Idempotency-Key"))
     }
 
+    func testAccountsPreserveDisabledStateWhenMergingUsageReferences() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"claude","account_ref":{"origin":"owned","id":"owned-1","label":"Work"},"account":{"id":"user","label":"Work"},"windows":[]}],"failures":[]}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "private-token"))
+        _ = await backend.bootstrap(mode: .monitor)
+
+        for enabled in [false, true] {
+            QuotioCLIURLProtocol.enqueue("{\"schema_version\":1,\"accounts\":[{\"id\":\"owned-1\",\"provider\":\"claude\",\"label\":\"Work\",\"origin\":\"owned\",\"enabled\":\(enabled)}]}")
+            let accounts = await backend.accounts()
+            XCTAssertEqual(accounts.count, 1)
+            XCTAssertEqual(accounts.first?.isDisabled, !enabled)
+            XCTAssertTrue(accounts.first?.capabilities.contains(.disable) == true)
+        }
+    }
+
     func testScopedRefreshUsesBorrowedAccountIDFromUsageSnapshot() async throws {
         let report = #"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"claude","account_ref":{"origin":"borrowed_proxy","id":"borrowed-1","label":"CLI User"},"account":{"id":"user-1","label":"CLI User","plan":null},"windows":[]}],"failures":[]}"#
         for accountKey in ["CLI User", "borrowed-1"] {
