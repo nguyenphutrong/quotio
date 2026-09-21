@@ -482,9 +482,11 @@ async fn refresh(state: &ApiState, request: Option<RefreshRequest>) -> Result<Va
         managed.map(|mut adapters| {
             if !include_owned {
                 adapters.retain(|adapter| {
-                    adapter.id().0 == "warp"
-                        || adapter.account_ref().and_then(|reference| reference.origin)
-                            != Some(crate::domain::AccountOrigin::Owned)
+                    adapter.account_ref().is_none_or(|reference| {
+                        reference.origin != Some(crate::domain::AccountOrigin::Owned)
+                            || (adapter.id().0 == "warp"
+                                && reference.label.starts_with("__quotio_local_warp__:"))
+                    })
                 });
             }
             if account.is_none() {

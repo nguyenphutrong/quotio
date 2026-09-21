@@ -1107,6 +1107,72 @@ async fn local_mode_refresh_excludes_owned_accounts() {
 }
 
 #[tokio::test]
+async fn local_mode_warp_refresh_only_collects_mirrors() {
+    let (mut state, dir, _) = fixture().await;
+    let writable = Arc::get_mut(&mut state).unwrap();
+    writable.no_saved_accounts = false;
+    // Fail locally rather than contacting a real provider with fixture credentials.
+    writable.context.http = reqwest::Client::builder()
+        .proxy(reqwest::Proxy::all("http://127.0.0.1:1").unwrap())
+        .timeout(Duration::from_secs(1))
+        .build()
+        .unwrap();
+    let provider = Provider::Catalog("warp");
+    let mut ids = Vec::new();
+    for label in ["Monitor", "__quotio_local_warp__:Local"] {
+        ids.push(
+            accounts::service::add(
+                state.vault.clone().unwrap(),
+                provider,
+                label.into(),
+                Credential::ApiKey {
+                    token: "test-token".into(),
+                    region: None,
+                    organization: None,
+                },
+                label.into(),
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    state.settings.write().await.values.enabled_providers = vec!["warp".into()];
+    for include_owned in [false, true] {
+        refresh(
+            &state,
+            Some(RefreshRequest {
+                providers: vec![provider],
+                account_id: None,
+                force: true,
+                include_owned,
+            }),
+        )
+        .await
+        .unwrap();
+        let snapshot = state.snapshot.read().await;
+        let report = &snapshot.as_ref().unwrap().1;
+        let collected: std::collections::HashSet<_> = report
+            .providers
+            .iter()
+            .filter_map(|usage| usage.account_ref.as_ref().map(|a| a.id.clone()))
+            .chain(
+                report
+                    .failures
+                    .iter()
+                    .filter_map(|failure| failure.account_ref.as_ref().map(|a| a.id.clone())),
+            )
+            .collect();
+        let expected = if include_owned {
+            ids.clone()
+        } else {
+            vec![ids[1].clone()]
+        };
+        assert_eq!(collected, expected.into_iter().collect());
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
 async fn scheduler_clears_deadline_on_timer_and_config_wake() {
     let (state, dir, _) = fixture().await;
     state.settings.write().await.values.refresh_interval = 60;

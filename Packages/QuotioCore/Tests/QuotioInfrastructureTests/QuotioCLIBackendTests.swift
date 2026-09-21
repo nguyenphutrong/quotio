@@ -334,13 +334,26 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(accounts.map(\.source), [.legacyCLIProxy])
     }
 
-    func testLocalProxyModeKeepsOwnedWarpUsage() throws {
-        let data = Data(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"warp","account_ref":{"origin":"owned","id":"warp-1","label":"__quotio_local_warp__:Work"},"account":{"id":"warp","label":"Work","plan":null},"windows":[]}],"failures":[]}"#.utf8)
-        let report = try makeQuotioCLIDecoder().decode(QuotioCLIUsageReport.self, from: data)
+    func testLocalProxyModeOnlyKeepsWarpMirrorsIncludingCachedFailures() async throws {
+        let report = #"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"warp","account_ref":{"origin":"owned","id":"mirror","label":"__quotio_local_warp__:Work"},"account":{"id":"warp","label":"Work"},"windows":[]},{"provider":"warp","account_ref":{"origin":"owned","id":"monitor","label":"Personal"},"account":{"id":"warp","label":"Personal"},"windows":[]}],"failures":[{"provider":"warp","account_ref":{"origin":"owned","id":"monitor-failed","label":"Personal failed"},"code":"authentication"},{"provider":"warp","account_ref":{"origin":"owned","id":"mirror-failed","label":"__quotio_local_warp__:Work failed"},"code":"authentication"}]}"#
+        QuotioCLIURLProtocol.enqueue(report)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"monitor","provider":"warp","label":"Personal","origin":"owned","enabled":true},{"id":"mirror","provider":"warp","label":"__quotio_local_warp__:Work","origin":"owned","enabled":true}]}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "test-token"))
+        let snapshot = await backend.bootstrap(mode: .localProxy)
+        XCTAssertEqual(Set(snapshot.quotas[.warp]?.keys.map { $0 } ?? []), ["Work"])
+        XCTAssertEqual(Set(snapshot.accountIDs[.warp]?.values.map { $0 } ?? []), ["mirror", "mirror-failed"])
+        XCTAssertEqual(Set(snapshot.accountIssues.keys.map(\.accountKey)), ["Work failed"])
+        let accounts = await backend.accounts()
+        XCTAssertEqual(Set(accounts.map(\.id)), ["mirror", "mirror-failed"])
+        await backend.disconnect()
+        let cached = await backend.accounts()
+        XCTAssertEqual(Set(cached.map(\.id)), ["mirror", "mirror-failed"])
 
-        let snapshot = QuotioCLIUsageMapper.snapshot(report, mode: .localProxy)
-
-        XCTAssertNotNil(snapshot.quotas[.warp]?["Work"])
+        let decoded = try makeQuotioCLIDecoder().decode(QuotioCLIUsageReport.self, from: Data(report.utf8))
+        let monitor = QuotioCLIUsageMapper.snapshot(decoded, mode: .monitor)
+        XCTAssertEqual(monitor.quotas[.warp]?.count, 2)
+        XCTAssertEqual(monitor.accountIssues.count, 2)
     }
 
     func testLocalWarpMirrorsAreReadOnlyWhileManagedWarpAccountsRemainEditable() async throws {

@@ -159,7 +159,11 @@ enum QuotioCLIWarpMirror {
     }
 
     static func isMirror(_ account: QuotioCLIAccount) -> Bool {
-        account.provider == "warp" && account.origin == "owned" && account.label.hasPrefix(prefix)
+        isMirror(provider: account.provider, origin: account.origin, label: account.label)
+    }
+
+    static func isMirror(provider: String, origin: String?, label: String?) -> Bool {
+        provider == "warp" && origin == "owned" && label?.hasPrefix(prefix) == true
     }
 }
 
@@ -205,7 +209,9 @@ struct QuotioCLIUsageMapper {
         let mapper = Self(bundle: bundle, locale: locale)
         var snapshot = QuotaSnapshot(lastUpdated: report.generatedAt)
         for usage in report.providers
-        where mode == .monitor || usage.accountRef?.origin != "owned" || usage.provider == "warp" {
+        where mode == .monitor || usage.accountRef?.origin != "owned" || QuotioCLIWarpMirror.isMirror(
+            provider: usage.provider, origin: usage.accountRef?.origin, label: usage.accountRef?.label
+        ) {
             guard let provider = QuotioCLIProviderMap.domain(usage.provider) else { continue }
             let referenceLabel = usage.accountRef.map {
                 QuotioCLIWarpMirror.displayLabel($0.label, provider: usage.provider)
@@ -234,7 +240,9 @@ struct QuotioCLIUsageMapper {
             }
         }
         for failure in report.failures
-        where mode == .monitor || failure.accountRef?.origin != "owned" || failure.provider == "warp" {
+        where mode == .monitor || failure.accountRef?.origin != "owned" || QuotioCLIWarpMirror.isMirror(
+            provider: failure.provider, origin: failure.accountRef?.origin, label: failure.accountRef?.label
+        ) {
             guard let provider = QuotioCLIProviderMap.domain(failure.provider) else { continue }
             let isDiagnostic = report.providers.contains { usage in
                 usage.provider == failure.provider

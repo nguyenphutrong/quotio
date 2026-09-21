@@ -214,19 +214,19 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     }
 
     public func accounts() async -> [Account] {
-        guard let client else { return visibleReportedAccounts() }
+        guard let client else { return reportedAccounts }
         do {
             let response: QuotioCLIAccountList = try await client.request("v1/accounts")
             guard response.schemaVersion == 1 else { return [] }
             let accounts = response.accounts
-                .filter { activeMode == .monitor || $0.origin != "owned" || $0.provider == "warp" }
+                .filter { activeMode == .monitor || $0.origin != "owned" || QuotioCLIWarpMirror.isMirror($0) }
                 .compactMap(Self.account)
             return AccountSelectionPolicy.preferred(
-                accounts + visibleReportedAccounts(),
+                accounts + reportedAccounts,
                 disabledIDs: Set(accounts.filter(\.isDisabled).map(\.id))
             )
         } catch {
-            return visibleReportedAccounts()
+            return reportedAccounts
         }
     }
 
@@ -511,14 +511,6 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         snapshot = QuotaSnapshot()
         reportedAccounts = []
         publish()
-    }
-
-    private func visibleReportedAccounts() -> [Account] {
-        reportedAccounts.filter {
-            activeMode == .monitor
-                || $0.source != .quotioKeychain
-                || $0.providerID.rawValue == QuotaProvider.warp.rawValue
-        }
     }
 
     private func accountID(provider: String, accountKey: String) async -> String? {
