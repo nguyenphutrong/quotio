@@ -292,6 +292,40 @@ final class QuotioCLIBackendTests: XCTestCase {
         )
     }
 
+    func testRemovedCursorQuotaStaysRemovedUntilExplicitImport() async throws {
+        let suite = "QuotioCLIBackendTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let report = #"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"cursor","account_ref":{"origin":"borrowed_native","id":"cursor-1","label":"Work"},"account":{"id":"cursor-user","label":"Work"},"windows":[]}],"failures":[]}"#
+        let backend = QuotioCLIBackend(session: stubSession(), userDefaults: defaults)
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "private-token"))
+        QuotioCLIURLProtocol.enqueue(#"{"id":"import","status":"completed"}"#)
+        QuotioCLIURLProtocol.enqueue(report)
+        let imported = await backend.refresh(QuotaFetchRequest(provider: .cursor, mode: .monitor))
+        XCTAssertNotNil(imported.quotas[.cursor]?["Work"])
+        await backend.removeQuota(for: QuotaAccountID(provider: .cursor, accountKey: "Work"), mode: .monitor)
+
+        for request in [
+            QuotaFetchRequest(provider: .claude, mode: .monitor),
+            QuotaFetchRequest(provider: .cursor, scope: .importedAccounts(["Personal"]), mode: .monitor),
+        ] {
+            QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed"}"#)
+            QuotioCLIURLProtocol.enqueue(report)
+            let snapshot = await backend.refresh(request)
+            XCTAssertNil(snapshot.quotas[.cursor]?["Work"])
+            XCTAssertNil(snapshot.accountIDs[.cursor]?["Work"])
+            XCTAssertNil(snapshot.accountAliases[.cursor]?["cursor-1"])
+            XCTAssertNil(UserDefaults(suiteName: suite)?.data(forKey: "persisted.ideQuotas"))
+        }
+        QuotioCLIURLProtocol.enqueue(report)
+        let restored = await backend.bootstrap(mode: .monitor)
+        XCTAssertNil(restored.quotas[.cursor]?["Work"])
+        QuotioCLIURLProtocol.enqueue(#"{"id":"reimport","status":"completed"}"#)
+        QuotioCLIURLProtocol.enqueue(report)
+        let reimported = await backend.refresh(QuotaFetchRequest(provider: .cursor, mode: .monitor))
+        XCTAssertNotNil(reimported.quotas[.cursor]?["Work"])
+    }
+
     func testBootstrapRestoresImportedIDEQuotaSelection() async throws {
         let suite = "QuotioCLIBackendTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

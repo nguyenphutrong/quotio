@@ -155,11 +155,13 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
                 return snapshot
             }
         }
+        let importedAccounts: Set<String>? = if case .importedAccounts(let keys) = request.scope { keys } else { nil }
         await performRefresh(
             providers: [provider],
             accountID: resolvedAccountID,
             mode: request.mode,
-            force: request.force
+            force: request.force,
+            importedAccounts: importedAccounts
         )
         return snapshot
     }
@@ -354,7 +356,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         providers: [String],
         accountID: String?,
         mode: QuotaOperatingMode,
-        force: Bool
+        force: Bool,
+        importedAccounts: Set<String>? = nil
     ) async {
         guard let client, !providers.isEmpty, activeMode == mode else { return }
         let domainProviders = Set(providers.compactMap(QuotioCLIProviderMap.domain))
@@ -384,7 +387,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             guard operation.status == "completed" else {
                 throw QuotioCLIBackendError.response(500, operation.error ?? operation.status)
             }
-            await loadSnapshot(mode: mode, refreshedProviders: domainProviders)
+            await loadSnapshot(mode: mode, refreshedProviders: domainProviders, importedAccounts: importedAccounts)
         } catch {
             guard activeMode == mode else { return }
             snapshot.refreshingProviders.subtract(domainProviders)
@@ -394,7 +397,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
 
     private func loadSnapshot(
         mode: QuotaOperatingMode,
-        refreshedProviders: Set<QuotaProvider>? = nil
+        refreshedProviders: Set<QuotaProvider>? = nil,
+        importedAccounts: Set<String>? = nil
     ) async {
         guard let client else {
             markFailure(for: Set(Self.supportedProviders))
@@ -407,11 +411,20 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             let importedCursorQuotas = snapshot.quotas[.cursor]
             snapshot = QuotioCLIUsageMapper.snapshot(report, mode: mode)
             if let refreshedProviders {
-                if !refreshedProviders.contains(.cursor), snapshot.quotas[.cursor]?.isEmpty != false {
+                if !refreshedProviders.contains(.cursor) {
                     snapshot.quotas[.cursor] = importedCursorQuotas
+                } else if let importedAccounts {
+                    snapshot.quotas[.cursor] = snapshot.quotas[.cursor]?.filter { importedAccounts.contains($0.key) }
                 }
             } else {
+                snapshot.quotas[.cursor] = nil
                 mergeImportedIDEQuotas()
+            }
+            let cursorKeys = Set(snapshot.quotas[.cursor]?.keys.map { $0 } ?? [])
+            snapshot.accountIDs[.cursor] = snapshot.accountIDs[.cursor]?.filter { cursorKeys.contains($0.key) }
+            snapshot.accountAliases[.cursor] = snapshot.accountAliases[.cursor]?.filter { cursorKeys.contains($0.value) }
+            snapshot.accountIssues = snapshot.accountIssues.filter {
+                $0.key.provider != .cursor || cursorKeys.contains($0.key.accountKey)
             }
             saveImportedIDEQuotas()
             let references = report.providers.map { ($0.provider, $0.accountRef) }
