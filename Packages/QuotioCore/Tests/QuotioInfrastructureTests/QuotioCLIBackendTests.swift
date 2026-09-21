@@ -63,7 +63,11 @@ final class QuotioCLIBackendTests: XCTestCase {
         {
           "schema_version":1,"generated_at":"2026-09-16T12:00:00Z","failures":[],
           "providers":[{
-            "provider":"codex","account":{"id":"user-1","label":"Codex User","plan":"plus"},"windows":[],
+            "provider":"codex","account":{"id":"user-1","label":"Codex User","plan":"plus"},"windows":[
+                {"label":"Unlimited","quota":{"state":"unlimited"},"fetched_at":"2026-09-16T12:00:00Z"},
+                {"label":"Disabled","quota":{"state":"disabled"},"fetched_at":"2026-09-16T12:00:00Z"},
+                {"label":"Limit","quota":{"state":"limit","amount":5,"unit":"USD"},"fetched_at":"2026-09-16T12:00:00Z"}
+            ],
             "codex_profile":{
               "daily_usage":[{"date":"2026-09-15","tokens":1200}],
               "latest_30_buckets_tokens":1200,"lifetime_tokens":8000,"peak_daily_tokens":1200,
@@ -86,6 +90,39 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(quota.analytics?.rows.first { $0.id == "codex-lifetime-tokens" }?.value, "8K tokens")
         XCTAssertEqual(quota.analytics?.rows.first { $0.id == "codex-rate-limit-resets" }?.value, "2 available")
         XCTAssertNotNil(quota.analytics?.rows.first { $0.id == "codex-rate-limit-reset-hashed-credit" })
+
+        var repository = URL(fileURLWithPath: #filePath)
+        for _ in 0..<5 { repository.deleteLastPathComponent() }
+        let catalog = try Data(contentsOf: repository.appendingPathComponent("apps/macos/Quotio/Localizable.xcstrings"))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: catalog) as? [String: Any])
+        let strings = try XCTUnwrap(json["strings"] as? [String: [String: Any]])
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let localizedDirectory = directory.appendingPathComponent("fr.lproj")
+        try FileManager.default.createDirectory(at: localizedDirectory, withIntermediateDirectories: true)
+        var translations: [String: String] = [:]
+        for (key, entry) in strings {
+            guard let locales = entry["localizations"] as? [String: [String: Any]] else { continue }
+            if key.hasPrefix("quota.analytics.") || key == "quota.metric.unlimited" {
+                XCTAssertEqual(Set(locales.keys), ["en", "fr", "vi", "zh-Hans"], key)
+            }
+            if let unit = locales["fr"]?["stringUnit"] as? [String: String] {
+                translations[key] = unit["value"]
+            }
+        }
+        let localizedData = try PropertyListSerialization.data(fromPropertyList: translations, format: .xml, options: 0)
+        try localizedData.write(to: localizedDirectory.appendingPathComponent("Localizable.strings"))
+        let bundle = try XCTUnwrap(Bundle(path: localizedDirectory.path))
+        let localized = try XCTUnwrap(QuotioCLIUsageMapper.snapshot(report, bundle: bundle, locale: Locale(identifier: "fr")).quotas[.codex]?["Codex User"])
+        XCTAssertEqual(localized.analytics?.rows.first { $0.id == "today" }?.title, "Aujourd’hui")
+        XCTAssertEqual(localized.analytics?.rows.first { $0.id == "today" }?.value, "Aucune donnée")
+        XCTAssertEqual(localized.analytics?.rows.first { $0.id == "codex-longest-task" }?.value, "1 h 1 min")
+        XCTAssertEqual(localized.analytics?.rows.first { $0.id == "codex-current-streak" }?.value, "1 jour")
+        XCTAssertEqual(localized.analytics?.rows.first { $0.id == "codex-rate-limit-resets" }?.value, "2 disponibles")
+        XCTAssertTrue(localized.analytics?.rows.first { $0.id == "codex-rate-limit-reset-hashed-credit" }?.value.hasPrefix("dans ") == true)
+        XCTAssertEqual(localized.models[0].presentation, .status(text: "Illimité"))
+        XCTAssertEqual(localized.models[1].presentation, .status(text: "Désactivé"))
+        XCTAssertEqual(localized.models[2].presentation, .status(text: "Plafond de 5 USD"))
     }
 
     func testAccountCreateUsesBearerAndIdempotencyHeaders() async throws {

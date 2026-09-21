@@ -84,7 +84,8 @@ enum CompositionRoot {
         let authFileRepository = FileAuthFileRepository()
         let quotioBackend = QuotioCLIBackend(
             customProviders: customProviderRepository.load,
-            customProviderDomain: AppIdentity.bundleIdentifier
+            customProviderDomain: AppIdentity.bundleIdentifier,
+            localization: { (languageManager.bundle, languageManager.locale) }
         )
         let agentInstallationProbe = AgentBinaryInstallationProbe()
         let quotioServer = QuotioCLIServerProcess(

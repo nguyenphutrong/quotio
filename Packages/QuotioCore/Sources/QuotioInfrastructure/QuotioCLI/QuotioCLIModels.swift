@@ -188,11 +188,21 @@ enum QuotioCLIProviderMap {
     }
 }
 
-enum QuotioCLIUsageMapper {
+struct QuotioCLIUsageMapper {
+    let bundle: Bundle
+    let locale: Locale
+
+    private func localized(_ key: String, _ fallback: String) -> String {
+        NSLocalizedString(key, bundle: bundle, value: fallback, comment: "")
+    }
+
     static func snapshot(
         _ report: QuotioCLIUsageReport,
-        mode: QuotaOperatingMode = .monitor
+        mode: QuotaOperatingMode = .monitor,
+        bundle: Bundle = .main,
+        locale: Locale = .current
     ) -> QuotaSnapshot {
+        let mapper = Self(bundle: bundle, locale: locale)
         var snapshot = QuotaSnapshot(lastUpdated: report.generatedAt)
         for usage in report.providers
         where mode == .monitor || usage.accountRef?.origin != "owned" || usage.provider == "warp" {
@@ -207,7 +217,7 @@ enum QuotioCLIUsageMapper {
             let key = snapshot.quotas[provider]?[preferredKey] == nil
                 ? preferredKey
                 : usage.accountRef?.id ?? usage.account.id
-            snapshot.quotas[provider, default: [:]][key] = quota(usage)
+            snapshot.quotas[provider, default: [:]][key] = mapper.quota(usage)
             if let reference = usage.accountRef {
                 snapshot.accountAliases[provider, default: [:]][reference.id] = key
                 if snapshot.accountAliases[provider]?[reference.label] == nil {
@@ -219,7 +229,7 @@ enum QuotioCLIUsageMapper {
                 }
                 snapshot.accountIDs[provider, default: [:]][key] = reference.id
             }
-            if let subscription = subscription(usage) {
+            if let subscription = mapper.subscription(usage) {
                 snapshot.subscriptions[provider, default: [:]][key] = subscription
             }
         }
@@ -247,7 +257,7 @@ enum QuotioCLIUsageMapper {
         return snapshot
     }
 
-    private static func quota(_ usage: QuotioCLIProviderUsage) -> ProviderQuota {
+    private func quota(_ usage: QuotioCLIProviderUsage) -> ProviderQuota {
         let updatedAt = usage.windows.map(\.fetchedAt)
             + [usage.codexProfile?.fetchedAt, usage.codexResetCredits?.fetchedAt, usage.resetCredits?.fetchedAt]
                 .compactMap { $0 }
@@ -262,7 +272,7 @@ enum QuotioCLIUsageMapper {
         )
     }
 
-    private static func analytics(_ usage: QuotioCLIProviderUsage) -> QuotaAnalytics? {
+    private func analytics(_ usage: QuotioCLIProviderUsage) -> QuotaAnalytics? {
         var analytics = usage.codexProfile.map(profileAnalytics) ?? QuotaAnalytics()
         let resetRows = resetCreditRows(usage)
         if !resetRows.isEmpty {
@@ -271,7 +281,7 @@ enum QuotioCLIUsageMapper {
         return analytics.isEmpty ? nil : analytics
     }
 
-    private static func profileAnalytics(_ profile: QuotioCLICodexProfile) -> QuotaAnalytics {
+    private func profileAnalytics(_ profile: QuotioCLICodexProfile) -> QuotaAnalytics {
         let calendar = Calendar.current
         let buckets = Dictionary(uniqueKeysWithValues: profile.dailyUsage.map { ($0.date, $0.tokens) })
         let today = dayString(profile.fetchedAt, calendar: calendar)
@@ -280,27 +290,27 @@ enum QuotioCLIUsageMapper {
             calendar: calendar
         )
         var rows = [
-            dayRow(id: "today", title: "Today", tokens: buckets[today]),
-            dayRow(id: "yesterday", title: "Yesterday", tokens: buckets[yesterday]),
+            dayRow(id: "today", title: localized("quota.metric.today", "Today"), tokens: buckets[today]),
+            dayRow(id: "yesterday", title: localized("quota.analytics.yesterday", "Yesterday"), tokens: buckets[yesterday]),
             profile.latest30BucketsTokens > 0
                 ? QuotaAnalyticsRow(
                     id: "last-30-days",
-                    title: "Last 30 Days",
+                    title: localized("quota.analytics.last30Days", "Last 30 Days"),
                     value: tokenLabel(profile.latest30BucketsTokens)
                 )
-                : noDataRow(id: "last-30-days", title: "Last 30 Days"),
+                : noDataRow(id: "last-30-days", title: localized("quota.analytics.last30Days", "Last 30 Days")),
         ]
-        appendTokenRow(&rows, id: "codex-lifetime-tokens", title: "Lifetime Tokens", value: profile.lifetimeTokens)
-        appendTokenRow(&rows, id: "codex-peak-daily", title: "Peak Daily", value: profile.peakDailyTokens)
+        appendTokenRow(&rows, id: "codex-lifetime-tokens", title: localized("quota.analytics.lifetimeTokens", "Lifetime Tokens"), value: profile.lifetimeTokens)
+        appendTokenRow(&rows, id: "codex-peak-daily", title: localized("quota.analytics.peakDaily", "Peak Daily"), value: profile.peakDailyTokens)
         if let seconds = profile.longestRunningTurnSeconds, seconds > 0 {
             rows.append(QuotaAnalyticsRow(
                 id: "codex-longest-task",
-                title: "Longest Task",
+                title: localized("quota.analytics.longestTask", "Longest Task"),
                 value: durationLabel(seconds)
             ))
         }
-        appendDaysRow(&rows, id: "codex-current-streak", title: "Current Streak", value: profile.currentStreakDays)
-        appendDaysRow(&rows, id: "codex-longest-streak", title: "Longest Streak", value: profile.longestStreakDays)
+        appendDaysRow(&rows, id: "codex-current-streak", title: localized("quota.analytics.currentStreak", "Current Streak"), value: profile.currentStreakDays)
+        appendDaysRow(&rows, id: "codex-longest-streak", title: localized("quota.analytics.longestStreak", "Longest Streak"), value: profile.longestStreakDays)
         return QuotaAnalytics(
             trend: profile.dailyUsage.map {
                 QuotaAnalyticsPoint(
@@ -311,18 +321,18 @@ enum QuotioCLIUsageMapper {
                 )
             },
             rows: rows,
-            note: "Account analytics from Codex"
+            note: localized("quota.analytics.codexNote", "Account analytics from Codex")
         )
     }
 
-    private static func resetCreditRows(_ usage: QuotioCLIProviderUsage) -> [QuotaAnalyticsRow] {
+    private func resetCreditRows(_ usage: QuotioCLIProviderUsage) -> [QuotaAnalyticsRow] {
         guard let count = usage.codexResetCredits?.availableCount ?? usage.resetCredits?.availableCount else {
             return []
         }
         var rows = [QuotaAnalyticsRow(
             id: "codex-rate-limit-resets",
-            title: "Rate Limit Resets",
-            value: "\(count) available"
+            title: localized("quota.analytics.rateLimitResets", "Rate Limit Resets"),
+            value: String(format: localized("quota.analytics.available", "%@ available"), integerLabel(count))
         )]
         if let inventory = usage.codexResetCredits {
             rows.append(contentsOf: inventory.credits.map { credit in
@@ -336,16 +346,16 @@ enum QuotioCLIUsageMapper {
         return rows
     }
 
-    private static func dayRow(id: String, title: String, tokens: UInt64?) -> QuotaAnalyticsRow {
+    private func dayRow(id: String, title: String, tokens: UInt64?) -> QuotaAnalyticsRow {
         guard let tokens, tokens > 0 else { return noDataRow(id: id, title: title) }
         return QuotaAnalyticsRow(id: id, title: title, value: tokenLabel(tokens))
     }
 
-    private static func noDataRow(id: String, title: String) -> QuotaAnalyticsRow {
-        QuotaAnalyticsRow(id: id, title: title, value: "No data", isAvailable: false)
+    private func noDataRow(id: String, title: String) -> QuotaAnalyticsRow {
+        QuotaAnalyticsRow(id: id, title: title, value: localized("quota.analytics.noData", "No data"), isAvailable: false)
     }
 
-    private static func appendTokenRow(
+    private func appendTokenRow(
         _ rows: inout [QuotaAnalyticsRow],
         id: String,
         title: String,
@@ -355,7 +365,7 @@ enum QuotioCLIUsageMapper {
         rows.append(QuotaAnalyticsRow(id: id, title: title, value: tokenLabel(value)))
     }
 
-    private static func appendDaysRow(
+    private func appendDaysRow(
         _ rows: inout [QuotaAnalyticsRow],
         id: String,
         title: String,
@@ -365,16 +375,16 @@ enum QuotioCLIUsageMapper {
         rows.append(QuotaAnalyticsRow(
             id: id,
             title: title,
-            value: "\(integerLabel(value)) \(value == 1 ? "day" : "days")"
+            value: String(format: localized(value == 1 ? "quota.analytics.day" : "quota.analytics.days", value == 1 ? "%@ day" : "%@ days"), integerLabel(value))
         ))
     }
 
-    private static func dayString(_ date: Date, calendar: Calendar) -> String {
+    private func dayString(_ date: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 
-    private static func tokenLabel(_ value: UInt64) -> String {
+    private func tokenLabel(_ value: UInt64) -> String {
         let number = Double(value)
         let text: String
         if number >= 1_000_000_000 {
@@ -386,43 +396,41 @@ enum QuotioCLIUsageMapper {
         } else {
             text = integerLabel(value)
         }
-        return "\(text) tokens"
+        return String(format: localized("quota.analytics.tokens", "%@ tokens"), text)
     }
 
-    private static func integerLabel(_ value: UInt64) -> String {
+    private func integerLabel(_ value: UInt64) -> String {
         NumberFormatter.localizedString(from: NSNumber(value: value), number: .decimal)
     }
 
-    private static func durationLabel(_ seconds: UInt64) -> String {
+    private func durationLabel(_ seconds: UInt64) -> String {
         let hours = seconds / 3_600
         let minutes = (seconds % 3_600) / 60
         let remaining = seconds % 60
-        if hours > 0 { return "\(hours)h \(minutes)m" }
-        if minutes > 0 { return "\(minutes)m \(remaining)s" }
-        return "\(remaining)s"
+        if hours > 0 { return String(format: localized("quota.analytics.hoursMinutes", "%@h %@m"), integerLabel(hours), integerLabel(minutes)) }
+        if minutes > 0 { return String(format: localized("quota.analytics.minutesSeconds", "%@m %@s"), integerLabel(minutes), integerLabel(remaining)) }
+        return String(format: localized("quota.analytics.seconds", "%@s"), integerLabel(remaining))
     }
 
-    private static func expiryDateLabel(_ date: Date?) -> String {
-        guard let date else { return "No expiry" }
+    private func expiryDateLabel(_ date: Date?) -> String {
+        guard let date else { return localized("quota.analytics.noExpiry", "No expiry") }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "d MMM · HH:mm"
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate("d MMM HH:mm")
         return formatter.string(from: date)
     }
 
-    private static func expiryRelativeLabel(_ expiry: Date?, from date: Date) -> String {
+    private func expiryRelativeLabel(_ expiry: Date?, from date: Date) -> String {
         guard let expiry else { return "" }
         let seconds = expiry.timeIntervalSince(date)
-        if seconds <= 0 { return "expired" }
-        let days = Int(ceil(seconds / 86_400))
-        if days >= 1 { return "in \(days) \(days == 1 ? "day" : "days")" }
-        let hours = Int(ceil(seconds / 3_600))
-        if hours >= 1 { return "in \(hours) \(hours == 1 ? "hour" : "hours")" }
-        let minutes = max(1, Int(ceil(seconds / 60)))
-        return "in \(minutes) \(minutes == 1 ? "minute" : "minutes")"
+        if seconds <= 0 { return localized("quota.analytics.expired", "expired") }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = locale
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: expiry, relativeTo: date)
     }
 
-    private static func metric(_ window: QuotioCLIUsageWindow, provider: String) -> QuotaMetric {
+    private func metric(_ window: QuotioCLIUsageWindow, provider: String) -> QuotaMetric {
         let percentage = switch window.quota.state {
         case "available", "exhausted":
             window.quota.remainingPercent.flatMap {
@@ -432,11 +440,11 @@ enum QuotioCLIUsageMapper {
         }
         var presentation: QuotaMetricPresentation?
         switch window.quota.state {
-        case "unlimited": presentation = .status(text: "Unlimited")
-        case "disabled": presentation = .status(text: "Disabled")
+        case "unlimited": presentation = .status(text: localized("quota.metric.unlimited", "Unlimited"))
+        case "disabled": presentation = .status(text: localized("grok.status.disabled", "Disabled"))
         case "limit":
             if let amount = window.quota.amount {
-                presentation = .status(text: "\(amount.formatted()) \(window.quota.unit ?? "") cap")
+                presentation = .status(text: String(format: localized("grok.status.cap", "%@ cap"), "\(amount.formatted()) \(window.quota.unit ?? "")"))
             }
         default: break
         }
@@ -469,7 +477,7 @@ enum QuotioCLIUsageMapper {
         )
     }
 
-    private static func metricName(_ window: QuotioCLIUsageWindow, provider: String) -> String {
+    private func metricName(_ window: QuotioCLIUsageWindow, provider: String) -> String {
         if provider == "codex" {
             let labels = [
                 "Session": "codex-session",
@@ -487,7 +495,7 @@ enum QuotioCLIUsageMapper {
         return window.metricId ?? window.label
     }
 
-    private static func subscription(_ usage: QuotioCLIProviderUsage) -> QuotaSubscriptionInfo? {
+    private func subscription(_ usage: QuotioCLIProviderUsage) -> QuotaSubscriptionInfo? {
         guard let subscription = usage.antigravitySubscription else { return nil }
         func tier(_ value: QuotioCLISubscription.Tier?) -> QuotaSubscriptionTier? {
             value.map {

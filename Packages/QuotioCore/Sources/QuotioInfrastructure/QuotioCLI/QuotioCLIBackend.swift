@@ -106,17 +106,20 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     private let userDefaults: UserDefaults
     private let customProviders: (@Sendable () throws -> [CustomProvider])?
     private let customProviderDomain: String
+    private let localization: @MainActor @Sendable () -> (bundle: Bundle, locale: Locale)
 
     public init(
         session: URLSession? = nil,
         userDefaults: UserDefaults = .standard,
         customProviders: (@Sendable () throws -> [CustomProvider])? = nil,
-        customProviderDomain: String = "production"
+        customProviderDomain: String = "production",
+        localization: @escaping @MainActor @Sendable () -> (bundle: Bundle, locale: Locale) = { (.main, .current) }
     ) {
         self.session = session
         self.userDefaults = userDefaults
         self.customProviders = customProviders
         self.customProviderDomain = customProviderDomain
+        self.localization = localization
     }
 
     public func connect(_ connection: QuotioCLIConnection) {
@@ -409,8 +412,10 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             let report: QuotioCLIUsageReport = try await client.request("v1/usage")
             guard activeMode == mode else { return }
             guard report.schemaVersion == 1 else { throw QuotioCLIBackendError.incompatible }
+            let localization = await localization()
+            guard activeMode == mode else { return }
             let importedCursorQuotas = snapshot.quotas[.cursor]
-            snapshot = QuotioCLIUsageMapper.snapshot(report, mode: mode)
+            snapshot = QuotioCLIUsageMapper.snapshot(report, mode: mode, bundle: localization.bundle, locale: localization.locale)
             if let refreshedProviders {
                 if !refreshedProviders.contains(.cursor) {
                     snapshot.quotas[.cursor] = importedCursorQuotas
