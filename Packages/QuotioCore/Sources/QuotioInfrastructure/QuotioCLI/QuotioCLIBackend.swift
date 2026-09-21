@@ -414,12 +414,27 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             guard report.schemaVersion == 1 else { throw QuotioCLIBackendError.incompatible }
             let localization = await localization()
             guard activeMode == mode else { return }
-            let importedCursorQuotas = snapshot.quotas[.cursor]
+            let previous = snapshot
+            let retainedAccounts = reportedAccounts.filter { account in
+                refreshedProviders.map { providers in
+                    !providers.contains { $0.rawValue == account.providerID.rawValue }
+                } ?? false
+            }
             snapshot = QuotioCLIUsageMapper.snapshot(report, mode: mode, bundle: localization.bundle, locale: localization.locale)
             if let refreshedProviders {
-                if !refreshedProviders.contains(.cursor) {
-                    snapshot.quotas[.cursor] = importedCursorQuotas
-                } else if let importedAccounts {
+                for provider in QuotaProvider.allCases where !refreshedProviders.contains(provider) {
+                    snapshot.quotas[provider] = previous.quotas[provider]
+                    snapshot.accountIDs[provider] = previous.accountIDs[provider]
+                    snapshot.accountAliases[provider] = previous.accountAliases[provider]
+                    snapshot.subscriptions[provider] = previous.subscriptions[provider]
+                    snapshot.issues[provider] = previous.issues[provider]
+                }
+                snapshot.accountIssues = snapshot.accountIssues.filter { refreshedProviders.contains($0.key.provider) }
+                for (account, issue) in previous.accountIssues where !refreshedProviders.contains(account.provider) {
+                    snapshot.accountIssues[account] = issue
+                }
+                snapshot.refreshingProviders = previous.refreshingProviders.subtracting(refreshedProviders)
+                if refreshedProviders.contains(.cursor), let importedAccounts {
                     snapshot.quotas[.cursor] = snapshot.quotas[.cursor]?.filter { importedAccounts.contains($0.key) }
                 }
             } else {
@@ -438,9 +453,10 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             reportedAccounts = references.compactMap { name, reference in
                 guard let reference,
                       let provider = QuotioCLIProviderMap.domain(name),
+                      refreshedProviders?.contains(provider) != false,
                       let key = snapshot.accountAliases[provider]?[reference.id] else { return nil }
                 return Self.account(reference, provider: provider, accountKey: key)
-            }
+            } + retainedAccounts
             publish()
         } catch {
             guard activeMode == mode else { return }

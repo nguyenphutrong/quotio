@@ -176,6 +176,62 @@ final class QuotioCLIBackendTests: XCTestCase {
         }
     }
 
+    func testScopedRefreshAfterMutationPreservesUnaffectedProviderState() async throws {
+        let report = #"""
+        {"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[
+            {"provider":"claude","account_ref":{"origin":"borrowed_proxy","id":"claude-1","label":"Work"},"account":{"id":"user","label":"Work"},"windows":[],"diagnostics":[{"code":"transient"}]},
+            {"provider":"antigravity","account_ref":{"origin":"borrowed_proxy","id":"ag-1","label":"Personal"},"account":{"id":"user","label":"Personal"},"windows":[],"antigravity_subscription":{"current_tier":{"id":"pro","name":"Pro"}}}
+        ],"failures":[
+            {"provider":"claude","account_ref":{"origin":"borrowed_proxy","id":"claude-1","label":"Work"},"code":"transient"},
+            {"provider":"amp","account_ref":{"origin":"borrowed_proxy","id":"amp-1","label":"Local"},"code":"authentication"},
+            {"provider":"codex","code":"credential_storage"}
+        ]}
+        """#
+        let emptyReport = #"{"schema_version":1,"generated_at":"2026-09-16T12:01:00Z","providers":[],"failures":[]}"#
+        QuotioCLIURLProtocol.enqueue(report)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "private-token"))
+        let initial = await backend.bootstrap(mode: .monitor)
+
+        QuotioCLIURLProtocol.enqueue(#"{"id":"mutation","status":"completed"}"#)
+        try await backend.saveAPIKey(providerID: AccountProviderID(rawValue: "openrouter"), label: "New", apiKey: "test-key", existingAccountID: nil)
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed"}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:01:00Z","providers":[{"provider":"openrouter","account_ref":{"origin":"owned","id":"new-1","label":"New"},"account":{"id":"user","label":"New"},"windows":[]}],"failures":[]}"#)
+        let refreshed = await backend.refresh(QuotaFetchRequest(provider: .openRouter, mode: .monitor))
+
+        for provider in [QuotaProvider.claude, .antigravity, .amp, .codex] {
+            XCTAssertEqual(refreshed.quotas[provider], initial.quotas[provider])
+            XCTAssertEqual(refreshed.accountAliases[provider], initial.accountAliases[provider])
+            XCTAssertEqual(refreshed.accountIDs[provider], initial.accountIDs[provider])
+            XCTAssertEqual(refreshed.subscriptions[provider], initial.subscriptions[provider])
+            XCTAssertEqual(refreshed.issues[provider], initial.issues[provider])
+        }
+        XCTAssertEqual(refreshed.accountIssues, initial.accountIssues)
+        XCTAssertNotNil(refreshed.quotas[.openRouter]?["New"])
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[]}"#)
+        let accounts = await backend.accounts()
+        XCTAssertEqual(Set(accounts.map(\.id)), ["claude-1", "ag-1", "amp-1", "new-1"])
+
+        // An empty refreshed scope must still remove its old results and issues.
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed"}"#)
+        QuotioCLIURLProtocol.enqueue(emptyReport)
+        let removed = await backend.refresh(QuotaFetchRequest(provider: .claude, mode: .monitor))
+        XCTAssertNil(removed.quotas[.claude])
+        XCTAssertNil(removed.accountIDs[.claude])
+        XCTAssertNil(removed.accountIssues[QuotaAccountID(provider: .claude, accountKey: "Work")])
+        XCTAssertEqual(removed.quotas[.antigravity], initial.quotas[.antigravity])
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[]}"#)
+        let remainingAccounts = await backend.accounts()
+        XCTAssertEqual(Set(remainingAccounts.map(\.id)), ["ag-1", "amp-1", "new-1"])
+
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh-all","status":"completed"}"#)
+        QuotioCLIURLProtocol.enqueue(emptyReport)
+        let all = await backend.refreshAll(mode: .monitor)
+        XCTAssertTrue(all.quotas.values.allSatisfy(\.isEmpty))
+        XCTAssertTrue(all.accountIssues.isEmpty)
+        XCTAssertTrue(all.issues.isEmpty)
+    }
+
     func testLocalProxyModeExcludesOwnedUsageAndPreservesBorrowedAccountSource() async throws {
         let report = #"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"claude","account_ref":{"origin":"owned","id":"owned-1","label":"Managed"},"account":{"id":"managed","label":"Managed","plan":null},"windows":[]},{"provider":"claude","account_ref":{"origin":"borrowed_proxy","id":"borrowed-1","label":"CLI User"},"account":{"id":"user-1","label":"CLI User","plan":null},"windows":[]}],"failures":[{"provider":"claude","account_ref":{"origin":"owned","id":"owned-1","label":"Managed"},"code":"authentication"}]}"#
         QuotioCLIURLProtocol.enqueue(report)
