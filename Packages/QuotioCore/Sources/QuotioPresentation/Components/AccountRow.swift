@@ -26,13 +26,6 @@ enum AccountRowSource: Equatable {
         case .monitor(let source): return source.displayName
         }
     }
-
-    var supportsDisable: Bool {
-        switch self {
-        case .proxy, .monitor: true
-        case .direct, .autoDetected: false
-        }
-    }
 }
 
 /// Unified data model for account display
@@ -46,6 +39,7 @@ struct AccountRowData: Identifiable, Hashable {
     let status: String?           // "ready", "cooling", "error", etc.
     let statusMessage: String?
     let isDisabled: Bool
+    let canDisable: Bool
     let canDelete: Bool           // Only proxy accounts can be deleted
     let canEdit: Bool             // Whether this account can be edited (GLM only)
     let canSwitch: Bool           // Whether this account can be switched (Antigravity only)
@@ -63,7 +57,8 @@ struct AccountRowData: Identifiable, Hashable {
         isDisabled: Bool,
         canDelete: Bool,
         canEdit: Bool = false,
-        canSwitch: Bool = false
+        canSwitch: Bool = false,
+        canDisable: Bool? = nil
     ) {
         self.id = id
         self.provider = provider
@@ -74,6 +69,7 @@ struct AccountRowData: Identifiable, Hashable {
         self.status = status
         self.statusMessage = statusMessage
         self.isDisabled = isDisabled
+        self.canDisable = canDisable ?? (source == .proxy)
         self.canDelete = canDelete
         self.canEdit = canEdit
         self.canSwitch = canSwitch
@@ -159,7 +155,8 @@ struct AccountRowData: Identifiable, Hashable {
             statusMessage: statusMessage,
             isDisabled: monitorAccount.isDisabled,
             canDelete: monitorAccount.canDelete,
-            canEdit: monitorAccount.capabilities.contains(.edit)
+            canEdit: monitorAccount.capabilities.contains(.edit),
+            canDisable: monitorAccount.capabilities.contains(.disable)
         )
     }
 
@@ -308,8 +305,8 @@ struct AccountRow: View {
                 onTap: handleMenuBarToggle
             )
 
-            // Disable/Enable toggle button (only for proxy accounts)
-            if account.source.supportsDisable, let onToggleDisabled = onToggleDisabled {
+            // Disable/Enable toggle button
+            if account.canDisable, let onToggleDisabled = onToggleDisabled {
                 Button {
                     onToggleDisabled()
                 } label: {
@@ -384,8 +381,8 @@ struct AccountRow: View {
                 }
             }
 
-            // Disable/Enable toggle (only for proxy accounts)
-            if account.source.supportsDisable, let onToggleDisabled = onToggleDisabled {
+            // Disable/Enable toggle
+            if account.canDisable, let onToggleDisabled = onToggleDisabled {
                 Button {
                     onToggleDisabled()
                 } label: {
