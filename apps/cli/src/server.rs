@@ -356,6 +356,8 @@ struct RefreshRequest {
     force: bool,
     #[serde(default = "include_owned_default")]
     include_owned: bool,
+    #[serde(default)]
+    disabled_proxy_auth_files: Vec<String>,
 }
 fn force_default() -> bool {
     true
@@ -443,9 +445,15 @@ async fn refresh(state: &ApiState, request: Option<RefreshRequest>) -> Result<Va
     let generation = state.generation.load(Ordering::SeqCst);
     let config = state.settings.read().await.values.clone();
     let enabled = config.providers().map_err(|_| "invalid_settings")?;
-    let (selected, account, force, include_owned) = match request {
-        Some(r) => (r.providers, r.account_id, r.force, r.include_owned),
-        None => (enabled.clone(), None, false, true),
+    let (selected, account, force, include_owned, disabled_proxy_auth_files) = match request {
+        Some(r) => (
+            r.providers,
+            r.account_id,
+            r.force,
+            r.include_owned,
+            r.disabled_proxy_auth_files,
+        ),
+        None => (enabled.clone(), None, false, true, Vec::new()),
     };
     if account.is_none() && selected.iter().any(|p| !enabled.contains(p)) {
         return Err("refresh_scope_changed");
@@ -455,14 +463,29 @@ async fn refresh(state: &ApiState, request: Option<RefreshRequest>) -> Result<Va
     let borrowed = state
         .proxy_auth_directory
         .as_deref()
-        .map(|directory| crate::accounts::proxy::adapters(directory, &selected, account.as_deref()))
+        .map(|directory| {
+            crate::accounts::proxy::adapters(
+                directory,
+                &selected,
+                account.as_deref(),
+                &disabled_proxy_auth_files,
+            )
+        })
         .transpose()
         .unwrap_or_else(|_| {
             tracing::warn!("CLIProxyAPI auth directory is unavailable or unsafe");
             None
         })
         .unwrap_or_default();
-    let adapters = if account.is_some() && !borrowed.is_empty() {
+    let disabled_proxy_account = account.as_deref().is_some_and(|id| {
+        state.proxy_auth_directory.is_some()
+            && selected.iter().any(|provider| {
+                disabled_proxy_auth_files.iter().any(|name| {
+                    crate::cache::fingerprint(&["cli_proxy_auth_file", provider.id(), name]) == id
+                })
+            })
+    });
+    let adapters = if disabled_proxy_account || (account.is_some() && !borrowed.is_empty()) {
         Ok(borrowed)
     } else {
         let managed = if state.no_saved_accounts {

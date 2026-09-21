@@ -99,6 +99,7 @@ async fn account_scoped_refresh_does_not_require_scheduled_provider() {
             account_id: Some(id),
             force: true,
             include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await;
@@ -123,7 +124,7 @@ async fn account_scoped_refresh_accepts_borrowed_proxy_account() {
     )
     .unwrap();
     Arc::get_mut(&mut state).unwrap().proxy_auth_directory = Some(auth.clone());
-    let account = crate::accounts::proxy::adapters(&auth, &[Provider::Catalog("claude")], None)
+    let account = crate::accounts::proxy::adapters(&auth, &[Provider::Catalog("claude")], None, &[])
         .unwrap()
         .remove(0)
         .account_ref()
@@ -134,6 +135,104 @@ async fn account_scoped_refresh_accepts_borrowed_proxy_account() {
             .await
             .is_ok()
     );
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn disabled_proxy_file_is_not_fetched_in_provider_or_account_scope() {
+    use tokio::io::AsyncWriteExt;
+    let (mut state, dir, _) = fixture().await;
+    let auth = dir.join("proxy-auth");
+    std::fs::create_dir(&auth).unwrap();
+    let auth = auth.canonicalize().unwrap();
+    let bytes = br#"{"type":"claude","access_token":"test-token"}"#;
+    std::fs::write(auth.join("claude.json"), bytes).unwrap();
+    let provider = Provider::Catalog("claude");
+    let id = crate::cache::fingerprint(&["cli_proxy_auth_file", provider.id(), "claude.json"]);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let requests = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let count = requests.clone();
+    let proxy = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            count.fetch_add(1, Ordering::SeqCst);
+            let _ = stream
+                .write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n")
+                .await;
+        }
+    });
+    let writable = Arc::get_mut(&mut state).unwrap();
+    writable.no_saved_accounts = false;
+    writable.proxy_auth_directory = Some(auth.clone());
+    writable.context.http = reqwest::Client::builder()
+        .proxy(reqwest::Proxy::all(proxy).unwrap())
+        .timeout(Duration::from_secs(1))
+        .build()
+        .unwrap();
+    state.settings.write().await.values.enabled_providers = vec!["claude".into()];
+    // Seed cached usage so scoped exclusion must also remove an old result.
+    *state.snapshot.write().await = Some((
+        0,
+        UsageReport {
+            schema_version: 1,
+            generated_at: state.context.clock.now(),
+            providers: vec![],
+            failures: vec![ProviderFailure {
+                provider: ProviderId("claude".into()),
+                account_ref: Some(crate::domain::AccountRef {
+                    origin: Some(crate::domain::AccountOrigin::BorrowedProxy),
+                    id: id.clone(),
+                    label: "Work".into(),
+                }),
+                code: ProviderError::Authentication,
+                message: "test".into(),
+            }],
+        },
+    ));
+    for account_id in [Some(id.clone()), None] {
+        refresh(
+            &state,
+            Some(RefreshRequest {
+                providers: vec![provider],
+                account_id,
+                force: true,
+                include_owned: false,
+                disabled_proxy_auth_files: vec!["claude.json".into()],
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
+        let snapshot = state.snapshot.read().await;
+        let report = &snapshot.as_ref().unwrap().1;
+        assert!(
+            report
+                .providers
+                .iter()
+                .all(|u| u.account_ref.as_ref().is_none_or(|r| r.id != id))
+        );
+        assert!(
+            report
+                .failures
+                .iter()
+                .all(|f| f.account_ref.as_ref().is_none_or(|r| r.id != id))
+        );
+    }
+    refresh(
+        &state,
+        Some(RefreshRequest {
+            providers: vec![provider],
+            account_id: Some(id),
+            force: true,
+            include_owned: false,
+            disabled_proxy_auth_files: vec![],
+        }),
+    )
+    .await
+    .unwrap();
+    assert!(requests.load(Ordering::SeqCst) > 0);
+    assert_eq!(std::fs::read(auth.join("claude.json")).unwrap(), bytes);
+    server.abort();
     std::fs::remove_dir_all(dir).unwrap();
 }
 
@@ -155,6 +254,7 @@ async fn account_scoped_refresh_requires_an_explicit_provider() {
             account_id: Some(id),
             force: true,
             include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await;
@@ -177,6 +277,7 @@ async fn account_scoped_refresh_rejects_duplicate_providers() {
             account_id: Some(id),
             force: true,
             include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await;
@@ -277,6 +378,7 @@ async fn account_scoped_refresh_reports_account_removed_before_collection() {
             account_id: Some(id.clone()),
             force: true,
             include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await;
@@ -317,6 +419,7 @@ async fn unscoped_refresh_still_requires_enabled_provider() {
             account_id: None,
             force: true,
             include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await;
@@ -407,6 +510,7 @@ async fn grok_local_alias_child() {
                 account_id: Some("local".into()),
                 force: true,
                 include_owned: true,
+                disabled_proxy_auth_files: Vec::new(),
             }),
         )
         .await;
@@ -1005,6 +1109,7 @@ async fn external_config_conflict_recovers_and_refresh_requests_coalesce() {
         account_id: None,
         force: true,
         include_owned: true,
+        disabled_proxy_auth_files: Vec::new(),
     };
     let (_, Json(first)) = manual_refresh(State(state.clone()), ApiJson(request()))
         .await
@@ -1062,6 +1167,7 @@ async fn manual_refresh_preserves_the_schedulers_deadline() {
             account_id: None,
             force: false,
             include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await
@@ -1085,6 +1191,7 @@ async fn local_mode_refresh_excludes_owned_accounts() {
             account_id: None,
             force: true,
             include_owned: false,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await
@@ -1145,6 +1252,7 @@ async fn local_mode_warp_refresh_only_collects_mirrors() {
                 account_id: None,
                 force: true,
                 include_owned,
+                disabled_proxy_auth_files: Vec::new(),
             }),
         )
         .await

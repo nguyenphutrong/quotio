@@ -166,6 +166,11 @@ public final class ProxyManagementScreenModel {
                 authFileState.recordAuthFilesChanged(at: Date())
             }
             authFiles = fetchedAuthFiles
+            let storedDisabled = loadDisabledAuthFiles()
+            // Preserve saved choices while startup replays them to CLIProxyAPI.
+            let disabledFiles = (isStarting ? storedDisabled : storedDisabled.subtracting(currentNames))
+                .union(fetchedAuthFiles.filter(\.disabled).map(\.name))
+            saveDisabledAuthFiles(disabledFiles)
             do {
                 usageStats = try await client.fetchUsageStats()
             } catch ProxyManagementFailure.httpError(404) {

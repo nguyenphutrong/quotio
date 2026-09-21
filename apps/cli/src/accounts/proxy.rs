@@ -145,6 +145,7 @@ pub fn adapters(
     directory: &Path,
     providers: &[Provider],
     account: Option<&str>,
+    disabled_files: &[String],
 ) -> Result<Vec<Arc<dyn ProviderAdapter>>, AccountError> {
     validate_directory(directory)?;
     let Ok(entries) = std::fs::read_dir(directory) else {
@@ -159,6 +160,7 @@ pub fn adapters(
     paths.sort_by_key(|entry| entry.file_name());
     Ok(paths
         .into_iter()
+        .filter(|entry| !disabled_files.iter().any(|name| entry.file_name() == name.as_str()))
         .filter_map(|entry| inspect(entry.path()).ok().flatten())
         .filter(|source| providers.contains(&source.provider))
         .filter(|source| account.is_none_or(|id| source.reference.id == id))
@@ -411,7 +413,7 @@ mod tests {
             Provider::Catalog("kiro"),
             Provider::Catalog("vertexai"),
         ];
-        let scanned = adapters(&directory, &providers, None).unwrap();
+        let scanned = adapters(&directory, &providers, None, &[]).unwrap();
         assert_eq!(scanned.len(), providers.len());
         let claude = scanned
             .iter()
@@ -431,14 +433,14 @@ mod tests {
             br#"{"type":"claude","email":"rotated@example.test","access_token":"rotated-token"}"#,
         )
         .unwrap();
-        let rescanned = adapters(&directory, &[Provider::Catalog("claude")], None).unwrap();
+        let rescanned = adapters(&directory, &[Provider::Catalog("claude")], None, &[]).unwrap();
         assert_eq!(
             rescanned[0].account_ref().unwrap().label,
             "rotated@example.test"
         );
         std::fs::remove_file(claude_path).unwrap();
         assert!(
-            adapters(&directory, &[Provider::Catalog("claude")], None)
+            adapters(&directory, &[Provider::Catalog("claude")], None, &[])
                 .unwrap()
                 .is_empty()
         );
@@ -479,7 +481,7 @@ mod tests {
                 crate::cache::fingerprint(&["cli_proxy_auth_file", source.provider.id(), filename])
             );
             let selected =
-                adapters(&directory, &[source.provider], Some(&source.reference.id)).unwrap();
+                adapters(&directory, &[source.provider], Some(&source.reference.id), &[]).unwrap();
             assert_eq!(selected.len(), 1);
             assert_eq!(selected[0].account_ref().unwrap().label, expected);
         }
@@ -509,7 +511,7 @@ mod tests {
             .unwrap();
 
         assert!(
-            adapters(&directory, &[Provider::Catalog("claude")], None)
+            adapters(&directory, &[Provider::Catalog("claude")], None, &[])
                 .unwrap()
                 .is_empty()
         );

@@ -651,6 +651,49 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(body["account_id"] as? String, "proxy-1")
     }
 
+    func testDisabledProxyFilesFilterRefreshAndPersistedSnapshotsWithoutHidingOwnedAccount() async throws {
+        let suite = "QuotioCLIBackendTests.disabled.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let state = UserDefaultsManagedAuthFileStateRepository(defaults: defaults)
+        let report = #"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"claude","account_ref":{"origin":"owned","id":"owned","label":"Work"},"account":{"id":"owned","label":"Work"},"windows":[]},{"provider":"claude","account_ref":{"origin":"borrowed_proxy","id":"44ca7be0ce2c2f800a2fec0aa175c36b09f09b0ad21c7fecc83e4c345853a93d","label":"Work"},"account":{"id":"proxy","label":"Work"},"windows":[]}],"failures":[{"provider":"claude","account_ref":{"origin":"borrowed_proxy","id":"f7ff9ce8cb0a99488cf1712149ff9879ef7bbc2353795f901e76e286270c2fe1","label":"Failed"},"code":"authentication"}]}"#
+        let disabledID = "44ca7be0ce2c2f800a2fec0aa175c36b09f09b0ad21c7fecc83e4c345853a93d"
+        let backend = QuotioCLIBackend(session: stubSession(), userDefaults: UserDefaults(suiteName: suite)!, authFileState: state)
+        let connection = QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "test-token")
+        await backend.connect(connection)
+        QuotioCLIURLProtocol.enqueue(report)
+        let before = await backend.bootstrap(mode: .monitor)
+        XCTAssertEqual(before.quotas[.claude]?.count, 2)
+        state.saveDisabledAuthFileNames(["claude-work.json", "claude-failed.json"])
+
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed"}"#)
+        QuotioCLIURLProtocol.enqueue(report)
+        let snapshot = await backend.refresh(QuotaFetchRequest(provider: .claude, scope: .account(disabledID), mode: .monitor))
+        let body = try XCTUnwrap(QuotioCLIURLProtocol.body(forPath: "/v1/refresh"))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json["account_id"] as? String, disabledID)
+        XCTAssertEqual(json["disabled_proxy_auth_files"] as? [String], ["claude-failed.json", "claude-work.json"])
+        XCTAssertEqual(snapshot.accountIDs[.claude], ["Work": "owned"])
+        XCTAssertEqual(snapshot.accountAliases[.claude], ["Work": "Work", "owned": "Work"])
+        XCTAssertTrue(snapshot.accountIssues.isEmpty)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[]}"#)
+        let accounts = await backend.accounts()
+        XCTAssertEqual(accounts.map(\.id), ["owned"])
+
+        let restarted = QuotioCLIBackend(session: stubSession(), userDefaults: UserDefaults(suiteName: suite)!, authFileState: UserDefaultsManagedAuthFileStateRepository(defaults: defaults))
+        await restarted.connect(connection)
+        QuotioCLIURLProtocol.enqueue(report)
+        let restored = await restarted.bootstrap(mode: .localProxy)
+        XCTAssertTrue(restored.quotas.isEmpty)
+        XCTAssertTrue(restored.accountAliases.isEmpty)
+        XCTAssertTrue(restored.accountIssues.isEmpty)
+        state.saveDisabledAuthFileNames([])
+        QuotioCLIURLProtocol.enqueue(report)
+        let reenabled = await restarted.bootstrap(mode: .localProxy)
+        XCTAssertEqual(reenabled.quotas[.claude]?.count, 1)
+        XCTAssertEqual(reenabled.accountIssues.count, 1)
+    }
+
     func testLocalProxyRefreshExcludesOwnedSources() async throws {
         QuotioCLIURLProtocol.enqueue(#"{"id":"operation-1","status":"completed","error":null}"#)
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)

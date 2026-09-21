@@ -56,7 +56,7 @@ The read-only default has no account or settings write routes. `--manage` adds t
 | `POST /v1/auth/sessions` and callback routes | Managed Codex, Claude and Copilot sessions (requires `--manage`) |
 | `GET /v1/settings` | Current settings and revision; available in read-only mode |
 | `PATCH /v1/settings` | Optimistic revision patch; requires `--manage` |
-| `POST /v1/refresh` | Asynchronous refresh request (requires `--manage`); `include_owned: false` limits collection to borrowed native and CLIProxyAPI sources |
+| `POST /v1/refresh` | Asynchronous refresh request (requires `--manage`); `include_owned: false` limits collection to borrowed sources and native-parent Warp mirrors; `disabled_proxy_auth_files` excludes the named CLIProxyAPI files from that request |
 | `GET /v1/operations/{id}` | Operation status; recent refresh results expire after 15 minutes; account write results persist until restart |
 
 Usage responses use Quotio's existing `schema_version: 1` JSON contract, matching

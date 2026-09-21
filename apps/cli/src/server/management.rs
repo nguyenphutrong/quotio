@@ -488,7 +488,7 @@ pub(super) async fn validate_refresh_account(
         .proxy_auth_directory
         .as_deref()
         .is_some_and(|directory| {
-            crate::accounts::proxy::adapters(directory, &[provider], Some(id))
+            crate::accounts::proxy::adapters(directory, &[provider], Some(id), &[])
                 .is_ok_and(|accounts| !accounts.is_empty())
         })
     {

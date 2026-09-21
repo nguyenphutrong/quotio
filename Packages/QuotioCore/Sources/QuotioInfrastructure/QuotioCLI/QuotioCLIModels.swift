@@ -204,7 +204,8 @@ struct QuotioCLIUsageMapper {
         _ report: QuotioCLIUsageReport,
         mode: QuotaOperatingMode = .monitor,
         bundle: Bundle = .main,
-        locale: Locale = .current
+        locale: Locale = .current,
+        excludedAccountIDs: Set<String> = []
     ) -> QuotaSnapshot {
         let mapper = Self(bundle: bundle, locale: locale)
         var snapshot = QuotaSnapshot(lastUpdated: report.generatedAt)
@@ -212,7 +213,8 @@ struct QuotioCLIUsageMapper {
         where mode == .monitor || usage.accountRef?.origin != "owned" || QuotioCLIWarpMirror.isMirror(
             provider: usage.provider, origin: usage.accountRef?.origin, label: usage.accountRef?.label
         ) {
-            guard let provider = QuotioCLIProviderMap.domain(usage.provider) else { continue }
+            guard !excludedAccountIDs.contains(usage.accountRef?.id ?? ""),
+                  let provider = QuotioCLIProviderMap.domain(usage.provider) else { continue }
             let referenceLabel = usage.accountRef.map {
                 QuotioCLIWarpMirror.displayLabel($0.label, provider: usage.provider)
             }
@@ -243,7 +245,8 @@ struct QuotioCLIUsageMapper {
         where mode == .monitor || failure.accountRef?.origin != "owned" || QuotioCLIWarpMirror.isMirror(
             provider: failure.provider, origin: failure.accountRef?.origin, label: failure.accountRef?.label
         ) {
-            guard let provider = QuotioCLIProviderMap.domain(failure.provider) else { continue }
+            guard !excludedAccountIDs.contains(failure.accountRef?.id ?? ""),
+                  let provider = QuotioCLIProviderMap.domain(failure.provider) else { continue }
             let isDiagnostic = report.providers.contains { usage in
                 usage.provider == failure.provider
                     && usage.accountRef?.id == failure.accountRef?.id

@@ -21,6 +21,7 @@ public final class QuotaFeatureController {
     @ObservationIgnored private let menuBarSettings: MenuBarSettingsManager
     @ObservationIgnored private let notifications: any NotificationRequesting
     @ObservationIgnored private var authFiles: () -> [ManagedAuthFile]
+    @ObservationIgnored private let authFileState: (any ManagedAuthFileStateRepository)?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var didChangeHandler: (@MainActor () -> Void)?
 
@@ -49,7 +50,8 @@ public final class QuotaFeatureController {
         refreshSettings: RefreshSettingsManager,
         menuBarSettings: MenuBarSettingsManager,
         notifications: any NotificationRequesting,
-        authFiles: @escaping () -> [ManagedAuthFile]
+        authFiles: @escaping () -> [ManagedAuthFile],
+        authFileState: (any ManagedAuthFileStateRepository)? = nil
     ) {
         self.quota = quota
         self.accounts = accounts
@@ -60,6 +62,7 @@ public final class QuotaFeatureController {
         self.menuBarSettings = menuBarSettings
         self.notifications = notifications
         self.authFiles = authFiles
+        self.authFileState = authFileState
         refreshSettings.addCadenceChangeHandler { [weak self] _ in
             self?.restartAutomaticRefresh()
         }
@@ -298,14 +301,16 @@ public final class QuotaFeatureController {
                 }
             }
         }
-        for file in authFiles() where !file.disabled {
+        let disabledFiles = authFileState?.disabledAuthFileNames() ?? []
+        for file in authFiles() where !file.disabled && !disabledFiles.contains(file.name) {
             guard let provider = file.providerID else { continue }
             let item = canonicalItem(MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey))
             if !disabledItemIDs.contains(item.id.lowercased()), seen.insert(item.id).inserted {
                 available.append(item)
             }
         }
-        for file in accounts.authFiles {
+        for file in accounts.authFiles
+        where file.source != .cliProxyApi || !disabledFiles.contains(file.filename) {
             guard let provider = QuotaProvider(rawValue: file.providerID.rawValue) else { continue }
             let item = canonicalItem(MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey))
             if !disabledItemIDs.contains(item.id.lowercased()), seen.insert(item.id).inserted {

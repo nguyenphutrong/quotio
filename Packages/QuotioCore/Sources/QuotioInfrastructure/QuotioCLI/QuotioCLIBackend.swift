@@ -79,6 +79,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         let accountId: String?
         let force: Bool
         let includeOwned: Bool
+        let disabledProxyAuthFiles: [String]
     }
     private struct APIKeyBody: Encodable {
         let provider: String?
@@ -106,6 +107,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     private let userDefaults: UserDefaults
     private let customProviders: (@Sendable () throws -> [CustomProvider])?
     private let customProviderDomain: String
+    private let authFileState: (any ManagedAuthFileStateRepository)?
     private let localization: @MainActor @Sendable () -> (bundle: Bundle, locale: Locale)
 
     public init(
@@ -113,12 +115,14 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         userDefaults: UserDefaults = .standard,
         customProviders: (@Sendable () throws -> [CustomProvider])? = nil,
         customProviderDomain: String = "production",
+        authFileState: (any ManagedAuthFileStateRepository)? = nil,
         localization: @escaping @MainActor @Sendable () -> (bundle: Bundle, locale: Locale) = { (.main, .current) }
     ) {
         self.session = session
         self.userDefaults = userDefaults
         self.customProviders = customProviders
         self.customProviderDomain = customProviderDomain
+        self.authFileState = authFileState
         self.localization = localization
     }
 
@@ -214,11 +218,15 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     }
 
     public func accounts() async -> [Account] {
+        removeDisabledProxyQuotas()
         guard let client else { return reportedAccounts }
         do {
             let response: QuotioCLIAccountList = try await client.request("v1/accounts")
             guard response.schemaVersion == 1 else { return [] }
+            removeDisabledProxyQuotas()
+            let excludedIDs = disabledProxyAccountIDs()
             let accounts = response.accounts
+                .filter { !excludedIDs.contains($0.id) }
                 .filter { activeMode == .monitor || $0.origin != "owned" || QuotioCLIWarpMirror.isMirror($0) }
                 .compactMap(Self.account)
             return AccountSelectionPolicy.preferred(
@@ -404,6 +412,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         force: Bool,
         importedAccounts: Set<String>? = nil
     ) async {
+        removeDisabledProxyQuotas()
         guard let client, !providers.isEmpty, activeMode == mode else { return }
         let domainProviders = Set(providers.compactMap(QuotioCLIProviderMap.domain))
         snapshot.refreshingProviders.formUnion(domainProviders)
@@ -416,7 +425,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
                 providers: providers,
                 accountId: accountID,
                 force: force,
-                includeOwned: mode == .monitor
+                includeOwned: mode == .monitor,
+                disabledProxyAuthFiles: (authFileState?.disabledAuthFileNames() ?? []).sorted()
             ))
             var operation: QuotioCLIOperation = try await client.request(
                 "v1/refresh",
@@ -445,6 +455,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         refreshedProviders: Set<QuotaProvider>? = nil,
         importedAccounts: Set<String>? = nil
     ) async {
+        removeDisabledProxyQuotas()
         guard let client else {
             markFailure(for: refreshedProviders ?? Set(Self.supportedProviders))
             return
@@ -461,7 +472,10 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
                     !providers.contains { $0.rawValue == account.providerID.rawValue }
                 } ?? false
             }
-            snapshot = QuotioCLIUsageMapper.snapshot(report, mode: mode, bundle: localization.bundle, locale: localization.locale)
+            snapshot = QuotioCLIUsageMapper.snapshot(
+                report, mode: mode, bundle: localization.bundle, locale: localization.locale,
+                excludedAccountIDs: disabledProxyAccountIDs()
+            )
             if let refreshedProviders {
                 for provider in QuotaProvider.allCases where !refreshedProviders.contains(provider) {
                     snapshot.quotas[provider] = previous.quotas[provider]
@@ -498,6 +512,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
                       let key = snapshot.accountAliases[provider]?[reference.id] else { return nil }
                 return Self.account(reference, provider: provider, accountKey: key)
             } + retainedAccounts
+            removeDisabledProxyQuotas()
             publish()
         } catch {
             guard activeMode == mode else { return }
@@ -570,6 +585,25 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         }
     }
 
+    private func disabledProxyAccountIDs() -> Set<String> {
+        Set((authFileState?.disabledAuthFileNames() ?? []).flatMap { name in
+            Self.supportedProviders.compactMap(QuotioCLIProviderMap.cli).map {
+                Self.sourceID(["cli_proxy_auth_file", $0, name])
+            }
+        })
+    }
+
+    private func removeDisabledProxyQuotas() {
+        let excludedIDs = disabledProxyAccountIDs()
+        guard !excludedIDs.isEmpty else { return }
+        reportedAccounts.removeAll { excludedIDs.contains($0.id) }
+        for (provider, accounts) in snapshot.accountIDs {
+            for (key, id) in accounts where excludedIDs.contains(id) {
+                removeQuota(for: QuotaAccountID(provider: provider, accountKey: key), mode: activeMode)
+            }
+        }
+    }
+
     private func mergeImportedIDEQuotas() {
         guard let data = userDefaults.data(forKey: "persisted.ideQuotas"),
               let stored = try? JSONDecoder().decode([String: [String: ProviderQuota]].self, from: data) else {
@@ -600,7 +634,10 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         case "development": "app.bytrong.quotio.dev"
         default: domain
         }
-        let parts = ["quotio_custom_provider", identifier, recordID.uuidString.lowercased()]
+        return sourceID(["quotio_custom_provider", identifier, recordID.uuidString.lowercased()])
+    }
+
+    private static func sourceID(_ parts: [String]) -> String {
         var data = Data()
         for part in parts {
             var length = UInt64(part.utf8.count).bigEndian

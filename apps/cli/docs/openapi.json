@@ -2969,10 +2969,16 @@
           "force": {
             "type": "boolean"
           },
+          "disabled_proxy_auth_files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": [],
+            "description": "CLIProxyAPI auth filenames to exclude from this refresh, including account-scoped refreshes. This does not disable independent vault or native accounts."
+          },
           "include_owned": {
             "type": "boolean",
             "default": true,
-            "description": "Include credentials owned by the selected Quotio vault. Set false to refresh only borrowed native and CLIProxyAPI sources."
+            "description": "Include credentials owned by the selected Quotio vault. Set false to refresh only borrowed sources and native-parent Warp mirrors marked with __quotio_local_warp__:."
           }
         },
         "additionalProperties": false

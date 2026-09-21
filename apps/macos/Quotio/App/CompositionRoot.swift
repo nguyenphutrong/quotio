@@ -82,9 +82,11 @@ enum CompositionRoot {
         )
 
         let authFileRepository = FileAuthFileRepository()
+        let authFileState = UserDefaultsManagedAuthFileStateRepository()
         let quotioBackend = QuotioCLIBackend(
             customProviders: customProviderRepository.load,
             customProviderDomain: AppIdentity.bundleIdentifier,
+            authFileState: authFileState,
             localization: { (languageManager.bundle, languageManager.locale) }
         )
         let agentInstallationProbe = AgentBinaryInstallationProbe()
@@ -214,7 +216,8 @@ enum CompositionRoot {
             refreshSettings: refreshSettings,
             menuBarSettings: menuBarSettings,
             notifications: notificationController,
-            authFiles: { [] }
+            authFiles: { [] },
+            authFileState: authFileState
         )
         antigravityAccountScreenModel.setDidSwitchHandler { [weak quotaController] in
             await quotaController?.refresh(provider: .antigravity)
@@ -285,7 +288,7 @@ enum CompositionRoot {
             refreshSettings: refreshSettings,
             tunnelPreferences: tunnelPreferences,
             proxyPreferences: proxyPreferences,
-            authFileState: UserDefaultsManagedAuthFileStateRepository(),
+            authFileState: authFileState,
             managementAPIFactory: managementAPIFactory
         )
         proxyManagementReference = proxyManagement
