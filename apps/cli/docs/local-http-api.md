@@ -297,8 +297,14 @@ edit, or delete those files; their owner remains responsible for token rotation.
 
 ## Native migration scope
 
-The native migration covers quota/usage and Quotio-managed provider accounts. Agent
-configuration, CLIProxyAPI auth-file management, proxy lifecycle, proxy keys, tunnels,
+The native migration covers quota/usage and Quotio-managed provider accounts. The
+macOS app also imports the legacy `Codex Auth` Keychain credential once into the
+CLI's owned Codex account format. After a successful import, the helper owns token
+refresh; the original Keychain item is left untouched and is no longer read by
+migration. Failed imports remain retryable. Claude discovery supports Claude Code
+only; Claude Desktop credential discovery is intentionally not supported.
+
+Agent configuration, CLIProxyAPI auth-file management, proxy lifecycle, proxy keys, tunnels,
 and proxy notification policy remain in the existing Swift app.
 The unreleased notification endpoint has been removed. An existing `notifications`
 config table is retained on settings writes for compatibility but does not control

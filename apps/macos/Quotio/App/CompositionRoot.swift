@@ -368,6 +368,7 @@ enum CompositionRoot {
                 canMigrateLegacy: AppIdentity.isProduction,
                 legacyProtectedStore: legacyYubiKey
             ),
+            codexKeychain: ExternalKeychainCredentialReader(),
             importAccount: { account, credential, disabled in
                 try await quotioBackend.importLegacyAccount(account, credential: credential, disabled: disabled)
             }
