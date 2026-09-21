@@ -408,7 +408,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         importedAccounts: Set<String>? = nil
     ) async {
         guard let client else {
-            markFailure(for: Set(Self.supportedProviders))
+            markFailure(for: refreshedProviders ?? Set(Self.supportedProviders))
             return
         }
         do {
@@ -463,7 +463,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
             publish()
         } catch {
             guard activeMode == mode else { return }
-            markFailure(for: Set(Self.supportedProviders))
+            markFailure(for: refreshedProviders ?? Set(Self.supportedProviders))
         }
     }
 

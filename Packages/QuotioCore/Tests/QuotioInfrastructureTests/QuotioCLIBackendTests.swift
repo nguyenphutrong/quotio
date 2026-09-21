@@ -191,6 +191,26 @@ final class QuotioCLIBackendTests: XCTestCase {
         }
     }
 
+    func testScopedSnapshotFailureOnlyMarksRefreshedProvider() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"claude","account":{"id":"claude-1","label":"Work"},"windows":[]},{"provider":"codex","account":{"id":"codex-1","label":"Personal"},"windows":[]}],"failures":[]}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "private-token"))
+        let initial = await backend.bootstrap(mode: .monitor)
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed"}"#)
+        QuotioCLIURLProtocol.enqueue("{}")
+
+        let failed = await backend.refresh(QuotaFetchRequest(provider: .claude, mode: .monitor))
+
+        XCTAssertEqual(Set(failed.issues.keys), [.claude])
+        XCTAssertEqual(failed.issues[.claude]?.kind, .failed)
+        XCTAssertEqual(failed.quotas, initial.quotas)
+        XCTAssertTrue(failed.refreshingProviders.isEmpty)
+
+        QuotioCLIURLProtocol.enqueue("{}")
+        let bootstrapFailure = await backend.bootstrap(mode: .monitor)
+        XCTAssertEqual(bootstrapFailure.issues[.codex]?.kind, .failed)
+    }
+
     func testScopedRefreshAfterMutationPreservesUnaffectedProviderState() async throws {
         let report = #"""
         {"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[
