@@ -453,6 +453,34 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(source["record_id"] as? String, providerID.uuidString)
     }
 
+    func testCustomProviderReferencesAreReadOnly() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"glm","provider":"zai","label":"GLM","origin":"borrowed_proxy","enabled":true,"source_kind":"quotio_custom_provider"},{"id":"cline","provider":"clinepass","label":"Cline","origin":"borrowed_proxy","enabled":true,"source_kind":"quotio_custom_provider"},{"id":"owned","provider":"zai","label":"Owned","origin":"owned","enabled":true}]}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "test-token"))
+        let accounts = await backend.accounts()
+        XCTAssertEqual(accounts.count, 3)
+        XCTAssertTrue(accounts.filter { $0.id != "owned" }.allSatisfy { $0.capabilities.isEmpty })
+        XCTAssertEqual(accounts.first { $0.id == "owned" }?.capabilities, [.disable, .edit, .delete])
+    }
+
+    func testRefreshReenablesReferenceWhoseCustomProviderIsEnabled() async throws {
+        let provider = CustomProvider(
+            id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            name: "Work Z.ai", type: .glmCompatibility,
+            apiKeys: [CustomAPIKeyEntry(apiKey: "secret")]
+        )
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"custom-1","provider":"zai","label":"Work Z.ai","origin":"borrowed_proxy","enabled":false,"source_kind":"quotio_custom_provider","source_id":"8c5323370293dc7d3ad3b61ed18ce2bb8191ebc3e743d93fdc5e5b6d8504c20e"}]}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"id":"enable","status":"completed"}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed"}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
+        let backend = QuotioCLIBackend(session: stubSession(), customProviders: { [provider] }, customProviderDomain: "com.example.quotio")
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "test-token"))
+        _ = await backend.refresh(QuotaFetchRequest(provider: .glm, mode: .monitor))
+        let data = try XCTUnwrap(QuotioCLIURLProtocol.body(forPath: "/v1/accounts/custom-1"))
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: data) as? [String: Bool], ["enabled": true])
+        XCTAssertEqual(QuotioCLIURLProtocol.requests().map { $0.url!.path }, ["/v1/accounts", "/v1/accounts/custom-1", "/v1/refresh", "/v1/usage"])
+    }
+
     func testRefreshKeepsMatchingCustomProviderReference() async throws {
         let provider = CustomProvider(
             id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
@@ -460,7 +488,7 @@ final class QuotioCLIBackendTests: XCTestCase {
             type: .glmCompatibility,
             apiKeys: [CustomAPIKeyEntry(apiKey: "secret")]
         )
-        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"custom-1","provider":"zai","label":"Work Z.ai","origin":"borrowed_native","enabled":true,"source_kind":"quotio_custom_provider","source_id":"8c5323370293dc7d3ad3b61ed18ce2bb8191ebc3e743d93fdc5e5b6d8504c20e"}]}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"custom-1","provider":"zai","label":"Work Z.ai","origin":"borrowed_proxy","enabled":true,"source_kind":"quotio_custom_provider","source_id":"8c5323370293dc7d3ad3b61ed18ce2bb8191ebc3e743d93fdc5e5b6d8504c20e"}]}"#)
         QuotioCLIURLProtocol.enqueue(#"{"id":"refresh-operation","status":"completed","error":null}"#)
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
         let backend = QuotioCLIBackend(
@@ -487,7 +515,7 @@ final class QuotioCLIBackendTests: XCTestCase {
             name: "Renamed Z.ai", type: .glmCompatibility,
             apiKeys: [CustomAPIKeyEntry(apiKey: "secret")]
         )
-        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"custom-1","provider":"zai","label":"Work Z.ai","origin":"borrowed_native","enabled":true,"source_kind":"quotio_custom_provider","source_id":"8c5323370293dc7d3ad3b61ed18ce2bb8191ebc3e743d93fdc5e5b6d8504c20e"}]}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"custom-1","provider":"zai","label":"Work Z.ai","origin":"borrowed_proxy","enabled":true,"source_kind":"quotio_custom_provider","source_id":"8c5323370293dc7d3ad3b61ed18ce2bb8191ebc3e743d93fdc5e5b6d8504c20e"}]}"#)
         QuotioCLIURLProtocol.enqueue(#"{"id":"rename","status":"completed"}"#)
         QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed"}"#)
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)

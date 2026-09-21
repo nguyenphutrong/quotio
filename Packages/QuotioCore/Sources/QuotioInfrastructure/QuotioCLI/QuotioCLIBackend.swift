@@ -561,6 +561,10 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         }
         for (provider, sourceID) in desired {
             if let account = existing.first(where: { $0.sourceId == sourceID }) {
+                if !account.enabled {
+                    let body = try JSONEncoder.quotioCLI.encode(EnabledBody(enabled: true))
+                    try await mutate(client: client, path: "v1/accounts/\(account.id)", method: "PATCH", body: body)
+                }
                 if account.label != provider.name {
                     let body = try JSONEncoder.quotioCLI.encode(LabelBody(label: provider.name))
                     try await mutate(client: client, path: "v1/accounts/\(account.id)", method: "PATCH", body: body)
@@ -667,7 +671,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         var capabilities: Set<AccountCapability> = [.disable]
         if value.origin != "borrowed_proxy" { capabilities.insert(.delete) }
         if value.origin == "owned", provider.usesAPIKeyAuth { capabilities.insert(.edit) }
-        if QuotioCLIWarpMirror.isMirror(value) { capabilities = [] }
+        if QuotioCLIWarpMirror.isMirror(value) || value.sourceKind == "quotio_custom_provider" { capabilities = [] }
         return Account(
             identity: AccountIdentity(
                 id: value.id,
