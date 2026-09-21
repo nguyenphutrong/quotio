@@ -295,6 +295,19 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertNotNil(snapshot.quotas[.warp]?["Work"])
     }
 
+    func testLocalWarpMirrorsAreReadOnlyWhileManagedWarpAccountsRemainEditable() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"managed","provider":"warp","label":"Managed","origin":"owned","enabled":true},{"id":"mirror","provider":"warp","label":"__quotio_local_warp__:Work","origin":"owned","enabled":true}]}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "private-token"))
+
+        let accounts = await backend.accounts()
+
+        let mirror = try XCTUnwrap(accounts.first { $0.id == "mirror" })
+        XCTAssertEqual(mirror.displayName, "Work")
+        XCTAssertTrue(mirror.capabilities.isEmpty)
+        XCTAssertEqual(accounts.first { $0.id == "managed" }?.capabilities, [.disable, .edit, .delete])
+    }
+
     func testSynchronizeWarpTokensOnlyUpdatesAndRemovesMirroredAccounts() async throws {
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[{"id":"monitor","provider":"warp","label":"Monitor","origin":"owned","enabled":true,"source_kind":null},{"id":"warp-1","provider":"warp","label":"__quotio_local_warp__:Work","origin":"owned","enabled":true,"source_kind":null},{"id":"warp-2","provider":"warp","label":"__quotio_local_warp__:Old","origin":"owned","enabled":true,"source_kind":null}]}"#)
         QuotioCLIURLProtocol.enqueue(#"{"id":"operation-1","status":"completed","error":null}"#)

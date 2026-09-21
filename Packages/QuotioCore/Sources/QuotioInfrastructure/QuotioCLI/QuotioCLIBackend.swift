@@ -628,6 +628,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         var capabilities: Set<AccountCapability> = [.disable]
         if value.origin != "borrowed_proxy" { capabilities.insert(.delete) }
         if value.origin == "owned", provider.usesAPIKeyAuth { capabilities.insert(.edit) }
+        if QuotioCLIWarpMirror.isMirror(value) { capabilities = [] }
         return Account(
             identity: AccountIdentity(
                 id: value.id,
