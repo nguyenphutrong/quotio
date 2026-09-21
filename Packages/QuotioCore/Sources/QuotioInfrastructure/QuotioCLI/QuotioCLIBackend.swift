@@ -148,6 +148,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
 
     public func bootstrap(mode: QuotaOperatingMode) async -> QuotaSnapshot {
         selectMode(mode)
+        mergeImportedIDEQuotas()
         await loadSnapshot(mode: mode)
         return snapshot
     }

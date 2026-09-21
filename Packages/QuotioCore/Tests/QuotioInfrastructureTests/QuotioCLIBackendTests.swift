@@ -590,7 +590,7 @@ final class QuotioCLIBackendTests: XCTestCase {
         }
     }
 
-    func testBootstrapRestoresImportedIDEQuotaSelection() async throws {
+    func testBootstrapRestoresImportedIDEQuotaSelectionWhileHelperIsNotReady() async throws {
         let suite = "QuotioCLIBackendTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
@@ -604,7 +604,7 @@ final class QuotioCLIBackendTests: XCTestCase {
             ]),
             forKey: "persisted.ideQuotas"
         )
-        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[],"failures":[]}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"error":"not_ready"}"#, status: 503)
         let backend = QuotioCLIBackend(session: stubSession(), userDefaults: defaults)
         await backend.connect(QuotioCLIConnection(
             baseURL: URL(string: "http://127.0.0.1:43210")!,
@@ -615,6 +615,7 @@ final class QuotioCLIBackendTests: XCTestCase {
 
         XCTAssertEqual(snapshot.quotas[.cursor]?["person@example.com"], quota)
         XCTAssertNil(snapshot.quotas[.trae])
+        XCTAssertEqual(snapshot.issues[.cursor]?.kind, .failed)
 
         for provider in [QuotaProvider.claude, .cursor] {
             QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed","error":null}"#)
@@ -749,7 +750,7 @@ private actor QuotioCLICallbackTransportStub: OAuthCallbackTransport {
 
 private final class QuotioCLIURLProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
-    nonisolated(unsafe) private static var bodies: [Data] = []
+    nonisolated(unsafe) private static var bodies: [(Data, Int)] = []
     nonisolated(unsafe) private static var recordedRequests: [URLRequest] = []
     nonisolated(unsafe) private static var recordedBodies: [Data?] = []
 
@@ -758,13 +759,13 @@ private final class QuotioCLIURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         let requestBody = Self.readBody(from: request)
-        let body = Self.lock.withLock { () -> Data in
+        let (body, status) = Self.lock.withLock { () -> (Data, Int) in
             Self.recordedRequests.append(request)
             Self.recordedBodies.append(requestBody)
             return Self.bodies.removeFirst()
         }
         let response = HTTPURLResponse(
-            url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: body)
@@ -773,8 +774,8 @@ private final class QuotioCLIURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func stopLoading() {}
 
-    static func enqueue(_ body: String) {
-        lock.withLock { bodies.append(Data(body.utf8)) }
+    static func enqueue(_ body: String, status: Int = 200) {
+        lock.withLock { bodies.append((Data(body.utf8), status)) }
     }
 
     static func requests() -> [URLRequest] {
