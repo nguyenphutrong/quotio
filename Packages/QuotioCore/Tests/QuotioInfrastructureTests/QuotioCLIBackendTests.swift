@@ -58,6 +58,21 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(snapshot.accountIDs[.openRouter]?["Personal"], "account-2")
     }
 
+    func testRemovingQuotaOnlyRemovesAliasesForThatAccount() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"amp","account_ref":{"origin":"owned","id":"work-id","label":"Work"},"account":{"id":"work","label":"Work"},"windows":[]},{"provider":"amp","account_ref":{"origin":"owned","id":"personal-id","label":"Personal"},"account":{"id":"personal","label":"Personal"},"windows":[]}],"failures":[]}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "test-token"))
+        _ = await backend.bootstrap(mode: .monitor)
+
+        await backend.removeQuota(for: QuotaAccountID(provider: .amp, accountKey: "Work"), mode: .monitor)
+
+        let snapshot = await backend.snapshot
+        XCTAssertEqual(snapshot.accountAliases[.amp], ["personal-id": "Personal", "Personal": "Personal"])
+        XCTAssertEqual(snapshot.accountIDs[.amp], ["Personal": "personal-id"])
+        XCTAssertNil(snapshot.quotas[.amp]?["Work"])
+        XCTAssertNotNil(snapshot.quotas[.amp]?["Personal"])
+    }
+
     func testUsageReportMapsCodexAnalyticsAndResetCredits() throws {
         let data = Data(#"""
         {

@@ -194,7 +194,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     public func removeQuota(for account: QuotaAccountID, mode: QuotaOperatingMode) {
         snapshot.quotas[account.provider]?[account.accountKey] = nil
         snapshot.accountIDs[account.provider]?[account.accountKey] = nil
-        snapshot.accountAliases[account.provider]?.filter { $0.value != account.accountKey }
+        snapshot.accountAliases[account.provider]?.filter { $0.value == account.accountKey }
             .forEach { snapshot.accountAliases[account.provider]?[$0.key] = nil }
         snapshot.subscriptions[account.provider]?[account.accountKey] = nil
         snapshot.accountIssues[account] = nil
