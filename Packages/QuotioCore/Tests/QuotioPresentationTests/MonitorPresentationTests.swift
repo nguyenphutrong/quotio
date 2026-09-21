@@ -6,6 +6,23 @@ import XCTest
 
 @MainActor
 final class MonitorPresentationTests: XCTestCase {
+    func testMonitorRowsHonorEditCapabilityForEveryAPIKeyProvider() {
+        for provider in [QuotaProvider.factoryDroid, .openRouter, .amp, .glm, .warp, .clinePass] {
+            for canEdit in [false, true] {
+                let account = Account(
+                    identity: AccountIdentity(id: "managed", providerID: AccountProviderID(rawValue: provider.rawValue), accountKey: "Work"),
+                    displayName: "Work",
+                    source: .quotioKeychain,
+                    credentialReference: nil,
+                    capabilities: canEdit ? [.edit] : [],
+                    status: .ready
+                )
+                let row = AccountRowData.from(monitorAccount: account, status: nil, statusMessage: nil)
+                XCTAssertEqual(row.canEdit, canEdit, provider.rawValue)
+            }
+        }
+    }
+
     func testMonitorProvidersDoNotRequireInstalledCLI() {
         let providers: Set<QuotaProvider> = [
             .codex, .claude, .factoryDroid, .devin, .grok, .openRouter, .amp,
