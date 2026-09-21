@@ -2720,7 +2720,7 @@
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 16384,
-            "description": "Replace the credential for an owned API-key account while preserving its account ID. Provider settings are replaced with this request."
+            "description": "Replace the credential for an owned API-key account while preserving its account ID. Omitted settings, region, and organization retain their current values. Explicit values replace them; null resets them to provider defaults."
           },
           "settings": {
             "type": ["object", "null"],

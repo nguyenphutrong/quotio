@@ -65,10 +65,47 @@ pub struct AccountPatch {
     pub label: Option<String>,
     pub active: Option<bool>,
     pub api_key: Option<String>,
-    pub settings: Option<BTreeMap<String, String>>,
-    pub region: Option<String>,
-    pub organization: Option<String>,
+    #[serde(default, deserialize_with = "present_nullable")]
+    pub settings: Option<Option<BTreeMap<String, String>>>,
+    #[serde(default, deserialize_with = "present_nullable")]
+    pub region: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_nullable")]
+    pub organization: Option<Option<String>>,
 }
+// A missing PATCH field preserves the value; explicit null resets it.
+fn present_nullable<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+impl AccountPatch {
+    fn replacement_input(&self, account: &super::Account) -> Result<ApiKeyInput, AccountError> {
+        let (settings, region, organization) = match &account.credential {
+            Credential::ApiKey {
+                region,
+                organization,
+                ..
+            } => (BTreeMap::new(), region.clone(), organization.clone()),
+            Credential::CatalogKey { settings, .. } => (settings.clone(), None, None),
+            _ => return Err(AccountError::Unsupported),
+        };
+        Ok(ApiKeyInput {
+            provider: account.provider,
+            label: None,
+            api_key: self.api_key.clone().ok_or(AccountError::Input)?,
+            settings: self
+                .settings
+                .clone()
+                .map(Option::unwrap_or_default)
+                .unwrap_or(settings),
+            region: self.region.clone().unwrap_or(region),
+            organization: self.organization.clone().unwrap_or(organization),
+        })
+    }
+}
+
 fn credential(input: ApiKeyInput, context: &ProviderContext) -> Result<Credential, AccountError> {
     let ApiKeyInput {
         provider,
@@ -476,29 +513,10 @@ pub async fn prepare_update(
     id: &str,
     patch: AccountPatch,
 ) -> Result<PreparedPatch, AccountError> {
-    let AccountPatch {
-        enabled,
-        label,
-        active,
-        api_key,
-        settings,
-        region,
-        organization,
-    } = patch;
-    let replacement = match api_key {
-        Some(api_key) => {
+    let replacement = match &patch.api_key {
+        Some(_) => {
             let account = service::get(vault, id.to_owned()).await?;
-            let credential = credential(
-                ApiKeyInput {
-                    provider: account.provider,
-                    label: None,
-                    api_key,
-                    settings: settings.unwrap_or_default(),
-                    region,
-                    organization,
-                },
-                context,
-            )?;
+            let credential = credential(patch.replacement_input(&account)?, context)?;
             let usage = tokio::time::timeout(
                 std::time::Duration::from_secs(30),
                 service::validate(context, account.provider, &credential),
@@ -507,18 +525,22 @@ pub async fn prepare_update(
             .map_err(|_| AccountError::Cancelled)??;
             Some((account.provider, usage.account.id, credential))
         }
-        None if settings.is_some() || region.is_some() || organization.is_some() => {
+        None if patch.settings.is_some()
+            || patch.region.is_some()
+            || patch.organization.is_some() =>
+        {
             return Err(AccountError::Input);
         }
         None => None,
     };
     Ok(PreparedPatch {
-        label,
-        active,
-        enabled,
+        label: patch.label,
+        active: patch.active,
+        enabled: patch.enabled,
         replacement,
     })
 }
+
 pub async fn save(vault: Vault, prepared: PreparedAccount) -> Result<AccountDto, AccountError> {
     let account = service::add_persisted(
         vault,
@@ -948,6 +970,78 @@ mod tests {
             serde_json::from_str::<AccountPatch>(r#"{"active":true,"credential":"secret"}"#)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn api_key_rotation_preserves_omitted_settings_and_honors_explicit_changes() {
+        for (provider, credential, settings, region, organization) in [
+            (
+                Provider::Zai,
+                Credential::ApiKey {
+                    token: "old".into(),
+                    region: Some("cn".into()),
+                    organization: None,
+                },
+                BTreeMap::new(),
+                Some("cn".into()),
+                None,
+            ),
+            (
+                Provider::Factory,
+                Credential::ApiKey {
+                    token: "old".into(),
+                    region: Some("eu".into()),
+                    organization: Some("org".into()),
+                },
+                BTreeMap::new(),
+                Some("eu".into()),
+                Some("org".into()),
+            ),
+            (
+                Provider::Catalog("litellm"),
+                Credential::CatalogKey {
+                    token: "old".into(),
+                    settings: BTreeMap::from([("base_url".into(), "https://example.test".into())]),
+                },
+                BTreeMap::from([("base_url".into(), "https://example.test".into())]),
+                None,
+                None,
+            ),
+        ] {
+            let account = super::super::Account {
+                id: "id".into(),
+                provider,
+                label: "Work".into(),
+                identity: "identity".into(),
+                active: true,
+                enabled: true,
+                credential,
+            };
+            let patch: AccountPatch = serde_json::from_str(r#"{"api_key":"new"}"#).unwrap();
+            let input = patch.replacement_input(&account).unwrap();
+            assert_eq!(input.api_key, "new");
+            assert_eq!(input.settings, settings);
+            assert_eq!(input.region, region);
+            assert_eq!(input.organization, organization);
+
+            let patch: AccountPatch = serde_json::from_str(
+                r#"{"api_key":"new","settings":null,"region":null,"organization":null}"#,
+            )
+            .unwrap();
+            let cleared = patch.replacement_input(&account).unwrap();
+            assert!(cleared.settings.is_empty());
+            assert_eq!(cleared.region, None);
+            assert_eq!(cleared.organization, None);
+
+            let patch: AccountPatch = serde_json::from_str(r#"{"api_key":"new","settings":{"base_url":"https://new.example.test"},"region":"global","organization":"new-org"}"#).unwrap();
+            let replaced = patch.replacement_input(&account).unwrap();
+            assert_eq!(
+                replaced.settings.get("base_url").map(String::as_str),
+                Some("https://new.example.test")
+            );
+            assert_eq!(replaced.region.as_deref(), Some("global"));
+            assert_eq!(replaced.organization.as_deref(), Some("new-org"));
+        }
     }
 
     #[tokio::test]
