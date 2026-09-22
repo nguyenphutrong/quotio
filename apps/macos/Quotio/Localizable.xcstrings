@@ -14115,6 +14115,22 @@
         }
       }
     },
+    "settings.menubar.hideCodexSpark" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Codex Spark quota in menu" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Masquer le quota Codex Spark dans le menu" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Ẩn hạn mức Codex Spark trong menu" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在菜单中隐藏 Codex Spark 配额" } }
+      }
+    },
+    "settings.menubar.hideCodexSpark.help" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Removes the Codex Spark session and weekly limits from the menu panel. The data is still fetched and shown in the dashboard." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Retire les limites de session et de semaine Codex Spark du menu. Les données restent récupérées et visibles dans le tableau de bord." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bỏ hạn mức phiên và tuần của Codex Spark khỏi menu. Dữ liệu vẫn được tải và hiển thị trong bảng điều khiển." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从菜单面板中移除 Codex Spark 的会话和每周配额。数据仍会获取并显示在仪表盘中。" } }
+      }
+    },
     "settings.menubar.showQuota" : {
       "extractionState" : "stale",
       "localizations" : {
