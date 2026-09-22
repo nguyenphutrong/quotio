@@ -494,6 +494,7 @@ async fn refresh(state: &ApiState, request: Option<RefreshRequest>) -> Result<Va
         } else if let Some(vault) = state.vault.clone() {
             crate::accounts::service::adapters_in_vault(
                 selected.clone(),
+                include_owned,
                 timeout,
                 account.as_deref(),
                 vault,
@@ -503,15 +504,6 @@ async fn refresh(state: &ApiState, request: Option<RefreshRequest>) -> Result<Va
             Err(crate::accounts::AccountError::Storage)
         };
         managed.map(|mut adapters| {
-            if !include_owned {
-                adapters.retain(|adapter| {
-                    adapter.account_ref().is_none_or(|reference| {
-                        reference.origin != Some(crate::domain::AccountOrigin::Owned)
-                            || (adapter.id().0 == "warp"
-                                && reference.label.starts_with("__quotio_local_warp__:"))
-                    })
-                });
-            }
             if account.is_none() {
                 adapters.extend(borrowed);
             }
