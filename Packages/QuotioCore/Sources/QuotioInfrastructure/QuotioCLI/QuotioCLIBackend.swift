@@ -695,8 +695,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         let label = QuotioCLIWarpMirror.displayLabel(value.label, provider: value.provider)
         let source: AccountSource = switch value.origin {
         case "borrowed_proxy": .legacyCLIProxy
-        case "borrowed_native": .nativeCredential
-        default: .quotioKeychain
+        case "owned": .quotioKeychain
+        default: .nativeCredential
         }
         var capabilities: Set<AccountCapability> = [.disable]
         if value.origin != "borrowed_proxy" { capabilities.insert(.delete) }
@@ -727,8 +727,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         let label = QuotioCLIWarpMirror.displayLabel(reference.label, provider: provider.rawValue)
         let source: AccountSource = switch reference.origin {
         case "borrowed_proxy": .legacyCLIProxy
-        case "borrowed_native": .nativeCredential
-        default: .quotioKeychain
+        case "owned": .quotioKeychain
+        default: .nativeCredential
         }
         return Account(
             identity: AccountIdentity(

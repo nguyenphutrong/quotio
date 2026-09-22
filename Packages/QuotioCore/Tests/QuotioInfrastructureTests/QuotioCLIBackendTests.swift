@@ -195,6 +195,19 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertTrue(QuotioCLIURLProtocol.requests().isEmpty)
     }
 
+    func testOriginlessUsageAccountsAreReadOnlyNativeCredentials() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"codex","account_ref":{"id":"local","label":"Local"},"account":{"id":"user","label":"Local"},"windows":[]}],"failures":[]}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"accounts":[]}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "private-token"))
+        _ = await backend.bootstrap(mode: .monitor)
+
+        let accounts = await backend.accounts()
+        XCTAssertEqual(accounts.count, 1)
+        XCTAssertEqual(accounts.first?.source, .nativeCredential)
+        XCTAssertEqual(accounts.first?.capabilities, [])
+    }
+
     func testAccountsPreserveDisabledStateWhenMergingUsageReferences() async throws {
         QuotioCLIURLProtocol.enqueue(#"{"schema_version":1,"generated_at":"2026-09-16T12:00:00Z","providers":[{"provider":"claude","account_ref":{"origin":"owned","id":"owned-1","label":"Work"},"account":{"id":"user","label":"Work"},"windows":[]}],"failures":[]}"#)
         let backend = QuotioCLIBackend(session: stubSession())
