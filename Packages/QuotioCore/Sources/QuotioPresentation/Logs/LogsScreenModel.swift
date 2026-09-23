@@ -4,6 +4,7 @@ import QuotioDomain
 
 public enum LogsScreenState: Sendable, Equatable {
     case loading
+    case disabled
     case empty
     case content
     case error(String)
@@ -36,6 +37,7 @@ public final class LogsScreenModel {
     public func poll(interval: Duration = .seconds(2)) async {
         while !Task.isCancelled {
             await refresh()
+            if state == .disabled { return }
             do {
                 try await sleeper.sleep(for: interval)
             } catch {
@@ -63,6 +65,9 @@ public final class LogsScreenModel {
             state = entries.isEmpty ? .empty : .content
         } catch is CancellationError {
             state = entries.isEmpty ? .empty : .content
+        } catch ProxyLogFailure.loggingDisabled {
+            errorMessage = nil
+            state = .disabled
         } catch {
             errorMessage = error.localizedDescription
             state = entries.isEmpty ? .error(error.localizedDescription) : .content
