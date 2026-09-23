@@ -34,6 +34,7 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     private var menuContentVersion: Int = 0
     private var isRebuildingMenu = false
     private var hasPendingMenuRebuild = false
+    private var openSubmenus: Set<ObjectIdentifier> = []
     private var configuration: Configuration?
     private var lastRenderSignature: RenderSignature?
     private var appearanceObservation: NSKeyValueObservation?
@@ -206,12 +207,26 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     // MARK: - NSMenuDelegate
     
     public func menuWillOpen(_ menu: NSMenu) {
+        guard menu === self.menu else {
+            openSubmenus.insert(ObjectIdentifier(menu))
+            return
+        }
         hasPendingMenuRebuild = false
         renderStatusBar()
         performMenuRebuild(using: menu)
     }
     
     public func menuDidClose(_ menu: NSMenu) {
+        guard menu === self.menu else {
+            openSubmenus.remove(ObjectIdentifier(menu))
+            if openSubmenus.isEmpty && hasPendingMenuRebuild {
+                DispatchQueue.main.async { [weak self] in
+                    self?.rebuildMenuInPlace()
+                }
+            }
+            return
+        }
+        openSubmenus.removeAll()
         DispatchQueue.main.async { [weak self] in
             self?.renderStatusBar()
         }
@@ -231,6 +246,13 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
             return
         }
 
+        // Replacing a tracked submenu can leave its AppKit window on screen.
+        if !openSubmenus.isEmpty {
+            hasPendingMenuRebuild = true
+            return
+        }
+
+        hasPendingMenuRebuild = false
         performMenuRebuild(using: menu)
     }
 
@@ -273,7 +295,16 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
             nativeMenu.removeItem(item)
             menu.addItem(item)
         }
+        observeSubmenus(in: menu)
         renderer.activateProviderFilter(in: menu)
+    }
+
+    private func observeSubmenus(in menu: NSMenu) {
+        for item in menu.items {
+            guard let submenu = item.submenu else { continue }
+            submenu.delegate = self
+            observeSubmenus(in: submenu)
+        }
     }
     
     // MARK: - Menu Actions
@@ -290,6 +321,8 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
             statusItem = nil
         }
         menu = nil
+        openSubmenus.removeAll()
+        hasPendingMenuRebuild = false
         configuration = nil
         lastRenderSignature = nil
     }
