@@ -221,7 +221,8 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
             openSubmenus.remove(ObjectIdentifier(menu))
             if openSubmenus.isEmpty && hasPendingMenuRebuild {
                 DispatchQueue.main.async { [weak self] in
-                    self?.rebuildMenuInPlace()
+                    guard let self, self.hasPendingMenuRebuild else { return }
+                    self.rebuildMenuInPlace()
                 }
             }
             return
