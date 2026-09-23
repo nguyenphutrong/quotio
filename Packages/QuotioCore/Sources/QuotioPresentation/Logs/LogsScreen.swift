@@ -2,6 +2,7 @@ import QuotioDomain
 import SwiftUI
 
 public struct LogsScreen: View {
+    @Environment(NavigationScreenModel.self) private var navigation
     @Bindable private var model: LogsScreenModel
     @State private var autoScroll = true
     @State private var filterLevel: LogEntry.Level?
@@ -34,6 +35,16 @@ public struct LogsScreen: View {
         case .loading:
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .disabled:
+            ContentUnavailableView {
+                Label("logs.loggingDisabled", systemImage: "doc.text")
+            } description: {
+                Text("logs.enableLoggingInSettings")
+            } actions: {
+                Button("nav.settings") {
+                    navigation.currentPage = .settings
+                }
+            }
         case .error(let message):
             ContentUnavailableView {
                 Label("logs.error", systemImage: "exclamationmark.triangle")
@@ -144,7 +155,7 @@ public struct LogsScreen: View {
                     Image(systemName: "trash")
                 }
             }
-            .disabled(model.isRefreshing || model.isClearing)
+            .disabled(model.isRefreshing || model.isClearing || model.state == .disabled)
         }
     }
 }

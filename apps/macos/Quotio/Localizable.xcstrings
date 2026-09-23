@@ -8920,6 +8920,14 @@
         }
       }
     },
+    "logs.enableLoggingInSettings" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Turn on Log to file in Settings to view proxy logs." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Activez l’enregistrement dans un fichier dans les réglages pour voir les journaux du proxy." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bật Ghi nhật ký ra file trong Cài đặt để xem nhật ký proxy." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在“设置”中开启“记录到文件”，即可查看代理日志。" } }
+      }
+    },
     "logs.error" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8976,6 +8984,14 @@
             "value" : "信息"
           }
         }
+      }
+    },
+    "logs.loggingDisabled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "File logging is turned off" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "L’enregistrement dans un fichier est désactivé" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Ghi nhật ký ra tệp đang tắt" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件日志已关闭" } }
       }
     },
     "logs.logsWillAppear" : {

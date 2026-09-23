@@ -34,6 +34,18 @@ final class LogsScreenModelTests: XCTestCase {
         XCTAssertTrue(model.entries.isEmpty)
     }
 
+    func testDisabledFileLoggingShowsDedicatedStateAndStopsPolling() async {
+        let repository = StubRepository(pages: [.failure(ProxyLogFailure.loggingDisabled)])
+        let model = makeModel(repository: repository)
+
+        await model.poll()
+
+        let requestedCursors = await repository.requestedCursors
+        XCTAssertEqual(requestedCursors.count, 1)
+        XCTAssertEqual(model.state, .disabled)
+        XCTAssertNil(model.errorMessage)
+    }
+
     func testCancellationDoesNotPublishAnErrorOrStaleEntries() async {
         let repository = SuspendingRepository()
         let model = makeModel(repository: repository)
