@@ -4,6 +4,15 @@ import XCTest
 import QuotioDomain
 
 final class OAuthFlowControllerTests: XCTestCase {
+    func testAuthorizationRequestTreatsGitHubComAsDefaultHost() {
+        let provider = AccountProviderID(rawValue: "github-copilot")
+        XCTAssertNil(OAuthAuthorizationRequest(providerID: provider, githubHost: .githubCom).githubHost)
+        XCTAssertEqual(
+            OAuthAuthorizationRequest(providerID: provider, githubHost: GitHubHost("octocorp.ghe.com")).githubHost?.value,
+            "octocorp.ghe.com"
+        )
+    }
+
     func testStartingNewAttemptCancelsOldAttemptAndIgnoresItsCompletion() async {
         let authorizer = ControllableOAuthAuthorizer()
         let controller = OAuthFlowController(authorizer: authorizer)
