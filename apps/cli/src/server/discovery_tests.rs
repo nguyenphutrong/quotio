@@ -187,6 +187,46 @@ async fn oauth_begin_rest_returns_conflict_for_changed_idempotent_body() {
 }
 
 #[tokio::test]
+async fn oauth_begin_rest_rejects_invalid_or_misplaced_github_hosts() {
+    let (state, dir, _) = tests::fixture().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let token = "synthetic-management-token-1234567890";
+    let app = router(
+        state,
+        Arc::new(security::Policy::new(address, true, None, &[], Some(token.into())).unwrap()),
+    );
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    for (body, code) in [
+        (
+            json!({"provider":"copilot","host":"https://octocorp.ghe.com"}),
+            "invalid_github_host",
+        ),
+        (
+            json!({"provider":"copilot","host":"github.example.com"}),
+            "invalid_github_host",
+        ),
+        (
+            json!({"provider":"codex","host":"octocorp.ghe.com"}),
+            "unsupported_operation",
+        ),
+    ] {
+        let response = client
+            .post(format!("http://{address}/v1/auth/sessions"))
+            .bearer_auth(token)
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 400);
+        assert!(response.text().await.unwrap().contains(code));
+    }
+    server.abort();
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
 async fn discovery_retry_survives_expiry_and_restart_without_reading_source() {
     use accounts::vault::{Backend, Vault};
     #[derive(Default)]

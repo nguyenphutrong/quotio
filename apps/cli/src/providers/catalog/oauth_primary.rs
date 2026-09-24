@@ -81,8 +81,31 @@ fn fetch_gemini(context: &ProviderContext) -> FetchFuture<'_> {
     ))
 }
 
+/// Set only from a saved Quotio Copilot OAuth credential; see `accounts::service`.
+pub(crate) const COPILOT_HOST_ENV: &str = "QUOTIO_COPILOT_HOST";
+
 fn fetch_copilot(context: &ProviderContext) -> FetchFuture<'_> {
-    Box::pin(fetch_copilot_at(context, COPILOT_USAGE_URL))
+    Box::pin(async move {
+        match copilot_usage_url(context)? {
+            Some(endpoint) => fetch_copilot_at(context, &endpoint).await,
+            None => fetch_copilot_at(context, COPILOT_USAGE_URL).await,
+        }
+    })
+}
+
+/// Enterprise quota uses the API host of the instance that issued the token. The
+/// host is revalidated so a malformed stored value can never redirect the token.
+fn copilot_usage_url(context: &ProviderContext) -> Result<Option<String>, ProviderError> {
+    let Some(raw) = context.credentials.get(COPILOT_HOST_ENV) else {
+        return Ok(None);
+    };
+    // Never send a native GitHub.com token discovered on disk to another host.
+    if context.credentials.get(COPILOT_TOKEN_ENV).is_none() {
+        return Err(ProviderError::Authentication);
+    }
+    let host = crate::accounts::github_host::GitHubHost::parse(&raw.0)
+        .map_err(|_| ProviderError::Authentication)?;
+    Ok((!host.is_github_com()).then(|| host.api_url("/copilot_internal/user")))
 }
 
 /// An explicit Quotio token always wins over native application state. This avoids
@@ -1036,6 +1059,59 @@ pub(super) async fn cache_token(id: &str, context: &ProviderContext) -> Option<S
 mod tests {
     use super::*;
     use crate::domain::Quota;
+
+    struct CopilotKeys(&'static [(&'static str, &'static str)]);
+    impl crate::providers::CredentialStore for CopilotKeys {
+        fn get(&self, name: &str) -> Option<Secret> {
+            self.0
+                .iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| Secret((*value).into()))
+        }
+    }
+    fn copilot_context(keys: &'static [(&'static str, &'static str)]) -> ProviderContext {
+        ProviderContext {
+            credentials: std::sync::Arc::new(CopilotKeys(keys)),
+            ..http::fixture::context()
+        }
+    }
+
+    #[test]
+    fn copilot_quota_route_follows_the_saved_host_only() {
+        assert_eq!(
+            copilot_usage_url(&copilot_context(&[(COPILOT_TOKEN_ENV, "token")])).unwrap(),
+            None
+        );
+        assert_eq!(
+            copilot_usage_url(&copilot_context(&[
+                (COPILOT_TOKEN_ENV, "token"),
+                (COPILOT_HOST_ENV, "github.com"),
+            ]))
+            .unwrap(),
+            None
+        );
+        assert_eq!(
+            copilot_usage_url(&copilot_context(&[
+                (COPILOT_TOKEN_ENV, "token"),
+                (COPILOT_HOST_ENV, "octocorp.ghe.com"),
+            ]))
+            .unwrap()
+            .as_deref(),
+            Some("https://api.octocorp.ghe.com/copilot_internal/user")
+        );
+        assert!(matches!(
+            copilot_usage_url(&copilot_context(&[
+                (COPILOT_TOKEN_ENV, "token"),
+                (COPILOT_HOST_ENV, "evil.example"),
+            ])),
+            Err(ProviderError::Authentication)
+        ));
+        // A native GitHub.com login must never be sent to an enterprise host.
+        assert!(matches!(
+            copilot_usage_url(&copilot_context(&[(COPILOT_HOST_ENV, "octocorp.ghe.com")])),
+            Err(ProviderError::Authentication)
+        ));
+    }
 
     #[test]
     fn claude_source_response_maps_real_windows_without_extra_spend() {

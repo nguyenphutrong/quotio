@@ -3,6 +3,7 @@ pub mod command;
 pub mod discovery;
 #[cfg(any(target_os = "linux", all(test, unix)))]
 mod encrypted_file;
+pub mod github_host;
 mod input;
 pub mod oauth;
 pub(crate) mod proxy;
@@ -74,6 +75,9 @@ pub enum Credential {
         access_token: String,
         account_id: String,
         login: String,
+        /// Absent in credentials saved before enterprise hosts were supported.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        host: Option<github_host::GitHubHost>,
     },
     ClaudeOAuth {
         access_token: String,

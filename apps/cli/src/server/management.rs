@@ -367,6 +367,9 @@ pub(super) struct SessionInput {
     label: Option<String>,
     #[serde(default = "relay")]
     callback_mode: OAuthMode,
+    /// Copilot only: `github.com` (default) or a `<subdomain>.ghe.com` host.
+    #[serde(default)]
+    host: Option<String>,
 }
 fn relay() -> OAuthMode {
     OAuthMode::Relay
@@ -401,15 +404,22 @@ pub(super) async fn begin(
     if keys.next().is_some() {
         return Err(ApiError(StatusCode::BAD_REQUEST, "invalid_idempotency_key"));
     }
+    let host = input
+        .host
+        .as_deref()
+        .map(crate::accounts::github_host::GitHubHost::parse)
+        .transpose()
+        .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "invalid_github_host"))?
+        .filter(|host| !host.is_github_com());
     let session = match key {
         Some(key) => {
             manager
-                .begin_idempotent(input.provider, input.label, input.callback_mode, key)
+                .begin_idempotent_at(input.provider, input.label, input.callback_mode, host, key)
                 .await
         }
         None => {
             manager
-                .begin_for(input.provider, input.label, input.callback_mode)
+                .begin_at(input.provider, input.label, input.callback_mode, host)
                 .await
         }
     }

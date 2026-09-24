@@ -76,6 +76,7 @@ pub fn prepare(
             access_token,
             account_id: required(old.account_id)?,
             login: label.clone(),
+            host: None,
         },
         Provider::Antigravity => {
             prepare_antigravity_owned(AntigravityOwnedInput {
