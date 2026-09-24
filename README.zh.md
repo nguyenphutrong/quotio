@@ -66,6 +66,11 @@ Quotio 是一款原生 macOS 应用，用于管理 **CLIProxyAPI** ——为你�
 
 > **注意**：这些 IDE 仅用于配额使用监控，不能作为代理的提供商。
 
+### 订阅配额追踪（仅监控）
+| 服务 | 说明 |
+|-----|-------------|
+| OpenCode Go | 添加 OpenCode Go API Key 以追踪其 5 小时、每周和每月用量 |
+
 ### 兼容的 CLI Agent
 Quotio 可以自动配置以下工具使用你的集中式代理：
 - Claude Code
