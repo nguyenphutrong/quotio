@@ -6,7 +6,7 @@ import Foundation
 /// (`<subdomain>.ghe.com`) are accepted. Self-hosted GitHub Enterprise Server
 /// needs an OAuth app registered on that instance, so arbitrary hosts are
 /// rejected instead of receiving a device code or token. The bundled CLI
-/// applies the same rule; this type only gives the UI early feedback.
+/// enforces the same host rule on the normalized bare host this type produces.
 public struct GitHubHost: Hashable, Sendable {
     public static let githubCom = GitHubHost(uncheckedValue: "github.com")
 

@@ -1273,6 +1273,18 @@ private struct OAuthStatusView: View {
                                 .help("action.copyCode".localized())
                             }
                             
+                            // Enterprise hosts use their own verification page, so show it.
+                            if let urlString = authURL, let url = URL(string: urlString) {
+                                Button {
+                                    platformActions.open(url)
+                                } label: {
+                                    Label("oauth.openLink".localized(), systemImage: "safari")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(provider.color)
+                                .help(urlString)
+                            }
+                            
                             Text("oauth.waitingForAuth".localized())
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
