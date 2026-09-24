@@ -221,12 +221,14 @@ public final class QuotaFeatureController {
     func startOAuth(
         for provider: QuotaProvider,
         method: OAuthAuthorizationMethod = .providerDefault,
-        launchMode: OAuthLaunchMode = .manual
+        launchMode: OAuthLaunchMode = .manual,
+        githubHost: GitHubHost? = nil
     ) async {
         await oauth.start(OAuthAuthorizationRequest(
             providerID: AccountProviderID(rawValue: provider.rawValue),
             method: method,
-            automaticallyOpensBrowser: launchMode == .autoOpen
+            automaticallyOpensBrowser: launchMode == .autoOpen,
+            githubHost: provider == .copilot && modeManager.isMonitorMode ? githubHost : nil
         ))
     }
 

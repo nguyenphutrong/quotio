@@ -1006,6 +1006,33 @@ struct OAuthSheet: View {
     @State private var hasStartedAuth = false
     @State private var selectedKiroMethod: OAuthAuthorizationMethod = .kiroImport
     @State private var manualOAuthCode = ""
+    @State private var githubHostInput = ""
+    
+    private var showsGitHubHostField: Bool {
+        provider == .copilot && modeManager.isMonitorMode
+    }
+    
+    private var trimmedGitHubHostInput: String {
+        githubHostInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    /// Empty input means GitHub.com; any other text must be a valid host.
+    private var githubHost: GitHubHost? {
+        guard showsGitHubHostField, !trimmedGitHubHostInput.isEmpty else { return nil }
+        return GitHubHost(trimmedGitHubHostInput)
+    }
+    
+    private var isGitHubHostInvalid: Bool {
+        showsGitHubHostField && !trimmedGitHubHostInput.isEmpty && githubHost == nil
+    }
+    
+    private func startAuthorization() async {
+        await viewModel.startOAuth(
+            for: provider,
+            method: provider == .kiro ? selectedKiroMethod : .providerDefault,
+            githubHost: githubHost
+        )
+    }
     
     private var isPolling: Bool {
         viewModel.oauthState?.status == .polling || viewModel.oauthState?.status == .waiting
@@ -1056,6 +1083,24 @@ struct OAuthSheet: View {
                 .frame(maxWidth: 320)
             }
 
+            if showsGitHubHostField {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("oauth.githubHost.label".localized())
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    TextField("oauth.githubHost.placeholder".localized(), text: $githubHostInput)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .disabled(isPolling || isSuccess)
+                    Text(isGitHubHostInvalid
+                        ? "oauth.githubHost.invalid".localized()
+                        : "oauth.githubHost.hint".localized())
+                        .font(.caption)
+                        .foregroundStyle(isGitHubHostInvalid ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                }
+                .frame(maxWidth: 320)
+            }
+
             if !modeManager.isMonitorMode,
                proxyManagement.isLegacyAuthWarningNeeded(for: provider) {
                 HStack(alignment: .top, spacing: 8) {
@@ -1099,26 +1144,17 @@ struct OAuthSheet: View {
                 if isError {
                     Button {
                         hasStartedAuth = false
-                        Task {
-                            await viewModel.startOAuth(
-                                for: provider,
-                                method: provider == .kiro ? selectedKiroMethod : .providerDefault
-                            )
-                        }
+                        Task { await startAuthorization() }
                     } label: {
                         Label("oauth.retry".localized(), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
+                    .disabled(isGitHubHostInvalid)
                 } else if !isSuccess {
                     Button {
                         hasStartedAuth = true
-                        Task {
-                            await viewModel.startOAuth(
-                                for: provider,
-                                method: provider == .kiro ? selectedKiroMethod : .providerDefault
-                            )
-                        }
+                        Task { await startAuthorization() }
                     } label: {
                         if isPolling {
                             SmallProgressView()
@@ -1128,7 +1164,7 @@ struct OAuthSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(provider.color)
-                    .disabled(isPolling)
+                    .disabled(isPolling || isGitHubHostInvalid)
                 }
             }
         }

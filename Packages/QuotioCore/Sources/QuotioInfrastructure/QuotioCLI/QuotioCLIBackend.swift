@@ -86,6 +86,12 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         let label: String
         let apiKey: String
     }
+    private struct OAuthSessionBody: Encodable {
+        let provider: String
+        let callbackMode: String
+        /// Omitted for GitHub.com; the helper rejects it for non-Copilot providers.
+        let host: String?
+    }
     private struct EnabledBody: Encodable { let enabled: Bool }
     private struct LabelBody: Encodable { let label: String }
     private struct SourceDiscoveryBody: Encodable {
@@ -451,12 +457,13 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
         }
     }
 
-    func beginOAuth(provider: String) async throws -> QuotioCLIOAuthSession {
+    func beginOAuth(provider: String, githubHost: String? = nil) async throws -> QuotioCLIOAuthSession {
         guard let client else { throw QuotioCLIBackendError.disconnected }
-        let body = try JSONSerialization.data(withJSONObject: [
-            "provider": provider,
-            "callback_mode": "relay",
-        ])
+        let body = try JSONEncoder.quotioCLI.encode(OAuthSessionBody(
+            provider: provider,
+            callbackMode: "relay",
+            host: githubHost
+        ))
         return try await client.request(
             "v1/auth/sessions",
             method: "POST",

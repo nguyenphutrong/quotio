@@ -28,11 +28,17 @@ public actor QuotioCLIOAuthAuthorizer: OAuthAuthorizing {
               let cliProvider = QuotioCLIProviderMap.cli(provider) else {
             throw OAuthFlowFailure.unsupportedProvider
         }
+        if request.githubHost != nil, provider != .copilot {
+            throw OAuthFlowFailure.unsupportedProvider
+        }
         if provider == .codex {
             _ = try await callbackTransport.start(preferredPort: 1455)
         }
         do {
-            let session = try await backend.beginOAuth(provider: cliProvider)
+            let session = try await backend.beginOAuth(
+                provider: cliProvider,
+                githubHost: request.githubHost?.value
+            )
             sessions[attemptID] = session.id
             guard let url = URL(string: session.url) else { throw OAuthFlowFailure.invalidResponse }
             let prompt = OAuthPrompt(authorizationURL: url, userCode: session.userCode)
