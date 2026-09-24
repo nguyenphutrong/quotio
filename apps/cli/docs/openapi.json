@@ -2753,6 +2753,14 @@
               "relay",
               "loopback"
             ]
+          },
+          "host": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Copilot only. github.com (default) or a GitHub Enterprise Cloud data-residency host such as octocorp.ghe.com. URLs, ports, paths and other hosts are rejected with invalid_github_host.",
+            "maxLength": 253
           }
         },
         "additionalProperties": false,

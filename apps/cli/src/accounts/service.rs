@@ -75,11 +75,21 @@ fn scoped(
         }
         keys.insert("GROK_OAUTH_TOKEN".into(), access_token.clone());
     }
-    if let Credential::CopilotOAuth { access_token, .. } = credential {
+    if let Credential::CopilotOAuth {
+        access_token, host, ..
+    } = credential
+    {
         if provider != Provider::Catalog("copilot") {
             return Err(AccountError::Unsupported);
         }
         keys.insert("COPILOT_API_TOKEN".into(), access_token.clone());
+        // Quota is always read from the host that issued the token, never from UI state.
+        if let Some(host) = host {
+            keys.insert(
+                crate::providers::catalog::oauth_primary::COPILOT_HOST_ENV.into(),
+                host.as_str().into(),
+            );
+        }
     }
     if let Credential::ClaudeOAuth { access_token, .. } = credential {
         if provider != Provider::Catalog("claude") {
@@ -322,7 +332,7 @@ async fn validate_credential(
         ..
     } = credential
     {
-        usage.account.id = account_id.clone();
+        usage.account.id = copilot_identity(credential).unwrap_or_else(|| account_id.clone());
         usage.account.label = email.clone();
     }
     if usage.windows.is_empty()
@@ -559,6 +569,20 @@ pub fn provider_settings(
     }
     Ok(values)
 }
+/// GitHub.com keeps the bare numeric user ID used by earlier vault entries. Other
+/// hosts are namespaced because user IDs are only unique within one GitHub instance.
+pub(crate) fn copilot_identity(credential: &Credential) -> Option<String> {
+    let Credential::CopilotOAuth {
+        account_id, host, ..
+    } = credential
+    else {
+        return None;
+    };
+    Some(match host {
+        Some(host) if !host.is_github_com() => format!("{}:{account_id}", host.as_str()),
+        _ => account_id.clone(),
+    })
+}
 pub fn default_label(
     explicit: Option<&str>,
     credential: &Credential,
@@ -578,6 +602,16 @@ pub fn default_label(
         | Credential::AntigravityNative { .. }
         | Credential::FactoryNative { .. }
         | Credential::CursorNative { .. } => Err(AccountError::Input),
+        Credential::CopilotOAuth {
+            login,
+            host: Some(host),
+            ..
+        } if !host.is_github_com() => {
+            // Labels are capped at 80 characters; a long login plus a long
+            // subdomain must not fail sign-in after the user approved it.
+            let label = format!("{login} ({})", host.as_str());
+            super::validate_label(&label).or_else(|_| super::validate_label(login))
+        }
         Credential::CopilotOAuth { login, .. } => super::validate_label(login),
         Credential::GrokOAuth { .. } => Ok("Grok owned account".into()),
         Credential::KiroToken { .. } | Credential::KiroOAuth { .. } => Ok("Kiro account".into()),
@@ -2900,6 +2934,95 @@ mod tests {
         ));
         cleanup(path);
     }
+    #[test]
+    fn copilot_identity_and_label_are_scoped_by_enterprise_host() {
+        let host = crate::accounts::github_host::GitHubHost::parse("octocorp.ghe.com").unwrap();
+        let credential = |host| Credential::CopilotOAuth {
+            access_token: "fixture-token".into(),
+            account_id: "42".into(),
+            login: "fixture-login".into(),
+            host,
+        };
+        let dotcom = credential(None);
+        let enterprise = credential(Some(host));
+        assert_eq!(copilot_identity(&dotcom).unwrap(), "42");
+        assert_eq!(
+            copilot_identity(&credential(Some(
+                crate::accounts::github_host::GitHubHost::github_com()
+            )))
+            .unwrap(),
+            "42"
+        );
+        assert_eq!(
+            copilot_identity(&enterprise).unwrap(),
+            "octocorp.ghe.com:42"
+        );
+        assert_eq!(default_label(None, &dotcom).unwrap(), "fixture-login");
+        assert_eq!(
+            default_label(None, &enterprise).unwrap(),
+            "fixture-login (octocorp.ghe.com)"
+        );
+        let mut document = super::super::Document::empty();
+        document
+            .add(
+                Provider::Catalog("copilot"),
+                "fixture-login",
+                copilot_identity(&dotcom).unwrap(),
+                dotcom,
+            )
+            .unwrap();
+        document
+            .add(
+                Provider::Catalog("copilot"),
+                "fixture-login (octocorp.ghe.com)",
+                copilot_identity(&enterprise).unwrap(),
+                enterprise.clone(),
+            )
+            .unwrap();
+        assert!(matches!(
+            document.add(
+                Provider::Catalog("copilot"),
+                "again",
+                copilot_identity(&enterprise).unwrap(),
+                enterprise,
+            ),
+            Err(AccountError::Duplicate)
+        ));
+        // Format-8 readers would ignore the host, so it must require format 9.
+        assert_eq!(document.version, 9);
+    }
+    #[test]
+    fn long_enterprise_labels_fall_back_to_the_login() {
+        let host =
+            crate::accounts::github_host::GitHubHost::parse(&format!("{}.ghe.com", "a".repeat(60)))
+                .unwrap();
+        let login = "l".repeat(30);
+        let credential = Credential::CopilotOAuth {
+            access_token: "fixture-token".into(),
+            account_id: "42".into(),
+            login: login.clone(),
+            host: Some(host),
+        };
+        assert_eq!(default_label(None, &credential).unwrap(), login);
+    }
+    #[test]
+    fn copilot_credentials_without_host_remain_readable_and_unchanged() {
+        let legacy =
+            r#"{"kind":"copilot_o_auth","access_token":"t","account_id":"42","login":"l"}"#;
+        let credential: Credential = serde_json::from_str(legacy).unwrap();
+        assert!(matches!(
+            &credential,
+            Credential::CopilotOAuth { host: None, .. }
+        ));
+        assert_eq!(serde_json::to_string(&credential).unwrap(), legacy);
+        let enterprise = r#"{"kind":"copilot_o_auth","access_token":"t","account_id":"42","login":"l","host":"octocorp.ghe.com"}"#;
+        assert!(matches!(
+            serde_json::from_str::<Credential>(enterprise).unwrap(),
+            Credential::CopilotOAuth { host: Some(_), .. }
+        ));
+        let hostile = enterprise.replace("octocorp.ghe.com", "evil.example");
+        assert!(serde_json::from_str::<Credential>(&hostile).is_err());
+    }
     #[tokio::test]
     async fn copilot_owned_reads_never_refresh_or_rewrite_tokens() {
         let (vault, fake, id, _, path) = setup(0, false, false, true);
@@ -2909,6 +3032,7 @@ mod tests {
             access_token: "fixture-token".into(),
             account_id: "42".into(),
             login: "fixture-login".into(),
+            host: None,
         };
         tx.document.accounts[0].credential = credential.clone();
         tx.document.version = 6;

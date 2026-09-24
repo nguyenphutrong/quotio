@@ -292,7 +292,8 @@ impl Vault {
                 }
                 let doc: Document =
                     serde_json::from_slice(&bytes).map_err(|_| AccountError::Corrupt)?;
-                if !matches!(doc.version, 1..=8)
+                if !matches!(doc.version, 1..=9)
+                    || (doc.version < 9 && doc.has_enterprise_copilot())
                     || (doc.version < 8
                         && (!doc.antigravity_refresh_owners.is_empty()
                             || doc.accounts.iter().any(|a| {
@@ -400,6 +401,11 @@ impl Transaction {
         }
         if !self.document.claude_refresh_owners.is_empty() {
             self.document.version = self.document.version.max(6);
+        }
+        // Format-8 readers ignore the Copilot host and would send an enterprise
+        // token to GitHub.com, so host-bearing credentials require format 9.
+        if self.document.has_enterprise_copilot() {
+            self.document.version = self.document.version.max(9);
         }
         let bytes = serde_json::to_vec(&self.document).map_err(|_| AccountError::Corrupt)?;
         if bytes.len() > 1024 * 1024 {
@@ -582,6 +588,38 @@ pub(crate) mod tests {
         memory
             .write(&serde_json::to_vec(&downgraded).unwrap())
             .unwrap();
+        assert!(matches!(vault.begin(), Err(AccountError::Corrupt)));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn enterprise_copilot_hosts_require_format_nine() {
+        let memory = Arc::new(Memory::default());
+        let dir = std::env::temp_dir().join(random_string().unwrap());
+        let vault = Vault::new(memory.clone(), dir.join("lock"));
+        let credential = crate::accounts::Credential::CopilotOAuth {
+            access_token: "fixture-token".into(),
+            account_id: "42".into(),
+            login: "fixture-login".into(),
+            host: Some(
+                crate::accounts::github_host::GitHubHost::parse("octocorp.ghe.com").unwrap(),
+            ),
+        };
+        let mut tx = vault.begin().unwrap();
+        tx.document
+            .add(
+                Provider::Catalog("copilot"),
+                "Fixture",
+                "octocorp.ghe.com:42".into(),
+                credential,
+            )
+            .unwrap();
+        tx.commit().unwrap();
+        let bytes = memory.read().unwrap().unwrap();
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["version"], 9);
+        // A format-8 reader would ignore the host and query GitHub.com.
+        value["version"] = 8.into();
+        memory.write(&serde_json::to_vec(&value).unwrap()).unwrap();
         assert!(matches!(vault.begin(), Err(AccountError::Corrupt)));
         std::fs::remove_dir_all(dir).unwrap();
     }

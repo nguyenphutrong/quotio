@@ -10964,6 +10964,118 @@
         }
       }
     },
+    "oauth.githubHost.hint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave empty for GitHub.com. Enter your GHE.com host for GitHub Enterprise Cloud with data residency."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laissez vide pour GitHub.com. Saisissez votre hôte GHE.com pour GitHub Enterprise Cloud avec résidence des données."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Để trống cho GitHub.com. Nhập máy chủ GHE.com cho GitHub Enterprise Cloud có lưu trữ dữ liệu theo khu vực."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub.com 请留空。使用数据驻留的 GitHub Enterprise Cloud 时，请输入您的 GHE.com 主机。"
+          }
+        }
+      }
+    },
+    "oauth.githubHost.invalid" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter github.com or a host ending in .ghe.com."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez github.com ou un hôte se terminant par .ghe.com."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập github.com hoặc máy chủ kết thúc bằng .ghe.com."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入 github.com 或以 .ghe.com 结尾的主机。"
+          }
+        }
+      }
+    },
+    "oauth.githubHost.label" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub host"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hôte GitHub"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy chủ GitHub"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub 主机"
+          }
+        }
+      }
+    },
+    "oauth.githubHost.placeholder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "github.com or yourcompany.ghe.com"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "github.com ou votreentreprise.ghe.com"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "github.com hoặc congtycuaban.ghe.com"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "github.com 或 yourcompany.ghe.com"
+          }
+        }
+      }
+    },
     "oauth.openLink" : {
       "extractionState" : "stale",
       "localizations" : {

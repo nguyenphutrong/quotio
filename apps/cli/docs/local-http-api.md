@@ -114,6 +114,18 @@ Provider capabilities also expose `oauth_workflow` and `start_oauth`.
 | `claude` | `manual_code` | Open `url`, then send `{"code":"..."}` to the callback route. A code with `#state` must match the backend's state. |
 | `copilot` | `device_code` | Open `url` and enter `user_code`. Do not call the callback route. The backend polls GitHub. |
 
+Copilot accepts an optional `host`: `github.com` (the default) or a GitHub
+Enterprise Cloud data-residency host such as `octocorp.ghe.com`. The backend
+derives every route from that host (`https://<host>/login/...` for device
+authorization, `https://api.<host>/...` for profile and quota), requires the
+returned verification URL to be `https://<host>/login/device`, and stores the host
+with the credential so later quota reads never follow UI state. URLs, ports,
+paths, nested subdomains and self-hosted GitHub Enterprise Server hosts return
+`invalid_github_host`; any other provider with `host` returns
+`unsupported_operation`. The host is part of the idempotency intent. Enterprise
+accounts use `<host>:<user id>` as their identity, so the same numeric user on
+two instances never deduplicates.
+
 Claude and Copilot accept only the default `callback_mode: relay`; this field is
 retained for Codex compatibility. Submit exactly one callback field. Never include
 codes in a URL query or log them. The backend owns proof-key generation, state,

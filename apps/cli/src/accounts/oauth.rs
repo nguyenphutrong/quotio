@@ -1,4 +1,6 @@
-use super::{AccountError, Credential, random_string, service, vault::Vault};
+use super::{
+    AccountError, Credential, github_host::GitHubHost, random_string, service, vault::Vault,
+};
 use crate::providers::{ProviderContext, http};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use ring::digest::{SHA256, digest};
@@ -286,6 +288,7 @@ struct BeginClaim {
     provider: crate::cli::Provider,
     label: Option<String>,
     mode: OAuthMode,
+    host: Option<GitHubHost>,
     session_id: Option<String>,
 }
 struct Sessions {
@@ -380,14 +383,40 @@ impl OAuthSessionManager {
         mode: OAuthMode,
         key: String,
     ) -> Result<SessionDto, AccountError> {
-        self.begin_keyed(provider, label, mode, key, copilot::Endpoints::default())
+        self.begin_idempotent_at(provider, label, mode, None, key)
             .await
+    }
+    /// `host` selects a GitHub Enterprise Cloud data-residency instance and is
+    /// accepted only for Copilot. It is part of the retry intent.
+    pub async fn begin_idempotent_at(
+        &self,
+        provider: crate::cli::Provider,
+        label: Option<String>,
+        mode: OAuthMode,
+        host: Option<GitHubHost>,
+        key: String,
+    ) -> Result<SessionDto, AccountError> {
+        Self::check_host(provider, &host)?;
+        let endpoints =
+            copilot::Endpoints::for_host(host.clone().unwrap_or_else(GitHubHost::github_com));
+        self.begin_keyed(provider, label, mode, host, key, endpoints)
+            .await
+    }
+    fn check_host(
+        provider: crate::cli::Provider,
+        host: &Option<GitHubHost>,
+    ) -> Result<(), AccountError> {
+        if host.is_some() && provider != crate::cli::Provider::Catalog("copilot") {
+            return Err(AccountError::Unsupported);
+        }
+        Ok(())
     }
     async fn begin_keyed(
         &self,
         provider: crate::cli::Provider,
         label: Option<String>,
         mode: OAuthMode,
+        host: Option<GitHubHost>,
         key: String,
         endpoints: copilot::Endpoints,
     ) -> Result<SessionDto, AccountError> {
@@ -401,7 +430,11 @@ impl OAuthSessionManager {
             begins,
         } = &mut *sessions;
         if let Some(claim) = begins.get(&key) {
-            if claim.provider != provider || claim.label != label || claim.mode != mode {
+            if claim.provider != provider
+                || claim.label != label
+                || claim.mode != mode
+                || claim.host != host
+            {
                 return Err(AccountError::IdempotencyConflict);
             }
             return match &claim.session_id {
@@ -421,6 +454,7 @@ impl OAuthSessionManager {
                 provider,
                 label: label.clone(),
                 mode,
+                host,
                 session_id: None,
             },
         );
@@ -434,7 +468,7 @@ impl OAuthSessionManager {
             {
                 manager.begin_device(label, endpoints).await
             } else {
-                manager.begin_for(provider, label, mode).await
+                manager.begin_at(provider, label, mode, None).await
             };
             let mut sessions = manager.sessions.lock().await;
             match &result {
@@ -468,12 +502,25 @@ impl OAuthSessionManager {
         label: Option<String>,
         mode: OAuthMode,
     ) -> Result<SessionDto, AccountError> {
+        self.begin_at(provider, label, mode, None).await
+    }
+    pub async fn begin_at(
+        &self,
+        provider: crate::cli::Provider,
+        label: Option<String>,
+        mode: OAuthMode,
+        host: Option<GitHubHost>,
+    ) -> Result<SessionDto, AccountError> {
+        Self::check_host(provider, &host)?;
         if provider == crate::cli::Provider::Catalog("copilot") {
             if !matches!(mode, OAuthMode::Relay) {
                 return Err(AccountError::Unsupported);
             }
             return self
-                .begin_device(label, copilot::Endpoints::default())
+                .begin_device(
+                    label,
+                    copilot::Endpoints::for_host(host.unwrap_or_else(GitHubHost::github_com)),
+                )
                 .await;
         }
         let workflow = match provider {
@@ -571,7 +618,7 @@ impl OAuthSessionManager {
         let started = Instant::now();
         let device = tokio::time::timeout(
             Duration::from_secs(30),
-            copilot::begin(&self.context, &endpoints.device),
+            copilot::begin(&self.context, &endpoints),
         )
         .await
         .map_err(|_| AccountError::Cancelled)??;
@@ -666,7 +713,7 @@ impl OAuthSessionManager {
                         copilot::Poll::SlowDown => interval = interval.saturating_add(5),
                         copilot::Poll::Expired => { self.end_device(&id, SessionStatus::Expired, None).await; return Ok(None); },
                         copilot::Poll::Denied => { self.end_device(&id, SessionStatus::Cancelled, None).await; return Ok(None); },
-                        copilot::Poll::Token(token) => return tokio::time::timeout(Duration::from_secs(30), copilot::credential(&self.context, &endpoints.profile, token)).await.map_err(|_| AccountError::Cancelled)?.map(Some),
+                        copilot::Poll::Token(token) => return tokio::time::timeout(Duration::from_secs(30), copilot::credential(&self.context, &endpoints, token)).await.map_err(|_| AccountError::Cancelled)?.map(Some),
                     }
                 }
             } => result,
@@ -793,9 +840,9 @@ impl OAuthSessionManager {
         let provider = self.get(id).await?.provider;
         let result = async {
             let credential = credential?;
-            let identity = if let Credential::CopilotOAuth { account_id, .. }
-            | Credential::ClaudeOAuth { account_id, .. } = &credential
-            {
+            let identity = if let Credential::CopilotOAuth { .. } = &credential {
+                service::copilot_identity(&credential).expect("copilot credential")
+            } else if let Credential::ClaudeOAuth { account_id, .. } = &credential {
                 account_id.clone()
             } else {
                 tokio::time::timeout(
@@ -1177,7 +1224,72 @@ mod session_tests {
             device: url.into(),
             token: url.into(),
             profile: url.into(),
+            ..copilot::Endpoints::default()
         }
+    }
+    #[tokio::test]
+    async fn enterprise_host_is_copilot_only_and_part_of_retry_intent() {
+        let manager = manager();
+        let host = GitHubHost::parse("octocorp.ghe.com").unwrap();
+        assert!(matches!(
+            manager
+                .begin_at(
+                    crate::cli::Provider::Codex,
+                    None,
+                    OAuthMode::Relay,
+                    Some(host.clone())
+                )
+                .await,
+            Err(AccountError::Unsupported)
+        ));
+        assert!(matches!(
+            manager
+                .begin_idempotent_at(
+                    crate::cli::Provider::Catalog("claude"),
+                    None,
+                    OAuthMode::Relay,
+                    Some(host.clone()),
+                    "host".into()
+                )
+                .await,
+            Err(AccountError::Unsupported)
+        ));
+        let (url, mut requests, server) = controlled_http().await;
+        let worker = manager.clone();
+        let endpoint = url.clone();
+        let enterprise = host.clone();
+        let request = tokio::spawn(async move {
+            worker
+                .begin_keyed(
+                    crate::cli::Provider::Catalog("copilot"),
+                    None,
+                    OAuthMode::Relay,
+                    Some(enterprise),
+                    "host".into(),
+                    device_endpoints(&endpoint),
+                )
+                .await
+        });
+        let (_, respond) = requests.recv().await.unwrap();
+        for other in [None, Some(GitHubHost::parse("other.ghe.com").unwrap())] {
+            assert!(matches!(
+                manager
+                    .begin_keyed(
+                        crate::cli::Provider::Catalog("copilot"),
+                        None,
+                        OAuthMode::Relay,
+                        other,
+                        "host".into(),
+                        device_endpoints(&url),
+                    )
+                    .await,
+                Err(AccountError::IdempotencyConflict)
+            ));
+        }
+        respond.send(device_response(900).to_string()).unwrap();
+        let session = request.await.unwrap().unwrap();
+        manager.cancel(&session.id).await.unwrap();
+        server.abort();
     }
     #[tokio::test]
     async fn keyed_begin_recovers_lost_response_without_duplicate_device_request() {
@@ -1191,6 +1303,7 @@ mod session_tests {
                     crate::cli::Provider::Catalog("copilot"),
                     None,
                     OAuthMode::Relay,
+                    None,
                     "recover".into(),
                     device_endpoints(&endpoint),
                 )
@@ -1205,6 +1318,7 @@ mod session_tests {
                     crate::cli::Provider::Catalog("copilot"),
                     None,
                     OAuthMode::Relay,
+                    None,
                     "recover".into(),
                     device_endpoints(&url)
                 )
@@ -1230,6 +1344,7 @@ mod session_tests {
                         crate::cli::Provider::Catalog("copilot"),
                         None,
                         OAuthMode::Relay,
+                        None,
                         "recover".into(),
                         device_endpoints(&url),
                     )
@@ -1249,6 +1364,7 @@ mod session_tests {
                 crate::cli::Provider::Catalog("copilot"),
                 None,
                 OAuthMode::Relay,
+                None,
                 "recover".into(),
                 device_endpoints(&url),
             )
