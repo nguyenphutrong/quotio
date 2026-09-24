@@ -22,6 +22,7 @@ public extension QuotaProvider {
         case .glm: "Z.ai"
         case .warp: "Warp"
         case .clinePass: "ClinePass"
+        case .openCodeGo: "OpenCode Go"
         }
     }
 
@@ -45,6 +46,7 @@ public extension QuotaProvider {
         case .glm: "brain"
         case .warp: "terminal.fill"
         case .clinePass: "cpu"
+        case .openCodeGo: "chevron.left.forwardslash.chevron.right"
         }
     }
 
@@ -68,6 +70,7 @@ public extension QuotaProvider {
         case .glm: "glm"
         case .warp: "warp"
         case .clinePass: "clinepass"
+        case .openCodeGo: "opencodego"
         }
     }
 
@@ -91,6 +94,7 @@ public extension QuotaProvider {
         case .glm: Color(hex: "3B82F6") ?? .blue
         case .warp: Color(hex: "01E5FF") ?? .cyan
         case .clinePass: Color(hex: "61A3FA") ?? .blue
+        case .openCodeGo: .primary
         }
     }
 
@@ -125,6 +129,7 @@ public extension QuotaProvider {
         case .glm: "G"
         case .warp: "W"
         case .clinePass: "CL"
+        case .openCodeGo: "OG"
         }
     }
 
@@ -144,6 +149,7 @@ public extension QuotaProvider {
         case .glm: "glm-menubar"
         case .warp: "warp-menubar"
         case .clinePass: "clinepass-menubar"
+        case .openCodeGo: "opencodego-menubar"
         case .factoryDroid, .devin, .grok, .openRouter: nil
         }
     }

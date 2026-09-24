@@ -269,7 +269,7 @@ public enum AccountSelectionPolicy {
             for (accountKey, quota) in accountQuotas {
                 let source: AccountSource = switch provider {
                 case .cursor, .trae: .localIDE
-                case .glm, .warp, .clinePass, .factoryDroid, .openRouter, .amp: .apiKey
+                case .glm, .warp, .clinePass, .factoryDroid, .openRouter, .amp, .openCodeGo: .apiKey
                 default: .nativeCredential
                 }
                 let account = Account.make(

@@ -19817,6 +19817,70 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已停用" } }
       }
     },
+    "opencodego.apiKey.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stored securely in Keychain and never shown again." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Stockée en toute sécurité dans le trousseau et ne sera plus jamais affichée." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Được lưu an toàn trong Keychain và không hiển thị lại." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安全存储在钥匙串中，之后不会再次显示。" } }
+      }
+    },
+    "opencodego.apiKey.label" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OpenCode Go API Key" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Clé API OpenCode Go" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "OpenCode Go API Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "OpenCode Go API 密钥" } }
+      }
+    },
+    "opencodego.apiKey.placeholder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter your OpenCode Go API key" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez votre clé API OpenCode Go" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập OpenCode Go API key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入您的 OpenCode Go API 密钥" } }
+      }
+    },
+    "opencodego.apiKey.rotateHint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a replacement key. The current key is never revealed." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez une clé de remplacement. La clé actuelle n’est jamais révélée." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhập key thay thế. Key hiện tại không bao giờ được hiển thị." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入替换密钥。当前密钥绝不会显示。" } }
+      }
+    },
+    "opencodego.connection.edit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rotate OpenCode Go Key" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Remplacer la clé OpenCode Go" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thay OpenCode Go Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更换 OpenCode Go 密钥" } }
+      }
+    },
+    "opencodego.connection.subtitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Monitor 5-hour, weekly, and monthly subscription usage without proxy routing" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Surveillez l’utilisation de l’abonnement sur 5 heures, par semaine et par mois sans routage proxy" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Theo dõi mức sử dụng gói 5 giờ, hàng tuần và hàng tháng, không dùng proxy routing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无需代理路由即可监控 5 小时、每周和每月的订阅用量" } }
+      }
+    },
+    "opencodego.connection.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connect OpenCode Go" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Connecter OpenCode Go" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kết nối OpenCode Go" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接 OpenCode Go" } }
+      }
+    },
+    "opencodego.label.placeholder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Account label" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Libellé du compte" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Nhãn tài khoản" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账户标签" } }
+      }
+    },
     "openrouter.apiKey.hint" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Stored securely in Keychain and never shown again." } },

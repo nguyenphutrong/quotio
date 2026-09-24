@@ -875,6 +875,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating {
     private static let supportedProviders: [QuotaProvider] = [
         .claude, .codex, .antigravity, .kiro, .copilot, .cursor, .factoryDroid,
         .devin, .grok, .openRouter, .amp, .glm, .vertex, .warp, .clinePass,
+        .openCodeGo,
     ]
 }
 
