@@ -56,7 +56,7 @@ Quotio là ứng dụng macOS để quản lý **CLIProxyAPI** - máy chủ prox
 | iFlow | OAuth |
 | Antigravity | OAuth |
 | Kiro | OAuth |
-| GitHub Copilot | OAuth |
+| GitHub Copilot | OAuth (GitHub.com hoặc máy chủ GHE.com lưu trữ dữ liệu theo khu vực ở chế độ Giám sát) |
 
 ### Theo dõi Quota IDE (Chỉ giám sát)
 | IDE | Mô tả |
