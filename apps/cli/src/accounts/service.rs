@@ -607,7 +607,10 @@ pub fn default_label(
             host: Some(host),
             ..
         } if !host.is_github_com() => {
-            super::validate_label(&format!("{login} ({})", host.as_str()))
+            // Labels are capped at 80 characters; a long login plus a long
+            // subdomain must not fail sign-in after the user approved it.
+            let label = format!("{login} ({})", host.as_str());
+            super::validate_label(&label).or_else(|_| super::validate_label(login))
         }
         Credential::CopilotOAuth { login, .. } => super::validate_label(login),
         Credential::GrokOAuth { .. } => Ok("Grok owned account".into()),
@@ -2985,6 +2988,22 @@ mod tests {
             ),
             Err(AccountError::Duplicate)
         ));
+        // Format-8 readers would ignore the host, so it must require format 9.
+        assert_eq!(document.version, 9);
+    }
+    #[test]
+    fn long_enterprise_labels_fall_back_to_the_login() {
+        let host =
+            crate::accounts::github_host::GitHubHost::parse(&format!("{}.ghe.com", "a".repeat(60)))
+                .unwrap();
+        let login = "l".repeat(30);
+        let credential = Credential::CopilotOAuth {
+            access_token: "fixture-token".into(),
+            account_id: "42".into(),
+            login: login.clone(),
+            host: Some(host),
+        };
+        assert_eq!(default_label(None, &credential).unwrap(), login);
     }
     #[test]
     fn copilot_credentials_without_host_remain_readable_and_unchanged() {

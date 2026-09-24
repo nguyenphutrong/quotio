@@ -48,6 +48,11 @@ pub trait CredentialStore: Send + Sync {
 pub struct EnvironmentCredentials;
 impl CredentialStore for EnvironmentCredentials {
     fn get(&self, name: &str) -> Option<Secret> {
+        // Routing values that decide where a token is sent come only from saved
+        // accounts, never from the ambient process environment.
+        if name == catalog::oauth_primary::COPILOT_HOST_ENV {
+            return None;
+        }
         std::env::var(name).ok().map(Secret)
     }
 }

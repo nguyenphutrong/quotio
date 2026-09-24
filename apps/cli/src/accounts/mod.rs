@@ -384,6 +384,9 @@ impl Document {
         if matches!(credential, Credential::CopilotOAuth { .. }) {
             self.version = self.version.max(6);
         }
+        if matches!(credential, Credential::CopilotOAuth { host: Some(_), .. }) {
+            self.version = self.version.max(9);
+        }
         self.accounts.push(Account {
             id: id.clone(),
             provider,
@@ -517,6 +520,16 @@ impl Document {
         account.identity = identity;
         account.credential = credential;
         Ok(())
+    }
+}
+impl Document {
+    pub(crate) fn has_enterprise_copilot(&self) -> bool {
+        self.accounts.iter().any(|account| {
+            matches!(
+                &account.credential,
+                Credential::CopilotOAuth { host: Some(_), .. }
+            )
+        })
     }
 }
 pub fn validate_label(label: &str) -> Result<String, AccountError> {

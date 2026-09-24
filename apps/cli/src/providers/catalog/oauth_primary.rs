@@ -82,6 +82,7 @@ fn fetch_gemini(context: &ProviderContext) -> FetchFuture<'_> {
 }
 
 /// Set only from a saved Quotio Copilot OAuth credential; see `accounts::service`.
+/// `EnvironmentCredentials` deliberately never exposes it.
 pub(crate) const COPILOT_HOST_ENV: &str = "QUOTIO_COPILOT_HOST";
 
 fn fetch_copilot(context: &ProviderContext) -> FetchFuture<'_> {
@@ -1111,6 +1112,14 @@ mod tests {
             copilot_usage_url(&copilot_context(&[(COPILOT_HOST_ENV, "octocorp.ghe.com")])),
             Err(ProviderError::Authentication)
         ));
+        // The ambient process environment can never choose the token destination.
+        assert!(
+            crate::providers::CredentialStore::get(
+                &crate::providers::EnvironmentCredentials,
+                COPILOT_HOST_ENV
+            )
+            .is_none()
+        );
     }
 
     #[test]

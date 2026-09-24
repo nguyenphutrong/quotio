@@ -409,8 +409,11 @@ pub(super) async fn begin(
         .as_deref()
         .map(crate::accounts::github_host::GitHubHost::parse)
         .transpose()
-        .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "invalid_github_host"))?
-        .filter(|host| !host.is_github_com());
+        .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "invalid_github_host"))?;
+    if host.is_some() && input.provider != Provider::Catalog("copilot") {
+        return Err(account_error(AccountError::Unsupported));
+    }
+    let host = host.filter(|host| !host.is_github_com());
     let session = match key {
         Some(key) => {
             manager

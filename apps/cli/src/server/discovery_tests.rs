@@ -211,6 +211,10 @@ async fn oauth_begin_rest_rejects_invalid_or_misplaced_github_hosts() {
             json!({"provider":"codex","host":"octocorp.ghe.com"}),
             "unsupported_operation",
         ),
+        (
+            json!({"provider":"codex","host":"github.com"}),
+            "unsupported_operation",
+        ),
     ] {
         let response = client
             .post(format!("http://{address}/v1/auth/sessions"))
