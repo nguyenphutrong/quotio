@@ -95,7 +95,7 @@ enum CompositionRoot {
             providers: [
                 "claude", "codex", "antigravity", "kiro", "copilot", "cursor",
                 "factory", "devin-desktop", "grok", "openrouter", "amp", "zai",
-                "vertexai", "warp", "clinepass",
+                "vertexai", "warp", "clinepass", "opencodego",
             ],
             executableDirectories: [CLIAgent.codexCLI, .ampCLI]
                 .compactMap(agentInstallationProbe.path)

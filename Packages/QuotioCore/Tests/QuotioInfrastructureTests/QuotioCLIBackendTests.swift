@@ -37,6 +37,62 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(snapshot.accountIDs[.factoryDroid]?["Work"], "account-1")
     }
 
+    func testUsageReportMapsOpenCodeGoWindowsByMetricID() throws {
+        let window = { (label: String, metricID: String, used: Int) in
+            """
+            {"label":"\(label)","metric_id":"\(metricID)","quota":{"state":"available","used_percent":\(used),"remaining_percent":\(100 - used)},
+             "resets_at":"2026-09-25T05:00:00Z","provenance":{"source":"opencode_go_usage_api","confidence":"exact"},
+             "fetched_at":"2026-09-24T12:00:00Z"}
+            """
+        }
+        let data = Data("""
+        {
+          "schema_version": 1,
+          "generated_at": "2026-09-24T12:00:00Z",
+          "providers": [{
+            "provider": "opencodego",
+            "account_ref": {"origin":"owned","id":"account-go","label":"Go"},
+            "account": {"id":"go","label":"Go","plan":null},
+            "windows": [
+              \(window("5-hour", "opencodego-five-hour", 12)),
+              \(window("Weekly", "opencodego-weekly", 40)),
+              \(window("Monthly", "opencodego-monthly", 5))
+            ]
+          }],
+          "failures": []
+        }
+        """.utf8)
+
+        let report = try makeQuotioCLIDecoder().decode(QuotioCLIUsageReport.self, from: data)
+        let snapshot = QuotioCLIUsageMapper.snapshot(report)
+        let models = try XCTUnwrap(snapshot.quotas[.openCodeGo]?["Go"]?.models)
+
+        XCTAssertEqual(models.map(\.name), ["opencodego-five-hour", "opencodego-weekly", "opencodego-monthly"])
+        XCTAssertEqual(models.map(\.percentage), [88, 60, 95])
+        XCTAssertEqual(snapshot.accountIDs[.openCodeGo]?["Go"], "account-go")
+    }
+
+    func testOpenCodeGoAPIKeyUsesCatalogProviderID() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"id":"operation-1","status":"completed","error":null}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioCLIConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+
+        try await backend.saveAPIKey(
+            providerID: AccountProviderID(rawValue: QuotaProvider.openCodeGo.rawValue),
+            label: "Go",
+            apiKey: "secret",
+            existingAccountID: nil
+        )
+
+        let body = try XCTUnwrap(QuotioCLIURLProtocol.body(forPath: "/v1/accounts"))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json["provider"] as? String, "opencodego")
+        XCTAssertEqual(json["label"] as? String, "Go")
+    }
+
     func testUsageReportUsesReferenceLabelsAndKeepsCollidingProviderLabelsDistinct() throws {
         let data = Data(#"""
         {

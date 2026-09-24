@@ -31,7 +31,7 @@ final class MonitorPresentationTests: XCTestCase {
     }
 
     func testMonitorRowsHonorEditCapabilityForEveryAPIKeyProvider() {
-        for provider in [QuotaProvider.factoryDroid, .openRouter, .amp, .glm, .warp, .clinePass] {
+        for provider in [QuotaProvider.factoryDroid, .openRouter, .amp, .glm, .warp, .clinePass, .openCodeGo] {
             for canEdit in [false, true] {
                 let account = Account(
                     identity: AccountIdentity(id: "managed", providerID: AccountProviderID(rawValue: provider.rawValue), accountKey: "Work"),
@@ -49,7 +49,7 @@ final class MonitorPresentationTests: XCTestCase {
 
     func testMonitorProvidersDoNotRequireInstalledCLI() {
         let providers: Set<QuotaProvider> = [
-            .codex, .claude, .factoryDroid, .devin, .grok, .openRouter, .amp,
+            .codex, .claude, .factoryDroid, .devin, .grok, .openRouter, .amp, .openCodeGo,
         ]
 
         let filtered = StatusBarMenuSnapshotMapper.filterProviders(

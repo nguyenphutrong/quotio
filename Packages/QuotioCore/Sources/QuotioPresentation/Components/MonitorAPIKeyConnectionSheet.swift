@@ -19,6 +19,7 @@ struct MonitorAPIKeyConnectionSheet: View {
         switch provider {
         case .factoryDroid: "factory"
         case .amp: "amp"
+        case .openCodeGo: "opencodego"
         default: "openrouter"
         }
     }

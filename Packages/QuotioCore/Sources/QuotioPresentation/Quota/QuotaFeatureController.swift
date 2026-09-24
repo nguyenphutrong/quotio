@@ -31,7 +31,7 @@ public final class QuotaFeatureController {
 
     private static let monitorProviders: Set<QuotaProvider> = [
         .claude, .codex, .antigravity, .vertex, .kiro, .copilot, .factoryDroid,
-        .devin, .grok, .openRouter, .amp, .glm, .warp, .clinePass,
+        .devin, .grok, .openRouter, .amp, .glm, .warp, .clinePass, .openCodeGo,
     ]
 
     static func automaticallyRefreshedProviders(for mode: QuotaOperatingMode) -> Set<QuotaProvider> {

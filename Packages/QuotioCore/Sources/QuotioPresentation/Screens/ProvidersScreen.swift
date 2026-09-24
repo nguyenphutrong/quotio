@@ -45,7 +45,7 @@ struct ProvidersScreen: View {
     private var addableProviders: [QuotaProvider] {
         if modeManager.isLocalProxyMode {
             return QuotaProvider.allCases.filter {
-                ![.factoryDroid, .openRouter, .amp].contains($0) && ($0.supportsManualAuth || $0 == .clinePass)
+                ![.factoryDroid, .openRouter, .amp, .openCodeGo].contains($0) && ($0.supportsManualAuth || $0 == .clinePass)
             }
         } else {
             return QuotaProvider.allCases.filter {
@@ -410,7 +410,7 @@ struct ProvidersScreen: View {
                                 handleEditClinePassAccount(account)
                             } else if provider == .warp {
                                 handleEditWarpAccount(account)
-                            } else if [.factoryDroid, .openRouter, .amp].contains(provider) {
+                            } else if [.factoryDroid, .openRouter, .amp, .openCodeGo].contains(provider) {
                                 handleEditMonitorAPIKeyAccount(account)
                             }
                         },
@@ -515,7 +515,7 @@ struct ProvidersScreen: View {
             showGLMConnectionSheet = true
             return
         }
-        if [.factoryDroid, .openRouter, .amp].contains(provider) {
+        if [.factoryDroid, .openRouter, .amp, .openCodeGo].contains(provider) {
             editingMonitorAPIKeyAccount = nil
             monitorAPIKeyProvider = provider
             return

@@ -404,6 +404,10 @@ valid percentages and other windows remain available. An absent reset stays
 absent, and a past source timestamp is retained. This does not add upstream proxy
 support or enable the Swift production backend.
 
+OpenCode Go supplies `opencodego-five-hour`, `opencodego-weekly`, and
+`opencodego-monthly` in that order. All three documented windows remain
+required; a missing or malformed window still fails the provider.
+
 ## Amp presentation parity
 
 Amp normalization supports Free percentages or dollar balances, named subscription
