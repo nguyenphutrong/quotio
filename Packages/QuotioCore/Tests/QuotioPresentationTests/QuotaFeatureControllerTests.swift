@@ -33,6 +33,7 @@ final class QuotaFeatureControllerTests: XCTestCase {
             [
                 .codex, .claude, .copilot, .kiro, .glm, .clinePass, .warp,
                 .antigravity, .vertex, .factoryDroid, .devin, .grok, .openRouter, .amp,
+                .openCodeGo,
             ]
         )
     }
