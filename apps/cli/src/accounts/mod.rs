@@ -254,6 +254,7 @@ impl Account {
         let name = validate_observed_name(name)?;
         // Recognize labels emitted by native source constructors; explicit user labels remain authoritative.
         let generated = match &self.credential {
+            Credential::AmpNative { .. } => Some("Local Amp account".into()),
             Credential::DevinDesktopNative { source } => Some(match source.location {
                 sources::DevinDesktopLocation::CredentialsToml => {
                     "Devin Desktop credentials.toml".to_owned()
@@ -700,6 +701,42 @@ pub(crate) fn random_string() -> Result<String, AccountError> {
 #[cfg(test)]
 mod naming_tests {
     use super::*;
+    #[test]
+    fn amp_generated_name_adopts_email_without_overwriting_user_label() {
+        for explicit in [false, true] {
+            let mut document = Document::default();
+            document
+                .add(
+                    Provider::Amp,
+                    "Local Amp account",
+                    "identity".into(),
+                    Credential::AmpNative {
+                        source: sources::AmpNativeReference {
+                            path: "/tmp/amp/secrets.json".into(),
+                            enabled: true,
+                        },
+                    },
+                )
+                .unwrap();
+            let account = &mut document.accounts[0];
+            if explicit {
+                account.naming = Some(AccountNaming {
+                    origin: LabelOrigin::User,
+                    observed_name: None,
+                });
+            }
+            account.observe_name("demo@example.com").unwrap();
+            assert_eq!(
+                account.display_name(),
+                if explicit {
+                    "Local Amp account"
+                } else {
+                    "demo@example.com"
+                }
+            );
+        }
+    }
+
     #[test]
     fn native_generated_labels_adopt_profiles_but_explicit_labels_survive() {
         let copilot = sources::CopilotNativeReference::system(

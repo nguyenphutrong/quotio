@@ -948,6 +948,7 @@ impl ProviderAdapter for ManagedProvider {
             };
             // Refresh older observations once so repaired native naming is persisted.
             let identity_version = match self.provider {
+                Provider::Amp => "resolved-amp-identity-v3",
                 Provider::Catalog("copilot") => "resolved-copilot-identity-v3",
                 Provider::Catalog("grok") => "resolved-grok-identity-v3",
                 _ => "resolved-identity-v2",

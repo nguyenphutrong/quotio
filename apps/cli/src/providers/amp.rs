@@ -52,8 +52,8 @@ fn window(
 ) -> QuotaWindow {
     let metric_id = match label {
         "Amp Free daily" => "amp-free".into(),
-        "Megawatt agent subscription" => "amp-agent-usage".into(),
-        "Megawatt orb subscription" => "amp-orb-usage".into(),
+        "Agent Usage" => "amp-agent-usage".into(),
+        "Orb Usage" => "amp-orb-usage".into(),
         "Individual credits" => "amp-individual-credits".into(),
         _ => {
             let name = label
@@ -252,10 +252,10 @@ pub(crate) fn parse(input: &str, now: OffsetDateTime) -> Result<ProviderUsage, P
                 )
             };
             windows.push(window("Amp Free daily", quota, amounts, now, reset));
-        } else if let Some((name, rest)) = line
-            .strip_prefix("Amp ")
-            .and_then(|s| s.split_once(" Subscription: "))
-        {
+        } else if let Some((name, rest)) = line.strip_prefix("Amp ").and_then(|s| {
+            s.split_once(" Subscription: ")
+                .or_else(|| s.split_once(" Tier: "))
+        }) {
             if name.trim().is_empty() {
                 return Err(ProviderError::InvalidData);
             }
@@ -268,14 +268,14 @@ pub(crate) fn parse(input: &str, now: OffsetDateTime) -> Result<ProviderUsage, P
                     return Err(ProviderError::InvalidData);
                 }
                 windows.push(window(
-                    "Megawatt agent subscription",
+                    "Agent Usage",
                     Quota::from_remaining(Some(percent(agent)?)),
                     None,
                     now,
                     reset_description(rest),
                 ));
                 windows.push(window(
-                    "Megawatt orb subscription",
+                    "Orb Usage",
                     Quota::from_remaining(Some(percent(orb)?)),
                     None,
                     now,
@@ -292,7 +292,7 @@ pub(crate) fn parse(input: &str, now: OffsetDateTime) -> Result<ProviderUsage, P
                 return Err(ProviderError::InvalidData);
             }
             windows.push(window(
-                "Megawatt agent subscription",
+                "Agent Usage",
                 quota(&amounts),
                 Some(amounts),
                 now,
@@ -307,7 +307,7 @@ pub(crate) fn parse(input: &str, now: OffsetDateTime) -> Result<ProviderUsage, P
                     return Err(ProviderError::InvalidData);
                 }
                 windows.push(window(
-                    "Megawatt orb subscription",
+                    "Orb Usage",
                     quota(&amounts),
                     Some(amounts),
                     now,
@@ -341,15 +341,6 @@ pub(crate) fn parse(input: &str, now: OffsetDateTime) -> Result<ProviderUsage, P
     }
     if windows.is_empty() {
         return Err(ProviderError::InvalidData);
-    }
-    if let Some(plan) = &plan {
-        for window in &mut windows {
-            match window.metric_id.as_deref() {
-                Some("amp-agent-usage") => window.label = format!("{plan} agent subscription"),
-                Some("amp-orb-usage") => window.label = format!("{plan} orb subscription"),
-                _ => {}
-            }
-        }
     }
     Ok(ProviderUsage {
         reset_credits: None,
@@ -549,6 +540,36 @@ mod tests {
     use super::*;
     const FIXTURE: &str = "Signed in as demo@example.com (demo)\n**Amp Free:** 75% remaining today (resets daily) - https://ampcode.com/settings#amp-free\n**Amp Megawatt Subscription:** agent usage $12 of $20 remaining (60%), orb usage 500.5h of 750h a1.small orb hours remaining (67%) - period 2026-08-19 to 2026-09-19, resets upon renewal in 13 days\n**Individual credits:** $10.25 remaining (set up auto-reload to avoid running out) - https://ampcode.com/settings\n**Workspace Example:** $0 remaining - https://ampcode.com/workspaces/example\n";
     #[test]
+    fn amp_displays_email_and_short_usage_labels() {
+        let usage = parse(FIXTURE, OffsetDateTime::UNIX_EPOCH).unwrap();
+        assert_eq!(usage.account.label, "demo@example.com");
+        assert_eq!(usage.account.plan.as_deref(), Some("Megawatt"));
+        for (id, label) in [
+            ("amp-agent-usage", "Agent Usage"),
+            ("amp-orb-usage", "Orb Usage"),
+        ] {
+            assert_eq!(
+                usage
+                    .windows
+                    .iter()
+                    .find(|window| window.metric_id.as_deref() == Some(id))
+                    .unwrap()
+                    .label,
+                label
+            );
+        }
+    }
+    #[test]
+    fn current_tier_label_is_supported() {
+        let usage = parse(
+            &FIXTURE.replace("Megawatt Subscription:", "Megawatt Tier:"),
+            OffsetDateTime::UNIX_EPOCH,
+        )
+        .unwrap();
+        assert_eq!(usage.account.plan.as_deref(), Some("Megawatt"));
+        assert_eq!(usage.windows.len(), 5);
+    }
+    #[test]
     fn swift_amount_free_and_named_subscription_keep_ids_consumption_and_reset_description() {
         let text = "\x1b[32mSigned in as demo@example.com (Pro)\x1b[0m\nAmp Free: $2.50 / $10.00 remaining (replenishes +$0.50/hour)\nAmp Kilowatt Subscription: 60% agent usage and 25% orb usage remaining - resets upon renewal in 2 days\nIndividual credits: $0 remaining\nWorkspace Example: $12.50 remaining";
         let usage = parse(text, OffsetDateTime::UNIX_EPOCH).unwrap();
@@ -568,7 +589,7 @@ mod tests {
         );
         assert_eq!(usage.windows[0].consumption.as_ref().unwrap().used, 7.5);
         assert_eq!(usage.windows[0].quota, Quota::from_remaining(Some(25.0)));
-        assert_eq!(usage.windows[1].label, "Kilowatt agent subscription");
+        assert_eq!(usage.windows[1].label, "Agent Usage");
         assert_eq!(usage.windows[2].quota, Quota::from_remaining(Some(25.0)));
         assert!(usage.windows.iter().all(|w| w.resets_at.is_none()));
         assert_eq!(
