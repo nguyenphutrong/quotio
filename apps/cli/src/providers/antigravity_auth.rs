@@ -192,7 +192,7 @@ impl Session {
         let credential = keychain_task(move || source.credential()).await?;
         let token = credential
             .usable_token(context.clock.now())
-            .ok_or(ProviderError::Authentication)?;
+            .ok_or(ProviderError::OwnerRefreshRequired)?;
         Ok(Self {
             token,
             credential,
@@ -241,14 +241,14 @@ pub async fn reference_token(
                 return Err(AccountError::Input);
             }
             let bytes = super::catalog::oauth_editors::native_sqlite_rows(path,
-                "SELECT json_group_array(json_object('value',value)) FROM ItemTable WHERE key = 'jetskiStateSync.agentManagerInitState';").await?;
+                "SELECT json_group_array(json_object('key',key,'value',value)) FROM (SELECT key,value FROM ItemTable WHERE key IN ('antigravityUnifiedStateSync.oauthToken','jetskiStateSync.agentManagerInitState') ORDER BY CASE key WHEN 'antigravityUnifiedStateSync.oauthToken' THEN 0 ELSE 1 END LIMIT 1);").await?;
             parse_state_rows(&bytes)?
         }
     };
     let expires_at = credential.expires_at();
     let access_token = credential
         .usable_token(OffsetDateTime::now_utc())
-        .ok_or(ProviderError::Authentication)?
+        .ok_or(ProviderError::OwnerRefreshRequired)?
         .0;
     Ok(accounts::Credential::AntigravityToken {
         access_token,
@@ -272,6 +272,33 @@ fn parse_state_rows(bytes: &[u8]) -> Result<Credential, ProviderError> {
     let data = STANDARD
         .decode(value)
         .map_err(|_| ProviderError::InvalidData)?;
+    if rows[0].get("key").and_then(serde_json::Value::as_str)
+        == Some("antigravityUnifiedStateSync.oauthToken")
+    {
+        let mut oauth = None;
+        visit_fields(&data, |number, wire, entry| {
+            if number != 1 {
+                return Ok(());
+            }
+            if wire != 2 {
+                return Err(ProviderError::InvalidData);
+            }
+            if find_field(entry, 1)? != Some(b"oauthTokenInfoSentinelKey".as_slice()) {
+                return Ok(());
+            }
+            if oauth.is_some() {
+                return Err(ProviderError::InvalidData);
+            }
+            let value = find_field(entry, 2)?.ok_or(ProviderError::InvalidData)?;
+            let encoded = find_field(value, 1)?.ok_or(ProviderError::InvalidData)?;
+            let token = STANDARD
+                .decode(encoded)
+                .map_err(|_| ProviderError::InvalidData)?;
+            oauth = Some(protobuf_credential(&token)?);
+            Ok(())
+        })?;
+        return oauth.ok_or(ProviderError::Authentication);
+    }
     // agentManagerInitState stores OAuth credentials in top-level field 6.
     // Unrelated length-delimited fields are opaque, never credential candidates.
     protobuf_credential(find_field(&data, 6)?.ok_or(ProviderError::Authentication)?)
@@ -536,7 +563,7 @@ mod tests {
         store.0.lock().unwrap().expiry = Some(context.clock.now().format(&Rfc3339).unwrap());
         assert!(matches!(
             Session::load(store, &context).await,
-            Err(ProviderError::Authentication)
+            Err(ProviderError::OwnerRefreshRequired)
         ));
     }
     #[test]
@@ -730,6 +757,36 @@ mod tests {
         assert_eq!(session.verify().await, Err(ProviderError::Authentication));
         let next = Session::load(store, &context).await.unwrap();
         assert_eq!(next.token.0, "ya29.rotated-native-access");
+    }
+    #[test]
+    fn unified_state_reads_only_the_oauth_token_entry() {
+        let oauth = field(1, b"ya29.synthetic-unified-access");
+        let entry = |name: &[u8], value: &[u8]| {
+            field(1, &[field(1, name), field(2, &field(1, value))].concat())
+        };
+        let state = [
+            entry(b"authStateWithContextSentinelKey", b"unrelated"),
+            entry(
+                b"oauthTokenInfoSentinelKey",
+                STANDARD.encode(oauth).as_bytes(),
+            ),
+        ]
+        .concat();
+        let rows = serde_json::to_vec(&json!([{"key":"antigravityUnifiedStateSync.oauthToken","value":STANDARD.encode(&state)}])).unwrap();
+        let credential = parse_state_rows(&rows).unwrap();
+        assert_eq!(
+            credential.access_token.as_deref(),
+            Some("ya29.synthetic-unified-access")
+        );
+        assert!(credential.refresh_token.is_none());
+        for state in [
+            entry(b"other", b"ignored"),
+            entry(b"oauthTokenInfoSentinelKey", b"!bad-base64"),
+            [state.clone(), state].concat(),
+        ] {
+            let rows = serde_json::to_vec(&json!([{"key":"antigravityUnifiedStateSync.oauthToken","value":STANDARD.encode(state)}])).unwrap();
+            assert!(parse_state_rows(&rows).is_err());
+        }
     }
     #[test]
     fn native_reader_wire_fixture() {
