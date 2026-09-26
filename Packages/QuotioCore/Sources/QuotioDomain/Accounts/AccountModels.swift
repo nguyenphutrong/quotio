@@ -110,6 +110,7 @@ public struct Account: Identifiable, Codable, Hashable, Sendable {
     public var enabled: Bool
     public let credentialMetadata: RedactedCredentialMetadata?
     public var sources: [AccountLoginSource]
+    public let isIdentityVerified: Bool?
 
     public var id: String { identity.id }
     public var providerID: AccountProviderID { identity.providerID }
@@ -132,9 +133,11 @@ public struct Account: Identifiable, Codable, Hashable, Sendable {
         status: AccountStatus = .unknown,
         enabled: Bool? = nil,
         credentialMetadata: RedactedCredentialMetadata? = nil,
-        sources: [AccountLoginSource]? = nil
+        sources: [AccountLoginSource]? = nil,
+        isIdentityVerified: Bool? = nil
     ) {
         self.identity = identity
+        self.isIdentityVerified = isIdentityVerified
         self.displayName = displayName
         self.source = source
         self.credentialReference = credentialReference
@@ -187,6 +190,7 @@ public struct Account: Identifiable, Codable, Hashable, Sendable {
         case canDelete
         case isDisabled
         case sources
+        case isIdentityVerified
     }
 
     public init(from decoder: any Decoder) throws {
@@ -204,6 +208,7 @@ public struct Account: Identifiable, Codable, Hashable, Sendable {
         status = isDisabled ? .disabled : .unknown
         enabled = !isDisabled
         credentialMetadata = nil
+        isIdentityVerified = try container.decodeIfPresent(Bool.self, forKey: .isIdentityVerified)
         sources = try container.decodeIfPresent([AccountLoginSource].self, forKey: .sources) ?? [
             AccountLoginSource(accountID: id, source: source, credentialReference: credentialReference, status: status),
         ]
@@ -220,5 +225,6 @@ public struct Account: Identifiable, Codable, Hashable, Sendable {
         try container.encode(canDelete, forKey: .canDelete)
         try container.encode(isDisabled, forKey: .isDisabled)
         try container.encode(sources, forKey: .sources)
+        try container.encodeIfPresent(isIdentityVerified, forKey: .isIdentityVerified)
     }
 }

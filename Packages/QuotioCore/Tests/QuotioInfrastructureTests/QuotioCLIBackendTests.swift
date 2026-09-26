@@ -95,6 +95,7 @@ final class QuotioCLIBackendTests: XCTestCase {
         let accounts = await backend.accounts()
         XCTAssertTrue(try XCTUnwrap(accounts.first).capabilities.contains(.rename))
         let source = try XCTUnwrap(accounts.first?.sources.first)
+        XCTAssertEqual(accounts.first?.isIdentityVerified, true)
         XCTAssertEqual(source.enabled, false)
         XCTAssertEqual(source.actions, ["set_source_enabled"])
     }

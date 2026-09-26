@@ -608,7 +608,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
             sources: value.sources.map { source in
                 AccountLoginSource(accountID: source.id, source: sourceKind(source.origin), credentialReference: source.kind,
                     status: status(source.state), location: source.location, enabled: source.enabled, actions: Set(source.actions.filter(\.available).map(\.kind)), keychainAccount: source.keychainAccount)
-            }
+            },
+            isIdentityVerified: value.identity.evidence == "verified"
         )
     }
 

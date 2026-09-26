@@ -72,10 +72,10 @@ struct ProviderSettingsScreen: View {
                         Section {
                             Label(issue.explanation, systemImage: "exclamationmark.triangle")
                                 .foregroundStyle(.orange)
-                            if let account = state.accounts.first(where: { $0.id == state.latestIssueAccountID }) {
+                            if let account = (state.accounts + state.accountsNeedingIdentification).first(where: { $0.id == state.latestIssueAccountID }) {
                                 Text(account.displayName.masked(if: menuBar.hideSensitiveInfo)).font(.caption)
                             }
-                            recoveryAction(issue, accounts: state.accounts.filter { $0.id == state.latestIssueAccountID }, sourceID: state.latestIssueSourceID)
+                            recoveryAction(issue, accounts: (state.accounts + state.accountsNeedingIdentification).filter { $0.id == state.latestIssueAccountID }, sourceID: state.latestIssueSourceID)
                         }
                     }
                 }
@@ -134,6 +134,29 @@ struct ProviderSettingsScreen: View {
                 } footer: {
                     Text(String(format: "settings.menuBarPinnedCount".localized(), pinnedItems.count, menuBar.menuBarMaxItems))
                 }
+                if !state.accountsNeedingIdentification.isEmpty {
+                    Section {
+                        ForEach(state.accountsNeedingIdentification) { account in
+                            ForEach(account.sources) { source in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(source.title)
+                                        Text(source.locationLabel).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    sourceMenu(source)
+                                }
+                            }
+                        }
+                        Button("action.retry".localized()) {
+                            Task { await controller.refresh(provider: provider) }
+                        }
+                    } header: {
+                        Text("settings.sources.needsSignIn".localized())
+                    } footer: {
+                        Text("settings.sources.unidentifiedHelp".localized())
+                    }
+                }
                 Section("settings.connectMore".localized()) {
                     if supportsOAuth {
                         LabeledContent("settings.browserLogin".localized()) {
@@ -163,7 +186,7 @@ struct ProviderSettingsScreen: View {
                         }
                         if let scanned = accounts.lastScannedAt[provider] {
                             Text(String(format: "settings.scanResult".localized(),
-                                state.accounts.count + state.permissions.count,
+                                state.accounts.count + state.accountsNeedingIdentification.count + state.permissions.count,
                                 scanned.formatted(date: .abbreviated, time: .shortened)))
                                 .font(.caption).foregroundStyle(.secondary)
                         }

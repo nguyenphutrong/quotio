@@ -65,6 +65,7 @@ extension AccountLoginSource {
         switch (credentialReference, location) {
         case ("claude_native", "code_keychain"): return "Keychain · Claude Code-credentials"
         case ("claude_native", "code_file"): return "~/.claude/.credentials.json"
+        case ("factory_native", "v2_file"): return "~/.factory/auth.v2.file"
         case ("factory_native", "v2_login_keychain"), ("factory_native", "v2_keyring"), ("factory_native", "legacy"):
             return "Keychain · Factory CLI"
         case ("antigravity_native", "gemini_keychain"): return "Keychain · gemini / antigravity"
