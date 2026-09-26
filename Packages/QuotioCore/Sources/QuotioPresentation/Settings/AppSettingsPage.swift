@@ -22,26 +22,6 @@ struct AppSettingsPage: View {
                     switch page {
                     case .menuBar:
                         MenuBarSettingsSection()
-                        Section("settings.pinnedAccounts".localized()) {
-                            ForEach(accounts.accounts) { account in
-                                let item = MenuBarQuotaItem(provider: account.providerID.rawValue, accountKey: account.accountKey, hostID: quota.hostID)
-                                Toggle(account.displayName.masked(if: menuBar.hideSensitiveInfo), isOn: Binding(
-                                    get: { menuBar.isSelected(item) }, set: { _ in menuBar.toggleItem(item) }
-                                ))
-                            }
-                            ForEach(menuBar.selectedItems.filter { item in
-                                (item.hostID == nil || item.hostID == quota.hostID) && !accounts.accounts.contains { $0.providerID.rawValue == item.provider && $0.accountKey == item.accountKey }
-                            }) { item in
-                                HStack {
-                                    VStack(alignment: .leading) {
-                                        Text(item.accountKey.masked(if: menuBar.hideSensitiveInfo))
-                                        Text("quota.notAvailable".localized()).font(.caption).foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Button("action.remove".localized()) { menuBar.removeItem(item) }
-                                }
-                            }
-                        }
                         QuotaDisplaySettingsSection()
                         UsageDisplaySettingsSection()
                     case .notifications:

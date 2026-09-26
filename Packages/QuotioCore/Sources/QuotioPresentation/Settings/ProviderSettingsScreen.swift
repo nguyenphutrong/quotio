@@ -17,11 +17,15 @@ struct ProviderSettingsScreen: View {
     @State private var removingSource: AccountLoginSource?
     @State private var permission: NativeSourcePermission?
     @State private var actionFailed = false
+    @State private var pendingPin: MenuBarQuotaItem?
 
     private var descriptor: MonitoringProvider? { controller.providers.first { $0.id == provider } }
     private var supportsOAuth: Bool { descriptor?.actions.contains("start_oauth") == true }
     private var providerName: String { descriptor?.displayName ?? provider.displayName }
     private var tracked: Bool { controller.trackingPreferences.isEnabled(provider) }
+    private var pinnedItems: [MenuBarQuotaItem] {
+        menuBar.selectedItems.filter { $0.hostID == quota.state.hostID }
+    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
@@ -75,7 +79,7 @@ struct ProviderSettingsScreen: View {
                         }
                     }
                 }
-                Section(String(format: "settings.accountsCount".localized(), state.accounts.count)) {
+                Section {
                     if state.accounts.isEmpty {
                         Text("connections.noAccount".localized()).foregroundStyle(.secondary)
                     }
@@ -120,10 +124,15 @@ struct ProviderSettingsScreen: View {
                                     }
                                 }
                                 Spacer()
+                                pinButton(account)
                                 accountMenu(account)
                             }
                         }
                     }
+                } header: {
+                    Text(String(format: "settings.accountsCount".localized(), state.accounts.count))
+                } footer: {
+                    Text(String(format: "settings.menuBarPinnedCount".localized(), pinnedItems.count, menuBar.menuBarMaxItems))
                 }
                 Section("settings.connectMore".localized()) {
                     if supportsOAuth {
@@ -174,6 +183,17 @@ struct ProviderSettingsScreen: View {
             }
         }
         .sheet(item: $permission) { source in NativePermissionSheet(source: source) }
+        .confirmationDialog("settings.replacePinnedAccount".localized(), isPresented: Binding(
+            get: { pendingPin != nil }, set: { if !$0 { pendingPin = nil } }
+        ), titleVisibility: .visible, presenting: pendingPin) { replacement in
+            ForEach(pinnedItems) { item in
+                Button(pinTitle(item)) { menuBar.replaceItem(item, with: replacement) }
+            }
+            Button("action.cancel".localized(), role: .cancel) { pendingPin = nil }
+        } message: { replacement in
+            Text(String(format: "settings.replacePinnedAccountMessage".localized(), pinTitle(replacement)))
+        }
+        .onChange(of: quota.state.hostID) { _, _ in pendingPin = nil }
         .alert("settings.renameAccount".localized(), isPresented: Binding(
             get: { renamingAccount != nil }, set: { if !$0 { renamingAccount = nil } }
         )) {
@@ -251,12 +271,34 @@ struct ProviderSettingsScreen: View {
         }
     }
 
-    private func accountMenu(_ account: Account) -> some View {
+    private func pinButton(_ account: Account) -> some View {
         let item = MenuBarQuotaItem(provider: provider.rawValue, accountKey: account.accountKey, hostID: quota.state.hostID)
-        return Menu {
-            Toggle("settings.pinAccount".localized(), isOn: Binding(
-                get: { menuBar.isSelected(item) }, set: { _ in menuBar.toggleItem(item) }
-            ))
+        let selected = menuBar.isSelected(item)
+        return Button {
+            if selected || pinnedItems.count < menuBar.menuBarMaxItems {
+                menuBar.toggleItem(item)
+            } else {
+                pendingPin = item
+            }
+        } label: {
+            Label((selected ? "settings.accountPinned" : "settings.pinAccount").localized(),
+                  systemImage: selected ? "pin.fill" : "pin")
+        }
+        .buttonStyle(.borderless)
+        .help((selected ? "settings.unpinAccount" : "settings.pinAccount").localized())
+        .accessibilityLabel(Text((selected ? "settings.unpinAccount" : "settings.pinAccount").localized() + ": " + pinTitle(item)))
+    }
+
+    private func pinTitle(_ item: MenuBarQuotaItem) -> String {
+        let providerName = QuotaProvider(rawValue: item.provider)?.displayName ?? item.provider
+        let accountName = accounts.accounts.first {
+            $0.providerID.rawValue == item.provider && $0.accountKey == item.accountKey
+        }?.displayName ?? item.accountKey
+        return providerName + " · " + accountName.masked(if: menuBar.hideSensitiveInfo)
+    }
+
+    private func accountMenu(_ account: Account) -> some View {
+        Menu {
             Toggle("settings.pauseAccount".localized(), isOn: Binding(
                 get: { account.isDisabled }, set: { disabled in Task { await controller.setAccountDisabled(disabled, accountID: account.id) } }
             ))

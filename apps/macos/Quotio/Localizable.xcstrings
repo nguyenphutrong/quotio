@@ -1,6 +1,11 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "settings.replacePinnedAccountMessage" : {"extractionState": "manual", "localizations": {"en": {"stringUnit": {"state": "translated", "value": "The menu bar is full. Choose an account to replace with %@."}}, "vi": {"stringUnit": {"state": "translated", "value": "Thanh menu đã đủ số mục. Chọn tài khoản để thay bằng %@."}}, "fr": {"stringUnit": {"state": "translated", "value": "La barre de menus est pleine. Choisissez un compte à remplacer par %@."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "菜单栏已满。请选择要替换为 %@ 的账户。"}}}},
+    "settings.replacePinnedAccount" : {"extractionState": "manual", "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Replace a pinned account"}}, "vi": {"stringUnit": {"state": "translated", "value": "Thay thế tài khoản đã ghim"}}, "fr": {"stringUnit": {"state": "translated", "value": "Remplacer un compte épinglé"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "替换已固定的账户"}}}},
+    "settings.menuBarPinnedCount" : {"extractionState": "manual", "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Pinned %d/%d accounts to the menu bar"}}, "vi": {"stringUnit": {"state": "translated", "value": "Đã ghim %d/%d tài khoản lên thanh menu"}}, "fr": {"stringUnit": {"state": "translated", "value": "%d/%d comptes épinglés à la barre de menus"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已在菜单栏固定 %d/%d 个账户"}}}},
+    "settings.unpinAccount" : {"extractionState": "manual", "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Unpin from menu bar"}}, "vi": {"stringUnit": {"state": "translated", "value": "Bỏ ghim khỏi thanh menu"}}, "fr": {"stringUnit": {"state": "translated", "value": "Détacher de la barre de menus"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "从菜单栏取消固定"}}}},
+    "settings.accountPinned" : {"extractionState": "manual", "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Pinned"}}, "vi": {"stringUnit": {"state": "translated", "value": "Đã ghim"}}, "fr": {"stringUnit": {"state": "translated", "value": "Épinglé"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已固定"}}}},
     "settings.keychainAccount" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Keychain account"}}, "vi": {"stringUnit": {"state": "translated", "value": "Tài khoản trong Keychain"}}, "fr": {"stringUnit": {"state": "translated", "value": "Compte du trousseau"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "钥匙串账户"}}}},
     "settings.sources.pause" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Pause source"}}, "vi": {"stringUnit": {"state": "translated", "value": "Tạm dừng nguồn đăng nhập"}}, "fr": {"stringUnit": {"state": "translated", "value": "Suspendre la source"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "暂停来源"}}}},
     "settings.renameAccount" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Rename account"}}, "vi": {"stringUnit": {"state": "translated", "value": "Đổi tên tài khoản"}}, "fr": {"stringUnit": {"state": "translated", "value": "Renommer le compte"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "重命名账户"}}}},
@@ -18,7 +23,6 @@
     "settings.revokeAccessHint" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "To revoke access, open Keychain Access and change the item’s Access Control settings."}}, "vi": {"stringUnit": {"state": "translated", "value": "Để thu hồi quyền, mở Keychain Access và sửa mục Access Control của nguồn."}}, "fr": {"stringUnit": {"state": "translated", "value": "Pour révoquer l’accès, ouvrez Trousseaux d’accès et modifiez le contrôle d’accès de l’élément."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "若要撤销权限，请打开“钥匙串访问”，修改项目的访问控制设置。"}}}},
     "settings.noAuthorizedSources" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "No sources have been authorized through Quotio yet."}}, "vi": {"stringUnit": {"state": "translated", "value": "Chưa cấp quyền cho nguồn nào qua Quotio."}}, "fr": {"stringUnit": {"state": "translated", "value": "Aucune source n’a encore été autorisée via Quotio."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "尚未通过 Quotio 授权任何来源。"}}}},
     "settings.authorizedSources" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Keychain sources you authorized"}}, "vi": {"stringUnit": {"state": "translated", "value": "Nguồn Keychain đã cấp quyền"}}, "fr": {"stringUnit": {"state": "translated", "value": "Sources du trousseau autorisées"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已授权的钥匙串来源"}}}},
-    "settings.pinnedAccounts" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Accounts in the status bar"}}, "vi": {"stringUnit": {"state": "translated", "value": "Tài khoản trên thanh trạng thái"}}, "fr": {"stringUnit": {"state": "translated", "value": "Comptes dans la barre d’état"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "状态栏中的账户"}}}},
     "settings.sponsors" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Support Quotio"}}, "vi": {"stringUnit": {"state": "translated", "value": "Ủng hộ Quotio"}}, "fr": {"stringUnit": {"state": "translated", "value": "Soutenir Quotio"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "支持 Quotio"}}}},
     "settings.links" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Links"}}, "vi": {"stringUnit": {"state": "translated", "value": "Liên kết"}}, "fr": {"stringUnit": {"state": "translated", "value": "Liens"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "链接"}}}},
     "settings.betaUpdates" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Receive beta updates"}}, "vi": {"stringUnit": {"state": "translated", "value": "Nhận bản cập nhật beta"}}, "fr": {"stringUnit": {"state": "translated", "value": "Recevoir les versions bêta"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "接收测试版更新"}}}},
@@ -59,7 +63,7 @@
     "settings.permissionExplanation" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Quotio will read the Keychain item “%@” to use your existing %@ login for quota. It may also ask once for access to Quotio’s own account store.\n\nQuotio does not edit the provider’s login or read unrelated Keychain items. Tokens are only used with the provider. Choose Always Allow in the macOS dialog to enable future refreshes without prompts."}}, "vi": {"stringUnit": {"state": "translated", "value": "Quotio sẽ đọc mục Keychain “%@” để dùng đăng nhập %@ có sẵn và lấy quota. macOS cũng có thể hỏi một lần để mở kho tài khoản riêng của Quotio.\n\nQuotio không sửa đăng nhập của provider hay đọc mục Keychain không liên quan. Token chỉ dùng với provider. Chọn Always Allow trong hộp thoại macOS để các lần làm mới sau không hỏi lại."}}, "fr": {"stringUnit": {"state": "translated", "value": "Quotio lira l’élément du trousseau « %@ » pour consulter le quota avec votre connexion %@. macOS peut aussi demander l’accès au stockage des comptes de Quotio.\n\nQuotio ne modifie pas la connexion du fournisseur et ne lit pas les autres éléments du trousseau. Les jetons servent uniquement auprès du fournisseur. Choisissez Toujours autoriser pour les actualisations suivantes sans invite."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "Quotio 将读取钥匙串项目“%@”，使用现有的 %@ 登录获取配额。macOS 也可能请求一次访问 Quotio 自身账户存储的权限。\n\nQuotio 不修改提供商的登录，也不读取无关钥匙串项目。令牌仅用于该提供商。请在 macOS 对话框中选择“始终允许”，以便后续刷新不再提示。"}}}},
     "settings.accountActions" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Account actions"}}, "vi": {"stringUnit": {"state": "translated", "value": "Thao tác tài khoản"}}, "fr": {"stringUnit": {"state": "translated", "value": "Actions du compte"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "账户操作"}}}},
     "settings.pauseAccount" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Pause account"}}, "vi": {"stringUnit": {"state": "translated", "value": "Tạm dừng tài khoản"}}, "fr": {"stringUnit": {"state": "translated", "value": "Suspendre le compte"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "暂停账户"}}}},
-    "settings.pinAccount" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Show in the status bar"}}, "vi": {"stringUnit": {"state": "translated", "value": "Hiện trên thanh trạng thái"}}, "fr": {"stringUnit": {"state": "translated", "value": "Afficher dans la barre d’état"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "在状态栏显示"}}}},
+    "settings.pinAccount" : {"extractionState": "manual", "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Pin to menu bar"}}, "vi": {"stringUnit": {"state": "translated", "value": "Ghim lên thanh menu"}}, "fr": {"stringUnit": {"state": "translated", "value": "Épingler à la barre de menus"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "固定到菜单栏"}}}},
     "settings.actionFailed" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "The action could not be completed. Try again."}}, "vi": {"stringUnit": {"state": "translated", "value": "Chưa hoàn tất được thao tác. Hãy thử lại."}}, "fr": {"stringUnit": {"state": "translated", "value": "L’action n’a pas abouti. Réessayez."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "操作未完成，请重试。"}}}},
     "settings.removeAccount" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Remove this account from Quotio?"}}, "vi": {"stringUnit": {"state": "translated", "value": "Gỡ tài khoản này khỏi Quotio?"}}, "fr": {"stringUnit": {"state": "translated", "value": "Retirer ce compte de Quotio ?"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "从 Quotio 移除此账户？"}}}},
     "settings.scanResult" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%d connections or pending sources found · Last scan: %@"}}, "vi": {"stringUnit": {"state": "translated", "value": "Tìm thấy %d kết nối hoặc nguồn chờ quyền · Quét gần nhất: %@"}}, "fr": {"stringUnit": {"state": "translated", "value": "%d connexions ou sources en attente trouvées · Dernière analyse : %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "找到 %d 个连接或待授权来源 · 上次扫描：%@"}}}},
@@ -14156,25 +14160,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose which accounts to show in the menu bar. You can show up to %d items."
+            "value" : "Pin accounts from each provider’s page. You can show up to %d items."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choisissez les comptes à afficher dans la barre de menus. Vous pouvez afficher jusqu'à %d éléments."
+            "value" : "Épinglez les comptes depuis la page de chaque fournisseur. Vous pouvez afficher jusqu’à %d éléments."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chọn tài khoản muốn hiển thị trên thanh menu. Bạn có thể hiển thị tối đa %d mục."
+            "value" : "Ghim tài khoản tại trang của từng nhà cung cấp. Bạn có thể hiển thị tối đa %d mục."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "选择要在菜单栏显示的账户。最多可显示 %d 项。"
+            "value" : "请在各提供商的页面固定账户。最多可显示 %d 项。"
           }
         }
       }

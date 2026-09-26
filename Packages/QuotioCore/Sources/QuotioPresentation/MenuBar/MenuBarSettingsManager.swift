@@ -350,6 +350,16 @@ public final class MenuBarSettingsManager {
         hasUserModifiedMenuBar = true
     }
 
+    public func replaceItem(_ item: MenuBarQuotaItem, with replacement: MenuBarQuotaItem) {
+        guard item.hostID == replacement.hostID,
+              !isSelected(replacement),
+              let index = selectedItems.firstIndex(of: item) else { return }
+        hasUserModifiedMenuBar = true
+        showMenuBarIcon = true
+        showQuotaInMenuBar = true
+        selectedItems[index] = replacement
+    }
+
     /// Check if item is selected
     public func isSelected(_ item: MenuBarQuotaItem) -> Bool {
         selectedItems.contains(item)
