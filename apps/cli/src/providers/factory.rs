@@ -73,8 +73,12 @@ where
 }
 fn decrypt_native(bytes: &[u8], key: &[u8]) -> Result<Vec<u8>, crate::accounts::AccountError> {
     use crate::accounts::AccountError;
+    use aes_gcm::{
+        Aes256Gcm, AesGcm,
+        aead::{Aead, KeyInit, consts::U16},
+        aes::Aes256,
+    };
     use base64::{Engine, engine::general_purpose::STANDARD};
-    use ring::aead;
     let key = if key.len() == 32 {
         key.to_vec()
     } else {
@@ -86,27 +90,29 @@ fn decrypt_native(bytes: &[u8], key: &[u8]) -> Result<Vec<u8>, crate::accounts::
             )
             .map_err(|_| AccountError::Corrupt)?
     };
-    let key = aead::LessSafeKey::new(
-        aead::UnboundKey::new(&aead::AES_256_GCM, &key).map_err(|_| AccountError::Corrupt)?,
-    );
     let text = std::str::from_utf8(bytes).map_err(|_| AccountError::Corrupt)?;
     let parts: Vec<_> = text.trim().split(':').collect();
     if parts.len() != 3 {
         return Err(AccountError::Corrupt);
     }
     let decode = |s| STANDARD.decode(s).map_err(|_| AccountError::Corrupt);
-    let nonce = aead::Nonce::try_assume_unique_for_key(&decode(parts[0])?)
-        .map_err(|_| AccountError::Corrupt)?;
+    let nonce = decode(parts[0])?;
     let tag = decode(parts[1])?;
     if tag.len() != 16 {
         return Err(AccountError::Corrupt);
     }
     let mut ciphertext = decode(parts[2])?;
     ciphertext.extend_from_slice(&tag);
-    Ok(key
-        .open_in_place(nonce, aead::Aad::empty(), &mut ciphertext)
-        .map_err(|_| AccountError::Corrupt)?
-        .to_vec())
+    match nonce.len() {
+        12 => Aes256Gcm::new_from_slice(&key)
+            .map_err(|_| AccountError::Corrupt)?
+            .decrypt(nonce.as_slice().into(), ciphertext.as_slice()),
+        16 => AesGcm::<Aes256, U16>::new_from_slice(&key)
+            .map_err(|_| AccountError::Corrupt)?
+            .decrypt(nonce.as_slice().into(), ciphertext.as_slice()),
+        _ => return Err(AccountError::Corrupt),
+    }
+    .map_err(|_| AccountError::Corrupt)
 }
 fn parse_native(
     bytes: &[u8],
@@ -160,10 +166,10 @@ pub(crate) fn token_expiry(token: &str) -> i64 {
         .filter(|expiry| *expiry >= 0)
         .unwrap_or(0)
 }
-// WorkOS's organization claim is `org_id` (FactoryLocalStorageImporter in Swift).
+// Factory stores its own organization ID as `external_org_id`; WorkOS uses `org_id`.
 // This is a binding check, not signature verification; Factory must accept the bearer
 // before any decoded identity is returned to the caller.
-fn token_organization(token: &str) -> Option<String> {
+fn token_organization(token: &str, claim: &str) -> Option<String> {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     let parts: Vec<_> = token.split('.').collect();
     if parts.len() != 3 {
@@ -172,7 +178,7 @@ fn token_organization(token: &str) -> Option<String> {
     let bytes = URL_SAFE_NO_PAD.decode(parts[1]).ok()?;
     let claims: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
     claims
-        .get("org_id")?
+        .get(claim)?
         .as_str()
         .filter(|id| valid_token(id) && id.len() <= 256)
         .map(str::to_owned)
@@ -257,11 +263,11 @@ pub(crate) async fn fetch_oauth_at(
     if *refresh_pending {
         return Err(AccountError::CommitUncertain);
     }
-    let token_org = token_organization(access_token);
-    if organization_id
-        .as_ref()
-        .is_some_and(|requested| token_org.as_ref() != Some(requested))
-    {
+    let token_org = token_organization(access_token, "org_id");
+    let factory_org = token_organization(access_token, "external_org_id");
+    if organization_id.as_ref().is_some_and(|requested| {
+        token_org.as_ref() != Some(requested) && factory_org.as_ref() != Some(requested)
+    }) {
         return Err(AccountError::OAuth);
     }
     let response = context
@@ -649,6 +655,18 @@ mod tests {
         assert!(!valid_keychain_account("unrelated-account"));
     }
 
+    #[test]
+    fn native_login_supports_factory_sixteen_byte_iv() {
+        // Synthetic Node.js AES-256-GCM fixture matching Factory's 16-byte IV.
+        let encoded = b"BwcHBwcHBwcHBwcHBwcHBw==:punBh0Y+Qneod4+vE9SjMg==:ekf+7xaZyoP5JjRwIi/uiggDIBp6sHaVxDZ5txQ8gMcI8Fu1f2+7+FZM80osdd70dNWWVbfH121VJvq7rUGkNVxZRAdnFulvAmN3AU0wns+k";
+        let plaintext = decrypt_native(encoded, &[42; 32]).unwrap();
+        assert!(parse_native(&plaintext).is_ok());
+        assert!(decrypt_native(encoded, &[43; 32]).is_err());
+        let tampered = String::from_utf8(encoded.to_vec())
+            .unwrap()
+            .replace("punB", "qunB");
+        assert!(decrypt_native(tampered.as_bytes(), &[42; 32]).is_err());
+    }
     #[tokio::test]
     async fn native_keychain_read_uses_the_frozen_selector_without_fallback() {
         use base64::{Engine, engine::general_purpose::STANDARD};
@@ -714,6 +732,7 @@ mod tests {
         for token in [
             jwt(serde_json::json!({"org_id":"A", "exp":4102444800_i64})),
             jwt(serde_json::json!({"organization_id":"B", "exp":4102444800_i64})),
+            jwt(serde_json::json!({"org_id":"A", "external_org_id":"C", "exp":4102444800_i64})),
             "opaque".into(),
         ] {
             let owned = Credential::FactoryOAuth {
@@ -742,6 +761,27 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+    #[tokio::test]
+    async fn oauth_accepts_factory_external_organization_binding() {
+        let credential = crate::accounts::Credential::FactoryOAuth {
+            access_token: jwt(
+                serde_json::json!({"org_id":"workos-org", "external_org_id":"factory-org", "exp":4102444800_i64}),
+            ),
+            refresh_token: String::new(),
+            organization_id: Some("factory-org".into()),
+            expires_at: 4102444800,
+            refresh_pending: false,
+        };
+        let (endpoint, server) = http::fixture::server(vec![
+            serde_json::json!({"usesTokenRateLimitsBilling":false}),
+        ])
+        .await;
+        let usage = fetch_oauth_at(&http::fixture::context(), &credential, &endpoint)
+            .await
+            .unwrap();
+        assert_eq!(usage.account.id, "workos-org");
+        assert_eq!(server.await.unwrap().len(), 1);
     }
     #[tokio::test]
     async fn oauth_reports_only_token_organization_after_provider_acceptance() {
