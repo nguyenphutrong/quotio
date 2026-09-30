@@ -69,6 +69,7 @@ struct QuotioApp: App {
                                 await runtime.completeOnboarding(mode: mode)
                             }
                         }
+                        .environment(runtime.providerImageModel)
                     }
             }
         }
