@@ -130,6 +130,7 @@ public extension QuotaMetric {
                     )
                 }
                 if text == "legacy-billing" { return "factory.status.legacyBilling".localizedStatic() }
+                if text == "muse-inactive" { return "muse.status.inactive".localizedStatic() }
                 return text
             }
         }
@@ -196,9 +197,10 @@ public extension QuotaMetric {
         case "clinepass-five-hour": "clinepass.quota.fiveHour".localizedStatic()
         case "clinepass-weekly": "clinepass.quota.weekly".localizedStatic()
         case "clinepass-monthly": "clinepass.quota.monthly".localizedStatic()
-        case "zai-session": "quota.metric.session".localizedStatic()
+        case "zai-session", "muse-session": "quota.metric.session".localizedStatic()
         case "zai-daily", "devin-daily": "quota.metric.daily".localizedStatic()
-        case "zai-weekly", "devin-weekly", "grok-weekly": "quota.metric.weekly".localizedStatic()
+        case "zai-weekly", "devin-weekly", "grok-weekly", "muse-weekly":
+            "quota.metric.weekly".localizedStatic()
         case "zai-monthly": "quota.metric.monthly".localizedStatic()
         case "zai-web-searches": "quota.metric.webSearches".localizedStatic()
         case "devin-extra-balance", "factory-extra-balance": "quota.metric.extraBalance".localizedStatic()
@@ -222,6 +224,8 @@ public extension QuotaMetric {
         case "amp-individual-credits": "amp.quota.individualCredits".localizedStatic()
         case let value where value.hasPrefix("amp-workspace-"):
             "amp.quota.workspaceCredits".localizedStatic()
+        case let value where value.hasPrefix("muse-window-"):
+            Self.museWindowLabel(Int(value.dropFirst("muse-window-".count)) ?? 0)
         case let value where value.hasPrefix("warp-bonus-"):
             "Bonus \((Int(value.dropFirst("warp-bonus-".count)) ?? 0) + 1)"
         default: name
@@ -230,6 +234,13 @@ public extension QuotaMetric {
 
     var formattedResetTime: String {
         GroupedModelQuota.relativeResetTime(resetTime)
+    }
+
+    /// Meta publishes a five-hour rolling window today. A window of any other declared
+    /// duration is carried under its own name rather than filed as the session window,
+    /// so it is labelled with the duration Meta actually reported.
+    static func museWindowLabel(_ minutes: Int) -> String {
+        minutes > 0 && minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes)m"
     }
 }
 

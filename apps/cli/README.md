@@ -8,7 +8,7 @@ is a separate deterministic fixture, not a real provider. No TUI yet.
 | --- | --- | --- | --- |
 | Original routes (8) | Codex, Amp, Antigravity, Factory, Synthetic, OpenRouter, Z.ai, MiniMax | Provider-specific OAuth, API-key, CLI, or native-service route | Route-specific automated coverage; live acceptance varies by provider |
 | Catalog API-key routes (30) | ai&, Alibaba Coding Plan, Chutes, ClawRouter, ClinePass, Codebuff, Crof, Deepgram, DeepInfra, DeepSeek, Devin, Doubao Coding Plan, ElevenLabs, Fireworks, Groq, IBM Bob, Kilo, Kimi Code, LiteLLM, LLM Proxy, Moonshot, NeuralWatt, OpenAI organization usage, OpenCode Go, Poe, sub2api, Venice, Warp, xAI, ZenMux | Hidden key prompt, `--token-stdin`, or the named environment variable | Offline tests passed; no live credential acceptance |
-| Catalog OAuth routes (8) | Azure OpenAI, Claude, Gemini, GitHub Copilot, Cursor, Grok, Kiro, Vertex AI | Explicit access token, supported native source, or provider CLI fallback | Offline tests passed; no standalone Quotio sign-in |
+| Catalog OAuth routes (9) | Azure OpenAI, Claude, Gemini, GitHub Copilot, Cursor, Grok, Kiro, Muse Code, Vertex AI | Explicit access token, supported native source, or provider CLI fallback | Offline tests passed; no standalone Quotio sign-in |
 | Mock | Mock | No credential | Fixed offline fixture |
 
 Azure OpenAI cost and Doubao Coding Plan are registered catalog providers. Azure
@@ -370,23 +370,30 @@ entered through the hidden prompt or `--token-stdin`, never as a command argumen
 
 ### Catalog OAuth routes
 
-Azure OpenAI, Claude, Gemini, GitHub Copilot, Cursor, Grok, Kiro, and Vertex AI
-are OAuth catalog providers. `accounts add` does not start or import a standalone
-OAuth login for them. Supply the documented explicit access-token environment
-variable: `AZURE_ACCESS_TOKEN`, `CLAUDE_OAUTH_ACCESS_TOKEN`,
+Azure OpenAI, Claude, Gemini, GitHub Copilot, Cursor, Grok, Kiro, Muse Code, and
+Vertex AI are OAuth catalog providers. `accounts add` does not start or import a
+standalone OAuth login for them. Supply the documented explicit access-token
+environment variable: `AZURE_ACCESS_TOKEN`, `CLAUDE_OAUTH_ACCESS_TOKEN`,
 `GEMINI_OAUTH_ACCESS_TOKEN`, `COPILOT_API_TOKEN`, `CURSOR_ACCESS_TOKEN`,
-`GROK_OAUTH_TOKEN`, `KIRO_ACCESS_TOKEN`, or `VERTEXAI_ACCESS_TOKEN`.
+`GROK_OAUTH_TOKEN`, `KIRO_ACCESS_TOKEN`, `MUSE_OAUTH_TOKEN`, or
+`VERTEXAI_ACCESS_TOKEN`.
 
 Azure OpenAI also requires nonsecret `resource_id` metadata
 (`AZURE_OPENAI_RESOURCE_ID`). Without an explicit token, it can request an Azure
 Resource Manager token through noninteractive `az account get-access-token`; it
 does not run `az login`, scan Azure credential files, or read browser state.
 
-The adapters do not read browser cookies. Claude, Gemini, Copilot, Cursor, and
-Grok reuse a valid native token without a Quotio login or refresh flow. Kiro and
-Vertex AI can refresh recognized native credentials in memory, but they do not
-start a login or write the owning application's credential files. Codex keeps its
-separate Quotio-owned sign-in flow.
+The adapters do not read browser cookies. Claude, Gemini, Copilot, Cursor, Grok,
+and Muse Code reuse a valid native token without a Quotio login or refresh flow.
+Kiro and Vertex AI can refresh recognized native credentials in memory, but they
+do not start a login or write the owning application's credential files. Codex
+keeps its separate Quotio-owned sign-in flow.
+
+Muse Code reads the account token the Muse Code CLI stored in the macOS login
+keychain, next to a pointer file that carries no secret, and asks Meta's
+subscription-key endpoint for the rolling and weekly usage windows. That endpoint
+is an auth-plane read rather than a metered inference call. Its response also
+carries the Model API key; that field is never read.
 
 Catalog implementation means that a `Definition` and synthetic parser/local
 HTTP-fixture coverage exist. It does not mean a real key, OAuth credential, IAM

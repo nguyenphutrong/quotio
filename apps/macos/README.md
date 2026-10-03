@@ -65,6 +65,13 @@ Quotio is a native macOS application for managing **CLIProxyAPI** - a local prox
 
 > **Note**: These IDEs are only used for quota usage monitoring. They cannot be used as providers for the proxy.
 
+### CLI Quota Tracking (Monitor Only)
+| CLI | Description |
+|-----|-------------|
+| Muse Code | Auto-detected from the Muse Code CLI login on macOS; quota only |
+
+> **Note**: Muse Code quota is read from the credential its own CLI already holds. It cannot be used as a provider for the proxy.
+
 ### Compatible CLI Agents
 Quotio can automatically configure these tools to use your centralized proxy:
 - Claude Code

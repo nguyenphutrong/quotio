@@ -253,10 +253,20 @@ public struct AgentConfiguration: Codable, Sendable {
         self.useOAuth = false
         self.setupMode = setupMode
         self.codexReasoningEffort = .defaultEffort
-        self.modelSlots = Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
-            AvailableModel.defaultModels[slot].map { (slot, $0.name) }
-        })
+        // The slot defaults are Anthropic tiers, which belong to Claude Code. Handing
+        // them to another agent writes a Claude id into a config that never asked for
+        // one — Codex would open pointing at a Claude model. Codex still needs its one
+        // slot filled, since `validate()` requires it, so it gets its own default.
+        self.modelSlots = agent == .claudeCode
+            ? Dictionary(uniqueKeysWithValues: ModelSlot.allCases.compactMap { slot in
+                AvailableModel.defaultModels[slot].map { (slot, $0.name) }
+            })
+            : [.sonnet: AgentConfiguration.defaultCodexModel]
     }
+
+    /// The model Codex falls back to when nothing has been chosen. Shared with the
+    /// adapter so the written config and the fresh configuration cannot disagree.
+    public static let defaultCodexModel = "gpt-5-codex"
 
     /// Initialize with saved model slots (for restoring existing configuration)
     public init(agent: CLIAgent, proxyURL: String, apiKey: String, setupMode: ConfigurationSetup = .proxy, savedModelSlots: [ModelSlot: String]) {
@@ -415,6 +425,7 @@ public enum AgentConfigurationInstruction: Equatable, Sendable {
     case codexProxyRemoved
     case codexSaveConfig
     case codexMergeAuthKey
+    case codexSaveModelCatalog
     case codexConfigured
     case codexMergeAndSaveFiles
 

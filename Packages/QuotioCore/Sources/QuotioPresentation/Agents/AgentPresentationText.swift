@@ -29,6 +29,8 @@ public extension AgentConfigurationInstruction {
             "agents.codex.saveConfigTOML".localized()
         case .codexMergeAuthKey:
             "agents.codex.authJSONMergeKey".localized()
+        case .codexSaveModelCatalog:
+            "agents.codex.saveModelCatalog".localized()
         case .codexConfigured:
             "agents.codex.applySuccess".localized()
         case .codexMergeAndSaveFiles:
