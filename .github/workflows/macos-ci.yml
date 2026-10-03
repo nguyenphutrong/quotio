@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'apps/macos/**'
+      - 'apps/cli/**'
       - 'Packages/QuotioCore/**'
       - '.github/workflows/macos-ci.yml'
   push:
@@ -11,6 +12,7 @@ on:
       - master
     paths:
       - 'apps/macos/**'
+      - 'apps/cli/**'
       - 'Packages/QuotioCore/**'
       - '.github/workflows/macos-ci.yml'
   workflow_dispatch:
@@ -35,6 +37,11 @@ jobs:
         with:
           xcode-version: '26.1'
 
+      - name: Setup Rust
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          rustup default 1.88.0
+
       - name: Test core package
         run: swift test --package-path Packages/QuotioCore
 
@@ -54,4 +61,11 @@ jobs:
         run: >-
           xcodebuild -project apps/macos/Quotio.xcodeproj -scheme Quotio
           -configuration Debug -destination 'platform=macOS'
+          -derivedDataPath "$RUNNER_TEMP/quotio-derived-data"
           CODE_SIGNING_ALLOWED=NO build
+
+      - name: Verify bundled CLI helper
+        run: |
+          helper="$RUNNER_TEMP/quotio-derived-data/Build/Products/Debug/Quotio.app/Contents/Helpers/quotio-cli"
+          test -x "$helper"
+          "$helper" --version

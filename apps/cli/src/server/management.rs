@@ -85,6 +85,7 @@ pub(super) async fn usage(State(state): State<Arc<ApiState>>, Path(id): Path<Str
 }
 enum Mutation {
     Create(api::AccountCreateInput),
+    Migrate(api::migration::Input),
     Reference(api::SourceInput),
     Update(String, api::AccountPatch),
     Remove(String),
@@ -103,6 +104,23 @@ pub(super) async fn create(
         "",
         body,
         Mutation::Create(input),
+    )
+    .await
+}
+pub(super) async fn migrate(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    ApiJson(body): ApiJson<Value>,
+) -> Result<(StatusCode, Json<Operation>), ApiError> {
+    let input = serde_json::from_value(body.clone())
+        .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "invalid_request"))?;
+    mutate(
+        state,
+        headers,
+        "account_migrate",
+        "",
+        body,
+        Mutation::Migrate(input),
     )
     .await
 }
@@ -237,6 +255,18 @@ async fn mutate(
                     return Ok(json!({"account_id":id}));
                 }
                 match mutation {
+                    Mutation::Migrate(input) => {
+                        let (prepared, enabled) = api::migration::prepare(input, &work.context)
+                            .map_err(|e| account_code(&e))?;
+                        let _guard = crate::accounts::service::mutation_guard(&work.commit_guard)
+                            .await
+                            .map_err(|e| account_code(&e))?;
+                        let id = api::migration::save_once(vault, prepared, enabled, intent)
+                            .await
+                            .map_err(|e| account_code(&e))?;
+                        work.invalidate().await;
+                        Ok(json!({"account_id":id}))
+                    }
                     Mutation::Create(input) => {
                         let prepared = match input {
                             api::AccountCreateInput::ApiKey(input) => {
@@ -289,6 +319,9 @@ async fn mutate(
                         Ok(json!({"account_id":account_id}))
                     }
                     Mutation::Update(id, patch) => {
+                        let patch = api::prepare_update(vault.clone(), &work.context, &id, patch)
+                            .await
+                            .map_err(|e| account_code(&e))?;
                         let _guard = crate::accounts::service::mutation_guard(&work.commit_guard)
                             .await
                             .map_err(|e| account_code(&e))?;
@@ -334,6 +367,9 @@ pub(super) struct SessionInput {
     label: Option<String>,
     #[serde(default = "relay")]
     callback_mode: OAuthMode,
+    /// Copilot only: `github.com` (default) or a `<subdomain>.ghe.com` host.
+    #[serde(default)]
+    host: Option<String>,
 }
 fn relay() -> OAuthMode {
     OAuthMode::Relay
@@ -368,15 +404,25 @@ pub(super) async fn begin(
     if keys.next().is_some() {
         return Err(ApiError(StatusCode::BAD_REQUEST, "invalid_idempotency_key"));
     }
+    let host = input
+        .host
+        .as_deref()
+        .map(crate::accounts::github_host::GitHubHost::parse)
+        .transpose()
+        .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "invalid_github_host"))?;
+    if host.is_some() && input.provider != Provider::Catalog("copilot") {
+        return Err(account_error(AccountError::Unsupported));
+    }
+    let host = host.filter(|host| !host.is_github_com());
     let session = match key {
         Some(key) => {
             manager
-                .begin_idempotent(input.provider, input.label, input.callback_mode, key)
+                .begin_idempotent_at(input.provider, input.label, input.callback_mode, host, key)
                 .await
         }
         None => {
             manager
-                .begin_for(input.provider, input.label, input.callback_mode)
+                .begin_at(input.provider, input.label, input.callback_mode, host)
                 .await
         }
     }
@@ -451,6 +497,16 @@ pub(super) async fn validate_refresh_account(
     provider: Provider,
     id: &str,
 ) -> Result<(), ApiError> {
+    if state
+        .proxy_auth_directory
+        .as_deref()
+        .is_some_and(|directory| {
+            crate::accounts::proxy::adapters(directory, &[provider], Some(id), &[])
+                .is_ok_and(|accounts| !accounts.is_empty())
+        })
+    {
+        return Ok(());
+    }
     if id == "local" {
         if !state.no_saved_accounts && provider.supports_accounts() {
             let accounts = crate::accounts::service::list(vault(state)?)

@@ -81,8 +81,32 @@ fn fetch_gemini(context: &ProviderContext) -> FetchFuture<'_> {
     ))
 }
 
+/// Set only from a saved Quotio Copilot OAuth credential; see `accounts::service`.
+/// `EnvironmentCredentials` deliberately never exposes it.
+pub(crate) const COPILOT_HOST_ENV: &str = "QUOTIO_COPILOT_HOST";
+
 fn fetch_copilot(context: &ProviderContext) -> FetchFuture<'_> {
-    Box::pin(fetch_copilot_at(context, COPILOT_USAGE_URL))
+    Box::pin(async move {
+        match copilot_usage_url(context)? {
+            Some(endpoint) => fetch_copilot_at(context, &endpoint).await,
+            None => fetch_copilot_at(context, COPILOT_USAGE_URL).await,
+        }
+    })
+}
+
+/// Enterprise quota uses the API host of the instance that issued the token. The
+/// host is revalidated so a malformed stored value can never redirect the token.
+fn copilot_usage_url(context: &ProviderContext) -> Result<Option<String>, ProviderError> {
+    let Some(raw) = context.credentials.get(COPILOT_HOST_ENV) else {
+        return Ok(None);
+    };
+    // Never send a native GitHub.com token discovered on disk to another host.
+    if context.credentials.get(COPILOT_TOKEN_ENV).is_none() {
+        return Err(ProviderError::Authentication);
+    }
+    let host = crate::accounts::github_host::GitHubHost::parse(&raw.0)
+        .map_err(|_| ProviderError::Authentication)?;
+    Ok((!host.is_github_com()).then(|| host.api_url("/copilot_internal/user")))
 }
 
 /// An explicit Quotio token always wins over native application state. This avoids
@@ -800,22 +824,25 @@ struct Reset {
     description: Option<String>,
 }
 
-fn date_only(value: &str) -> bool {
-    if value.len() != 10 {
-        return false;
-    }
+/// GitHub documents the monthly premium reset as 00:00:00 UTC on the given
+/// date, so a strict `YYYY-MM-DD` value is materialized at UTC midnight.
+fn date_only(value: &str) -> Option<OffsetDateTime> {
     let bytes = value.as_bytes();
-    bytes[4] == b'-'
-        && bytes[7] == b'-'
-        && bytes
+    if bytes.len() != 10
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || !bytes
             .iter()
             .enumerate()
             .all(|(index, byte)| matches!(index, 4 | 7) || byte.is_ascii_digit())
-        && OffsetDateTime::parse(
-            &format!("{value}T00:00:00Z"),
-            &time::format_description::well_known::Rfc3339,
-        )
-        .is_ok()
+    {
+        return None;
+    }
+    OffsetDateTime::parse(
+        &format!("{value}T00:00:00Z"),
+        &time::format_description::well_known::Rfc3339,
+    )
+    .ok()
 }
 
 fn copilot_reset(value: Option<&Value>) -> Result<Reset, ProviderError> {
@@ -828,9 +855,9 @@ fn copilot_reset(value: Option<&Value>) -> Result<Reset, ProviderError> {
             at: None,
             description: None,
         }),
-        Some(Value::String(value)) if date_only(value.trim()) => Ok(Reset {
-            at: None,
-            description: Some(value.trim().into()),
+        Some(Value::String(value)) if let Some(at) = date_only(value.trim()) => Ok(Reset {
+            at: Some(at),
+            description: None,
         }),
         value => Ok(Reset {
             at: common::date(value)?,
@@ -856,12 +883,21 @@ fn copilot_snapshot_window(
     label: &str,
     value: Option<&Value>,
     reset: &Reset,
+    token_billing: bool,
     now: OffsetDateTime,
 ) -> Result<Option<QuotaWindow>, ProviderError> {
     let Some(value) = value else {
         return Ok(None);
     };
     let snapshot = value.as_object().ok_or(ProviderError::InvalidData)?;
+    // Token-billed plans count GitHub AI Credits; legacy plans count requests.
+    let unit = if token_billing
+        || snapshot.get("token_based_billing").and_then(Value::as_bool) == Some(true)
+    {
+        "credits"
+    } else {
+        "requests"
+    };
     if unlimited(snapshot.get("unlimited"))
         || unlimited(snapshot.get("entitlement"))
         || unlimited(snapshot.get("remaining"))
@@ -874,7 +910,23 @@ fn copilot_snapshot_window(
         // A Business token-billing placeholder is not a personal 0% quota.
         return Ok(None);
     }
-    let window = if let Some(remaining) = common::number(snapshot.get("percent_remaining"))? {
+    // Prefer exact counts so the UI can show "used / limit"; fall back to the
+    // percentage when the counts are absent or inconsistent.
+    let counts = entitlement
+        .zip(remaining)
+        .filter(|(limit, remaining)| *limit > 0.0 && (0.0..=*limit).contains(remaining));
+    let window = if let Some((limit, remaining)) = counts {
+        common::window(
+            label,
+            Some(limit - remaining),
+            Some(limit),
+            Some(remaining),
+            unit,
+            reset.at,
+            "github_copilot_usage",
+            now,
+        )?
+    } else if let Some(remaining) = common::number(snapshot.get("percent_remaining"))? {
         if remaining > 100.0 {
             return Err(ProviderError::InvalidData);
         }
@@ -888,20 +940,9 @@ fn copilot_snapshot_window(
             "github_copilot_usage",
             now,
         )?
-    } else if let (Some(limit), Some(remaining)) = (entitlement, remaining) {
-        if limit == 0.0 {
-            return Ok(None);
-        }
-        common::window(
-            label,
-            Some((limit - remaining).max(0.0)),
-            Some(limit),
-            Some(remaining),
-            "requests",
-            reset.at,
-            "github_copilot_usage",
-            now,
-        )?
+    } else if entitlement.zip(remaining).is_some() {
+        // Counts exist but are inconsistent and no percentage is reported.
+        return Err(ProviderError::InvalidData);
     } else {
         return Ok(None);
     };
@@ -957,6 +998,7 @@ fn copilot_usage(value: &Value, now: OffsetDateTime) -> Result<CopilotUsage, Pro
         Some(Value::String(value)) => Some(clean_label(value)?),
         Some(_) => return Err(ProviderError::InvalidData),
     };
+    let token_billing = object.get("token_based_billing").and_then(Value::as_bool) == Some(true);
     let mut windows = Vec::new();
     if let Some(snapshots) = object.get("quota_snapshots") {
         let snapshots = snapshots.as_object().ok_or(ProviderError::InvalidData)?;
@@ -965,7 +1007,9 @@ fn copilot_usage(value: &Value, now: OffsetDateTime) -> Result<CopilotUsage, Pro
             ("chat", "Chat"),
             ("completions", "Completions"),
         ] {
-            if let Some(window) = copilot_snapshot_window(label, snapshots.get(key), &reset, now)? {
+            if let Some(window) =
+                copilot_snapshot_window(label, snapshots.get(key), &reset, token_billing, now)?
+            {
                 windows.push(window);
             }
         }
@@ -1036,6 +1080,67 @@ pub(super) async fn cache_token(id: &str, context: &ProviderContext) -> Option<S
 mod tests {
     use super::*;
     use crate::domain::Quota;
+
+    struct CopilotKeys(&'static [(&'static str, &'static str)]);
+    impl crate::providers::CredentialStore for CopilotKeys {
+        fn get(&self, name: &str) -> Option<Secret> {
+            self.0
+                .iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| Secret((*value).into()))
+        }
+    }
+    fn copilot_context(keys: &'static [(&'static str, &'static str)]) -> ProviderContext {
+        ProviderContext {
+            credentials: std::sync::Arc::new(CopilotKeys(keys)),
+            ..http::fixture::context()
+        }
+    }
+
+    #[test]
+    fn copilot_quota_route_follows_the_saved_host_only() {
+        assert_eq!(
+            copilot_usage_url(&copilot_context(&[(COPILOT_TOKEN_ENV, "token")])).unwrap(),
+            None
+        );
+        assert_eq!(
+            copilot_usage_url(&copilot_context(&[
+                (COPILOT_TOKEN_ENV, "token"),
+                (COPILOT_HOST_ENV, "github.com"),
+            ]))
+            .unwrap(),
+            None
+        );
+        assert_eq!(
+            copilot_usage_url(&copilot_context(&[
+                (COPILOT_TOKEN_ENV, "token"),
+                (COPILOT_HOST_ENV, "octocorp.ghe.com"),
+            ]))
+            .unwrap()
+            .as_deref(),
+            Some("https://api.octocorp.ghe.com/copilot_internal/user")
+        );
+        assert!(matches!(
+            copilot_usage_url(&copilot_context(&[
+                (COPILOT_TOKEN_ENV, "token"),
+                (COPILOT_HOST_ENV, "evil.example"),
+            ])),
+            Err(ProviderError::Authentication)
+        ));
+        // A native GitHub.com login must never be sent to an enterprise host.
+        assert!(matches!(
+            copilot_usage_url(&copilot_context(&[(COPILOT_HOST_ENV, "octocorp.ghe.com")])),
+            Err(ProviderError::Authentication)
+        ));
+        // The ambient process environment can never choose the token destination.
+        assert!(
+            crate::providers::CredentialStore::get(
+                &crate::providers::EnvironmentCredentials,
+                COPILOT_HOST_ENV
+            )
+            .is_none()
+        );
+    }
 
     #[test]
     fn claude_source_response_maps_real_windows_without_extra_spend() {
@@ -1123,6 +1228,106 @@ mod tests {
             .unwrap_err(),
             ProviderError::QuotaUnavailable
         );
+    }
+
+    #[test]
+    fn copilot_business_ai_credits_report_counts_and_reset() {
+        let now = OffsetDateTime::UNIX_EPOCH;
+        // Shape observed from a GHE.com Business seat (identifiers removed).
+        let unlimited = json!({
+            "credits_used":0,"entitlement":0,"has_quota":true,"overage_count":0,
+            "percent_remaining":100,"quota_remaining":0,"quota_reset_at":0,"remaining":0,
+            "token_based_billing":true,"unlimited":true
+        });
+        let usage = copilot_usage(
+            &json!({
+                "copilot_plan":"business",
+                "limited_user_quotas":null,
+                "monthly_quotas":null,
+                "quota_reset_date":"2026-10-01",
+                "token_based_billing":true,
+                "quota_snapshots":{
+                    "chat":unlimited,
+                    "completions":unlimited,
+                    "premium_interactions":{
+                        "credits_used":6986,"entitlement":30000,"has_quota":true,
+                        "overage_count":0,"overage_permitted":true,"percent_remaining":76.7,
+                        "quota_remaining":23014.1,"quota_reset_at":0,"remaining":23014,
+                        "token_based_billing":true,"unlimited":false
+                    }
+                }
+            }),
+            now,
+        )
+        .unwrap();
+        assert_eq!(usage.plan.as_deref(), Some("business"));
+        assert_eq!(usage.windows.len(), 1);
+        let window = &usage.windows[0];
+        assert_eq!(window.label, "Premium interactions");
+        let amounts = window.amounts.as_ref().unwrap();
+        assert_eq!(
+            (amounts.remaining, amounts.limit, amounts.unit.as_str()),
+            (23014.0, Some(30000.0), "credits")
+        );
+        assert_eq!(window.consumption.as_ref().unwrap().used, 6986.0);
+        assert_eq!(
+            window.quota,
+            Quota::from_remaining(Some(23014.0 / 30000.0 * 100.0))
+        );
+        assert_eq!(
+            window.resets_at,
+            Some(time::macros::datetime!(2026-10-01 00:00 UTC))
+        );
+    }
+
+    #[test]
+    fn copilot_counts_fall_back_to_percent_or_requests() {
+        let now = OffsetDateTime::UNIX_EPOCH;
+        let window = |snapshot: Value| {
+            copilot_usage(
+                &json!({"quota_snapshots":{"premium_interactions":snapshot}}),
+                now,
+            )
+            .map(|usage| usage.windows.into_iter().next().unwrap())
+        };
+        // Legacy request-based plans keep the request unit.
+        let legacy = window(json!({"entitlement":300,"remaining":240})).unwrap();
+        assert_eq!(legacy.amounts.unwrap().unit, "requests");
+        // Snapshot-level token billing alone selects AI credits.
+        let snapshot_billed =
+            window(json!({"entitlement":300,"remaining":0,"token_based_billing":true})).unwrap();
+        assert_eq!(snapshot_billed.amounts.unwrap().unit, "credits");
+        assert_eq!(snapshot_billed.quota, Quota::from_remaining(Some(0.0)));
+        // Inconsistent counts without a percentage fail closed.
+        assert_eq!(
+            window(json!({"entitlement":300,"remaining":400})).unwrap_err(),
+            ProviderError::InvalidData
+        );
+        // Inconsistent counts use the reported percentage instead.
+        let inconsistent =
+            window(json!({"entitlement":300,"remaining":400,"percent_remaining":50})).unwrap();
+        assert_eq!(inconsistent.amounts.unwrap().unit, "percent");
+        assert_eq!(inconsistent.quota, Quota::from_remaining(Some(50.0)));
+        // Percentage-only snapshots are unchanged.
+        let percent = window(json!({"percent_remaining":80})).unwrap();
+        assert_eq!(percent.amounts.unwrap().unit, "percent");
+    }
+
+    #[test]
+    fn copilot_reset_dates_become_utc_midnight() {
+        let reset = copilot_reset(Some(&json!("2026-10-01"))).unwrap();
+        assert_eq!(
+            reset.at,
+            Some(time::macros::datetime!(2026-10-01 00:00 UTC))
+        );
+        assert!(reset.description.is_none());
+        let timestamp = copilot_reset(Some(&json!("2026-10-01T00:00:00Z"))).unwrap();
+        assert_eq!(
+            timestamp.at,
+            Some(time::macros::datetime!(2026-10-01 00:00 UTC))
+        );
+        assert!(copilot_reset(Some(&json!("2026-02-31"))).is_err());
+        assert!(copilot_reset(Some(&json!("soon"))).is_err());
     }
 
     #[test]

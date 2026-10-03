@@ -366,6 +366,161 @@
         ]
       }
     },
+    "/v1/accounts/migrate": {
+      "post": {
+        "summary": "Import a legacy Quotio monitor account without refreshing its credentials",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "500": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "Internal error"
+          },
+          "408": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "Request body timeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "JSON body exceeds 64 KiB"
+          },
+          "415": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "JSON content type required"
+          },
+          "422": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "Invalid JSON request"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "legacy_id",
+                  "provider",
+                  "label",
+                  "enabled",
+                  "credential"
+                ],
+                "properties": {
+                  "legacy_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "provider": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "credential": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "access_token"
+                    ],
+                    "properties": {
+                      "access_token": {
+                        "type": "string",
+                        "writeOnly": true
+                      },
+                      "refresh_token": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "writeOnly": true
+                      },
+                      "id_token": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "writeOnly": true
+                      },
+                      "account_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "expires_at": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 0
+                      },
+                      "extra": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "writeOnly": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Management only. Use a stable Idempotency-Key per legacy account. Commits the credential and enabled state atomically; retries never replace a rotated credential. Source data must be retained until completion."
+      }
+    },
     "/v1/accounts": {
       "get": {
         "summary": "List managed accounts",
@@ -2216,6 +2371,10 @@
               "copilot_native",
               "quotio_custom_provider"
             ]
+          },
+          "source_id": {
+            "type": "string",
+            "description": "Opaque stable identity for a registered custom provider source."
           }
         },
         "additionalProperties": false,
@@ -2306,6 +2465,8 @@
                 "add_account",
                 "rename_account",
                 "select_account",
+                "set_account_enabled",
+                "update_api_key",
                 "remove_account",
                 "start_oauth"
               ]
@@ -2336,7 +2497,8 @@
                     "factory_native",
                     "kiro_native",
                     "antigravity_native",
-                    "devin_desktop_native"
+                    "devin_desktop_native",
+                    "cli_proxy_auth_file"
                   ]
                 },
                 "platforms": {
@@ -2553,6 +2715,22 @@
               "null"
             ],
             "description": "Enable or disable quota collection for an account without changing its provider login or source configuration."
+          },
+          "api_key": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 16384,
+            "description": "Replace the credential for an owned API-key account while preserving its account ID. Omitted settings, region, and organization retain their current values. Explicit values replace them; null resets them to provider defaults."
+          },
+          "settings": {
+            "type": ["object", "null"],
+            "additionalProperties": {"type": "string"}
+          },
+          "region": {
+            "type": ["string", "null"]
+          },
+          "organization": {
+            "type": ["string", "null"]
           }
         },
         "additionalProperties": false
@@ -2575,6 +2753,14 @@
               "relay",
               "loopback"
             ]
+          },
+          "host": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Copilot only. github.com (default) or a GitHub Enterprise Cloud data-residency host such as octocorp.ghe.com. URLs, ports, paths and other hosts are rejected with invalid_github_host.",
+            "maxLength": 253
           }
         },
         "additionalProperties": false,
@@ -2664,7 +2850,7 @@
           },
           "refresh_interval": {
             "type": "integer",
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 86400
           },
           "provider_timeout": {
@@ -2731,7 +2917,7 @@
               "integer",
               "null"
             ],
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 86400
           },
           "provider_timeout": {
@@ -2790,6 +2976,17 @@
           },
           "force": {
             "type": "boolean"
+          },
+          "disabled_proxy_auth_files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": [],
+            "description": "CLIProxyAPI auth filenames to exclude from this refresh, including account-scoped refreshes. This does not disable independent vault or native accounts."
+          },
+          "include_owned": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include credentials owned by the selected Quotio vault. Set false to refresh only borrowed sources and native-parent Warp mirrors marked with __quotio_local_warp__:."
           }
         },
         "additionalProperties": false
@@ -2941,7 +3138,7 @@
           "provider": {"$ref": "#/components/schemas/ProviderId"},
           "kind": {"type": "string", "enum": ["grok_native", "copilot_native", "quotio_custom_provider", "codex_native", "claude_native", "kiro_native", "factory_native", "devin_desktop_native", "antigravity_native", "amp_native", "cursor_native"]},
           "location": {"type": ["string", "null"], "description": "One location supported by this kind's registration input. Required for Copilot inspection. Omit for kinds without locations."},
-          "domain": {"type": ["string", "null"], "enum": ["production", "development", null], "description": "Required only for quotio_custom_provider; selected provider must be clinepass or zai."},
+          "domain": {"type": ["string", "null"], "maxLength": 255, "pattern": "^(production|development|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+)$", "description": "Required only for quotio_custom_provider; selected provider must be clinepass or zai."},
           "inspect": {"type": "boolean", "default": false}
         }
       },
@@ -3035,10 +3232,8 @@
                 "properties": {
                   "domain": {
                     "type": "string",
-                    "enum": [
-                      "production",
-                      "development"
-                    ]
+                    "maxLength": 255,
+                    "pattern": "^(production|development|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+)$"
                   },
                   "record_id": {
                     "type": "string",
@@ -3357,7 +3552,7 @@
   "x-quotio-parent-pipe": {
     "version": 1,
     "bootstrap_schema": "#/components/schemas/Bootstrap",
-    "description": "Inherited stdin token line and lifetime pipe; one stdout JSON record after bind. Authenticate /v1/status before use."
+    "description": "Inherited stdin token line and lifetime pipe; one stdout JSON record after bind. Authenticate /v1/status before use. An absolute --cli-proxy-auth-dir may provide read-only borrowed Codex, Claude, GitHub Copilot, Antigravity, Kiro, and Vertex auth files."
   },
   "x-quotio-account-idempotency": {
     "successful_writes": "atomic protected-vault receipt across restart",

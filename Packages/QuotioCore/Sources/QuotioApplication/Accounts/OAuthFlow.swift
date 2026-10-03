@@ -38,15 +38,19 @@ public struct OAuthAuthorizationRequest: Equatable, Sendable {
     public let providerID: AccountProviderID
     public let method: OAuthAuthorizationMethod
     public let automaticallyOpensBrowser: Bool
+    /// GitHub Enterprise Cloud host for Copilot; `nil` means GitHub.com.
+    public let githubHost: GitHubHost?
 
     public init(
         providerID: AccountProviderID,
         method: OAuthAuthorizationMethod = .providerDefault,
-        automaticallyOpensBrowser: Bool = false
+        automaticallyOpensBrowser: Bool = false,
+        githubHost: GitHubHost? = nil
     ) {
         self.providerID = providerID
         self.method = method
         self.automaticallyOpensBrowser = automaticallyOpensBrowser
+        self.githubHost = githubHost?.isGitHubCom == true ? nil : githubHost
     }
 }
 

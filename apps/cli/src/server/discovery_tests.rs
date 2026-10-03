@@ -58,15 +58,14 @@ async fn discovery_rest_registers_opaque_exact_entries_without_credentials() {
     );
     for (index, request) in [
         json!({"provider":"grok","kind":"grok_native","inspect":true}),
-        json!({"provider":"copilot","kind":"copilot_native","location":"apps","inspect":true}),
-        json!({"provider":"copilot","kind":"copilot_native","location":"gh_hosts","inspect":true}),
+        json!({"provider":"copilot","kind":"copilot_native","inspect":true}),
         json!({"provider":"clinepass","kind":"quotio_custom_provider","domain":"production","inspect":true}),
     ].into_iter().enumerate() {
         let response = client.post(&endpoint).bearer_auth(token).json(&request).send().await.unwrap();
         assert_eq!(response.status(), 200);
         let discovered: Value = response.json().await.unwrap();
         assert_eq!(discovered["status"], "checked", "{discovered}");
-        assert_eq!(discovered["candidates"].as_array().unwrap().len(), if index == 0 { 2 } else { 1 });
+        assert_eq!(discovered["candidates"].as_array().unwrap().len(), if index < 2 { 2 } else { 1 });
         assert_eq!(discovered["candidates"][0]["status"], "available");
         for forbidden in ["planted-secret", "11111111", "oauth_token", "entry_key", home.to_str().unwrap()] {
             assert!(!discovered.to_string().contains(forbidden));
@@ -83,11 +82,13 @@ async fn discovery_rest_registers_opaque_exact_entries_without_credentials() {
         let account: Value = client.get(format!("{base}/v1/accounts/{id}")).bearer_auth(token).send().await.unwrap().json().await.unwrap();
         assert_eq!(account["provider"], request["provider"]);
         assert!(!account.to_string().contains("planted-secret"));
+        if request["kind"] == "quotio_custom_provider" {
+            assert_eq!(account["source_id"].as_str().unwrap().len(), 64);
+        }
         }
     }
     for request in [
         json!({"provider":"grok","kind":"copilot_native","inspect":true}),
-        json!({"provider":"copilot","kind":"copilot_native","inspect":true}),
         json!({"provider":"grok","kind":"grok_native","path":"/.cli-proxy-api","inspect":true}),
         json!({"provider":"clinepass","kind":"quotio_custom_provider","inspect":true}),
     ] {
@@ -180,6 +181,50 @@ async fn oauth_begin_rest_returns_conflict_for_changed_idempotent_body() {
                     .contains("idempotency_conflict")
             );
         }
+    }
+    server.abort();
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn oauth_begin_rest_rejects_invalid_or_misplaced_github_hosts() {
+    let (state, dir, _) = tests::fixture().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let token = "synthetic-management-token-1234567890";
+    let app = router(
+        state,
+        Arc::new(security::Policy::new(address, true, None, &[], Some(token.into())).unwrap()),
+    );
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    for (body, code) in [
+        (
+            json!({"provider":"copilot","host":"https://octocorp.ghe.com"}),
+            "invalid_github_host",
+        ),
+        (
+            json!({"provider":"copilot","host":"github.example.com"}),
+            "invalid_github_host",
+        ),
+        (
+            json!({"provider":"codex","host":"octocorp.ghe.com"}),
+            "unsupported_operation",
+        ),
+        (
+            json!({"provider":"codex","host":"github.com"}),
+            "unsupported_operation",
+        ),
+    ] {
+        let response = client
+            .post(format!("http://{address}/v1/auth/sessions"))
+            .bearer_auth(token)
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 400);
+        assert!(response.text().await.unwrap().contains(code));
     }
     server.abort();
     std::fs::remove_dir_all(dir).unwrap();

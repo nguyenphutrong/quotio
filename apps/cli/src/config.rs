@@ -42,6 +42,7 @@ pub struct Config {
     #[serde(default = "default_cache_ttl")]
     pub cache_ttl_seconds: u64,
     #[serde(default = "default_refresh_interval")]
+    /// Seconds between completed refresh cycles; zero disables scheduled refreshes.
     pub refresh_interval: u64,
     #[serde(default = "default_provider_timeout")]
     pub provider_timeout: u64,

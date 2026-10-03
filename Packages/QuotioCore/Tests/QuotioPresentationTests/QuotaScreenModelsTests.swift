@@ -9,15 +9,15 @@ final class QuotaScreenModelsTests: XCTestCase {
     func testQuotaScreenModelBootstrapsAndRefreshesThroughCoordinator() async {
         let initial = Self.quota(20)
         let fresh = Self.quota(80)
-        let store = PresentationQuotaStore(initial: QuotaSnapshot(quotas: [
+        let initialSnapshot = QuotaSnapshot(quotas: [
             .codex: ["account": initial],
-        ]))
-        let coordinator = QuotaRefreshCoordinator(
-            registry: QuotaProviderRegistry([
-                PresentationQuotaFetcher(provider: .codex, quota: fresh),
-            ]),
-            snapshots: store,
-            clock: PresentationClock()
+        ])
+        let coordinator = TestQuotaCoordinator(
+            snapshot: initialSnapshot,
+            refreshedSnapshot: QuotaSnapshot(
+                quotas: [.codex: ["account": fresh]],
+                lastUpdated: PresentationClock.date
+            )
         )
         let model = QuotaScreenModel(coordinator: coordinator)
         var observedStates: [QuotaSnapshot] = []
@@ -35,15 +35,10 @@ final class QuotaScreenModelsTests: XCTestCase {
     }
 
     func testDashboardModelDerivesQuotaOverview() async {
-        let store = PresentationQuotaStore(initial: QuotaSnapshot(quotas: [
+        let coordinator = TestQuotaCoordinator(snapshot: QuotaSnapshot(quotas: [
             .codex: ["one": Self.quota(70)],
             .claude: ["two": Self.quota(30)],
         ]))
-        let coordinator = QuotaRefreshCoordinator(
-            registry: QuotaProviderRegistry([]),
-            snapshots: store,
-            clock: PresentationClock()
-        )
         let quota = QuotaScreenModel(coordinator: coordinator)
         let accounts = AccountsScreenModel(
             accountService: EmptyAccountManager(),
@@ -57,21 +52,42 @@ final class QuotaScreenModelsTests: XCTestCase {
         await quota.shutdown()
     }
 
-    func testShutdownPreventsSuspendedRefreshFromRestartingObservation() async {
-        let gate = PresentationGate()
-        let fetcher = SuspendedPresentationQuotaFetcher(gate: gate)
-        let coordinator = QuotaRefreshCoordinator(
-            registry: QuotaProviderRegistry([fetcher]),
-            snapshots: PresentationQuotaStore(initial: QuotaSnapshot()),
-            clock: PresentationClock()
+    func testDashboardModelHidesDisabledAccounts() {
+        let quota = QuotaScreenModel(coordinator: TestQuotaCoordinator())
+        let accounts = AccountsScreenModel(
+            accountService: EmptyAccountManager(),
+            authFileRepository: EmptyAuthFileRepository()
         )
+        accounts.replaceAccounts([
+            Account.make(
+                providerID: AccountProviderID(rawValue: QuotaProvider.codex.rawValue),
+                accountKey: "enabled@example.com",
+                source: .nativeCredential
+            ),
+            Account.make(
+                providerID: AccountProviderID(rawValue: QuotaProvider.claude.rawValue),
+                accountKey: "disabled@example.com",
+                source: .nativeCredential,
+                status: .disabled
+            ),
+        ])
+        let dashboard = DashboardScreenModel(quota: quota, accounts: accounts)
+
+        XCTAssertEqual(dashboard.trackedAccounts.map(\.accountKey), ["enabled@example.com"])
+        XCTAssertEqual(dashboard.trackedAccountCount, 1)
+        XCTAssertEqual(dashboard.connectedProviderCount, 1)
+    }
+
+    func testShutdownPreventsSuspendedRefreshFromRestartingObservation() async {
+        let gate = TestAsyncGate()
+        let coordinator = TestQuotaCoordinator(refreshGate: gate)
         let model = QuotaScreenModel(coordinator: coordinator)
         await model.bootstrap(mode: .monitor)
 
         let refresh = Task {
             await model.refresh(provider: .codex, mode: .monitor, force: true)
         }
-        await fetcher.waitUntilCalled()
+        await coordinator.waitUntilRefreshStarts()
         await model.shutdown()
         await gate.resume()
         await refresh.value
@@ -91,74 +107,15 @@ final class QuotaScreenModelsTests: XCTestCase {
     }
 }
 
-private actor PresentationQuotaFetcher: QuotaFetching {
-    nonisolated let provider: QuotaProvider
-    private let quota: ProviderQuota
-
-    init(provider: QuotaProvider, quota: ProviderQuota) {
-        self.provider = provider
-        self.quota = quota
-    }
-
-    func fetch(_ request: QuotaFetchRequest) -> QuotaProviderOutput {
-        QuotaProviderOutput(quotas: ["account": quota])
-    }
-}
-
-private actor SuspendedPresentationQuotaFetcher: QuotaFetching {
-    nonisolated let provider: QuotaProvider = .codex
-    private let gate: PresentationGate
-    private var callContinuations: [CheckedContinuation<Void, Never>] = []
-    private var wasCalled = false
-
-    init(gate: PresentationGate) {
-        self.gate = gate
-    }
-
-    func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
-        wasCalled = true
-        callContinuations.forEach { $0.resume() }
-        callContinuations.removeAll()
-        await gate.wait()
-        return QuotaProviderOutput(quotas: [:])
-    }
-
-    func waitUntilCalled() async {
-        if wasCalled { return }
-        await withCheckedContinuation { callContinuations.append($0) }
-    }
-}
-
-private actor PresentationGate {
-    private var continuation: CheckedContinuation<Void, Never>?
-
-    func wait() async {
-        await withCheckedContinuation { continuation = $0 }
-    }
-
-    func resume() {
-        continuation?.resume()
-        continuation = nil
-    }
-}
-
-private actor PresentationQuotaStore: QuotaSnapshotStoring {
-    private let initial: QuotaSnapshot
-
-    init(initial: QuotaSnapshot) {
-        self.initial = initial
-    }
-
-    func load(for mode: QuotaOperatingMode) -> QuotaSnapshot { initial }
-    func save(_ snapshot: QuotaSnapshot, for mode: QuotaOperatingMode) {}
-}
-
 private struct PresentationClock: DateProviding {
     static let date = Date(timeIntervalSince1970: 2_000)
     func now() -> Date { Self.date }
 }
 
 private actor EmptyAccountManager: AccountManaging {
+    func registerDetectedNativeAccounts() {}
+    func nativeSourcesRequiringPermission() -> [NativeSourcePermission] { [] }
+    func authorizeNativeSource(_ source: NativeSourcePermission) {}
     func accounts() -> [Account] { [] }
     func saveAPIKey(
         providerID: AccountProviderID,
