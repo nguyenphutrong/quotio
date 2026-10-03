@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix a crash after clicking Continue during onboarding by providing the provider image model to the onboarding sheet (#548).
+
 ## [0.33.0] - 2026-09-17
 
 ## [0.32.0] - 2026-09-16
