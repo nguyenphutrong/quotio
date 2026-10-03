@@ -1856,6 +1856,16 @@ private struct ModelBadgeData: Identifiable {
             return "\(minutes)m"
         }
     }
+
+    /// Absolute reset moment ("14:30" / "Thu 14:30"), nil when unknown or already past.
+    var formattedResetMoment: String? {
+        resetTime.flatMap { QuotaResetMoment.label(for: $0) }
+    }
+
+    /// Countdown plus absolute moment, e.g. "2h13m · 14:30".
+    var resetSummary: String? {
+        QuotaResetMoment.summary(countdown: formattedResetTime, moment: formattedResetMoment)
+    }
 }
 
 private struct AntigravityDisplayGroup: Identifiable {
@@ -1934,7 +1944,7 @@ private struct LowestBarLayout: View {
                         displayMode: displayMode
                     )
 
-                    if let resetTime = lowest.formattedResetTime {
+                    if let resetTime = lowest.resetSummary {
                         HStack(spacing: 4) {
                             Image(systemName: "clock.arrow.circlepath")
                                 .font(.system(size: 9))
@@ -1963,7 +1973,7 @@ private struct LowestBarLayout: View {
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                             Spacer()
-                            if let resetTime = model.formattedResetTime {
+                            if let resetTime = model.resetSummary {
                                 Text(resetTime)
                                     .font(.system(size: 9, design: .rounded))
                                     .foregroundStyle(.tertiary)
@@ -2016,6 +2026,7 @@ private struct RingGridLayout: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
+                .menuNativeTooltip(model.name + (model.resetSummary.map { " · " + $0 } ?? ""))
             }
         }
     }
@@ -2044,7 +2055,7 @@ private struct CardGridLayout: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                         Spacer()
-                        if let resetTime = model.formattedResetTime {
+                        if let resetTime = model.resetSummary {
                             Text(resetTime)
                                 .font(.system(size: 9, design: .rounded))
                                 .foregroundStyle(.tertiary)
@@ -2185,7 +2196,7 @@ private struct MenuModelDetailView: View {
             }
 
             if !model.isStandaloneMetric && model.formattedResetTime != "—" && !model.formattedResetTime.isEmpty {
-                Text(model.formattedResetTime)
+                Text(QuotaResetMoment.summary(countdown: model.formattedResetTime, moment: model.formattedResetMoment) ?? model.formattedResetTime)
                     .font(.system(size: 9, design: .rounded))
                     .foregroundStyle(.tertiary)
             }
