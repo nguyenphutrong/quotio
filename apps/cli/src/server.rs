@@ -116,6 +116,7 @@ struct ApiState {
     status: Mutex<RefreshStatus>,
     context: ProviderContext,
     no_saved_accounts: bool,
+    proxy_auth_directory: Option<std::path::PathBuf>,
     manage: bool,
     vault: Option<crate::accounts::vault::Vault>,
     oauth: Option<crate::accounts::oauth::OAuthSessionManager>,
@@ -158,6 +159,7 @@ fn router(state: Arc<ApiState>, policy: Arc<security::Policy>) -> Router {
                 .patch(management::patch)
                 .delete(management::remove),
         )
+        .route("/v1/accounts/migrate", post(management::migrate))
         .route("/v1/account-sources", post(management::reference))
         .route("/v1/account-sources/discover", post(management::discover))
         .route("/v1/accounts/{id}/usage", get(management::usage))
@@ -352,8 +354,15 @@ struct RefreshRequest {
     account_id: Option<String>,
     #[serde(default = "force_default")]
     force: bool,
+    #[serde(default = "include_owned_default")]
+    include_owned: bool,
+    #[serde(default)]
+    disabled_proxy_auth_files: Vec<String>,
 }
 fn force_default() -> bool {
+    true
+}
+fn include_owned_default() -> bool {
     true
 }
 async fn manual_refresh(
@@ -436,28 +445,70 @@ async fn refresh(state: &ApiState, request: Option<RefreshRequest>) -> Result<Va
     let generation = state.generation.load(Ordering::SeqCst);
     let config = state.settings.read().await.values.clone();
     let enabled = config.providers().map_err(|_| "invalid_settings")?;
-    let (selected, account, force) = match request {
-        Some(r) => (r.providers, r.account_id, r.force),
-        None => (enabled.clone(), None, false),
+    let (selected, account, force, include_owned, disabled_proxy_auth_files) = match request {
+        Some(r) => (
+            r.providers,
+            r.account_id,
+            r.force,
+            r.include_owned,
+            r.disabled_proxy_auth_files,
+        ),
+        None => (enabled.clone(), None, false, true, Vec::new()),
     };
     if account.is_none() && selected.iter().any(|p| !enabled.contains(p)) {
         return Err("refresh_scope_changed");
     }
     state.status.lock().await.refreshing = true;
     let timeout = Duration::from_secs(config.provider_timeout);
-    let adapters = if state.no_saved_accounts {
-        crate::accounts::service::adapters(selected.clone(), false, timeout, account.as_deref())
-            .await
-    } else if let Some(vault) = state.vault.clone() {
-        crate::accounts::service::adapters_in_vault(
-            selected.clone(),
-            timeout,
-            account.as_deref(),
-            vault,
-        )
-        .await
+    let borrowed = state
+        .proxy_auth_directory
+        .as_deref()
+        .map(|directory| {
+            crate::accounts::proxy::adapters(
+                directory,
+                &selected,
+                account.as_deref(),
+                &disabled_proxy_auth_files,
+            )
+        })
+        .transpose()
+        .unwrap_or_else(|_| {
+            tracing::warn!("CLIProxyAPI auth directory is unavailable or unsafe");
+            None
+        })
+        .unwrap_or_default();
+    let disabled_proxy_account = account.as_deref().is_some_and(|id| {
+        state.proxy_auth_directory.is_some()
+            && selected.iter().any(|provider| {
+                disabled_proxy_auth_files.iter().any(|name| {
+                    crate::cache::fingerprint(&["cli_proxy_auth_file", provider.id(), name]) == id
+                })
+            })
+    });
+    let adapters = if disabled_proxy_account || (account.is_some() && !borrowed.is_empty()) {
+        Ok(borrowed)
     } else {
-        Err(crate::accounts::AccountError::Storage)
+        let managed = if state.no_saved_accounts {
+            crate::accounts::service::adapters(selected.clone(), false, timeout, account.as_deref())
+                .await
+        } else if let Some(vault) = state.vault.clone() {
+            crate::accounts::service::adapters_in_vault(
+                selected.clone(),
+                include_owned,
+                timeout,
+                account.as_deref(),
+                vault,
+            )
+            .await
+        } else {
+            Err(crate::accounts::AccountError::Storage)
+        };
+        managed.map(|mut adapters| {
+            if account.is_none() {
+                adapters.extend(borrowed);
+            }
+            adapters
+        })
     };
     let collector = Collector {
         context: state.context.clone(),
@@ -554,9 +605,17 @@ fn merge_refresh_report(
         return true;
     }
 
-    let Some((old_generation, previous)) = &mut *snapshot else {
-        return false;
-    };
+    let (old_generation, previous) = snapshot.get_or_insert_with(|| {
+        (
+            generation,
+            UsageReport {
+                schema_version: 1,
+                generated_at: report.generated_at,
+                providers: vec![],
+                failures: vec![],
+            },
+        )
+    });
     if *old_generation != generation {
         return false;
     }
@@ -577,6 +636,11 @@ fn merge_refresh_report(
 }
 async fn wait_for_next_refresh(state: &ApiState) {
     let interval = state.settings.read().await.values.refresh_interval;
+    if interval == 0 {
+        state.status.lock().await.next_refresh_at = None;
+        state.wake.notified().await;
+        return;
+    }
     let deadline = tokio::time::Instant::now() + Duration::from_secs(interval);
     state.status.lock().await.next_refresh_at = Some(timestamp(
         state.context.clock.now() + time::Duration::seconds(interval as i64),
@@ -590,6 +654,9 @@ async fn wait_for_next_refresh(state: &ApiState) {
 pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
     if !args.listen.ip().is_loopback() {
         return Err(ServerError::Listen);
+    }
+    if let Some(directory) = args.cli_proxy_auth_dir.as_deref() {
+        crate::accounts::proxy::validate_directory(directory).map_err(|_| ServerError::Config)?;
     }
     let path = args
         .config
@@ -688,6 +755,7 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
         status: Mutex::new(RefreshStatus::default()),
         context,
         no_saved_accounts: args.no_saved_accounts,
+        proxy_auth_directory: args.cli_proxy_auth_dir,
         manage: args.manage,
         vault,
         oauth,
@@ -705,6 +773,10 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
     let worker_state = state.clone();
     let mut worker = tokio::spawn(async move {
         loop {
+            if worker_state.settings.read().await.values.refresh_interval == 0 {
+                wait_for_next_refresh(&worker_state).await;
+                continue;
+            }
             if let Err(code) = refresh(&worker_state, None).await {
                 tracing::warn!(code, "scheduled refresh failed");
             }

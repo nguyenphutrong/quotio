@@ -58,15 +58,14 @@ async fn discovery_rest_registers_opaque_exact_entries_without_credentials() {
     );
     for (index, request) in [
         json!({"provider":"grok","kind":"grok_native","inspect":true}),
-        json!({"provider":"copilot","kind":"copilot_native","location":"apps","inspect":true}),
-        json!({"provider":"copilot","kind":"copilot_native","location":"gh_hosts","inspect":true}),
+        json!({"provider":"copilot","kind":"copilot_native","inspect":true}),
         json!({"provider":"clinepass","kind":"quotio_custom_provider","domain":"production","inspect":true}),
     ].into_iter().enumerate() {
         let response = client.post(&endpoint).bearer_auth(token).json(&request).send().await.unwrap();
         assert_eq!(response.status(), 200);
         let discovered: Value = response.json().await.unwrap();
         assert_eq!(discovered["status"], "checked", "{discovered}");
-        assert_eq!(discovered["candidates"].as_array().unwrap().len(), if index == 0 { 2 } else { 1 });
+        assert_eq!(discovered["candidates"].as_array().unwrap().len(), if index < 2 { 2 } else { 1 });
         assert_eq!(discovered["candidates"][0]["status"], "available");
         for forbidden in ["planted-secret", "11111111", "oauth_token", "entry_key", home.to_str().unwrap()] {
             assert!(!discovered.to_string().contains(forbidden));
@@ -83,11 +82,13 @@ async fn discovery_rest_registers_opaque_exact_entries_without_credentials() {
         let account: Value = client.get(format!("{base}/v1/accounts/{id}")).bearer_auth(token).send().await.unwrap().json().await.unwrap();
         assert_eq!(account["provider"], request["provider"]);
         assert!(!account.to_string().contains("planted-secret"));
+        if request["kind"] == "quotio_custom_provider" {
+            assert_eq!(account["source_id"].as_str().unwrap().len(), 64);
+        }
         }
     }
     for request in [
         json!({"provider":"grok","kind":"copilot_native","inspect":true}),
-        json!({"provider":"copilot","kind":"copilot_native","inspect":true}),
         json!({"provider":"grok","kind":"grok_native","path":"/.cli-proxy-api","inspect":true}),
         json!({"provider":"clinepass","kind":"quotio_custom_provider","inspect":true}),
     ] {

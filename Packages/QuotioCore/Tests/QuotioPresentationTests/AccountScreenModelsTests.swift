@@ -36,6 +36,46 @@ final class AccountScreenModelsTests: XCTestCase {
         XCTAssertFalse(String(describing: model).contains("accessToken"))
     }
 
+    func testAccountsModelConnectsNativeSourceOnlyAfterUserAction() async throws {
+        let permission = NativeSourcePermission(
+            provider: .factoryDroid,
+            kind: "factory_native",
+            location: "v2_keyring"
+        )
+        let service = AccountScreenModelService(accounts: [], permissions: [permission])
+        let model = AccountsScreenModel(
+            accountService: service,
+            authFileRepository: AccountScreenModelAuthFiles(files: [])
+        )
+
+        await model.registerDetectedNativeAccounts()
+        XCTAssertEqual(model.nativeSourcePermissions, [permission])
+
+        try await model.authorizeNativeSource(permission)
+        XCTAssertTrue(model.nativeSourcePermissions.isEmpty)
+        let authorized = await service.lastAuthorizedSource
+        XCTAssertEqual(authorized, permission)
+    }
+
+    func testNativePermissionExplainsProviderSpecificKeychainReason() {
+        XCTAssertEqual(
+            NativeSourcePermission(
+                provider: .antigravity,
+                kind: "antigravity_native",
+                location: "gemini_keychain"
+            ).explanationLocalizationKey,
+            "providers.nativePermission.antigravity"
+        )
+        XCTAssertEqual(
+            NativeSourcePermission(
+                provider: .factoryDroid,
+                kind: "factory_native",
+                location: "v2_login_keychain"
+            ).explanationLocalizationKey,
+            "providers.nativePermission.factory"
+        )
+    }
+
     func testAccountsModelReloadMergesQuotaDerivedAccounts() async {
         let model = AccountsScreenModel(
             accountService: AccountScreenModelService(accounts: []),
@@ -168,13 +208,22 @@ final class AccountScreenModelsTests: XCTestCase {
 
 private actor AccountScreenModelService: AccountManaging {
     private let storedAccounts: [Account]
+    private var permissions: [NativeSourcePermission]
     private(set) var lastDisabledID: String?
     private(set) var lastDeletedID: String?
+    private(set) var lastAuthorizedSource: NativeSourcePermission?
 
-    init(accounts: [Account]) {
+    init(accounts: [Account], permissions: [NativeSourcePermission] = []) {
         storedAccounts = accounts
+        self.permissions = permissions
     }
 
+    func registerDetectedNativeAccounts() {}
+    func nativeSourcesRequiringPermission() -> [NativeSourcePermission] { permissions }
+    func authorizeNativeSource(_ source: NativeSourcePermission) {
+        lastAuthorizedSource = source
+        permissions.removeAll { $0 == source }
+    }
     func accounts() -> [Account] { storedAccounts }
     func setDisabled(_ disabled: Bool, accountID: String) { lastDisabledID = accountID }
     func delete(accountID: String) { lastDeletedID = accountID }

@@ -68,6 +68,7 @@ pub(super) async fn fixture() -> (Arc<ApiState>, std::path::PathBuf, String) {
             status: Mutex::new(RefreshStatus::default()),
             context,
             no_saved_accounts: true,
+            proxy_auth_directory: None,
             manage: true,
             vault: Some(vault),
             oauth: Some(manager),
@@ -97,6 +98,8 @@ async fn account_scoped_refresh_does_not_require_scheduled_provider() {
             providers: vec![Provider::Amp],
             account_id: Some(id),
             force: true,
+            include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await;
@@ -106,6 +109,131 @@ async fn account_scoped_refresh_does_not_require_scheduled_provider() {
         job.abort();
     }
     drop(refresh_guard);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn account_scoped_refresh_accepts_borrowed_proxy_account() {
+    let (mut state, dir, _) = fixture().await;
+    let auth = dir.join("proxy-auth");
+    std::fs::create_dir(&auth).unwrap();
+    let auth = auth.canonicalize().unwrap();
+    std::fs::write(
+        auth.join("claude.json"),
+        br#"{"type":"claude","access_token":"borrowed-test-token"}"#,
+    )
+    .unwrap();
+    Arc::get_mut(&mut state).unwrap().proxy_auth_directory = Some(auth.clone());
+    let account =
+        crate::accounts::proxy::adapters(&auth, &[Provider::Catalog("claude")], None, &[])
+            .unwrap()
+            .remove(0)
+            .account_ref()
+            .unwrap();
+
+    assert!(
+        management::validate_refresh_account(&state, Provider::Catalog("claude"), &account.id)
+            .await
+            .is_ok()
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn disabled_proxy_file_is_not_fetched_in_provider_or_account_scope() {
+    use tokio::io::AsyncWriteExt;
+    let (mut state, dir, _) = fixture().await;
+    let auth = dir.join("proxy-auth");
+    std::fs::create_dir(&auth).unwrap();
+    let auth = auth.canonicalize().unwrap();
+    let bytes = br#"{"type":"claude","access_token":"test-token"}"#;
+    std::fs::write(auth.join("claude.json"), bytes).unwrap();
+    let provider = Provider::Catalog("claude");
+    let id = crate::cache::fingerprint(&["cli_proxy_auth_file", provider.id(), "claude.json"]);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let requests = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let count = requests.clone();
+    let proxy = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            count.fetch_add(1, Ordering::SeqCst);
+            let _ = stream
+                .write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n")
+                .await;
+        }
+    });
+    let writable = Arc::get_mut(&mut state).unwrap();
+    writable.no_saved_accounts = false;
+    writable.proxy_auth_directory = Some(auth.clone());
+    writable.context.http = reqwest::Client::builder()
+        .proxy(reqwest::Proxy::all(proxy).unwrap())
+        .timeout(Duration::from_secs(1))
+        .build()
+        .unwrap();
+    state.settings.write().await.values.enabled_providers = vec!["claude".into()];
+    // Seed cached usage so scoped exclusion must also remove an old result.
+    *state.snapshot.write().await = Some((
+        0,
+        UsageReport {
+            schema_version: 1,
+            generated_at: state.context.clock.now(),
+            providers: vec![],
+            failures: vec![ProviderFailure {
+                provider: ProviderId("claude".into()),
+                account_ref: Some(crate::domain::AccountRef {
+                    origin: Some(crate::domain::AccountOrigin::BorrowedProxy),
+                    id: id.clone(),
+                    label: "Work".into(),
+                }),
+                code: ProviderError::Authentication,
+                message: "test".into(),
+            }],
+        },
+    ));
+    for account_id in [Some(id.clone()), None] {
+        refresh(
+            &state,
+            Some(RefreshRequest {
+                providers: vec![provider],
+                account_id,
+                force: true,
+                include_owned: false,
+                disabled_proxy_auth_files: vec!["claude.json".into()],
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
+        let snapshot = state.snapshot.read().await;
+        let report = &snapshot.as_ref().unwrap().1;
+        assert!(
+            report
+                .providers
+                .iter()
+                .all(|u| u.account_ref.as_ref().is_none_or(|r| r.id != id))
+        );
+        assert!(
+            report
+                .failures
+                .iter()
+                .all(|f| f.account_ref.as_ref().is_none_or(|r| r.id != id))
+        );
+    }
+    refresh(
+        &state,
+        Some(RefreshRequest {
+            providers: vec![provider],
+            account_id: Some(id),
+            force: true,
+            include_owned: false,
+            disabled_proxy_auth_files: vec![],
+        }),
+    )
+    .await
+    .unwrap();
+    assert!(requests.load(Ordering::SeqCst) > 0);
+    assert_eq!(std::fs::read(auth.join("claude.json")).unwrap(), bytes);
+    server.abort();
     std::fs::remove_dir_all(dir).unwrap();
 }
 
@@ -126,6 +254,8 @@ async fn account_scoped_refresh_requires_an_explicit_provider() {
             providers: vec![],
             account_id: Some(id),
             force: true,
+            include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await;
@@ -147,6 +277,8 @@ async fn account_scoped_refresh_rejects_duplicate_providers() {
             providers: vec![Provider::Amp, Provider::Amp],
             account_id: Some(id),
             force: true,
+            include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await;
@@ -194,7 +326,7 @@ fn disabled_provider_account_refresh_does_not_replace_the_scheduled_snapshot() {
 }
 
 #[test]
-fn account_refresh_cannot_initialize_the_scheduled_snapshot() {
+fn first_scoped_refresh_seeds_the_snapshot() {
     let report = UsageReport {
         schema_version: 1,
         generated_at: time::OffsetDateTime::UNIX_EPOCH,
@@ -203,7 +335,7 @@ fn account_refresh_cannot_initialize_the_scheduled_snapshot() {
     };
     let mut snapshot = None;
 
-    assert!(!merge_refresh_report(
+    assert!(merge_refresh_report(
         &mut snapshot,
         0,
         &[Provider::Amp],
@@ -211,7 +343,7 @@ fn account_refresh_cannot_initialize_the_scheduled_snapshot() {
         Some("account-id"),
         report,
     ));
-    assert!(snapshot.is_none());
+    assert!(snapshot.is_some());
 }
 
 #[test]
@@ -246,6 +378,8 @@ async fn account_scoped_refresh_reports_account_removed_before_collection() {
             providers: vec![Provider::Amp],
             account_id: Some(id.clone()),
             force: true,
+            include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await;
@@ -285,6 +419,8 @@ async fn unscoped_refresh_still_requires_enabled_provider() {
             providers: vec![Provider::Amp],
             account_id: None,
             force: true,
+            include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await;
@@ -374,6 +510,8 @@ async fn grok_local_alias_child() {
                 providers: vec![Provider::Catalog("grok")],
                 account_id: Some("local".into()),
                 force: true,
+                include_owned: true,
+                disabled_proxy_auth_files: Vec::new(),
             }),
         )
         .await;
@@ -971,6 +1109,8 @@ async fn external_config_conflict_recovers_and_refresh_requests_coalesce() {
         providers: vec![Provider::Mock],
         account_id: None,
         force: true,
+        include_owned: true,
+        disabled_proxy_auth_files: Vec::new(),
     };
     let (_, Json(first)) = manual_refresh(State(state.clone()), ApiJson(request()))
         .await
@@ -1027,6 +1167,8 @@ async fn manual_refresh_preserves_the_schedulers_deadline() {
             providers: vec![Provider::Mock],
             account_id: None,
             force: false,
+            include_owned: true,
+            disabled_proxy_auth_files: Vec::new(),
         }),
     )
     .await
@@ -1037,6 +1179,108 @@ async fn manual_refresh_preserves_the_schedulers_deadline() {
     );
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[tokio::test]
+async fn local_mode_refresh_excludes_owned_accounts() {
+    let (mut state, dir, owned_id) = fixture().await;
+    Arc::get_mut(&mut state).unwrap().no_saved_accounts = false;
+    state.settings.write().await.values.enabled_providers = vec!["amp".into()];
+    refresh(
+        &state,
+        Some(RefreshRequest {
+            providers: vec![Provider::Amp],
+            account_id: None,
+            force: true,
+            include_owned: false,
+            disabled_proxy_auth_files: Vec::new(),
+        }),
+    )
+    .await
+    .unwrap();
+    let snapshot = state.snapshot.read().await;
+    let report = &snapshot.as_ref().unwrap().1;
+    assert!(report.providers.iter().all(|usage| {
+        usage.account_ref.as_ref().is_none_or(|reference| {
+            reference.origin != Some(crate::domain::AccountOrigin::Owned)
+                && reference.id != owned_id
+        })
+    }));
+    assert!(report.failures.iter().all(|failure| {
+        failure.account_ref.as_ref().is_none_or(|reference| {
+            reference.origin != Some(crate::domain::AccountOrigin::Owned)
+                && reference.id != owned_id
+        })
+    }));
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn local_mode_warp_refresh_only_collects_mirrors() {
+    let (mut state, dir, _) = fixture().await;
+    let writable = Arc::get_mut(&mut state).unwrap();
+    writable.no_saved_accounts = false;
+    // Fail locally rather than contacting a real provider with fixture credentials.
+    writable.context.http = reqwest::Client::builder()
+        .proxy(reqwest::Proxy::all("http://127.0.0.1:1").unwrap())
+        .timeout(Duration::from_secs(1))
+        .build()
+        .unwrap();
+    let provider = Provider::Catalog("warp");
+    let mut ids = Vec::new();
+    for label in ["Monitor", "__quotio_local_warp__:Local"] {
+        ids.push(
+            accounts::service::add(
+                state.vault.clone().unwrap(),
+                provider,
+                label.into(),
+                Credential::ApiKey {
+                    token: "test-token".into(),
+                    region: None,
+                    organization: None,
+                },
+                label.into(),
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    state.settings.write().await.values.enabled_providers = vec!["warp".into()];
+    for include_owned in [false, true] {
+        refresh(
+            &state,
+            Some(RefreshRequest {
+                providers: vec![provider],
+                account_id: None,
+                force: true,
+                include_owned,
+                disabled_proxy_auth_files: Vec::new(),
+            }),
+        )
+        .await
+        .unwrap();
+        let snapshot = state.snapshot.read().await;
+        let report = &snapshot.as_ref().unwrap().1;
+        let collected: std::collections::HashSet<_> = report
+            .providers
+            .iter()
+            .filter_map(|usage| usage.account_ref.as_ref().map(|a| a.id.clone()))
+            .chain(
+                report
+                    .failures
+                    .iter()
+                    .filter_map(|failure| failure.account_ref.as_ref().map(|a| a.id.clone())),
+            )
+            .collect();
+        let expected = if include_owned {
+            ids.clone()
+        } else {
+            vec![ids[1].clone()]
+        };
+        assert_eq!(collected, expected.into_iter().collect());
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 #[tokio::test]
 async fn scheduler_clears_deadline_on_timer_and_config_wake() {
     let (state, dir, _) = fixture().await;
@@ -1056,6 +1300,20 @@ async fn scheduler_clears_deadline_on_timer_and_config_wake() {
         assert!(state.status.lock().await.next_refresh_at.is_none());
     }
     tokio::time::resume();
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn zero_refresh_interval_waits_without_scheduling_a_deadline() {
+    let (state, dir, _) = fixture().await;
+    state.settings.write().await.values.refresh_interval = 0;
+    let worker = state.clone();
+    let task = tokio::spawn(async move { wait_for_next_refresh(&worker).await });
+    tokio::task::yield_now().await;
+    assert!(state.status.lock().await.next_refresh_at.is_none());
+    assert!(!task.is_finished());
+    state.wake.notify_one();
+    task.await.unwrap();
     std::fs::remove_dir_all(dir).unwrap();
 }
 
@@ -1109,5 +1367,126 @@ async fn account_retry_survives_loss_of_in_memory_operations() {
     .unwrap();
     assert_eq!(conflict.0, StatusCode::CONFLICT);
     assert_eq!(conflict.1, "idempotency_conflict");
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn legacy_migration_preserves_disabled_credentials_and_survives_restart() {
+    let (state, dir, _) = fixture().await;
+    for provider in [
+        "claude",
+        "codex",
+        "copilot",
+        "kiro",
+        "openrouter",
+        "factory",
+        "warp",
+        "amp",
+        "zai",
+        "clinepass",
+        "antigravity",
+    ] {
+        let oauth = matches!(provider, "claude" | "codex" | "kiro" | "antigravity");
+        let extra = match provider {
+            "kiro" => {
+                json!({"authMethod":"IdC", "clientId":"test-client", "clientSecret":"test-client-secret", "region":"us-east-1"})
+            }
+            "antigravity" => {
+                json!({"clientId":"1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com", "clientSecret":"test-client-secret"})
+            }
+            _ => json!({}),
+        };
+        let body = json!({"legacy_id":format!("old-{provider}"), "provider":provider, "label":format!("Legacy {provider}"), "enabled":false,
+            "credential":{"access_token":"synthetic-old-access", "refresh_token":oauth.then_some("synthetic-old-refresh"),
+                "id_token":(provider == "codex").then_some("synthetic-id-token"), "account_id":"old-user", "expires_at":0, "extra":extra}});
+        let key_value = format!("migrate-{provider}");
+        let (_, Json(op)) =
+            management::migrate(State(state.clone()), key(&key_value), ApiJson(body.clone()))
+                .await
+                .unwrap_or_else(|_| panic!("intake {provider}"));
+        let completed = done(&state, &op.id).await;
+        assert_eq!(
+            completed.status, "completed",
+            "{provider}: {:?}",
+            completed.error
+        );
+        let id = completed.result.unwrap()["account_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let vault = state.vault.clone().unwrap();
+        let mut tx = vault.begin().unwrap();
+        let account = tx
+            .document
+            .accounts
+            .iter_mut()
+            .find(|a| a.id == id)
+            .unwrap();
+        assert!(!account.enabled);
+        // Simulate a later refresh/change: replay must not replace current credentials.
+        if let Credential::ClaudeOAuth { access_token, .. } = &mut account.credential {
+            *access_token = "rotated-access".into();
+        }
+        tx.commit().unwrap();
+        *state.operations.lock().await = Operations::default();
+        let (_, Json(retry)) =
+            management::migrate(State(state.clone()), key(&key_value), ApiJson(body))
+                .await
+                .unwrap_or_else(|_| panic!());
+        let repeated = done(&state, &retry.id).await;
+        assert_eq!(repeated.result.unwrap()["account_id"], id);
+        let tx = vault.begin().unwrap();
+        assert_eq!(
+            tx.document
+                .accounts
+                .iter()
+                .filter(|a| a.provider.id() == provider && a.label.starts_with("Legacy"))
+                .count(),
+            1
+        );
+        if provider == "claude" {
+            assert!(
+                matches!(&tx.document.accounts.iter().find(|a| a.id == id).unwrap().credential, Credential::ClaudeOAuth { access_token, .. } if access_token == "rotated-access")
+            );
+        }
+        assert!(
+            !serde_json::to_string(&repeated.error)
+                .unwrap()
+                .contains("synthetic")
+        );
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn legacy_migration_rejects_invalid_and_conflicting_imports() {
+    let (state, dir, _) = fixture().await;
+    for (name, body) in [
+        (
+            "missing-refresh",
+            json!({"legacy_id":"old", "provider":"claude", "label":"Work", "enabled":true,"credential":{"access_token":"synthetic"}}),
+        ),
+        (
+            "duplicate-label",
+            json!({"legacy_id":"old", "provider":"amp", "label":"old label", "enabled":true,"credential":{"access_token":"synthetic"}}),
+        ),
+    ] {
+        let (_, Json(op)) = management::migrate(State(state.clone()), key(name), ApiJson(body))
+            .await
+            .unwrap_or_else(|_| panic!());
+        assert_eq!(done(&state, &op.id).await.status, "failed");
+    }
+    assert_eq!(
+        state
+            .vault
+            .as_ref()
+            .unwrap()
+            .begin()
+            .unwrap()
+            .document
+            .accounts
+            .len(),
+        1
+    );
     std::fs::remove_dir_all(dir).unwrap();
 }

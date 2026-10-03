@@ -14,29 +14,29 @@ public enum ProtectedCredentialReadResult: Equatable, Sendable {
     case success(Data)
 }
 
-public protocol ProtectedCredentialDataStoring: Sendable {
-    var isEnabled: Bool { get async }
+public protocol LegacyProtectedCredentialReading: Sendable {
     func read(service: String, account: String) async -> ProtectedCredentialReadResult
-    func save(_ data: Data, service: String, account: String) async -> Bool
-    func delete(service: String, account: String) async
 }
 
 public actor KeychainCredentialDataStore: CredentialDataStoring {
     private let service: String
     private let legacyServices: [String]
     private let canMigrateLegacy: Bool
-    private let protectedStore: (any ProtectedCredentialDataStoring)?
+    private let legacyProtectedStore: (any LegacyProtectedCredentialReading)?
+    private let defaults: UserDefaults
 
     public init(
         service: String,
         legacyServices: [String] = [],
         canMigrateLegacy: Bool,
-        protectedStore: (any ProtectedCredentialDataStoring)? = nil
+        legacyProtectedStore: (any LegacyProtectedCredentialReading)? = nil,
+        defaults: UserDefaults = .standard
     ) {
         self.service = service
         self.legacyServices = legacyServices
         self.canMigrateLegacy = canMigrateLegacy
-        self.protectedStore = protectedStore
+        self.legacyProtectedStore = legacyProtectedStore
+        self.defaults = defaults
     }
 
     public func read(accountID: String) async -> CredentialDataRecord? {
@@ -45,128 +45,70 @@ public actor KeychainCredentialDataStore: CredentialDataStoring {
     }
 
     public func save(_ data: Data, accountID: String) async -> CredentialDataRecord? {
-        let didSave: Bool
-        if let protectedStore, await protectedStore.isEnabled {
-            let existing = await protectedStore.read(service: service, account: accountID)
-            guard existing != .unreadable else { return nil }
-            didSave = await protectedStore.save(data, service: service, account: accountID)
-        } else {
-            didSave = Self.saveKeychainData(data, service: service, account: accountID)
+        if !defaults.bool(forKey: migrationKey(accountID)), let legacyProtectedStore {
+            for candidate in [service] + (canMigrateLegacy ? legacyServices : []) {
+                if await legacyProtectedStore.read(service: candidate, account: accountID) == .unreadable { return nil }
+            }
         }
-        guard didSave else { return nil }
+        guard Self.saveKeychainData(data, service: service, account: accountID) else { return nil }
+        defaults.set(true, forKey: migrationKey(accountID))
         return CredentialDataRecord(data: data, generation: Self.generation(for: data))
     }
 
-    public func compareAndSwap(
-        _ data: Data,
-        accountID: String,
-        expectedGeneration: String
-    ) async -> CredentialDataRecord? {
+    public func compareAndSwap(_ data: Data, accountID: String, expectedGeneration: String) async -> CredentialDataRecord? {
         guard let current = await readData(accountID: accountID),
-              Self.generation(for: current) == expectedGeneration else { return nil }
-        let didSave: Bool
-        if let protectedStore, await protectedStore.isEnabled {
-            didSave = await protectedStore.save(data, service: service, account: accountID)
-        } else {
-            didSave = Self.updateKeychainData(data, service: service, account: accountID)
-        }
-        guard didSave else { return nil }
+              Self.generation(for: current) == expectedGeneration,
+              Self.updateKeychainData(data, service: service, account: accountID) else { return nil }
+        defaults.set(true, forKey: migrationKey(accountID))
         return CredentialDataRecord(data: data, generation: Self.generation(for: data))
     }
 
     public func delete(accountID: String) async {
-        let enabledProtectedStore: (any ProtectedCredentialDataStoring)?
-        if let protectedStore, await protectedStore.isEnabled {
-            enabledProtectedStore = protectedStore
-            await protectedStore.delete(service: service, account: accountID)
-        } else {
-            enabledProtectedStore = nil
-        }
+        // Keep deprecated envelopes untouched, but never resurrect a deleted credential.
+        defaults.set(true, forKey: migrationKey(accountID))
         Self.deleteKeychainData(service: service, account: accountID)
         if canMigrateLegacy {
             for legacyService in legacyServices {
-                if let enabledProtectedStore {
-                    await enabledProtectedStore.delete(service: legacyService, account: accountID)
-                }
                 Self.deleteKeychainData(service: legacyService, account: accountID)
             }
         }
+    }
+
+    private func migrationKey(_ accountID: String) -> String {
+        "legacyYubiKeyMigrated." + Self.generation(for: Data((service + "\u{0}" + accountID).utf8))
     }
 
     private func readData(accountID: String) async -> Data? {
-        if let protectedStore, await protectedStore.isEnabled {
-            let result = await protectedStore.read(service: service, account: accountID)
-            if case .success(let data) = result { return data }
-            guard result == .absent else { return nil }
-
-            if let plaintext = Self.readKeychainData(service: service, account: accountID) {
-                guard await migrateToProtectedStore(
-                    plaintext,
-                    accountID: accountID,
-                    protectedStore: protectedStore
-                ) else { return nil }
-                Self.deleteKeychainData(service: service, account: accountID)
-                return plaintext
-            }
-
-            guard canMigrateLegacy else { return nil }
-            for legacyService in legacyServices {
-                switch await protectedStore.read(service: legacyService, account: accountID) {
-                case .success(let legacyData):
-                    guard await migrateToProtectedStore(
-                        legacyData,
-                        accountID: accountID,
-                        protectedStore: protectedStore
-                    ) else { return nil }
-                    await protectedStore.delete(service: legacyService, account: accountID)
-                    Self.deleteKeychainData(service: legacyService, account: accountID)
-                    return legacyData
-                case .unreadable:
-                    continue
-                case .absent:
-                    guard let plaintext = Self.readKeychainData(
-                        service: legacyService,
-                        account: accountID
-                    ) else { continue }
-                    guard await migrateToProtectedStore(
-                        plaintext,
-                        accountID: accountID,
-                        protectedStore: protectedStore
-                    ) else { return nil }
-                    Self.deleteKeychainData(service: legacyService, account: accountID)
-                    return plaintext
+        if let data = Self.readKeychainData(service: service, account: accountID) { return data }
+        guard !defaults.bool(forKey: migrationKey(accountID)) else { return nil }
+        for candidate in [service] + (canMigrateLegacy ? legacyServices : []) {
+            var data: Data?
+            if let legacyProtectedStore {
+                switch await legacyProtectedStore.read(service: candidate, account: accountID) {
+                case .unreadable: return nil
+                case .success(let value): data = value
+                case .absent: break
                 }
             }
-            return nil
-        }
-
-        if let data = Self.readKeychainData(service: service, account: accountID) {
-            return data
-        }
-        guard canMigrateLegacy else { return nil }
-        for legacyService in legacyServices {
-            guard let data = Self.readKeychainData(service: legacyService, account: accountID) else {
-                continue
+            if data == nil, candidate != service {
+                data = Self.readKeychainData(service: candidate, account: accountID)
             }
-            if Self.saveKeychainData(data, service: service, account: accountID) {
-                Self.deleteKeychainData(service: legacyService, account: accountID)
+            guard let data else { continue }
+            // The hardware read suspends this actor. Never replace a newer write
+            // that completed while the key was being unlocked.
+            if let current = Self.readKeychainData(service: service, account: accountID) { return current }
+            var query = Self.identity(service: service, account: accountID)
+            query[kSecValueData as String] = data
+            query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            let status = SecItemAdd(query as CFDictionary, nil)
+            guard status == errSecSuccess else {
+                return status == errSecDuplicateItem ? Self.readKeychainData(service: service, account: accountID) : nil
             }
+            guard Self.readKeychainData(service: service, account: accountID) == data else { return nil }
+            defaults.set(true, forKey: migrationKey(accountID))
             return data
         }
         return nil
-    }
-
-    private func migrateToProtectedStore(
-        _ data: Data,
-        accountID: String,
-        protectedStore: any ProtectedCredentialDataStoring
-    ) async -> Bool {
-        guard await protectedStore.save(data, service: service, account: accountID),
-              case .success(let roundTripped) = await protectedStore.read(
-                service: service,
-                account: accountID
-              ) else { return false }
-        return roundTripped == data
     }
 
     private nonisolated static func generation(for data: Data) -> String {

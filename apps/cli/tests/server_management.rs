@@ -363,12 +363,14 @@ async fn source_registration_uses_existing_management_and_storage_guards() {
     assert_eq!(denied.status(), 405);
     let managed = Server::start(&["--manage"]).await;
     let invalid = managed.request(reqwest::Method::POST, "/v1/account-sources")
-        .header("Idempotency-Key", "source-fixture").json(&json!({"kind":"quotio_custom_provider","source":{"domain":"com.other.app","record_id":"fixture"}})).send().await.unwrap();
+        .header("Idempotency-Key", "source-fixture").json(&json!({"kind":"quotio_custom_provider","source":{"domain":"../other.app","record_id":"01234567-89ab-cdef-0123-456789abcdef"}})).send().await.unwrap();
     assert_eq!(invalid.status(), 400);
+    let mut custom_domain = body.clone();
+    custom_domain["source"]["domain"] = "com.other.app".into();
     let disabled = managed
         .request(reqwest::Method::POST, "/v1/account-sources")
         .header("Idempotency-Key", "source-fixture")
-        .json(&body)
+        .json(&custom_domain)
         .send()
         .await
         .unwrap();
@@ -380,4 +382,37 @@ async fn source_registration_uses_existing_management_and_storage_guards() {
             .unwrap()
             .contains("account_storage_disabled")
     );
+}
+
+#[tokio::test]
+async fn legacy_migration_requires_authentication_management_and_storage() {
+    let body = json!({"legacy_id":"legacy-test", "provider":"claude", "label":"Work", "enabled":false,
+        "credential":{"access_token":"synthetic-migration-access", "refresh_token":"synthetic-migration-refresh"}});
+    for (arguments, expected) in [(vec![], 405), (vec!["--manage"], 503)] {
+        let server = Server::start(&arguments).await;
+        let unauthorized = server
+            .client
+            .post(format!("{}/v1/accounts/migrate", server.base))
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), 401);
+        let response = server
+            .request(reqwest::Method::POST, "/v1/accounts/migrate")
+            .header("Idempotency-Key", "legacy-fixture")
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status().as_u16(), expected);
+        assert!(
+            !response
+                .text()
+                .await
+                .unwrap()
+                .contains("synthetic-migration")
+        );
+        assert!(!server.logs.lock().unwrap().contains("synthetic-migration"));
+    }
 }

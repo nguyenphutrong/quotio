@@ -57,7 +57,6 @@ public enum StatusBarMenuSnapshotMapper {
         proxyPort: UInt16,
         isProxyRunning: Bool,
         tunnel: CloudflareTunnelSnapshot,
-        directAuthProviders: Set<QuotaProvider>,
         monitorAccounts: [Account],
         quota: QuotaSnapshot,
         installedAgents: Set<CLIAgent>,
@@ -66,13 +65,14 @@ public enum StatusBarMenuSnapshotMapper {
         appearanceMode: AppearanceMode,
         language: AppLanguage
     ) -> StatusBarMenuSnapshot {
-        var availableProviders = directAuthProviders
-        availableProviders.formUnion(quota.quotas.compactMap { provider, accounts in
-            accounts.isEmpty ? nil : provider
+        let disabledAccounts = Set(monitorAccounts.lazy.filter(\.isDisabled).map {
+            "\($0.providerID.rawValue):\($0.accountKey.lowercased())"
         })
-        if mode == .monitor {
-            availableProviders.formUnion(monitorProviders(monitorAccounts))
-        }
+        let availableProviders = Set(quota.quotas.compactMap { provider, accounts in
+            accounts.contains { accountKey, _ in
+                !disabledAccounts.contains("\(provider.rawValue):\(accountKey.lowercased())")
+            } ? provider : nil
+        })
 
         let providers = filterProviders(
             availableProviders,
@@ -80,7 +80,9 @@ public enum StatusBarMenuSnapshotMapper {
             installedAgents: installedAgents
         ).map { provider in
             let accounts = orderedAccounts(
-                quota.quotas[provider] ?? [:],
+                (quota.quotas[provider] ?? [:]).filter { accountKey, _ in
+                    !disabledAccounts.contains("\(provider.rawValue):\(accountKey.lowercased())")
+                },
                 provider: provider,
                 activeAntigravityEmail: activeAntigravityEmail
             ).map { account in
@@ -123,10 +125,6 @@ public enum StatusBarMenuSnapshotMapper {
             appearanceMode: appearanceMode,
             language: language
         )
-    }
-
-    nonisolated static func monitorProviders(_ accounts: [Account]) -> Set<QuotaProvider> {
-        Set(accounts.lazy.filter { !$0.isDisabled }.map(\.provider))
     }
 
     nonisolated static func filterProviders(
