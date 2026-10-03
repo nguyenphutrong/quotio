@@ -32,7 +32,7 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     var notificationSettingsModel: NotificationSettingsScreenModel { get }
     var telemetryConsentModel: TelemetryConsentScreenModel { get }
     var applicationUpdateModel: ApplicationUpdateScreenModel { get }
-    var yubiKeySettingsModel: YubiKeySettingsScreenModel { get }
+    var credentialMigrationModel: CredentialMigrationScreenModel { get }
     var hasCompletedOnboarding: Bool { get }
     var showInDock: Bool { get }
     var canCheckForUpdates: Bool { get }
@@ -102,7 +102,7 @@ final class AppRuntime {
     }
     var telemetryConsentModel: TelemetryConsentScreenModel { services.telemetryConsentModel }
     var applicationUpdateModel: ApplicationUpdateScreenModel { services.applicationUpdateModel }
-    var yubiKeySettingsModel: YubiKeySettingsScreenModel { services.yubiKeySettingsModel }
+    var credentialMigrationModel: CredentialMigrationScreenModel { services.credentialMigrationModel }
     var showInDock: Bool { services.showInDock }
     var canCheckForUpdates: Bool { services.canCheckForUpdates }
 

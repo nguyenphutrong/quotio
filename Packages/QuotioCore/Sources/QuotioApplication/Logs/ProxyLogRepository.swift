@@ -8,6 +8,10 @@ public struct ProxyLogPage: Sendable, Equatable {
     }
 }
 
+public enum ProxyLogFailure: Error, Sendable, Equatable {
+    case loggingDisabled
+}
+
 public protocol ProxyLogRepository: Sendable {
     func fetchLogs(after timestamp: Int?) async throws -> ProxyLogPage
     func clearLogs() async throws

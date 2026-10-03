@@ -14,7 +14,6 @@ public struct RootNavigationView: View {
     @Environment(QuotaScreenModel.self) private var quota
     @Environment(QuotaFeatureController.self) private var quotaController
     @Environment(OperatingModeManager.self) private var modeManager
-    @Environment(SettingsScreenModel.self) private var settingsModel
 
     public var body: some View {
         @Bindable var navigation = navigation
@@ -42,10 +41,8 @@ public struct RootNavigationView: View {
                             Label("nav.apiKeys".localized(), systemImage: "key.horizontal")
                                 .tag(NavigationPage.apiKeys)
 
-                            if settingsModel.proxyPreferences.loggingToFile {
-                                Label("nav.logs".localized(), systemImage: "doc.text")
-                                    .tag(NavigationPage.logs)
-                            }
+                            Label("nav.logs".localized(), systemImage: "doc.text")
+                                .tag(NavigationPage.logs)
                         }
 
                         Label("nav.settings".localized(), systemImage: "gearshape")

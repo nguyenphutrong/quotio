@@ -1216,7 +1216,7 @@ pub async fn adapters(
     timeout: std::time::Duration,
     filter: Option<&str>,
 ) -> Result<Vec<Arc<dyn ProviderAdapter>>, AccountError> {
-    adapters_with_vault(providers, saved, timeout, filter, Vault::for_usage).await
+    adapters_with_vault(providers, saved, true, timeout, filter, Vault::for_usage).await
 }
 
 pub async fn detected_adapters(
@@ -1256,16 +1256,21 @@ pub async fn detected_adapters(
 
 pub(crate) async fn adapters_in_vault(
     providers: Vec<Provider>,
+    include_owned: bool,
     timeout: std::time::Duration,
     filter: Option<&str>,
     vault: Vault,
 ) -> Result<Vec<Arc<dyn ProviderAdapter>>, AccountError> {
-    adapters_with_vault(providers, true, timeout, filter, move || Ok(vault.clone())).await
+    adapters_with_vault(providers, true, include_owned, timeout, filter, move || {
+        Ok(vault.clone())
+    })
+    .await
 }
 
 async fn adapters_with_vault(
     providers: Vec<Provider>,
     saved: bool,
+    include_owned: bool,
     timeout: std::time::Duration,
     filter: Option<&str>,
     vault: impl Fn() -> Result<Vault, AccountError>,
@@ -1317,6 +1322,16 @@ async fn adapters_with_vault(
         } else {
             Vec::new()
         }
+    });
+    let accounts = accounts.map(|mut accounts| {
+        if !include_owned {
+            accounts.retain(|account| {
+                account.origin() != super::AccountOrigin::Owned
+                    || (account.provider == Provider::Catalog("warp")
+                        && account.label.starts_with("__quotio_local_warp__:"))
+            });
+        }
+        accounts
     });
     choose(providers, filter, accounts, &vault, &local_sources)
 }
@@ -1689,6 +1704,7 @@ mod tests {
                 let local = adapters_with_vault(
                     vec![provider],
                     true,
+                    false,
                     Duration::from_secs(1),
                     Some("local"),
                     || Ok(vault.clone()),
@@ -1702,12 +1718,16 @@ mod tests {
                     assert!(matches!(local, Err(AccountError::Unsupported)));
                 }
 
-                let selected =
-                    adapters_with_vault(vec![provider], true, Duration::from_secs(1), None, || {
-                        Ok(vault.clone())
-                    })
-                    .await
-                    .unwrap();
+                let selected = adapters_with_vault(
+                    vec![provider],
+                    true,
+                    false,
+                    Duration::from_secs(1),
+                    None,
+                    || Ok(vault.clone()),
+                )
+                .await
+                .unwrap();
                 let ids: Vec<_> = selected
                     .iter()
                     .map(|a| a.account_ref().unwrap().id)
@@ -1717,6 +1737,69 @@ mod tests {
                 assert!(ids.contains(&id));
             }
         }
+    }
+
+    #[tokio::test]
+    async fn excluding_owned_accounts_restores_native_adapter_selection() {
+        let path = std::env::temp_dir().join(random_string().unwrap());
+        let vault = Vault::new(Arc::new(Memory::default()), path.clone());
+        for provider in [
+            Provider::Catalog("claude"),
+            Provider::Catalog("copilot"),
+            Provider::Catalog("kiro"),
+            Provider::Factory,
+            Provider::Catalog("devin-desktop"),
+            Provider::Catalog("grok"),
+        ] {
+            let id = add(
+                vault.clone(),
+                provider,
+                "Owned".into(),
+                Credential::ApiKey {
+                    token: "synthetic-key".into(),
+                    region: None,
+                    organization: None,
+                },
+                provider.id().into(),
+            )
+            .await
+            .unwrap();
+            for include_owned in [false, true] {
+                let selected = adapters_in_vault(
+                    vec![provider],
+                    include_owned,
+                    Duration::from_secs(1),
+                    None,
+                    vault.clone(),
+                )
+                .await
+                .unwrap();
+                assert_eq!(
+                    selected
+                        .iter()
+                        .any(|a| a.account_ref().is_some_and(|r| r.id == id)),
+                    include_owned,
+                );
+                if !include_owned {
+                    assert_eq!(selected.len(), 1);
+                    let reference = selected[0].account_ref().unwrap();
+                    assert_eq!(reference.id, "local");
+                    assert_eq!(reference.origin, None);
+                }
+            }
+            assert!(matches!(
+                adapters_in_vault(
+                    vec![provider],
+                    false,
+                    Duration::from_secs(1),
+                    Some(&id),
+                    vault.clone(),
+                )
+                .await,
+                Err(AccountError::NotFound)
+            ));
+        }
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

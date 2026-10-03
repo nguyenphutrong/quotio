@@ -54,7 +54,6 @@ final class StatusBarMenuSnapshotMapperTests: XCTestCase {
             proxyPort: 8317,
             isProxyRunning: true,
             tunnel: tunnel,
-            directAuthProviders: [.antigravity, .claude],
             monitorAccounts: [enabledMonitorAccount, disabledMonitorAccount],
             quota: quota,
             installedAgents: [],
@@ -68,8 +67,8 @@ final class StatusBarMenuSnapshotMapperTests: XCTestCase {
         XCTAssertEqual(snapshot.proxyPort, 8317)
         XCTAssertTrue(snapshot.isProxyRunning)
         XCTAssertEqual(snapshot.tunnel, tunnel)
-        XCTAssertEqual(snapshot.providers.map(\.provider), [.amp, .antigravity, .claude])
-        XCTAssertEqual(snapshot.selectedProvider, .amp)
+        XCTAssertEqual(snapshot.providers.map(\.provider), [.antigravity, .claude])
+        XCTAssertNil(snapshot.selectedProvider)
         XCTAssertTrue(snapshot.isLoadingQuotas)
         XCTAssertEqual(snapshot.displaySettings.quotaDisplayMode, .remaining)
         XCTAssertEqual(snapshot.displaySettings.quotaDisplayStyle, .ring)
@@ -96,9 +95,12 @@ final class StatusBarMenuSnapshotMapperTests: XCTestCase {
             proxyPort: 8317,
             isProxyRunning: false,
             tunnel: CloudflareTunnelSnapshot(),
-            directAuthProviders: [.antigravity, .claude, .codex],
             monitorAccounts: [],
-            quota: QuotaSnapshot(),
+            quota: QuotaSnapshot(quotas: [
+                .antigravity: ["antigravity": ProviderQuota()],
+                .claude: ["claude": ProviderQuota()],
+                .codex: ["codex": ProviderQuota()],
+            ]),
             installedAgents: [.codexCLI],
             activeAntigravityEmail: nil,
             menuBarPreferences: MenuBarPreferences(selectedProvider: .claude),
@@ -109,6 +111,34 @@ final class StatusBarMenuSnapshotMapperTests: XCTestCase {
         XCTAssertTrue(snapshot.isLocalProxyMode)
         XCTAssertEqual(snapshot.providers.map(\.provider), [.antigravity, .codex])
         XCTAssertNil(snapshot.selectedProvider)
+    }
+
+    func testSnapshotOnlyIncludesEnabledAccountsWithQuota() {
+        let disabledAccount = Account.make(
+            providerID: AccountProviderID(rawValue: QuotaProvider.claude.rawValue),
+            accountKey: "disabled@example.com",
+            source: .nativeCredential,
+            status: .disabled
+        )
+        let snapshot = StatusBarMenuSnapshotMapper.makeSnapshot(
+            mode: .monitor,
+            proxyPort: 8317,
+            isProxyRunning: false,
+            tunnel: CloudflareTunnelSnapshot(),
+            monitorAccounts: [disabledAccount],
+            quota: QuotaSnapshot(quotas: [
+                .claude: ["disabled@example.com": ProviderQuota()],
+                .codex: ["enabled@example.com": ProviderQuota()],
+            ]),
+            installedAgents: [],
+            activeAntigravityEmail: nil,
+            menuBarPreferences: MenuBarPreferences(),
+            appearanceMode: .system,
+            language: .english
+        )
+
+        XCTAssertEqual(snapshot.providers.map(\.provider), [.codex])
+        XCTAssertEqual(snapshot.providers.first?.accounts.map(\.email), ["enabled@example.com"])
     }
 }
 
@@ -167,7 +197,6 @@ final class StatusBarMenuRendererTests: XCTestCase {
             proxyPort: 8317,
             isProxyRunning: false,
             tunnel: CloudflareTunnelSnapshot(),
-            directAuthProviders: [.claude, .codex],
             monitorAccounts: [],
             quota: QuotaSnapshot(quotas: [
                 .claude: [

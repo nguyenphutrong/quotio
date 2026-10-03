@@ -33,7 +33,7 @@ public actor ManagementAPIClient: ProxyLogRepository {
     public func fetchLogs(after timestamp: Int?) async throws -> ProxyLogPage {
         let request = try await makeRequest(method: "GET", after: timestamp)
         let (data, response) = try await session.data(for: request)
-        try validate(response)
+        try validate(response, data: data)
         let payload = try JSONDecoder().decode(LogsResponse.self, from: data)
         return ProxyLogPage(
             lines: payload.lines ?? [],
@@ -67,9 +67,15 @@ public actor ManagementAPIClient: ProxyLogRepository {
         return request
     }
 
-    private func validate(_ response: URLResponse) throws {
+    private func validate(_ response: URLResponse, data: Data? = nil) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ClientError.invalidResponse
+        }
+        if httpResponse.statusCode == 400,
+           let data,
+           let error = try? JSONDecoder().decode(ManagementErrorResponse.self, from: data),
+           error.error == "logging to file disabled" {
+            throw ProxyLogFailure.loggingDisabled
         }
         guard 200...299 ~= httpResponse.statusCode else {
             throw ClientError.httpError(httpResponse.statusCode)
@@ -78,6 +84,10 @@ public actor ManagementAPIClient: ProxyLogRepository {
 }
 
 private extension ManagementAPIClient {
+    struct ManagementErrorResponse: Decodable {
+        let error: String
+    }
+
     struct LogsResponse: Decodable {
         let lines: [String]?
         let latestTimestamp: Int?

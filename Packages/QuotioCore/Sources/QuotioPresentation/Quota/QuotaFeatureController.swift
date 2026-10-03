@@ -21,15 +21,16 @@ public final class QuotaFeatureController {
     @ObservationIgnored private let menuBarSettings: MenuBarSettingsManager
     @ObservationIgnored private let notifications: any NotificationRequesting
     @ObservationIgnored private var authFiles: () -> [ManagedAuthFile]
+    @ObservationIgnored private let authFileState: (any ManagedAuthFileStateRepository)?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var didChangeHandler: (@MainActor () -> Void)?
 
     private static let localProxyProviders: Set<QuotaProvider> = [
-        .claude, .codex, .antigravity, .kiro, .copilot, .glm, .warp, .clinePass,
+        .claude, .codex, .antigravity, .vertex, .kiro, .copilot, .glm, .warp, .clinePass,
     ]
 
     private static let monitorProviders: Set<QuotaProvider> = [
-        .claude, .codex, .antigravity, .kiro, .copilot, .factoryDroid,
+        .claude, .codex, .antigravity, .vertex, .kiro, .copilot, .factoryDroid,
         .devin, .grok, .openRouter, .amp, .glm, .warp, .clinePass,
     ]
 
@@ -49,7 +50,8 @@ public final class QuotaFeatureController {
         refreshSettings: RefreshSettingsManager,
         menuBarSettings: MenuBarSettingsManager,
         notifications: any NotificationRequesting,
-        authFiles: @escaping () -> [ManagedAuthFile]
+        authFiles: @escaping () -> [ManagedAuthFile],
+        authFileState: (any ManagedAuthFileStateRepository)? = nil
     ) {
         self.quota = quota
         self.accounts = accounts
@@ -60,6 +62,7 @@ public final class QuotaFeatureController {
         self.menuBarSettings = menuBarSettings
         self.notifications = notifications
         self.authFiles = authFiles
+        self.authFileState = authFileState
         refreshSettings.addCadenceChangeHandler { [weak self] _ in
             self?.restartAutomaticRefresh()
         }
@@ -84,6 +87,7 @@ public final class QuotaFeatureController {
     }
 
     public func initialize() async {
+        await accounts.registerDetectedNativeAccounts()
         await quota.bootstrap(mode: operatingMode)
         await accounts.reloadAuthFiles()
         await reloadAccounts()
@@ -131,7 +135,7 @@ public final class QuotaFeatureController {
     }
 
     func refreshImportedIDEQuotas() async {
-        for provider in [QuotaProvider.cursor, .trae] {
+        for provider in [QuotaProvider.cursor, .trae] where provider.supportsQuotaOnlyMode {
             let keys = Set(quota.providerQuotas[provider]?.keys.map { $0 } ?? [])
             guard !keys.isEmpty else { continue }
             await quota.refresh(
@@ -144,7 +148,7 @@ public final class QuotaFeatureController {
     }
 
     func importIDEProvider(_ provider: QuotaProvider) async -> [String: ProviderQuota] {
-        guard provider.isImportedFromLocalIDE else { return [:] }
+        guard provider.isImportedFromLocalIDE, provider.supportsQuotaOnlyMode else { return [:] }
         await quota.refresh(provider: provider, mode: operatingMode, force: true)
         await finishRefresh()
         return quota.providerQuotas[provider] ?? [:]
@@ -298,14 +302,16 @@ public final class QuotaFeatureController {
                 }
             }
         }
-        for file in authFiles() where !file.disabled {
+        let disabledFiles = authFileState?.disabledAuthFileNames() ?? []
+        for file in authFiles() where !file.disabled && !disabledFiles.contains(file.name) {
             guard let provider = file.providerID else { continue }
             let item = canonicalItem(MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey))
             if !disabledItemIDs.contains(item.id.lowercased()), seen.insert(item.id).inserted {
                 available.append(item)
             }
         }
-        for file in accounts.authFiles {
+        for file in accounts.authFiles
+        where file.source != .cliProxyApi || !disabledFiles.contains(file.filename) {
             guard let provider = QuotaProvider(rawValue: file.providerID.rawValue) else { continue }
             let item = canonicalItem(MenuBarQuotaItem(provider: provider.rawValue, accountKey: file.menuBarAccountKey))
             if !disabledItemIDs.contains(item.id.lowercased()), seen.insert(item.id).inserted {
@@ -362,7 +368,8 @@ public final class QuotaFeatureController {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: interval)
                 guard !Task.isCancelled else { return }
-                await self?.refreshAll()
+                guard let self else { return }
+                await refreshAll(force: true)
             }
         }
     }
