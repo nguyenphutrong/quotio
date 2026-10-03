@@ -29,7 +29,7 @@ enum CompositionRoot {
         let urlOpener = WorkspaceURLOpener()
         let applicationPlatform = AppKitApplicationPlatformAdapter()
         let pasteboard = PasteboardScreenModel(writer: MacOSPasteboardAdapter())
-        let yubiKeyVault = YubiKeyVaultAdapter()
+        let legacyYubiKey = LegacyYubiKeyCredentialReader()
         let languageManager = LanguageManager(
             repository: UserDefaultsLanguagePreferencesRepository()
         )
@@ -60,7 +60,7 @@ enum CompositionRoot {
                     service: AppIdentity.keychainService(suffix: "local-management"),
                     legacyServices: AppIdentity.legacyKeychainServices(suffix: "local-management"),
                     canMigrateLegacy: AppIdentity.isProduction,
-                    protectedStore: yubiKeyVault
+                    legacyProtectedStore: legacyYubiKey
                 )
             ),
             configurationSupplement: CustomProviderConfigurationSupplement(
@@ -82,64 +82,51 @@ enum CompositionRoot {
         )
 
         let authFileRepository = FileAuthFileRepository()
-        let metadataRepository = FileAccountMetadataRepository()
-        let externalCredentials = ExternalKeychainCredentialReader()
-        let quotaHTTPSession = ReloadableQuotaHTTPSession {
-            URLSession(configuration: ProxyURLSessionFactory.makeConfiguration(timeout: 15))
-        }
-        let kiroHTTPSession = ReloadableQuotaHTTPSession {
-            URLSession(configuration: ProxyURLSessionFactory.makeConfiguration(timeout: 20))
-        }
-        let ampHTTPSession = ReloadableQuotaHTTPSession {
-            AmpQuotaFetcher.makeSession()
-        }
-        let credentialVault = CredentialVaultService(
-            dataStore: KeychainCredentialDataStore(
-                service: AppIdentity.keychainService(suffix: "monitor-auth"),
-                legacyServices: AppIdentity.legacyKeychainServices(suffix: "monitor-auth"),
-                canMigrateLegacy: AppIdentity.isProduction,
-                protectedStore: yubiKeyVault
-            ),
-            metadataRepository: metadataRepository
+        let authFileState = UserDefaultsManagedAuthFileStateRepository()
+        let quotioBackend = QuotioCLIBackend(
+            customProviders: customProviderRepository.load,
+            customProviderDomain: AppIdentity.bundleIdentifier,
+            authFileState: authFileState,
+            localization: { (languageManager.bundle, languageManager.locale) }
         )
-        let accountDiscovery = LocalAccountDiscovery(
-            vault: credentialVault,
-            authFileRepository: authFileRepository,
-            metadataRepository: metadataRepository,
-            externalCredentials: externalCredentials
+        let agentInstallationProbe = AgentBinaryInstallationProbe()
+        let quotioServer = QuotioCLIServerProcess(
+            proxyAuthDirectory: URL(fileURLWithPath: paths.authDirectoryPath, isDirectory: true),
+            providers: [
+                "claude", "codex", "antigravity", "kiro", "copilot", "cursor",
+                "factory", "devin-desktop", "grok", "openrouter", "amp", "zai",
+                "vertexai", "warp", "clinepass", "opencodego",
+            ],
+            executableDirectories: [CLIAgent.codexCLI, .ampCLI]
+                .compactMap(agentInstallationProbe.path)
+                .map { URL(fileURLWithPath: $0).deletingLastPathComponent() },
+            applicationSupportDirectoryName: AppIdentity.bundleIdentifier,
+            accountVaultNamespace: AppIdentity.quotioCLIVaultNamespace()
         )
-        let accountService = AccountService(
-            discovery: accountDiscovery,
-            metadataRepository: metadataRepository,
-            credentialVault: credentialVault,
-            reservedLabels: [
-                AccountProviderID(rawValue: QuotaProvider.amp.rawValue): [ProviderAccountKey.ampNative],
-            ]
-        )
+        let reconnectQuotioServer: @MainActor @Sendable () async -> Bool = {
+            await quotioBackend.disconnect()
+            guard let connection = try? await quotioServer.start() else { return false }
+            await quotioBackend.connect(connection)
+            return true
+        }
+        quotioServer.onUnexpectedTermination = {
+            Task {
+                for delay in [1, 2, 4] {
+                    try? await Task.sleep(for: .seconds(delay))
+                    if await reconnectQuotioServer() { return }
+                }
+            }
+        }
         let accountsScreenModel = AccountsScreenModel(
-            accountService: accountService,
+            accountService: quotioBackend,
             authFileRepository: authFileRepository
         )
-        let kiroQuotaFetcher = QuotioInfrastructure.KiroQuotaFetcher(
-            vault: credentialVault,
-            metadata: metadataRepository,
-            session: kiroHTTPSession
-        )
 
-        let monitorAuthorizer = MonitorOAuthAuthorizer(
-            vault: credentialVault,
+        let monitorAuthorizer = QuotioCLIOAuthAuthorizer(
+            backend: quotioBackend,
             urlOpener: urlOpener,
-            callbackTransport: LoopbackOAuthCallbackTransport(),
-            httpTransport: URLSessionOAuthHTTPTransport()
-        ) { accessToken, expiresAt, clientID, clientSecret, region in
-            await kiroQuotaFetcher.authenticatedAccountIdentity(
-                accessToken: accessToken,
-                expiresAt: expiresAt,
-                clientID: clientID,
-                clientSecret: clientSecret,
-                region: region
-            )
-        }
+            callbackTransport: LoopbackOAuthCallbackTransport()
+        )
         let localProxyAuthorizer = LocalProxyOAuthAuthorizer(
             runtime: { [proxyScreenModel] in
                 LocalProxyOAuthRuntime(
@@ -161,9 +148,7 @@ enum CompositionRoot {
             authFiles: authFileRepository,
             urlOpener: urlOpener,
             managementAPIFactory: managementAPIFactory
-        ) {
-            await kiroQuotaFetcher.refreshAllLocalTokensIfNeeded()
-        }
+        ) { 0 }
         let modeManager = OperatingModeManager(
             repository: UserDefaultsOperatingModePreferencesRepository()
         )
@@ -177,83 +162,20 @@ enum CompositionRoot {
             controller: OAuthFlowController(authorizer: authorizer)
         )
 
-        let factoryDroidCredentials = LocalFactoryDroidCredentialStore()
         let warpTokenRepository = SecureWarpTokenRepository(
             dataStore: KeychainCredentialDataStore(
                 service: AppIdentity.keychainService(suffix: "warp"),
                 legacyServices: AppIdentity.legacyKeychainServices(suffix: "warp"),
                 canMigrateLegacy: AppIdentity.isProduction,
-                protectedStore: yubiKeyVault
+                legacyProtectedStore: legacyYubiKey
             )
         )
-        let warpTokenScreenModel = WarpTokenScreenModel(repository: warpTokenRepository)
-        let registry = QuotaProviderRegistry([
-            QuotioInfrastructure.ClaudeQuotaFetcher(
-                credentials: CompositeClaudeQuotaCredentialLoader(
-                    vault: credentialVault,
-                    metadata: metadataRepository
-                ),
-                session: quotaHTTPSession
-            ),
-            QuotioInfrastructure.CodexQuotaFetcher(
-                credentials: CompositeCodexQuotaCredentialLoader(
-                    vault: credentialVault,
-                    metadata: metadataRepository
-                ),
-                session: quotaHTTPSession
-            ),
-            QuotioInfrastructure.AntigravityQuotaFetcher(
-                vault: credentialVault,
-                metadata: metadataRepository,
-                nativeCredentials: NativeAntigravityCredentialReader(session: quotaHTTPSession),
-                session: quotaHTTPSession
-            ),
-            QuotioInfrastructure.CopilotQuotaFetcher(
-                vault: credentialVault,
-                metadata: metadataRepository,
-                session: quotaHTTPSession
-            ),
-            kiroQuotaFetcher,
-            QuotioInfrastructure.CursorQuotaFetcher(session: quotaHTTPSession),
-            QuotioInfrastructure.TraeQuotaFetcher(session: quotaHTTPSession),
-            QuotioInfrastructure.FactoryDroidQuotaFetcher(
-                vault: credentialVault,
-                metadata: metadataRepository,
-                localCredentials: factoryDroidCredentials,
-                credentialWriter: factoryDroidCredentials,
-                session: quotaHTTPSession
-            ),
-            QuotioInfrastructure.GLMQuotaFetcher(
-                repository: customProviderRepository,
-                session: quotaHTTPSession
-            ),
-            QuotioInfrastructure.ClinePassQuotaFetcher(
-                repository: customProviderRepository,
-                session: quotaHTTPSession
-            ),
-            QuotioInfrastructure.WarpQuotaFetcher(
-                repository: warpTokenRepository,
-                session: quotaHTTPSession
-            ),
-            QuotioInfrastructure.OpenRouterQuotaFetcher(
-                vault: credentialVault,
-                metadata: metadataRepository,
-                session: quotaHTTPSession
-            ),
-            QuotioInfrastructure.AmpQuotaFetcher(
-                vault: credentialVault,
-                metadata: metadataRepository,
-                session: ampHTTPSession
-            ),
-            QuotioInfrastructure.DevinQuotaFetcher(session: quotaHTTPSession),
-            QuotioInfrastructure.GrokQuotaFetcher(session: quotaHTTPSession),
-        ])
+        let warpTokenScreenModel = WarpTokenScreenModel(
+            repository: warpTokenRepository,
+            synchronize: quotioBackend.synchronizeWarpTokens
+        )
         let quotaScreenModel = QuotaScreenModel(
-            coordinator: QuotaRefreshCoordinator(
-                registry: registry,
-                snapshots: PersistentQuotaSnapshotStore(),
-                clock: SystemDateProvider()
-            )
+            coordinator: quotioBackend
         )
         let dashboardScreenModel = DashboardScreenModel(
             quota: quotaScreenModel,
@@ -294,7 +216,8 @@ enum CompositionRoot {
             refreshSettings: refreshSettings,
             menuBarSettings: menuBarSettings,
             notifications: notificationController,
-            authFiles: { [] }
+            authFiles: { [] },
+            authFileState: authFileState
         )
         antigravityAccountScreenModel.setDidSwitchHandler { [weak quotaController] in
             await quotaController?.refresh(provider: .antigravity)
@@ -328,7 +251,6 @@ enum CompositionRoot {
         )
         let agentFileStore = AgentFileStore()
         let agentDetector = AgentDetectionAdapter()
-        let agentInstallationProbe = AgentBinaryInstallationProbe()
         let copilotAvailableModelCatalog = CopilotAvailableModelCatalog()
         let agentConfigurationService = QuotioApplication.AgentConfigurationService(
             adapters: [
@@ -366,7 +288,7 @@ enum CompositionRoot {
             refreshSettings: refreshSettings,
             tunnelPreferences: tunnelPreferences,
             proxyPreferences: proxyPreferences,
-            authFileState: UserDefaultsManagedAuthFileStateRepository(),
+            authFileState: authFileState,
             managementAPIFactory: managementAPIFactory
         )
         proxyManagementReference = proxyManagement
@@ -439,7 +361,24 @@ enum CompositionRoot {
             updatePreferencesRepository: updatePreferences
         )
         let telemetryConsentModel = TelemetryConsentScreenModel(controller: telemetryController)
-        let yubiKeySettingsModel = YubiKeySettingsScreenModel(vault: yubiKeyVault)
+        let legacyMigration = QuotioCLILegacyAccountMigration(
+            credentials: KeychainCredentialDataStore(
+                service: AppIdentity.keychainService(suffix: "monitor-auth"),
+                legacyServices: AppIdentity.legacyKeychainServices(suffix: "monitor-auth"),
+                canMigrateLegacy: AppIdentity.isProduction,
+                legacyProtectedStore: legacyYubiKey
+            ),
+            codexKeychain: ExternalKeychainCredentialReader(),
+            importAccount: { account, credential, disabled in
+                try await quotioBackend.importLegacyAccount(account, credential: credential, disabled: disabled)
+            }
+        )
+        let credentialMigrationModel = CredentialMigrationScreenModel {
+            let result = await legacyMigration.migrate()
+            await warpTokenScreenModel.load()
+            await accountsScreenModel.reloadAccounts()
+            return result
+        }
         let launchAtLoginController = LaunchAtLoginController(
             registration: ServiceManagementLaunchAtLoginAdapter(),
             urlOpener: urlOpener
@@ -481,12 +420,7 @@ enum CompositionRoot {
             applyDockVisibility: { [applicationPlatform] enabled in
                 applicationPlatform.setDockVisibility(enabled)
             },
-            reloadQuotaNetwork: {
-                async let reloadQuota: Void = quotaHTTPSession.reload()
-                async let reloadKiro: Void = kiroHTTPSession.reload()
-                async let reloadAmp: Void = ampHTTPSession.reload()
-                _ = await (reloadQuota, reloadKiro, reloadAmp)
-            }
+            reloadQuotaNetwork: { _ = await reconnectQuotioServer() }
         )
         let providerImageCache = ProviderImageCacheAdapter()
         let providerImageModel = ProviderImageScreenModel(
@@ -524,13 +458,16 @@ enum CompositionRoot {
             notificationSettingsModel: notificationSettingsModel,
             telemetryConsentModel: telemetryConsentModel,
             applicationUpdateModel: applicationUpdateModel,
-            yubiKeySettingsModel: yubiKeySettingsModel,
+            credentialMigrationModel: credentialMigrationModel,
             notificationController: notificationController,
             telemetryController: telemetryController,
             applicationUpdateController: applicationUpdateController,
             applicationPlatform: applicationPlatform,
             proxyUpdatePolling: proxyUpdatePolling,
             tunnel: tunnel,
+            quotioServer: quotioServer,
+            quotioBackend: quotioBackend,
+            reconnectQuotioServer: reconnectQuotioServer,
             isCLIInstalled: agentInstallationProbe.isInstalled
         )
         return AppRuntime(services: services)
@@ -579,7 +516,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     let notificationSettingsModel: NotificationSettingsScreenModel
     let telemetryConsentModel: TelemetryConsentScreenModel
     let applicationUpdateModel: ApplicationUpdateScreenModel
-    let yubiKeySettingsModel: YubiKeySettingsScreenModel
+    let credentialMigrationModel: CredentialMigrationScreenModel
 
     private let notificationController: NotificationController
     private let telemetryController: TelemetryController
@@ -587,6 +524,9 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     private let applicationPlatform: AppKitApplicationPlatformAdapter
     private let proxyUpdatePolling: ProxyUpdatePollingController
     private let tunnel: TunnelScreenModel
+    private let quotioServer: QuotioCLIServerProcess
+    private let quotioBackend: QuotioCLIBackend
+    private let reconnectQuotioServer: @MainActor @Sendable () async -> Bool
     private let isCLIInstalled: (CLIAgent) -> Bool
 
     var hasCompletedOnboarding: Bool { modeManager.hasCompletedOnboarding }
@@ -622,13 +562,16 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         notificationSettingsModel: NotificationSettingsScreenModel,
         telemetryConsentModel: TelemetryConsentScreenModel,
         applicationUpdateModel: ApplicationUpdateScreenModel,
-        yubiKeySettingsModel: YubiKeySettingsScreenModel,
+        credentialMigrationModel: CredentialMigrationScreenModel,
         notificationController: NotificationController,
         telemetryController: TelemetryController,
         applicationUpdateController: ApplicationUpdateController,
         applicationPlatform: AppKitApplicationPlatformAdapter,
         proxyUpdatePolling: ProxyUpdatePollingController,
         tunnel: TunnelScreenModel,
+        quotioServer: QuotioCLIServerProcess,
+        quotioBackend: QuotioCLIBackend,
+        reconnectQuotioServer: @escaping @MainActor @Sendable () async -> Bool,
         isCLIInstalled: @escaping (CLIAgent) -> Bool
     ) {
         self.proxyManagement = proxyManagement
@@ -659,13 +602,16 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         self.notificationSettingsModel = notificationSettingsModel
         self.telemetryConsentModel = telemetryConsentModel
         self.applicationUpdateModel = applicationUpdateModel
-        self.yubiKeySettingsModel = yubiKeySettingsModel
+        self.credentialMigrationModel = credentialMigrationModel
         self.notificationController = notificationController
         self.telemetryController = telemetryController
         self.applicationUpdateController = applicationUpdateController
         self.applicationPlatform = applicationPlatform
         self.proxyUpdatePolling = proxyUpdatePolling
         self.tunnel = tunnel
+        self.quotioServer = quotioServer
+        self.quotioBackend = quotioBackend
+        self.reconnectQuotioServer = reconnectQuotioServer
         self.isCLIInstalled = isCLIInstalled
     }
 
@@ -770,6 +716,11 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     }
 
     func initializeFeatures() async {
+        if await reconnectQuotioServer() {
+            await credentialMigrationModel.migrate()
+        } else {
+            await warpTokenScreenModel.load()
+        }
         await tunnel.refreshInstallation()
         if modeManager.isLocalProxyMode {
             await proxyManagement.initialize()
@@ -799,6 +750,8 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     func shutdownOAuth() async {
         await warmupScreenModel.shutdown()
         await quotaController.shutdown()
+        await quotioBackend.disconnect()
+        await quotioServer.stop()
     }
 
     func stopTunnel() async {
@@ -827,9 +780,6 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
             proxyPort: proxyManagement.proxy.port,
             isProxyRunning: proxyManagement.proxy.proxyStatus.running,
             tunnel: tunnel.tunnelState,
-            directAuthProviders: Set(proxyManagement.directAuthFiles.compactMap {
-                QuotaProvider(rawValue: $0.providerID.rawValue)
-            }),
             monitorAccounts: accountsScreenModel.accounts,
             quota: quotaScreenModel.state,
             installedAgents: installedAgents,

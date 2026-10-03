@@ -53,6 +53,20 @@ final class MenuBarQuotaPairTests: XCTestCase {
         XCTAssertNil(MenuBarQuotaPair.resolve(for: .amp, from: models))
     }
 
+    func testOpenCodeGoUsesFiveHourAndWeeklyWindows() throws {
+        let models = [
+            QuotaMetric(name: "opencodego-five-hour", percentage: 88, resetTime: ""),
+            QuotaMetric(name: "opencodego-weekly", percentage: 70, resetTime: ""),
+            QuotaMetric(name: "opencodego-monthly", percentage: 97, resetTime: ""),
+        ]
+
+        let pair = try XCTUnwrap(MenuBarQuotaPair.resolve(for: .openCodeGo, from: models))
+
+        XCTAssertEqual(pair.top, MenuBarQuotaMetric(labelKey: "quota.metric.fiveHour", remainingPercentage: 88))
+        XCTAssertEqual(pair.bottom, MenuBarQuotaMetric(labelKey: "quota.metric.weekly", remainingPercentage: 70))
+        XCTAssertNil(MenuBarQuotaPair.resolve(for: .openCodeGo, from: [models[0]]))
+    }
+
     func testAntigravityUsesLowestProviderLimitForEachWindow() throws {
         let models = [
             QuotaMetric(name: "antigravity-gemini-session", percentage: 72, resetTime: ""),

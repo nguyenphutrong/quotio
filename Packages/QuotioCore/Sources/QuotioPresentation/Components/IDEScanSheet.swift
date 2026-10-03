@@ -124,15 +124,6 @@ struct IDEScanSheet: View {
                     isOn: $scanOptions.scanCursor
                 )
                 
-                // Trae IDE
-                scanOptionRow(
-                    icon: "trae-menubar",
-                    iconFallback: "laptopcomputer",
-                    title: "Trae IDE",
-                    detail: "ideScan.trae.detail".localized(),
-                    isOn: $scanOptions.scanTrae
-                )
-                
                 // CLI Tools
                 scanOptionRow(
                     icon: nil,
@@ -206,12 +197,6 @@ struct IDEScanSheet: View {
                         resultRow(icon: "checkmark.circle.fill", color: .green, text: "Cursor: \((result.cursorEmail ?? "Found").masked(if: settings.hideSensitiveInfo))")
                     } else if scanOptions.scanCursor {
                         resultRow(icon: "xmark.circle.fill", color: .secondary, text: "Cursor: " + "ideScan.notFound".localized())
-                    }
-                    
-                    if result.traeFound {
-                        resultRow(icon: "checkmark.circle.fill", color: .green, text: "Trae: \((result.traeEmail ?? "Found").masked(if: settings.hideSensitiveInfo))")
-                    } else if scanOptions.scanTrae {
-                        resultRow(icon: "xmark.circle.fill", color: .secondary, text: "Trae: " + "ideScan.notFound".localized())
                     }
                     
                     if !result.cliToolsFound.isEmpty {

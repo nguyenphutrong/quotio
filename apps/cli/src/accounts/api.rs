@@ -1,4 +1,6 @@
 //! API-neutral account operations. These types deliberately exclude credentials.
+pub mod migration;
+
 use super::{AccountError, Credential, service, vault::Vault};
 use crate::{cli::Provider, providers::ProviderContext};
 use serde::{Deserialize, Serialize};
@@ -14,6 +16,8 @@ pub struct AccountDto {
     pub enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_kind: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_id: Option<String>,
 }
 impl From<&super::Account> for AccountDto {
     fn from(account: &super::Account) -> Self {
@@ -38,6 +42,8 @@ impl From<&super::Account> for AccountDto {
                 Credential::QuotioCustomProvider { .. } => Some("quotio_custom_provider"),
                 _ => None,
             },
+            source_id: matches!(account.credential, Credential::QuotioCustomProvider { .. })
+                .then(|| account.identity.clone()),
         }
     }
 }
@@ -58,7 +64,48 @@ pub struct AccountPatch {
     pub enabled: Option<bool>,
     pub label: Option<String>,
     pub active: Option<bool>,
+    pub api_key: Option<String>,
+    #[serde(default, deserialize_with = "present_nullable")]
+    pub settings: Option<Option<BTreeMap<String, String>>>,
+    #[serde(default, deserialize_with = "present_nullable")]
+    pub region: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_nullable")]
+    pub organization: Option<Option<String>>,
 }
+// A missing PATCH field preserves the value; explicit null resets it.
+fn present_nullable<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+impl AccountPatch {
+    fn replacement_input(&self, account: &super::Account) -> Result<ApiKeyInput, AccountError> {
+        let (settings, region, organization) = match &account.credential {
+            Credential::ApiKey {
+                region,
+                organization,
+                ..
+            } => (BTreeMap::new(), region.clone(), organization.clone()),
+            Credential::CatalogKey { settings, .. } => (settings.clone(), None, None),
+            _ => return Err(AccountError::Unsupported),
+        };
+        Ok(ApiKeyInput {
+            provider: account.provider,
+            label: None,
+            api_key: self.api_key.clone().ok_or(AccountError::Input)?,
+            settings: self
+                .settings
+                .clone()
+                .map(Option::unwrap_or_default)
+                .unwrap_or(settings),
+            region: self.region.clone().unwrap_or(region),
+            organization: self.organization.clone().unwrap_or(organization),
+        })
+    }
+}
+
 fn credential(input: ApiKeyInput, context: &ProviderContext) -> Result<Credential, AccountError> {
     let ApiKeyInput {
         provider,
@@ -276,6 +323,12 @@ pub struct PreparedAccount {
     credential: Credential,
     identity: String,
 }
+pub struct PreparedPatch {
+    label: Option<String>,
+    active: Option<bool>,
+    enabled: Option<bool>,
+    replacement: Option<(Provider, String, Credential)>,
+}
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SourceInput {
@@ -454,6 +507,40 @@ pub async fn prepare(
         identity: usage.account.id,
     })
 }
+pub async fn prepare_update(
+    vault: Vault,
+    context: &ProviderContext,
+    id: &str,
+    patch: AccountPatch,
+) -> Result<PreparedPatch, AccountError> {
+    let replacement = match &patch.api_key {
+        Some(_) => {
+            let account = service::get(vault, id.to_owned()).await?;
+            let credential = credential(patch.replacement_input(&account)?, context)?;
+            let usage = tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                service::validate(context, account.provider, &credential),
+            )
+            .await
+            .map_err(|_| AccountError::Cancelled)??;
+            Some((account.provider, usage.account.id, credential))
+        }
+        None if patch.settings.is_some()
+            || patch.region.is_some()
+            || patch.organization.is_some() =>
+        {
+            return Err(AccountError::Input);
+        }
+        None => None,
+    };
+    Ok(PreparedPatch {
+        label: patch.label,
+        active: patch.active,
+        enabled: patch.enabled,
+        replacement,
+    })
+}
+
 pub async fn save(vault: Vault, prepared: PreparedAccount) -> Result<AccountDto, AccountError> {
     let account = service::add_persisted(
         vault,
@@ -483,11 +570,14 @@ pub async fn save_once(
 pub async fn update_once(
     vault: Vault,
     id: String,
-    patch: AccountPatch,
+    patch: PreparedPatch,
     intent: service::MutationIntent,
 ) -> Result<String, AccountError> {
     service::commit_once(vault, intent, move |document| {
         document.patch(&id, patch.label.as_deref(), patch.active, patch.enabled)?;
+        if let Some((provider, identity, credential)) = patch.replacement {
+            document.replace_api_key(&id, provider, identity, credential)?;
+        }
         Ok(id)
     })
     .await
@@ -527,6 +617,13 @@ pub async fn update(
     id: String,
     patch: AccountPatch,
 ) -> Result<AccountDto, AccountError> {
+    if patch.api_key.is_some()
+        || patch.settings.is_some()
+        || patch.region.is_some()
+        || patch.organization.is_some()
+    {
+        return Err(AccountError::Unsupported);
+    }
     let account = service::patch(vault, id, patch.label, patch.active, patch.enabled).await?;
     Ok(AccountDto::from(&account))
 }
@@ -844,7 +941,11 @@ mod tests {
                 AccountPatch {
                     enabled: None,
                     label: Some("first".into()),
-                    active: Some(true)
+                    active: Some(true),
+                    api_key: None,
+                    settings: None,
+                    region: None,
+                    organization: None,
                 }
             )
             .await,
@@ -869,5 +970,130 @@ mod tests {
             serde_json::from_str::<AccountPatch>(r#"{"active":true,"credential":"secret"}"#)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn api_key_rotation_preserves_omitted_settings_and_honors_explicit_changes() {
+        for (provider, credential, settings, region, organization) in [
+            (
+                Provider::Zai,
+                Credential::ApiKey {
+                    token: "old".into(),
+                    region: Some("cn".into()),
+                    organization: None,
+                },
+                BTreeMap::new(),
+                Some("cn".into()),
+                None,
+            ),
+            (
+                Provider::Factory,
+                Credential::ApiKey {
+                    token: "old".into(),
+                    region: Some("eu".into()),
+                    organization: Some("org".into()),
+                },
+                BTreeMap::new(),
+                Some("eu".into()),
+                Some("org".into()),
+            ),
+            (
+                Provider::Catalog("litellm"),
+                Credential::CatalogKey {
+                    token: "old".into(),
+                    settings: BTreeMap::from([("base_url".into(), "https://example.test".into())]),
+                },
+                BTreeMap::from([("base_url".into(), "https://example.test".into())]),
+                None,
+                None,
+            ),
+        ] {
+            let account = super::super::Account {
+                id: "id".into(),
+                provider,
+                label: "Work".into(),
+                identity: "identity".into(),
+                active: true,
+                enabled: true,
+                credential,
+            };
+            let patch: AccountPatch = serde_json::from_str(r#"{"api_key":"new"}"#).unwrap();
+            let input = patch.replacement_input(&account).unwrap();
+            assert_eq!(input.api_key, "new");
+            assert_eq!(input.settings, settings);
+            assert_eq!(input.region, region);
+            assert_eq!(input.organization, organization);
+
+            let patch: AccountPatch = serde_json::from_str(
+                r#"{"api_key":"new","settings":null,"region":null,"organization":null}"#,
+            )
+            .unwrap();
+            let cleared = patch.replacement_input(&account).unwrap();
+            assert!(cleared.settings.is_empty());
+            assert_eq!(cleared.region, None);
+            assert_eq!(cleared.organization, None);
+
+            let patch: AccountPatch = serde_json::from_str(r#"{"api_key":"new","settings":{"base_url":"https://new.example.test"},"region":"global","organization":"new-org"}"#).unwrap();
+            let replaced = patch.replacement_input(&account).unwrap();
+            assert_eq!(
+                replaced.settings.get("base_url").map(String::as_str),
+                Some("https://new.example.test")
+            );
+            assert_eq!(replaced.region.as_deref(), Some("global"));
+            assert_eq!(replaced.organization.as_deref(), Some("new-org"));
+        }
+    }
+
+    #[tokio::test]
+    async fn api_key_replacement_preserves_account_id() {
+        use crate::accounts::vault::tests::Memory;
+        use std::sync::Arc;
+
+        let vault = Vault::new(
+            Arc::new(Memory::default()),
+            std::env::temp_dir().join(format!(
+                "quotio-api-key-replacement-{}.lock",
+                crate::accounts::random_string().unwrap()
+            )),
+        );
+        let id = service::add(
+            vault.clone(),
+            Provider::Amp,
+            "Amp".into(),
+            Credential::ApiKey {
+                token: "old".into(),
+                region: None,
+                organization: None,
+            },
+            "old-identity".into(),
+        )
+        .await
+        .unwrap();
+        let prepared = PreparedPatch {
+            label: Some("Updated Amp".into()),
+            active: None,
+            enabled: None,
+            replacement: Some((
+                Provider::Amp,
+                "new-identity".into(),
+                Credential::ApiKey {
+                    token: "new".into(),
+                    region: None,
+                    organization: None,
+                },
+            )),
+        };
+        let intent = service::MutationIntent::new("replace-key", "request".into()).unwrap();
+
+        let updated = update_once(vault.clone(), id.clone(), prepared, intent)
+            .await
+            .unwrap();
+        let account = service::get(vault, id.clone()).await.unwrap();
+
+        assert_eq!(updated, id);
+        assert_eq!(account.id, id);
+        assert_eq!(account.label, "Updated Amp");
+        assert_eq!(account.identity, "new-identity");
+        assert!(matches!(account.credential, Credential::ApiKey { token, .. } if token == "new"));
     }
 }

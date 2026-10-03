@@ -251,6 +251,15 @@ public struct MenuBarQuotaPair: Equatable, Sendable {
                 bottomLabelKey: "amp.quota.orb",
                 requiresBoth: true
             )
+        case .openCodeGo:
+            return makePair(
+                from: models,
+                topNames: ["opencodego-five-hour"],
+                topLabelKey: "quota.metric.fiveHour",
+                bottomNames: ["opencodego-weekly"],
+                bottomLabelKey: "quota.metric.weekly",
+                requiresBoth: true
+            )
         case .antigravity:
             return makePair(
                 from: models,

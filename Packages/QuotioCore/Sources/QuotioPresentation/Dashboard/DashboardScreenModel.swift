@@ -14,10 +14,12 @@ public final class DashboardScreenModel {
         self.accounts = accounts
     }
 
-    public var trackedAccountCount: Int { accounts.accounts.count }
+    public var trackedAccounts: [Account] { accounts.accounts.filter { !$0.isDisabled } }
+
+    public var trackedAccountCount: Int { trackedAccounts.count }
 
     public var connectedProviderCount: Int {
-        Set(accounts.accounts.map { QuotaProvider(rawValue: $0.providerID.rawValue) }.compactMap { $0 }).count
+        Set(trackedAccounts.map { QuotaProvider(rawValue: $0.providerID.rawValue) }.compactMap { $0 }).count
     }
 
     public var lowestQuotaPercentage: Double {

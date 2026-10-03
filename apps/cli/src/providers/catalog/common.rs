@@ -146,6 +146,38 @@ fn keychain_options(
     options
 }
 #[cfg(target_os = "macos")]
+pub(crate) fn keychain_item_exists(
+    service: &str,
+    account: Option<&str>,
+) -> Result<bool, ProviderError> {
+    use core_foundation::{
+        base::{CFType, TCFType},
+        dictionary::CFDictionary,
+        string::CFString,
+    };
+    use security_framework_sys::item::kSecAttrAccount;
+    #[allow(deprecated)]
+    let mut query = keychain_options(service, account.unwrap_or_default()).query;
+    if account.is_none() {
+        unsafe {
+            let account_key = CFString::wrap_under_get_rule(kSecAttrAccount);
+            query.retain(|(key, _)| key != &account_key);
+        }
+    }
+    let query = CFDictionary::<CFString, CFType>::from_CFType_pairs(&query);
+    use security_framework_sys::keychain_item::SecItemCopyMatching;
+    let status = unsafe { SecItemCopyMatching(query.as_concrete_TypeRef(), std::ptr::null_mut()) };
+    match status {
+        0 => Ok(true),
+        -25300 => Ok(false),
+        _ => Err(ProviderError::CredentialStorage),
+    }
+}
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn keychain_item_exists(_: &str, _: Option<&str>) -> Result<bool, ProviderError> {
+    Err(ProviderError::Unavailable)
+}
+#[cfg(target_os = "macos")]
 fn unique_keychain_account(
     value: &core_foundation::base::CFType,
 ) -> Result<Option<String>, ProviderError> {

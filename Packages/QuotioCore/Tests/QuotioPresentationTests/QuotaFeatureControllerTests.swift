@@ -7,16 +7,33 @@ import XCTest
 
 @MainActor
 final class QuotaFeatureControllerTests: XCTestCase {
+    func testInitializeDiscoversNativeAccountsBeforeReloadingAccounts() async {
+        let account = Account.make(
+            providerID: AccountProviderID(rawValue: QuotaProvider.codex.rawValue),
+            accountKey: "person@example.com",
+            source: .nativeCredential
+        )
+        let fixture = await makeFixture(account: account, provider: .codex)
+        await fixture.accountService.clearEvents()
+
+        await fixture.controller.initialize()
+
+        let events = await fixture.accountService.events()
+        XCTAssertEqual(Array(events.prefix(2)), ["discover", "accounts"])
+        await fixture.controller.shutdown()
+    }
+
     func testAutomaticRefreshProvidersPreserveOperatingModeBehavior() {
         XCTAssertEqual(
             QuotaFeatureController.automaticallyRefreshedProviders(for: .localProxy),
-            [.antigravity, .codex, .copilot, .claude, .glm, .warp, .kiro, .clinePass]
+            [.antigravity, .vertex, .codex, .copilot, .claude, .glm, .warp, .kiro, .clinePass]
         )
         XCTAssertEqual(
             QuotaFeatureController.automaticallyRefreshedProviders(for: .monitor),
             [
                 .codex, .claude, .copilot, .kiro, .glm, .clinePass, .warp,
-                .antigravity, .factoryDroid, .devin, .grok, .openRouter, .amp,
+                .antigravity, .vertex, .factoryDroid, .devin, .grok, .openRouter, .amp,
+                .openCodeGo,
             ]
         )
     }
@@ -119,11 +136,40 @@ final class QuotaFeatureControllerTests: XCTestCase {
         await fixture.controller.shutdown()
     }
 
+    func testDisabledProxyFilesCannotReenterMenuThroughFileFallback() async {
+        let account = Account.make(providerID: AccountProviderID(rawValue: "claude"), accountKey: "Personal", source: .quotioKeychain)
+        let disabled = AuthFileDescriptor(
+            id: "proxy", providerID: AccountProviderID(rawValue: "claude"), email: "Work",
+            login: nil, expired: nil, accountType: nil, filePath: "/test/claude-work.json",
+            source: .cliProxyApi, filename: "claude-work.json"
+        )
+        let fixture = await makeFixture(account: account, provider: .claude, authFiles: [disabled], disabledFiles: [disabled.filename])
+        // Live data can briefly lag a successful disable; persisted state must win.
+        fixture.controller.setAuthFilesProvider {
+            [ManagedAuthFile(id: "proxy", name: disabled.filename, provider: "claude", status: "ready", disabled: false, unavailable: false, email: "Work")]
+        }
+        fixture.menuBar.selectedItems = [MenuBarQuotaItem(provider: "claude", accountKey: "Work")]
+        fixture.controller.synchronizeMenuBarSelection()
+        XCTAssertFalse(fixture.menuBar.selectedItems.contains { $0.accountKey == "Work" })
+
+        let sameName = await makeFixture(
+            account: Account.make(providerID: AccountProviderID(rawValue: "claude"), accountKey: "Work", source: .quotioKeychain),
+            provider: .claude, authFiles: [disabled], disabledFiles: [disabled.filename]
+        )
+        sameName.menuBar.selectedItems = [MenuBarQuotaItem(provider: "claude", accountKey: "Work")]
+        sameName.controller.synchronizeMenuBarSelection()
+        XCTAssertEqual(sameName.menuBar.selectedItems, [MenuBarQuotaItem(provider: "claude", accountKey: "Work")])
+        await fixture.controller.shutdown()
+        await sameName.controller.shutdown()
+    }
+
     private func makeFixture(
         account: Account,
         provider: QuotaProvider,
         quotaAccountKey: String? = nil,
-        aliases: [String: String] = [:]
+        aliases: [String: String] = [:],
+        authFiles: [AuthFileDescriptor] = [],
+        disabledFiles: Set<String> = []
     ) async -> (
         controller: QuotaFeatureController,
         accountService: QuotaFeatureAccountService,
@@ -133,23 +179,23 @@ final class QuotaFeatureControllerTests: XCTestCase {
         let accountService = QuotaFeatureAccountService(accounts: [account])
         let accounts = AccountsScreenModel(
             accountService: accountService,
-            authFileRepository: QuotaFeatureAuthFileRepository()
+            authFileRepository: QuotaFeatureAuthFileRepository(files: authFiles)
         )
-        let quota = QuotaScreenModel(coordinator: QuotaRefreshCoordinator(
-            registry: QuotaProviderRegistry(aliases.isEmpty ? [] : [
-                QuotaFeatureFetcher(provider: provider, key: account.accountKey, aliases: aliases)
-            ]),
-            snapshots: QuotaFeatureSnapshotStore(initial: QuotaSnapshot(quotas: [
+        let quota = QuotaScreenModel(coordinator: TestQuotaCoordinator(
+            snapshot: QuotaSnapshot(
+                quotas: [
                 provider: [
                     quotaAccountKey ?? account.accountKey: ProviderQuota(
                         lastUpdated: Date(timeIntervalSince1970: 1_000)
                     ),
                 ],
-            ])),
-            clock: QuotaFeatureClock()
+                ],
+                accountAliases: aliases.isEmpty ? [:] : [provider: aliases]
+            )
         ))
         await quota.bootstrap(mode: .monitor)
         await accounts.reloadAccounts()
+        await accounts.reloadAuthFiles()
         let preferences = QuotaFeaturePreferencesRepository()
         let menuBar = MenuBarSettingsManager(repository: preferences)
         let controller = QuotaFeatureController(
@@ -164,7 +210,8 @@ final class QuotaFeatureControllerTests: XCTestCase {
                 repository: preferences,
                 delivery: QuotaFeatureNotificationDelivery()
             ),
-            authFiles: { [] }
+            authFiles: { [] },
+            authFileState: QuotaFeatureAuthFileState(names: disabledFiles)
         )
         return (controller, accountService, quota, menuBar)
     }
@@ -205,12 +252,19 @@ private actor QuotaFeatureAccountService: AccountManaging {
     private var storedAccounts: [Account]
     private var recordedDisabledUpdates: [DisabledUpdate] = []
     private var recordedDeletedAccountIDs: [String] = []
+    private var recordedEvents: [String] = []
 
     init(accounts: [Account]) {
         storedAccounts = accounts
     }
 
-    func accounts() -> [Account] { storedAccounts }
+    func registerDetectedNativeAccounts() { recordedEvents.append("discover") }
+    func nativeSourcesRequiringPermission() -> [NativeSourcePermission] { [] }
+    func authorizeNativeSource(_ source: NativeSourcePermission) {}
+    func accounts() -> [Account] {
+        recordedEvents.append("accounts")
+        return storedAccounts
+    }
 
     func setDisabled(_ disabled: Bool, accountID: String) {
         recordedDisabledUpdates.append(DisabledUpdate(accountID: accountID, disabled: disabled))
@@ -230,30 +284,19 @@ private actor QuotaFeatureAccountService: AccountManaging {
 
     func disabledUpdates() -> [DisabledUpdate] { recordedDisabledUpdates }
     func deletedAccountIDs() -> [String] { recordedDeletedAccountIDs }
+    func events() -> [String] { recordedEvents }
+    func clearEvents() { recordedEvents = [] }
 }
 
 private actor QuotaFeatureAuthFileRepository: AuthFileRepository {
-    func scanAllAuthFiles() -> [AuthFileDescriptor] { [] }
+    let files: [AuthFileDescriptor]
+    init(files: [AuthFileDescriptor] = []) { self.files = files }
+    func scanAllAuthFiles() -> [AuthFileDescriptor] { files }
     func readCredential(from file: AuthFileDescriptor) -> AuthFileCredential? { nil }
     func uploadAuthFile(name: String, content: Data) {}
     func readAuthFileForImport(from url: URL) -> Data { Data() }
     func writeDownloadedAuthFile(_ content: Data, to url: URL) {}
     func downloadAuthFile(name: String) -> Data { Data() }
-}
-
-private actor QuotaFeatureSnapshotStore: QuotaSnapshotStoring {
-    private let initial: QuotaSnapshot
-
-    init(initial: QuotaSnapshot) {
-        self.initial = initial
-    }
-
-    func load(for mode: QuotaOperatingMode) -> QuotaSnapshot { initial }
-    func save(_ snapshot: QuotaSnapshot, for mode: QuotaOperatingMode) {}
-}
-
-private struct QuotaFeatureClock: DateProviding {
-    func now() -> Date { Date(timeIntervalSince1970: 2_000) }
 }
 
 private actor QuotaFeatureOAuthAuthorizer: OAuthAuthorizing {
@@ -305,16 +348,9 @@ private final class QuotaFeaturePreferencesRepository:
     func save(_ preferences: NotificationPreferences) {}
 }
 
-private struct QuotaFeatureFetcher: QuotaFetching {
-    let provider: QuotaProvider
-    let key: String
-    let aliases: [String: String]
-
-    func fetch(_ request: QuotaFetchRequest) async throws -> QuotaProviderOutput {
-        QuotaProviderOutput(
-            quotas: [key: ProviderQuota(lastUpdated: Date(timeIntervalSince1970: 2_000))],
-            credentialAccountKeys: [key],
-            accountAliases: aliases
-        )
-    }
+private struct QuotaFeatureAuthFileState: ManagedAuthFileStateRepository {
+    let names: Set<String>
+    func disabledAuthFileNames() -> Set<String> { names }
+    func saveDisabledAuthFileNames(_ names: Set<String>) {}
+    func recordAuthFilesChanged(at date: Date) {}
 }

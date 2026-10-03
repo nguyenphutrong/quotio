@@ -250,6 +250,7 @@ public actor LocalProxyOAuthAuthorizer: OAuthAuthorizing {
         case .glm: "Z.ai"
         case .warp: "Warp"
         case .clinePass: "ClinePass"
+        case .openCodeGo: "OpenCode Go"
         }
     }
 }

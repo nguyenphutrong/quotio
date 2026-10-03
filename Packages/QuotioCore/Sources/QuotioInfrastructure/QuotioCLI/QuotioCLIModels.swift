@@ -1,0 +1,601 @@
+import Foundation
+import QuotioApplication
+import QuotioDomain
+
+struct QuotioCLIUsageReport: Decodable, Sendable {
+    let schemaVersion: Int
+    let generatedAt: Date
+    let providers: [QuotioCLIProviderUsage]
+    let failures: [QuotioCLIUsageFailure]
+}
+
+struct QuotioCLIProviderUsage: Decodable, Sendable {
+    struct Diagnostic: Decodable, Sendable {
+        let code: String
+    }
+    struct Identity: Decodable, Sendable {
+        let id: String
+        let label: String
+        let plan: String?
+    }
+
+    let provider: String
+    let account: Identity
+    let accountRef: QuotioCLIAccountReference?
+    let windows: [QuotioCLIUsageWindow]
+    let antigravitySubscription: QuotioCLISubscription?
+    let resetCredits: QuotioCLIResetCredits?
+    let codexProfile: QuotioCLICodexProfile?
+    let codexResetCredits: QuotioCLICodexResetCredits?
+    let diagnostics: [Diagnostic]?
+}
+
+struct QuotioCLIResetCredits: Decodable, Sendable {
+    let availableCount: UInt64
+    let fetchedAt: Date
+}
+
+struct QuotioCLICodexProfile: Decodable, Sendable {
+    struct DailyUsage: Decodable, Sendable {
+        let date: String
+        let tokens: UInt64
+    }
+
+    let dailyUsage: [DailyUsage]
+    let latest30BucketsTokens: UInt64
+    let lifetimeTokens: UInt64?
+    let peakDailyTokens: UInt64?
+    let longestRunningTurnSeconds: UInt64?
+    let currentStreakDays: UInt64?
+    let longestStreakDays: UInt64?
+    let fetchedAt: Date
+}
+
+struct QuotioCLICodexResetCredits: Decodable, Sendable {
+    struct Credit: Decodable, Sendable {
+        let id: String
+        let expiresAt: Date?
+    }
+
+    let availableCount: UInt64
+    let credits: [Credit]
+    let fetchedAt: Date
+}
+
+struct QuotioCLIAccountReference: Decodable, Sendable {
+    let origin: String?
+    let id: String
+    let label: String
+}
+
+struct QuotioCLIUsageWindow: Decodable, Sendable {
+    struct Quota: Decodable, Sendable {
+        let state: String
+        let remainingPercent: Double?
+        let amount: Double?
+        let unit: String?
+    }
+
+    struct Amounts: Decodable, Sendable {
+        let remaining: Double
+        let limit: Double?
+        let unit: String
+    }
+
+    struct Consumption: Decodable, Sendable {
+        let used: Double
+        let unit: String
+    }
+
+    let label: String
+    let metricId: String?
+    let quota: Quota
+    let amounts: Amounts?
+    let consumption: Consumption?
+    let resetsAt: Date?
+    let resetDescription: String?
+    let fetchedAt: Date
+    let note: String?
+}
+
+struct QuotioCLIUsageFailure: Decodable, Sendable {
+    let provider: String
+    let accountRef: QuotioCLIAccountReference?
+    let code: String
+}
+
+struct QuotioCLISubscription: Decodable, Sendable {
+    struct Tier: Decodable, Sendable {
+        let id: String?
+        let name: String?
+        let description: String?
+    }
+
+    let currentTier: Tier?
+    let paidTier: Tier?
+}
+
+struct QuotioCLIAccountList: Decodable, Sendable {
+    let schemaVersion: Int
+    let accounts: [QuotioCLIAccount]
+}
+
+struct QuotioCLIProviderList: Decodable, Sendable {
+    struct Provider: Decodable, Sendable {
+        struct Capabilities: Decodable, Sendable {
+            struct SourceReference: Decodable, Sendable {
+                let kind: String
+                let platforms: [String]
+                let origin: String
+            }
+
+            let sourceReferences: [SourceReference]
+        }
+
+        let id: String
+        let capabilities: Capabilities
+    }
+
+    let schemaVersion: Int
+    let providers: [Provider]
+}
+
+struct QuotioCLISourceDiscovery: Decodable, Sendable {
+    struct Candidate: Decodable, Sendable {
+        struct Source: Codable, Hashable, Sendable {
+            let kind: String
+            let location: String?
+            let discoveryRef: String?
+
+            init(kind: String, location: String?, discoveryRef: String?) {
+                self.kind = kind
+                self.location = location
+                self.discoveryRef = discoveryRef
+            }
+        }
+
+        let status: String
+        let source: Source
+    }
+
+    let schemaVersion: Int
+    let status: String
+    let candidates: [Candidate]
+}
+
+struct QuotioCLIAccount: Decodable, Sendable {
+    let id: String
+    let provider: String
+    let label: String
+    let origin: String
+    let enabled: Bool
+    let sourceKind: String?
+    let sourceId: String?
+}
+
+struct QuotioCLIOperation: Decodable, Sendable {
+    let id: String
+    let status: String
+    let error: String?
+}
+
+struct QuotioCLIOAuthSession: Decodable, Sendable {
+    let provider: String
+    let workflow: String
+    let userCode: String?
+    let id: String
+    let url: String
+    let expiresAt: Int64
+    let status: String
+    let accountId: String?
+    let errorCode: String?
+}
+
+enum QuotioCLIWarpMirror {
+    private static let prefix = "__quotio_local_warp__:"
+
+    static func storageLabel(_ label: String) -> String { prefix + label }
+
+    static func displayLabel(_ label: String, provider: String) -> String {
+        guard provider == "warp", label.hasPrefix(prefix) else { return label }
+        return String(label.dropFirst(prefix.count))
+    }
+
+    static func isMirror(_ account: QuotioCLIAccount) -> Bool {
+        isMirror(provider: account.provider, origin: account.origin, label: account.label)
+    }
+
+    static func isMirror(provider: String, origin: String?, label: String?) -> Bool {
+        provider == "warp" && origin == "owned" && label?.hasPrefix(prefix) == true
+    }
+}
+
+enum QuotioCLIProviderMap {
+    static func domain(_ id: String) -> QuotaProvider? {
+        switch id {
+        case "copilot": .copilot
+        case "factory": .factoryDroid
+        case "zai": .glm
+        case "vertexai": .vertex
+        case "devin-desktop": .devin
+        default: QuotaProvider(rawValue: id)
+        }
+    }
+
+    static func cli(_ provider: QuotaProvider) -> String? {
+        switch provider {
+        case .copilot: "copilot"
+        case .factoryDroid: "factory"
+        case .glm: "zai"
+        case .vertex: "vertexai"
+        case .devin: "devin-desktop"
+        case .qwen, .iflow, .trae: nil
+        default: provider.rawValue
+        }
+    }
+}
+
+struct QuotioCLIUsageMapper {
+    let bundle: Bundle
+    let locale: Locale
+
+    private func localized(_ key: String, _ fallback: String) -> String {
+        NSLocalizedString(key, bundle: bundle, value: fallback, comment: "")
+    }
+
+    static func snapshot(
+        _ report: QuotioCLIUsageReport,
+        mode: QuotaOperatingMode = .monitor,
+        bundle: Bundle = .main,
+        locale: Locale = .current,
+        excludedAccountIDs: Set<String> = []
+    ) -> QuotaSnapshot {
+        let mapper = Self(bundle: bundle, locale: locale)
+        var snapshot = QuotaSnapshot(lastUpdated: report.generatedAt)
+        for usage in report.providers
+        where mode == .monitor || usage.accountRef?.origin != "owned" || QuotioCLIWarpMirror.isMirror(
+            provider: usage.provider, origin: usage.accountRef?.origin, label: usage.accountRef?.label
+        ) {
+            guard !excludedAccountIDs.contains(usage.accountRef?.id ?? ""),
+                  let provider = QuotioCLIProviderMap.domain(usage.provider) else { continue }
+            let referenceLabel = usage.accountRef.map {
+                QuotioCLIWarpMirror.displayLabel($0.label, provider: usage.provider)
+            }
+            let preferredKey = referenceLabel?.nilIfEmpty
+                ?? usage.account.label.nilIfEmpty
+                ?? usage.accountRef?.id
+                ?? usage.account.id
+            let key = snapshot.quotas[provider]?[preferredKey] == nil
+                ? preferredKey
+                : usage.accountRef?.id ?? usage.account.id
+            snapshot.quotas[provider, default: [:]][key] = mapper.quota(usage)
+            if let reference = usage.accountRef {
+                snapshot.accountAliases[provider, default: [:]][reference.id] = key
+                if snapshot.accountAliases[provider]?[reference.label] == nil {
+                    snapshot.accountAliases[provider, default: [:]][reference.label] = key
+                }
+                if let referenceLabel,
+                   snapshot.accountAliases[provider]?[referenceLabel] == nil {
+                    snapshot.accountAliases[provider, default: [:]][referenceLabel] = key
+                }
+                snapshot.accountIDs[provider, default: [:]][key] = reference.id
+            }
+            if let subscription = mapper.subscription(usage) {
+                snapshot.subscriptions[provider, default: [:]][key] = subscription
+            }
+        }
+        for failure in report.failures
+        where mode == .monitor || failure.accountRef?.origin != "owned" || QuotioCLIWarpMirror.isMirror(
+            provider: failure.provider, origin: failure.accountRef?.origin, label: failure.accountRef?.label
+        ) {
+            guard !excludedAccountIDs.contains(failure.accountRef?.id ?? ""),
+                  let provider = QuotioCLIProviderMap.domain(failure.provider) else { continue }
+            let isDiagnostic = report.providers.contains { usage in
+                usage.provider == failure.provider
+                    && usage.accountRef?.id == failure.accountRef?.id
+                    && usage.diagnostics?.contains(where: { $0.code == failure.code }) == true
+            }
+            let issue = QuotaRefreshIssue(kind: isDiagnostic ? .partial : .failed, occurredAt: report.generatedAt)
+            if let account = failure.accountRef {
+                let label = QuotioCLIWarpMirror.displayLabel(account.label, provider: failure.provider)
+                let key = snapshot.accountAliases[provider]?[account.id]
+                    ?? (snapshot.accountIDs[provider]?[label] == nil ? label : account.id)
+                snapshot.accountAliases[provider, default: [:]][account.id] = key
+                snapshot.accountIDs[provider, default: [:]][key] = account.id
+                let id = QuotaAccountID(provider: provider, accountKey: key)
+                if snapshot.accountIssues[id]?.kind != .failed { snapshot.accountIssues[id] = issue }
+            } else {
+                if snapshot.issues[provider]?.kind != .failed { snapshot.issues[provider] = issue }
+            }
+        }
+        return snapshot
+    }
+
+    private func quota(_ usage: QuotioCLIProviderUsage) -> ProviderQuota {
+        let updatedAt = usage.windows.map(\.fetchedAt)
+            + [usage.codexProfile?.fetchedAt, usage.codexResetCredits?.fetchedAt, usage.resetCredits?.fetchedAt]
+                .compactMap { $0 }
+        return ProviderQuota(
+            models: usage.windows.map { metric($0, provider: usage.provider) },
+            lastUpdated: updatedAt.min() ?? .distantPast,
+            planType: usage.account.plan,
+            analytics: analytics(usage),
+            accountDisplayName: usage.accountRef?.id == "local"
+                ? usage.account.label
+                : usage.accountRef.map {
+                    QuotioCLIWarpMirror.displayLabel($0.label, provider: usage.provider)
+                }?.nilIfEmpty ?? usage.account.label
+        )
+    }
+
+    private func analytics(_ usage: QuotioCLIProviderUsage) -> QuotaAnalytics? {
+        var analytics = usage.codexProfile.map(profileAnalytics) ?? QuotaAnalytics()
+        let resetRows = resetCreditRows(usage)
+        if !resetRows.isEmpty {
+            analytics = analytics.merging(QuotaAnalytics(rows: resetRows))
+        }
+        return analytics.isEmpty ? nil : analytics
+    }
+
+    private func profileAnalytics(_ profile: QuotioCLICodexProfile) -> QuotaAnalytics {
+        let calendar = Calendar.current
+        let buckets = Dictionary(uniqueKeysWithValues: profile.dailyUsage.map { ($0.date, $0.tokens) })
+        let today = dayString(profile.fetchedAt, calendar: calendar)
+        let yesterday = dayString(
+            calendar.date(byAdding: .day, value: -1, to: profile.fetchedAt) ?? profile.fetchedAt,
+            calendar: calendar
+        )
+        var rows = [
+            dayRow(id: "today", title: localized("quota.metric.today", "Today"), tokens: buckets[today]),
+            dayRow(id: "yesterday", title: localized("quota.analytics.yesterday", "Yesterday"), tokens: buckets[yesterday]),
+            profile.latest30BucketsTokens > 0
+                ? QuotaAnalyticsRow(
+                    id: "last-30-days",
+                    title: localized("quota.analytics.last30Days", "Last 30 Days"),
+                    value: tokenLabel(profile.latest30BucketsTokens)
+                )
+                : noDataRow(id: "last-30-days", title: localized("quota.analytics.last30Days", "Last 30 Days")),
+        ]
+        appendTokenRow(&rows, id: "codex-lifetime-tokens", title: localized("quota.analytics.lifetimeTokens", "Lifetime Tokens"), value: profile.lifetimeTokens)
+        appendTokenRow(&rows, id: "codex-peak-daily", title: localized("quota.analytics.peakDaily", "Peak Daily"), value: profile.peakDailyTokens)
+        if let seconds = profile.longestRunningTurnSeconds, seconds > 0 {
+            rows.append(QuotaAnalyticsRow(
+                id: "codex-longest-task",
+                title: localized("quota.analytics.longestTask", "Longest Task"),
+                value: durationLabel(seconds)
+            ))
+        }
+        appendDaysRow(&rows, id: "codex-current-streak", title: localized("quota.analytics.currentStreak", "Current Streak"), value: profile.currentStreakDays)
+        appendDaysRow(&rows, id: "codex-longest-streak", title: localized("quota.analytics.longestStreak", "Longest Streak"), value: profile.longestStreakDays)
+        return QuotaAnalytics(
+            trend: profile.dailyUsage.map {
+                QuotaAnalyticsPoint(
+                    date: $0.date,
+                    value: Double($0.tokens),
+                    label: $0.date,
+                    valueLabel: tokenLabel($0.tokens)
+                )
+            },
+            rows: rows,
+            note: localized("quota.analytics.codexNote", "Account analytics from Codex")
+        )
+    }
+
+    private func resetCreditRows(_ usage: QuotioCLIProviderUsage) -> [QuotaAnalyticsRow] {
+        guard let count = usage.codexResetCredits?.availableCount ?? usage.resetCredits?.availableCount else {
+            return []
+        }
+        var rows = [QuotaAnalyticsRow(
+            id: "codex-rate-limit-resets",
+            title: localized("quota.analytics.rateLimitResets", "Rate Limit Resets"),
+            value: String(format: localized("quota.analytics.available", "%@ available"), integerLabel(count))
+        )]
+        if let inventory = usage.codexResetCredits {
+            rows.append(contentsOf: inventory.credits.map { credit in
+                QuotaAnalyticsRow(
+                    id: "codex-rate-limit-reset-\(credit.id)",
+                    title: expiryDateLabel(credit.expiresAt),
+                    value: expiryRelativeLabel(credit.expiresAt, from: inventory.fetchedAt)
+                )
+            })
+        }
+        return rows
+    }
+
+    private func dayRow(id: String, title: String, tokens: UInt64?) -> QuotaAnalyticsRow {
+        guard let tokens, tokens > 0 else { return noDataRow(id: id, title: title) }
+        return QuotaAnalyticsRow(id: id, title: title, value: tokenLabel(tokens))
+    }
+
+    private func noDataRow(id: String, title: String) -> QuotaAnalyticsRow {
+        QuotaAnalyticsRow(id: id, title: title, value: localized("quota.analytics.noData", "No data"), isAvailable: false)
+    }
+
+    private func appendTokenRow(
+        _ rows: inout [QuotaAnalyticsRow],
+        id: String,
+        title: String,
+        value: UInt64?
+    ) {
+        guard let value, value > 0 else { return }
+        rows.append(QuotaAnalyticsRow(id: id, title: title, value: tokenLabel(value)))
+    }
+
+    private func appendDaysRow(
+        _ rows: inout [QuotaAnalyticsRow],
+        id: String,
+        title: String,
+        value: UInt64?
+    ) {
+        guard let value else { return }
+        rows.append(QuotaAnalyticsRow(
+            id: id,
+            title: title,
+            value: String(format: localized(value == 1 ? "quota.analytics.day" : "quota.analytics.days", value == 1 ? "%@ day" : "%@ days"), integerLabel(value))
+        ))
+    }
+
+    private func dayString(_ date: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    private func tokenLabel(_ value: UInt64) -> String {
+        let number = Double(value)
+        let text: String
+        if number >= 1_000_000_000 {
+            text = String(format: "%.1fB", number / 1_000_000_000).replacingOccurrences(of: ".0B", with: "B")
+        } else if number >= 1_000_000 {
+            text = String(format: "%.1fM", number / 1_000_000).replacingOccurrences(of: ".0M", with: "M")
+        } else if number >= 1_000 {
+            text = String(format: "%.1fK", number / 1_000).replacingOccurrences(of: ".0K", with: "K")
+        } else {
+            text = integerLabel(value)
+        }
+        return String(format: localized("quota.analytics.tokens", "%@ tokens"), text)
+    }
+
+    private func integerLabel(_ value: UInt64) -> String {
+        NumberFormatter.localizedString(from: NSNumber(value: value), number: .decimal)
+    }
+
+    private func durationLabel(_ seconds: UInt64) -> String {
+        let hours = seconds / 3_600
+        let minutes = (seconds % 3_600) / 60
+        let remaining = seconds % 60
+        if hours > 0 { return String(format: localized("quota.analytics.hoursMinutes", "%@h %@m"), integerLabel(hours), integerLabel(minutes)) }
+        if minutes > 0 { return String(format: localized("quota.analytics.minutesSeconds", "%@m %@s"), integerLabel(minutes), integerLabel(remaining)) }
+        return String(format: localized("quota.analytics.seconds", "%@s"), integerLabel(remaining))
+    }
+
+    private func expiryDateLabel(_ date: Date?) -> String {
+        guard let date else { return localized("quota.analytics.noExpiry", "No expiry") }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate("d MMM HH:mm")
+        return formatter.string(from: date)
+    }
+
+    private func expiryRelativeLabel(_ expiry: Date?, from date: Date) -> String {
+        guard let expiry else { return "" }
+        let seconds = expiry.timeIntervalSince(date)
+        if seconds <= 0 { return localized("quota.analytics.expired", "expired") }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = locale
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: expiry, relativeTo: date)
+    }
+
+    private func metric(_ window: QuotioCLIUsageWindow, provider: String) -> QuotaMetric {
+        let percentage = switch window.quota.state {
+        case "available", "exhausted":
+            window.quota.remainingPercent.flatMap {
+                $0.isFinite && (0...100).contains($0) ? $0 : nil
+            } ?? -1.0
+        default: -1.0
+        }
+        var presentation: QuotaMetricPresentation?
+        switch window.quota.state {
+        case "unlimited": presentation = .status(text: localized("quota.metric.unlimited", "Unlimited"))
+        case "disabled": presentation = .status(text: localized("grok.status.disabled", "Disabled"))
+        case "limit":
+            if let amount = window.quota.amount {
+                presentation = .status(text: String(format: localized("grok.status.cap", "%@ cap"), "\(amount.formatted()) \(window.quota.unit ?? "")"))
+            }
+        default: break
+        }
+        if presentation == nil,
+           let amounts = window.amounts,
+           let unit = QuotaMetricUnit(rawValue: amounts.unit.lowercased()) {
+            if let limit = amounts.limit, limit > 0, percentage >= 0 {
+                presentation = .progress(
+                    used: max(0, limit - amounts.remaining),
+                    limit: limit,
+                    unit: unit
+                )
+            } else {
+                presentation = .amount(value: amounts.remaining, unit: unit, semantics: .balance)
+            }
+        } else if presentation == nil,
+                  let consumption = window.consumption,
+                  let unit = QuotaMetricUnit(rawValue: consumption.unit.lowercased()) {
+            presentation = .amount(value: consumption.used, unit: unit, semantics: .spent)
+        }
+        let reset = window.resetsAt.map { ISO8601DateFormatter().string(from: $0) } ?? ""
+        return QuotaMetric(
+            name: metricName(window, provider: provider),
+            percentage: percentage,
+            resetTime: reset,
+            presentation: presentation,
+            tooltip: [window.note, window.resetDescription]
+                .compactMap { $0 }
+                .joined(separator: "\n")
+        )
+    }
+
+    private func metricName(_ window: QuotioCLIUsageWindow, provider: String) -> String {
+        if provider == "codex" {
+            let labels = [
+                "Session": "codex-session",
+                "Weekly": "codex-weekly",
+                "Codex Spark Session": "codex-spark",
+                "Codex Spark Weekly": "codex-spark-weekly",
+            ]
+            if let name = labels[window.label] { return name }
+            let metrics = [
+                "gpt-reserve-session": "codex-base-model-session",
+                "gpt-reserve-weekly": "codex-base-model-limit",
+            ]
+            if let id = window.metricId, let name = metrics[id] { return name }
+        }
+        return window.metricId ?? window.label
+    }
+
+    private func subscription(_ usage: QuotioCLIProviderUsage) -> QuotaSubscriptionInfo? {
+        guard let subscription = usage.antigravitySubscription else { return nil }
+        func tier(_ value: QuotioCLISubscription.Tier?) -> QuotaSubscriptionTier? {
+            value.map {
+                QuotaSubscriptionTier(
+                    id: $0.id ?? "unknown",
+                    name: $0.name ?? "Unknown",
+                    description: $0.description ?? "",
+                    privacyNotice: nil,
+                    isDefault: nil,
+                    upgradeSubscriptionUri: nil,
+                    upgradeSubscriptionText: nil,
+                    upgradeSubscriptionType: nil,
+                    userDefinedCloudaicompanionProject: nil
+                )
+            }
+        }
+        return QuotaSubscriptionInfo(
+            currentTier: tier(subscription.currentTier),
+            allowedTiers: nil,
+            cloudaicompanionProject: nil,
+            gcpManaged: nil,
+            upgradeSubscriptionUri: nil,
+            paidTier: tier(subscription.paidTier)
+        )
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
+func makeQuotioCLIDecoder() -> JSONDecoder {
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    decoder.dateDecodingStrategy = .custom { decoder in
+        let value = try decoder.singleValueContainer().decode(String.self)
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value) else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "Invalid RFC3339 timestamp")
+            )
+        }
+        return date
+    }
+    return decoder
+}

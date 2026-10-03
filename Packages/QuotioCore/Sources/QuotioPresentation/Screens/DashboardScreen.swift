@@ -11,7 +11,6 @@ import UniformTypeIdentifiers
 struct DashboardScreen: View {
     @Environment(ProxyManagementScreenModel.self) private var proxyManagement
     @Environment(QuotaScreenModel.self) private var quota
-    @Environment(AccountsScreenModel.self) private var accounts
     @Environment(DashboardScreenModel.self) private var dashboard
     @Environment(QuotaFeatureController.self) private var quotaController
     @Environment(OperatingModeManager.self) private var modeManager
@@ -61,7 +60,7 @@ struct DashboardScreen: View {
     
     /// Grouped accounts by provider (cached computation)
     private var groupedMonitorAccounts: [QuotaProvider: [Account]] {
-        Dictionary(grouping: accounts.accounts) { $0.provider }
+        Dictionary(grouping: dashboard.trackedAccounts) { $0.provider }
     }
     
     var body: some View {
@@ -258,7 +257,7 @@ struct DashboardScreen: View {
     
     private var trackedAccountsSection: some View {
         GroupBox {
-            if accounts.accounts.isEmpty {
+            if dashboard.trackedAccounts.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "person.crop.circle.badge.questionmark")
                         .font(.largeTitle)

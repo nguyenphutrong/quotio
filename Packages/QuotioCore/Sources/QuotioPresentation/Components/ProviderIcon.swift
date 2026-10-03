@@ -18,7 +18,7 @@ struct ProviderIcon: View {
     /// Providers that need white icons in dark mode (have dark/black logos)
     private var needsLightModeInDark: Bool {
         switch provider {
-        case .cursor, .copilot, .clinePass:
+        case .cursor, .copilot, .clinePass, .openCodeGo:
             return true
         default:
             return false

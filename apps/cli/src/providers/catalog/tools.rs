@@ -117,10 +117,10 @@ fn opencode_go_windows(
         .and_then(Value::as_object)
         .ok_or(ProviderError::InvalidData)?;
     let mut windows = Vec::with_capacity(3);
-    for (field, label) in [
-        ("rolling", "5-hour"),
-        ("weekly", "Weekly"),
-        ("monthly", "Monthly"),
+    for (field, label, metric_id) in [
+        ("rolling", "5-hour", "opencodego-five-hour"),
+        ("weekly", "Weekly", "opencodego-weekly"),
+        ("monthly", "Monthly", "opencodego-monthly"),
     ] {
         let window = usage
             .get(field)
@@ -135,7 +135,7 @@ fn opencode_go_windows(
             return Err(ProviderError::InvalidData);
         }
         let resets_at = common::date(window.get("resetsAt"))?.ok_or(ProviderError::InvalidData)?;
-        windows.push(common::window(
+        let mut window = common::window(
             label,
             Some(percent),
             Some(100.0),
@@ -144,7 +144,9 @@ fn opencode_go_windows(
             Some(resets_at),
             "opencode_go_usage_api",
             now,
-        )?);
+        )?;
+        window.metric_id = Some(metric_id.into());
+        windows.push(window);
     }
     Ok(windows)
 }
@@ -245,6 +247,17 @@ mod tests {
 
         assert_eq!(windows.len(), 3);
         assert_eq!(windows[0].label, "5-hour");
+        assert_eq!(
+            windows
+                .iter()
+                .map(|window| window.metric_id.as_deref())
+                .collect::<Vec<_>>(),
+            [
+                Some("opencodego-five-hour"),
+                Some("opencodego-weekly"),
+                Some("opencodego-monthly"),
+            ]
+        );
         assert_eq!(windows[0].quota, Quota::from_used(Some(12.5)));
         assert_eq!(windows[1].quota, Quota::from_used(Some(100.0)));
         assert_eq!(windows[2].consumption.as_ref().unwrap().unit, "percent");

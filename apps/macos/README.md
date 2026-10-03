@@ -65,6 +65,11 @@ Quotio is a native macOS application for managing **CLIProxyAPI** - a local prox
 
 > **Note**: These IDEs are only used for quota usage monitoring. They cannot be used as providers for the proxy.
 
+### Subscription Quota Tracking (Monitor Only)
+| Service | Description |
+|---------|-------------|
+| OpenCode Go | Add an OpenCode Go API key to track its 5-hour, weekly, and monthly usage |
+
 ### Compatible CLI Agents
 Quotio can automatically configure these tools to use your centralized proxy:
 - Claude Code

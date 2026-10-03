@@ -36,6 +36,8 @@ fn server_argument_contract() {
         "manual-test",
         "--account-data-dir",
         "/tmp/quotio-manual-test",
+        "--cli-proxy-auth-dir",
+        "/tmp/quotio-proxy-auth",
     ])
     .unwrap()
     .command
@@ -46,14 +48,19 @@ fn server_argument_contract() {
         isolated.account_vault_namespace,
         Some("manual-test".parse().unwrap())
     );
+    assert_eq!(
+        isolated.cli_proxy_auth_dir,
+        Some(PathBuf::from("/tmp/quotio-proxy-auth"))
+    );
     for args in [
-        vec!["--refresh-interval", "0"],
         vec!["--refresh-interval", "86401"],
         vec!["--timeout", "0"],
         vec!["--listen", "example.com:6767"],
         vec!["--token", "must-not-be-in-argv"],
         vec!["--account-vault-namespace", "manual-test"],
         vec!["--account-data-dir", "/tmp/quotio-manual-test"],
+        vec!["--cli-proxy-auth-dir", "/tmp/quotio-proxy-auth"],
+        vec!["--manage", "--cli-proxy-auth-dir", "/tmp/quotio-proxy-auth"],
         vec!["--manage", "--account-vault-namespace", "../production"],
         vec![
             "--manage",
@@ -64,6 +71,14 @@ fn server_argument_contract() {
     ] {
         assert!(Cli::try_parse_from(["quotio", "serve"].into_iter().chain(args)).is_err());
     }
+    let Command::Serve(disabled) =
+        Cli::try_parse_from(["quotio", "serve", "--refresh-interval", "0"])
+            .unwrap()
+            .command
+    else {
+        panic!()
+    };
+    assert_eq!(disabled.refresh_interval, Some(0));
 }
 
 #[tokio::test]
@@ -79,6 +94,7 @@ async fn startup_rejects_remote_bind_empty_selection_and_occupied_port() {
         no_saved_accounts: true,
         account_vault_namespace: None,
         account_data_dir: None,
+        cli_proxy_auth_dir: None,
         manage: false,
         public_url: None,
         allow_origin: vec![],

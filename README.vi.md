@@ -66,6 +66,11 @@ Quotio là ứng dụng macOS để quản lý **CLIProxyAPI** - máy chủ prox
 
 > **Lưu ý**: Các IDE này chỉ dùng để theo dõi quota. Không thể sử dụng làm provider cho proxy.
 
+### Theo dõi Quota Gói đăng ký (Chỉ giám sát)
+| Dịch vụ | Mô tả |
+|---------|-------|
+| OpenCode Go | Thêm API key OpenCode Go để theo dõi mức sử dụng 5 giờ, hàng tuần và hàng tháng |
+
 ### Agent tương thích
 Quotio có thể tự động cấu hình các công cụ sau:
 - Claude Code

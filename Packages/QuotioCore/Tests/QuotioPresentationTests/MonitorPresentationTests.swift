@@ -6,9 +6,50 @@ import XCTest
 
 @MainActor
 final class MonitorPresentationTests: XCTestCase {
+    func testMonitorRowsOnlyAllowDisablingWhenAccountHasCapability() {
+        for source in AccountSource.allCases {
+            for canDisable in [false, true] {
+                let account = Account(
+                    identity: AccountIdentity(id: "account", providerID: AccountProviderID(rawValue: "claude"), accountKey: "Work"),
+                    displayName: "Work",
+                    source: source,
+                    credentialReference: nil,
+                    capabilities: canDisable ? [.disable] : [],
+                    status: .ready
+                )
+                let row = AccountRowData.from(monitorAccount: account, status: nil, statusMessage: nil)
+                XCTAssertEqual(row.canDisable, canDisable)
+            }
+        }
+        for source in [AccountRowSource.proxy, .direct, .autoDetected] {
+            let row = AccountRowData(
+                id: "account", provider: .claude, displayName: "Work", source: source,
+                status: nil, statusMessage: nil, isDisabled: false, canDelete: false
+            )
+            XCTAssertEqual(row.canDisable, source == .proxy)
+        }
+    }
+
+    func testMonitorRowsHonorEditCapabilityForEveryAPIKeyProvider() {
+        for provider in [QuotaProvider.factoryDroid, .openRouter, .amp, .glm, .warp, .clinePass, .openCodeGo] {
+            for canEdit in [false, true] {
+                let account = Account(
+                    identity: AccountIdentity(id: "managed", providerID: AccountProviderID(rawValue: provider.rawValue), accountKey: "Work"),
+                    displayName: "Work",
+                    source: .quotioKeychain,
+                    credentialReference: nil,
+                    capabilities: canEdit ? [.edit] : [],
+                    status: .ready
+                )
+                let row = AccountRowData.from(monitorAccount: account, status: nil, statusMessage: nil)
+                XCTAssertEqual(row.canEdit, canEdit, provider.rawValue)
+            }
+        }
+    }
+
     func testMonitorProvidersDoNotRequireInstalledCLI() {
         let providers: Set<QuotaProvider> = [
-            .codex, .claude, .factoryDroid, .devin, .grok, .openRouter, .amp,
+            .codex, .claude, .factoryDroid, .devin, .grok, .openRouter, .amp, .openCodeGo,
         ]
 
         let filtered = StatusBarMenuSnapshotMapper.filterProviders(
