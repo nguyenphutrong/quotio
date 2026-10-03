@@ -184,6 +184,7 @@ public extension QuotaMetric {
         case "cursor-usage", "trae-usage", "windsurf-usage": "Usage"
         case "five-hour-session": "Session"
         case "seven-day-weekly", "weekly-usage": "Weekly"
+        case "seven-day-fable": "quota.metric.fableWeekly".localizedStatic()
         case "seven-day-sonnet", "sonnet-only": "Sonnet"
         case "seven-day-opus": "Opus"
         case "extra-usage": "Extra"

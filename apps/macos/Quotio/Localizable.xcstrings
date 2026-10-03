@@ -14089,6 +14089,22 @@
         }
       }
     },
+    "settings.menubar.showClaudeFableWeekly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Claude Fable weekly quota in menu" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Afficher le quota hebdomadaire Fable dans le menu" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hiện hạn mức Fable hàng tuần trong menu" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在菜单中显示 Claude Fable 每周配额" } }
+      }
+    },
+    "settings.menubar.showClaudeFableWeekly.help" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Adds Fable 7d beside the session and weekly limits. Reset times appear below the usage bars." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ajoute Fable 7j aux limites de session et de semaine. Les délais de réinitialisation apparaissent sous les barres." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thêm Fable 7 ngày cạnh hạn mức phiên và tuần. Thời gian đặt lại hiển thị bên dưới thanh mức dùng." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在会话和每周配额旁添加 Fable 7天。重置时间显示在用量条下方。" } }
+      }
+    },
     "settings.menubar.showQuota" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -19902,6 +19918,22 @@
         "fr" : { "stringUnit" : { "state" : "translated", "value" : "5 heures" } },
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "5 giờ" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "5 小时" } }
+      }
+    },
+    "quota.metric.fableWeekly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fable 7d" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Fable 7j" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Fable 7 ngày" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Fable 7天" } }
+      }
+    },
+    "quota.metric.fiveHourCompact" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "5h" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "5h" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "5 giờ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "5小时" } }
       }
     },
     "quota.metric.monthly" : {

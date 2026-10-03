@@ -1530,6 +1530,13 @@ struct MenuBarSettingsSection: View {
         )
     }
     
+    private var showClaudeFableWeeklyBinding: Binding<Bool> {
+        Binding(
+            get: { settings.showClaudeFableWeekly },
+            set: { settings.showClaudeFableWeekly = $0 }
+        )
+    }
+
     private var maxItemsBinding: Binding<Int> {
         Binding(
             get: { settings.menuBarMaxItems },
@@ -1562,6 +1569,12 @@ struct MenuBarSettingsSection: View {
                         "settings.menubar.stackPairedQuotaMetrics".localized(),
                         isOn: stackPairedQuotaMetricsBinding
                     )
+
+                    Toggle(
+                        "settings.menubar.showClaudeFableWeekly".localized(),
+                        isOn: showClaudeFableWeeklyBinding
+                    )
+                    .help("settings.menubar.showClaudeFableWeekly.help".localized())
 
                     HStack {
                         Text("settings.menubar.maxItems".localized())

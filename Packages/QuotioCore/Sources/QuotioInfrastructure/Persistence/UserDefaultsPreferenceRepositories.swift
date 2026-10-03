@@ -76,6 +76,7 @@ public final class UserDefaultsMenuBarPreferencesRepository: MenuBarPreferencesR
             quotaDisplayMode: QuotaDisplayMode(rawValue: defaults.string(forKey: "quotaDisplayMode") ?? "") ?? .used,
             quotaDisplayStyle: QuotaDisplayStyle(rawValue: defaults.string(forKey: "quotaDisplayStyle") ?? "") ?? .card,
             stackPairedQuotaMetrics: defaults.bool(forKey: "menuBarStackClaudeQuotaWindows"),
+            showClaudeFableWeekly: defaults.bool(forKey: "menuBarShowClaudeFableWeekly"),
             hideSensitiveInfo: defaults.bool(forKey: "hideSensitiveInfo"),
             totalUsageMode: TotalUsageMode(rawValue: defaults.string(forKey: "totalUsageMode") ?? "") ?? .sessionOnly,
             modelAggregationMode: ModelAggregationMode(rawValue: defaults.string(forKey: "modelAggregationMode") ?? "") ?? .lowest,
@@ -93,6 +94,7 @@ public final class UserDefaultsMenuBarPreferencesRepository: MenuBarPreferencesR
         defaults.set(preferences.quotaDisplayMode.rawValue, forKey: "quotaDisplayMode")
         defaults.set(preferences.quotaDisplayStyle.rawValue, forKey: "quotaDisplayStyle")
         defaults.set(preferences.stackPairedQuotaMetrics, forKey: "menuBarStackClaudeQuotaWindows")
+        defaults.set(preferences.showClaudeFableWeekly, forKey: "menuBarShowClaudeFableWeekly")
         defaults.set(preferences.hideSensitiveInfo, forKey: "hideSensitiveInfo")
         defaults.set(preferences.totalUsageMode.rawValue, forKey: "totalUsageMode")
         defaults.set(preferences.modelAggregationMode.rawValue, forKey: "modelAggregationMode")
