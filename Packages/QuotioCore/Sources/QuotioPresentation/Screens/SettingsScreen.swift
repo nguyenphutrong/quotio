@@ -1555,6 +1555,12 @@ struct MenuBarSettingsSection: View {
             Toggle("settings.menubar.showIcon".localized(), isOn: showMenuBarIconBinding)
             
             if settings.showMenuBarIcon {
+                Toggle("settings.menubar.hideCodexSpark".localized(), isOn: Binding(
+                    get: { settings.hideCodexSpark },
+                    set: { settings.hideCodexSpark = $0 }
+                ))
+                .help("settings.menubar.hideCodexSpark.help".localized())
+
                 Toggle("settings.menubar.showQuota".localized(), isOn: showQuotaBinding)
                 
                 if settings.showQuotaInMenuBar {

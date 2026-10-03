@@ -425,6 +425,11 @@ public final class MenuBarSettingsManager {
         didSet { persist() }
     }
     
+    /// Hide the Codex Spark session/weekly limits in the menu panel.
+    public var hideCodexSpark: Bool {
+        didSet { persist() }
+    }
+
     /// Whether to hide sensitive information (emails, account names)
     public var hideSensitiveInfo: Bool {
         didSet { persist() }
@@ -469,6 +474,7 @@ public final class MenuBarSettingsManager {
             quotaDisplayMode: quotaDisplayMode,
             quotaDisplayStyle: quotaDisplayStyle,
             stackPairedQuotaMetrics: stackPairedQuotaMetrics,
+            hideCodexSpark: hideCodexSpark,
             hideSensitiveInfo: hideSensitiveInfo,
             totalUsageMode: totalUsageMode,
             modelAggregationMode: modelAggregationMode,
@@ -488,6 +494,7 @@ public final class MenuBarSettingsManager {
         self.quotaDisplayMode = preferences.quotaDisplayMode
         self.quotaDisplayStyle = preferences.quotaDisplayStyle
         self.stackPairedQuotaMetrics = preferences.stackPairedQuotaMetrics
+        self.hideCodexSpark = preferences.hideCodexSpark
         self.hideSensitiveInfo = preferences.hideSensitiveInfo
         self.totalUsageMode = preferences.totalUsageMode
         self.modelAggregationMode = preferences.modelAggregationMode
