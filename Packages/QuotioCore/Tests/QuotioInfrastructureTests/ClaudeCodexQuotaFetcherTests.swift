@@ -126,6 +126,11 @@ final class ClaudeCodexQuotaFetcherTests: XCTestCase {
       analytics.rows.prefix(2).map(\.id),
       ["codex-extra-usage", "codex-rate-limit-resets"])
     XCTAssertEqual(analytics.rows[0].value, "$5.00 - 125 credits")
+    let creditsMetric = try XCTUnwrap(quota.models.first { $0.name == "codex-credits" })
+    XCTAssertEqual(
+      creditsMetric.presentation, .amount(value: 125.9, unit: .credits, semantics: .balance))
+    XCTAssertEqual(creditsMetric.percentage, -1)
+    XCTAssertEqual(creditsMetric.tooltip, "≈ $5.04")
     XCTAssertEqual(analytics.rows[1].value, "2 available")
     XCTAssertEqual(
       analytics.rows.filter { $0.id.hasPrefix("codex-rate-limit-reset-") }.count,

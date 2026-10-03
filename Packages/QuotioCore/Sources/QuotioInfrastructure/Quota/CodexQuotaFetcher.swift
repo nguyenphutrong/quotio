@@ -355,6 +355,17 @@ public actor CodexQuotaFetcher: QuotaFetching {
             } ?? ""))
       }
     }
+    if let credits = json?["credits"] as? [String: Any],
+      let balance = Self.number(credits["balance"]), balance > 0
+    {
+      // Purchased usage credits (1 credit ≈ $0.04). Standalone metric so the menu shows it
+      // as a value row beneath the rate-limit cards instead of a progress bar.
+      metrics.append(
+        QuotaMetric(
+          name: "codex-credits", percentage: -1, resetTime: "",
+          presentation: .amount(value: balance, unit: .credits, semantics: .balance),
+          tooltip: "≈ \(Self.formatDollars(balance * 0.04))"))
+    }
     return ProviderQuota(
       models: metrics, lastUpdated: now, isForbidden: response.rateLimit?.reached ?? false,
       planType: response.plan ?? planFallback,
