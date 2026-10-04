@@ -1,6 +1,6 @@
 [package]
 name = "quotio"
-version = "1.0.0-beta.1"
+version = "1.0.0-beta.2"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT"
