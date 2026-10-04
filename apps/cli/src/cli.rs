@@ -164,10 +164,10 @@ pub struct UsageArgs {
     /// Read provider keys from this absolute CLIProxyAPI YAML config (not proxy client keys)
     #[arg(long)]
     pub cli_proxy_config: Option<PathBuf>,
-    /// Disable terminal color (output is currently always plain)
+    /// Disable terminal color
     #[arg(long)]
     pub no_color: bool,
-    /// Write diagnostic logs to stderr
+    /// Include source details in text reports and write diagnostic logs to stderr
     #[arg(long)]
     pub verbose: bool,
     /// Use environment/local CLI sources without reading saved accounts

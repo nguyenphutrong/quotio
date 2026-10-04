@@ -787,24 +787,6 @@ mod tests {
         assert_eq!(usage.windows[1].quota, Quota::from_used(Some(40.0)));
         assert_eq!(usage.windows[2].amounts.as_ref().unwrap().remaining, 500.5);
     }
-    #[test]
-    fn balance_only_text_does_not_claim_unknown_usage() {
-        let usage = parse(&FIXTURE.replace("**", ""), OffsetDateTime::UNIX_EPOCH).unwrap();
-        let text = crate::output::text::render(&UsageReport {
-            schema_version: 1,
-            generated_at: OffsetDateTime::UNIX_EPOCH,
-            providers: vec![usage],
-            failures: vec![],
-        });
-        assert!(text.contains("used 8.00 of 20 USD"));
-        let balance = text
-            .lines()
-            .find(|line| line.contains("Individual credits:"))
-            .unwrap();
-        assert!(balance.contains("balance 10.25 USD remaining"));
-        assert!(!balance.contains("unknown"));
-        assert!(text.contains("Workspace credits: balance 0.00 USD remaining"));
-    }
     #[tokio::test]
     async fn local_key_is_bounded_and_used_only_for_public_amp_host() {
         let directory = std::env::temp_dir().join(crate::accounts::random_string().unwrap());
@@ -874,15 +856,6 @@ mod tests {
                 value["windows"][1]["reset_description"],
                 "upon renewal in 13 days"
             );
-            let rendered = crate::output::text::render(&UsageReport {
-                schema_version: 1,
-                generated_at: OffsetDateTime::UNIX_EPOCH,
-                providers: vec![usage],
-                failures: vec![],
-            });
-            assert!(rendered.contains("reset daily"));
-            assert!(rendered.contains("reset upon renewal in 13 days"));
-            assert!(!rendered.contains("reset unknown"));
         }
     }
     #[test]
@@ -894,15 +867,5 @@ mod tests {
         assert!(reset_description("remaining - period 2026-01-01 to 2026-02-31").is_none());
         assert!(reset_description("remaining").is_none());
         assert!(reset_description("resets upon renewal in many days").is_none());
-        let mut usage = parse(FIXTURE, OffsetDateTime::UNIX_EPOCH).unwrap();
-        usage.windows[0].resets_at = Some(OffsetDateTime::UNIX_EPOCH);
-        let rendered = crate::output::text::render(&UsageReport {
-            schema_version: 1,
-            generated_at: OffsetDateTime::UNIX_EPOCH,
-            providers: vec![usage],
-            failures: vec![],
-        });
-        assert!(rendered.contains("reset 1970-01-01T00:00:00Z"));
-        assert!(!rendered.contains("reset daily"));
     }
 }

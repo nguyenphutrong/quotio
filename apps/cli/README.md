@@ -89,8 +89,15 @@ cargo run -- usage --provider antigravity --provider factory --format json
 
 Repeated provider IDs are deduplicated, keeping the first occurrence. Timeout is
 an integer from 1 to 3600 seconds, default 10, applied separately to each provider.
-Text output is always plain, so `--no-color` is accepted without changing it.
-`--verbose` sends logs to stderr. Reports go to stdout.
+Text usage reports group providers and accounts, with aligned bars showing percent
+used, relative reset times, plans, saved resets, and monetary or credit balances.
+Green means below 80% used, yellow means 80–99%, and red means exhausted. Unknown,
+disabled, unlimited, and balance-only metrics do not get a percentage bar.
+Rows wrap to the terminal width instead of truncating labels or amounts.
+Color is disabled for redirected output, `--no-color`, `NO_COLOR`, and `TERM=dumb`.
+`--verbose` includes account IDs, metric sources, confidence, and fetch timestamps
+in text reports, and sends diagnostic logs to stderr. Reports go to stdout.
+Use `--format json` for scripts; the schema-2 snapshot is unchanged.
 
 ## Interactive mode
 

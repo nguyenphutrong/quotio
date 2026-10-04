@@ -1,135 +1,329 @@
-use crate::domain::{ProviderFailure, Quota, UsageReport};
-use std::fmt::Write;
+use crate::{
+    contract::{Freshness, Metric, Snapshot},
+    domain::{Confidence, ProviderFailure, Quota},
+};
+use clap::ValueEnum;
+use std::{collections::BTreeMap, fmt::Write, io::IsTerminal};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
-fn timestamp(time: Option<OffsetDateTime>) -> String {
-    time.and_then(|value| value.format(&Rfc3339).ok())
-        .unwrap_or_else(|| "unknown".into())
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
+#[derive(Clone, Copy)]
+pub struct Options {
+    pub width: usize,
+    pub color: bool,
+    pub verbose: bool,
+    pub now: OffsetDateTime,
 }
-// Prevent provider metadata from injecting terminal escape sequences or lines.
-fn safe(value: &str) -> String {
-    value.chars().filter(|c| !c.is_control()).collect()
-}
-pub fn render(report: &UsageReport) -> String {
-    let mut text = format!("Usage as of {}\n", timestamp(Some(report.generated_at)));
-    if report.providers.is_empty() {
-        text.push_str("No provider returned usage.\n");
+impl Options {
+    pub fn terminal(no_color: bool, verbose: bool) -> Self {
+        let terminal = std::io::stdout().is_terminal();
+        Self {
+            width: terminal_size::terminal_size().map_or(100, |(width, _)| usize::from(width.0)),
+            color: terminal
+                && !no_color
+                && std::env::var_os("NO_COLOR").is_none()
+                && std::env::var("TERM").is_ok_and(|term| term != "dumb"),
+            verbose,
+            now: OffsetDateTime::now_utc(),
+        }
     }
-    for usage in &report.providers {
-        let _ = writeln!(
-            text,
-            "{} | {} ({})",
-            safe(&usage.provider.0),
-            safe(&usage.account.label),
-            safe(&usage.account.id)
-        );
-        if let Some(account) = &usage.account_ref {
-            let _ = writeln!(
-                text,
-                "  Account: {} [{}]",
-                safe(&account.label),
-                safe(&account.id)
-            );
-        }
-        if let Some(credits) = &usage.reset_credits {
-            let _ = writeln!(
-                text,
-                "  Banked reset credits: {} available as of {}; earliest expiry {}; source {}",
-                credits.available_count,
-                timestamp(Some(credits.fetched_at)),
-                timestamp(credits.earliest_expires_at),
-                safe(&credits.source)
-            );
-        }
-        for window in &usage.windows {
-            let balance_only = window.quota == Quota::Unknown
-                && window.amounts.as_ref().is_some_and(|a| a.limit.is_none());
-            let consumption_only = window.quota == Quota::Unknown
-                && window.consumption.is_some()
-                && window.amounts.is_none();
-            let quota = match window.quota {
-                Quota::Unknown if consumption_only => {
-                    let amount = window.consumption.as_ref().expect("consumption amount");
-                    format!("used {:.2} {}", amount.used, safe(&amount.unit))
+}
+
+// Provider metadata must not inject terminal commands, lines or bidi overrides.
+fn safe(value: &str) -> String {
+    value.chars().filter_map(|c| {
+        if c.is_whitespace() { Some(' ') }
+        else if c.is_control() || matches!(c, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}') { None }
+        else { Some(c) }
+    }).collect()
+}
+fn timestamp(value: OffsetDateTime) -> String {
+    value.format(&Rfc3339).unwrap_or_else(|_| "unknown".into())
+}
+fn duration(seconds: i64) -> String {
+    let seconds = seconds.max(0);
+    if seconds < 60 {
+        return format!("{seconds}s");
+    }
+    let minutes = seconds / 60;
+    if minutes < 60 {
+        return format!("{minutes}m");
+    }
+    let hours = minutes / 60;
+    if hours < 24 {
+        return format!("{hours}h {}m", minutes % 60);
+    }
+    format!("{}d {}h", hours / 24, hours % 24)
+}
+fn reset(metric: &Metric, now: OffsetDateTime) -> Option<String> {
+    if let Some(at) = metric.resets_at {
+        let seconds = (at - now).whole_seconds();
+        return Some(if seconds > 0 {
+            format!("resets in {}", duration(seconds))
+        } else {
+            "reset due".into()
+        });
+    }
+    metric
+        .reset_description
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .map(|description| format!("reset {}", safe(description)))
+}
+
+struct Renderer {
+    text: String,
+    options: Options,
+}
+impl Renderer {
+    fn line(&mut self, indent: usize, value: &str, style: &str) {
+        let width = self.options.width.max(20).saturating_sub(indent).max(2);
+        let value = safe(value);
+        let mut rest = value.trim();
+        while !rest.is_empty() {
+            let mut cells = 0;
+            let mut end = rest.len();
+            let mut space = None;
+            for (index, c) in rest.char_indices() {
+                cells += c.width().unwrap_or(0);
+                if cells > width {
+                    end = space.filter(|&i| i > 0).unwrap_or(index);
+                    break;
                 }
-                Quota::Unknown if balance_only => {
-                    let amounts = window.amounts.as_ref().expect("balance amount");
-                    format!(
-                        "balance {:.2} {} remaining",
-                        amounts.remaining,
-                        safe(&amounts.unit)
-                    )
+                if c == ' ' {
+                    space = Some(index);
                 }
-                Quota::Disabled => "disabled".into(),
-                Quota::Limit { amount, ref unit } => format!("limit {amount:.2} {}", safe(unit)),
-                Quota::Unlimited => window.consumption.as_ref().map_or_else(
-                    || "unlimited".into(),
-                    |amount| format!("unlimited; used {:.2} {}", amount.used, safe(&amount.unit)),
-                ),
-                Quota::Unknown => "usage unknown; remaining unknown".into(),
-                Quota::Available {
-                    used_percent,
-                    remaining_percent,
-                } => format!("used {used_percent:.1}%; remaining {remaining_percent:.1}%"),
-                Quota::Exhausted { .. } => "exhausted; used 100.0%; remaining 0.0%".into(),
-            };
-            let reset = if window.resets_at.is_some() {
-                format!("; reset {}", timestamp(window.resets_at))
-            } else if let Some(description) = window
-                .reset_description
-                .as_deref()
-                .filter(|s| !s.trim().is_empty())
-            {
-                format!("; reset {}", safe(description))
-            } else if balance_only || consumption_only {
-                String::new()
+            }
+            let (part, tail) = rest.split_at(end);
+            let _ = write!(self.text, "{:indent$}", "");
+            if self.options.color && !style.is_empty() {
+                let _ = writeln!(self.text, "\x1b[{style}m{part}\x1b[0m");
             } else {
-                "; reset unknown".into()
-            };
-            let _ = writeln!(
-                text,
-                "  {}: {}{}; source {} ({:?}); fetched {}",
-                safe(&window.label),
-                quota,
-                reset,
-                safe(&window.provenance.source),
-                window.provenance.confidence,
-                timestamp(Some(window.fetched_at))
-            );
-            if let Some(amounts) = &window.amounts
-                && !balance_only
-            {
-                if let Some(limit) = amounts.limit.filter(|limit| *limit >= amounts.remaining) {
-                    let _ = writeln!(
-                        text,
-                        "    used {:.2} of {limit} {}; remaining {:.2} {}",
-                        window
-                            .consumption
-                            .as_ref()
-                            .map_or(limit - amounts.remaining, |c| c.used),
-                        safe(&amounts.unit),
-                        amounts.remaining,
-                        safe(&amounts.unit)
-                    );
-                    continue;
+                let _ = writeln!(self.text, "{part}");
+            }
+            rest = tail.trim_start();
+        }
+    }
+    fn metric(&mut self, metric: &Metric, label_width: usize) {
+        let label = safe(&metric.display_name);
+        let percent = match metric.quota {
+            Quota::Available { used_percent, .. } | Quota::Exhausted { used_percent, .. } => {
+                Some(used_percent)
+            }
+            _ => None,
+        };
+        let style = match percent {
+            Some(p) if p >= 100.0 => "31",
+            Some(p) if p >= 80.0 => "33",
+            Some(_) => "32",
+            None => "2",
+        };
+        let mut detail = match &metric.quota {
+            Quota::Available { used_percent, .. } | Quota::Exhausted { used_percent, .. } => {
+                format!("{used_percent:.1}% used")
+            }
+            Quota::Disabled => "disabled".into(),
+            Quota::Unlimited => "unlimited".into(),
+            Quota::Limit { amount, unit } => format!("limit {amount:.2} {}", safe(unit)),
+            Quota::Unknown if metric.amounts.is_some() || metric.consumption.is_some() => {
+                String::new()
+            }
+            Quota::Unknown => "usage unknown".into(),
+        };
+        if let Some(value) = reset(metric, self.options.now) {
+            if !detail.is_empty() {
+                detail.push_str(" · ");
+            }
+            detail.push_str(&value);
+        }
+        let bar = percent.map(|p| {
+            let filled = (p.clamp(0.0, 100.0) / 100.0 * 16.0).round() as usize;
+            format!("[{}{}]", "#".repeat(filled), "-".repeat(16 - filled))
+        });
+        let padding = label_width.saturating_sub(label.width());
+        let row = format!(
+            "{label}{}  {}{detail}",
+            " ".repeat(padding),
+            bar.as_ref().map_or(String::new(), |b| format!("{b}  "))
+        );
+        if row.width() + 4 <= self.options.width.max(20) {
+            self.line(4, &row, style);
+        } else {
+            self.line(4, &label, "1");
+            if let Some(bar) = bar {
+                self.line(6, &bar, style);
+            }
+            self.line(6, &detail, style);
+        }
+        if let Some(amounts) = &metric.amounts {
+            let unit = safe(&amounts.unit);
+            let amount = if let Some(limit) = amounts.limit {
+                let used =
+                    metric.consumption.as_ref().map(|c| c.used).or_else(|| {
+                        (limit >= amounts.remaining).then_some(limit - amounts.remaining)
+                    });
+                match used {
+                    Some(used) => format!(
+                        "{used:.2} / {limit:.2} {unit} used · {:.2} {unit} left",
+                        amounts.remaining
+                    ),
+                    None => format!(
+                        "{:.2} {unit} left · limit {limit:.2} {unit}",
+                        amounts.remaining
+                    ),
                 }
-                let limit = amounts
-                    .limit
-                    .map(|v| format!(" of {v}"))
-                    .unwrap_or_default();
-                let _ = writeln!(
-                    text,
-                    "    balance {}{} {} remaining",
-                    amounts.remaining,
-                    limit,
-                    safe(&amounts.unit)
+            } else {
+                format!("{:.2} {unit} left", amounts.remaining)
+            };
+            self.line(6, &amount, "2");
+        } else if let Some(amount) = &metric.consumption {
+            self.line(
+                6,
+                &format!("{:.2} {} used", amount.used, safe(&amount.unit)),
+                "2",
+            );
+        }
+        if let Some(note) = &metric.note {
+            self.line(6, note, "2");
+        }
+        if matches!(metric.provenance.confidence, Confidence::Estimated) {
+            self.line(6, "estimated", "2");
+        }
+        if self.options.verbose {
+            self.line(
+                6,
+                &format!(
+                    "source {} · {:?} · fetched {}",
+                    safe(&metric.provenance.source),
+                    metric.provenance.confidence,
+                    timestamp(metric.fetched_at)
+                ),
+                "2",
+            );
+        }
+    }
+}
+
+pub fn render_snapshot(snapshot: &Snapshot, options: Options) -> String {
+    let mut renderer = Renderer {
+        text: String::new(),
+        options,
+    };
+    renderer.line(
+        0,
+        &format!("Usage · {}", timestamp(snapshot.generated_at)),
+        "1",
+    );
+    let mut groups: BTreeMap<&str, Vec<&crate::contract::Account>> = BTreeMap::new();
+    for account in &snapshot.accounts {
+        groups
+            .entry(&account.provider_id)
+            .or_default()
+            .push(account);
+    }
+    if groups.is_empty() {
+        renderer.line(0, "No accounts returned usage.", "2");
+    }
+    for (provider, accounts) in groups {
+        renderer.text.push('\n');
+        let name = crate::cli::Provider::from_str(provider, false)
+            .ok()
+            .map(|p| crate::providers::capabilities::ProviderDescriptor::new(p, &[]).display_name)
+            .unwrap_or(provider);
+        renderer.line(
+            0,
+            &format!(
+                "{name} · {} {}",
+                accounts.len(),
+                if accounts.len() == 1 {
+                    "account"
+                } else {
+                    "accounts"
+                }
+            ),
+            "1;36",
+        );
+        let label_width = snapshot
+            .usage
+            .iter()
+            .filter(|u| accounts.iter().any(|a| a.id == u.account_id))
+            .flat_map(|u| &u.metrics)
+            .map(|m| safe(&m.display_name).width())
+            .max()
+            .unwrap_or(0);
+        for account in accounts {
+            let usage = snapshot.usage.iter().find(|u| u.account_id == account.id);
+            let mut header = safe(&account.display_name);
+            if let Some(usage) = usage {
+                if let Some(plan) = &usage.plan {
+                    let _ = write!(header, " · plan {}", safe(plan));
+                }
+                let freshness = match usage.freshness {
+                    Freshness::Fresh => "",
+                    Freshness::Stale => " · stale",
+                    Freshness::NotLoaded => " · not loaded",
+                    Freshness::Unavailable => " · unavailable",
+                };
+                header.push_str(freshness);
+                if let Some(at) = usage.fetched_at {
+                    let _ = write!(
+                        header,
+                        " · fetched {} ago",
+                        duration((options.now - at).whole_seconds())
+                    );
+                }
+            }
+            renderer.line(2, &header, "1");
+            if options.verbose {
+                renderer.line(
+                    4,
+                    &format!("account {} · {:?}", safe(&account.id), account.state),
+                    "2",
                 );
+            }
+            let Some(usage) = usage else {
+                renderer.line(4, "No usage data.", "2");
+                continue;
+            };
+            if let Some(status) = &usage.subscription_status {
+                renderer.line(4, &format!("subscription {}", safe(status)), "2");
+            }
+            if let Some(credits) = &usage.reset_credits {
+                let mut text = format!(
+                    "{} saved {}",
+                    credits.available_count,
+                    if credits.available_count == 1 {
+                        "reset"
+                    } else {
+                        "resets"
+                    }
+                );
+                if let Some(at) = credits.earliest_expires_at {
+                    let seconds = (at - options.now).whole_seconds();
+                    let _ = write!(
+                        text,
+                        " · {}",
+                        if seconds > 0 {
+                            format!("soonest expires in {}", duration(seconds))
+                        } else {
+                            "expiry due".into()
+                        }
+                    );
+                }
+                renderer.line(4, &text, "36");
+            }
+            if usage.metrics.is_empty() {
+                renderer.line(4, "No quota reported.", "2");
+            }
+            for metric in &usage.metrics {
+                renderer.metric(metric, label_width);
+            }
+            if let Some(issue) = &usage.issue {
+                renderer.line(4, &format!("Issue: {}", safe(&issue.code)), "33");
             }
         }
     }
-    for failure in &report.failures {
-        let _ = writeln!(text, "{}", self::failure(failure));
-    }
-    text
+    renderer.text
 }
 
 pub fn failure(failure: &ProviderFailure) -> String {
@@ -140,86 +334,7 @@ pub fn failure(failure: &ProviderFailure) -> String {
         .unwrap_or_default();
     format!("{}{account}: {}", safe(&failure.provider.0), failure.code)
 }
-
-pub fn render_snapshot(snapshot: &crate::contract::Snapshot) -> String {
-    use crate::domain::{AccountIdentity, ProviderId, ProviderUsage, QuotaWindow};
-    let providers = snapshot
-        .accounts
-        .iter()
-        .filter_map(|account| {
-            let usage = snapshot
-                .usage
-                .iter()
-                .find(|usage| usage.account_id == account.id)?;
-            Some(ProviderUsage {
-                provider: ProviderId(account.provider_id.clone()),
-                account_ref: None,
-                account: AccountIdentity {
-                    verified: None,
-                    id: account.id.clone(),
-                    label: account.display_name.clone(),
-                    plan: usage.plan.clone(),
-                    subscription_status: usage.subscription_status.clone(),
-                },
-                windows: usage
-                    .metrics
-                    .iter()
-                    .map(|metric| QuotaWindow {
-                        metric_id: Some(metric.id.clone()),
-                        label: metric.display_name.clone(),
-                        note: metric.note.clone(),
-                        quota: metric.quota.clone(),
-                        amounts: metric.amounts.clone(),
-                        consumption: metric.consumption.clone(),
-                        resets_at: metric.resets_at,
-                        reset_description: metric.reset_description.clone(),
-                        fetched_at: metric.fetched_at,
-                        provenance: metric.provenance.clone(),
-                    })
-                    .collect(),
-                reset_credits: usage.reset_credits.clone(),
-                antigravity_subscription: usage.antigravity_subscription.clone(),
-                codex_profile: usage.codex_profile.clone(),
-                codex_reset_credits: usage.codex_reset_credits.clone(),
-                diagnostics: Vec::new(),
-            })
-        })
-        .collect();
-    let mut text = render(&UsageReport {
-        schema_version: 2,
-        generated_at: snapshot.generated_at,
-        providers,
-        failures: Vec::new(),
-    });
-    for account in &snapshot.accounts {
-        if let Some(usage) = snapshot
-            .usage
-            .iter()
-            .find(|usage| usage.account_id == account.id)
-        {
-            let freshness = match usage.freshness {
-                crate::contract::Freshness::Fresh => "fresh",
-                crate::contract::Freshness::Stale => "stale",
-                crate::contract::Freshness::NotLoaded => "not loaded",
-                crate::contract::Freshness::Unavailable => "unavailable",
-            };
-            let _ = writeln!(
-                text,
-                "{}: {}{}",
-                safe(&account.display_name),
-                freshness,
-                usage
-                    .plan
-                    .as_ref()
-                    .map(|plan| format!("; plan {}", safe(plan)))
-                    .unwrap_or_default()
-            );
-        }
-    }
-    text
-}
-
-pub fn snapshot_failures(snapshot: &crate::contract::Snapshot) -> String {
+pub fn snapshot_failures(snapshot: &Snapshot) -> String {
     let mut text = String::new();
     for (provider, issue) in &snapshot.provider_issues {
         let _ = writeln!(text, "{}: {}", safe(provider), safe(&issue.code));
@@ -244,40 +359,89 @@ pub fn snapshot_failures(snapshot: &crate::contract::Snapshot) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn reset_credits_render_zero_positive_and_unknown_without_money_or_tokens() {
-        for count in [None, Some(0), Some(2)] {
-            let usage = crate::providers::codex::parse_direct("demo@example.com", json!({
-                "rateLimits":{"primary":{"usedPercent":20}},
-                "rateLimitResetCredits":count.map(|available| json!({"availableCount":available}))
-            }), OffsetDateTime::UNIX_EPOCH).unwrap();
-            let report = UsageReport {
-                schema_version: 1,
-                generated_at: OffsetDateTime::UNIX_EPOCH,
-                providers: vec![usage],
-                failures: vec![],
-            };
-            let text = render(&report);
-            let value: serde_json::Value =
-                serde_json::from_str(&serde_json::to_string_pretty(&report).unwrap()).unwrap();
-            match count {
-                Some(count) => {
-                    assert!(text.contains(&format!("Banked reset credits: {count} available as of 1970-01-01T00:00:00Z; earliest expiry unknown; source codex_app_server")));
-                    assert_eq!(
-                        value["providers"][0]["reset_credits"]["available_count"],
-                        count
-                    );
-                }
-                None => {
-                    assert!(!text.contains("Banked reset credits"));
-                    assert!(value["providers"][0].get("reset_credits").is_none());
-                }
-            }
-            assert!(!text.contains("USD"));
-            assert!(text.contains("remaining 80.0%"));
-            println!("{text}");
+    use crate::domain::{Consumption, Provenance, QuotaAmounts};
+    fn metric() -> Metric {
+        Metric {
+            id: "quota".into(),
+            group: None,
+            display_name: "Weekly".into(),
+            note: None,
+            quota: Quota::Unknown,
+            amounts: None,
+            consumption: None,
+            resets_at: None,
+            reset_description: None,
+            fetched_at: OffsetDateTime::UNIX_EPOCH,
+            provenance: Provenance {
+                source: "fixture".into(),
+                confidence: Confidence::Exact,
+            },
         }
+    }
+    fn renderer(width: usize) -> Renderer {
+        Renderer {
+            text: String::new(),
+            options: Options {
+                width,
+                color: false,
+                verbose: false,
+                now: OffsetDateTime::UNIX_EPOCH,
+            },
+        }
+    }
+    #[test]
+    fn balances_and_consumption_do_not_invent_quota() {
+        let mut value = metric();
+        value.amounts = Some(QuotaAmounts {
+            remaining: 0.0,
+            limit: None,
+            unit: "USD".into(),
+        });
+        let mut output = renderer(100);
+        output.metric(&value, 6);
+        assert!(output.text.contains("0.00 USD left"));
+        assert!(!output.text.contains("%"));
+        assert!(!output.text.contains("["));
+        value.amounts = None;
+        value.consumption = Some(Consumption {
+            used: 12.5,
+            unit: "USD".into(),
+        });
+        let mut output = renderer(100);
+        output.metric(&value, 6);
+        assert!(output.text.contains("12.50 USD used"));
+        assert!(!output.text.contains("left"));
+    }
+    #[test]
+    fn timestamp_reset_precedes_description_and_past_reset_is_due() {
+        let mut value = metric();
+        value.reset_description = Some("daily".into());
+        value.resets_at = Some(OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(8100));
+        assert_eq!(
+            reset(&value, OffsetDateTime::UNIX_EPOCH).as_deref(),
+            Some("resets in 2h 15m")
+        );
+        assert_eq!(
+            reset(&value, value.resets_at.unwrap()).as_deref(),
+            Some("reset due")
+        );
+        value.resets_at = None;
+        assert_eq!(
+            reset(&value, OffsetDateTime::UNIX_EPOCH).as_deref(),
+            Some("reset daily")
+        );
+    }
+    #[test]
+    fn unicode_rows_wrap_and_metadata_cannot_inject_controls() {
+        let mut value = metric();
+        value.quota = Quota::from_used(Some(100.0));
+        value.display_name = "長い名前と長い quota window".into();
+        value.note = Some("note\n\x1b[2J\u{202e}hidden".into());
+        let mut output = renderer(40);
+        output.metric(&value, 40);
+        assert!(output.text.lines().all(|line| line.width() <= 40));
+        assert!(output.text.contains("100.0% used"));
+        assert!(!output.text.contains('\x1b'));
+        assert!(!output.text.contains('\u{202e}'));
     }
 }

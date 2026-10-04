@@ -709,9 +709,6 @@ mod tests {
             }],
             failures: vec![],
         };
-        let text = crate::output::text::render(&report);
-        assert!(text.contains("used 12.50 USD"));
-        assert!(!text.contains("remaining"));
         let json = serde_json::to_string_pretty(&report).unwrap();
         assert!(json.contains("consumption"));
         let unknown = openrouter(

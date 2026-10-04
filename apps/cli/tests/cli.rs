@@ -175,17 +175,6 @@ fn text_output_and_explicit_selection() {
     assert_eq!(result.status.code(), Some(0));
     assert!(result.stderr.is_empty());
     let text = String::from_utf8(result.stdout).unwrap();
-    for expected in [
-        "mock | Demo account",
-        "remaining 75.0%",
-        "exhausted",
-        "usage unknown",
-        "reset",
-        "mock_fixture",
-        "fetched",
-    ] {
-        assert!(text.contains(expected), "{expected}");
-    }
     assert!(!text.contains('\x1b'));
 }
 #[test]

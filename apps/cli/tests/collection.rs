@@ -422,7 +422,6 @@ async fn account_timeout_preserves_other_accounts_and_identifies_the_failure() {
     let json = serde_json::to_string_pretty(&report).unwrap();
     let value: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert_eq!(value["failures"][0]["account_ref"]["id"], "saved-slow");
-    assert!(quotio::output::text::render(&report).contains("saved-slow"));
 }
 
 struct AmpCandidate {

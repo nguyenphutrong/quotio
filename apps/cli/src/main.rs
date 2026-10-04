@@ -317,7 +317,10 @@ async fn run() -> ExitCode {
                 eprint!("{}", collected.diagnostics);
             }
             let text = match args.format {
-                Format::Text => output::text::render_snapshot(&collected.snapshot),
+                Format::Text => output::text::render_snapshot(
+                    &collected.snapshot,
+                    output::text::Options::terminal(args.no_color, args.verbose),
+                ),
                 Format::Json => match output::json::render(&collected.snapshot) {
                     Ok(json) => format!("{json}\n"),
                     Err(_) => {

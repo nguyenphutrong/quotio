@@ -27,6 +27,8 @@ base64 = "0.22"
 ring = "0.17"
 aes-gcm = { version = "0.10.3", default-features = false, features = ["aes", "alloc"] }
 libc = "0.2"
+terminal_size = "0.4"
+unicode-width = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "=3.5.1"
