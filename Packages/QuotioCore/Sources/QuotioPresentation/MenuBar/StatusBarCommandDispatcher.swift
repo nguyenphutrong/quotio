@@ -52,14 +52,15 @@ public final class StatusBarCommandDispatcher {
         self.handlers = handlers
     }
 
-    func dispatch(_ command: StatusBarCommand) {
+    @discardableResult
+    func dispatch(_ command: StatusBarCommand) -> Task<Void, Never>? {
         switch command {
         case .refreshAll:
-            perform(handlers.refreshAll)
+            return perform(handlers.refreshAll)
         case .refreshProvider(let provider):
-            perform { [handlers] in await handlers.refreshProvider(provider) }
+            return perform { [handlers] in await handlers.refreshProvider(provider) }
         case .refreshAccount(let account):
-            perform { [handlers] in await handlers.refreshAccount(account) }
+            return perform { [handlers] in await handlers.refreshAccount(account) }
         case .selectProvider(let provider):
             handlers.selectProvider(provider)
         case .pairIPhone:
@@ -69,9 +70,10 @@ public final class StatusBarCommandDispatcher {
         case .quit:
             handlers.quit()
         }
+        return nil
     }
 
-    private func perform(_ action: @escaping @MainActor @Sendable () async -> Void) {
+    private func perform(_ action: @escaping @MainActor @Sendable () async -> Void) -> Task<Void, Never> {
         Task { [handlers] in
             await action()
             handlers.menuNeedsRebuild()

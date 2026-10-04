@@ -120,8 +120,10 @@ private final class StatusBarCommandMenuItem: NSMenuItem {
 // MARK: - Status Bar Menu Renderer
 
 @MainActor
+@Observable
 final class StatusBarMenuRenderer {
-    private let snapshot: StatusBarMenuSnapshot
+    private var snapshot: StatusBarMenuSnapshot
+    @ObservationIgnored private weak var refreshItem: NSMenuItem?
     private let appearance: NSAppearance?
     private let commands: StatusBarCommandDispatcher
     private let providerFilterController: StatusBarProviderFilterController
@@ -168,15 +170,18 @@ final class StatusBarMenuRenderer {
             menu.addItem(NSMenuItem.separator())
 
             for (index, providerSnapshot) in providers.enumerated() {
-                let headerView = MenuProviderSectionHeader(
-                    provider: providerSnapshot.provider,
-                    displayName: providerSnapshot.displayName,
-                    isRefreshing: providerSnapshot.isRefreshing,
-                    supportsScopedRefresh: providerSnapshot.supportsScopedRefresh,
-                    onRefresh: {
-                        self.commands.dispatch(.refreshProvider(providerSnapshot.provider))
-                    }
-                )
+                let headerView = MenuContent {
+                    let current = self.snapshot.providers.first { $0.provider == providerSnapshot.provider } ?? providerSnapshot
+                    return MenuProviderSectionHeader(
+                        provider: current.provider,
+                        displayName: current.displayName,
+                        isRefreshing: current.isRefreshing,
+                        supportsScopedRefresh: current.supportsScopedRefresh,
+                        onRefresh: {
+                            await self.commands.dispatch(.refreshProvider(current.provider))?.value
+                        }
+                    )
+                }
                 let headerItem = viewItem(for: headerView, title: providerSnapshot.displayName)
                 providerFilterController.register(headerItem, scope: .allProvidersOnly)
                 menu.addItem(headerItem)
@@ -239,10 +244,15 @@ final class StatusBarMenuRenderer {
         highlightController.highlight(item)
     }
 
+    func update(snapshot: StatusBarMenuSnapshot) {
+        self.snapshot = snapshot
+        refreshItem?.isEnabled = snapshot.canRefresh && !snapshot.isLoadingQuotas
+    }
+
     // MARK: - Header Item
     
     private func buildHeaderItem() -> NSMenuItem {
-        let headerView = MenuHeaderView(isLoading: snapshot.isLoadingQuotas)
+        let headerView = MenuContent { MenuHeaderView(isLoading: self.snapshot.isLoadingQuotas) }
         return viewItem(for: headerView, title: "Quotio")
     }
 
@@ -256,31 +266,41 @@ final class StatusBarMenuRenderer {
             : account.email
 
         if provider == .codex, let analytics = account.quota.analytics, !analytics.isEmpty {
-            item.submenu = buildCodexAnalyticsSubmenu(analytics: analytics)
+            item.submenu = buildCodexAnalyticsSubmenu(analytics: analytics, accountID: account.id)
         }
 
-        let cardView = MenuAccountCardView(
-            email: account.email,
-            data: account.quota,
-            provider: provider,
-            subscriptionInfo: account.subscription,
-            isRefreshing: account.isRefreshing,
-            canRefresh: !account.isRefreshBlocked,
-            hasDetail: item.submenu != nil,
-            itemID: ObjectIdentifier(item),
-            highlightController: highlightController,
-            settings: snapshot.displaySettings,
-            onRefresh: {
-                self.commands.dispatch(.refreshAccount(account.id))
-            }
-        )
+        let hasDetail = item.submenu != nil
+        let itemID = ObjectIdentifier(item)
+        let cardView = MenuContent {
+            let current = self.snapshot.providers.first { $0.provider == provider }?
+                .accounts.first { $0.id == account.id } ?? account
+            return MenuAccountCardView(
+                email: current.email,
+                data: current.quota,
+                provider: provider,
+                subscriptionInfo: current.subscription,
+                isRefreshing: current.isRefreshing,
+                canRefresh: !current.isRefreshBlocked,
+                hasDetail: hasDetail,
+                itemID: itemID,
+                highlightController: self.highlightController,
+                settings: self.snapshot.displaySettings,
+                onRefresh: {
+                    await self.commands.dispatch(.refreshAccount(account.id))?.value
+                }
+            )
+        }
         item.view = hostingView(for: cardView)
         return item
     }
 
-    private func buildCodexAnalyticsSubmenu(analytics: QuotaAnalytics) -> NSMenu {
+    private func buildCodexAnalyticsSubmenu(analytics: QuotaAnalytics, accountID: QuotaAccountID) -> NSMenu {
         let submenu = makeMenu()
-        submenu.addItem(viewItem(for: AnalyticsDetailSection(analytics: analytics), width: 640))
+        submenu.addItem(viewItem(for: MenuContent {
+            let current = self.snapshot.providers.first { $0.provider == accountID.provider }?
+                .accounts.first { $0.id == accountID }?.quota.analytics ?? analytics
+            return AnalyticsDetailSection(analytics: current)
+        }, width: 640))
         return submenu
     }
 
@@ -296,16 +316,17 @@ final class StatusBarMenuRenderer {
     private func buildActionItems() -> [NSMenuItem] {
         let refresh = commandItem("action.refresh", symbol: "arrow.clockwise", key: "r", command: .refreshAll)
         refresh.isEnabled = snapshot.canRefresh && !snapshot.isLoadingQuotas
-        if snapshot.isLoadingQuotas {
-            refresh.view = hostingView(for: HStack(spacing: 6) {
-                SmallProgressView()
-                Text("status.refreshing".localized())
-                Spacer()
+        refreshItem = refresh
+        refresh.view = hostingView(for: MenuContent {
+            RefreshButton(title: "action.refresh".localized(), isRefreshing: self.snapshot.isLoadingQuotas) {
+                await self.commands.dispatch(.refreshAll)?.value
             }
-            .foregroundStyle(.secondary)
+            .buttonStyle(.plain)
+            .disabled(!self.snapshot.canRefresh)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, MenuItemMetrics.contentInset)
-            .padding(.vertical, 6))
-        }
+            .padding(.vertical, 6)
+        })
         return [
             refresh,
             commandItem("companion.pair", symbol: "iphone", key: "", command: .pairIPhone),
@@ -361,6 +382,12 @@ final class StatusBarMenuRenderer {
 
 // MARK: - SwiftUI Menu Components
 
+private struct MenuContent<Content: View>: View {
+    let content: () -> Content
+
+    var body: some View { content() }
+}
+
 // MARK: Header View
 
 private struct MenuHeaderView: View {
@@ -390,7 +417,7 @@ private struct MenuProviderSectionHeader: View {
     let displayName: String
     let isRefreshing: Bool
     let supportsScopedRefresh: Bool
-    let onRefresh: () -> Void
+    let onRefresh: @MainActor () async -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -399,22 +426,14 @@ private struct MenuProviderSectionHeader: View {
                 .font(.subheadline.weight(.semibold))
             Spacer()
 
-            Button(action: onRefresh) {
-                if isRefreshing {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .frame(width: 20, height: 20)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.subheadline.weight(.medium))
-                        .frame(width: 20, height: 20)
-                        .contentShape(Rectangle())
-                }
-            }
+            RefreshButton(title: "action.refreshQuota".localized(), isRefreshing: isRefreshing, action: onRefresh)
+            .labelStyle(.iconOnly)
+            .font(.subheadline.weight(.medium))
+            .frame(width: 20, height: 20)
+            .contentShape(Rectangle())
             .buttonStyle(.plain)
-            .disabled(isRefreshing || !supportsScopedRefresh)
+            .disabled(!supportsScopedRefresh)
             .help("action.refreshQuota".localized())
-            .accessibilityLabel("action.refreshQuota".localized())
         }
         .foregroundStyle(.secondary)
         .padding(.horizontal, MenuItemMetrics.contentInset)
@@ -526,7 +545,7 @@ private struct MenuAccountCardView: View {
     let itemID: ObjectIdentifier
     let highlightController: StatusBarMenuHighlightController
     let settings: StatusBarMenuDisplaySettings
-    let onRefresh: () -> Void
+    let onRefresh: @MainActor () async -> Void
 
     private var planName: String? {
         data.planType ?? subscriptionInfo?.tierDisplayName
@@ -581,23 +600,15 @@ private struct MenuAccountCardView: View {
 
             Spacer(minLength: 4)
 
-            Button(action: onRefresh) {
-                if isRefreshing {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .frame(width: 20, height: 20)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                        .contentShape(Rectangle())
-                }
-            }
+            RefreshButton(title: "action.refreshQuota".localized(), isRefreshing: isRefreshing, action: onRefresh)
+            .labelStyle(.iconOnly)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
+            .frame(width: 20, height: 20)
+            .contentShape(Rectangle())
             .buttonStyle(.plain)
             .disabled(!canRefresh)
             .help("action.refreshQuota".localized())
-            .accessibilityLabel("action.refreshQuota".localized())
 
             if hasDetail {
                 Image(systemName: "chevron.right")

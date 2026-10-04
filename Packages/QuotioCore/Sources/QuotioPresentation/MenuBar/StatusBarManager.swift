@@ -35,8 +35,6 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     private var pendingCompanionPresentation: (() -> Void)?
     private let companionPresenter = CompanionPopoverPresenter()
     private var menuContentVersion: Int = 0
-    private var isRebuildingMenu = false
-    private var hasPendingMenuRebuild = false
     private var configuration: Configuration?
     private var lastRenderSignature: RenderSignature?
     private var appearanceObservation: NSKeyValueObservation?
@@ -96,7 +94,7 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     }
 
     private func renderStatusBar() {
-        guard let configuration else { return }
+        guard !isMenuTracking, let configuration else { return }
         
         if statusItem == nil {
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -214,8 +212,6 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     
     public func menuWillOpen(_ menu: NSMenu) {
         isMenuTracking = true
-        hasPendingMenuRebuild = false
-        renderStatusBar()
         performMenuRebuild(using: menu)
     }
     
@@ -250,21 +246,10 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
         }
     }
     
-    /// Force rebuild menu while it's open (e.g., when provider changes)
+    /// Update hosted content without replacing items that AppKit is tracking.
     public func rebuildMenuInPlace() {
-        guard let menu = menu else { return }
-
-        if statusItem?.button?.isHighlighted != true {
-            hasPendingMenuRebuild = true
-            return
-        }
-
-        if isRebuildingMenu {
-            hasPendingMenuRebuild = true
-            return
-        }
-
-        performMenuRebuild(using: menu)
+        guard isMenuTracking, let menuSnapshotProvider else { return }
+        menuRenderer?.update(snapshot: menuSnapshotProvider())
     }
 
     /// Close the menu programmatically
@@ -273,22 +258,6 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     }
 
     private func performMenuRebuild(using menu: NSMenu) {
-        if isRebuildingMenu {
-            hasPendingMenuRebuild = true
-            return
-        }
-
-        isRebuildingMenu = true
-        defer {
-            isRebuildingMenu = false
-            if hasPendingMenuRebuild, statusItem?.button?.isHighlighted == true {
-                hasPendingMenuRebuild = false
-                DispatchQueue.main.async { [weak self] in
-                    self?.rebuildMenuInPlace()
-                }
-            }
-        }
-
         guard let snapshotProvider = menuSnapshotProvider,
               let commandDispatcher else {
             return
