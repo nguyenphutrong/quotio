@@ -186,9 +186,10 @@ private struct UnidentifiedSourceRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Button("action.retry".localized()) { Task { await controller.refresh(provider: provider) } }
-                .controlSize(.small)
-                .disabled(quota.isRefreshing(provider: provider))
+            RefreshButton(title: "action.retry".localized(), isRefreshing: quota.isRefreshing(provider: provider)) {
+                await controller.refresh(provider: provider)
+            }
+            .controlSize(.small)
             LoginSourceMenu(provider: provider, source: source)
         }
     }
@@ -211,9 +212,10 @@ private struct ProviderIssueRow: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .help(issue.reason == nil ? "settings.reasonMissing".localized() : issue.explanation)
-            Button("action.retry".localized()) { Task { await controller.refresh(provider: provider) } }
-                .controlSize(.small)
-                .disabled(quota.isRefreshing(provider: provider))
+            RefreshButton(title: "action.retry".localized(), isRefreshing: quota.isRefreshing(provider: provider)) {
+                await controller.refresh(provider: provider)
+            }
+            .controlSize(.small)
         }
     }
 }

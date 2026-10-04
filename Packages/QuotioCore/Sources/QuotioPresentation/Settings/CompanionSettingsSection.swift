@@ -44,8 +44,8 @@ struct CompanionSettingsSection: View {
                     Text("companion.devices".localized())
                     Text(String(model.devices.count)).foregroundStyle(.secondary)
                     Spacer()
-                    Button("action.refresh".localized(), systemImage: "arrow.clockwise") { Task { await model.reload() } }
-                        .labelStyle(.iconOnly).buttonStyle(.borderless).disabled(model.busy)
+                    RefreshButton(title: "action.refresh".localized(), isRefreshing: model.busy) { await model.reload() }
+                        .labelStyle(.iconOnly).buttonStyle(.borderless)
                 }
             }
 

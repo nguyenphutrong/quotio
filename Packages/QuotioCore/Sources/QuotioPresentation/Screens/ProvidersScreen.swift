@@ -361,29 +361,21 @@ struct ProvidersScreen: View {
         }
 
         ToolbarItem(placement: .automatic) {
-            Button {
-                Task {
-                    if let provider {
-                        await quotaController.refresh(provider: provider)
-                    } else if modeManager.isMonitorMode {
-                        await quotaController.refreshAll(force: true)
-                    } else if modeManager.isLocalProxyMode && proxyManagement.proxy.proxyStatus.running {
-                        await proxyManagement.refreshData()
-                    } else {
-                        await proxyManagement.loadDirectAuthFiles()
-                    }
-                    if !modeManager.isMonitorMode {
-                        await quotaController.refreshAutoDetectedProviders()
-                    }
-                }
-            } label: {
-                if quota.isLoadingQuotas {
-                    SmallProgressView()
+            RefreshButton(title: "action.refresh".localized(), isRefreshing: quota.isLoadingQuotas) {
+                if let provider {
+                    await quotaController.refresh(provider: provider)
+                } else if modeManager.isMonitorMode {
+                    await quotaController.refreshAll(force: true)
+                } else if modeManager.isLocalProxyMode && proxyManagement.proxy.proxyStatus.running {
+                    await proxyManagement.refreshData()
                 } else {
-                    Image(systemName: "arrow.clockwise")
+                    await proxyManagement.loadDirectAuthFiles()
+                }
+                if !modeManager.isMonitorMode {
+                    await quotaController.refreshAutoDetectedProviders()
                 }
             }
-            .disabled(quota.isLoadingQuotas)
+            .labelStyle(.iconOnly)
             .help("action.refresh".localized())
         }
 

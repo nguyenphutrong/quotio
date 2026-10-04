@@ -296,6 +296,16 @@ final class StatusBarMenuRenderer {
     private func buildActionItems() -> [NSMenuItem] {
         let refresh = commandItem("action.refresh", symbol: "arrow.clockwise", key: "r", command: .refreshAll)
         refresh.isEnabled = snapshot.canRefresh && !snapshot.isLoadingQuotas
+        if snapshot.isLoadingQuotas {
+            refresh.view = hostingView(for: HStack(spacing: 6) {
+                SmallProgressView()
+                Text("status.refreshing".localized())
+                Spacer()
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, MenuItemMetrics.contentInset)
+            .padding(.vertical, 6))
+        }
         return [
             refresh,
             commandItem("companion.pair", symbol: "iphone", key: "", command: .pairIPhone),

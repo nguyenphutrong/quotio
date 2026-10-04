@@ -491,9 +491,17 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         importedAccounts: Set<String>? = nil
     ) async {
         guard let client, activeMode == mode else { return }
-        let domainProviders = Set(providers.compactMap(QuotaProvider.init(rawValue:)))
+        let domainProviders = providers.isEmpty ? knownProviders : Set(providers.compactMap(QuotaProvider.init(rawValue:)))
+        guard domainProviders.isDisjoint(with: snapshot.refreshingProviders) else { return }
+        let requestConnection = connectionID
         snapshot.refreshingProviders.formUnion(domainProviders)
         publish()
+        defer {
+            if connectionID == requestConnection, activeMode == mode {
+                snapshot.refreshingProviders.subtract(domainProviders)
+                publish()
+            }
+        }
         do {
             let body = try JSONEncoder.quotioCLI.encode(RefreshBody(
                 providers: providers,

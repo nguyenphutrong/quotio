@@ -69,20 +69,17 @@ struct DashboardScreen: View {
         .navigationTitle("connections.overview".localized())
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    Task {
-                        if modeManager.isMonitorMode {
-                            await quotaController.refreshAll(force: true)
-                        } else if modeManager.isLocalProxyMode && proxyManagement.proxy.proxyStatus.running {
-                            await proxyManagement.refreshData()
-                        } else {
-                            await quotaController.refreshAll(force: true)
-                        }
+                RefreshButton(title: "action.refresh".localized(), isRefreshing: quota.isLoadingQuotas) {
+                    if modeManager.isMonitorMode {
+                        await quotaController.refreshAll(force: true)
+                    } else if modeManager.isLocalProxyMode && proxyManagement.proxy.proxyStatus.running {
+                        await proxyManagement.refreshData()
+                    } else {
+                        await quotaController.refreshAll(force: true)
                     }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
                 }
-                .disabled(quota.isLoadingQuotas)
+                .labelStyle(.iconOnly)
+                .help("action.refresh".localized())
             }
         }
         .sheet(item: $selectedProvider) { provider in

@@ -78,15 +78,10 @@ struct QuotaScreen: View {
                 }
             }
             ToolbarItem {
-                Button {
-                    Task {
-                        if let providerFilter { await quotaController.refresh(provider: providerFilter) }
-                        else { await quotaController.refreshAll(force: true) }
-                    }
-                } label: {
-                    Label("action.refresh".localized(), systemImage: "arrow.clockwise")
+                RefreshButton(title: "action.refresh".localized(), isRefreshing: quota.isLoadingQuotas) {
+                    if let providerFilter { await quotaController.refresh(provider: providerFilter) }
+                    else { await quotaController.refreshAll(force: true) }
                 }
-                .disabled(quota.isLoadingQuotas)
             }
         }
         .onChange(of: providers) {

@@ -53,6 +53,7 @@ struct AccountSettingsRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .opacity(account.isDisabled ? 0.6 : 1)
+                if isRefreshing { SmallProgressView() }
                 if let recovery { recoveryButton(recovery) }
                 pinButton
                 accountMenu

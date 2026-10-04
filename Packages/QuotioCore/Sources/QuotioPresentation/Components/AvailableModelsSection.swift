@@ -62,13 +62,12 @@ struct AvailableModelsSection: View {
 
             Spacer()
 
-            Button {
-                Task { await load() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
+            RefreshButton(title: "action.refresh".localized(), isRefreshing: state.isLoading) {
+                await load()
             }
+            .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
-            .disabled(state.isLoading || !isProxyRunning)
+            .disabled(!isProxyRunning)
             .help("action.refresh".localized())
         }
     }

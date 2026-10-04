@@ -238,6 +238,55 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(scan["providers"] as? [String], [])
     }
 
+    func testRefreshAllPublishesLoadingAndClearsItOnSuccessAndFailure() async throws {
+        for status in ["completed", "failed"] {
+            let backend = QuotioCLIBackend(session: stubSession())
+            await backend.connect(.init(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "test"))
+            QuotioCLIURLProtocol.enqueue(try hostFixture())
+            _ = await backend.bootstrap(mode: .monitor)
+            let states = await backend.states()
+            QuotioCLIURLProtocol.enqueue("{\"id\":\"refresh\",\"status\":\"\(status)\"}")
+            if status == "completed" { QuotioCLIURLProtocol.enqueue(try hostFixture()) }
+
+            let result = await backend.refreshAll(mode: .monitor, force: true)
+            await backend.cancelForTermination()
+            var received: [QuotaSnapshot] = []
+            for await state in states { received.append(state) }
+
+            XCTAssertTrue(received.contains { $0.refreshingProviders == [.copilot, .devin] })
+            XCTAssertTrue(result.refreshingProviders.isEmpty)
+            if status == "failed" {
+                XCTAssertEqual(result.issues[.copilot]?.kind, .failed)
+                XCTAssertEqual(result.issues[.devin]?.kind, .failed)
+            }
+            let data = try XCTUnwrap(QuotioCLIURLProtocol.bodies(forPath: "/v2/refresh").last)
+            let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            XCTAssertEqual(body["providers"] as? [String], [])
+        }
+    }
+
+    func testRefreshAllBlocksOverlappingProviderRefresh() async throws {
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(.init(baseURL: URL(string: "http://127.0.0.1:43210")!, token: "test"))
+        QuotioCLIURLProtocol.enqueue(try hostFixture())
+        _ = await backend.bootstrap(mode: .monitor)
+        var states = await backend.states().makeAsyncIterator()
+        _ = await states.next()
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"running"}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"id":"refresh","status":"completed"}"#)
+        QuotioCLIURLProtocol.enqueue(try hostFixture())
+
+        let refresh = Task { await backend.refreshAll(mode: .monitor, force: true) }
+        let loading = await states.next()
+        XCTAssertEqual(loading?.refreshingProviders, [.copilot, .devin])
+        _ = await backend.refresh(.init(provider: .copilot, mode: .monitor, force: true))
+        let result = await refresh.value
+
+        XCTAssertTrue(result.refreshingProviders.isEmpty)
+        XCTAssertEqual(QuotioCLIURLProtocol.bodies(forPath: "/v2/refresh").count, 1)
+        await backend.cancelForTermination()
+    }
+
     override func tearDown() {
         QuotioCLIURLProtocol.reset()
         super.tearDown()

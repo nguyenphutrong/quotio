@@ -161,12 +161,9 @@ struct AccountsSettingsScreen: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            Button {
-                Task { await controller.refreshAll(force: true) }
-            } label: {
-                Label("action.refreshQuota".localized(), systemImage: "arrow.clockwise")
+            RefreshButton(title: "action.refreshQuota".localized(), isRefreshing: quota.isLoadingQuotas) {
+                await controller.refreshAll(force: true)
             }
-            .disabled(quota.isLoadingQuotas)
             .help("action.refreshQuota".localized())
             let connectable = providers.filter(ProviderConnectMenu.isConnectable)
             Menu {

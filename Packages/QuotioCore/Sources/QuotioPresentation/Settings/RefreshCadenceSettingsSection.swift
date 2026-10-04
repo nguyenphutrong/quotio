@@ -27,12 +27,8 @@ struct RefreshCadenceSettingsSection: View {
             .disabled(!viewModel.canManageSettings || viewModel.monitoringSettings == nil || viewModel.isUpdatingSettings)
             if let error = viewModel.settingsError { Text(error).foregroundStyle(.red) }
             if viewModel.monitoringSettings?.refreshInterval == 0 {
-                Button {
-                    Task {
-                        await viewModel.refreshAll(force: true)
-                    }
-                } label: {
-                    Label("settings.refresh.now".localized(), systemImage: "arrow.clockwise")
+                RefreshButton(title: "settings.refresh.now".localized(), isRefreshing: viewModel.quota.isLoadingQuotas) {
+                    await viewModel.refreshAll(force: true)
                 }
             }
         } header: {
