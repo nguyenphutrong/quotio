@@ -65,6 +65,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.bytrong.quotio.ios.widgets
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+      configs:
+        Debug:
+          # Keep App Intents in the executable inspected by the metadata processor.
+          ENABLE_DEBUG_DYLIB: NO
     dependencies:
       - package: QuotioMobile
       - package: QuotioHostClient

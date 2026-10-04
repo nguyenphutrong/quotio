@@ -742,6 +742,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = Config/QuotioWidgets.entitlements;
+				ENABLE_DEBUG_DYLIB = NO;
 				INFOPLIST_FILE = Config/WidgetInfo.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

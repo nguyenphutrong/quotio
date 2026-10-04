@@ -5,6 +5,20 @@ import QuotioMobile
 import QuotioHostClient
 @testable import QuotioIOS
 
+@Test func embeddedWidgetIncludesConfigurationMetadata() throws {
+    let metadataURL = Bundle.main.bundleURL
+        .appendingPathComponent("PlugIns/QuotioWidgets.appex/Metadata.appintents/extract.actionsdata")
+    let metadata = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: metadataURL)) as? [String: Any])
+    let actions = try #require(metadata["actions"] as? [String: Any])
+    let intent = try #require(actions["QuotaIntent"] as? [String: Any])
+    let parameters = try #require(intent["parameters"] as? [[String: Any]])
+    #expect(parameters.compactMap { $0["name"] as? String } == ["quota", "showUsed"])
+    let entities = try #require(metadata["entities"] as? [String: Any])
+    #expect(entities["QuotaChoice"] != nil)
+    let queries = try #require(metadata["queries"] as? [String: Any])
+    #expect(queries["QuotaQuery"] != nil)
+}
+
 private final class HostProtocol: URLProtocol, @unchecked Sendable {
     static let replies = Mutex<[String: (Int, Data)]>([:])
     override class func canInit(with request: URLRequest) -> Bool { true }
