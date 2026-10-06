@@ -11,6 +11,14 @@ async fn enabled_fixture() -> (Arc<ApiState>, std::path::PathBuf, String) {
         let state = Arc::get_mut(&mut state).unwrap();
         state.no_saved_accounts = false;
         state.context.clock = Arc::new(Clock(time::macros::datetime!(2026-01-01 0:00:10 UTC)));
+        state.history = Some(
+            crate::history::History::open(
+                state.vault.as_ref().unwrap().history_path(),
+                state.context.clock.now(),
+            )
+            .await
+            .unwrap(),
+        );
     }
     std::fs::write(
         dir.join("config.toml"),

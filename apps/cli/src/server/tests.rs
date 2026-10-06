@@ -54,11 +54,7 @@ pub(super) async fn fixture() -> (Arc<ApiState>, std::path::PathBuf, String) {
     );
     (
         Arc::new(ApiState {
-            history: Some(
-                crate::history::History::open(vault.history_path(), context.clock.now())
-                    .await
-                    .unwrap(),
-            ),
+            history: None,
             history_epochs: Mutex::new(HashMap::new()),
             sharing: Mutex::new(sharing::Sharing::default()),
             discovery: Default::default(),
