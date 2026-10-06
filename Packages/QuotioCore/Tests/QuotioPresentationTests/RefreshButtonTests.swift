@@ -17,7 +17,7 @@ final class RefreshButtonTests: XCTestCase {
                 if calls == 1 { await gate.wait() }
             }
             .buttonStyle(.bordered)
-            .padding(24)
+            .padding(8)
         )
         hosting.frame = NSRect(x: 0, y: 0, width: 220, height: 90)
         let window = NSWindow(contentRect: hosting.frame, styleMask: .borderless, backing: .buffered, defer: false)
@@ -27,9 +27,10 @@ final class RefreshButtonTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(100))
         hosting.layoutSubtreeIfNeeded()
         let idleSize = hosting.fittingSize
+        let point = hosting.convert(NSPoint(x: hosting.bounds.midX, y: hosting.bounds.midY), to: nil)
 
-        try click(window)
-        try click(window)
+        try click(window, at: point)
+        try click(window, at: point)
         try await Task.sleep(for: .milliseconds(100))
         hosting.layoutSubtreeIfNeeded()
         XCTAssertEqual(calls, 1)
@@ -41,7 +42,7 @@ final class RefreshButtonTests: XCTestCase {
         hosting.layoutSubtreeIfNeeded()
         XCTAssertNil(descendant(NSProgressIndicator.self, in: hosting))
         XCTAssertEqual(hosting.fittingSize, idleSize)
-        try click(window)
+        try click(window, at: point)
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(calls, 2)
     }
@@ -244,7 +245,7 @@ final class RefreshButtonTests: XCTestCase {
         }
     }
 
-    private func click(_ window: NSWindow, at point: NSPoint = NSPoint(x: 110, y: 45)) throws {
+    private func click(_ window: NSWindow, at point: NSPoint) throws {
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
             let event = try XCTUnwrap(NSEvent.mouseEvent(
                 with: type, location: point, modifierFlags: [], timestamp: 0,
