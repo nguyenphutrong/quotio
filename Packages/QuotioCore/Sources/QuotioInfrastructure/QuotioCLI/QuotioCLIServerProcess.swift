@@ -155,6 +155,7 @@ public final class QuotioCLIServerProcess {
                     "disabled_proxy_auth_files": disabledFiles.sorted(),
                     "automatically_discover_logins": tracking.automaticallyDiscoverLogins,
                     "refresh_interval": Int(refresh.cadence.intervalSeconds ?? 0),
+                    "quota_history_enabled": true,
                 ]
             }
             var payload = try JSONSerialization.data(withJSONObject: handshake)

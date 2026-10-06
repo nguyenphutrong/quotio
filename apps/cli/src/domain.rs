@@ -188,6 +188,10 @@ impl ResetCredits {
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ProviderUsage {
+    #[serde(skip)]
+    pub fresh_observation: bool,
+    #[serde(skip)]
+    pub history_identity: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reset_credits: Option<ResetCredits>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -537,6 +537,8 @@ async fn clinepass_at(
         return Err(ProviderError::QuotaUnavailable);
     }
     Ok(ProviderUsage {
+        fresh_observation: false,
+        history_identity: None,
         reset_credits: None,
         antigravity_subscription: None,
         codex_profile: None,

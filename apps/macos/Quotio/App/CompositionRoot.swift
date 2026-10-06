@@ -132,6 +132,10 @@ enum CompositionRoot {
         let quotaScreenModel = QuotaScreenModel(
             coordinator: quotioBackend
         )
+        let quotaHistory = QuotaHistoryServiceModel(
+            useCases: QuotaHistoryUseCases(reader: quotioBackend, manager: quotioBackend),
+            coordinator: quotioBackend
+        )
         let menuBarSettings = MenuBarSettingsManager(
             repository: UserDefaultsMenuBarPreferencesRepository()
         )
@@ -224,6 +228,7 @@ enum CompositionRoot {
             quotaController: quotaController,
             proxyScreenModel: proxyScreenModel,
             quotaScreenModel: quotaScreenModel,
+            quotaHistory: quotaHistory,
             accountsScreenModel: accountsScreenModel,
             navigationScreenModel: NavigationScreenModel(),
             pasteboard: pasteboard,
@@ -267,6 +272,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     let quotaController: QuotaFeatureController
     let proxyScreenModel: ProxyScreenModel
     let quotaScreenModel: QuotaScreenModel
+    let quotaHistory: QuotaHistoryServiceModel
     let accountsScreenModel: AccountsScreenModel
     let navigationScreenModel: NavigationScreenModel
     let pasteboard: PasteboardScreenModel
@@ -298,6 +304,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         quotaController: QuotaFeatureController,
         proxyScreenModel: ProxyScreenModel,
         quotaScreenModel: QuotaScreenModel,
+        quotaHistory: QuotaHistoryServiceModel,
         accountsScreenModel: AccountsScreenModel,
         navigationScreenModel: NavigationScreenModel,
         pasteboard: PasteboardScreenModel,
@@ -323,6 +330,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         self.quotaController = quotaController
         self.proxyScreenModel = proxyScreenModel
         self.quotaScreenModel = quotaScreenModel
+        self.quotaHistory = quotaHistory
         self.accountsScreenModel = accountsScreenModel
         self.navigationScreenModel = navigationScreenModel
         self.pasteboard = pasteboard

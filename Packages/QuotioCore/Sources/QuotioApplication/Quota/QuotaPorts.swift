@@ -52,6 +52,8 @@ public struct QuotaRefreshIssue: Equatable, Sendable {
 
 public struct QuotaSnapshot: Equatable, Sendable {
     public var hostID: String?
+    public var hostRevision: UInt64 = 0
+    public var historyAvailability = QuotaHistoryAvailability(hostID: nil, connected: false, canRead: false, canWrite: false)
     public var canRefresh: Bool
     public var canManageSettings: Bool
     public var providerNames: [QuotaProvider: String]

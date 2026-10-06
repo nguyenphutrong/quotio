@@ -106,7 +106,7 @@ fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, AccountError> {
     Ok(result)
 }
 
-fn restrict(file: &File) -> Result<(), AccountError> {
+pub(crate) fn restrict(file: &File) -> Result<(), AccountError> {
     let descriptor: Vec<u16> = "D:P(A;;FA;;;OW)".encode_utf16().chain([0]).collect();
     let mut security = std::ptr::null_mut();
     if unsafe {

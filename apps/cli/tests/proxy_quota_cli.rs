@@ -240,6 +240,7 @@ async fn serve_defaults_to_proxy_auth_directory_without_owner_writes() {
         .unwrap();
     let base = line.strip_prefix("Quotio API listening on ").unwrap();
     let client = reqwest::Client::new();
+    let mut last_snapshot = serde_json::Value::Null;
     let snapshot = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let snapshot: serde_json::Value = client
@@ -250,6 +251,7 @@ async fn serve_defaults_to_proxy_auth_directory_without_owner_writes() {
                 .json()
                 .await
                 .unwrap();
+            last_snapshot = snapshot.clone();
             if snapshot["accounts"]
                 .as_array()
                 .is_some_and(|accounts| !accounts.is_empty())
@@ -260,7 +262,12 @@ async fn serve_defaults_to_proxy_auth_directory_without_owner_writes() {
         }
     })
     .await
-    .unwrap();
+    .unwrap_or_else(|_| {
+        panic!(
+            "proxy snapshot not populated; last snapshot={last_snapshot}; child status={:?}",
+            child.try_wait()
+        )
+    });
     assert_eq!(snapshot["accounts"].as_array().unwrap().len(), 1);
     let source = &snapshot["accounts"][0]["sources"][0];
     assert_eq!(source["origin"], "borrowed_proxy");

@@ -26,6 +26,10 @@ pub struct Registry {
     pub(crate) snapshot_digest: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     suppressed_sources: BTreeMap<String, BTreeSet<String>>,
+    #[serde(default)]
+    history_verified_epochs: Vec<(String, VerifiedIdentity, String)>,
+    #[serde(default)]
+    history_owned_epochs: BTreeMap<String, String>,
 }
 
 impl Registry {
@@ -38,9 +42,46 @@ impl Registry {
             labels: BTreeMap::new(),
             snapshot_digest: None,
             suppressed_sources: BTreeMap::new(),
+            history_verified_epochs: Vec::new(),
+            history_owned_epochs: BTreeMap::new(),
         };
         state.synchronize(accounts)?;
         Ok(state)
+    }
+
+    pub(crate) fn history_epoch(
+        &mut self,
+        provider: &str,
+        identity: &VerifiedIdentity,
+    ) -> Result<(String, bool), AccountError> {
+        if let Some((_, _, epoch)) = self
+            .history_verified_epochs
+            .iter()
+            .find(|(p, i, _)| p == provider && i == identity)
+        {
+            return Ok((epoch.clone(), false));
+        }
+        let epoch = random_string()?;
+        self.history_verified_epochs
+            .push((provider.into(), identity.clone(), epoch.clone()));
+        Ok((epoch, true))
+    }
+
+    pub(crate) fn verified_for_account(&self, account: &str) -> Option<&VerifiedIdentity> {
+        self.bindings
+            .values()
+            .find(|binding| binding.account_id == account)
+            .and_then(|binding| binding.verified.as_ref())
+    }
+
+    pub(crate) fn owned_history_epoch(&self, account: &str) -> String {
+        self.history_owned_epochs
+            .get(account)
+            .cloned()
+            .unwrap_or_else(|| account.into())
+    }
+    pub(crate) fn set_owned_history_epoch(&mut self, account: &str, epoch: String) {
+        self.history_owned_epochs.insert(account.into(), epoch);
     }
 
     pub fn account_id_for_source(&self, source_id: &str) -> Option<&str> {
@@ -447,6 +488,8 @@ impl Registry {
             .retain(|_, target| active.contains(target.as_str()));
         self.labels
             .retain(|id, _| active.contains(id.as_str()) || self.redirects.contains_key(id));
+        self.history_owned_epochs
+            .retain(|id, _| active.contains(id.as_str()));
         self.validate(accounts)
     }
 
@@ -472,6 +515,23 @@ impl Registry {
                     .bytes()
                     .all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b))
         };
+        let mut epochs = HashSet::new();
+        if self
+            .history_verified_epochs
+            .iter()
+            .any(|(provider, identity, epoch)| {
+                Provider::from_str(provider, false).is_err()
+                    || !identity.is_valid()
+                    || !valid_id(epoch)
+                    || !epochs.insert(epoch)
+            })
+            || self
+                .history_owned_epochs
+                .iter()
+                .any(|(account, epoch)| !valid_id(account) || !valid_id(epoch))
+        {
+            return Err(AccountError::Corrupt);
+        }
         if !valid_id(&self.host_id) || self.bindings.len() != accounts.len() {
             return Err(AccountError::Corrupt);
         }

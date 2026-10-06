@@ -18,6 +18,8 @@ struct QuotioHostPresentationMapper {
     ) -> QuotaSnapshot {
         let mapper = Self(bundle: bundle, locale: locale)
         var snapshot = QuotaSnapshot(hostID: host.host.id, canRefresh: host.host.capabilities["refresh"]?.available == true, canManageSettings: host.host.capabilities["settings_write"]?.available == true, lastUpdated: host.generatedAt)
+        snapshot.hostRevision = host.revision
+        snapshot.historyAvailability = QuotioHistoryMapper.availability(host.host, connected: true)
         for (id, issue) in host.providerIssues ?? [:] {
             guard let provider = QuotaProvider(rawValue: id) else { continue }
             snapshot.issues[provider] = QuotaRefreshIssue(kind: .failed, occurredAt: host.generatedAt,

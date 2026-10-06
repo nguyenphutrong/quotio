@@ -7,6 +7,7 @@ pub mod devices;
 pub mod domain;
 pub mod error;
 pub mod fetch;
+pub mod history;
 pub mod interactive;
 pub mod output;
 pub mod providers;

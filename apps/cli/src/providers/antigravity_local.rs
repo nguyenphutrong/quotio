@@ -238,6 +238,8 @@ async fn probe(
         return Err(ProviderError::Authentication);
     }
     Ok(ProviderUsage {
+        fresh_observation: false,
+        history_identity: None,
         reset_credits: None,
         antigravity_subscription: None,
         codex_profile: None,

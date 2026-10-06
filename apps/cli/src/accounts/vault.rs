@@ -260,6 +260,11 @@ pub struct Transaction {
     pub document: Document,
 }
 impl Vault {
+    pub(crate) fn history_path(&self) -> PathBuf {
+        self.lock_path
+            .with_extension("history")
+            .join("quota.sqlite")
+    }
     pub(crate) async fn authorize_interactively(&self) -> Result<(), AccountError> {
         let backend = self.backend.clone();
         tokio::task::spawn_blocking(move || backend.authorize_interactively())

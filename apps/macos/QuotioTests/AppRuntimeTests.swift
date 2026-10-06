@@ -94,6 +94,7 @@ private final class FakeAppRuntimeServices: AppRuntimeServices {
     var proxyScreenModel: ProxyScreenModel { dependencies.proxyScreenModel }
     var quotaController: QuotaFeatureController { dependencies.quotaController }
     var quotaScreenModel: QuotaScreenModel { dependencies.quotaScreenModel }
+    var quotaHistory: QuotaHistoryServiceModel { dependencies.quotaHistory }
     var accountsScreenModel: AccountsScreenModel { dependencies.accountsScreenModel }
     var navigationScreenModel: NavigationScreenModel { dependencies.navigationScreenModel }
     let pasteboard = PasteboardScreenModel(writer: MacOSPasteboardAdapter())

@@ -307,3 +307,23 @@ matches any active direct companion listener, the command includes its CA and em
 2; otherwise it emits version 1 for a system-trusted HTTPS endpoint.
 `quotio devices list` and `quotio devices revoke CLIENT_ID` manage grants locally.
 See [iOS setup](../../ios/README.md).
+
+## Owner quota history
+
+History requires saved-account mode and an authenticated owner. Reads work on a read-only owner host; writes also require `--manage`. It is not part of delegated `public_read`. Check `host.capabilities.quota_history` and `quota_history_write`, including their unavailable reasons, before presenting controls.
+
+| Method and path | Result |
+| --- | --- |
+| `GET /v2/accounts/{account_id}/quota-history` | Current and historical metric catalog, recording state, retained observation endpoints and recording error |
+| `GET /v2/accounts/{account_id}/quota-history/{metric_id}/{range}` | Latest-value UTC bins, typed observations, observed minimum, event page and cursor |
+| `GET /v2/accounts/{account_id}/quota-history/{metric_id}/{range}/events/{cursor}` | Next detailed event page using fixed endpoints and identity/revision bounds |
+| `DELETE /v2/accounts/{account_id}/quota-history` | Clear the account and confirmed aliases, returning 204 |
+| `DELETE /v2/quota-history` | Clear all retained host history, returning 204 |
+
+`range` is `24h`, `7d` or `30d`. Account IDs, metric IDs and opaque cursors accept only the existing valid-ID alphabet. Query strings remain unsupported. Invalid ranges return `invalid_history_range`, unknown or removed accounts return `account_not_found`, missing metrics return `history_metric_not_found`, and expired or invalidated cursors return `history_cursor_invalid`. Storage failures return `history_storage_unavailable`; they do not turn a successful current quota fetch into a failed fetch.
+
+Valid event cursors are replayable if a page response is lost. Each page stays tied to its original range, identity and observation boundary; a later accepted response cannot change that page. Identity-mismatched requests do not consume a cursor. Pause/resume and clearing invalidate existing cursors.
+
+Settings GET/PATCH includes the Bool `quota_history_enabled`, default true. Patch it with the current settings revision. A history-only pause/resume patch preserves current quota, catalog and clear availability without triggering collection; it does not change refresh frequency. Retention is 30 days. Clearing history preserves accounts, credentials, settings and the live snapshot. An observation accepted before a clear cannot return through an in-flight refresh or cache restore. A genuinely new provider observation starts fresh history.
+
+History records actual fresh metric timestamps, never the time a client opens a sheet or reads a cache. A bin uses its latest observation and includes numeric min/max, observed states and sample count. Empty bins are omitted with stable IDs so a client can preserve gaps; 0% is not a gap. Provider estimates keep their confidence. Expected reset timestamps do not become reset events merely by passing. For identity, retention and event semantics, see [host-contract-v2.md](host-contract-v2.md#quota-observation-history).

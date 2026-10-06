@@ -97,6 +97,8 @@ pub fn usage(
         return Err(ProviderError::InvalidData);
     }
     Ok(ProviderUsage {
+        fresh_observation: false,
+        history_identity: None,
         reset_credits: None,
         antigravity_subscription: None,
         codex_profile: None,

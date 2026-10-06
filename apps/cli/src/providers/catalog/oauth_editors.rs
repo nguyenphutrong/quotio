@@ -283,6 +283,8 @@ fn cursor_summary(
         windows.push(window);
     }
     Ok(ProviderUsage {
+        fresh_observation: false,
+        history_identity: None,
         reset_credits: None,
         antigravity_subscription: None,
         codex_profile: None,
@@ -354,6 +356,8 @@ pub(crate) async fn fetch_grok_complete_at(
         }),
     }
     Ok(ProviderUsage {
+        fresh_observation: false,
+        history_identity: None,
         reset_credits: None,
         antigravity_subscription: None,
         codex_profile: None,

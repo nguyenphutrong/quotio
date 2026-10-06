@@ -4,7 +4,7 @@ import CryptoKit
 import QuotioApplication
 import QuotioDomain
 
-public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSettingsManaging {
+public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSettingsManaging, QuotaHistoryReading, QuotaHistoryManaging {
     private struct Empty: Decodable, Sendable {}
     private struct RefreshBody: Encodable {
         let providers: [String]
@@ -30,6 +30,87 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
     private let localization: @MainActor @Sendable () -> (bundle: Bundle, locale: Locale)
     private var storageRequiresAuthorization = false
     private var discoveryState: QuotioHostDiscovery?
+    private var historyRequests: [UUID: @Sendable () -> Void] = [:]
+
+
+    public func historyAvailability() -> QuotaHistoryAvailability {
+        QuotioHistoryMapper.availability(hostSnapshot?.host, connected: client != nil)
+    }
+
+    private func historyRequest<T: Sendable>(write: Bool = false, _ operation: @escaping @Sendable (QuotioHostHTTPClient) async throws -> T) async throws -> T {
+        let availability = historyAvailability()
+        guard let client, availability.connected else { throw QuotaHistoryError.offline }
+        guard availability.canRead else { throw availability.readFailure ?? QuotaHistoryError.unsupported }
+        guard !write || availability.canWrite else { throw QuotaHistoryError.unauthorized }
+        let epoch = connectionID
+        let id = UUID()
+        let task = Task { try await operation(client) }
+        historyRequests[id] = { task.cancel() }
+        defer { historyRequests[id] = nil }
+        do {
+            let value = try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
+            try Task.checkCancellation()
+            guard connectionID == epoch else { throw QuotaHistoryError.offline }
+            return value
+        } catch {
+            if connectionID != epoch { throw QuotaHistoryError.offline }
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            if let value = error as? QuotaHistoryError { throw value }
+            if let value = error as? QuotioHostClientError {
+                switch value {
+                case .disconnected: throw QuotaHistoryError.offline
+                case .incompatible: throw QuotaHistoryError.invalidResponse
+                case .response(let status, let code):
+                    if status == 403 { throw QuotaHistoryError.unauthorized }
+                    if code.contains("history") || code.contains("storage") { throw QuotaHistoryError.storage }
+                    throw QuotaHistoryError.requestFailed
+                case .timeout: throw QuotaHistoryError.requestFailed
+                }
+            }
+            if let network = error as? URLError, [.notConnectedToInternet, .cannotConnectToHost, .cannotFindHost, .networkConnectionLost].contains(network.code) {
+                throw QuotaHistoryError.offline
+            }
+            if error is DecodingError { throw QuotaHistoryError.invalidResponse }
+            throw QuotaHistoryError.requestFailed
+        }
+    }
+
+    public func historyCatalog(accountID: String) async throws -> QuotaHistoryCatalog {
+        let value = try await historyRequest { try await $0.historyCatalog(accountID: accountID) }
+        guard value.hostId == hostSnapshot?.host.id else { throw QuotaHistoryError.invalidResponse }
+        return QuotioHistoryMapper.catalog(value)
+    }
+    public func historyChart(accountID: String, metricID: String, range: QuotaHistoryRange) async throws -> QuotaHistoryChart {
+        let value = try await historyRequest { try await $0.historyChart(accountID: accountID, metricID: metricID, range: QuotioHostHistoryRange(rawValue: range.rawValue)!) }
+        guard value.hostId == hostSnapshot?.host.id else { throw QuotaHistoryError.invalidResponse }
+        return QuotioHistoryMapper.chart(value)
+    }
+    public func historyEvents(accountID: String, metricID: String, range: QuotaHistoryRange, cursor: String) async throws -> QuotaHistoryEventsPage {
+        let value = try await historyRequest { try await $0.historyEvents(accountID: accountID, metricID: metricID, range: QuotioHostHistoryRange(rawValue: range.rawValue)!, cursor: cursor) }
+        guard value.hostId == hostSnapshot?.host.id else { throw QuotaHistoryError.invalidResponse }
+        return .init(hostID: value.hostId, accountID: value.accountId, metricID: value.metricId, revision: value.historyRevision, events: value.events.map(QuotioHistoryMapper.event), nextCursor: value.nextCursor)
+    }
+    public func clearHistory(accountID: String?) async throws {
+        try await historyRequest(write: true) { try await $0.clearHistory(accountID: accountID) }
+        publish()
+    }
+    public func historyRecordingEnabled() async throws -> Bool {
+        let value: QuotioHostSettings = try await historyRequest { try await $0.request("v2/settings") }
+        return value.quotaHistoryEnabled ?? true
+    }
+    public func setHistoryRecording(enabled: Bool) async throws -> Bool {
+        let value: QuotioHostSettings = try await historyRequest(write: true) { client in
+            let settings: QuotioHostSettings = try await client.request("v2/settings")
+            let body = try JSONSerialization.data(withJSONObject: ["revision": settings.revision, "quota_history_enabled": enabled])
+            return try await client.request("v2/settings", method: "PATCH", body: body)
+        }
+        return value.quotaHistoryEnabled ?? true
+    }
+
+    private func cancelHistoryRequests() {
+        for cancel in historyRequests.values { cancel() }
+        historyRequests.removeAll()
+    }
 
     public init(
         session: URLSession? = nil,
@@ -42,17 +123,22 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
     }
 
     public func connect(_ connection: QuotioHostConnection) {
+        cancelHistoryRequests()
         connectionID = UUID()
         hostSnapshot = nil
         discoveryState = nil
         reportedAccounts = []
         snapshot = QuotaSnapshot()
         client = QuotioHostHTTPClient(connection: connection, session: session)
+        publish()
     }
 
     public func disconnect() {
+        cancelHistoryRequests()
         connectionID = UUID()
         client = nil
+        snapshot.historyAvailability = historyAvailability()
+        publish()
         markFailure(for: knownProviders)
     }
 
@@ -123,6 +209,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
     }
 
     public func cancelForTermination() {
+        cancelHistoryRequests()
         snapshot.refreshingProviders.removeAll()
         for continuation in continuations.values { continuation.finish() }
         continuations.removeAll()
@@ -467,6 +554,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
             "disabled_providers": settings.disabledProviders.sorted(),
             "automatically_discover_logins": settings.automaticallyDiscoverLogins,
             "refresh_interval": settings.refreshInterval,
+            "quota_history_enabled": settings.quotaHistoryEnabled,
         ])
         let value: QuotioHostSettings = try await client.request("v2/settings", method: "PATCH", body: body)
         guard epoch == connectionID else { throw QuotioHostClientError.disconnected }
@@ -479,7 +567,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
             enabledProviders: Set(value.enabledProviders),
             disabledProviders: Set(value.disabledProviders),
             automaticallyDiscoverLogins: value.automaticallyDiscoverLogins,
-            refreshInterval: value.refreshInterval
+            refreshInterval: value.refreshInterval,
+            quotaHistoryEnabled: value.quotaHistoryEnabled ?? true
         )
     }
 
@@ -560,6 +649,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
             let changed = snapshot != next || reportedAccounts != accounts
             snapshot = next
             hostSnapshot = frame
+            snapshot.historyAvailability = historyAvailability()
             reportedAccounts = accounts
             storageRequiresAuthorization = false
             if changed { publish() }

@@ -88,6 +88,7 @@ impl Collector {
             });
             match result {
                 Ok(mut usage) => {
+                    usage.fresh_observation = true;
                     usage.account_ref = accounts[index].clone();
                     report.providers.push(usage);
                 }

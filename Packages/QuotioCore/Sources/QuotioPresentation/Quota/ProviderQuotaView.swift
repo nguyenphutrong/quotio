@@ -2,7 +2,7 @@ import QuotioApplication
 import QuotioDomain
 import SwiftUI
 
-fileprivate struct QuotaDisplayHelper {
+struct QuotaDisplayHelper {
     let displayMode: QuotaDisplayMode
 
     func statusColor(remainingPercent: Double) -> Color {
@@ -176,6 +176,7 @@ private struct AccountQuotaCardV2: View {
     @Environment(AntigravityAccountScreenModel.self) private var antigravityAccounts
     @Environment(PlatformActionScreenModel.self) private var platformActions
 
+    @Environment(QuotaHistoryServiceModel.self) private var history
     @Environment(MenuBarSettingsManager.self) private var settings
     let provider: QuotaProvider
     let account: AccountInfo
@@ -183,6 +184,8 @@ private struct AccountQuotaCardV2: View {
 
     @State private var showSwitchSheet = false
     @State private var showModelsDetailSheet = false
+    @State private var historyModel: QuotaHistoryScreenModel?
+    @FocusState private var historyButtonFocused: Bool
 
     private var accountID: QuotaAccountID {
         QuotaAccountID(provider: provider, accountKey: account.key)
@@ -235,6 +238,15 @@ private struct AccountQuotaCardV2: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
+            Button {
+                historyModel = history.makeScreen(accountID: account.key, provider: provider)
+            } label: {
+                Label("history.title".localized(), systemImage: "chart.bar.xaxis")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .focused($historyButtonFocused)
+            .help("history.title".localized())
         }
         .padding(16)
         .background(
@@ -246,6 +258,11 @@ private struct AccountQuotaCardV2: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
         )
+        .sheet(item: $historyModel, onDismiss: { historyButtonFocused = true }) { model in
+            QuotaHistorySheet(model: model, accountName: account.email, providerName: provider.displayName,
+                              displayMode: settings.quotaDisplayMode, hideSensitiveInfo: settings.hideSensitiveInfo)
+                .onChange(of: history.changeRevision) { _, _ in model.reload() }
+        }
     }
 
     // MARK: - Account Header
