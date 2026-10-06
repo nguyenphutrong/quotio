@@ -115,17 +115,15 @@ pub(super) async fn account_context(
         .ok_or(ApiError(StatusCode::NOT_FOUND, "account_not_found"))?;
     let raw = report.providers.iter().find(|value| {
         value.provider.0 == account.provider_id
-            && value.account_ref.as_ref().is_some_and(|reference| {
+            && (value.account_ref.as_ref().is_some_and(|reference| {
                 account
                     .sources
                     .iter()
                     .any(|source| source.id == reference.id)
-            })
-            || value.provider.0 == account.provider_id
-                && crate::contract::snapshot::external_id(
-                    &value.provider.0,
-                    value.account_ref.as_ref(),
-                ) == canonical
+            }) || crate::contract::snapshot::external_id(
+                &value.provider.0,
+                value.account_ref.as_ref(),
+            ) == canonical)
     });
     let verified = raw.and_then(|value| value.account.verified.clone());
     let allow_verified_fallback = raw.is_none();

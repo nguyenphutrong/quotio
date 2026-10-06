@@ -655,14 +655,15 @@ async fn patch_settings(
             if !history_only {
                 work.invalidate().await;
             }
-            if changing_history && let Some(history) = &work.history {
-                if history.pause(work.context.clock.now()).await.is_err() {
-                    let _ = send.send(Err(ApiError(
-                        StatusCode::SERVICE_UNAVAILABLE,
-                        "history_storage_unavailable",
-                    )));
-                    return;
-                }
+            if changing_history
+                && let Some(history) = &work.history
+                && history.pause(work.context.clock.now()).await.is_err()
+            {
+                let _ = send.send(Err(ApiError(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "history_storage_unavailable",
+                )));
+                return;
             }
         }
         let _ = send.send(result.map_err(settings_error));

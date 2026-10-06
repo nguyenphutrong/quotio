@@ -323,30 +323,30 @@ impl Store {
     ) -> Result<Self> {
         let parent = path.parent().ok_or(Error::Storage)?;
         for ancestor in parent.ancestors() {
-            if let Ok(meta) = std::fs::symlink_metadata(ancestor) {
-                if meta.file_type().is_symlink() {
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::fs::MetadataExt;
-                        let expected = match ancestor.to_str() {
-                            Some("/var") => "/private/var",
-                            Some("/tmp") => "/private/tmp",
-                            _ => return Err(Error::Storage),
-                        };
-                        let target = std::fs::canonicalize(ancestor).map_err(|_| Error::Storage)?;
-                        let resolved = std::fs::metadata(&target).map_err(|_| Error::Storage)?;
-                        if ancestor == parent
-                            || meta.uid() != 0
-                            || target != Path::new(expected)
-                            || resolved.uid() != 0
-                        {
-                            return Err(Error::Storage);
-                        }
-                    }
-                    #[cfg(not(unix))]
+            if let Ok(meta) = std::fs::symlink_metadata(ancestor)
+                && meta.file_type().is_symlink()
+            {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::MetadataExt;
+                    let expected = match ancestor.to_str() {
+                        Some("/var") => "/private/var",
+                        Some("/tmp") => "/private/tmp",
+                        _ => return Err(Error::Storage),
+                    };
+                    let target = std::fs::canonicalize(ancestor).map_err(|_| Error::Storage)?;
+                    let resolved = std::fs::metadata(&target).map_err(|_| Error::Storage)?;
+                    if ancestor == parent
+                        || meta.uid() != 0
+                        || target != Path::new(expected)
+                        || resolved.uid() != 0
                     {
                         return Err(Error::Storage);
                     }
+                }
+                #[cfg(not(unix))]
+                {
+                    return Err(Error::Storage);
                 }
             }
         }
@@ -750,16 +750,20 @@ impl Store {
         }
         let revision = self.revision.load(std::sync::atomic::Ordering::SeqCst);
         let (events, next_cursor) = self.page(
-            &account,
-            &metric,
-            &range,
-            revision,
-            start,
-            end,
             all_events,
-            0,
-            sequence,
-            clock_sequence,
+            Cursor {
+                host: account.host_id.clone(),
+                account: account.id.clone(),
+                epoch: account.epoch.clone(),
+                metric: metric.clone(),
+                range: range.clone(),
+                revision,
+                start,
+                end,
+                offset: 0,
+                sequence,
+                clock_sequence,
+            },
         )?;
         Ok(Chart {
             schema_version: 2,
@@ -782,39 +786,22 @@ impl Store {
     }
     fn page(
         &mut self,
-        account: &Account,
-        metric: &str,
-        range: &str,
-        revision: u64,
-        start: OffsetDateTime,
-        end: OffsetDateTime,
         events: Vec<Event>,
-        offset: usize,
-        sequence: i64,
-        clock_sequence: i64,
+        mut cursor: Cursor,
     ) -> Result<(Vec<Event>, Option<String>)> {
-        let page = events.iter().skip(offset).take(128).cloned().collect();
-        let next = if events.len() > offset + 128 {
+        let page = events
+            .iter()
+            .skip(cursor.offset)
+            .take(128)
+            .cloned()
+            .collect();
+        let next = if events.len() > cursor.offset + 128 {
             if self.cursors.len() >= 256 {
                 self.cursors.clear()
             }
             let token = crate::accounts::random_string().map_err(|_| Error::Storage)?;
-            self.cursors.insert(
-                token.clone(),
-                Cursor {
-                    host: account.host_id.clone(),
-                    account: account.id.clone(),
-                    epoch: account.epoch.clone(),
-                    metric: metric.into(),
-                    range: range.into(),
-                    revision,
-                    start,
-                    end,
-                    offset: offset + 128,
-                    sequence,
-                    clock_sequence,
-                },
-            );
+            cursor.offset += 128;
+            self.cursors.insert(token.clone(), cursor);
             Some(token)
         } else {
             None
@@ -849,24 +836,14 @@ impl Store {
             cursor.end,
             cursor.clock_sequence,
         )?;
-        let (events, next_cursor) = self.page(
-            &account,
-            &metric,
-            &range,
-            cursor.revision,
-            cursor.start,
-            cursor.end,
-            events,
-            cursor.offset,
-            cursor.sequence,
-            cursor.clock_sequence,
-        )?;
+        let revision = cursor.revision;
+        let (events, next_cursor) = self.page(events, cursor)?;
         Ok(EventsPage {
             schema_version: 2,
             host_id: account.host_id,
             account_id: account.id,
             metric_id: metric,
-            history_revision: cursor.revision,
+            history_revision: revision,
             events,
             next_cursor,
         })
