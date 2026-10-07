@@ -345,16 +345,24 @@ async fn validate_credential(
         usage.account.id = account_id.clone();
         usage.account.label = email.clone();
     }
-    if let Credential::CopilotOAuth { account_id, .. } = credential {
-        if usage
+    if let Credential::CopilotOAuth {
+        account_id, host, ..
+    } = credential
+    {
+        let Some(verified) = usage
             .account
             .verified
-            .as_ref()
-            .is_none_or(|identity| identity.subject != *account_id)
-        {
+            .as_mut()
+            .filter(|identity| identity.subject == *account_id)
+        else {
             return Err(ProviderError::Authentication.into());
-        }
-        // Enterprise identities are host-scoped to match the stored account.
+        };
+        // User ids are only unique within one GitHub instance, so enterprise
+        // identities carry their host as the tenant and in the account id.
+        verified.tenant = host
+            .as_ref()
+            .filter(|host| !host.is_github_com())
+            .map(|host| host.as_str().to_owned());
         usage.account.id = copilot_identity(credential).unwrap_or_else(|| account_id.clone());
     }
     if !crate::fetch::valid_usage(&usage) || usage.account.id.is_empty() {
@@ -2844,6 +2852,42 @@ mod tests {
                     .iter()
                     .all(|request| request.contains("synthetic-profile-token"))
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn copilot_verified_identity_is_scoped_by_enterprise_host() {
+        for (host, account, tenant) in [
+            (None, "42", None),
+            (
+                Some("octocorp.ghe.com"),
+                "octocorp.ghe.com:42",
+                Some("octocorp.ghe.com"),
+            ),
+        ] {
+            let credential = Credential::CopilotOAuth {
+                access_token: "synthetic-profile-token".into(),
+                account_id: "42".into(),
+                login: "login".into(),
+                host: host.map(|host| super::super::github_host::GitHubHost::parse(host).unwrap()),
+            };
+            let (endpoint, server) = http::fixture::server(vec![
+                serde_json::json!({"quota_snapshots":{"premium_interactions":{"entitlement":300,"remaining":250}}}),
+                serde_json::json!({"login":"login","id":42}),
+            ]).await;
+            let usage = validate_with_endpoint(
+                &http::fixture::context(),
+                Provider::Catalog("copilot"),
+                &credential,
+                Some(&endpoint),
+            )
+            .await
+            .unwrap();
+            server.await.unwrap();
+            assert_eq!(usage.account.id, account);
+            let verified = usage.account.verified.unwrap();
+            assert_eq!(verified.subject, "42");
+            assert_eq!(verified.tenant.as_deref(), tenant);
         }
     }
 

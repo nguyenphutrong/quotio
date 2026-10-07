@@ -880,8 +880,8 @@ impl OAuthSessionManager {
         let provider = self.get(id).await?.provider;
         let result = async {
             let credential = credential?;
-            let identity = if let Credential::CopilotOAuth { .. } = &credential {
-                service::copilot_identity(&credential).expect("copilot credential")
+            let identity = if let Some(identity) = service::copilot_identity(&credential) {
+                identity
             } else if let Credential::ClaudeOAuth { account_id, .. } = &credential {
                 account_id.clone()
             } else {
