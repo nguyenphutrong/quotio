@@ -917,24 +917,20 @@ fn date_only(value: &str) -> Option<OffsetDateTime> {
 }
 
 fn copilot_reset(value: Option<&Value>) -> Result<Reset, ProviderError> {
-    match value {
-        None | Some(Value::Null) => Ok(Reset {
-            at: None,
-            description: None,
-        }),
-        Some(Value::String(value)) if value.trim().is_empty() => Ok(Reset {
-            at: None,
-            description: None,
-        }),
-        Some(Value::String(value)) if let Some(at) = date_only(value.trim()) => Ok(Reset {
-            at: Some(at),
-            description: None,
-        }),
-        value => Ok(Reset {
-            at: common::date(value)?,
-            description: None,
-        }),
-    }
+    let at = match value {
+        None | Some(Value::Null) => None,
+        Some(Value::String(text)) if text.trim().is_empty() => None,
+        // GitHub sends a date-only reset; it rolls over at 00:00 UTC.
+        Some(Value::String(text)) => match date_only(text.trim()) {
+            Some(at) => Some(at),
+            None => common::date(value)?,
+        },
+        value => common::date(value)?,
+    };
+    Ok(Reset {
+        at,
+        description: None,
+    })
 }
 
 fn with_reset(mut window: QuotaWindow, reset: &Reset) -> QuotaWindow {
