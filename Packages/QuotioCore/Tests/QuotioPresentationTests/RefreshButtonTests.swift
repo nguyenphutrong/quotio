@@ -27,9 +27,10 @@ final class RefreshButtonTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(100))
         hosting.layoutSubtreeIfNeeded()
         let idleSize = hosting.fittingSize
+        let center = NSPoint(x: hosting.frame.midX, y: hosting.frame.midY)
 
-        try click(window)
-        try click(window)
+        try click(window, at: center)
+        try click(window, at: center)
         try await Task.sleep(for: .milliseconds(100))
         hosting.layoutSubtreeIfNeeded()
         XCTAssertEqual(calls, 1)
@@ -41,7 +42,7 @@ final class RefreshButtonTests: XCTestCase {
         hosting.layoutSubtreeIfNeeded()
         XCTAssertNil(descendant(NSProgressIndicator.self, in: hosting))
         XCTAssertEqual(hosting.fittingSize, idleSize)
-        try click(window)
+        try click(window, at: center)
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(calls, 2)
     }
@@ -244,14 +245,21 @@ final class RefreshButtonTests: XCTestCase {
         }
     }
 
-    private func click(_ window: NSWindow, at point: NSPoint = NSPoint(x: 110, y: 45)) throws {
-        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-            let event = try XCTUnwrap(NSEvent.mouseEvent(
-                with: type, location: point, modifierFlags: [], timestamp: 0,
-                windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1
-            ))
-            window.sendEvent(event)
+    private func click(_ window: NSWindow, at point: NSPoint) throws {
+        let (down, up) = try (mouseEvent(.leftMouseDown, at: point, in: window), mouseEvent(.leftMouseUp, at: point, in: window))
+        // AppKit-backed controls (bordered buttons before macOS 26) read mouse-up from the queue inside mouseDown.
+        NSApp.postEvent(up, atStart: false)
+        window.sendEvent(down)
+        if let up = NSApp.nextEvent(matching: .leftMouseUp, until: .distantPast, inMode: .default, dequeue: true) {
+            window.sendEvent(up)
         }
+    }
+
+    private func mouseEvent(_ type: NSEvent.EventType, at point: NSPoint, in window: NSWindow) throws -> NSEvent {
+        try XCTUnwrap(NSEvent.mouseEvent(
+            with: type, location: point, modifierFlags: [], timestamp: 0,
+            windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1
+        ))
     }
 
     private func descendant<T: NSView>(_ type: T.Type, in view: NSView) -> T? {
