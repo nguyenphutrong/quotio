@@ -587,7 +587,9 @@ async fn fetch_claude_with_login_at(
     usage.account.label = "Claude OAuth token".into();
     usage.account.plan = login.plan();
     // Metadata is optional; a slow or unavailable profile must not discard valid quota.
+    // Reserve time for the native credential reread that fences the result after this fetch.
     let budget = crate::providers::remaining_fetch_time()
+        .map(|left| left.saturating_sub(NATIVE_READ_TIMEOUT))
         .unwrap_or(Duration::from_secs(5))
         .mul_f64(0.9)
         .min(Duration::from_secs(5));
