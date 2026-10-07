@@ -538,6 +538,9 @@ pub(super) struct SessionInput {
     label: Option<String>,
     #[serde(default)]
     callback_mode: Option<OAuthMode>,
+    /// Copilot only: `github.com` (default) or a `<subdomain>.ghe.com` host.
+    #[serde(default)]
+    host: Option<String>,
 }
 impl SessionInput {
     fn effective_mode(&self) -> OAuthMode {
@@ -595,13 +598,27 @@ pub(super) async fn begin(
         return Err(ApiError(StatusCode::BAD_REQUEST, "invalid_idempotency_key"));
     }
     let mode = input.effective_mode();
+    let host = input
+        .host
+        .as_deref()
+        .map(crate::accounts::github_host::GitHubHost::parse)
+        .transpose()
+        .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "invalid_github_host"))?;
+    if host.is_some() && input.provider != Provider::Catalog("copilot") {
+        return Err(account_error(AccountError::Unsupported));
+    }
+    let host = host.filter(|host| !host.is_github_com());
     let session = match key {
         Some(key) => {
             manager
-                .begin_idempotent(input.provider, input.label, mode, key)
+                .begin_idempotent_at(input.provider, input.label, mode, host, key)
                 .await
         }
-        None => manager.begin_for(input.provider, input.label, mode).await,
+        None => {
+            manager
+                .begin_at(input.provider, input.label, mode, host)
+                .await
+        }
     }
     .map_err(account_error)?;
     Ok((StatusCode::CREATED, Json(session)))
