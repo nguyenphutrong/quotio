@@ -270,6 +270,10 @@ impl Account {
                     "Devin Desktop state.vscdb".to_owned()
                 }
             }),
+            Credential::ClaudeNative { source } => Some(match source.location {
+                sources::ClaudeLocation::CodeFile => "Claude Code file".to_owned(),
+                sources::ClaudeLocation::CodeKeychain => "Claude Code Keychain".to_owned(),
+            }),
             Credential::GrokNative { .. }
                 if self
                     .label

@@ -26,6 +26,7 @@ const GEMINI_TOKEN_ENV: &str = "GEMINI_OAUTH_ACCESS_TOKEN";
 const COPILOT_TOKEN_ENV: &str = "COPILOT_API_TOKEN";
 
 const CLAUDE_USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+const CLAUDE_PROFILE_URL: &str = "https://api.anthropic.com/api/oauth/profile";
 const GEMINI_LOAD_CODE_ASSIST_URL: &str =
     "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
 const GEMINI_QUOTA_URL: &str = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota";
@@ -35,6 +36,10 @@ const MAX_NATIVE_FILE_BYTES: usize = 1024 * 1024;
 const MAX_TOKEN_BYTES: usize = 16 * 1024;
 const MAX_LABEL_BYTES: usize = 128;
 const NATIVE_READ_TIMEOUT: Duration = Duration::from_secs(2);
+/// Label reported when profile enrichment yields no account email.
+pub(crate) const CLAUDE_TOKEN_LABEL: &str = "Claude OAuth token";
+/// Anthropic's OAuth endpoints reject requests without a Claude Code User-Agent.
+const CLAUDE_USER_AGENT: &str = "claude-code/2.1.0";
 
 const GEMINI_SETTINGS: &[Setting] = &[Setting {
     name: "project",
@@ -70,7 +75,12 @@ pub const DEFINITIONS: &[Definition] = &[
 ];
 
 fn fetch_claude(context: &ProviderContext) -> FetchFuture<'_> {
-    Box::pin(fetch_claude_at(context, CLAUDE_USAGE_URL))
+    Box::pin(fetch_claude_at(
+        context,
+        CLAUDE_USAGE_URL,
+        CLAUDE_PROFILE_URL,
+        home_dir().map(|home| home.join(".claude.json")),
+    ))
 }
 
 fn fetch_gemini(context: &ProviderContext) -> FetchFuture<'_> {
@@ -242,7 +252,58 @@ fn retain_native_error(last: &mut ProviderError, error: ProviderError) {
 
 // Claude ---------------------------------------------------------------------
 
-fn claude_token_from_bytes(bytes: &[u8]) -> Result<Option<Secret>, ProviderError> {
+pub(crate) struct ClaudeLogin {
+    pub token: Secret,
+    subscription_type: Option<String>,
+    rate_limit_tier: Option<String>,
+}
+
+impl PartialEq for ClaudeLogin {
+    fn eq(&self, other: &Self) -> bool {
+        self.token.0 == other.token.0
+            && self.subscription_type == other.subscription_type
+            && self.rate_limit_tier == other.rate_limit_tier
+    }
+}
+
+impl ClaudeLogin {
+    pub fn plan(&self) -> Option<String> {
+        claude_plan(
+            self.subscription_type.as_deref(),
+            self.rate_limit_tier.as_deref(),
+        )
+    }
+}
+
+fn claude_plan(subscription_type: Option<&str>, rate_limit_tier: Option<&str>) -> Option<String> {
+    let raw = subscription_type.and_then(|value| clean_label(value).ok())?;
+    let raw = raw.strip_prefix("claude_").unwrap_or(&raw);
+    let mut words = raw.split(['_', ' ']).filter(|word| !word.is_empty());
+    let title = |word: &str| {
+        let mut chars = word.chars();
+        chars
+            .next()
+            .map(|first| first.to_uppercase().to_string() + &chars.as_str().to_lowercase())
+    };
+    let mut plan = title(words.next()?)?;
+    for word in words {
+        plan.push(' ');
+        plan.push_str(&title(word)?);
+    }
+    if let Some(tier) = rate_limit_tier.and_then(|value| clean_label(value).ok())
+        && let Some(multiplier) = tier.split('_').find(|part| {
+            part.strip_suffix('x').is_some_and(|digits| {
+                !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+            })
+        })
+    {
+        plan.push(' ');
+        plan.push_str(multiplier);
+    }
+    Some(plan)
+}
+
+fn claude_login_from_bytes(bytes: &[u8]) -> Result<Option<ClaudeLogin>, ProviderError> {
     let value = json_payload(bytes)?;
     let Some(oauth) = value.get("claudeAiOauth") else {
         return Ok(None);
@@ -261,24 +322,36 @@ fn claude_token_from_bytes(bytes: &[u8]) -> Result<Option<Secret>, ProviderError
     }
     match oauth.get("accessToken") {
         None | Some(Value::Null) => Ok(None),
-        Some(Value::String(value)) => token(value),
+        Some(Value::String(value)) => Ok(token(value)?.map(|token| ClaudeLogin {
+            token,
+            subscription_type: oauth
+                .get("subscriptionType")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            rate_limit_tier: oauth
+                .get("rateLimitTier")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+        })),
         Some(_) => Err(ProviderError::Authentication),
     }
 }
 
-pub(crate) async fn claude_reference_token(path: Option<PathBuf>) -> Result<Secret, ProviderError> {
+pub(crate) async fn claude_reference_login(
+    path: Option<PathBuf>,
+) -> Result<ClaudeLogin, ProviderError> {
     let bytes = match path {
         Some(path) => native_file(path).await?,
         None => native_keychain("Claude Code-credentials", None).await?,
     }
     .ok_or(ProviderError::Authentication)?;
-    claude_token_from_bytes(&bytes)?.ok_or(ProviderError::Authentication)
+    claude_login_from_bytes(&bytes)?.ok_or(ProviderError::Authentication)
 }
 
-async fn native_claude_token() -> Result<Secret, ProviderError> {
+async fn native_claude_login() -> Result<ClaudeLogin, ProviderError> {
     let mut last = ProviderError::Authentication;
     match native_keychain("Claude Code-credentials", None).await {
-        Ok(Some(bytes)) => match claude_token_from_bytes(&bytes) {
+        Ok(Some(bytes)) => match claude_login_from_bytes(&bytes) {
             Ok(Some(value)) => return Ok(value),
             Ok(None) => (),
             Err(error) => retain_native_error(&mut last, error),
@@ -288,7 +361,7 @@ async fn native_claude_token() -> Result<Secret, ProviderError> {
     }
     if let Some(path) = home_dir().map(|home| home.join(".claude/.credentials.json")) {
         match native_file(path).await {
-            Ok(Some(bytes)) => match claude_token_from_bytes(&bytes) {
+            Ok(Some(bytes)) => match claude_login_from_bytes(&bytes) {
                 Ok(Some(value)) => return Ok(value),
                 Ok(None) => (),
                 Err(error) => retain_native_error(&mut last, error),
@@ -300,10 +373,14 @@ async fn native_claude_token() -> Result<Secret, ProviderError> {
     Err(last)
 }
 
-async fn claude_token(context: &ProviderContext) -> Result<Secret, ProviderError> {
+async fn claude_login(context: &ProviderContext) -> Result<ClaudeLogin, ProviderError> {
     match explicit_key(context, CLAUDE_TOKEN_ENV)? {
-        Some(value) => Ok(value),
-        None => native_claude_token().await,
+        Some(token) => Ok(ClaudeLogin {
+            token,
+            subscription_type: None,
+            rate_limit_tier: None,
+        }),
+        None => native_claude_login().await,
     }
 }
 
@@ -378,9 +455,7 @@ fn claude_windows(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>
         let limits = limits.as_array().ok_or(ProviderError::InvalidData)?;
         for limit in limits {
             let limit = limit.as_object().ok_or(ProviderError::InvalidData)?;
-            if limit.get("kind").and_then(Value::as_str) != Some("weekly_scoped")
-                || limit.get("is_active").and_then(Value::as_bool) == Some(false)
-            {
+            if limit.get("kind").and_then(Value::as_str) != Some("weekly_scoped") {
                 continue;
             }
             let Some(model) = limit
@@ -399,8 +474,14 @@ fn claude_windows(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>
             if used > 100.0 {
                 return Err(ProviderError::InvalidData);
             }
-            windows.push(common::window(
-                &format!("{} weekly", clean_label(model)?),
+            let model = clean_label(model)?;
+            let label = if model == "Fable" {
+                model
+            } else {
+                format!("{model} weekly")
+            };
+            let mut window = common::window(
+                &label,
                 Some(used),
                 Some(100.0),
                 None,
@@ -408,7 +489,12 @@ fn claude_windows(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>
                 common::date(limit.get("resets_at"))?,
                 "claude_oauth_usage",
                 now,
-            )?);
+            )?;
+            if window.label == "Fable" {
+                // Preserve history identity when shortening the display label.
+                window.metric_id = Some(crate::cache::fingerprint(&["metric", "Fable weekly"]));
+            }
+            windows.push(window);
         }
     }
     if windows.is_empty() {
@@ -417,11 +503,105 @@ fn claude_windows(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>
     Ok(windows)
 }
 
+fn claude_profile_identity(
+    value: &Value,
+) -> Result<crate::domain::VerifiedIdentity, ProviderError> {
+    let identity = crate::domain::VerifiedIdentity {
+        subject: value
+            .pointer("/account/uuid")
+            .and_then(Value::as_str)
+            .ok_or(ProviderError::InvalidData)?
+            .to_ascii_lowercase(),
+        tenant: match value.get("organization") {
+            None | Some(Value::Null) => None,
+            Some(org) => Some(
+                org.get("uuid")
+                    .and_then(Value::as_str)
+                    .ok_or(ProviderError::InvalidData)?
+                    .to_ascii_lowercase(),
+            ),
+        },
+    };
+    if !identity.is_valid() {
+        return Err(ProviderError::InvalidData);
+    }
+    Ok(identity)
+}
+
+fn claude_config_email(
+    value: &Value,
+    identity: &crate::domain::VerifiedIdentity,
+) -> Option<String> {
+    let account = value.get("oauthAccount")?;
+    if !account
+        .get("accountUuid")?
+        .as_str()?
+        .eq_ignore_ascii_case(&identity.subject)
+        || match (
+            account.get("organizationUuid").and_then(Value::as_str),
+            identity.tenant.as_deref(),
+        ) {
+            (Some(local), Some(live)) => !local.eq_ignore_ascii_case(live),
+            (None, None) => false,
+            _ => true,
+        }
+    {
+        return None;
+    }
+    account
+        .get("emailAddress")
+        .and_then(Value::as_str)
+        .and_then(|value| clean_label(value).ok())
+}
+
 pub(crate) async fn fetch_claude_at(
     context: &ProviderContext,
     endpoint: &str,
+    profile_endpoint: &str,
+    config_path: Option<PathBuf>,
 ) -> Result<ProviderUsage, ProviderError> {
-    let token = claude_token(context).await?;
+    let login = claude_login(context).await?;
+    fetch_claude_with_login_at(
+        context,
+        &login,
+        endpoint,
+        profile_endpoint,
+        config_path,
+        Duration::ZERO,
+    )
+    .await
+}
+
+pub(crate) async fn fetch_claude_native(
+    context: &ProviderContext,
+    login: &ClaudeLogin,
+    endpoint_override: Option<&str>,
+) -> Result<ProviderUsage, ProviderError> {
+    fetch_claude_with_login_at(
+        context,
+        login,
+        endpoint_override.unwrap_or(CLAUDE_USAGE_URL),
+        endpoint_override.unwrap_or(CLAUDE_PROFILE_URL),
+        endpoint_override
+            .is_none()
+            .then(home_dir)
+            .flatten()
+            .map(|home| home.join(".claude.json")),
+        // The caller rereads the native source after this fetch to fence the result.
+        NATIVE_READ_TIMEOUT,
+    )
+    .await
+}
+
+async fn fetch_claude_with_login_at(
+    context: &ProviderContext,
+    login: &ClaudeLogin,
+    endpoint: &str,
+    profile_endpoint: &str,
+    config_path: Option<PathBuf>,
+    reserve: Duration,
+) -> Result<ProviderUsage, ProviderError> {
+    let token = &login.token;
     let now = context.clock.now();
     let response: Value = common::json(
         context
@@ -433,17 +613,108 @@ pub(crate) async fn fetch_claude_at(
             )
             .header("Accept", "application/json")
             .header("anthropic-beta", "oauth-2025-04-20")
-            .header("User-Agent", "claude-code/2.1.0"),
+            .header("User-Agent", CLAUDE_USER_AGENT),
         now,
     )
     .await?;
     let mut usage = common::usage(
         "claude",
-        &token,
+        token,
         "subscription-oauth",
         claude_windows(&response, now)?,
     )?;
-    usage.account.label = "Claude OAuth token".into();
+    usage.account.label = CLAUDE_TOKEN_LABEL.into();
+    usage.account.plan = login.plan();
+    // Metadata is optional; a slow or unavailable profile must not discard valid quota.
+    let budget = crate::providers::remaining_fetch_time()
+        .map(|left| left.saturating_sub(reserve))
+        .unwrap_or(Duration::from_secs(5))
+        .mul_f64(0.9)
+        .min(Duration::from_secs(5));
+    let profile = async {
+        let profile: Value = common::json(
+            context
+                .http
+                .get(profile_endpoint)
+                .header(
+                    "Authorization",
+                    http::sensitive(&format!("Bearer {}", token.0))?,
+                )
+                .header("Accept", "application/json")
+                .header("anthropic-beta", "oauth-2025-04-20")
+                .header("User-Agent", CLAUDE_USER_AGENT),
+            now,
+        )
+        .await?;
+        let identity = claude_profile_identity(&profile)?;
+        let mut email = profile
+            .get("account")
+            .and_then(|account| {
+                account
+                    .get("email")
+                    .or_else(|| account.get("email_address"))
+            })
+            .and_then(Value::as_str)
+            .and_then(|value| clean_label(value).ok());
+        if email.is_none()
+            && let Some(path) = config_path
+            && let Ok(Some(bytes)) = native_file(path).await
+            && let Ok(config) = json_payload(&bytes)
+        {
+            email = claude_config_email(&config, &identity);
+        }
+        Ok::<_, ProviderError>((profile, identity, email))
+    };
+    match tokio::time::timeout(budget, profile)
+        .await
+        .unwrap_or(Err(ProviderError::Timeout))
+    {
+        Ok((profile, identity, email)) => {
+            let organization = profile.get("organization");
+            let live_type = organization
+                .and_then(|org| org.get("organization_type"))
+                .and_then(Value::as_str);
+            let live_tier = organization
+                .and_then(|org| org.get("rate_limit_tier"))
+                .and_then(Value::as_str);
+            // A stored tier only describes the stored plan; never attach it to a different live plan.
+            let (plan_type, tier) = match live_type {
+                Some(plan)
+                    if claude_plan(Some(plan), None)
+                        == claude_plan(login.subscription_type.as_deref(), None) =>
+                {
+                    (Some(plan), live_tier.or(login.rate_limit_tier.as_deref()))
+                }
+                Some(plan) => (Some(plan), live_tier),
+                // A tier names its plan, so a live tier may only refine a matching stored plan.
+                None => (
+                    login.subscription_type.as_deref(),
+                    match (live_tier, login.subscription_type.as_deref()) {
+                        (Some(tier), Some(plan)) => {
+                            let plan = plan.strip_prefix("claude_").unwrap_or(plan);
+                            tier.split('_')
+                                .any(|part| part.eq_ignore_ascii_case(plan))
+                                .then_some(tier)
+                        }
+                        _ => login.rate_limit_tier.as_deref(),
+                    },
+                ),
+            };
+            usage.account.plan = claude_plan(plan_type, tier).or(usage.account.plan);
+            usage.account.subscription_status = organization
+                .and_then(|org| org.get("subscription_status"))
+                .and_then(Value::as_str)
+                .and_then(|value| clean_label(value).ok());
+            usage.account.verified = Some(identity);
+            if let Some(email) = email {
+                usage.account.label = email;
+            }
+        }
+        Err(code) => usage.diagnostics.push(crate::domain::UsageDiagnostic {
+            source: "claude_oauth_profile".into(),
+            code,
+        }),
+    }
     Ok(usage)
 }
 
@@ -1174,7 +1445,7 @@ pub(crate) async fn fetch_copilot_at(
 // Resolve the existing login without sending a quota request or refreshing tokens.
 pub(super) async fn cache_token(id: &str, context: &ProviderContext) -> Option<Secret> {
     match id {
-        "claude" => claude_token(context).await.ok(),
+        "claude" => claude_login(context).await.ok().map(|login| login.token),
         "gemini" => gemini_token(context).await.ok(),
         "copilot" => copilot_token(context).await.ok(),
         _ => None,
@@ -1185,6 +1456,56 @@ pub(super) async fn cache_token(id: &str, context: &ProviderContext) -> Option<S
 mod tests {
     use super::*;
     use crate::domain::Quota;
+
+    #[tokio::test]
+    async fn claude_email_from_config_requires_matching_account_and_organization() {
+        struct Credentials;
+        impl crate::providers::CredentialStore for Credentials {
+            fn get(&self, name: &str) -> Option<Secret> {
+                (name == CLAUDE_TOKEN_ENV).then(|| Secret("explicit-claude-fixture".into()))
+            }
+        }
+        let mut context = http::fixture::context();
+        context.credentials = std::sync::Arc::new(Credentials);
+        let dir = std::env::temp_dir().join(crate::accounts::random_string().unwrap());
+        std::fs::create_dir(&dir).unwrap();
+        let path = dir.join("claude.json");
+        for (account, organization, expected_email) in [
+            ("ACCOUNT", "ORG", Some("local@example.test")),
+            ("other", "org", None),
+            ("account", "other", None),
+        ] {
+            std::fs::write(&path, json!({"oauthAccount":{"accountUuid":account,"organizationUuid":organization,"emailAddress":"local@example.test"}}).to_string()).unwrap();
+            let (endpoint, server) = http::fixture::server(vec![
+                json!({"five_hour":{"utilization":25}}),
+                json!({"account":{"uuid":"account"},"organization":{"uuid":"org","organization_type":"claude_pro","subscription_status":"active"}}),
+            ]).await;
+            let usage = fetch_claude_at(
+                &context,
+                &format!("{endpoint}/usage"),
+                &format!("{endpoint}/profile"),
+                Some(path.clone()),
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                usage.account.label,
+                expected_email.unwrap_or(CLAUDE_TOKEN_LABEL)
+            );
+            assert_eq!(usage.account.plan.as_deref(), Some("Pro"));
+            assert_eq!(usage.account.subscription_status.as_deref(), Some("active"));
+            assert!(usage.diagnostics.is_empty());
+            let requests = server.await.unwrap();
+            assert!(requests[0].starts_with("GET /usage "));
+            assert!(requests[1].starts_with("GET /profile "));
+            assert!(
+                requests
+                    .iter()
+                    .all(|request| request.contains("Bearer explicit-claude-fixture"))
+            );
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     #[tokio::test]
     async fn copilot_keychain_reads_only_the_frozen_account() {
@@ -1268,25 +1589,45 @@ mod tests {
     #[test]
     fn claude_source_response_maps_real_windows_without_extra_spend() {
         let now = OffsetDateTime::UNIX_EPOCH;
-        let windows = claude_windows(
+        for active in [false, true] {
+            let windows = claude_windows(
             &json!({
                 "five_hour":{"utilization":25,"resets_at":"2026-09-06T00:00:00Z"},
                 "seven_day":{"utilization":75},
                 "extra_usage":{"used_credits":900,"monthly_limit":1000},
-                "limits":[{"kind":"weekly_scoped","percent":40,"scope":{"model":{"display_name":"Fable"}}}]
+                "limits":[{"kind":"weekly_scoped","is_active":active,"percent":40,"resets_at":"2026-09-06T00:00:00Z","scope":{"model":{"display_name":"Fable"}}}]
             }),
             now,
         )
         .unwrap();
+            assert_eq!(
+                windows
+                    .iter()
+                    .map(|window| window.label.as_str())
+                    .collect::<Vec<_>>(),
+                ["Session", "Weekly", "Fable"]
+            );
+            assert_eq!(windows[0].quota, Quota::from_used(Some(25.0)));
+            assert_eq!(
+                crate::contract::snapshot::metric_id(&windows[2]),
+                crate::cache::fingerprint(&["metric", "Fable weekly"])
+            );
+            assert_eq!(windows[2].quota, Quota::from_used(Some(40.0)));
+            assert!(windows[2].resets_at.is_some());
+        }
+        let windows = claude_windows(&json!({
+            "five_hour":{"utilization":25},
+            "seven_day":null,
+            "limits":[{"kind":"weekly_scoped","is_active":false,"percent":0,"scope":{"model":{"display_name":"Fable"}}}]
+        }), now).unwrap();
         assert_eq!(
             windows
                 .iter()
                 .map(|window| window.label.as_str())
                 .collect::<Vec<_>>(),
-            ["Session", "Weekly", "Fable weekly"]
+            ["Session", "Fable"]
         );
-        assert_eq!(windows[0].quota, Quota::from_used(Some(25.0)));
-        assert_eq!(windows[2].quota, Quota::from_used(Some(40.0)));
+        assert_eq!(windows[1].quota, Quota::from_used(Some(0.0)));
         assert!(claude_windows(&json!({"five_hour":{"utilization":101}}), now).is_err());
         assert_eq!(
             claude_windows(&json!({"five_hour":null}), now).unwrap_err(),
