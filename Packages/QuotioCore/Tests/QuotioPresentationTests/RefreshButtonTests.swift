@@ -20,10 +20,12 @@ final class RefreshButtonTests: XCTestCase {
             .padding(24)
         )
         hosting.frame = NSRect(x: 0, y: 0, width: 220, height: 90)
-        let window = NSWindow(contentRect: hosting.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        // SwiftUI buttons on older macOS ignore clicks in a non-key window; borderless windows never become key.
+        let window = NSWindow(contentRect: hosting.frame, styleMask: .titled, backing: .buffered, defer: false)
         window.contentView = hosting
         defer { window.orderOut(nil) }
-        window.orderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
         try await Task.sleep(for: .milliseconds(100))
         hosting.layoutSubtreeIfNeeded()
         let idleSize = hosting.fittingSize
