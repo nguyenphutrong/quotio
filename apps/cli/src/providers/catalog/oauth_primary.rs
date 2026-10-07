@@ -686,9 +686,18 @@ async fn fetch_claude_with_login_at(
                     (Some(plan), live_tier.or(login.rate_limit_tier.as_deref()))
                 }
                 Some(plan) => (Some(plan), live_tier),
+                // A tier names its plan, so a live tier may only refine a matching stored plan.
                 None => (
                     login.subscription_type.as_deref(),
-                    live_tier.or(login.rate_limit_tier.as_deref()),
+                    match (live_tier, login.subscription_type.as_deref()) {
+                        (Some(tier), Some(plan)) => {
+                            let plan = plan.strip_prefix("claude_").unwrap_or(plan);
+                            tier.split('_')
+                                .any(|part| part.eq_ignore_ascii_case(plan))
+                                .then_some(tier)
+                        }
+                        _ => login.rate_limit_tier.as_deref(),
+                    },
                 ),
             };
             usage.account.plan = claude_plan(plan_type, tier).or(usage.account.plan);
