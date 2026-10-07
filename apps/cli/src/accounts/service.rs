@@ -908,8 +908,13 @@ impl ManagedProvider {
             return Err(AccountError::Busy);
         }
         let mut changed = false;
-        changed |= current.observe_name(&usage.account.label)?;
-        if current.naming.is_some() {
+        // A Claude placeholder names no account; keep the stored name instead of observing it.
+        let placeholder = matches!(credential, Credential::ClaudeNative { .. })
+            && usage.account.label == crate::providers::catalog::oauth_primary::CLAUDE_TOKEN_LABEL;
+        if !placeholder {
+            changed |= current.observe_name(&usage.account.label)?;
+        }
+        if current.naming.is_some() || placeholder {
             usage.account.label = current.display_name().to_owned();
         }
         if let Some(identity) = &usage.account.verified {
