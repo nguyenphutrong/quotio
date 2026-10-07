@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta.3] - 2026-10-08
+
+### Added
+
+- Sign in to GitHub Copilot on a GitHub Enterprise Cloud data-residency host (`<subdomain>.ghe.com`) from the Copilot sign-in sheet. Device-code sign-in also offers an Open Link button for the verification page.
+
+### Fixed
+
+- Show loading feedback while refreshing all providers, a single provider, or an account, and ignore repeated refresh clicks until the current refresh finishes.
+- Keep the status menu open while a refresh started from it is running.
+- Show Copilot AI credit usage as used and limit counts, with reset times consistent with other providers.
+- Restore Claude Code account emails, plans, and quota display, including accounts added before account naming existed. Keep the stored account name when Claude profile details are temporarily unavailable.
+
+## [1.0.0-beta.2] - 2026-10-04
+
 ### Changed
 
 - Keep the status menu and Pair iPhone popover aligned with the menu bar appearance. The app appearance setting continues to control app windows.
