@@ -632,17 +632,27 @@ async fn fetch_claude_with_login_at(
     {
         Ok((profile, identity, email)) => {
             let organization = profile.get("organization");
-            usage.account.plan = claude_plan(
-                organization
-                    .and_then(|org| org.get("organization_type"))
-                    .and_then(Value::as_str)
-                    .or(login.subscription_type.as_deref()),
-                organization
-                    .and_then(|org| org.get("rate_limit_tier"))
-                    .and_then(Value::as_str)
-                    .or(login.rate_limit_tier.as_deref()),
-            )
-            .or(usage.account.plan);
+            let live_type = organization
+                .and_then(|org| org.get("organization_type"))
+                .and_then(Value::as_str);
+            let live_tier = organization
+                .and_then(|org| org.get("rate_limit_tier"))
+                .and_then(Value::as_str);
+            // A stored tier only describes the stored plan; never attach it to a different live plan.
+            let (plan_type, tier) = match live_type {
+                Some(plan)
+                    if claude_plan(Some(plan), None)
+                        == claude_plan(login.subscription_type.as_deref(), None) =>
+                {
+                    (Some(plan), live_tier.or(login.rate_limit_tier.as_deref()))
+                }
+                Some(plan) => (Some(plan), live_tier),
+                None => (
+                    login.subscription_type.as_deref(),
+                    live_tier.or(login.rate_limit_tier.as_deref()),
+                ),
+            };
+            usage.account.plan = claude_plan(plan_type, tier).or(usage.account.plan);
             usage.account.subscription_status = organization
                 .and_then(|org| org.get("subscription_status"))
                 .and_then(Value::as_str)
