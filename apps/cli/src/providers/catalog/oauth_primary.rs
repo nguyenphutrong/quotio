@@ -38,6 +38,8 @@ const MAX_LABEL_BYTES: usize = 128;
 const NATIVE_READ_TIMEOUT: Duration = Duration::from_secs(2);
 /// Label reported when profile enrichment yields no account email.
 pub(crate) const CLAUDE_TOKEN_LABEL: &str = "Claude OAuth token";
+/// Anthropic's OAuth endpoints reject requests without a Claude Code User-Agent.
+const CLAUDE_USER_AGENT: &str = "claude-code/2.1.0";
 
 const GEMINI_SETTINGS: &[Setting] = &[Setting {
     name: "project",
@@ -611,7 +613,7 @@ async fn fetch_claude_with_login_at(
             )
             .header("Accept", "application/json")
             .header("anthropic-beta", "oauth-2025-04-20")
-            .header("User-Agent", "claude-code/2.1.0"),
+            .header("User-Agent", CLAUDE_USER_AGENT),
         now,
     )
     .await?;
@@ -639,7 +641,8 @@ async fn fetch_claude_with_login_at(
                     http::sensitive(&format!("Bearer {}", token.0))?,
                 )
                 .header("Accept", "application/json")
-                .header("anthropic-beta", "oauth-2025-04-20"),
+                .header("anthropic-beta", "oauth-2025-04-20")
+                .header("User-Agent", CLAUDE_USER_AGENT),
             now,
         )
         .await?;
