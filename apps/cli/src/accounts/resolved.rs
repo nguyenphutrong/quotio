@@ -597,6 +597,27 @@ mod tests {
     }
 
     #[test]
+    fn same_subject_without_and_with_tenant_stays_separate() {
+        // GitHub.com Copilot ids carry no tenant; GHE.com ids carry their host.
+        let doc = document();
+        let mut registry = Registry::new(&doc.accounts).unwrap();
+        let dotcom = VerifiedIdentity {
+            subject: "42".into(),
+            tenant: None,
+        };
+        let enterprise = VerifiedIdentity {
+            subject: "42".into(),
+            tenant: Some("octocorp.ghe.com".into()),
+        };
+        registry.observe(&doc.accounts[0].id, &dotcom).unwrap();
+        registry.observe(&doc.accounts[1].id, &enterprise).unwrap();
+        assert_ne!(
+            registry.account_id_for_source(&doc.accounts[0].id),
+            registry.account_id_for_source(&doc.accounts[1].id)
+        );
+    }
+
+    #[test]
     fn merging_unknown_sources_preserves_aliases_and_deleting_one_source_keeps_the_account() {
         let mut doc = document();
         let first = doc.accounts[0].id.clone();
