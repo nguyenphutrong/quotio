@@ -242,8 +242,8 @@ impl ClaudeNativeReference {
     }
     pub async fn resolve(&self) -> Result<Resolved, AccountError> {
         self.identity()?;
-        let token =
-            crate::providers::catalog::oauth_primary::claude_reference_token(self.path.clone())
+        let login =
+            crate::providers::catalog::oauth_primary::claude_reference_login(self.path.clone())
                 .await?;
         Ok(Resolved {
             label: match self.location {
@@ -252,10 +252,10 @@ impl ClaudeNativeReference {
             }
             .into(),
             provider: crate::cli::Provider::Catalog("claude"),
-            plan: None,
+            plan: login.plan(),
             subscription_status: None,
             credentials: vec![Credential::CatalogKey {
-                token: token.0,
+                token: login.token.0,
                 settings: Default::default(),
             }],
         })

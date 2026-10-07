@@ -156,6 +156,23 @@ async fn validate_with_endpoint(
     credential: &Credential,
     endpoint_override: Option<&str>,
 ) -> Result<ProviderUsage, AccountError> {
+    if let Credential::ClaudeNative { source } = credential
+        && provider == Provider::Catalog("claude")
+    {
+        use crate::providers::catalog::oauth_primary::{
+            claude_reference_login, fetch_claude_native,
+        };
+        source.identity()?;
+        let login = claude_reference_login(source.path.clone()).await?;
+        let usage = fetch_claude_native(context, &login, endpoint_override).await?;
+        if login != claude_reference_login(source.path.clone()).await? {
+            return Err(AccountError::Busy);
+        }
+        if !crate::fetch::valid_usage(&usage) {
+            return Err(ProviderError::InvalidData.into());
+        }
+        return Ok(usage);
+    }
     if let Credential::AntigravityNative { source } = credential
         && source.location == super::sources::AntigravityLocation::GeminiKeychain
         && provider == Provider::Antigravity
@@ -278,6 +295,8 @@ async fn validate_credential(
             crate::providers::catalog::oauth_primary::fetch_claude_at(
                 &ctx,
                 endpoint_override.unwrap(),
+                endpoint_override.unwrap(),
+                None,
             )
             .await?
         }
@@ -332,6 +351,14 @@ async fn validate_credential(
         account_id, email, ..
     } = credential
     {
+        if usage
+            .account
+            .verified
+            .as_ref()
+            .is_some_and(|identity| !identity.subject.eq_ignore_ascii_case(account_id))
+        {
+            return Err(ProviderError::Authentication.into());
+        }
         usage.account.id = account_id.clone();
         usage.account.label = email.clone();
     }
@@ -967,6 +994,7 @@ impl ProviderAdapter for ManagedProvider {
                 Provider::Factory => "resolved-factory-identity-v3",
                 Provider::Catalog("copilot") => "resolved-copilot-identity-v3",
                 Provider::Catalog("grok") => "resolved-grok-identity-v3",
+                Provider::Catalog("claude") => "resolved-claude-identity-v3",
                 _ => "resolved-identity-v2",
             };
             if let Some(naming) = &account.naming {
@@ -2876,6 +2904,123 @@ mod tests {
         }
     }
     #[tokio::test]
+    async fn claude_incomplete_profile_preserves_native_plan_and_quota() {
+        let dir = std::env::temp_dir().join(random_string().unwrap());
+        std::fs::create_dir(&dir).unwrap();
+        let path = dir.join("credentials.json");
+        let original = br#"{"claudeAiOauth":{"accessToken":"claude-fixture","subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}"#;
+        std::fs::write(&path, original).unwrap();
+        let credential = Credential::ClaudeNative {
+            source: super::super::sources::ClaudeNativeReference {
+                location: super::super::sources::ClaudeLocation::CodeFile,
+                path: Some(path.clone()),
+            },
+        };
+        for (status, profile, expected_plan, code) in [
+            (
+                503,
+                serde_json::json!({}),
+                "Max 5x",
+                Some(ProviderError::Transient),
+            ),
+            (
+                200,
+                serde_json::json!({"account":{"uuid":""}}),
+                "Max 5x",
+                Some(ProviderError::InvalidData),
+            ),
+            (
+                200,
+                serde_json::json!({"account":{"uuid":"account"},"organization":{"uuid":"org","organization_type":"claude_max"}}),
+                "Max 5x",
+                None,
+            ),
+            (
+                200,
+                serde_json::json!({"account":{"uuid":"account"},"organization":{"uuid":"org","rate_limit_tier":"default_claude_max_20x"}}),
+                "Max 20x",
+                None,
+            ),
+            (
+                200,
+                serde_json::json!({"account":{"uuid":"account"}}),
+                "Max 5x",
+                None,
+            ),
+        ] {
+            let (endpoint, server) = http::fixture::server_status(vec![
+                (200, serde_json::json!({"five_hour":{"utilization":25}})),
+                (status, profile),
+            ])
+            .await;
+            let usage = validate_with_endpoint(
+                &http::fixture::context(),
+                Provider::Catalog("claude"),
+                &credential,
+                Some(&endpoint),
+            )
+            .await
+            .unwrap();
+            assert_eq!(usage.account.plan.as_deref(), Some(expected_plan));
+            assert_eq!(
+                usage.windows[0].quota,
+                crate::domain::Quota::from_used(Some(25.0))
+            );
+            if let Some(code) = code {
+                assert_eq!(usage.diagnostics[0].source, "claude_oauth_profile");
+                assert_eq!(usage.diagnostics[0].code, code);
+                assert!(usage.account.verified.is_none());
+            } else {
+                assert!(usage.diagnostics.is_empty());
+                assert!(usage.account.verified.is_some());
+            }
+            assert_eq!(server.await.unwrap().len(), 2);
+            assert_eq!(std::fs::read(&path).unwrap(), original);
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn claude_oauth_profile_must_match_saved_account_uuid() {
+        for (account_id, subject, matches) in [
+            ("account", "ACCOUNT", true),
+            ("ACCOUNT", "account", true),
+            ("account", "other", false),
+        ] {
+            let credential = Credential::ClaudeOAuth {
+                access_token: "claude-oauth-fixture".into(),
+                refresh_token: "owner-only".into(),
+                account_id: account_id.into(),
+                email: "saved@example.test".into(),
+                expires_at: 3600,
+                refresh_pending: false,
+            };
+            let (endpoint, server) = http::fixture::server(vec![
+                serde_json::json!({"five_hour":{"utilization":25}}),
+                serde_json::json!({"account":{"uuid":subject},"organization":{"uuid":"org","organization_type":"claude_pro"}}),
+            ]).await;
+            let result = validate_with_endpoint(
+                &http::fixture::context(),
+                Provider::Catalog("claude"),
+                &credential,
+                Some(&endpoint),
+            )
+            .await;
+            if matches {
+                let usage = result.unwrap();
+                assert_eq!(usage.account.label, "saved@example.test");
+                assert_eq!(usage.account.plan.as_deref(), Some("Pro"));
+                assert_eq!(usage.account.verified.as_ref().unwrap().subject, "account");
+            } else {
+                assert!(matches!(
+                    result,
+                    Err(AccountError::Provider(ProviderError::Authentication))
+                ));
+            }
+            assert_eq!(server.await.unwrap().len(), 2);
+        }
+    }
+    #[tokio::test]
     async fn kiro_native_fences_rotation_and_disable() {
         let dir = std::env::temp_dir().join(random_string().unwrap());
         let path = dir.join(".aws/sso/cache/kiro-auth-token.json");
@@ -2935,7 +3080,7 @@ mod tests {
             let dir = std::env::temp_dir().join(random_string().unwrap());
             std::fs::create_dir(&dir).unwrap();
             let path = dir.join("credentials.json");
-            let original = br#"{"claudeAiOauth":{"accessToken":"native-first-fixture","refreshToken":"owner-only","scopes":["user:profile"]}}"#;
+            let original = br#"{"claudeAiOauth":{"accessToken":"native-first-fixture","refreshToken":"owner-only","scopes":["user:profile"],"subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}"#;
             std::fs::write(&path, original).unwrap();
             let credential = Credential::ClaudeNative {
                 source: super::super::sources::ClaudeNativeReference {
@@ -2948,7 +3093,13 @@ mod tests {
             let mut tx = vault.begin().unwrap();
             let id = tx
                 .document
-                .add(provider, "Fixture", "source".into(), credential.clone())
+                .add_named(
+                    provider,
+                    "Claude Code file",
+                    super::super::LabelOrigin::Generated,
+                    "source".into(),
+                    credential.clone(),
+                )
                 .unwrap();
             let account = tx.document.accounts[0].clone();
             assert_eq!(
@@ -2966,7 +3117,10 @@ mod tests {
             let before = adapter.cache_identity(&context).await.unwrap();
             let changed = path.clone();
             let (endpoint, server) = http::fixture::server_status_with_action(
-                vec![(200, serde_json::json!({"five_hour":{"utilization":25}}))],
+                vec![
+                    (200, serde_json::json!({"five_hour":{"utilization":25}})),
+                    (200, serde_json::json!({"account":{"uuid":"claude-account","email":"claude@example.test"},"organization":{"uuid":"claude-org","organization_type":"claude_max","rate_limit_tier":"default_claude_max_20x"}})),
+                ],
                 move |_| {
                     if rotate {
                         std::fs::write(
@@ -2984,14 +3138,50 @@ mod tests {
                 assert!(matches!(result, Err(AccountError::Busy)));
                 assert_ne!(adapter.cache_identity(&context).await.unwrap(), before);
             } else {
-                assert!(result.is_ok());
+                let usage = result.unwrap();
+                assert_eq!(usage.account.label, "claude@example.test");
+                assert_eq!(usage.account.plan.as_deref(), Some("Max 20x"));
+                assert_eq!(
+                    usage.account.verified.as_ref().unwrap().subject,
+                    "claude-account"
+                );
+                assert_eq!(
+                    usage.account.verified.as_ref().unwrap().tenant.as_deref(),
+                    Some("claude-org")
+                );
                 assert_eq!(std::fs::read(&path).unwrap(), original);
+                let managed = ManagedProvider {
+                    factory_oauth: false,
+                    origin: account.origin(),
+                    label: account.display_name().to_owned(),
+                    operations: Arc::new(Network),
+                    vault: vault.clone(),
+                    id: id.clone(),
+                    provider,
+                    provider_id: provider.adapter().id(),
+                };
+                managed.verify_current(&credential, usage).await.unwrap();
+                let tx = vault.begin().unwrap();
+                assert_eq!(
+                    tx.document.accounts[0].display_name(),
+                    "claude@example.test"
+                );
+                let view = tx
+                    .document
+                    .resolved
+                    .as_ref()
+                    .unwrap()
+                    .account_list(&tx.document.accounts)
+                    .unwrap();
+                assert_eq!(view.accounts[0].display_name, "claude@example.test");
             }
             let requests = server.await.unwrap();
-            assert_eq!(requests.len(), 1);
-            assert!(requests[0].starts_with("GET "));
-            assert!(requests[0].contains("Bearer native-first-fixture"));
-            assert!(!requests[0].contains("owner-only"));
+            assert_eq!(requests.len(), 2);
+            for request in &requests {
+                assert!(request.starts_with("GET "));
+                assert!(request.contains("Bearer native-first-fixture"));
+                assert!(!request.contains("owner-only"));
+            }
             let mut tx = vault.begin().unwrap();
             tx.document.patch(&id, None, None, Some(false)).unwrap();
             tx.commit().unwrap();
