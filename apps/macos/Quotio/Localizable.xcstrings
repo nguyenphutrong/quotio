@@ -11597,7 +11597,6 @@
       }
     },
     "oauth.openLink" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
