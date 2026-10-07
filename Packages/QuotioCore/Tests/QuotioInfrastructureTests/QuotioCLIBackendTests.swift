@@ -586,6 +586,76 @@ final class QuotioCLIBackendTests: XCTestCase {
         XCTAssertEqual(QuotioCLIURLProtocol.requests().last?.httpMethod, "DELETE")
     }
 
+    func testCopilotEnterpriseHostIsSentWithDeviceSession() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"provider":"copilot","workflow":"device_code","user_code":"CODE","id":"session-1","url":"https://octocorp.ghe.com/login/device","expires_at":4102444800,"status":"waiting","account_id":null,"error_code":null}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"provider":"copilot","workflow":"device_code","user_code":"CODE","id":"session-1","url":"https://octocorp.ghe.com/login/device","expires_at":4102444800,"status":"failed","account_id":null,"error_code":"access_denied"}"#)
+        QuotioCLIURLProtocol.enqueue(#"{"provider":"copilot","workflow":"device_code","user_code":"CODE","id":"session-1","url":"https://octocorp.ghe.com/login/device","expires_at":4102444800,"status":"failed","account_id":null,"error_code":"access_denied"}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioHostConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+        let authorizer = QuotioCLIOAuthAuthorizer(
+            backend: backend,
+            urlOpener: QuotioCLIURLOpenerStub()
+        )
+
+        _ = try? await authorizer.begin(
+            request: OAuthAuthorizationRequest(
+                providerID: AccountProviderID(rawValue: QuotaProvider.copilot.rawValue),
+                githubHost: GitHubHost("octocorp.ghe.com")
+            ),
+            attemptID: OAuthAttemptID(),
+            progress: { _ in }
+        )
+
+        let data = try XCTUnwrap(QuotioCLIURLProtocol.body(forPath: "/v2/auth/sessions"))
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
+        XCTAssertEqual(body, ["provider": "copilot", "host": "octocorp.ghe.com"])
+    }
+
+    func testGitHubComDeviceSessionOmitsHost() async throws {
+        QuotioCLIURLProtocol.enqueue(#"{"provider":"copilot","workflow":"device_code","user_code":"CODE","id":"session-1","url":"https://github.com/login/device","expires_at":4102444800,"status":"waiting","account_id":null,"error_code":null}"#)
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioHostConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+
+        _ = try await backend.beginOAuth(provider: "copilot")
+
+        let data = try XCTUnwrap(QuotioCLIURLProtocol.body(forPath: "/v2/auth/sessions"))
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
+        XCTAssertEqual(body, ["provider": "copilot"])
+    }
+
+    func testEnterpriseHostIsRejectedForNonCopilotProviders() async throws {
+        let backend = QuotioCLIBackend(session: stubSession())
+        await backend.connect(QuotioHostConnection(
+            baseURL: URL(string: "http://127.0.0.1:43210")!,
+            token: "private-token"
+        ))
+        let authorizer = QuotioCLIOAuthAuthorizer(
+            backend: backend,
+            urlOpener: QuotioCLIURLOpenerStub()
+        )
+
+        do {
+            _ = try await authorizer.begin(
+                request: OAuthAuthorizationRequest(
+                    providerID: AccountProviderID(rawValue: QuotaProvider.codex.rawValue),
+                    githubHost: GitHubHost("octocorp.ghe.com")
+                ),
+                attemptID: OAuthAttemptID(),
+                progress: { _ in }
+            )
+            XCTFail("Expected a GitHub host to be rejected for Codex")
+        } catch {
+            XCTAssertEqual(error as? OAuthFlowFailure, .unsupportedProvider)
+        }
+        XCTAssertTrue(QuotioCLIURLProtocol.requests().isEmpty)
+    }
+
     func testOAuthCallbackUsesExchangeTimeout() async throws {
         QuotioCLIURLProtocol.enqueue(#"{"provider":"codex","workflow":"browser_redirect","user_code":null,"id":"session-1","url":"https://example.com","expires_at":4102444800,"status":"completed","account_id":"account-1","error_code":null}"#)
         let backend = QuotioCLIBackend(session: stubSession())

@@ -69,7 +69,7 @@ The empty row is hidden from accessibility; no reset time is invented.
 | iFlow | OAuth |
 | Antigravity | OAuth |
 | Kiro | OAuth |
-| GitHub Copilot | OAuth |
+| GitHub Copilot | OAuth (GitHub.com or GHE.com data-residency host in Monitor mode) |
 
 ### IDE Quota Tracking (Monitor Only)
 | IDE | Description |

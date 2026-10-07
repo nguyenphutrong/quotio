@@ -24,9 +24,15 @@ public actor QuotioCLIOAuthAuthorizer: OAuthAuthorizing {
         guard let provider = QuotaProvider(rawValue: request.providerID.rawValue) else {
             throw OAuthFlowFailure.unsupportedProvider
         }
+        if request.githubHost != nil, provider != .copilot {
+            throw OAuthFlowFailure.unsupportedProvider
+        }
         let cliProvider = provider.rawValue
         do {
-            let session = try await backend.beginOAuth(provider: cliProvider)
+            let session = try await backend.beginOAuth(
+                provider: cliProvider,
+                githubHost: request.githubHost?.value
+            )
             sessions[attemptID] = session
             try Task.checkCancellation()
             guard session.provider == cliProvider, let url = URL(string: session.url),

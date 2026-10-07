@@ -346,7 +346,8 @@ impl Vault {
                 }
                 let doc: Document =
                     serde_json::from_slice(&bytes).map_err(|_| AccountError::Corrupt)?;
-                if !matches!(doc.version, 1..=19)
+                if !matches!(doc.version, 1..=20)
+                    || (doc.version < 20 && doc.has_enterprise_copilot())
                     || (doc.version < 19 && doc.companion_identity.is_some())
                     || (doc.version < 18 && super::clients::has_manage_grants(&doc))
                     || (doc.version < 17 && !doc.client_grants.is_empty())
@@ -591,6 +592,11 @@ impl Transaction {
         }
         if self.document.companion_identity.is_some() {
             self.document.version = self.document.version.max(19);
+        }
+        // Format-19 readers ignore the Copilot host and would send an enterprise
+        // token to GitHub.com, so host-bearing credentials require format 20.
+        if self.document.has_enterprise_copilot() {
+            self.document.version = self.document.version.max(20);
         }
         let bytes = serde_json::to_vec(&self.document).map_err(|_| AccountError::Corrupt)?;
         if bytes.len() > 1024 * 1024 {
@@ -892,6 +898,38 @@ pub(crate) mod tests {
         memory
             .write(&serde_json::to_vec(&downgraded).unwrap())
             .unwrap();
+        assert!(matches!(vault.begin(), Err(AccountError::Corrupt)));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn enterprise_copilot_hosts_require_format_twenty() {
+        let memory = Arc::new(Memory::default());
+        let dir = std::env::temp_dir().join(random_string().unwrap());
+        let vault = Vault::new(memory.clone(), dir.join("lock"));
+        let credential = crate::accounts::Credential::CopilotOAuth {
+            access_token: "fixture-token".into(),
+            account_id: "42".into(),
+            login: "fixture-login".into(),
+            host: Some(
+                crate::accounts::github_host::GitHubHost::parse("octocorp.ghe.com").unwrap(),
+            ),
+        };
+        let mut tx = vault.begin().unwrap();
+        tx.document
+            .add(
+                Provider::Catalog("copilot"),
+                "Fixture",
+                "octocorp.ghe.com:42".into(),
+                credential,
+            )
+            .unwrap();
+        tx.commit().unwrap();
+        let bytes = memory.read().unwrap().unwrap();
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["version"], 20);
+        // A format-19 reader would ignore the host and query GitHub.com.
+        value["version"] = 19.into();
+        memory.write(&serde_json::to_vec(&value).unwrap()).unwrap();
         assert!(matches!(vault.begin(), Err(AccountError::Corrupt)));
         std::fs::remove_dir_all(dir).unwrap();
     }

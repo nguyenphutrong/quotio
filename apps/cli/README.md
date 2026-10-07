@@ -451,6 +451,11 @@ Vertex AI can refresh recognized native credentials in memory, but they do not
 start a login or write the owning application's credential files. Codex keeps its
 separate Quotio-owned sign-in flow.
 
+GitHub Copilot can also be saved through a Quotio-owned device sign-in with
+`quotio accounts add --provider copilot`. Add `--host SUBDOMAIN.ghe.com` to sign
+in to a GitHub Enterprise Cloud data-residency host; the host is stored with the
+account and quota reads go only to `https://api.SUBDOMAIN.ghe.com`.
+
 Catalog implementation means that a `Definition` and synthetic parser/local
 HTTP-fixture coverage exist. It does not mean a real key, OAuth credential, IAM
 role, or subscription has been accepted live. The full offline suite passed 143

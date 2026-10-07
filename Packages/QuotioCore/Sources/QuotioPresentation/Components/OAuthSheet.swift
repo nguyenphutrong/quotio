@@ -8,6 +8,7 @@ struct OAuthSheet: View {
     let onDismiss: () -> Void
 
     @State private var manualOAuthCode = ""
+    @State private var githubHostInput = ""
 
     private var isPolling: Bool {
         viewModel.oauthState?.status == .polling || viewModel.oauthState?.status == .waiting
@@ -19,6 +20,28 @@ struct OAuthSheet: View {
 
     private var isError: Bool {
         viewModel.oauthState?.status == .error
+    }
+
+    private var showsGitHubHostField: Bool {
+        provider == .copilot && viewModel.operatingMode == .monitor
+    }
+
+    private var trimmedGitHubHostInput: String {
+        githubHostInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Empty input means GitHub.com; any other text must be a valid host.
+    private var githubHost: GitHubHost? {
+        guard showsGitHubHostField, !trimmedGitHubHostInput.isEmpty else { return nil }
+        return GitHubHost(trimmedGitHubHostInput)
+    }
+
+    private var isGitHubHostInvalid: Bool {
+        showsGitHubHostField && !trimmedGitHubHostInput.isEmpty && githubHost == nil
+    }
+
+    private func startAuthorization() async {
+        await viewModel.startOAuth(for: provider, githubHost: githubHost)
     }
 
     private var providerName: String {
@@ -37,6 +60,24 @@ struct OAuthSheet: View {
                 Text("oauth.authenticateWith".localized() + " " + providerName)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+            }
+
+            if showsGitHubHostField {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("oauth.githubHost.label".localized())
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    TextField("oauth.githubHost.placeholder".localized(), text: $githubHostInput)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .disabled(isPolling || isSuccess)
+                    Text(isGitHubHostInvalid
+                        ? "oauth.githubHost.invalid".localized()
+                        : "oauth.githubHost.hint".localized())
+                        .font(.caption)
+                        .foregroundStyle(isGitHubHostInvalid ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                }
+                .frame(maxWidth: 320)
             }
 
             if let state = viewModel.oauthState, state.provider == provider {
@@ -67,17 +108,18 @@ struct OAuthSheet: View {
                 if isError {
                     Button {
                         Task {
-                            await viewModel.startOAuth(for: provider)
+                            await startAuthorization()
                         }
                     } label: {
                         Label("oauth.retry".localized(), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
+                    .disabled(isGitHubHostInvalid)
                 } else if !isSuccess {
                     Button {
                         Task {
-                            await viewModel.startOAuth(for: provider)
+                            await startAuthorization()
                         }
                     } label: {
                         if isPolling {
@@ -88,7 +130,7 @@ struct OAuthSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(provider.color)
-                    .disabled(isPolling)
+                    .disabled(isPolling || isGitHubHostInvalid)
                 }
             }
         }
@@ -182,6 +224,19 @@ private struct OAuthStatusView: View {
                                 }
                                 .buttonStyle(.subtle)
                                 .help("action.copyCode".localized())
+                            }
+
+                            // Device codes are entered on the host's own verification page,
+                            // which differs for GitHub Enterprise Cloud data-residency hosts.
+                            if let urlString = authURL, let url = URL(string: urlString) {
+                                Button {
+                                    platformActions.open(url)
+                                } label: {
+                                    Label("oauth.openLink".localized(), systemImage: "safari")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(provider.color)
+                                .help(urlString)
                             }
 
                             Text("oauth.waitingForAuth".localized())
