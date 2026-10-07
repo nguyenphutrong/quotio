@@ -535,7 +535,15 @@ pub(crate) async fn fetch_claude_at(
     config_path: Option<PathBuf>,
 ) -> Result<ProviderUsage, ProviderError> {
     let login = claude_login(context).await?;
-    fetch_claude_with_login_at(context, &login, endpoint, profile_endpoint, config_path).await
+    fetch_claude_with_login_at(
+        context,
+        &login,
+        endpoint,
+        profile_endpoint,
+        config_path,
+        Duration::ZERO,
+    )
+    .await
 }
 
 pub(crate) async fn fetch_claude_native(
@@ -553,6 +561,8 @@ pub(crate) async fn fetch_claude_native(
             .then(home_dir)
             .flatten()
             .map(|home| home.join(".claude.json")),
+        // The caller rereads the native source after this fetch to fence the result.
+        NATIVE_READ_TIMEOUT,
     )
     .await
 }
@@ -563,6 +573,7 @@ async fn fetch_claude_with_login_at(
     endpoint: &str,
     profile_endpoint: &str,
     config_path: Option<PathBuf>,
+    reserve: Duration,
 ) -> Result<ProviderUsage, ProviderError> {
     let token = &login.token;
     let now = context.clock.now();
@@ -589,9 +600,8 @@ async fn fetch_claude_with_login_at(
     usage.account.label = CLAUDE_TOKEN_LABEL.into();
     usage.account.plan = login.plan();
     // Metadata is optional; a slow or unavailable profile must not discard valid quota.
-    // Reserve time for the native credential reread that fences the result after this fetch.
     let budget = crate::providers::remaining_fetch_time()
-        .map(|left| left.saturating_sub(NATIVE_READ_TIMEOUT))
+        .map(|left| left.saturating_sub(reserve))
         .unwrap_or(Duration::from_secs(5))
         .mul_f64(0.9)
         .min(Duration::from_secs(5));
