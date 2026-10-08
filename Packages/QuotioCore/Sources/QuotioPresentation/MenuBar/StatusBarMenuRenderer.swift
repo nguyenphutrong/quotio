@@ -124,7 +124,6 @@ private final class StatusBarCommandMenuItem: NSMenuItem {
 final class StatusBarMenuRenderer {
     private var snapshot: StatusBarMenuSnapshot
     @ObservationIgnored private weak var refreshItem: NSMenuItem?
-    private let appearance: NSAppearance?
     private let commands: StatusBarCommandDispatcher
     private let providerFilterController: StatusBarProviderFilterController
     private let highlightController = StatusBarMenuHighlightController()
@@ -132,11 +131,9 @@ final class StatusBarMenuRenderer {
 
     init(
         snapshot: StatusBarMenuSnapshot,
-        appearance: NSAppearance? = nil,
         commands: StatusBarCommandDispatcher
     ) {
         self.snapshot = snapshot
-        self.appearance = appearance
         self.commands = commands
         let availableProviders = snapshot.providers.map(\.provider)
         let selectedProvider = snapshot.selectedProvider.flatMap { provider in
@@ -356,7 +353,6 @@ final class StatusBarMenuRenderer {
     private func makeMenu() -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
-        menu.appearance = appearance
         return menu
     }
 
