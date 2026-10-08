@@ -51,8 +51,6 @@ final class AccountsScreenSnapshotTests: XCTestCase {
         try await render(unconnectedView, width: 800, height: 300, appearance: .aqua,
             to: output + "/accounts-unconnected-vi-light-800.png")
 
-        let expanded = AccountsSettingsScreenModel()
-        expanded.expandedAccountIDs = [fixture.claudeWork.id, fixture.claudePersonal.id]
         let claudeState = ProviderSettingsState(provider: .claude, accounts: fixture.accountService.storedAccounts,
             permissions: [], quota: fixture.quota.state, tracking: fixture.controller.trackingPreferences)
         for (language, appearance) in [("en", NSAppearance.Name.aqua), ("vi", .darkAqua)] {
@@ -62,7 +60,7 @@ final class AccountsScreenSnapshotTests: XCTestCase {
                     ProviderAccountsSection(state: claudeState, visibleAccounts: claudeState.accounts)
                 }
                 .formStyle(.grouped)
-                .environment(expanded)
+                .environment(AccountsSettingsScreenModel())
             )
             try await render(view, width: 800, height: 460, appearance: appearance,
                 to: output + "/accounts-detail-\(language)-\(appearance == .darkAqua ? "dark" : "light")-800.png")
@@ -111,9 +109,6 @@ private final class SnapshotFixture {
     let menuBar: MenuBarSettingsManager
     let accountService: SnapshotAccountService
 
-    let claudeWork: Account
-    let claudePersonal: Account
-
     init() {
         let now = Date()
         func source(_ id: String, _ kind: AccountSource, _ ref: String?, _ location: String? = nil,
@@ -150,8 +145,6 @@ private final class SnapshotFixture {
         let antigravityUnidentified = account("antigravity", "antigravity:native", "Antigravity", sources: [
             source("antigravity-native", .nativeCredential, "antigravity_native", "gemini_keychain"),
         ], verified: false)
-        claudeWork = work
-        claudePersonal = personal
 
         let factoryPermission = NativeSourcePermission(provider: .factoryDroid, kind: "factory_native",
             location: "v2_login_keychain", keychainAccount: "factory")
@@ -184,7 +177,7 @@ private final class SnapshotFixture {
                 id(.antigravity, antigravityUnidentified): .init(connection: .reauthenticationRequired, quota: .failed(.authentication)),
             ],
             quotas: [
-                .claude: [work.accountKey: ProviderQuota(lastUpdated: now.addingTimeInterval(-120), summary: totals(64))],
+                .claude: [work.accountKey: ProviderQuota(lastUpdated: now.addingTimeInterval(-120), planType: "Max", summary: totals(64))],
                 .codex: [codexDev.accountKey: ProviderQuota(lastUpdated: now.addingTimeInterval(-87_000), summary: totals(12))],
             ],
             accountIDs: [.claude: [work.accountKey: "claude-work-code"]],

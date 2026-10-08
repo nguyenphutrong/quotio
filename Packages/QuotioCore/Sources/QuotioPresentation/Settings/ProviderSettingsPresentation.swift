@@ -47,6 +47,19 @@ extension QuotaRefreshState {
 }
 
 @MainActor
+extension AccountSource {
+    /// Where a login comes from, short enough to share an account caption with the plan.
+    var shortLabel: String {
+        switch self {
+        case .nativeCredential, .localIDE: "settings.sources.short.local".localizedStatic()
+        case .quotioKeychain: "Quotio"
+        case .legacyCLIProxy: "CLIProxyAPI"
+        case .apiKey: "settings.sources.short.apiKey".localizedStatic()
+        }
+    }
+}
+
+@MainActor
 extension AccountLoginSource {
     var title: String {
         let key: String? = switch credentialReference {

@@ -34,8 +34,7 @@ struct ProviderAccountsSection: View {
                 }
                 ForEach(visibleAccounts) { account in
                     AccountSettingsRow(provider: provider, descriptor: descriptor, account: account,
-                        row: AccountSettingsRowState(account: account, provider: provider, snapshot: quota.state, tracked: tracked),
-                        sourceIssues: state.sourceIssues)
+                        row: AccountSettingsRowState(account: account, provider: provider, snapshot: quota.state, tracked: tracked))
                 }
             }
         }
@@ -190,8 +189,8 @@ private struct UnidentifiedSourceRow: View {
                 await controller.refresh(provider: provider)
             }
             .controlSize(.small)
-            LoginSourceMenu(provider: provider, source: source)
         }
+        .contextMenu { LoginSourceMenu(provider: provider, source: source) }
     }
 }
 

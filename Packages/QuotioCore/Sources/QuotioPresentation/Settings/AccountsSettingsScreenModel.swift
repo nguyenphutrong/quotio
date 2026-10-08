@@ -34,7 +34,6 @@ final class AccountsSettingsScreenModel {
     var pendingPin: MenuBarQuotaItem?
     var actionFailed = false
     var failedAuthorizationID: String?
-    var expandedAccountIDs: Set<String> = []
 
     func beginRename(_ account: Account) {
         newName = account.displayName

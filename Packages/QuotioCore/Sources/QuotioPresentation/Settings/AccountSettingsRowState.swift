@@ -18,8 +18,9 @@ struct AccountSettingsRowState: Equatable {
     let issue: QuotaRefreshIssue?
     let issueSourceID: String?
     let activeSourceID: String?
-    let lastUpdated: Date?
-    let summary: QuotaSummary?
+    let plan: String?
+    /// Distinct kinds of the account's login sources, in source order.
+    let sourceKinds: [AccountSource]
 
     var needsAttention: Bool { tone == .attention }
 
@@ -30,9 +31,12 @@ struct AccountSettingsRowState: Equatable {
         connection = monitoring.connection
         quota = monitoring.quota
         self.activeSourceID = activeSourceID
-        let providerQuota = snapshot.quotas[provider]?[account.accountKey]
-        lastUpdated = providerQuota?.lastUpdated
-        summary = providerQuota?.summary
+        plan = [snapshot.quotas[provider]?[account.accountKey]?.planType,
+                snapshot.subscriptions[provider]?[account.accountKey]?.effectiveTier?.name]
+            .compactMap { $0 }.first { !$0.isEmpty }
+        sourceKinds = account.sources.map(\.source).reduce(into: []) { kinds, kind in
+            if !kinds.contains(kind) { kinds.append(kind) }
+        }
 
         guard tracked, !account.isDisabled else {
             tone = .inactive
