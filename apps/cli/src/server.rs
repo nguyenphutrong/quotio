@@ -773,6 +773,7 @@ async fn collect_usage(
     let generation = state.generation.load(Ordering::SeqCst);
     let config = state.settings.read().await.values.clone();
     let enabled = config.tracked_providers().map_err(|_| "invalid_settings")?;
+    let scheduled = request.is_none();
     let (selected, account, force, include_owned, mut disabled_proxy_auth_files) = match request {
         Some(r) => (
             r.providers,
@@ -869,8 +870,9 @@ async fn collect_usage(
         context: state.context.clone(),
     };
     let mut ttl = Duration::from_secs(config.cache_ttl_seconds);
-    // An observation as old as the refresh cadence is due, whatever the cache TTL allows.
-    if !cache_only && config.refresh_interval > 0 {
+    // A scheduled refresh treats an observation as old as its cadence as due; manual
+    // non-forced refreshes keep the configured cache TTL.
+    if scheduled && !cache_only && config.refresh_interval > 0 {
         ttl = ttl.min(Duration::from_secs(config.refresh_interval));
     }
     let cache = crate::cache::UsageCache::platform(ttl);
