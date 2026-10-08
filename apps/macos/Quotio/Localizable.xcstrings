@@ -395,7 +395,6 @@
     "settings.authorizedSources" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Keychain sources you authorized"}}, "vi": {"stringUnit": {"state": "translated", "value": "Nguồn Keychain đã cấp quyền"}}, "fr": {"stringUnit": {"state": "translated", "value": "Sources du trousseau autorisées"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已授权的钥匙串来源"}}}},
     "settings.sponsors" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Support Quotio"}}, "vi": {"stringUnit": {"state": "translated", "value": "Ủng hộ Quotio"}}, "fr": {"stringUnit": {"state": "translated", "value": "Soutenir Quotio"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "支持 Quotio"}}}},
     "settings.links" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Links"}}, "vi": {"stringUnit": {"state": "translated", "value": "Liên kết"}}, "fr": {"stringUnit": {"state": "translated", "value": "Liens"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "链接"}}}},
-    "settings.betaUpdates" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Receive beta updates"}}, "vi": {"stringUnit": {"state": "translated", "value": "Nhận bản cập nhật beta"}}, "fr": {"stringUnit": {"state": "translated", "value": "Recevoir les versions bêta"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "接收测试版更新"}}}},
     "settings.copyVersion" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Copy version"}}, "vi": {"stringUnit": {"state": "translated", "value": "Sao chép phiên bản"}}, "fr": {"stringUnit": {"state": "translated", "value": "Copier la version"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "复制版本"}}}},
     "settings.proxy.manageVersions" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Manage Versions…"}}, "vi": {"stringUnit": {"state": "translated", "value": "Quản lý phiên bản…"}}, "fr": {"stringUnit": {"state": "translated", "value": "Gérer les versions…"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "管理版本…"}}}},
     "settings.proxy.updateTo" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Update to %@"}}, "vi": {"stringUnit": {"state": "translated", "value": "Cập nhật lên %@"}}, "fr": {"stringUnit": {"state": "translated", "value": "Mettre à jour vers %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "更新至 %@"}}}},
@@ -17131,35 +17130,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "测试版"
-          }
-        }
-      }
-    },
-    "settings.updateChannel.receiveBeta" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Receive beta updates"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recevoir les mises à jour bêta"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nhận bản cập nhật beta"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "接收测试版更新"
           }
         }
       }

@@ -295,20 +295,6 @@ struct AboutUpdateCard: View {
                     .controlSize(.small)
             }
 
-            HStack {
-                Text("settings.updateChannel.receiveBeta".localized())
-                    .font(.subheadline)
-                Spacer()
-                Toggle("", isOn: Binding(
-                    get: { updateModel.snapshot.channel == .beta },
-                    set: { newValue in
-                        updateModel.setChannel(newValue ? .beta : .stable)
-                    }
-                ))
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-            }
-
             Divider()
 
             HStack {
