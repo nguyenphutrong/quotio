@@ -66,6 +66,7 @@ public final class AccountsScreenModel {
             try await accountService.authorizeNativeSource(source)
         } catch {
             nativeAuthorizationFailure = error as? NativeSourceAuthorizationFailure ?? .unknown
+            storageProblem = await accountService.accountStorageProblem()
             throw error
         }
         await reloadDiscovery()

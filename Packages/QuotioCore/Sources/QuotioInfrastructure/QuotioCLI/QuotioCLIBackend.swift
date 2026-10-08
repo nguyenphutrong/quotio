@@ -199,6 +199,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
                 timeout: .seconds(300)
             )
         } catch {
+            if let problem = Self.storageProblem(error) { storageProblem = problem }
             switch error {
             case QuotioHostClientError.response(_, "quotio_vault_access_failed"),
                  QuotioHostClientError.response(_, "credential_storage_unavailable"):
