@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta.4] - 2026-10-08
+
+### Added
+
+- Quotio Beta checks for and installs newer beta releases automatically through its own update feed. Installs of 1.0.0-beta.3 or earlier need one manual update to this version.
+
+### Removed
+
+- Remove the Receive beta updates toggle, which had no effect.
+
 ## [1.0.0-beta.3] - 2026-10-08
 
 ### Added
