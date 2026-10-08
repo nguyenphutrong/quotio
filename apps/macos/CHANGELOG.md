@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Show the status menu and Pair iPhone popover in the system Light or Dark appearance. A dark wallpaper no longer turns them dark while macOS is in Light mode.
+
 ## [1.0.0-beta.4] - 2026-10-08
 
 ### Added
