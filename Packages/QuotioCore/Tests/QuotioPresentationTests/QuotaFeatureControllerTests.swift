@@ -232,6 +232,29 @@ final class QuotaFeatureControllerTests: XCTestCase {
         await fixture.controller.shutdown()
     }
 
+    func testGitHubHostIsForwardedOnlyForMonitorCopilot() async throws {
+        let authorizer = QuotaFeatureOAuthAuthorizer()
+        let account = Account.make(
+            providerID: AccountProviderID(rawValue: QuotaProvider.copilot.rawValue),
+            accountKey: "person",
+            source: .nativeCredential
+        )
+        let fixture = await makeFixture(account: account, provider: .copilot, oauthAuthorizer: authorizer)
+        let host = try XCTUnwrap(GitHubHost("octocorp.ghe.com"))
+
+        for (index, provider) in [QuotaProvider.copilot, .codex].enumerated() {
+            await fixture.controller.startOAuth(for: provider, githubHost: host)
+            for _ in 0..<200 where await authorizer.requests().count <= index {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+        }
+
+        let requests = await authorizer.requests()
+        XCTAssertEqual(requests.map(\.providerID.rawValue), ["copilot", "codex"])
+        XCTAssertEqual(requests.map(\.githubHost), [host, nil])
+        await fixture.controller.shutdown()
+    }
+
     private func makeFixture(
         account: Account,
         provider: QuotaProvider,
@@ -240,7 +263,8 @@ final class QuotaFeatureControllerTests: XCTestCase {
         hostID: String? = nil,
         canManageSettings: Bool = true,
         lastUpdated: Date = Date(timeIntervalSince1970: 1_000),
-        issues: [QuotaProvider: QuotaRefreshIssue] = [:]
+        issues: [QuotaProvider: QuotaRefreshIssue] = [:],
+        oauthAuthorizer: QuotaFeatureOAuthAuthorizer = QuotaFeatureOAuthAuthorizer()
     ) async -> (
         controller: QuotaFeatureController,
         accountService: QuotaFeatureAccountService,
@@ -273,7 +297,7 @@ final class QuotaFeatureControllerTests: XCTestCase {
         let controller = QuotaFeatureController(
             quota: quota,
             accounts: accounts,
-            oauth: OAuthScreenModel(controller: OAuthFlowController(authorizer: QuotaFeatureOAuthAuthorizer())),
+            oauth: OAuthScreenModel(controller: OAuthFlowController(authorizer: oauthAuthorizer)),
             modeManager: OperatingModeManager(repository: preferences),
             monitoringSettings: QuotaFeatureMonitoringSettings(),
             menuBarSettings: menuBar,
@@ -347,11 +371,16 @@ private actor QuotaFeatureAccountService: AccountManaging {
 }
 
 private actor QuotaFeatureOAuthAuthorizer: OAuthAuthorizing {
+    private var recordedRequests: [OAuthAuthorizationRequest] = []
+
+    func requests() -> [OAuthAuthorizationRequest] { recordedRequests }
+
     func begin(
         request: OAuthAuthorizationRequest,
         attemptID: OAuthAttemptID,
         progress: @escaping @concurrent @Sendable (OAuthPrompt) async -> Void
     ) async throws -> OAuthAuthorizationOutcome {
+        recordedRequests.append(request)
         throw OAuthFlowFailure.unsupportedProvider
     }
 

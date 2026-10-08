@@ -68,7 +68,8 @@ pub(super) fn project(usage: &ProviderUsage) -> Summary {
 }
 fn pair(usage: &ProviderUsage) -> Vec<SummaryMetric> {
     let (top, bottom, require_both): (&str, &str, bool) = match usage.provider.0.as_str() {
-        "claude" | "codex" | "antigravity" => ("Session", "Weekly", false),
+        "claude" => ("Session", "Weekly", true),
+        "codex" | "antigravity" => ("Session", "Weekly", false),
         "devin-desktop" => ("Daily", "Weekly", true),
         "amp" => ("Agent", "Orb", true),
         "cursor" => ("Plan usage", "On demand", true),
@@ -80,6 +81,9 @@ fn pair(usage: &ProviderUsage) -> Vec<SummaryMetric> {
             .windows
             .iter()
             .filter(|window| {
+                if usage.provider.0 == "claude" && name == "Weekly" {
+                    return window.label == name;
+                }
                 if usage.provider.0 == "amp" {
                     return window.metric_id.as_deref()
                         == Some(if name == "Agent" {
@@ -108,7 +112,9 @@ fn pair(usage: &ProviderUsage) -> Vec<SummaryMetric> {
     let second = group(bottom);
     if first.is_empty() && second.is_empty()
         || require_both && (first.is_empty() || second.is_empty())
-        || usage.provider.0 == "codex" && totals(&first).lowest.is_none()
+        || matches!(usage.provider.0.as_str(), "claude" | "codex")
+            && totals(&first).lowest.is_none()
+        || usage.provider.0 == "claude" && totals(&second).lowest.is_none()
         || usage.provider.0 == "cursor"
             && !second.iter().any(|w| {
                 w.amounts
@@ -178,10 +184,24 @@ mod tests {
             let summary = project(&usage);
             assert!(summary.is_valid());
             assert_eq!(summary.pair[0].remaining_percent, Some(38.0));
-            assert_eq!(summary.pair[1].remaining_percent, Some(12.0));
+            assert_eq!(
+                summary.pair[1].remaining_percent,
+                Some(if provider == "claude" { 60.0 } else { 12.0 })
+            );
             assert_eq!(summary.session_only.lowest, Some(12.0));
             assert_eq!(summary.session_only.average, Some(110.0 / 3.0));
         }
+        usage.provider.0 = "claude".into();
+        usage.windows = vec![
+            window("Session", Some(80.0)),
+            window("Fable", Some(60.0)),
+            window("Sonnet weekly", Some(12.0)),
+        ];
+        assert!(project(&usage).pair.is_empty());
+        usage.windows.push(window("Weekly", Some(40.0)));
+        assert_eq!(project(&usage).pair[1].remaining_percent, Some(40.0));
+        usage.windows.last_mut().unwrap().quota = Quota::Unknown;
+        assert!(project(&usage).pair.is_empty());
         usage.provider.0 = "codex".into();
         usage.windows = vec![window("Weekly", Some(40.0))];
         assert!(project(&usage).pair.is_empty());

@@ -457,7 +457,6 @@
     "settings.authorizedSources" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Keychain sources you authorized"}}, "vi": {"stringUnit": {"state": "translated", "value": "Nguồn Keychain đã cấp quyền"}}, "fr": {"stringUnit": {"state": "translated", "value": "Sources du trousseau autorisées"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已授权的钥匙串来源"}}}},
     "settings.sponsors" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Support Quotio"}}, "vi": {"stringUnit": {"state": "translated", "value": "Ủng hộ Quotio"}}, "fr": {"stringUnit": {"state": "translated", "value": "Soutenir Quotio"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "支持 Quotio"}}}},
     "settings.links" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Links"}}, "vi": {"stringUnit": {"state": "translated", "value": "Liên kết"}}, "fr": {"stringUnit": {"state": "translated", "value": "Liens"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "链接"}}}},
-    "settings.betaUpdates" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Receive beta updates"}}, "vi": {"stringUnit": {"state": "translated", "value": "Nhận bản cập nhật beta"}}, "fr": {"stringUnit": {"state": "translated", "value": "Recevoir les versions bêta"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "接收测试版更新"}}}},
     "settings.copyVersion" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Copy version"}}, "vi": {"stringUnit": {"state": "translated", "value": "Sao chép phiên bản"}}, "fr": {"stringUnit": {"state": "translated", "value": "Copier la version"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "复制版本"}}}},
     "settings.proxy.manageVersions" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Manage Versions…"}}, "vi": {"stringUnit": {"state": "translated", "value": "Quản lý phiên bản…"}}, "fr": {"stringUnit": {"state": "translated", "value": "Gérer les versions…"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "管理版本…"}}}},
     "settings.proxy.updateTo" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Update to %@"}}, "vi": {"stringUnit": {"state": "translated", "value": "Cập nhật lên %@"}}, "fr": {"stringUnit": {"state": "translated", "value": "Mettre à jour vers %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "更新至 %@"}}}},
@@ -11546,8 +11545,119 @@
         }
       }
     },
+    "oauth.githubHost.hint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave empty for GitHub.com. Enter your GHE.com host for GitHub Enterprise Cloud with data residency."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laissez vide pour GitHub.com. Saisissez votre hôte GHE.com pour GitHub Enterprise Cloud avec résidence des données."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Để trống cho GitHub.com. Nhập máy chủ GHE.com cho GitHub Enterprise Cloud có lưu trữ dữ liệu theo khu vực."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub.com 请留空。使用数据驻留的 GitHub Enterprise Cloud 时，请输入您的 GHE.com 主机。"
+          }
+        }
+      }
+    },
+    "oauth.githubHost.invalid" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter github.com or a host ending in .ghe.com."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez github.com ou un hôte se terminant par .ghe.com."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập github.com hoặc máy chủ kết thúc bằng .ghe.com."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入 github.com 或以 .ghe.com 结尾的主机。"
+          }
+        }
+      }
+    },
+    "oauth.githubHost.label" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub host"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hôte GitHub"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy chủ GitHub"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub 主机"
+          }
+        }
+      }
+    },
+    "oauth.githubHost.placeholder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "github.com or yourcompany.ghe.com"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "github.com ou votreentreprise.ghe.com"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "github.com hoặc congtycuaban.ghe.com"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "github.com 或 yourcompany.ghe.com"
+          }
+        }
+      }
+    },
     "oauth.openLink" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -17082,35 +17192,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "测试版"
-          }
-        }
-      }
-    },
-    "settings.updateChannel.receiveBeta" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Receive beta updates"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recevoir les mises à jour bêta"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nhận bản cập nhật beta"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "接收测试版更新"
           }
         }
       }

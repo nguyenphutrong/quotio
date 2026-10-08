@@ -35,9 +35,6 @@ struct AboutSettingsPage: View {
                     Toggle("settings.autoCheckUpdates".localized(), isOn: Binding(
                         get: { settings.appShellPreferences.autoCheckUpdates }, set: { settings.setAutomaticUpdateChecks($0) }
                     ))
-                    Toggle("settings.betaUpdates".localized(), isOn: Binding(
-                        get: { update.snapshot.channel == .beta }, set: { update.setChannel($0 ? .beta : .stable) }
-                    ))
                     if let date = update.snapshot.lastCheckDate {
                         LabeledContent("settings.lastChecked".localized()) {
                             Text(date, format: .dateTime.year().month().day().hour().minute())

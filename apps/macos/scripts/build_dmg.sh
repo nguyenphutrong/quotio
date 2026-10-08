@@ -14,6 +14,8 @@ URL_SCHEME="quotio"
 IS_PRERELEASE=false
 RELEASE_DIR="${BUILD_DIR}/release"
 APPCAST_PATH="${RELEASE_DIR}/appcast.xml"
+APPCAST_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/appcast.xml"
+BETA_APPCAST_TAG="macos-beta-appcast"
 RELEASE_VERSION=""
 GENERATE_APPCAST=false
 DISTRIBUTION=false
@@ -31,7 +33,7 @@ usage() {
     echo "Build the Release app and create DMG and ZIP artifacts."
     echo "  --version VERSION      update the Xcode version and CHANGELOG before building"
     echo "  --distribution         require Developer ID signing and Apple notarization"
-    echo "  --generate-appcast     sign stable ZIPs and create appcast.xml using SPARKLE_PRIVATE_KEY"
+    echo "  --generate-appcast     sign the ZIP and create appcast.xml (appcast-beta.xml for prereleases) using SPARKLE_PRIVATE_KEY"
     echo "  --notarization-provider PROVIDER  use notarytool (default) or asc with its stored auth"
 }
 
@@ -260,7 +262,7 @@ generate_appcast() {
                        type=\"application/octet-stream\"/>
         </item>"
 
-    existing_appcast="$(curl -fsSL "https://github.com/${GITHUB_REPO}/releases/latest/download/appcast.xml" 2>/dev/null || true)"
+    existing_appcast="$(curl -fsSL "${APPCAST_URL}" 2>/dev/null || true)"
     if [ -n "${existing_appcast}" ]; then
         existing_items="$(printf '%s\n' "${existing_appcast}" | python3 -c '
 import re
@@ -271,20 +273,22 @@ sparkle = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 ET.register_namespace("sparkle", sparkle)
 ET.register_namespace("dc", "http://purl.org/dc/elements/1.1/")
 root = ET.parse(sys.stdin).getroot()
+keep_prereleases = sys.argv[2] == "true"
 for item in root.findall("./channel/item"):
     version = item.findtext(f"{{{sparkle}}}shortVersionString", "").strip()
     channel = item.findtext(f"{{{sparkle}}}channel", "").strip()
-    if version == sys.argv[1] or channel == "beta" or re.search(r"-(alpha|beta|rc)([.-]|$)", version):
+    is_prerelease = channel == "beta" or re.search(r"-(alpha|beta|rc)([.-]|$)", version) is not None
+    if version == sys.argv[1] or is_prerelease != keep_prereleases:
         continue
     print(ET.tostring(item, encoding="unicode"))
-' "${version}")"
+' "${version}" "${IS_PRERELEASE}")"
     fi
 
     cat > "${APPCAST_PATH}" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
     <channel>
-        <title>${PROJECT_NAME}</title>
+        <title>${APP_NAME}</title>
         <link>https://github.com/${GITHUB_REPO}</link>
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
@@ -353,10 +357,8 @@ case "${VERSION}" in
         APP_NAME="Quotio Beta"
         BUNDLE_IDENTIFIER="app.bytrong.quotio.beta"
         URL_SCHEME="quotio-beta"
-        if [ "${GENERATE_APPCAST}" = true ]; then
-            log "Prerelease app updates are manual-only; skipping Sparkle appcast generation"
-            GENERATE_APPCAST=false
-        fi
+        APPCAST_PATH="${RELEASE_DIR}/appcast-beta.xml"
+        APPCAST_URL="https://github.com/${GITHUB_REPO}/releases/download/${BETA_APPCAST_TAG}/appcast-beta.xml"
         ;;
 esac
 APP_PATH="${BUILD_DIR}/${APP_NAME}.app"
@@ -426,9 +428,7 @@ for arch in arm64 x86_64; do
     lipo "${APP_PATH}/Contents/MacOS/${APP_NAME}" -verify_arch "${arch}"
 done
 if [ "${IS_PRERELEASE}" = true ]; then
-    for key in SUFeedURL SUPublicEDKey SUEnableAutomaticChecks SUScheduledCheckInterval; do
-        /usr/libexec/PlistBuddy -c "Delete :${key}" "${APP_PATH}/Contents/Info.plist"
-    done
+    /usr/libexec/PlistBuddy -c "Set :SUFeedURL ${APPCAST_URL}" "${APP_PATH}/Contents/Info.plist"
 fi
 if [ "${DISTRIBUTION}" = true ]; then
     sign_app_for_distribution

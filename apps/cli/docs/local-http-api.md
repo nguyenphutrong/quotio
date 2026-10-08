@@ -158,6 +158,18 @@ HTTPS URL, display a supplied device code or manual-code field, and poll the ses
 `completed`, `failed`, `cancelled` and `expired`. Completion supplies an account ID;
 read that account instead of constructing a client-side name or identity.
 
+`POST /v2/auth/sessions` for `copilot` accepts an optional `host`: `github.com` (the
+default) or a GitHub Enterprise Cloud data-residency host such as `octocorp.ghe.com`.
+The host derives every route from it (`https://<host>/login/...` for device
+authorization, `https://api.<host>/...` for profile and quota), requires the returned
+verification URL to be `https://<host>/login/device`, and stores the host with the
+credential so later quota reads never follow UI state. URLs, ports, paths, nested
+subdomains and self-hosted GitHub Enterprise Server hosts return
+`invalid_github_host`; any other provider with `host` returns `unsupported_operation`.
+The host is part of the idempotency intent. Enterprise accounts use
+`<host>:<user id>` as their identity, so the same numeric user on two instances never
+deduplicates, and they require vault format 20.
+
 Native inspection does not grant OS access or open background permission dialogs.
 An explicit authorization request can require interaction on the host. Scan status
 and pending permissions persist in the protected vault across restart; reads recheck

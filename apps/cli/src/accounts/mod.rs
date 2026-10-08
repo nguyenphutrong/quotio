@@ -6,6 +6,7 @@ pub(crate) mod companion;
 pub mod discovery;
 #[cfg(any(target_os = "linux", all(test, unix)))]
 mod encrypted_file;
+pub mod github_host;
 mod input;
 pub mod oauth;
 pub(crate) mod proxy;
@@ -82,6 +83,9 @@ pub enum Credential {
         access_token: String,
         account_id: String,
         login: String,
+        /// Absent in credentials saved before enterprise hosts were supported.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        host: Option<github_host::GitHubHost>,
     },
     ClaudeOAuth {
         access_token: String,
@@ -265,6 +269,10 @@ impl Account {
                 sources::DevinDesktopLocation::StateDatabase => {
                     "Devin Desktop state.vscdb".to_owned()
                 }
+            }),
+            Credential::ClaudeNative { source } => Some(match source.location {
+                sources::ClaudeLocation::CodeFile => "Claude Code file".to_owned(),
+                sources::ClaudeLocation::CodeKeychain => "Claude Code Keychain".to_owned(),
             }),
             Credential::GrokNative { .. }
                 if self
@@ -504,6 +512,9 @@ impl Document {
         if matches!(credential, Credential::CopilotOAuth { .. }) {
             self.version = self.version.max(6);
         }
+        if matches!(credential, Credential::CopilotOAuth { host: Some(_), .. }) {
+            self.version = self.version.max(20);
+        }
         self.accounts.push(Account {
             naming: None,
             id: id.clone(),
@@ -679,6 +690,16 @@ impl Document {
         account.identity = identity;
         account.credential = credential;
         Ok(())
+    }
+}
+impl Document {
+    pub(crate) fn has_enterprise_copilot(&self) -> bool {
+        self.accounts.iter().any(|account| {
+            matches!(
+                &account.credential,
+                Credential::CopilotOAuth { host: Some(_), .. }
+            )
+        })
     }
 }
 pub fn validate_label(label: &str) -> Result<String, AccountError> {

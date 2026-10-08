@@ -210,12 +210,8 @@ jobs:
           SIGNING_ENABLED: ${{ steps.signing.outputs.enabled }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           VERSION: ${{ steps.version.outputs.VERSION }}
-          IS_PRERELEASE: ${{ steps.version.outputs.IS_PRERELEASE }}
         run: |
-          args=(--version "$VERSION")
-          if [[ "${IS_PRERELEASE}" == "false" ]]; then
-            args+=(--generate-appcast)
-          fi
+          args=(--version "$VERSION" --generate-appcast)
           if [[ "${SIGNING_ENABLED}" == "true" ]]; then
             args+=(--distribution)
           fi
@@ -308,10 +304,28 @@ jobs:
 
             Download `Quotio-${{ steps.version.outputs.VERSION }}.dmg` or `Quotio-${{ steps.version.outputs.VERSION }}.zip` below.
 
-            ${{ steps.version.outputs.IS_PRERELEASE == 'true' && 'This prerelease installs as Quotio Beta.app alongside Quotio. App updates are manual-only.' || '' }}
+            ${{ steps.version.outputs.IS_PRERELEASE == 'true' && 'This prerelease installs as Quotio Beta.app alongside Quotio and updates itself from the beta channel.' || '' }}
 
             ${{ steps.signing.outputs.enabled == 'true' && 'The app is signed with Developer ID and notarized by Apple.' || 'This artifact was built without Developer ID signing because Apple signing secrets were not configured.' }}
           prerelease: ${{ steps.version.outputs.IS_PRERELEASE == 'true' }}
+
+      # Quotio Beta reads its Sparkle feed from this rolling release. It stays a
+      # prerelease so releases/latest keeps resolving to the stable appcast.
+      - name: Publish beta appcast
+        if: steps.version.outputs.IS_PRERELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPCAST_TAG: macos-beta-appcast
+        run: |
+          if ! gh release view "$APPCAST_TAG" >/dev/null 2>&1; then
+            gh release create "$APPCAST_TAG" \
+              --target "$GITHUB_SHA" \
+              --title "Quotio Beta update feed" \
+              --notes "Sparkle feed for Quotio Beta. Download betas from their own v* releases." \
+              --prerelease \
+              --latest=false
+          fi
+          gh release upload "$APPCAST_TAG" build/release/appcast-beta.xml --clobber
 
       # ===========================================
       # 8. Commit version changes

@@ -75,11 +75,21 @@ fn scoped(
         }
         keys.insert("GROK_OAUTH_TOKEN".into(), access_token.clone());
     }
-    if let Credential::CopilotOAuth { access_token, .. } = credential {
+    if let Credential::CopilotOAuth {
+        access_token, host, ..
+    } = credential
+    {
         if provider != Provider::Catalog("copilot") {
             return Err(AccountError::Unsupported);
         }
         keys.insert("COPILOT_API_TOKEN".into(), access_token.clone());
+        // Quota is always read from the host that issued the token, never from UI state.
+        if let Some(host) = host {
+            keys.insert(
+                crate::providers::catalog::oauth_primary::COPILOT_HOST_ENV.into(),
+                host.as_str().into(),
+            );
+        }
     }
     if let Credential::ClaudeOAuth { access_token, .. } = credential {
         if provider != Provider::Catalog("claude") {
@@ -156,6 +166,23 @@ async fn validate_with_endpoint(
     credential: &Credential,
     endpoint_override: Option<&str>,
 ) -> Result<ProviderUsage, AccountError> {
+    if let Credential::ClaudeNative { source } = credential
+        && provider == Provider::Catalog("claude")
+    {
+        use crate::providers::catalog::oauth_primary::{
+            claude_reference_login, fetch_claude_native,
+        };
+        source.identity()?;
+        let login = claude_reference_login(source.path.clone()).await?;
+        let usage = fetch_claude_native(context, &login, endpoint_override).await?;
+        if login != claude_reference_login(source.path.clone()).await? {
+            return Err(AccountError::Busy);
+        }
+        if !crate::fetch::valid_usage(&usage) {
+            return Err(ProviderError::InvalidData.into());
+        }
+        return Ok(usage);
+    }
     if let Credential::AntigravityNative { source } = credential
         && source.location == super::sources::AntigravityLocation::GeminiKeychain
         && provider == Provider::Antigravity
@@ -278,6 +305,8 @@ async fn validate_credential(
             crate::providers::catalog::oauth_primary::fetch_claude_at(
                 &ctx,
                 endpoint_override.unwrap(),
+                endpoint_override.unwrap(),
+                None,
             )
             .await?
         }
@@ -332,19 +361,36 @@ async fn validate_credential(
         account_id, email, ..
     } = credential
     {
-        usage.account.id = account_id.clone();
-        usage.account.label = email.clone();
-    }
-    if let Credential::CopilotOAuth { account_id, .. } = credential {
         if usage
             .account
             .verified
             .as_ref()
-            .is_none_or(|identity| identity.subject != *account_id)
+            .is_some_and(|identity| !identity.subject.eq_ignore_ascii_case(account_id))
         {
             return Err(ProviderError::Authentication.into());
         }
         usage.account.id = account_id.clone();
+        usage.account.label = email.clone();
+    }
+    if let Credential::CopilotOAuth {
+        account_id, host, ..
+    } = credential
+    {
+        let Some(verified) = usage
+            .account
+            .verified
+            .as_mut()
+            .filter(|identity| identity.subject == *account_id)
+        else {
+            return Err(ProviderError::Authentication.into());
+        };
+        // User ids are only unique within one GitHub instance, so enterprise
+        // identities carry their host as the tenant and in the account id.
+        verified.tenant = host
+            .as_ref()
+            .filter(|host| !host.is_github_com())
+            .map(|host| host.as_str().to_owned());
+        usage.account.id = copilot_identity(credential).unwrap_or_else(|| account_id.clone());
     }
     if !crate::fetch::valid_usage(&usage) || usage.account.id.is_empty() {
         return Err(ProviderError::InvalidData.into());
@@ -613,6 +659,20 @@ pub fn provider_settings(
     }
     Ok(values)
 }
+/// GitHub.com keeps the bare numeric user ID used by earlier vault entries. Other
+/// hosts are namespaced because user IDs are only unique within one GitHub instance.
+pub(crate) fn copilot_identity(credential: &Credential) -> Option<String> {
+    let Credential::CopilotOAuth {
+        account_id, host, ..
+    } = credential
+    else {
+        return None;
+    };
+    Some(match host {
+        Some(host) if !host.is_github_com() => format!("{}:{account_id}", host.as_str()),
+        _ => account_id.clone(),
+    })
+}
 pub fn default_label(
     explicit: Option<&str>,
     credential: &Credential,
@@ -632,6 +692,16 @@ pub fn default_label(
         | Credential::AntigravityNative { .. }
         | Credential::FactoryNative { .. }
         | Credential::CursorNative { .. } => Err(AccountError::Input),
+        Credential::CopilotOAuth {
+            login,
+            host: Some(host),
+            ..
+        } if !host.is_github_com() => {
+            // Labels are capped at 80 characters; a long login plus a long
+            // subdomain must not fail sign-in after the user approved it.
+            let label = format!("{login} ({})", host.as_str());
+            super::validate_label(&label).or_else(|_| super::validate_label(login))
+        }
         Credential::CopilotOAuth { login, .. } => super::validate_label(login),
         Credential::GrokOAuth { .. } => Ok("Grok owned account".into()),
         Credential::KiroToken { .. } | Credential::KiroOAuth { .. } => Ok("Kiro account".into()),
@@ -881,8 +951,13 @@ impl ManagedProvider {
             return Err(AccountError::Busy);
         }
         let mut changed = false;
-        changed |= current.observe_name(&usage.account.label)?;
-        if current.naming.is_some() {
+        // A Claude placeholder names no account; keep the stored name instead of observing it.
+        let placeholder = matches!(credential, Credential::ClaudeNative { .. })
+            && usage.account.label == crate::providers::catalog::oauth_primary::CLAUDE_TOKEN_LABEL;
+        if !placeholder {
+            changed |= current.observe_name(&usage.account.label)?;
+        }
+        if current.naming.is_some() || placeholder {
             usage.account.label = current.display_name().to_owned();
         }
         if let Some(identity) = &usage.account.verified {
@@ -967,6 +1042,7 @@ impl ProviderAdapter for ManagedProvider {
                 Provider::Factory => "resolved-factory-identity-v3",
                 Provider::Catalog("copilot") => "resolved-copilot-identity-v3",
                 Provider::Catalog("grok") => "resolved-grok-identity-v3",
+                Provider::Catalog("claude") => "resolved-claude-identity-v3",
                 _ => "resolved-identity-v2",
             };
             if let Some(naming) = &account.naming {
@@ -2773,6 +2849,7 @@ mod tests {
                 access_token: "synthetic-profile-token".into(),
                 account_id: "42".into(),
                 login: "old-login".into(),
+                host: None,
             };
             let (endpoint, server) = http::fixture::server(vec![
                 serde_json::json!({"quota_snapshots":{"premium_interactions":{"entitlement":300,"remaining":250}}}),
@@ -2808,6 +2885,42 @@ mod tests {
                     .iter()
                     .all(|request| request.contains("synthetic-profile-token"))
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn copilot_verified_identity_is_scoped_by_enterprise_host() {
+        for (host, account, tenant) in [
+            (None, "42", None),
+            (
+                Some("octocorp.ghe.com"),
+                "octocorp.ghe.com:42",
+                Some("octocorp.ghe.com"),
+            ),
+        ] {
+            let credential = Credential::CopilotOAuth {
+                access_token: "synthetic-profile-token".into(),
+                account_id: "42".into(),
+                login: "login".into(),
+                host: host.map(|host| super::super::github_host::GitHubHost::parse(host).unwrap()),
+            };
+            let (endpoint, server) = http::fixture::server(vec![
+                serde_json::json!({"quota_snapshots":{"premium_interactions":{"entitlement":300,"remaining":250}}}),
+                serde_json::json!({"login":"login","id":42}),
+            ]).await;
+            let usage = validate_with_endpoint(
+                &http::fixture::context(),
+                Provider::Catalog("copilot"),
+                &credential,
+                Some(&endpoint),
+            )
+            .await
+            .unwrap();
+            server.await.unwrap();
+            assert_eq!(usage.account.id, account);
+            let verified = usage.account.verified.unwrap();
+            assert_eq!(verified.subject, "42");
+            assert_eq!(verified.tenant.as_deref(), tenant);
         }
     }
 
@@ -2876,6 +2989,123 @@ mod tests {
         }
     }
     #[tokio::test]
+    async fn claude_incomplete_profile_preserves_native_plan_and_quota() {
+        let dir = std::env::temp_dir().join(random_string().unwrap());
+        std::fs::create_dir(&dir).unwrap();
+        let path = dir.join("credentials.json");
+        let original = br#"{"claudeAiOauth":{"accessToken":"claude-fixture","subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}"#;
+        std::fs::write(&path, original).unwrap();
+        let credential = Credential::ClaudeNative {
+            source: super::super::sources::ClaudeNativeReference {
+                location: super::super::sources::ClaudeLocation::CodeFile,
+                path: Some(path.clone()),
+            },
+        };
+        for (status, profile, expected_plan, code) in [
+            (
+                503,
+                serde_json::json!({}),
+                "Max 5x",
+                Some(ProviderError::Transient),
+            ),
+            (
+                200,
+                serde_json::json!({"account":{"uuid":""}}),
+                "Max 5x",
+                Some(ProviderError::InvalidData),
+            ),
+            (
+                200,
+                serde_json::json!({"account":{"uuid":"account"},"organization":{"uuid":"org","organization_type":"claude_max"}}),
+                "Max 5x",
+                None,
+            ),
+            (
+                200,
+                serde_json::json!({"account":{"uuid":"account"},"organization":{"uuid":"org","rate_limit_tier":"default_claude_max_20x"}}),
+                "Max 20x",
+                None,
+            ),
+            (
+                200,
+                serde_json::json!({"account":{"uuid":"account"}}),
+                "Max 5x",
+                None,
+            ),
+        ] {
+            let (endpoint, server) = http::fixture::server_status(vec![
+                (200, serde_json::json!({"five_hour":{"utilization":25}})),
+                (status, profile),
+            ])
+            .await;
+            let usage = validate_with_endpoint(
+                &http::fixture::context(),
+                Provider::Catalog("claude"),
+                &credential,
+                Some(&endpoint),
+            )
+            .await
+            .unwrap();
+            assert_eq!(usage.account.plan.as_deref(), Some(expected_plan));
+            assert_eq!(
+                usage.windows[0].quota,
+                crate::domain::Quota::from_used(Some(25.0))
+            );
+            if let Some(code) = code {
+                assert_eq!(usage.diagnostics[0].source, "claude_oauth_profile");
+                assert_eq!(usage.diagnostics[0].code, code);
+                assert!(usage.account.verified.is_none());
+            } else {
+                assert!(usage.diagnostics.is_empty());
+                assert!(usage.account.verified.is_some());
+            }
+            assert_eq!(server.await.unwrap().len(), 2);
+            assert_eq!(std::fs::read(&path).unwrap(), original);
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn claude_oauth_profile_must_match_saved_account_uuid() {
+        for (account_id, subject, matches) in [
+            ("account", "ACCOUNT", true),
+            ("ACCOUNT", "account", true),
+            ("account", "other", false),
+        ] {
+            let credential = Credential::ClaudeOAuth {
+                access_token: "claude-oauth-fixture".into(),
+                refresh_token: "owner-only".into(),
+                account_id: account_id.into(),
+                email: "saved@example.test".into(),
+                expires_at: 3600,
+                refresh_pending: false,
+            };
+            let (endpoint, server) = http::fixture::server(vec![
+                serde_json::json!({"five_hour":{"utilization":25}}),
+                serde_json::json!({"account":{"uuid":subject},"organization":{"uuid":"org","organization_type":"claude_pro"}}),
+            ]).await;
+            let result = validate_with_endpoint(
+                &http::fixture::context(),
+                Provider::Catalog("claude"),
+                &credential,
+                Some(&endpoint),
+            )
+            .await;
+            if matches {
+                let usage = result.unwrap();
+                assert_eq!(usage.account.label, "saved@example.test");
+                assert_eq!(usage.account.plan.as_deref(), Some("Pro"));
+                assert_eq!(usage.account.verified.as_ref().unwrap().subject, "account");
+            } else {
+                assert!(matches!(
+                    result,
+                    Err(AccountError::Provider(ProviderError::Authentication))
+                ));
+            }
+            assert_eq!(server.await.unwrap().len(), 2);
+        }
+    }
+    #[tokio::test]
     async fn kiro_native_fences_rotation_and_disable() {
         let dir = std::env::temp_dir().join(random_string().unwrap());
         let path = dir.join(".aws/sso/cache/kiro-auth-token.json");
@@ -2935,7 +3165,7 @@ mod tests {
             let dir = std::env::temp_dir().join(random_string().unwrap());
             std::fs::create_dir(&dir).unwrap();
             let path = dir.join("credentials.json");
-            let original = br#"{"claudeAiOauth":{"accessToken":"native-first-fixture","refreshToken":"owner-only","scopes":["user:profile"]}}"#;
+            let original = br#"{"claudeAiOauth":{"accessToken":"native-first-fixture","refreshToken":"owner-only","scopes":["user:profile"],"subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}"#;
             std::fs::write(&path, original).unwrap();
             let credential = Credential::ClaudeNative {
                 source: super::super::sources::ClaudeNativeReference {
@@ -2948,7 +3178,13 @@ mod tests {
             let mut tx = vault.begin().unwrap();
             let id = tx
                 .document
-                .add(provider, "Fixture", "source".into(), credential.clone())
+                .add_named(
+                    provider,
+                    "Claude Code file",
+                    super::super::LabelOrigin::Generated,
+                    "source".into(),
+                    credential.clone(),
+                )
                 .unwrap();
             let account = tx.document.accounts[0].clone();
             assert_eq!(
@@ -2966,7 +3202,10 @@ mod tests {
             let before = adapter.cache_identity(&context).await.unwrap();
             let changed = path.clone();
             let (endpoint, server) = http::fixture::server_status_with_action(
-                vec![(200, serde_json::json!({"five_hour":{"utilization":25}}))],
+                vec![
+                    (200, serde_json::json!({"five_hour":{"utilization":25}})),
+                    (200, serde_json::json!({"account":{"uuid":"claude-account","email":"claude@example.test"},"organization":{"uuid":"claude-org","organization_type":"claude_max","rate_limit_tier":"default_claude_max_20x"}})),
+                ],
                 move |_| {
                     if rotate {
                         std::fs::write(
@@ -2984,14 +3223,50 @@ mod tests {
                 assert!(matches!(result, Err(AccountError::Busy)));
                 assert_ne!(adapter.cache_identity(&context).await.unwrap(), before);
             } else {
-                assert!(result.is_ok());
+                let usage = result.unwrap();
+                assert_eq!(usage.account.label, "claude@example.test");
+                assert_eq!(usage.account.plan.as_deref(), Some("Max 20x"));
+                assert_eq!(
+                    usage.account.verified.as_ref().unwrap().subject,
+                    "claude-account"
+                );
+                assert_eq!(
+                    usage.account.verified.as_ref().unwrap().tenant.as_deref(),
+                    Some("claude-org")
+                );
                 assert_eq!(std::fs::read(&path).unwrap(), original);
+                let managed = ManagedProvider {
+                    factory_oauth: false,
+                    origin: account.origin(),
+                    label: account.display_name().to_owned(),
+                    operations: Arc::new(Network),
+                    vault: vault.clone(),
+                    id: id.clone(),
+                    provider,
+                    provider_id: provider.adapter().id(),
+                };
+                managed.verify_current(&credential, usage).await.unwrap();
+                let tx = vault.begin().unwrap();
+                assert_eq!(
+                    tx.document.accounts[0].display_name(),
+                    "claude@example.test"
+                );
+                let view = tx
+                    .document
+                    .resolved
+                    .as_ref()
+                    .unwrap()
+                    .account_list(&tx.document.accounts)
+                    .unwrap();
+                assert_eq!(view.accounts[0].display_name, "claude@example.test");
             }
             let requests = server.await.unwrap();
-            assert_eq!(requests.len(), 1);
-            assert!(requests[0].starts_with("GET "));
-            assert!(requests[0].contains("Bearer native-first-fixture"));
-            assert!(!requests[0].contains("owner-only"));
+            assert_eq!(requests.len(), 2);
+            for request in &requests {
+                assert!(request.starts_with("GET "));
+                assert!(request.contains("Bearer native-first-fixture"));
+                assert!(!request.contains("owner-only"));
+            }
             let mut tx = vault.begin().unwrap();
             tx.document.patch(&id, None, None, Some(false)).unwrap();
             tx.commit().unwrap();
@@ -3677,6 +3952,95 @@ mod tests {
         ));
         cleanup(path);
     }
+    #[test]
+    fn copilot_identity_and_label_are_scoped_by_enterprise_host() {
+        let host = crate::accounts::github_host::GitHubHost::parse("octocorp.ghe.com").unwrap();
+        let credential = |host| Credential::CopilotOAuth {
+            access_token: "fixture-token".into(),
+            account_id: "42".into(),
+            login: "fixture-login".into(),
+            host,
+        };
+        let dotcom = credential(None);
+        let enterprise = credential(Some(host));
+        assert_eq!(copilot_identity(&dotcom).unwrap(), "42");
+        assert_eq!(
+            copilot_identity(&credential(Some(
+                crate::accounts::github_host::GitHubHost::github_com()
+            )))
+            .unwrap(),
+            "42"
+        );
+        assert_eq!(
+            copilot_identity(&enterprise).unwrap(),
+            "octocorp.ghe.com:42"
+        );
+        assert_eq!(default_label(None, &dotcom).unwrap(), "fixture-login");
+        assert_eq!(
+            default_label(None, &enterprise).unwrap(),
+            "fixture-login (octocorp.ghe.com)"
+        );
+        let mut document = super::super::Document::empty();
+        document
+            .add(
+                Provider::Catalog("copilot"),
+                "fixture-login",
+                copilot_identity(&dotcom).unwrap(),
+                dotcom,
+            )
+            .unwrap();
+        document
+            .add(
+                Provider::Catalog("copilot"),
+                "fixture-login (octocorp.ghe.com)",
+                copilot_identity(&enterprise).unwrap(),
+                enterprise.clone(),
+            )
+            .unwrap();
+        assert!(matches!(
+            document.add(
+                Provider::Catalog("copilot"),
+                "again",
+                copilot_identity(&enterprise).unwrap(),
+                enterprise,
+            ),
+            Err(AccountError::Duplicate)
+        ));
+        // Format-19 readers would ignore the host, so it must require format 20.
+        assert_eq!(document.version, 20);
+    }
+    #[test]
+    fn long_enterprise_labels_fall_back_to_the_login() {
+        let host =
+            crate::accounts::github_host::GitHubHost::parse(&format!("{}.ghe.com", "a".repeat(60)))
+                .unwrap();
+        let login = "l".repeat(30);
+        let credential = Credential::CopilotOAuth {
+            access_token: "fixture-token".into(),
+            account_id: "42".into(),
+            login: login.clone(),
+            host: Some(host),
+        };
+        assert_eq!(default_label(None, &credential).unwrap(), login);
+    }
+    #[test]
+    fn copilot_credentials_without_host_remain_readable_and_unchanged() {
+        let legacy =
+            r#"{"kind":"copilot_o_auth","access_token":"t","account_id":"42","login":"l"}"#;
+        let credential: Credential = serde_json::from_str(legacy).unwrap();
+        assert!(matches!(
+            &credential,
+            Credential::CopilotOAuth { host: None, .. }
+        ));
+        assert_eq!(serde_json::to_string(&credential).unwrap(), legacy);
+        let enterprise = r#"{"kind":"copilot_o_auth","access_token":"t","account_id":"42","login":"l","host":"octocorp.ghe.com"}"#;
+        assert!(matches!(
+            serde_json::from_str::<Credential>(enterprise).unwrap(),
+            Credential::CopilotOAuth { host: Some(_), .. }
+        ));
+        let hostile = enterprise.replace("octocorp.ghe.com", "evil.example");
+        assert!(serde_json::from_str::<Credential>(&hostile).is_err());
+    }
     #[tokio::test]
     async fn copilot_owned_reads_never_refresh_or_rewrite_tokens() {
         let (vault, fake, id, _, path) = setup(0, false, false, true);
@@ -3686,6 +4050,7 @@ mod tests {
             access_token: "fixture-token".into(),
             account_id: "42".into(),
             login: "fixture-login".into(),
+            host: None,
         };
         tx.document.accounts[0].credential = credential.clone();
         tx.document.version = 6;

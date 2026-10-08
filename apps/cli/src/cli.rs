@@ -283,6 +283,9 @@ pub enum AccountCommand {
         region: Option<String>,
         #[arg(long)]
         organization: Option<String>,
+        /// Copilot: GitHub host, github.com (default) or SUBDOMAIN.ghe.com
+        #[arg(long)]
+        host: Option<String>,
         /// Provider metadata such as project or region; repeat NAME=VALUE, never secrets
         #[arg(long = "setting", value_name = "NAME=VALUE")]
         settings: Vec<String>,

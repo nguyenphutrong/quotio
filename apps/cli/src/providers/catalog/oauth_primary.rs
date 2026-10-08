@@ -26,6 +26,7 @@ const GEMINI_TOKEN_ENV: &str = "GEMINI_OAUTH_ACCESS_TOKEN";
 const COPILOT_TOKEN_ENV: &str = "COPILOT_API_TOKEN";
 
 const CLAUDE_USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+const CLAUDE_PROFILE_URL: &str = "https://api.anthropic.com/api/oauth/profile";
 const GEMINI_LOAD_CODE_ASSIST_URL: &str =
     "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
 const GEMINI_QUOTA_URL: &str = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota";
@@ -35,6 +36,10 @@ const MAX_NATIVE_FILE_BYTES: usize = 1024 * 1024;
 const MAX_TOKEN_BYTES: usize = 16 * 1024;
 const MAX_LABEL_BYTES: usize = 128;
 const NATIVE_READ_TIMEOUT: Duration = Duration::from_secs(2);
+/// Label reported when profile enrichment yields no account email.
+pub(crate) const CLAUDE_TOKEN_LABEL: &str = "Claude OAuth token";
+/// Anthropic's OAuth endpoints reject requests without a Claude Code User-Agent.
+const CLAUDE_USER_AGENT: &str = "claude-code/2.1.0";
 
 const GEMINI_SETTINGS: &[Setting] = &[Setting {
     name: "project",
@@ -70,7 +75,12 @@ pub const DEFINITIONS: &[Definition] = &[
 ];
 
 fn fetch_claude(context: &ProviderContext) -> FetchFuture<'_> {
-    Box::pin(fetch_claude_at(context, CLAUDE_USAGE_URL))
+    Box::pin(fetch_claude_at(
+        context,
+        CLAUDE_USAGE_URL,
+        CLAUDE_PROFILE_URL,
+        home_dir().map(|home| home.join(".claude.json")),
+    ))
 }
 
 fn fetch_gemini(context: &ProviderContext) -> FetchFuture<'_> {
@@ -81,8 +91,32 @@ fn fetch_gemini(context: &ProviderContext) -> FetchFuture<'_> {
     ))
 }
 
+/// Set only from a saved Quotio Copilot OAuth credential; see `accounts::service`.
+/// `EnvironmentCredentials` deliberately never exposes it.
+pub(crate) const COPILOT_HOST_ENV: &str = "QUOTIO_COPILOT_HOST";
+
 fn fetch_copilot(context: &ProviderContext) -> FetchFuture<'_> {
-    Box::pin(fetch_copilot_at(context, COPILOT_USAGE_URL))
+    Box::pin(async move {
+        match copilot_usage_url(context)? {
+            Some(endpoint) => fetch_copilot_at(context, &endpoint).await,
+            None => fetch_copilot_at(context, COPILOT_USAGE_URL).await,
+        }
+    })
+}
+
+/// Enterprise quota uses the API host of the instance that issued the token. The
+/// host is revalidated so a malformed stored value can never redirect the token.
+fn copilot_usage_url(context: &ProviderContext) -> Result<Option<String>, ProviderError> {
+    let Some(raw) = context.credentials.get(COPILOT_HOST_ENV) else {
+        return Ok(None);
+    };
+    // Never send a native GitHub.com token discovered on disk to another host.
+    if context.credentials.get(COPILOT_TOKEN_ENV).is_none() {
+        return Err(ProviderError::Authentication);
+    }
+    let host = crate::accounts::github_host::GitHubHost::parse(&raw.0)
+        .map_err(|_| ProviderError::Authentication)?;
+    Ok((!host.is_github_com()).then(|| host.api_url("/copilot_internal/user")))
 }
 
 /// An explicit Quotio token always wins over native application state. This avoids
@@ -218,7 +252,58 @@ fn retain_native_error(last: &mut ProviderError, error: ProviderError) {
 
 // Claude ---------------------------------------------------------------------
 
-fn claude_token_from_bytes(bytes: &[u8]) -> Result<Option<Secret>, ProviderError> {
+pub(crate) struct ClaudeLogin {
+    pub token: Secret,
+    subscription_type: Option<String>,
+    rate_limit_tier: Option<String>,
+}
+
+impl PartialEq for ClaudeLogin {
+    fn eq(&self, other: &Self) -> bool {
+        self.token.0 == other.token.0
+            && self.subscription_type == other.subscription_type
+            && self.rate_limit_tier == other.rate_limit_tier
+    }
+}
+
+impl ClaudeLogin {
+    pub fn plan(&self) -> Option<String> {
+        claude_plan(
+            self.subscription_type.as_deref(),
+            self.rate_limit_tier.as_deref(),
+        )
+    }
+}
+
+fn claude_plan(subscription_type: Option<&str>, rate_limit_tier: Option<&str>) -> Option<String> {
+    let raw = subscription_type.and_then(|value| clean_label(value).ok())?;
+    let raw = raw.strip_prefix("claude_").unwrap_or(&raw);
+    let mut words = raw.split(['_', ' ']).filter(|word| !word.is_empty());
+    let title = |word: &str| {
+        let mut chars = word.chars();
+        chars
+            .next()
+            .map(|first| first.to_uppercase().to_string() + &chars.as_str().to_lowercase())
+    };
+    let mut plan = title(words.next()?)?;
+    for word in words {
+        plan.push(' ');
+        plan.push_str(&title(word)?);
+    }
+    if let Some(tier) = rate_limit_tier.and_then(|value| clean_label(value).ok())
+        && let Some(multiplier) = tier.split('_').find(|part| {
+            part.strip_suffix('x').is_some_and(|digits| {
+                !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+            })
+        })
+    {
+        plan.push(' ');
+        plan.push_str(multiplier);
+    }
+    Some(plan)
+}
+
+fn claude_login_from_bytes(bytes: &[u8]) -> Result<Option<ClaudeLogin>, ProviderError> {
     let value = json_payload(bytes)?;
     let Some(oauth) = value.get("claudeAiOauth") else {
         return Ok(None);
@@ -237,24 +322,36 @@ fn claude_token_from_bytes(bytes: &[u8]) -> Result<Option<Secret>, ProviderError
     }
     match oauth.get("accessToken") {
         None | Some(Value::Null) => Ok(None),
-        Some(Value::String(value)) => token(value),
+        Some(Value::String(value)) => Ok(token(value)?.map(|token| ClaudeLogin {
+            token,
+            subscription_type: oauth
+                .get("subscriptionType")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            rate_limit_tier: oauth
+                .get("rateLimitTier")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+        })),
         Some(_) => Err(ProviderError::Authentication),
     }
 }
 
-pub(crate) async fn claude_reference_token(path: Option<PathBuf>) -> Result<Secret, ProviderError> {
+pub(crate) async fn claude_reference_login(
+    path: Option<PathBuf>,
+) -> Result<ClaudeLogin, ProviderError> {
     let bytes = match path {
         Some(path) => native_file(path).await?,
         None => native_keychain("Claude Code-credentials", None).await?,
     }
     .ok_or(ProviderError::Authentication)?;
-    claude_token_from_bytes(&bytes)?.ok_or(ProviderError::Authentication)
+    claude_login_from_bytes(&bytes)?.ok_or(ProviderError::Authentication)
 }
 
-async fn native_claude_token() -> Result<Secret, ProviderError> {
+async fn native_claude_login() -> Result<ClaudeLogin, ProviderError> {
     let mut last = ProviderError::Authentication;
     match native_keychain("Claude Code-credentials", None).await {
-        Ok(Some(bytes)) => match claude_token_from_bytes(&bytes) {
+        Ok(Some(bytes)) => match claude_login_from_bytes(&bytes) {
             Ok(Some(value)) => return Ok(value),
             Ok(None) => (),
             Err(error) => retain_native_error(&mut last, error),
@@ -264,7 +361,7 @@ async fn native_claude_token() -> Result<Secret, ProviderError> {
     }
     if let Some(path) = home_dir().map(|home| home.join(".claude/.credentials.json")) {
         match native_file(path).await {
-            Ok(Some(bytes)) => match claude_token_from_bytes(&bytes) {
+            Ok(Some(bytes)) => match claude_login_from_bytes(&bytes) {
                 Ok(Some(value)) => return Ok(value),
                 Ok(None) => (),
                 Err(error) => retain_native_error(&mut last, error),
@@ -276,10 +373,14 @@ async fn native_claude_token() -> Result<Secret, ProviderError> {
     Err(last)
 }
 
-async fn claude_token(context: &ProviderContext) -> Result<Secret, ProviderError> {
+async fn claude_login(context: &ProviderContext) -> Result<ClaudeLogin, ProviderError> {
     match explicit_key(context, CLAUDE_TOKEN_ENV)? {
-        Some(value) => Ok(value),
-        None => native_claude_token().await,
+        Some(token) => Ok(ClaudeLogin {
+            token,
+            subscription_type: None,
+            rate_limit_tier: None,
+        }),
+        None => native_claude_login().await,
     }
 }
 
@@ -354,9 +455,7 @@ fn claude_windows(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>
         let limits = limits.as_array().ok_or(ProviderError::InvalidData)?;
         for limit in limits {
             let limit = limit.as_object().ok_or(ProviderError::InvalidData)?;
-            if limit.get("kind").and_then(Value::as_str) != Some("weekly_scoped")
-                || limit.get("is_active").and_then(Value::as_bool) == Some(false)
-            {
+            if limit.get("kind").and_then(Value::as_str) != Some("weekly_scoped") {
                 continue;
             }
             let Some(model) = limit
@@ -375,8 +474,14 @@ fn claude_windows(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>
             if used > 100.0 {
                 return Err(ProviderError::InvalidData);
             }
-            windows.push(common::window(
-                &format!("{} weekly", clean_label(model)?),
+            let model = clean_label(model)?;
+            let label = if model == "Fable" {
+                model
+            } else {
+                format!("{model} weekly")
+            };
+            let mut window = common::window(
+                &label,
                 Some(used),
                 Some(100.0),
                 None,
@@ -384,7 +489,12 @@ fn claude_windows(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>
                 common::date(limit.get("resets_at"))?,
                 "claude_oauth_usage",
                 now,
-            )?);
+            )?;
+            if window.label == "Fable" {
+                // Preserve history identity when shortening the display label.
+                window.metric_id = Some(crate::cache::fingerprint(&["metric", "Fable weekly"]));
+            }
+            windows.push(window);
         }
     }
     if windows.is_empty() {
@@ -393,11 +503,105 @@ fn claude_windows(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>
     Ok(windows)
 }
 
+fn claude_profile_identity(
+    value: &Value,
+) -> Result<crate::domain::VerifiedIdentity, ProviderError> {
+    let identity = crate::domain::VerifiedIdentity {
+        subject: value
+            .pointer("/account/uuid")
+            .and_then(Value::as_str)
+            .ok_or(ProviderError::InvalidData)?
+            .to_ascii_lowercase(),
+        tenant: match value.get("organization") {
+            None | Some(Value::Null) => None,
+            Some(org) => Some(
+                org.get("uuid")
+                    .and_then(Value::as_str)
+                    .ok_or(ProviderError::InvalidData)?
+                    .to_ascii_lowercase(),
+            ),
+        },
+    };
+    if !identity.is_valid() {
+        return Err(ProviderError::InvalidData);
+    }
+    Ok(identity)
+}
+
+fn claude_config_email(
+    value: &Value,
+    identity: &crate::domain::VerifiedIdentity,
+) -> Option<String> {
+    let account = value.get("oauthAccount")?;
+    if !account
+        .get("accountUuid")?
+        .as_str()?
+        .eq_ignore_ascii_case(&identity.subject)
+        || match (
+            account.get("organizationUuid").and_then(Value::as_str),
+            identity.tenant.as_deref(),
+        ) {
+            (Some(local), Some(live)) => !local.eq_ignore_ascii_case(live),
+            (None, None) => false,
+            _ => true,
+        }
+    {
+        return None;
+    }
+    account
+        .get("emailAddress")
+        .and_then(Value::as_str)
+        .and_then(|value| clean_label(value).ok())
+}
+
 pub(crate) async fn fetch_claude_at(
     context: &ProviderContext,
     endpoint: &str,
+    profile_endpoint: &str,
+    config_path: Option<PathBuf>,
 ) -> Result<ProviderUsage, ProviderError> {
-    let token = claude_token(context).await?;
+    let login = claude_login(context).await?;
+    fetch_claude_with_login_at(
+        context,
+        &login,
+        endpoint,
+        profile_endpoint,
+        config_path,
+        Duration::ZERO,
+    )
+    .await
+}
+
+pub(crate) async fn fetch_claude_native(
+    context: &ProviderContext,
+    login: &ClaudeLogin,
+    endpoint_override: Option<&str>,
+) -> Result<ProviderUsage, ProviderError> {
+    fetch_claude_with_login_at(
+        context,
+        login,
+        endpoint_override.unwrap_or(CLAUDE_USAGE_URL),
+        endpoint_override.unwrap_or(CLAUDE_PROFILE_URL),
+        endpoint_override
+            .is_none()
+            .then(home_dir)
+            .flatten()
+            .map(|home| home.join(".claude.json")),
+        // The caller rereads the native source after this fetch to fence the result.
+        NATIVE_READ_TIMEOUT,
+    )
+    .await
+}
+
+async fn fetch_claude_with_login_at(
+    context: &ProviderContext,
+    login: &ClaudeLogin,
+    endpoint: &str,
+    profile_endpoint: &str,
+    config_path: Option<PathBuf>,
+    reserve: Duration,
+) -> Result<ProviderUsage, ProviderError> {
+    let token = &login.token;
     let now = context.clock.now();
     let response: Value = common::json(
         context
@@ -409,17 +613,108 @@ pub(crate) async fn fetch_claude_at(
             )
             .header("Accept", "application/json")
             .header("anthropic-beta", "oauth-2025-04-20")
-            .header("User-Agent", "claude-code/2.1.0"),
+            .header("User-Agent", CLAUDE_USER_AGENT),
         now,
     )
     .await?;
     let mut usage = common::usage(
         "claude",
-        &token,
+        token,
         "subscription-oauth",
         claude_windows(&response, now)?,
     )?;
-    usage.account.label = "Claude OAuth token".into();
+    usage.account.label = CLAUDE_TOKEN_LABEL.into();
+    usage.account.plan = login.plan();
+    // Metadata is optional; a slow or unavailable profile must not discard valid quota.
+    let budget = crate::providers::remaining_fetch_time()
+        .map(|left| left.saturating_sub(reserve))
+        .unwrap_or(Duration::from_secs(5))
+        .mul_f64(0.9)
+        .min(Duration::from_secs(5));
+    let profile = async {
+        let profile: Value = common::json(
+            context
+                .http
+                .get(profile_endpoint)
+                .header(
+                    "Authorization",
+                    http::sensitive(&format!("Bearer {}", token.0))?,
+                )
+                .header("Accept", "application/json")
+                .header("anthropic-beta", "oauth-2025-04-20")
+                .header("User-Agent", CLAUDE_USER_AGENT),
+            now,
+        )
+        .await?;
+        let identity = claude_profile_identity(&profile)?;
+        let mut email = profile
+            .get("account")
+            .and_then(|account| {
+                account
+                    .get("email")
+                    .or_else(|| account.get("email_address"))
+            })
+            .and_then(Value::as_str)
+            .and_then(|value| clean_label(value).ok());
+        if email.is_none()
+            && let Some(path) = config_path
+            && let Ok(Some(bytes)) = native_file(path).await
+            && let Ok(config) = json_payload(&bytes)
+        {
+            email = claude_config_email(&config, &identity);
+        }
+        Ok::<_, ProviderError>((profile, identity, email))
+    };
+    match tokio::time::timeout(budget, profile)
+        .await
+        .unwrap_or(Err(ProviderError::Timeout))
+    {
+        Ok((profile, identity, email)) => {
+            let organization = profile.get("organization");
+            let live_type = organization
+                .and_then(|org| org.get("organization_type"))
+                .and_then(Value::as_str);
+            let live_tier = organization
+                .and_then(|org| org.get("rate_limit_tier"))
+                .and_then(Value::as_str);
+            // A stored tier only describes the stored plan; never attach it to a different live plan.
+            let (plan_type, tier) = match live_type {
+                Some(plan)
+                    if claude_plan(Some(plan), None)
+                        == claude_plan(login.subscription_type.as_deref(), None) =>
+                {
+                    (Some(plan), live_tier.or(login.rate_limit_tier.as_deref()))
+                }
+                Some(plan) => (Some(plan), live_tier),
+                // A tier names its plan, so a live tier may only refine a matching stored plan.
+                None => (
+                    login.subscription_type.as_deref(),
+                    match (live_tier, login.subscription_type.as_deref()) {
+                        (Some(tier), Some(plan)) => {
+                            let plan = plan.strip_prefix("claude_").unwrap_or(plan);
+                            tier.split('_')
+                                .any(|part| part.eq_ignore_ascii_case(plan))
+                                .then_some(tier)
+                        }
+                        _ => login.rate_limit_tier.as_deref(),
+                    },
+                ),
+            };
+            usage.account.plan = claude_plan(plan_type, tier).or(usage.account.plan);
+            usage.account.subscription_status = organization
+                .and_then(|org| org.get("subscription_status"))
+                .and_then(Value::as_str)
+                .and_then(|value| clean_label(value).ok());
+            usage.account.verified = Some(identity);
+            if let Some(email) = email {
+                usage.account.label = email;
+            }
+        }
+        Err(code) => usage.diagnostics.push(crate::domain::UsageDiagnostic {
+            source: "claude_oauth_profile".into(),
+            code,
+        }),
+    }
     Ok(usage)
 }
 
@@ -871,43 +1166,42 @@ struct Reset {
     description: Option<String>,
 }
 
-fn date_only(value: &str) -> bool {
-    if value.len() != 10 {
-        return false;
-    }
+/// GitHub documents the monthly premium reset as 00:00:00 UTC on the given
+/// date, so a strict `YYYY-MM-DD` value is materialized at UTC midnight.
+fn date_only(value: &str) -> Option<OffsetDateTime> {
     let bytes = value.as_bytes();
-    bytes[4] == b'-'
-        && bytes[7] == b'-'
-        && bytes
+    if bytes.len() != 10
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || !bytes
             .iter()
             .enumerate()
             .all(|(index, byte)| matches!(index, 4 | 7) || byte.is_ascii_digit())
-        && OffsetDateTime::parse(
-            &format!("{value}T00:00:00Z"),
-            &time::format_description::well_known::Rfc3339,
-        )
-        .is_ok()
+    {
+        return None;
+    }
+    OffsetDateTime::parse(
+        &format!("{value}T00:00:00Z"),
+        &time::format_description::well_known::Rfc3339,
+    )
+    .ok()
 }
 
 fn copilot_reset(value: Option<&Value>) -> Result<Reset, ProviderError> {
-    match value {
-        None | Some(Value::Null) => Ok(Reset {
-            at: None,
-            description: None,
-        }),
-        Some(Value::String(value)) if value.trim().is_empty() => Ok(Reset {
-            at: None,
-            description: None,
-        }),
-        Some(Value::String(value)) if date_only(value.trim()) => Ok(Reset {
-            at: None,
-            description: Some(value.trim().into()),
-        }),
-        value => Ok(Reset {
-            at: common::date(value)?,
-            description: None,
-        }),
-    }
+    let at = match value {
+        None | Some(Value::Null) => None,
+        Some(Value::String(text)) if text.trim().is_empty() => None,
+        // GitHub sends a date-only reset; it rolls over at 00:00 UTC.
+        Some(Value::String(text)) => match date_only(text.trim()) {
+            Some(at) => Some(at),
+            None => common::date(value)?,
+        },
+        value => common::date(value)?,
+    };
+    Ok(Reset {
+        at,
+        description: None,
+    })
 }
 
 fn with_reset(mut window: QuotaWindow, reset: &Reset) -> QuotaWindow {
@@ -927,12 +1221,21 @@ fn copilot_snapshot_window(
     label: &str,
     value: Option<&Value>,
     reset: &Reset,
+    token_billing: bool,
     now: OffsetDateTime,
 ) -> Result<Option<QuotaWindow>, ProviderError> {
     let Some(value) = value else {
         return Ok(None);
     };
     let snapshot = value.as_object().ok_or(ProviderError::InvalidData)?;
+    // Token-billed plans count GitHub AI Credits; legacy plans count requests.
+    let unit = if token_billing
+        || snapshot.get("token_based_billing").and_then(Value::as_bool) == Some(true)
+    {
+        "credits"
+    } else {
+        "requests"
+    };
     if unlimited(snapshot.get("unlimited"))
         || unlimited(snapshot.get("entitlement"))
         || unlimited(snapshot.get("remaining"))
@@ -945,7 +1248,23 @@ fn copilot_snapshot_window(
         // A Business token-billing placeholder is not a personal 0% quota.
         return Ok(None);
     }
-    let window = if let Some(remaining) = common::number(snapshot.get("percent_remaining"))? {
+    // Prefer exact counts so the UI can show "used / limit"; fall back to the
+    // percentage when the counts are absent or inconsistent.
+    let counts = entitlement
+        .zip(remaining)
+        .filter(|(limit, remaining)| *limit > 0.0 && (0.0..=*limit).contains(remaining));
+    let window = if let Some((limit, remaining)) = counts {
+        common::window(
+            label,
+            Some(limit - remaining),
+            Some(limit),
+            Some(remaining),
+            unit,
+            reset.at,
+            "github_copilot_usage",
+            now,
+        )?
+    } else if let Some(remaining) = common::number(snapshot.get("percent_remaining"))? {
         if remaining > 100.0 {
             return Err(ProviderError::InvalidData);
         }
@@ -959,20 +1278,9 @@ fn copilot_snapshot_window(
             "github_copilot_usage",
             now,
         )?
-    } else if let (Some(limit), Some(remaining)) = (entitlement, remaining) {
-        if limit == 0.0 {
-            return Ok(None);
-        }
-        common::window(
-            label,
-            Some((limit - remaining).max(0.0)),
-            Some(limit),
-            Some(remaining),
-            "requests",
-            reset.at,
-            "github_copilot_usage",
-            now,
-        )?
+    } else if entitlement.zip(remaining).is_some() {
+        // Counts exist but are inconsistent and no percentage is reported.
+        return Err(ProviderError::InvalidData);
     } else {
         return Ok(None);
     };
@@ -1028,6 +1336,7 @@ fn copilot_usage(value: &Value, now: OffsetDateTime) -> Result<CopilotUsage, Pro
         Some(Value::String(value)) => Some(clean_label(value)?),
         Some(_) => return Err(ProviderError::InvalidData),
     };
+    let token_billing = object.get("token_based_billing").and_then(Value::as_bool) == Some(true);
     let mut windows = Vec::new();
     if let Some(snapshots) = object.get("quota_snapshots") {
         let snapshots = snapshots.as_object().ok_or(ProviderError::InvalidData)?;
@@ -1036,7 +1345,9 @@ fn copilot_usage(value: &Value, now: OffsetDateTime) -> Result<CopilotUsage, Pro
             ("chat", "Chat"),
             ("completions", "Completions"),
         ] {
-            if let Some(window) = copilot_snapshot_window(label, snapshots.get(key), &reset, now)? {
+            if let Some(window) =
+                copilot_snapshot_window(label, snapshots.get(key), &reset, token_billing, now)?
+            {
                 windows.push(window);
             }
         }
@@ -1134,7 +1445,7 @@ pub(crate) async fn fetch_copilot_at(
 // Resolve the existing login without sending a quota request or refreshing tokens.
 pub(super) async fn cache_token(id: &str, context: &ProviderContext) -> Option<Secret> {
     match id {
-        "claude" => claude_token(context).await.ok(),
+        "claude" => claude_login(context).await.ok().map(|login| login.token),
         "gemini" => gemini_token(context).await.ok(),
         "copilot" => copilot_token(context).await.ok(),
         _ => None,
@@ -1145,6 +1456,56 @@ pub(super) async fn cache_token(id: &str, context: &ProviderContext) -> Option<S
 mod tests {
     use super::*;
     use crate::domain::Quota;
+
+    #[tokio::test]
+    async fn claude_email_from_config_requires_matching_account_and_organization() {
+        struct Credentials;
+        impl crate::providers::CredentialStore for Credentials {
+            fn get(&self, name: &str) -> Option<Secret> {
+                (name == CLAUDE_TOKEN_ENV).then(|| Secret("explicit-claude-fixture".into()))
+            }
+        }
+        let mut context = http::fixture::context();
+        context.credentials = std::sync::Arc::new(Credentials);
+        let dir = std::env::temp_dir().join(crate::accounts::random_string().unwrap());
+        std::fs::create_dir(&dir).unwrap();
+        let path = dir.join("claude.json");
+        for (account, organization, expected_email) in [
+            ("ACCOUNT", "ORG", Some("local@example.test")),
+            ("other", "org", None),
+            ("account", "other", None),
+        ] {
+            std::fs::write(&path, json!({"oauthAccount":{"accountUuid":account,"organizationUuid":organization,"emailAddress":"local@example.test"}}).to_string()).unwrap();
+            let (endpoint, server) = http::fixture::server(vec![
+                json!({"five_hour":{"utilization":25}}),
+                json!({"account":{"uuid":"account"},"organization":{"uuid":"org","organization_type":"claude_pro","subscription_status":"active"}}),
+            ]).await;
+            let usage = fetch_claude_at(
+                &context,
+                &format!("{endpoint}/usage"),
+                &format!("{endpoint}/profile"),
+                Some(path.clone()),
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                usage.account.label,
+                expected_email.unwrap_or(CLAUDE_TOKEN_LABEL)
+            );
+            assert_eq!(usage.account.plan.as_deref(), Some("Pro"));
+            assert_eq!(usage.account.subscription_status.as_deref(), Some("active"));
+            assert!(usage.diagnostics.is_empty());
+            let requests = server.await.unwrap();
+            assert!(requests[0].starts_with("GET /usage "));
+            assert!(requests[1].starts_with("GET /profile "));
+            assert!(
+                requests
+                    .iter()
+                    .all(|request| request.contains("Bearer explicit-claude-fixture"))
+            );
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     #[tokio::test]
     async fn copilot_keychain_reads_only_the_frozen_account() {
@@ -1164,28 +1525,109 @@ mod tests {
         }
     }
 
+    struct CopilotKeys(&'static [(&'static str, &'static str)]);
+    impl crate::providers::CredentialStore for CopilotKeys {
+        fn get(&self, name: &str) -> Option<Secret> {
+            self.0
+                .iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| Secret((*value).into()))
+        }
+    }
+    fn copilot_context(keys: &'static [(&'static str, &'static str)]) -> ProviderContext {
+        ProviderContext {
+            credentials: std::sync::Arc::new(CopilotKeys(keys)),
+            ..http::fixture::context()
+        }
+    }
+
+    #[test]
+    fn copilot_quota_route_follows_the_saved_host_only() {
+        assert_eq!(
+            copilot_usage_url(&copilot_context(&[(COPILOT_TOKEN_ENV, "token")])).unwrap(),
+            None
+        );
+        assert_eq!(
+            copilot_usage_url(&copilot_context(&[
+                (COPILOT_TOKEN_ENV, "token"),
+                (COPILOT_HOST_ENV, "github.com"),
+            ]))
+            .unwrap(),
+            None
+        );
+        assert_eq!(
+            copilot_usage_url(&copilot_context(&[
+                (COPILOT_TOKEN_ENV, "token"),
+                (COPILOT_HOST_ENV, "octocorp.ghe.com"),
+            ]))
+            .unwrap()
+            .as_deref(),
+            Some("https://api.octocorp.ghe.com/copilot_internal/user")
+        );
+        assert!(matches!(
+            copilot_usage_url(&copilot_context(&[
+                (COPILOT_TOKEN_ENV, "token"),
+                (COPILOT_HOST_ENV, "evil.example"),
+            ])),
+            Err(ProviderError::Authentication)
+        ));
+        // A native GitHub.com login must never be sent to an enterprise host.
+        assert!(matches!(
+            copilot_usage_url(&copilot_context(&[(COPILOT_HOST_ENV, "octocorp.ghe.com")])),
+            Err(ProviderError::Authentication)
+        ));
+        // The ambient process environment can never choose the token destination.
+        assert!(
+            crate::providers::CredentialStore::get(
+                &crate::providers::EnvironmentCredentials,
+                COPILOT_HOST_ENV
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn claude_source_response_maps_real_windows_without_extra_spend() {
         let now = OffsetDateTime::UNIX_EPOCH;
-        let windows = claude_windows(
+        for active in [false, true] {
+            let windows = claude_windows(
             &json!({
                 "five_hour":{"utilization":25,"resets_at":"2026-09-06T00:00:00Z"},
                 "seven_day":{"utilization":75},
                 "extra_usage":{"used_credits":900,"monthly_limit":1000},
-                "limits":[{"kind":"weekly_scoped","percent":40,"scope":{"model":{"display_name":"Fable"}}}]
+                "limits":[{"kind":"weekly_scoped","is_active":active,"percent":40,"resets_at":"2026-09-06T00:00:00Z","scope":{"model":{"display_name":"Fable"}}}]
             }),
             now,
         )
         .unwrap();
+            assert_eq!(
+                windows
+                    .iter()
+                    .map(|window| window.label.as_str())
+                    .collect::<Vec<_>>(),
+                ["Session", "Weekly", "Fable"]
+            );
+            assert_eq!(windows[0].quota, Quota::from_used(Some(25.0)));
+            assert_eq!(
+                crate::contract::snapshot::metric_id(&windows[2]),
+                crate::cache::fingerprint(&["metric", "Fable weekly"])
+            );
+            assert_eq!(windows[2].quota, Quota::from_used(Some(40.0)));
+            assert!(windows[2].resets_at.is_some());
+        }
+        let windows = claude_windows(&json!({
+            "five_hour":{"utilization":25},
+            "seven_day":null,
+            "limits":[{"kind":"weekly_scoped","is_active":false,"percent":0,"scope":{"model":{"display_name":"Fable"}}}]
+        }), now).unwrap();
         assert_eq!(
             windows
                 .iter()
                 .map(|window| window.label.as_str())
                 .collect::<Vec<_>>(),
-            ["Session", "Weekly", "Fable weekly"]
+            ["Session", "Fable"]
         );
-        assert_eq!(windows[0].quota, Quota::from_used(Some(25.0)));
-        assert_eq!(windows[2].quota, Quota::from_used(Some(40.0)));
+        assert_eq!(windows[1].quota, Quota::from_used(Some(0.0)));
         assert!(claude_windows(&json!({"five_hour":{"utilization":101}}), now).is_err());
         assert_eq!(
             claude_windows(&json!({"five_hour":null}), now).unwrap_err(),
@@ -1250,6 +1692,106 @@ mod tests {
             .unwrap_err(),
             ProviderError::QuotaUnavailable
         );
+    }
+
+    #[test]
+    fn copilot_business_ai_credits_report_counts_and_reset() {
+        let now = OffsetDateTime::UNIX_EPOCH;
+        // Shape observed from a GHE.com Business seat (identifiers removed).
+        let unlimited = json!({
+            "credits_used":0,"entitlement":0,"has_quota":true,"overage_count":0,
+            "percent_remaining":100,"quota_remaining":0,"quota_reset_at":0,"remaining":0,
+            "token_based_billing":true,"unlimited":true
+        });
+        let usage = copilot_usage(
+            &json!({
+                "copilot_plan":"business",
+                "limited_user_quotas":null,
+                "monthly_quotas":null,
+                "quota_reset_date":"2026-10-01",
+                "token_based_billing":true,
+                "quota_snapshots":{
+                    "chat":unlimited,
+                    "completions":unlimited,
+                    "premium_interactions":{
+                        "credits_used":6986,"entitlement":30000,"has_quota":true,
+                        "overage_count":0,"overage_permitted":true,"percent_remaining":76.7,
+                        "quota_remaining":23014.1,"quota_reset_at":0,"remaining":23014,
+                        "token_based_billing":true,"unlimited":false
+                    }
+                }
+            }),
+            now,
+        )
+        .unwrap();
+        assert_eq!(usage.plan.as_deref(), Some("business"));
+        assert_eq!(usage.windows.len(), 1);
+        let window = &usage.windows[0];
+        assert_eq!(window.label, "Premium interactions");
+        let amounts = window.amounts.as_ref().unwrap();
+        assert_eq!(
+            (amounts.remaining, amounts.limit, amounts.unit.as_str()),
+            (23014.0, Some(30000.0), "credits")
+        );
+        assert_eq!(window.consumption.as_ref().unwrap().used, 6986.0);
+        assert_eq!(
+            window.quota,
+            Quota::from_remaining(Some(23014.0 / 30000.0 * 100.0))
+        );
+        assert_eq!(
+            window.resets_at,
+            Some(time::macros::datetime!(2026-10-01 00:00 UTC))
+        );
+    }
+
+    #[test]
+    fn copilot_counts_fall_back_to_percent_or_requests() {
+        let now = OffsetDateTime::UNIX_EPOCH;
+        let window = |snapshot: Value| {
+            copilot_usage(
+                &json!({"quota_snapshots":{"premium_interactions":snapshot}}),
+                now,
+            )
+            .map(|usage| usage.windows.into_iter().next().unwrap())
+        };
+        // Legacy request-based plans keep the request unit.
+        let legacy = window(json!({"entitlement":300,"remaining":240})).unwrap();
+        assert_eq!(legacy.amounts.unwrap().unit, "requests");
+        // Snapshot-level token billing alone selects AI credits.
+        let snapshot_billed =
+            window(json!({"entitlement":300,"remaining":0,"token_based_billing":true})).unwrap();
+        assert_eq!(snapshot_billed.amounts.unwrap().unit, "credits");
+        assert_eq!(snapshot_billed.quota, Quota::from_remaining(Some(0.0)));
+        // Inconsistent counts without a percentage fail closed.
+        assert_eq!(
+            window(json!({"entitlement":300,"remaining":400})).unwrap_err(),
+            ProviderError::InvalidData
+        );
+        // Inconsistent counts use the reported percentage instead.
+        let inconsistent =
+            window(json!({"entitlement":300,"remaining":400,"percent_remaining":50})).unwrap();
+        assert_eq!(inconsistent.amounts.unwrap().unit, "percent");
+        assert_eq!(inconsistent.quota, Quota::from_remaining(Some(50.0)));
+        // Percentage-only snapshots are unchanged.
+        let percent = window(json!({"percent_remaining":80})).unwrap();
+        assert_eq!(percent.amounts.unwrap().unit, "percent");
+    }
+
+    #[test]
+    fn copilot_reset_dates_become_utc_midnight() {
+        let reset = copilot_reset(Some(&json!("2026-10-01"))).unwrap();
+        assert_eq!(
+            reset.at,
+            Some(time::macros::datetime!(2026-10-01 00:00 UTC))
+        );
+        assert!(reset.description.is_none());
+        let timestamp = copilot_reset(Some(&json!("2026-10-01T00:00:00Z"))).unwrap();
+        assert_eq!(
+            timestamp.at,
+            Some(time::macros::datetime!(2026-10-01 00:00 UTC))
+        );
+        assert!(copilot_reset(Some(&json!("2026-02-31"))).is_err());
+        assert!(copilot_reset(Some(&json!("soon"))).is_err());
     }
 
     #[test]

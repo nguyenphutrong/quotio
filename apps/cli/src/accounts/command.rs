@@ -64,11 +64,24 @@ async fn run_with_vault(
             no_browser,
             region,
             organization,
+            host,
             settings,
         } => {
             if let Some(label) = &label {
                 super::validate_label(label)?;
             }
+            // Only Copilot device sign-in can target another GitHub host.
+            let host = match host {
+                Some(_) if provider != Provider::Catalog("copilot") || token_stdin => {
+                    return Err(AccountError::Unsupported);
+                }
+                Some(raw) => Some(
+                    super::github_host::GitHubHost::parse(&raw)
+                        .map_err(|_| AccountError::Settings)?,
+                )
+                .filter(|host| !host.is_github_com()),
+                None => None,
+            };
             let region_valid = matches!(
                 (provider, region.as_deref()),
                 (_, None)
@@ -89,7 +102,7 @@ async fn run_with_vault(
                     std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
                 );
                 let session = manager
-                    .begin_for(provider, label, super::oauth::OAuthMode::Relay)
+                    .begin_at(provider, label, super::oauth::OAuthMode::Relay, host)
                     .await?;
                 eprintln!("Open this URL to sign in:\n{}", session.url);
                 // These workflows display user actions without launching a browser.
@@ -284,6 +297,77 @@ mod tests {
             "Work"
         );
         assert!(service::default_label(Some(" "), &oauth).is_err());
+    }
+    #[tokio::test]
+    async fn host_is_copilot_device_only_and_validated_before_sign_in() {
+        let dir = std::env::temp_dir().join(crate::accounts::random_string().unwrap());
+        let vault = super::Vault::new(
+            std::sync::Arc::new(crate::accounts::vault::tests::Memory::default()),
+            dir.join("lock"),
+        );
+        let context = crate::providers::http::fixture::context();
+        for (provider, host, token_stdin, expected) in [
+            (
+                Provider::Catalog("claude"),
+                "github.com",
+                false,
+                "unsupported",
+            ),
+            (Provider::Amp, "octocorp.ghe.com", false, "unsupported"),
+            (
+                Provider::Catalog("copilot"),
+                "octocorp.ghe.com",
+                true,
+                "unsupported",
+            ),
+            (
+                Provider::Catalog("copilot"),
+                "https://octocorp.ghe.com",
+                false,
+                "settings",
+            ),
+            (
+                Provider::Catalog("copilot"),
+                "github.example.com",
+                false,
+                "settings",
+            ),
+        ] {
+            let error = super::run_with_vault(
+                crate::cli::AccountCommand::Add {
+                    provider,
+                    label: None,
+                    token_stdin,
+                    no_browser: true,
+                    region: None,
+                    organization: None,
+                    host: Some(host.into()),
+                    settings: Vec::new(),
+                },
+                &context,
+                vault.clone(),
+            )
+            .await
+            .unwrap_err();
+            match expected {
+                "unsupported" => assert!(matches!(error, AccountError::Unsupported)),
+                _ => assert!(matches!(error, AccountError::Settings)),
+            }
+        }
+        assert!(
+            clap::Parser::try_parse_from([
+                "quotio",
+                "accounts",
+                "add",
+                "--provider",
+                "copilot",
+                "--host",
+                "octocorp.ghe.com",
+            ])
+            .map(|_: crate::cli::Cli| ())
+            .is_ok()
+        );
+        let _ = std::fs::remove_dir_all(dir);
     }
     #[test]
     fn short_and_non_ascii_keys_are_fully_masked() {
