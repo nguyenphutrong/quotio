@@ -1010,6 +1010,20 @@ fn merge_refresh_report(
     previous.generated_at = report.generated_at;
     true
 }
+async fn restore_cached_usage(state: &ApiState) {
+    let generation = state.generation.load(Ordering::SeqCst);
+    let current = state
+        .snapshot
+        .read()
+        .await
+        .as_ref()
+        .is_some_and(|(observed, _)| *observed == generation);
+    let needs_restore = state.restore_pending.swap(false, Ordering::SeqCst) || !current;
+    if needs_restore && let Err(code) = collect_usage(state, None, true).await {
+        state.restore_pending.store(true, Ordering::SeqCst);
+        tracing::warn!(code, "cached quota restoration failed");
+    }
+}
 async fn wait_for_next_refresh(state: &ApiState) {
     let interval = state.settings.read().await.values.refresh_interval;
     if interval == 0 {
@@ -1164,21 +1178,13 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
     let worker_state = state.clone();
     let mut worker = tokio::spawn(async move {
         loop {
+            // Serve cached observations before discovery, which can take many seconds.
+            restore_cached_usage(&worker_state).await;
             if let Err(code) = native::scheduled(&worker_state).await {
                 tracing::warn!(code, "scheduled discovery failed");
             }
-            let generation = worker_state.generation.load(Ordering::SeqCst);
-            let current = worker_state
-                .snapshot
-                .read()
-                .await
-                .as_ref()
-                .is_some_and(|(observed, _)| *observed == generation);
-            let needs_restore =
-                worker_state.restore_pending.swap(false, Ordering::SeqCst) || !current;
-            if needs_restore && let Err(code) = collect_usage(&worker_state, None, true).await {
-                worker_state.restore_pending.store(true, Ordering::SeqCst);
-                tracing::warn!(code, "cached quota restoration failed");
+            if worker_state.restore_pending.load(Ordering::SeqCst) {
+                restore_cached_usage(&worker_state).await;
             }
             if worker_state.settings.read().await.values.refresh_interval == 0 {
                 wait_for_next_refresh(&worker_state).await;
