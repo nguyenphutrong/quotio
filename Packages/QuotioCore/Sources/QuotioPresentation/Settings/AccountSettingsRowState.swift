@@ -79,20 +79,14 @@ extension Date {
     }
 }
 
-/// Aggregate facts shown on a provider header row.
+/// Attention facts for one provider: the sidebar badge count and any provider-wide failure.
 struct ProviderAccountsSummary: Equatable {
-    let tracked: Bool
-    let accountCount: Int
     let attentionCount: Int
-    let lastUpdated: Date?
     /// A provider-wide failure that is newer than every successful account refresh.
     let providerIssue: QuotaRefreshIssue?
 
     init(state: ProviderSettingsState, snapshot: QuotaSnapshot, tracked: Bool) {
-        self.tracked = tracked
-        accountCount = state.accounts.count
         let updated = snapshot.quotas[state.provider]?.values.map(\.lastUpdated).max()
-        lastUpdated = updated
         guard tracked else {
             attentionCount = 0
             providerIssue = nil

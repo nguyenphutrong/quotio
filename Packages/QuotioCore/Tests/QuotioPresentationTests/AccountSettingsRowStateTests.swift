@@ -42,7 +42,6 @@ final class AccountSettingsRowStateTests: XCTestCase {
         let state = ProviderSettingsState(provider: provider, accounts: [work, personal], permissions: [],
             quota: snapshot, tracking: .init())
         let summary = ProviderAccountsSummary(state: state, snapshot: snapshot, tracked: true)
-        XCTAssertEqual(summary.accountCount, 2)
         XCTAssertEqual(summary.attentionCount, 1)
         XCTAssertNil(summary.providerIssue)
     }

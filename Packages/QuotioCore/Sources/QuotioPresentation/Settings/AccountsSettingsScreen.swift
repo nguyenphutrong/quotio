@@ -18,6 +18,10 @@ struct AccountsSettingsScreen: View {
         controller.providers.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
     }
 
+    private var lastUpdated: Date? {
+        quota.state.quotas.values.flatMap(\.values).map(\.lastUpdated).max()
+    }
+
     var body: some View {
         let list = AccountsSettingsList(providers: providers, accounts: accounts.accounts,
             permissions: accounts.nativeSourcePermissions, quota: quota.state,
@@ -30,6 +34,7 @@ struct AccountsSettingsScreen: View {
                         Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
                     }
                 }
+                AccountsAttentionSection(states: list.connected)
                 if list.connected.isEmpty && query.isEmpty {
                     Section {
                         Text("settings.accounts.empty".localized()).foregroundStyle(.secondary)
@@ -58,6 +63,9 @@ struct AccountsSettingsScreen: View {
             }
             .formStyle(.grouped)
             .navigationTitle("nav.accounts".localized())
+            .navigationSubtitle(lastUpdated.map {
+                String(format: "monitor.status.updated".localized(), $0.accountsSettingsTimestamp)
+            } ?? "")
             .searchable(text: $search, prompt: "settings.accounts.search".localized())
             .toolbar { toolbar }
             .task(id: navigation.selectedProvider) {
