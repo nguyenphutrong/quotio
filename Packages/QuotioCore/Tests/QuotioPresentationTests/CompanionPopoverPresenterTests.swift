@@ -20,14 +20,14 @@ final class CompanionPopoverPresenterTests: XCTestCase {
         let presenter = CompanionPopoverPresenter()
         defer { presenter.close(); window.close() }
 
-        presenter.show(relativeTo: anchor, model: model, pasteboard: pasteboard, appearance: NSAppearance(named: .aqua), locale: Locale(identifier: "en"))
+        presenter.show(relativeTo: anchor, model: model, pasteboard: pasteboard, locale: Locale(identifier: "en"))
         XCTAssertTrue(presenter.isShown)
         XCTAssertEqual(model.presentation, .menuBar)
-        presenter.show(relativeTo: anchor, model: model, pasteboard: pasteboard, appearance: NSAppearance(named: .aqua), locale: .current)
+        presenter.show(relativeTo: anchor, model: model, pasteboard: pasteboard, locale: .current)
         XCTAssertTrue(presenter.isShown)
         presenter.close()
         XCTAssertNil(model.presentation)
-        presenter.show(relativeTo: anchor, model: model, pasteboard: pasteboard, appearance: NSAppearance(named: .darkAqua), locale: .current)
+        presenter.show(relativeTo: anchor, model: model, pasteboard: pasteboard, locale: .current)
         XCTAssertTrue(presenter.isShown)
         try await Task.sleep(for: .milliseconds(100))
         model.presentPairing(in: .settings)

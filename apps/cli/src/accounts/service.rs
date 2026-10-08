@@ -1097,9 +1097,10 @@ impl ProviderAdapter for ManagedProvider {
                 AccountError::Provider(e) => e,
                 AccountError::Busy => ProviderError::Transient,
                 AccountError::SourceDisabled => ProviderError::SourceDisabled,
-                AccountError::Storage | AccountError::Corrupt | AccountError::CommitUncertain => {
-                    ProviderError::CredentialStorage
-                }
+                AccountError::Storage
+                | AccountError::Corrupt
+                | AccountError::NewerFormat
+                | AccountError::CommitUncertain => ProviderError::CredentialStorage,
                 _ => ProviderError::Authentication,
             })
         })

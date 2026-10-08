@@ -9,7 +9,14 @@ struct AccountStorageAccessSection: View {
     @State private var isSubmitting = false
 
     var body: some View {
-        if accounts.storageAccessRequired {
+        switch accounts.storageProblem {
+        case nil:
+            EmptyView()
+        case .unreadable:
+            problem("settings.vaultProblem.unreadable".localized())
+        case .newerVersion:
+            problem("settings.vaultProblem.newerVersion".localized())
+        case .requiresAuthorization:
             Section {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "lock.fill")
@@ -38,6 +45,14 @@ struct AccountStorageAccessSection: View {
                 }
                 .help("settings.vaultAccess.explanation".localized())
             }
+        }
+    }
+
+    private func problem(_ message: String) -> some View {
+        Section {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

@@ -37,6 +37,8 @@ pub enum AccountError {
     IdempotencyFull,
     #[error("saved account data is invalid; no changes were made")]
     Corrupt,
+    #[error("saved account data was written by a newer Quotio; update Quotio to use it")]
+    NewerFormat,
     #[error("the collected host snapshot is invalid")]
     Snapshot,
     #[error("another account operation is in progress; retry shortly")]

@@ -26,7 +26,7 @@ final class OnboardingFlowTests: XCTestCase {
                     AccountMonitoringState(connection: .connected, quota: .fresh),
             ]),
             tracking: ProviderTrackingPreferences(disabledProviders: [.copilot]),
-            storageAccessRequired: false
+            hasStorageProblem: false
         )
 
         XCTAssertEqual(overview.found.map(\.id), [.factoryDroid, .claude])
@@ -46,7 +46,7 @@ final class OnboardingFlowTests: XCTestCase {
             permissions: [],
             quota: QuotaSnapshot(),
             tracking: ProviderTrackingPreferences(),
-            storageAccessRequired: true
+            hasStorageProblem: true
         )
 
         XCTAssertTrue(overview.found.isEmpty)
@@ -68,7 +68,7 @@ final class OnboardingFlowTests: XCTestCase {
                     AccountMonitoringState(connection: .connected, quota: .fresh),
             ]),
             tracking: ProviderTrackingPreferences(),
-            storageAccessRequired: false
+            hasStorageProblem: false
         )
 
         XCTAssertEqual(overview.found.first?.accountCount, 2)
@@ -98,7 +98,7 @@ final class OnboardingFlowTests: XCTestCase {
                     AccountMonitoringState(connection: .connected, quota: .failed(nil)),
             ]),
             tracking: ProviderTrackingPreferences(),
-            storageAccessRequired: false
+            hasStorageProblem: false
         )
 
         XCTAssertEqual(overview.readyProviders.map(\.id), [.codex])

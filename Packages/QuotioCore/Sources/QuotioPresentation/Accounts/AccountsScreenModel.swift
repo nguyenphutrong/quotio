@@ -11,7 +11,7 @@ public final class AccountsScreenModel {
     public private(set) var authorizedNativeSources: [NativeSourcePermission] = []
     public private(set) var isScanningAll = false
     public private(set) var authorizingNativeSourceID: String?
-    public private(set) var storageAccessRequired = false
+    public private(set) var storageProblem: AccountStorageProblem?
     public private(set) var authorizingStorage = false
     public private(set) var nativeAuthorizationFailure: NativeSourceAuthorizationFailure?
     public private(set) var lastScannedAt: [QuotaProvider: Date] = [:]
@@ -30,13 +30,13 @@ public final class AccountsScreenModel {
     public func reloadAccounts() async {
         accounts = await accountService.accounts()
         await reloadDiscovery()
-        storageAccessRequired = await accountService.accountStorageRequiresAuthorization()
+        storageProblem = await accountService.accountStorageProblem()
     }
 
     public func registerDetectedNativeAccounts() async {
         await accountService.registerDetectedNativeAccounts()
         await reloadDiscovery()
-        storageAccessRequired = await accountService.accountStorageRequiresAuthorization()
+        storageProblem = await accountService.accountStorageProblem()
     }
 
     public func scanAllNativeAccounts() async {
@@ -54,7 +54,7 @@ public final class AccountsScreenModel {
         defer { discoveringProvider = nil }
         await accountService.rescanNativeAccounts(for: provider)
         await reloadDiscovery()
-        storageAccessRequired = await accountService.accountStorageRequiresAuthorization()
+        storageProblem = await accountService.accountStorageProblem()
         await reloadAccounts()
     }
 
@@ -66,10 +66,11 @@ public final class AccountsScreenModel {
             try await accountService.authorizeNativeSource(source)
         } catch {
             nativeAuthorizationFailure = error as? NativeSourceAuthorizationFailure ?? .unknown
+            storageProblem = await accountService.accountStorageProblem()
             throw error
         }
         await reloadDiscovery()
-        storageAccessRequired = await accountService.accountStorageRequiresAuthorization()
+        storageProblem = await accountService.accountStorageProblem()
         await reloadAccounts()
     }
 
@@ -79,7 +80,7 @@ public final class AccountsScreenModel {
         defer { authorizingStorage = false }
         do {
             try await accountService.authorizeAccountStorage()
-            storageAccessRequired = await accountService.accountStorageRequiresAuthorization()
+            storageProblem = await accountService.accountStorageProblem()
             await reloadDiscovery()
             await reloadAccounts()
         } catch {

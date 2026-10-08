@@ -52,11 +52,11 @@ struct OnboardingProviderOverview: Sendable {
     let found: [FoundProvider]
     let connectable: [ConnectableProvider]
     let pendingPermissions: [NativeSourcePermission]
-    let storageAccessRequired: Bool
+    let hasStorageProblem: Bool
     private let authorizableProviders: Set<QuotaProvider>
     private let names: [QuotaProvider: String]
 
-    var needsAccess: Bool { storageAccessRequired || !pendingPermissions.isEmpty }
+    var needsAccess: Bool { hasStorageProblem || !pendingPermissions.isEmpty }
     var readyProviders: [FoundProvider] { found.filter { $0.issue == nil && $0.hasQuota } }
     var loadingProviders: [FoundProvider] { found.filter { $0.issue == nil && !$0.hasQuota && $0.quotaState != nil } }
     var attentionProviders: [FoundProvider] { found.filter { $0.issue != nil } }
@@ -67,7 +67,7 @@ struct OnboardingProviderOverview: Sendable {
         permissions: [NativeSourcePermission],
         quota: QuotaSnapshot,
         tracking: ProviderTrackingPreferences,
-        storageAccessRequired: Bool
+        hasStorageProblem: Bool
     ) {
         let tracked = providers.filter { tracking.isEnabled($0.id) }
         let states = tracked.map { descriptor in
@@ -99,7 +99,7 @@ struct OnboardingProviderOverview: Sendable {
         pendingPermissions = permissions.filter { trackedIDs.contains($0.provider) }
         authorizableProviders = Set(tracked.filter { $0.actions.contains("authorize_native") }.map(\.id))
         names = Dictionary(providers.map { ($0.id, $0.displayName) }, uniquingKeysWith: { first, _ in first })
-        self.storageAccessRequired = storageAccessRequired
+        self.hasStorageProblem = hasStorageProblem
     }
 
     func canAuthorize(_ permission: NativeSourcePermission) -> Bool {

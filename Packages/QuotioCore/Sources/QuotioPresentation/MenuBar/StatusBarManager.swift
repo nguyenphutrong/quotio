@@ -58,13 +58,6 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     private var targetBackingScaleFactor: CGFloat {
         NSScreen.screens.map(\.backingScaleFactor).max() ?? 2.0
     }
-
-    /// Match status-item surfaces to the menu bar, independently of app windows.
-    private var menuBarAppearance: NSAppearance? {
-        guard let button = statusItem?.button else { return nil }
-        let name = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) ?? .aqua
-        return NSAppearance(named: name)
-    }
     
     public func updateStatusBar(
         items: [MenuBarQuotaDisplayItem],
@@ -103,6 +96,8 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
         
         // Create or update menu
         if menu == nil {
+            // No appearance override: AppKit resolves status menus against the
+            // system appearance, not the app setting or the wallpaper-tinted menu bar.
             menu = NSMenu()
             menu?.autoenablesItems = false
             menu?.delegate = self
@@ -235,7 +230,6 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
         let present = { [weak self] in
             guard let self, let button = statusItem?.button else { return }
             companionPresenter.show(relativeTo: button, model: model, pasteboard: pasteboard,
-                                    appearance: menuBarAppearance,
                                     locale: configuration?.language.locale ?? .current)
         }
         if isMenuTracking {
@@ -263,13 +257,10 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
             return
         }
         let snapshot = snapshotProvider()
-        let appearance = menuBarAppearance
-        menu.appearance = appearance
         menu.removeAllItems()
 
         let renderer = StatusBarMenuRenderer(
             snapshot: snapshot,
-            appearance: appearance,
             commands: commandDispatcher
         )
         let nativeMenu = renderer.buildMenu()

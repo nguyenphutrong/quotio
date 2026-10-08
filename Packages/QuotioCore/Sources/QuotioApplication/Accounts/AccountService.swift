@@ -17,6 +17,14 @@ public enum NativeSourceAuthorizationFailure: Error, Equatable, Sendable {
     case unknown
 }
 
+/// Why the host cannot read Quotio's own account store. Only `requiresAuthorization`
+/// is something the user can fix in place; the other cases need a different Quotio.
+public enum AccountStorageProblem: Equatable, Sendable {
+    case requiresAuthorization
+    case unreadable
+    case newerVersion
+}
+
 public struct NativeSourcePermission: Codable, Hashable, Identifiable, Sendable {
     public let provider: QuotaProvider
     public let kind: String
@@ -53,7 +61,7 @@ public protocol AccountManaging: Sendable {
     func rescanAllNativeAccounts() async
     func nativeDiscoverySnapshot() async -> NativeDiscoverySnapshot
     func authorizeNativeSource(_ source: NativeSourcePermission) async throws
-    func accountStorageRequiresAuthorization() async -> Bool
+    func accountStorageProblem() async -> AccountStorageProblem?
     func authorizeAccountStorage() async throws
     func accounts() async -> [Account]
     func setDisabled(_ disabled: Bool, accountID: String) async
@@ -73,6 +81,6 @@ public protocol AccountManaging: Sendable {
 public extension AccountManaging {
     func rescanAllNativeAccounts() async { await registerDetectedNativeAccounts() }
     func nativeDiscoverySnapshot() async -> NativeDiscoverySnapshot { .init() }
-    func accountStorageRequiresAuthorization() async -> Bool { false }
+    func accountStorageProblem() async -> AccountStorageProblem? { nil }
     func authorizeAccountStorage() async throws { throw NativeSourceAuthorizationFailure.unknown }
 }
