@@ -298,6 +298,22 @@ impl ApiState {
         self.wake.notify_one();
     }
 
+    async fn apply_settings(&self, view: SettingsView) {
+        let mut settings = self.settings.write().await;
+        let (old, new) = (&settings.values, &view.values);
+        let scope_changed = old.enabled_providers != new.enabled_providers
+            || old.disabled_providers != new.disabled_providers
+            || old.disabled_proxy_auth_files != new.disabled_proxy_auth_files;
+        *settings = view;
+        drop(settings);
+        // Cadence, timeout and discovery changes keep every displayed observation valid.
+        if scope_changed {
+            self.invalidate().await;
+        } else {
+            self.wake.notify_one();
+        }
+    }
+
     async fn invalidate_sources(&self, source_ids: &[String]) {
         let previous = self.generation.fetch_add(1, Ordering::SeqCst);
         let mut snapshot = self.snapshot.write().await;
@@ -566,8 +582,7 @@ async fn settings(State(state): State<Arc<ApiState>>) -> Result<Json<SettingsVie
         .map_err(|_| settings_error(SettingsError::Storage))?
         .map_err(settings_error)?;
     if state.settings.read().await.revision != view.revision {
-        *state.settings.write().await = view.clone();
-        state.invalidate().await;
+        state.apply_settings(view.clone()).await;
     }
     Ok(Json(view))
 }
@@ -604,8 +619,7 @@ async fn patch_settings(
             .await
             .unwrap_or(Err(SettingsError::Storage));
         if let Ok(view) = &result {
-            *work.settings.write().await = view.clone();
-            work.invalidate().await;
+            work.apply_settings(view.clone()).await;
         }
         let _ = send.send(result.map_err(settings_error));
     })?;
