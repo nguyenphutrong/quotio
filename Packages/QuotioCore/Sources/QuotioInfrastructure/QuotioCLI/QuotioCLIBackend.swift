@@ -67,7 +67,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
                 case .incompatible: throw QuotaHistoryError.invalidResponse
                 case .response(let status, let code):
                     if status == 403 { throw QuotaHistoryError.unauthorized }
-                    if code.contains("history") || code.contains("storage") { throw QuotaHistoryError.storage }
+                    if code.contains("storage") { throw QuotaHistoryError.storage }
                     throw QuotaHistoryError.requestFailed
                 case .timeout: throw QuotaHistoryError.requestFailed
                 }
