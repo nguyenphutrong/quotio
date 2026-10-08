@@ -868,7 +868,12 @@ async fn collect_usage(
     let collector = Collector {
         context: state.context.clone(),
     };
-    let cache = crate::cache::UsageCache::platform(Duration::from_secs(config.cache_ttl_seconds));
+    let mut ttl = Duration::from_secs(config.cache_ttl_seconds);
+    // An observation as old as the refresh cadence is due, whatever the cache TTL allows.
+    if !cache_only && config.refresh_interval > 0 {
+        ttl = ttl.min(Duration::from_secs(config.refresh_interval));
+    }
+    let cache = crate::cache::UsageCache::platform(ttl);
     let source_scope = account.as_ref().map(|id| {
         let mut sources = adapters
             .as_ref()
