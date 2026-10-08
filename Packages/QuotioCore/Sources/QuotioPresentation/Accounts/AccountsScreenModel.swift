@@ -12,7 +12,6 @@ public final class AccountsScreenModel {
     public private(set) var isScanningAll = false
     public private(set) var authorizingNativeSourceID: String?
     public private(set) var storageProblem: AccountStorageProblem?
-    public var storageAccessRequired: Bool { storageProblem == .requiresAuthorization }
     public private(set) var authorizingStorage = false
     public private(set) var nativeAuthorizationFailure: NativeSourceAuthorizationFailure?
     public private(set) var lastScannedAt: [QuotaProvider: Date] = [:]

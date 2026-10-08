@@ -30,7 +30,7 @@ public struct OnboardingFlow: View {
             permissions: accounts.nativeSourcePermissions,
             quota: quota.state,
             tracking: controller.trackingPreferences,
-            storageAccessRequired: accounts.storageAccessRequired
+            hasStorageProblem: accounts.storageProblem != nil
         )
     }
 
