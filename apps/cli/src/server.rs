@@ -1179,11 +1179,15 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
     let mut worker = tokio::spawn(async move {
         loop {
             // Serve cached observations before discovery, which can take many seconds.
+            let generation = worker_state.generation.load(Ordering::SeqCst);
             restore_cached_usage(&worker_state).await;
             if let Err(code) = native::scheduled(&worker_state).await {
                 tracing::warn!(code, "scheduled discovery failed");
             }
-            if worker_state.restore_pending.load(Ordering::SeqCst) {
+            // OAuth completion advances the generation without marking a restore pending.
+            if worker_state.restore_pending.load(Ordering::SeqCst)
+                || worker_state.generation.load(Ordering::SeqCst) != generation
+            {
                 restore_cached_usage(&worker_state).await;
             }
             if worker_state.settings.read().await.values.refresh_interval == 0 {
