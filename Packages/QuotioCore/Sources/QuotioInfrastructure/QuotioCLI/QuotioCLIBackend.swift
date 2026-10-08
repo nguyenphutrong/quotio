@@ -33,7 +33,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
     private let logger: (any ApplicationLogging)?
     private let session: URLSession?
     private let localization: @MainActor @Sendable () -> (bundle: Bundle, locale: Locale)
-    private var storageRequiresAuthorization = false
+    private var storageProblem: AccountStorageProblem?
     private var discoveryState: QuotioHostDiscovery?
 
     public init(
@@ -145,7 +145,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
             try await mutate(client: client, path: "v2/discovery", method: "POST", body: body, timeout: .seconds(180))
             _ = try await readDiscovery()
         } catch {
-            if Self.failureCategory(error) == "account_storage" { storageRequiresAuthorization = true }
+            if let problem = Self.storageProblem(error) { storageProblem = problem }
             await logger?.write(.warning, message: "Native discovery failed=\(Self.failureCategory(error))")
         }
     }
@@ -199,6 +199,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
                 timeout: .seconds(300)
             )
         } catch {
+            if let problem = Self.storageProblem(error) { storageProblem = problem }
             switch error {
             case QuotioHostClientError.response(_, "quotio_vault_access_failed"),
                  QuotioHostClientError.response(_, "credential_storage_unavailable"):
@@ -218,13 +219,13 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         await discoverNativeAccounts(providerID: source.provider.rawValue)
     }
 
-    public func accountStorageRequiresAuthorization() async -> Bool { storageRequiresAuthorization }
+    public func accountStorageProblem() async -> AccountStorageProblem? { storageProblem }
 
     public func authorizeAccountStorage() async throws {
         guard let client else { throw NativeSourceAuthorizationFailure.unknown }
         do {
             try await mutate(client: client, path: "v2/account-vault/authorize", method: "POST", body: Data("{}".utf8), timeout: .seconds(300))
-            storageRequiresAuthorization = false
+            storageProblem = nil
             await registerDetectedNativeAccounts()
         } catch {
             throw NativeSourceAuthorizationFailure.quotioVault
@@ -564,11 +565,11 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
             snapshot = next
             hostSnapshot = frame
             reportedAccounts = accounts
-            storageRequiresAuthorization = false
+            storageProblem = nil
             if changed { publish() }
         } catch {
             guard activeMode == mode, connectionID == requestConnection, snapshotRequestID == requestID else { return }
-            if Self.failureCategory(error) == "account_storage" { storageRequiresAuthorization = true }
+            if let problem = Self.storageProblem(error) { storageProblem = problem }
             await logger?.write(.warning, message: "Quota snapshot failed=\(Self.failureCategory(error))")
             markFailure(for: refreshedProviders ?? knownProviders)
         }
@@ -667,12 +668,21 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         continuations[id] = nil
     }
 
-    private static func failureCategory(_ error: Error) -> String {
+    private static func storageProblem(_ error: Error) -> AccountStorageProblem? {
         switch error {
         case QuotioHostClientError.response(_, "credential_storage_unavailable"),
              QuotioHostClientError.response(_, "account_storage_unavailable"),
              QuotioHostClientError.response(_, "account_storage_disabled"):
-            "account_storage"
+            .requiresAuthorization
+        case QuotioHostClientError.response(_, "credential_storage_corrupt"): .unreadable
+        case QuotioHostClientError.response(_, "credential_storage_newer_version"): .newerVersion
+        default: nil
+        }
+    }
+
+    private static func failureCategory(_ error: Error) -> String {
+        switch error {
+        case _ where storageProblem(error) != nil: "account_storage"
         case QuotioHostClientError.response(_, "duplicate_account"): "duplicate_account"
         case QuotioHostClientError.response(_, "credential_validation_failed"): "credential_validation"
         case QuotioHostClientError.response(let status, _): "http_\(status)"

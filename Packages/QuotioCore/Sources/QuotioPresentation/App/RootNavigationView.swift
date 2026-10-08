@@ -12,7 +12,7 @@ public struct RootNavigationView: View {
         let providerItems = ProviderAccountsSummary.totalAttention(providers: controller.providers,
             accounts: accounts.accounts, permissions: accounts.nativeSourcePermissions,
             snapshot: quota.state, tracking: controller.trackingPreferences)
-        return providerItems + (accounts.storageAccessRequired ? 1 : 0)
+        return providerItems + (accounts.storageProblem == nil ? 0 : 1)
     }
 
     public var body: some View {

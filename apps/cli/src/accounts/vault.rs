@@ -16,6 +16,17 @@ fn has_factory_selectors(document: &Document) -> bool {
             .any(|source| source.kind == "factory_native" && source.keychain_account.is_some()))
 }
 
+/// Highest document format this build reads and writes.
+const SUPPORTED_FORMAT: u8 = 20;
+
+/// Lenient view of a document that reads only its format, so a document from a
+/// newer Quotio is told apart from a corrupt one before the strict parse.
+#[derive(serde::Deserialize)]
+struct FormatHeader {
+    #[serde(default)]
+    version: u8,
+}
+
 #[cfg(target_os = "macos")]
 const PRODUCTION_KEYCHAIN_SERVICE: &str = "app.quotio.cli.accounts.v1";
 #[cfg(target_os = "macos")]
@@ -344,9 +355,14 @@ impl Vault {
                 if bytes.len() > 1024 * 1024 {
                     return Err(AccountError::Corrupt);
                 }
+                if serde_json::from_slice::<FormatHeader>(&bytes)
+                    .is_ok_and(|header| header.version > SUPPORTED_FORMAT)
+                {
+                    return Err(AccountError::NewerFormat);
+                }
                 let doc: Document =
                     serde_json::from_slice(&bytes).map_err(|_| AccountError::Corrupt)?;
-                if !matches!(doc.version, 1..=20)
+                if !matches!(doc.version, 1..=SUPPORTED_FORMAT)
                     || (doc.version < 20 && doc.has_enterprise_copilot())
                     || (doc.version < 19 && doc.companion_identity.is_some())
                     || (doc.version < 18 && super::clients::has_manage_grants(&doc))
@@ -930,6 +946,13 @@ pub(crate) mod tests {
         // A format-19 reader would ignore the host and query GitHub.com.
         value["version"] = 19.into();
         memory.write(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(matches!(vault.begin(), Err(AccountError::Corrupt)));
+        value["version"] = (SUPPORTED_FORMAT + 1).into();
+        value["accounts"][0]["naming"] =
+            serde_json::json!({"origin": "user", "future_field": true});
+        memory.write(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(matches!(vault.begin(), Err(AccountError::NewerFormat)));
+        memory.write(b"{not json").unwrap();
         assert!(matches!(vault.begin(), Err(AccountError::Corrupt)));
         std::fs::remove_dir_all(dir).unwrap();
     }

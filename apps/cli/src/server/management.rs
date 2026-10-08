@@ -14,7 +14,9 @@ fn vault(state: &ApiState) -> Result<Vault, ApiError> {
 }
 pub(super) fn account_code(error: &AccountError) -> &'static str {
     match error {
-        AccountError::Storage | AccountError::Corrupt => "credential_storage_unavailable",
+        AccountError::Storage => "credential_storage_unavailable",
+        AccountError::Corrupt => "credential_storage_corrupt",
+        AccountError::NewerFormat => "credential_storage_newer_version",
         AccountError::Busy => "account_busy",
         AccountError::SourceDisabled => "source_disabled",
         AccountError::Snapshot => "invalid_snapshot",
@@ -57,9 +59,10 @@ fn account_error(error: AccountError) -> ApiError {
         | AccountError::Duplicate
         | AccountError::CallbackPort
         | AccountError::IdempotencyConflict => StatusCode::CONFLICT,
-        AccountError::Storage | AccountError::Corrupt | AccountError::CommitUncertain => {
-            StatusCode::SERVICE_UNAVAILABLE
-        }
+        AccountError::Storage
+        | AccountError::Corrupt
+        | AccountError::NewerFormat
+        | AccountError::CommitUncertain => StatusCode::SERVICE_UNAVAILABLE,
         _ => StatusCode::BAD_REQUEST,
     };
     ApiError(status, account_code(&error))
@@ -776,6 +779,14 @@ mod authorization_error_tests {
         assert_eq!(
             native_source_error(&AccountError::Storage),
             "credential_storage_unavailable"
+        );
+        assert_eq!(
+            account_code(&AccountError::Corrupt),
+            "credential_storage_corrupt"
+        );
+        assert_eq!(
+            account_code(&AccountError::NewerFormat),
+            "credential_storage_newer_version"
         );
     }
 }
