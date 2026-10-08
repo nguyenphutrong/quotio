@@ -42,6 +42,8 @@ pub struct Config {
     pub disabled_proxy_auth_files: Vec<String>,
     #[serde(default = "default_automatic_discovery")]
     pub automatically_discover_logins: bool,
+    #[serde(default = "default_automatic_discovery")]
+    pub quota_history_enabled: bool,
     /// Maximum cache age in seconds; zero refreshes every time.
     #[serde(default = "default_cache_ttl")]
     pub cache_ttl_seconds: u64,
@@ -71,6 +73,7 @@ impl Default for Config {
             disabled_providers: vec![],
             disabled_proxy_auth_files: vec![],
             automatically_discover_logins: default_automatic_discovery(),
+            quota_history_enabled: true,
             cache_ttl_seconds: default_cache_ttl(),
             refresh_interval: default_refresh_interval(),
             provider_timeout: default_provider_timeout(),

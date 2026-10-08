@@ -480,6 +480,8 @@ impl AntigravityProvider {
             }
         };
         Ok(ProviderUsage {
+            fresh_observation: false,
+            history_identity: None,
             reset_credits: None,
             antigravity_subscription,
             codex_profile: None,

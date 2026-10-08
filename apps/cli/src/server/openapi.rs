@@ -232,6 +232,8 @@ mod tests {
             schema_version: 1,
             generated_at: now,
             providers: vec![crate::domain::ProviderUsage {
+                fresh_observation: false,
+                history_identity: None,
                 reset_credits: Some(crate::domain::ResetCredits {
                     available_count: 2,
                     earliest_expires_at: Some(now + time::Duration::days(1)),

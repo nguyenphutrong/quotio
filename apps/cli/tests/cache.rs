@@ -170,6 +170,26 @@ impl Drop for Fixture {
 }
 
 #[tokio::test]
+async fn history_provenance_is_fresh_only_for_actual_fetches_and_never_persisted() {
+    let f = Fixture::new();
+    let adapter = Adapter::new("history-account");
+    let first = f.collect(vec![adapter.clone()], false).await;
+    assert!(first.providers[0].fresh_observation);
+    let fetched = first.providers[0].windows[0].fetched_at;
+    let serialized = serde_json::to_string(&first).unwrap();
+    assert!(!serialized.contains("fresh_observation"));
+    assert!(!serialized.contains("history_identity"));
+    f.clock.0.fetch_add(1, Ordering::SeqCst);
+    let cached = f.collect(vec![adapter.clone()], false).await;
+    assert!(!cached.providers[0].fresh_observation);
+    assert_eq!(cached.providers[0].windows[0].fetched_at, fetched);
+    adapter.fails.store(true, Ordering::SeqCst);
+    let fallback = f.collect(vec![adapter], true).await;
+    assert!(!fallback.providers[0].fresh_observation);
+    assert_eq!(fallback.providers[0].windows[0].fetched_at, fetched);
+}
+
+#[tokio::test]
 async fn plan_only_success_supersedes_previously_cached_quota() {
     let fixture = Fixture::new();
     let adapter = Adapter::new("plan-only");

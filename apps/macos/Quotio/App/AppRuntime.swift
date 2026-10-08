@@ -7,6 +7,7 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     var proxyScreenModel: ProxyScreenModel { get }
     var quotaController: QuotaFeatureController { get }
     var quotaScreenModel: QuotaScreenModel { get }
+    var quotaHistory: QuotaHistoryServiceModel { get }
     var accountsScreenModel: AccountsScreenModel { get }
     var navigationScreenModel: NavigationScreenModel { get }
     var pasteboard: PasteboardScreenModel { get }
@@ -54,6 +55,7 @@ final class AppRuntime {
     var proxyScreenModel: ProxyScreenModel { services.proxyScreenModel }
     var quotaController: QuotaFeatureController { services.quotaController }
     var quotaScreenModel: QuotaScreenModel { services.quotaScreenModel }
+    var quotaHistory: QuotaHistoryServiceModel { services.quotaHistory }
     var accountsScreenModel: AccountsScreenModel { services.accountsScreenModel }
     var navigationScreenModel: NavigationScreenModel { services.navigationScreenModel }
     var pasteboard: PasteboardScreenModel { services.pasteboard }

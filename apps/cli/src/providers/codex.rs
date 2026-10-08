@@ -187,6 +187,8 @@ fn parse(
     }
     let email = account.email.ok_or(ProviderError::InvalidData)?;
     let mut usage = ProviderUsage {
+        fresh_observation: false,
+        history_identity: None,
         reset_credits: None,
         antigravity_subscription: None,
         codex_profile: None,

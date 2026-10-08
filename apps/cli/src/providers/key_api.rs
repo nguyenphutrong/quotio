@@ -569,6 +569,8 @@ impl KeyApiProvider {
             .map(|b| format!("{b:02x}"))
             .collect();
         Ok(ProviderUsage {
+            fresh_observation: false,
+            history_identity: None,
             reset_credits: None,
             antigravity_subscription: None,
             codex_profile: None,
@@ -691,6 +693,8 @@ mod tests {
             schema_version: 1,
             generated_at: OffsetDateTime::UNIX_EPOCH,
             providers: vec![ProviderUsage {
+                fresh_observation: false,
+                history_identity: None,
                 reset_credits: None,
                 antigravity_subscription: None,
                 codex_profile: None,

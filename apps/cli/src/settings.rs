@@ -28,6 +28,7 @@ pub struct SettingsPatch {
     pub disabled_providers: Option<Vec<Provider>>,
     pub disabled_proxy_auth_files: Option<Vec<String>>,
     pub automatically_discover_logins: Option<bool>,
+    pub quota_history_enabled: Option<bool>,
     pub cache_ttl_seconds: Option<u64>,
     pub refresh_interval: Option<u64>,
     pub provider_timeout: Option<u64>,
@@ -39,7 +40,12 @@ pub struct NativePreferences {
     pub disabled_providers: Vec<Provider>,
     pub disabled_proxy_auth_files: Vec<String>,
     pub automatically_discover_logins: bool,
+    #[serde(default = "history_enabled_default")]
+    pub quota_history_enabled: bool,
     pub refresh_interval: u64,
+}
+fn history_enabled_default() -> bool {
+    true
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsError {
@@ -127,6 +133,7 @@ impl SettingsStore {
             "disabled_providers",
             "disabled_proxy_auth_files",
             "automatically_discover_logins",
+            "quota_history_enabled",
             "refresh_interval",
         ]
         .iter()
@@ -151,6 +158,8 @@ impl SettingsStore {
                 .then_some(preferences.disabled_proxy_auth_files),
             automatically_discover_logins: (!fields.contains_key("automatically_discover_logins"))
                 .then_some(preferences.automatically_discover_logins),
+            quota_history_enabled: (!fields.contains_key("quota_history_enabled"))
+                .then_some(preferences.quota_history_enabled),
             refresh_interval: (!fields.contains_key("refresh_interval"))
                 .then_some(preferences.refresh_interval),
             cache_ttl_seconds: None,
@@ -231,6 +240,9 @@ impl SettingsStore {
         if let Some(value) = patch.automatically_discover_logins {
             config.automatically_discover_logins = value;
         }
+        if let Some(value) = patch.quota_history_enabled {
+            config.quota_history_enabled = value;
+        }
         if let Some(value) = patch.cache_ttl_seconds {
             config.cache_ttl_seconds = value;
         }
@@ -241,7 +253,12 @@ impl SettingsStore {
             config.provider_timeout = value;
         }
         validate(&config)?;
-        let text = toml::to_string(&config).map_err(|_| SettingsError::Invalid)?;
+        let mut table = toml::Table::try_from(&config).map_err(|_| SettingsError::Invalid)?;
+        // Omitted while enabled so the file stays readable by builds without history.
+        if config.quota_history_enabled {
+            table.remove("quota_history_enabled");
+        }
+        let text = toml::to_string(&table).map_err(|_| SettingsError::Invalid)?;
         let temporary = parent.join(format!(
             ".quotio-settings-{}.tmp",
             crate::accounts::random_string().map_err(|_| SettingsError::Storage)?
@@ -308,12 +325,17 @@ mod tests {
         ));
         fs::create_dir(&dir).unwrap();
         let path = dir.join("config.toml");
-        fs::write(&path, "refresh_interval = 0\ncache_ttl_seconds = 17\n").unwrap();
+        fs::write(
+            &path,
+            "refresh_interval = 0\ncache_ttl_seconds = 17\nquota_history_enabled = false\n",
+        )
+        .unwrap();
         let store = SettingsStore::new(path, Overrides::default());
         let preferences = || NativePreferences {
             disabled_providers: vec![Provider::Amp],
             disabled_proxy_auth_files: vec!["disabled.json".into()],
             automatically_discover_logins: false,
+            quota_history_enabled: true,
             refresh_interval: 600,
         };
         let first = store.import_native_preferences(preferences()).unwrap();
@@ -321,6 +343,7 @@ mod tests {
         assert_eq!(first.values.cache_ttl_seconds, 17);
         assert_eq!(first.values.disabled_providers, vec!["amp"]);
         assert!(!first.values.automatically_discover_logins);
+        assert!(!first.values.quota_history_enabled);
         assert!(!first.values.enabled_providers.is_empty());
         assert!(!first.values.enabled_providers.contains(&"mock".into()));
         let second = store
@@ -328,10 +351,12 @@ mod tests {
                 disabled_providers: vec![],
                 disabled_proxy_auth_files: vec![],
                 automatically_discover_logins: true,
+                quota_history_enabled: true,
                 refresh_interval: 30,
             })
             .unwrap();
         assert_eq!(first.revision, second.revision);
+        assert!(!second.values.quota_history_enabled);
         assert_eq!(
             second.values.disabled_proxy_auth_files,
             vec!["disabled.json"]
@@ -367,6 +392,7 @@ mod tests {
         let initial = store.load().unwrap();
         let patch = |revision: String| SettingsPatch {
             revision,
+            quota_history_enabled: None,
             enabled_providers: Some(vec![Provider::Mock]),
             disabled_providers: Some(vec![Provider::Amp]),
             disabled_proxy_auth_files: None,

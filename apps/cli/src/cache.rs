@@ -325,15 +325,24 @@ impl UsageCache {
             })
             .await;
         // A login change during fetch must never populate the previous login's entry.
-        let same_identity = same_identity
-            && checked_identity(
+        let current_identity = if identity.is_some() {
+            checked_identity(
                 &*adapter,
                 &context,
                 tokio::time::Instant::now() + timeout,
                 &cancellation,
             )
             .await
-                == identity;
+        } else {
+            None
+        };
+        let same_identity = same_identity && current_identity == identity;
+        for usage in &mut report.providers {
+            usage.history_identity = current_identity.clone();
+            if identity.is_some() && !same_identity && usage.account.verified.is_none() {
+                usage.fresh_observation = false;
+            }
+        }
         if same_identity {
             let last_failure = if let Some(usage) = report.providers.first() {
                 if !adapter.cacheable(usage) || !valid(usage) {

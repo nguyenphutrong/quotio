@@ -416,6 +416,7 @@ async fn mutate(
                             .into_iter()
                             .map(|source| source.id)
                             .collect::<Vec<_>>();
+                        history::purge(&work, &id, false).await?;
                         let id = api::resolved_remove_once(vault, id, intent)
                             .await
                             .map_err(|e| account_code(&e))?;
@@ -433,6 +434,9 @@ async fn mutate(
                             None => None,
                         };
                         let _guard = work.client_mutation_guard(&principal).await?;
+                        if patch.is_none() {
+                            history::purge(&work, &id, true).await?;
+                        }
                         let id = api::source_update_once(vault, id, patch, intent)
                             .await
                             .map_err(|e| account_code(&e))?;

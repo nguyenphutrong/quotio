@@ -3,6 +3,9 @@ mod bootstrap;
 mod clients;
 #[cfg(test)]
 mod discovery_tests;
+mod history;
+#[cfg(test)]
+mod history_tests;
 mod management;
 mod native;
 mod openapi;
@@ -68,6 +71,7 @@ impl ServerError {
         }
     }
 }
+#[derive(Debug)]
 struct ApiError(StatusCode, &'static str);
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
@@ -104,6 +108,8 @@ struct RefreshStatus {
     next_refresh_at: Option<String>,
 }
 struct ApiState {
+    history: Option<crate::history::History>,
+    history_epochs: Mutex<HashMap<String, (Option<String>, String)>>,
     sharing: Mutex<sharing::Sharing>,
     settings: RwLock<SettingsView>,
     store: SettingsStore,
@@ -208,6 +214,16 @@ impl ApiState {
 
     fn restrict_host(&self, host: &mut crate::contract::Host, principal: &security::Principal) {
         let reason = self.account_write_restriction(principal);
+        for (name, write) in [("quota_history", false), ("quota_history_write", true)] {
+            let reason = history::restriction(self, principal, write);
+            host.capabilities.insert(
+                name.into(),
+                crate::contract::Availability {
+                    available: reason.is_none(),
+                    reason: reason.map(str::to_owned),
+                },
+            );
+        }
         host.capabilities.insert(
             "account_write_v2".into(),
             crate::contract::Availability {
@@ -365,6 +381,22 @@ fn router(state: Arc<ApiState>, policy: Arc<security::Policy>) -> Router {
         .route("/openapi.json", get(openapi::document))
         .route("/health", get(health))
         .route("/v2/snapshot", get(resolved_snapshot))
+        .route(
+            "/v2/accounts/{id}/quota-history",
+            get(history::catalog).delete(history::clear_account),
+        )
+        .route(
+            "/v2/accounts/{id}/quota-history/{metric}/{range}",
+            get(history::chart),
+        )
+        .route(
+            "/v2/accounts/{id}/quota-history/{metric}/{range}/events/{cursor}",
+            get(history::events),
+        )
+        .route(
+            "/v2/quota-history",
+            axum::routing::delete(history::clear_all),
+        )
         .route("/v2/discovery", get(native::status).post(native::start))
         .route("/v2/status", get(status))
         .route("/v2/migrations/accounts", post(management::migrate))
@@ -588,6 +620,9 @@ async fn patch_settings(
     Extension(principal): Extension<security::Principal>,
     ApiJson(patch): ApiJson<SettingsPatch>,
 ) -> Result<Json<SettingsView>, ApiError> {
+    if patch.quota_history_enabled.is_some() && !principal.owner {
+        return Err(ApiError(StatusCode::FORBIDDEN, "insufficient_scope"));
+    }
     // Once started, a config transaction completes even if the HTTP client leaves.
     let (send, receive) = tokio::sync::oneshot::channel();
     let work = state.clone();
@@ -599,13 +634,39 @@ async fn patch_settings(
                 return;
             }
         };
+        let previous_history_enabled = work.settings.read().await.values.quota_history_enabled;
+        let changing_history = patch
+            .quota_history_enabled
+            .is_some_and(|enabled| enabled != previous_history_enabled);
+        let history_only = patch.quota_history_enabled.is_some()
+            && patch.enabled_providers.is_none()
+            && patch.disabled_providers.is_none()
+            && patch.disabled_proxy_auth_files.is_none()
+            && patch.automatically_discover_logins.is_none()
+            && patch.cache_ttl_seconds.is_none()
+            && patch.refresh_interval.is_none()
+            && patch.provider_timeout.is_none();
+        // Fence in-flight refreshes before the setting changes, so a failed fence leaves the
+        // setting as it was and a retry fences again.
+        if changing_history
+            && let Some(history) = &work.history
+            && history.pause(work.context.clock.now()).await.is_err()
+        {
+            let _ = send.send(Err(ApiError(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "history_storage_unavailable",
+            )));
+            return;
+        }
         let store = work.store.clone();
         let result = tokio::task::spawn_blocking(move || store.patch(patch))
             .await
             .unwrap_or(Err(SettingsError::Storage));
         if let Ok(view) = &result {
             *work.settings.write().await = view.clone();
-            work.invalidate().await;
+            if !history_only {
+                work.invalidate().await;
+            }
         }
         let _ = send.send(result.map_err(settings_error));
     })?;
@@ -757,6 +818,10 @@ async fn collect_usage(
         }
     }
     let generation = state.generation.load(Ordering::SeqCst);
+    let history_revision = state
+        .history
+        .as_ref()
+        .map_or(0, crate::history::History::revision);
     let config = state.settings.read().await.values.clone();
     let enabled = config.tracked_providers().map_err(|_| "invalid_settings")?;
     let (selected, account, force, include_owned, mut disabled_proxy_auth_files) = match request {
@@ -900,6 +965,45 @@ async fn collect_usage(
                 .collect(),
         },
     };
+    accept_report(
+        state,
+        report,
+        AcceptedRefresh {
+            generation,
+            history_revision,
+            cache_only,
+            selected: &selected,
+            enabled: &enabled,
+            source_scope: source_scope.as_ref(),
+            cache_ttl_seconds: config.cache_ttl_seconds,
+        },
+    )
+    .await
+}
+
+struct AcceptedRefresh<'a> {
+    generation: u64,
+    history_revision: u64,
+    cache_only: bool,
+    selected: &'a [Provider],
+    enabled: &'a [Provider],
+    source_scope: Option<&'a std::collections::HashSet<String>>,
+    cache_ttl_seconds: u64,
+}
+async fn accept_report(
+    state: &ApiState,
+    report: UsageReport,
+    scope: AcceptedRefresh<'_>,
+) -> Result<Value, &'static str> {
+    let AcceptedRefresh {
+        generation,
+        history_revision,
+        cache_only,
+        selected,
+        enabled,
+        source_scope,
+        cache_ttl_seconds,
+    } = scope;
     let failures = report.failures.len();
     let successes = report.providers.len();
     let _guard = match crate::accounts::service::mutation_guard(&state.commit_guard).await {
@@ -923,13 +1027,24 @@ async fn collect_usage(
     if cache_only && successes == 0 && failures == 0 {
         return Ok(result);
     }
+    // merge_refresh_report rejects reports that touch a disabled provider; keep them out of history too.
+    if !cache_only
+        && selected.iter().all(|provider| enabled.contains(provider))
+        && let Err(error) =
+            history::record(state, &report, history_revision, cache_ttl_seconds).await
+    {
+        tracing::warn!(code = error.1, "quota history recording failed");
+        if let Some(history) = &state.history {
+            let _ = history.note_error("history_recording_failed").await;
+        }
+    }
     let mut snapshot = state.snapshot.write().await;
     if !merge_refresh_report(
         &mut snapshot,
         generation,
-        &selected,
-        &enabled,
-        source_scope.as_ref(),
+        selected,
+        enabled,
+        source_scope,
         report,
     ) {
         tracing::info!(
@@ -1107,7 +1222,16 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
             generation.clone(),
         )
     });
+    let history = if let Some(vault) = &vault {
+        crate::history::History::open(vault.history_path(), context.clock.now())
+            .await
+            .ok()
+    } else {
+        None
+    };
     let state = Arc::new(ApiState {
+        history,
+        history_epochs: Mutex::new(HashMap::new()),
         sharing: Mutex::new(sharing::Sharing::default()),
         discovery: Default::default(),
         native_scan_lock: Mutex::new(()),

@@ -54,6 +54,8 @@ pub(super) async fn fixture() -> (Arc<ApiState>, std::path::PathBuf, String) {
     );
     (
         Arc::new(ApiState {
+            history: None,
+            history_epochs: Mutex::new(HashMap::new()),
             sharing: Mutex::new(sharing::Sharing::default()),
             discovery: Default::default(),
             native_scan_lock: Mutex::new(()),
@@ -1080,7 +1082,7 @@ async fn codex_source_rest_child() {
     }
     std::fs::remove_dir_all(dir).unwrap();
 }
-fn key(value: &str) -> axum::http::HeaderMap {
+pub(super) fn key(value: &str) -> axum::http::HeaderMap {
     let mut headers = axum::http::HeaderMap::new();
     headers.insert("idempotency-key", value.parse().unwrap());
     headers

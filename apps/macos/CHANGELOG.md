@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- View account quota history from the Quota screen, with separate metrics, 24-hour/7-day/30-day ranges, remaining/used display, observed gaps, and reset evidence.
+- Keep 30 days of quota observations on the owning host. Pause recording or clear account/all-host history without changing current quota or credentials; history access is owner-only.
+
 ### Fixed
 
 - Show the status menu and Pair iPhone popover in the system Light or Dark appearance. A dark wallpaper no longer turns them dark while macOS is in Light mode.

@@ -73,6 +73,7 @@ struct QuotioApp: App {
             .environment(runtime.quotaController)
             .environment(runtime.proxyScreenModel)
             .environment(runtime.quotaScreenModel)
+            .environment(runtime.quotaHistory)
             .environment(runtime.accountsScreenModel)
             .environment(runtime.navigationScreenModel)
             .environment(runtime.modeManager)

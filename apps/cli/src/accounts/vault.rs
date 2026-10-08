@@ -17,7 +17,7 @@ fn has_factory_selectors(document: &Document) -> bool {
 }
 
 /// Highest document format this build reads and writes.
-const SUPPORTED_FORMAT: u8 = 20;
+const SUPPORTED_FORMAT: u8 = 21;
 
 /// Lenient view of a document that reads only its format, so a document from a
 /// newer Quotio is told apart from a corrupt one before the strict parse.
@@ -271,6 +271,11 @@ pub struct Transaction {
     pub document: Document,
 }
 impl Vault {
+    pub(crate) fn history_path(&self) -> PathBuf {
+        self.lock_path
+            .with_extension("history")
+            .join("quota.sqlite")
+    }
     pub(crate) async fn authorize_interactively(&self) -> Result<(), AccountError> {
         let backend = self.backend.clone();
         tokio::task::spawn_blocking(move || backend.authorize_interactively())
@@ -363,6 +368,11 @@ impl Vault {
                 let doc: Document =
                     serde_json::from_slice(&bytes).map_err(|_| AccountError::Corrupt)?;
                 if !matches!(doc.version, 1..=SUPPORTED_FORMAT)
+                    || (doc.version < 21
+                        && doc
+                            .resolved
+                            .as_ref()
+                            .is_some_and(|registry| registry.has_history_epochs()))
                     || (doc.version < 20 && doc.has_enterprise_copilot())
                     || (doc.version < 19 && doc.companion_identity.is_some())
                     || (doc.version < 18 && super::clients::has_manage_grants(&doc))
@@ -613,6 +623,15 @@ impl Transaction {
         // token to GitHub.com, so host-bearing credentials require format 20.
         if self.document.has_enterprise_copilot() {
             self.document.version = self.document.version.max(20);
+        }
+        // Format-20 readers reject the history epoch fields as unknown.
+        if self
+            .document
+            .resolved
+            .as_ref()
+            .is_some_and(|registry| registry.has_history_epochs())
+        {
+            self.document.version = self.document.version.max(21);
         }
         let bytes = serde_json::to_vec(&self.document).map_err(|_| AccountError::Corrupt)?;
         if bytes.len() > 1024 * 1024 {

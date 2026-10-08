@@ -10,6 +10,280 @@
     }
   ],
   "paths": {
+  "/v2/accounts/{account_id}/quota-history": {
+    "get": {
+      "security": [
+        {
+          "bearerAuth": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Quota observations for the current authorized identity",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotaHistoryCatalog"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/BadRequest"
+        },
+        "401": {
+          "$ref": "#/components/responses/Unauthorized"
+        },
+        "403": {
+          "$ref": "#/components/responses/Forbidden"
+        },
+        "404": {
+          "$ref": "#/components/responses/NotFound"
+        },
+        "409": {
+          "$ref": "#/components/responses/Conflict"
+        },
+        "503": {
+          "$ref": "#/components/responses/Unavailable"
+        }
+      }
+    },
+    "delete": {
+      "security": [
+        {
+          "bearerAuth": []
+        }
+      ],
+      "responses": {
+        "204": {
+          "description": "History cleared; older in-flight batches cannot repopulate it"
+        },
+        "401": {
+          "$ref": "#/components/responses/Unauthorized"
+        },
+        "403": {
+          "$ref": "#/components/responses/Forbidden"
+        },
+        "503": {
+          "$ref": "#/components/responses/Unavailable"
+        }
+      },
+      "description": "Requires authenticated owner and management mode. Clears quota history only, preserving credentials and current quota.",
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        }
+      ]
+    }
+  },
+  "/v2/accounts/{account_id}/quota-history/{metric_id}/{range}": {
+    "get": {
+      "security": [
+        {
+          "bearerAuth": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        {
+          "name": "metric_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        {
+          "name": "range",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "24h",
+              "7d",
+              "30d"
+            ]
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Quota observations for the current authorized identity",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotaHistoryChart"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/BadRequest"
+        },
+        "401": {
+          "$ref": "#/components/responses/Unauthorized"
+        },
+        "403": {
+          "$ref": "#/components/responses/Forbidden"
+        },
+        "404": {
+          "$ref": "#/components/responses/NotFound"
+        },
+        "409": {
+          "$ref": "#/components/responses/Conflict"
+        },
+        "503": {
+          "$ref": "#/components/responses/Unavailable"
+        }
+      }
+    }
+  },
+  "/v2/accounts/{account_id}/quota-history/{metric_id}/{range}/events/{cursor}": {
+    "get": {
+      "security": [
+        {
+          "bearerAuth": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        {
+          "name": "metric_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        {
+          "name": "range",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "24h",
+              "7d",
+              "30d"
+            ]
+          }
+        },
+        {
+          "name": "cursor",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Quota observations for the current authorized identity",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotaHistoryEventsPage"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/BadRequest"
+        },
+        "401": {
+          "$ref": "#/components/responses/Unauthorized"
+        },
+        "403": {
+          "$ref": "#/components/responses/Forbidden"
+        },
+        "404": {
+          "$ref": "#/components/responses/NotFound"
+        },
+        "409": {
+          "$ref": "#/components/responses/Conflict"
+        },
+        "503": {
+          "$ref": "#/components/responses/Unavailable"
+        }
+      }
+    }
+  },
+  "/v2/quota-history": {
+    "delete": {
+      "security": [
+        {
+          "bearerAuth": []
+        }
+      ],
+      "responses": {
+        "204": {
+          "description": "History cleared; older in-flight batches cannot repopulate it"
+        },
+        "401": {
+          "$ref": "#/components/responses/Unauthorized"
+        },
+        "403": {
+          "$ref": "#/components/responses/Forbidden"
+        },
+        "503": {
+          "$ref": "#/components/responses/Unavailable"
+        }
+      },
+      "description": "Requires authenticated owner and management mode. Clears quota history only, preserving credentials and current quota."
+    }
+  },
   "/v2/sharing": {
     "get": {
       "summary": "Read companion listener state, local owner only",
@@ -1970,6 +2244,546 @@
       }
     },
     "schemas": {
+  "QuotaHistoryMetric": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "display_name",
+      "group",
+      "current",
+      "has_percentage"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "group": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "current": {
+        "type": "boolean"
+      },
+      "has_percentage": {
+        "type": "boolean"
+      }
+    }
+  },
+  "QuotaHistoryObservation": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "series_id",
+      "basis_id",
+      "fetched_at",
+      "expires_at",
+      "quota",
+      "amounts",
+      "resets_at",
+      "reset_description",
+      "provenance"
+    ],
+    "properties": {
+      "series_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "basis_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "fetched_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "expires_at": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "quota": {
+        "$ref": "#/components/schemas/Quota"
+      },
+      "amounts": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/QuotaAmounts"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "resets_at": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "reset_description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "provenance": {
+        "$ref": "#/components/schemas/Provenance"
+      }
+    }
+  },
+  "QuotaHistoryCatalog": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "schema_version",
+      "host_id",
+      "account_id",
+      "history_revision",
+      "recording_enabled",
+      "recording_error",
+      "first_observed_at",
+      "last_observed_at",
+      "metrics"
+    ],
+    "properties": {
+      "schema_version": {
+        "const": 2
+      },
+      "host_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "account_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "history_revision": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "recording_enabled": {
+        "type": "boolean"
+      },
+      "recording_error": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^[a-z_]+$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "first_observed_at": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "last_observed_at": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/QuotaHistoryMetric"
+        }
+      }
+    }
+  },
+  "QuotaHistoryBin": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "start_at",
+      "end_at",
+      "first_observed_at",
+      "last_observed_at",
+      "sample_count",
+      "latest",
+      "min_remaining_percent",
+      "max_remaining_percent",
+      "states"
+    ],
+    "properties": {
+      "id": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 359
+      },
+      "start_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "end_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "first_observed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "last_observed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "sample_count": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "latest": {
+        "$ref": "#/components/schemas/QuotaHistoryObservation"
+      },
+      "min_remaining_percent": {
+        "anyOf": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "max_remaining_percent": {
+        "anyOf": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "states": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "enum": [
+            "available",
+            "exhausted",
+            "unknown",
+            "unlimited",
+            "disabled",
+            "limit"
+          ]
+        }
+      }
+    }
+  },
+  "QuotaHistoryEvent": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "kind",
+      "from_at",
+      "to_at",
+      "before_remaining_percent",
+      "after_remaining_percent"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "reset_inferred",
+          "quota_increased",
+          "basis_changed",
+          "clock_changed"
+        ]
+      },
+      "from_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "to_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "before_remaining_percent": {
+        "anyOf": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "after_remaining_percent": {
+        "anyOf": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    }
+  },
+  "QuotaHistoryChart": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "schema_version",
+      "host_id",
+      "account_id",
+      "history_revision",
+      "metric_id",
+      "range",
+      "start_at",
+      "end_at",
+      "bin_seconds",
+      "recording_enabled",
+      "recording_error",
+      "bins",
+      "events",
+      "next_cursor",
+      "latest",
+      "lowest_remaining_percent"
+    ],
+    "properties": {
+      "schema_version": {
+        "const": 2
+      },
+      "host_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "account_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "history_revision": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "metric_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "range": {
+        "type": "string",
+        "enum": [
+          "24h",
+          "7d",
+          "30d"
+        ]
+      },
+      "start_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "end_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "bin_seconds": {
+        "type": "integer",
+        "enum": [
+          240,
+          1680,
+          7200
+        ]
+      },
+      "recording_enabled": {
+        "type": "boolean"
+      },
+      "recording_error": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^[a-z_]+$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "bins": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/QuotaHistoryBin"
+        },
+        "maxItems": 360
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/QuotaHistoryEvent"
+        },
+        "maxItems": 128
+      },
+      "next_cursor": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "latest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/QuotaHistoryObservation"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "lowest_remaining_percent": {
+        "anyOf": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    }
+  },
+  "QuotaHistoryEventsPage": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "schema_version",
+      "host_id",
+      "account_id",
+      "history_revision",
+      "metric_id",
+      "events",
+      "next_cursor"
+    ],
+    "properties": {
+      "schema_version": {
+        "const": 2
+      },
+      "host_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "account_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "history_revision": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "metric_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/QuotaHistoryEvent"
+        },
+        "maxItems": 128
+      },
+      "next_cursor": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    }
+  },
   "CompanionSharing": {
     "type": "object",
     "additionalProperties": false,
@@ -3532,6 +4346,7 @@
           "automatically_discover_logins": {
             "type": "boolean"
           },
+          "quota_history_enabled": { "type": "boolean", "default": true },
           "cache_ttl_seconds": {
             "type": "integer",
             "minimum": 0
@@ -3565,6 +4380,7 @@
           "disabled_providers",
           "disabled_proxy_auth_files",
           "automatically_discover_logins",
+          "quota_history_enabled",
           "cache_ttl_seconds",
           "refresh_interval",
           "provider_timeout",
@@ -3603,6 +4419,7 @@
           "automatically_discover_logins": {
             "type": ["boolean", "null"]
           },
+          "quota_history_enabled": { "type": ["boolean", "null"] },
           "cache_ttl_seconds": {
             "type": [
               "integer",
@@ -4280,6 +5097,8 @@
           },
           "capabilities": {
             "type": "object",
+            "description": "quota_history requires authenticated owner and persistent account storage. quota_history_write additionally requires management mode. Both report explicit unavailable reasons.",
+            "properties": { "quota_history": { "$ref": "#/components/schemas/V2Availability" }, "quota_history_write": { "$ref": "#/components/schemas/V2Availability" } },
             "additionalProperties": {
               "$ref": "#/components/schemas/V2Availability"
             }
