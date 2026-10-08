@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Ask for Keychain access only when access is what blocks the account store. When the store can't be read, or was written by a newer Quotio, the accounts screen now says so instead of showing a Grant Access button that did nothing.
+
 ## [1.0.0-beta.4] - 2026-10-08
 
 ### Added

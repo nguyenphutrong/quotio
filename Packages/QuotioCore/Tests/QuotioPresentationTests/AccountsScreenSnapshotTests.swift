@@ -234,7 +234,7 @@ private actor SnapshotAccountService: AccountManaging {
     func rescanNativeAccounts(for provider: QuotaProvider) {}
     func nativeDiscoverySnapshot() -> NativeDiscoverySnapshot { discovery }
     func authorizeNativeSource(_ source: NativeSourcePermission) {}
-    func accountStorageRequiresAuthorization() -> Bool { storageAccessRequired }
+    func accountStorageProblem() -> AccountStorageProblem? { storageAccessRequired ? .requiresAuthorization : nil }
     func accounts() -> [Account] { storedAccounts }
     func setDisabled(_ disabled: Bool, accountID: String) {}
     func delete(accountID: String) throws {}
