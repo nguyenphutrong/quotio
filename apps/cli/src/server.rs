@@ -1027,7 +1027,9 @@ async fn accept_report(
     if cache_only && successes == 0 && failures == 0 {
         return Ok(result);
     }
+    // merge_refresh_report rejects reports that touch a disabled provider; keep them out of history too.
     if !cache_only
+        && selected.iter().all(|provider| enabled.contains(provider))
         && let Err(error) =
             history::record(state, &report, history_revision, cache_ttl_seconds).await
     {
