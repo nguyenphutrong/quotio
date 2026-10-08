@@ -646,6 +646,18 @@ async fn patch_settings(
             && patch.cache_ttl_seconds.is_none()
             && patch.refresh_interval.is_none()
             && patch.provider_timeout.is_none();
+        // Fence in-flight refreshes before the setting changes, so a failed fence leaves the
+        // setting as it was and a retry fences again.
+        if changing_history
+            && let Some(history) = &work.history
+            && history.pause(work.context.clock.now()).await.is_err()
+        {
+            let _ = send.send(Err(ApiError(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "history_storage_unavailable",
+            )));
+            return;
+        }
         let store = work.store.clone();
         let result = tokio::task::spawn_blocking(move || store.patch(patch))
             .await
@@ -654,16 +666,6 @@ async fn patch_settings(
             *work.settings.write().await = view.clone();
             if !history_only {
                 work.invalidate().await;
-            }
-            if changing_history
-                && let Some(history) = &work.history
-                && history.pause(work.context.clock.now()).await.is_err()
-            {
-                let _ = send.send(Err(ApiError(
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    "history_storage_unavailable",
-                )));
-                return;
             }
         }
         let _ = send.send(result.map_err(settings_error));
