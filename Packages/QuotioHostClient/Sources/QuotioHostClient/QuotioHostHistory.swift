@@ -62,7 +62,7 @@ public struct QuotioHostHistoryObservation: Decodable, Sendable {
         }
         if let amounts {
             guard amounts.remaining.isFinite, amounts.remaining >= 0,
-                  amounts.limit.map({ $0.isFinite && $0 > 0 }) ?? true,
+                  amounts.limit.map({ $0.isFinite && $0 >= 0 }) ?? true,
                   HistoryValidation.text(amounts.unit) else { throw QuotioHostClientError.incompatible }
         }
     }
