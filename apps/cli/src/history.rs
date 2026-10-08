@@ -474,7 +474,8 @@ impl Store {
                 continue;
             }
             accepted = true;
-            let series:Option<String>=tx.query_row("SELECT id FROM history_series WHERE host=? AND account=? AND epoch=? AND metric=?",params![point.account.host_id,point.account.id,point.account.epoch,point.metric.id],|r|r.get(0)).optional()?;
+            // A confirmed rename keeps writing to the series recorded under a redirected ID.
+            let series:Option<String>=tx.query_row("SELECT id FROM history_series WHERE host=? AND account IN (SELECT value FROM json_each(?)) AND epoch=? AND metric=? ORDER BY account=? DESC LIMIT 1",params![point.account.host_id,aliases(&point.account),point.account.epoch,point.metric.id,point.account.id],|r|r.get(0)).optional()?;
             let id = match series {
                 Some(id) => id,
                 None => crate::accounts::random_string().map_err(|_| Error::Storage)?,
