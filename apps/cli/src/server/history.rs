@@ -509,10 +509,25 @@ pub(super) async fn purge(
         let account = account_context(state, &view, &report, &resolved.id)
             .await
             .map_err(|_| "history_storage_unavailable")?;
+        let epoch = account.epoch.clone();
         history
             .clear(Some(account), state.context.clock.now())
             .await
             .map_err(|_| "history_storage_unavailable")?;
+        if let Some(vault) = state.vault.clone() {
+            tokio::task::spawn_blocking(move || {
+                let mut tx = vault.begin()?;
+                if let Some(registry) = tx.document.resolved.as_mut()
+                    && registry.forget_history_epoch(&epoch)
+                {
+                    tx.commit()?;
+                }
+                Ok::<_, crate::accounts::AccountError>(())
+            })
+            .await
+            .map_err(|_| "account_storage_unavailable")?
+            .map_err(|error| management::account_code(&error))?;
+        }
     }
     Ok(())
 }

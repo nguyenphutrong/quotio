@@ -67,6 +67,14 @@ impl Registry {
         Ok((epoch, true))
     }
 
+    /// Drops the verified identity behind a purged history epoch. Returns whether one was held.
+    pub(crate) fn forget_history_epoch(&mut self, epoch: &str) -> bool {
+        let before = self.history_verified_epochs.len();
+        self.history_verified_epochs
+            .retain(|(_, _, held)| held != epoch);
+        self.history_verified_epochs.len() != before
+    }
+
     pub(crate) fn has_history_epochs(&self) -> bool {
         !self.history_verified_epochs.is_empty() || !self.history_owned_epochs.is_empty()
     }
