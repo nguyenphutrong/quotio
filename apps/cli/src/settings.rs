@@ -253,7 +253,12 @@ impl SettingsStore {
             config.provider_timeout = value;
         }
         validate(&config)?;
-        let text = toml::to_string(&config).map_err(|_| SettingsError::Invalid)?;
+        let mut table = toml::Table::try_from(&config).map_err(|_| SettingsError::Invalid)?;
+        // Omitted while enabled so the file stays readable by builds without history.
+        if config.quota_history_enabled {
+            table.remove("quota_history_enabled");
+        }
+        let text = toml::to_string(&table).map_err(|_| SettingsError::Invalid)?;
         let temporary = parent.join(format!(
             ".quotio-settings-{}.tmp",
             crate::accounts::random_string().map_err(|_| SettingsError::Storage)?

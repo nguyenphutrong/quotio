@@ -26,9 +26,9 @@ pub struct Registry {
     pub(crate) snapshot_digest: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     suppressed_sources: BTreeMap<String, BTreeSet<String>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     history_verified_epochs: Vec<(String, VerifiedIdentity, String)>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     history_owned_epochs: BTreeMap<String, String>,
 }
 
@@ -65,6 +65,10 @@ impl Registry {
         self.history_verified_epochs
             .push((provider.into(), identity.clone(), epoch.clone()));
         Ok((epoch, true))
+    }
+
+    pub(crate) fn has_history_epochs(&self) -> bool {
+        !self.history_verified_epochs.is_empty() || !self.history_owned_epochs.is_empty()
     }
 
     pub(crate) fn verified_for_account(&self, account: &str) -> Option<&VerifiedIdentity> {

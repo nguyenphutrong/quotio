@@ -351,7 +351,12 @@ impl Vault {
                 }
                 let doc: Document =
                     serde_json::from_slice(&bytes).map_err(|_| AccountError::Corrupt)?;
-                if !matches!(doc.version, 1..=20)
+                if !matches!(doc.version, 1..=21)
+                    || (doc.version < 21
+                        && doc
+                            .resolved
+                            .as_ref()
+                            .is_some_and(|registry| registry.has_history_epochs()))
                     || (doc.version < 20 && doc.has_enterprise_copilot())
                     || (doc.version < 19 && doc.companion_identity.is_some())
                     || (doc.version < 18 && super::clients::has_manage_grants(&doc))
@@ -602,6 +607,15 @@ impl Transaction {
         // token to GitHub.com, so host-bearing credentials require format 20.
         if self.document.has_enterprise_copilot() {
             self.document.version = self.document.version.max(20);
+        }
+        // Format-20 readers reject the history epoch fields as unknown.
+        if self
+            .document
+            .resolved
+            .as_ref()
+            .is_some_and(|registry| registry.has_history_epochs())
+        {
+            self.document.version = self.document.version.max(21);
         }
         let bytes = serde_json::to_vec(&self.document).map_err(|_| AccountError::Corrupt)?;
         if bytes.len() > 1024 * 1024 {
