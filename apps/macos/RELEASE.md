@@ -13,7 +13,7 @@ The workflow:
 3. When Apple credentials are configured, imports the Developer ID Application certificate into a temporary keychain.
 4. When signing is enabled, signs nested code and the app with Hardened Runtime, notarizes the app, and staples the ticket.
 5. Creates the universal app, ZIP, and DMG; signed builds also sign, notarize, and staple the DMG.
-6. For stable releases only, signs the final ZIP with Sparkle and creates the appcast.
+6. Signs the final ZIP with Sparkle and creates the appcast: `appcast.xml` for stable releases, `appcast-beta.xml` for prereleases.
 7. Creates the tag and GitHub Release, including the matching version section from `CHANGELOG.md` and GitHub's generated pull request summary.
 8. Commits the version and changelog changes back to the source branch.
 9. Updates the Homebrew tap for stable releases.
@@ -63,7 +63,7 @@ Versions matching `X.Y.Z-alpha-N`, `X.Y.Z-beta-N`, or `X.Y.Z-rc-N` (also accepti
 
 App preferences, Quotio-owned Keychain services, helper data, helper vault namespace, and Antigravity profile backups are also scoped to the app identity. Beta does not import legacy production accounts or preferences. Beta only stops proxy processes it owns; an occupied port is an error, not permission to terminate another instance.
 
-Install `Quotio Beta.app` beside the stable app. Prereleases do not generate an appcast, modify the stable appcast, or update the Homebrew tap. The beta bundle has no Sparkle feed or automatic update configuration; download each beta update manually.
+Install `Quotio Beta.app` beside the stable app. Prereleases do not modify the stable appcast or update the Homebrew tap. They publish `appcast-beta.xml` to the rolling `macos-beta-appcast` GitHub release, which stays marked as a prerelease so `releases/latest` keeps resolving to the stable appcast. The beta bundle's `SUFeedURL` points at that file, so Quotio Beta updates itself through Sparkle to newer betas only. Betas published before this change have no feed; install the first auto-updating beta manually.
 
 This separates Quotio-owned state, not external applications. Native provider login stores remain shared external resources, and explicitly switching an external login or configuring a CLI agent can affect that tool outside Quotio. Avoid those actions while testing if the production login/configuration must remain unchanged.
 
@@ -105,9 +105,9 @@ SPARKLE_PRIVATE_KEY=... \
   ./scripts/build_dmg.sh --version 1.2.3 --distribution --generate-appcast
 ```
 
-`SIGNING_IDENTITY` defaults to `Developer ID Application`; set it to the identity's SHA-1 hash if multiple Developer ID certificates are installed. `--version` modifies `CHANGELOG.md` and `Quotio.xcodeproj/project.pbxproj`. `--generate-appcast` creates `build/release/appcast.xml` for stable versions and is skipped for prereleases. The script does not create a tag, push, or publish a GitHub Release.
+`SIGNING_IDENTITY` defaults to `Developer ID Application`; set it to the identity's SHA-1 hash if multiple Developer ID certificates are installed. `--version` modifies `CHANGELOG.md` and `Quotio.xcodeproj/project.pbxproj`. `--generate-appcast` creates `build/release/appcast.xml` for stable versions and `build/release/appcast-beta.xml` for prereleases. The script does not create a tag, push, or publish a GitHub Release.
 
-For an independent signed beta, run `NOTARYTOOL_KEYCHAIN_PROFILE=quotio-notarization ./scripts/build_dmg.sh --version 1.0.0-beta.1 --distribution`. It does not require `SPARKLE_PRIVATE_KEY`. Local builds without `--distribution` are ad-hoc smoke artifacts, not notarized distribution builds.
+For an independent signed beta, run `NOTARYTOOL_KEYCHAIN_PROFILE=quotio-notarization SPARKLE_PRIVATE_KEY=... ./scripts/build_dmg.sh --version 1.0.0-beta.1 --distribution --generate-appcast`. Omit `--generate-appcast` and the key when you do not publish the beta feed. Local builds without `--distribution` are ad-hoc smoke artifacts, not notarized distribution builds.
 
 If App Store Connect credentials are already stored in the System Keychain by `asc`, use them directly without exporting the private key or creating a notarytool profile:
 
@@ -125,6 +125,6 @@ After a release:
 - Download and open the DMG on a Mac that has not built Quotio locally.
 - Confirm Gatekeeper opens the app without an `xattr` command or unsigned-app warning.
 - Confirm `spctl --assess --type execute --verbose=2 /Applications/Quotio.app` reports `accepted` and `source=Notarized Developer ID`; use `/Applications/Quotio Beta.app` for a beta.
-- Confirm the ZIP and DMG are attached to the GitHub Release. Stable releases also attach `appcast.xml`; prereleases must not.
+- Confirm the ZIP and DMG are attached to the GitHub Release. Stable releases also attach `appcast.xml`; prereleases must not, and instead update `appcast-beta.xml` on the `macos-beta-appcast` release.
 - Launch beta alongside stable and check independent preferences, helper paths, and proxy ports. Quit beta and confirm stable still runs with its configuration unchanged.
-- Check stable Sparkle updates and the beta manual-download action separately.
+- Check stable and beta Sparkle updates separately. Each app must only offer versions from its own feed.

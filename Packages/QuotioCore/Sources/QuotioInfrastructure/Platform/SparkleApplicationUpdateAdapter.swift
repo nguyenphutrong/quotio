@@ -5,7 +5,6 @@ import Sparkle
 
 @MainActor
 public final class SparkleApplicationUpdateAdapter: NSObject, ApplicationUpdateChecking {
-    private let feedURL: String
     public let policy: ApplicationUpdatePolicy
     private var updaterController: SPUStandardUpdaterController?
     private var updater: SPUUpdater? { updaterController?.updater }
@@ -16,11 +15,7 @@ public final class SparkleApplicationUpdateAdapter: NSObject, ApplicationUpdateC
     public private(set) var isInitialized = false
     public private(set) var isChecking = false
 
-    public init(
-        feedURL: String = "https://github.com/nguyenphutrong/quotio/releases/latest/download/appcast.xml",
-        policy: ApplicationUpdatePolicy = .sparkle
-    ) {
-        self.feedURL = feedURL
+    public init(policy: ApplicationUpdatePolicy = .sparkle) {
         self.policy = policy
         super.init()
     }
@@ -81,10 +76,6 @@ public final class SparkleApplicationUpdateAdapter: NSObject, ApplicationUpdateC
 }
 
 extension SparkleApplicationUpdateAdapter: SPUUpdaterDelegate {
-    nonisolated public func feedURLString(for updater: SPUUpdater) -> String? {
-        feedURL
-    }
-
     nonisolated public func allowedChannels(for updater: SPUUpdater) -> Set<String> {
         channelLock.withLock {
             allowsPrereleaseUpdates ? Set(["beta"]) : Set()

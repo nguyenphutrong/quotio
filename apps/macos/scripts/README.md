@@ -27,4 +27,4 @@ SPARKLE_PRIVATE_KEY=... \
 
 If `asc` already has App Store Connect credentials in the System Keychain, pass `--notarization-provider asc` to use them without a notarytool profile or private-key export. Set `ASC_PROFILE` to select a stored profile. The default remains `notarytool`, matching CI.
 
-Prerelease versions build `Quotio Beta.app` with bundle identifier `app.bytrong.quotio.beta`. Install it beside `Quotio.app`; it uses separate Quotio-owned state and manual updates. `--generate-appcast` is skipped for prereleases. See [the release guide](../RELEASE.md#independent-beta-releases) for isolation boundaries.
+Prerelease versions build `Quotio Beta.app` with bundle identifier `app.bytrong.quotio.beta`. Install it beside `Quotio.app`; it uses separate Quotio-owned state and its own Sparkle feed. `--generate-appcast` writes `appcast-beta.xml` for prereleases. See [the release guide](../RELEASE.md#independent-beta-releases) for isolation boundaries.
