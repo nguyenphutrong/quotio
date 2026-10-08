@@ -144,6 +144,7 @@ public final class QuotaHistoryScreenModel: Identifiable {
                 if !catalog.metrics.contains(where: { $0.id == metricID }) {
                     metricID = catalog.metrics.first(where: { $0.current && $0.hasPercentage })?.id
                         ?? catalog.metrics.first(where: { $0.hasPercentage })?.id
+                    chart = nil; events = []; selectedBinID = nil; nextCursor = nil
                 }
                 guard let metricID else { self.chart = nil; self.isLoading = false; return }
                 let result = try await useCases.reader.historyChart(accountID: accountID, metricID: metricID, range: range)
