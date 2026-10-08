@@ -8,7 +8,7 @@ final class CompanionPopoverPresenter: NSObject, NSPopoverDelegate {
     var isShown: Bool { popover?.isShown == true }
 
     func show(relativeTo anchor: NSView, model: CompanionScreenModel,
-              pasteboard: PasteboardScreenModel, appearance: NSAppearance?, locale: Locale) {
+              pasteboard: PasteboardScreenModel, locale: Locale) {
         guard anchor.window != nil else { return }
         if let popover, popover.isShown, self.model === model {
             model.presentPairing(in: .menuBar)
@@ -29,7 +29,6 @@ final class CompanionPopoverPresenter: NSObject, NSPopoverDelegate {
         let hosting = NSHostingController(rootView: content)
         hosting.sizingOptions = [.preferredContentSize]
         popover.contentViewController = hosting
-        popover.appearance = appearance
         hosting.view.layoutSubtreeIfNeeded()
         popover.contentSize = hosting.view.fittingSize
         popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
