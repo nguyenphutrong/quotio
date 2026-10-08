@@ -86,7 +86,11 @@ final class TunnelLifecycleControllerTests: XCTestCase {
         XCTAssertTrue(didScheduleTimeout)
         await sleeper.resumeFirst(for: .seconds(30))
 
-        let didTimeOut = await eventually { await controller.snapshot.status == .error }
+        // The error status is published before the process stop and remote-access rollback finish.
+        let didTimeOut = await eventually {
+            let updates = await remoteAccess.updates
+            return await controller.snapshot.status == .error && updates.count == 2
+        }
         XCTAssertTrue(didTimeOut)
         let snapshot = await controller.snapshot
         let remoteUpdates = await remoteAccess.updates
