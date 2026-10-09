@@ -347,6 +347,11 @@ arguments, configuration, logs, or API requests. Missing/invalid keys and damage
 ciphertext report storage unavailable; they do not produce an empty account list
 or overwrite an existing vault. Restart the service after correcting key access.
 Use `--no-saved-accounts` explicitly to run usage without opening saved accounts.
+If saved-account storage cannot be read, `usage` still reports sources from
+environment credentials. It sets `host.capabilities.account_read` to unavailable
+with a reason such as `credential_storage_unavailable` or
+`credential_storage_corrupt`, and exits 1, or 3 when no provider returns data.
+Native local logins are withheld because the vault stores their opt-outs.
 
 Windows has no release build. A source build stores accounts under
 `%LOCALAPPDATA%\quotio\data\vault`, encrypted with per-user DPAPI. It needs no

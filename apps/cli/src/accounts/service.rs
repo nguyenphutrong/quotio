@@ -1284,6 +1284,18 @@ fn native_default_suppressed(
         _ => true,
     }
 }
+/// Keeps only adapters usable while the vault, which stores native-source opt-outs, is
+/// unreadable: environment credentials, never implicit native logins.
+pub(crate) fn without_native_defaults(
+    mut adapters: Vec<Arc<dyn ProviderAdapter>>,
+) -> Vec<Arc<dyn ProviderAdapter>> {
+    let unknown = Provider::value_variants()
+        .iter()
+        .map(|provider| provider.id().to_owned())
+        .collect();
+    retain_unsuppressed_defaults(&mut adapters, &unknown);
+    adapters
+}
 fn retain_unsuppressed_defaults(
     adapters: &mut Vec<Arc<dyn ProviderAdapter>>,
     suppressed: &std::collections::HashSet<String>,

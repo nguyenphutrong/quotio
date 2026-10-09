@@ -12,7 +12,7 @@ fn vault(state: &ApiState) -> Result<Vault, ApiError> {
         "account_storage_disabled",
     ))
 }
-pub(super) fn account_code(error: &AccountError) -> &'static str {
+pub(crate) fn account_code(error: &AccountError) -> &'static str {
     match error {
         AccountError::Storage => "credential_storage_unavailable",
         AccountError::Corrupt => "credential_storage_corrupt",

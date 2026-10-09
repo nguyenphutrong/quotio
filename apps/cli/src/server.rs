@@ -3,7 +3,7 @@ mod bootstrap;
 mod clients;
 #[cfg(test)]
 mod discovery_tests;
-mod management;
+pub(crate) mod management;
 mod native;
 mod openapi;
 mod operations;

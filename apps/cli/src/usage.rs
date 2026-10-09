@@ -80,6 +80,7 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
         message: error.to_string(),
         exit_code: 2,
     })?;
+    let mut storage_error = None;
     let providers = tokio::select! {
         providers = async {
             if request.account.is_some() && !borrowed.is_empty() {
@@ -95,18 +96,28 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
                     .ok_or(crate::accounts::AccountError::Unsupported)?;
                 crate::accounts::service::resolved_adapters(crate::accounts::vault::Vault::for_usage()?, provider, id).await
             } else if automatic {
-                crate::accounts::service::detected_adapters(
-                    disabled,
-                    !request.no_saved_accounts,
-                    Duration::from_secs(request.timeout),
-                ).await
+                let timeout = Duration::from_secs(request.timeout);
+                match crate::accounts::service::detected_adapters(disabled.clone(), !request.no_saved_accounts, timeout).await {
+                    // An unreadable vault must not hide environment sources.
+                    Err(error) if !request.no_saved_accounts => {
+                        storage_error = Some(error);
+                        crate::accounts::service::detected_adapters(disabled, false, timeout)
+                            .await
+                            .map(crate::accounts::service::without_native_defaults)
+                    }
+                    result => result,
+                }
             } else {
-                crate::accounts::service::adapters(
-                    selected,
-                    !request.no_saved_accounts,
-                    Duration::from_secs(request.timeout),
-                    request.account.as_deref(),
-                ).await
+                let timeout = Duration::from_secs(request.timeout);
+                match crate::accounts::service::adapters(selected.clone(), !request.no_saved_accounts, timeout, request.account.as_deref()).await {
+                    Err(error) if !request.no_saved_accounts && request.account.is_none() => {
+                        storage_error = Some(error);
+                        crate::accounts::service::adapters(selected, false, timeout, None)
+                            .await
+                            .map(crate::accounts::service::without_native_defaults)
+                    }
+                    result => result,
+                }
             }?;
             if request.account.is_none() {
                 providers.extend(borrowed);
@@ -185,19 +196,20 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
     let exit_code = report.exit_code();
     let now = collector.context.clock.now();
     let ttl = time::Duration::seconds(config.cache_ttl_seconds.min(i64::MAX as u64) as i64);
-    let mut snapshot = if saved {
-        let vault = crate::accounts::vault::Vault::for_usage().map_err(|error| Error {
-            message: error.to_string(),
-            exit_code: 3,
-        })?;
-        crate::accounts::api::resolved_snapshot(vault, report, now, ttl)
-            .await
-            .map_err(|error| Error {
-                message: error.to_string(),
-                exit_code: 3,
-            })?
+    let resolved = if saved {
+        let resolved = match crate::accounts::vault::Vault::for_usage() {
+            Ok(vault) => {
+                crate::accounts::api::resolved_snapshot(vault, report.clone(), now, ttl).await
+            }
+            Err(error) => Err(error),
+        };
+        resolved.map_err(|error| storage_error = Some(error)).ok()
     } else {
-        crate::accounts::resolved::Registry::new(&[])
+        None
+    };
+    let mut snapshot = match resolved {
+        Some(snapshot) => snapshot,
+        None => crate::accounts::resolved::Registry::new(&[])
             .and_then(|registry| registry.account_list(&[]))
             .and_then(|mut accounts| {
                 accounts.host.capabilities.insert(
@@ -213,7 +225,7 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
             .map_err(|error| Error {
                 message: error.to_string(),
                 exit_code: 3,
-            })?
+            })?,
     };
     snapshot.accounts.retain(|account| {
         scope.contains(&account.provider_id)
@@ -230,6 +242,24 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
             .iter()
             .any(|account| account.id == usage.account_id)
     });
+    let exit_code = if storage_error.is_some() {
+        exit_code.max(1)
+    } else {
+        exit_code
+    };
+    if let Some(error) = &storage_error {
+        diagnostics.push_str(&format!("saved accounts: {error}\n"));
+        let reason = crate::server::management::account_code(error);
+        for capability in ["account_read", "account_write_v2"] {
+            snapshot.host.capabilities.insert(
+                capability.into(),
+                Availability {
+                    available: false,
+                    reason: Some(reason.into()),
+                },
+            );
+        }
+    }
     diagnostics.push_str(&crate::output::text::snapshot_failures(&snapshot));
     snapshot.account_redirects.retain(|_, target| {
         snapshot
