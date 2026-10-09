@@ -33,6 +33,12 @@ brew install nguyenphutrong/tap/quotio
 brew install nguyenphutrong/tap/quotio-beta
 ```
 
+This README describes the 1.0 line, published as the beta channel (`quotio@next`,
+`quotio-beta`) until 1.0.0 is released. Its `usage --format json` prints the
+schema-2 snapshot. The stable channel (`quotio`, 0.2.x) prints the older schema 1
+with `providers[].windows` and `failures`. Clients that parse the schema-2
+snapshot need the beta channel and must reject other `schema_version` values.
+
 Each `cli-v*` GitHub release also has `.tar.gz` archives for macOS (Apple Silicon
 and Intel) and Linux x64, with `SHA256SUMS`. Windows has no release build. To run
 from source, use Rust 1.88 or later and replace `quotio` with `cargo run --` in the
@@ -593,9 +599,11 @@ cannot follow redirects, use a proxy, or send OAuth tokens.
 
 ## Output contract
 
-JSON has `schema_version: 1`, RFC 3339 `generated_at`, `providers`, and `failures`.
-Arrays preserve request order within successes and failures. Each provider contains
-`provider`, `account` with `id` and `label`, and an arbitrary number of `windows`.
+JSON is the schema-2 snapshot: `schema_version: 2`, `host`, `revision`, RFC 3339
+`generated_at`, `accounts`, account-linked `usage`, and `provider_issues`.
+[Host contract v2](docs/host-contract-v2.md) and [OpenAPI](docs/openapi.json) define
+every field. Each `usage` entry has `metrics`, which carry the window fields below.
+Stable 0.2.x releases print schema 1 (`providers[].windows` and `failures`) instead.
 
 Codex optionally includes `reset_credits`, an observation of banked **quota resets**,
 not monetary credits, consumption, or a computed pool-restoration percentage:
@@ -628,12 +636,12 @@ earliest known expiry triggers a cache refresh and suppresses the old balance,
 including from HTTP snapshots between refreshes. Count-only observations cannot
 predict expiry, and credits may be redeemed elsewhere after any observation.
 Clients should show the observation age and apply their own freshness limit.
-This is additive: schema/API version 1 is unchanged.
+This field is additive.
 
 Upstream contracts: [Codex account protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/v2/account.rs)
 and [WHAM reset-credit client](https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs).
 
-Each window contains `label`, `quota`, nullable `resets_at`, `provenance` with
+Each metric contains `display_name`, `quota`, nullable `resets_at`, `provenance` with
 `source` and `confidence`, and RFC 3339 `fetched_at`. Timestamps include an offset.
 Optional `consumption` records `used` and `unit` independently of any cap or balance,
 for example OpenRouter USD spend. It is omitted from existing provider reports.
