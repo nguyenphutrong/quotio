@@ -21,16 +21,39 @@ async fn run_with_vault(
     vault: Vault,
 ) -> Result<String, AccountError> {
     match command {
-        AccountCommand::Authorize { provider } => {
-            if provider != Provider::Antigravity {
-                return Err(AccountError::Unsupported);
+        AccountCommand::Authorize { provider } => match provider {
+            Provider::Antigravity => {
+                crate::providers::antigravity_auth::authorize().await?;
+                Ok(
+                    "Antigravity credentials are readable. Run quotio usage --provider antigravity.\n"
+                        .into(),
+                )
             }
-            crate::providers::antigravity_auth::authorize().await?;
-            Ok(
-                "Antigravity credentials are readable. Run quotio usage --provider antigravity.\n"
-                    .into(),
-            )
-        }
+            Provider::Catalog("claude") => {
+                use super::{api::SourceInput, sources::ClaudeLocation};
+                // Claude Code keeps a credentials file on Linux and when Keychain is unavailable.
+                let file = std::env::var_os("HOME").is_some_and(|home| {
+                    std::path::Path::new(&home)
+                        .join(".claude/.credentials.json")
+                        .is_file()
+                });
+                let location = if file || !cfg!(target_os = "macos") {
+                    ClaudeLocation::CodeFile
+                } else {
+                    ClaudeLocation::CodeKeychain
+                };
+                let mut input = SourceInput::ClaudeNative { location };
+                if super::authorization::validate(&input).is_ok() {
+                    input = super::authorization::authorize(input).await?;
+                }
+                let prepared = super::api::prepare_source(input).await?;
+                let id = super::api::register_source(vault, prepared).await?;
+                Ok(format!(
+                    "Claude Code login registered: {id}. Run quotio usage --provider claude.\n"
+                ))
+            }
+            _ => Err(AccountError::Unsupported),
+        },
         AccountCommand::List { format } => {
             let accounts = super::api::resolved_list(vault).await?;
             match format {

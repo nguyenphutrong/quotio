@@ -444,7 +444,7 @@ async fn refresh_lock(vault: Vault, id: String) -> Result<super::vault::VaultLoc
         }
     }
 }
-async fn commit(tx: Transaction) -> Result<(), AccountError> {
+pub(crate) async fn commit(tx: Transaction) -> Result<(), AccountError> {
     tokio::task::spawn_blocking(move || tx.commit())
         .await
         .map_err(|_| AccountError::Storage)?

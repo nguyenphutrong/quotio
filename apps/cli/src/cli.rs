@@ -260,7 +260,7 @@ pub struct AccountsArgs {
 }
 #[derive(Debug, Subcommand)]
 pub enum AccountCommand {
-    /// Allow Keychain to ask for access to the local Antigravity login
+    /// Allow Quotio to read the local Antigravity or Claude Code login
     Authorize {
         #[arg(long, value_enum)]
         provider: Provider,

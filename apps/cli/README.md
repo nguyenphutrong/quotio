@@ -488,6 +488,13 @@ Azure OpenAI also requires nonsecret `resource_id` metadata
 Resource Manager token through noninteractive `az account get-access-token`; it
 does not run `az login`, scan Azure credential files, or read browser state.
 
+To reuse a Claude Code login from the CLI, run
+`quotio accounts authorize --provider claude`. On macOS it asks Keychain for
+access to `Claude Code-credentials`; otherwise it uses
+`~/.claude/.credentials.json`. It then registers that login as a read-only source,
+so `quotio usage` reports Claude without the Quotio app. Running it again keeps the
+same account and restores a source you removed.
+
 The adapters do not read browser cookies. Claude, Gemini, Copilot, Cursor, and
 Grok reuse a valid native token without a Quotio login or refresh flow. Kiro and
 Vertex AI can refresh recognized native credentials in memory, but they do not

@@ -676,27 +676,45 @@ pub(crate) async fn register_source_once(
     intent: service::MutationIntent,
 ) -> Result<String, AccountError> {
     service::commit_once(vault, intent, move |document| {
-        if let Some(existing) = document.accounts.iter().find(|account| {
-            account.provider == prepared.provider && account.identity == prepared.identity
-        }) {
-            if let Some(registry) = &mut document.resolved {
-                registry.restore(existing);
-            }
-            return Ok(existing.id.clone());
-        }
-        let id = prepared.insert(document)?;
-        if let Some(registry) = &mut document.resolved {
-            registry.restore(
-                document
-                    .accounts
-                    .iter()
-                    .find(|account| account.id == id)
-                    .expect("inserted"),
-            );
-        }
-        Ok(id)
+        register_into(document, prepared)
     })
     .await
+}
+
+/// Registers an explicitly requested source, restoring it if the user removed it before.
+pub(crate) async fn register_source(
+    vault: Vault,
+    prepared: PreparedAccount,
+) -> Result<String, AccountError> {
+    let mut tx = service::begin(vault).await?;
+    let id = register_into(&mut tx.document, prepared)?;
+    service::commit(tx).await?;
+    Ok(id)
+}
+
+fn register_into(
+    document: &mut super::Document,
+    prepared: PreparedAccount,
+) -> Result<String, AccountError> {
+    if let Some(existing) = document.accounts.iter().find(|account| {
+        account.provider == prepared.provider && account.identity == prepared.identity
+    }) {
+        if let Some(registry) = &mut document.resolved {
+            registry.restore(existing);
+        }
+        return Ok(existing.id.clone());
+    }
+    let id = prepared.insert(document)?;
+    if let Some(registry) = &mut document.resolved {
+        registry.restore(
+            document
+                .accounts
+                .iter()
+                .find(|account| account.id == id)
+                .expect("inserted"),
+        );
+    }
+    Ok(id)
 }
 
 /// Automatic discovery is idempotent by source identity and does not grow the retry ledger.
