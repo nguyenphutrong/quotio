@@ -357,6 +357,10 @@ async fn native_claude_login() -> Result<ClaudeLogin, ProviderError> {
             Err(error) => retain_native_error(&mut last, error),
         },
         Ok(None) => (),
+        // Claude Code owns this item; `accounts authorize` asks Keychain for access.
+        Err(ProviderError::CredentialStorage) => {
+            retain_native_error(&mut last, ProviderError::LocalCredentialStorage)
+        }
         Err(error) => retain_native_error(&mut last, error),
     }
     if let Some(path) = home_dir().map(|home| home.join(".claude/.credentials.json")) {

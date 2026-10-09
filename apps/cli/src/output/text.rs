@@ -337,7 +337,16 @@ pub fn failure(failure: &ProviderFailure) -> String {
 pub fn snapshot_failures(snapshot: &Snapshot) -> String {
     let mut text = String::new();
     for (provider, issue) in &snapshot.provider_issues {
-        let _ = writeln!(text, "{}: {}", safe(provider), safe(&issue.code));
+        let _ = write!(text, "{}: {}", safe(provider), safe(&issue.code));
+        if issue.code == "local_credential_storage"
+            && matches!(provider.as_str(), "antigravity" | "claude")
+        {
+            let _ = write!(
+                text,
+                " (run quotio accounts authorize --provider {provider})"
+            );
+        }
+        text.push('\n');
     }
     for account in &snapshot.accounts {
         for source in &account.sources {

@@ -493,7 +493,9 @@ To reuse a Claude Code login from the CLI, run
 access to `Claude Code-credentials`; otherwise it uses
 `~/.claude/.credentials.json`. It then registers that login as a read-only source,
 so `quotio usage` reports Claude without the Quotio app. Running it again keeps the
-same account and restores a source you removed.
+same account and restores a source you removed. Until then, a Claude Code login
+that Quotio may not read reports the provider issue `local_credential_storage`
+instead of omitting Claude; detection checks only that the login exists.
 
 The adapters do not read browser cookies. Claude, Gemini, Copilot, Cursor, and
 Grok reuse a valid native token without a Quotio login or refresh flow. Kiro and

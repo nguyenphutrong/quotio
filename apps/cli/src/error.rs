@@ -30,7 +30,7 @@ pub enum ProviderError {
     #[error("saved account storage is unavailable or invalid; check Keychain access")]
     CredentialStorage,
     #[error(
-        "Antigravity Keychain access is unavailable; run quotio accounts authorize --provider antigravity"
+        "Keychain access to the provider's local login is not allowed; run quotio accounts authorize for this provider"
     )]
     LocalCredentialStorage,
     #[error("provider task failed")]
