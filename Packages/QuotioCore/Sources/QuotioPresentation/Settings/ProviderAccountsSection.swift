@@ -17,12 +17,15 @@ struct ProviderAccountsSection: View {
     private var tracked: Bool { controller.trackingPreferences.isEnabled(provider) }
 
     var body: some View {
-        Section {
-            header.id(provider)
-            if tracked {
-                ForEach(visibleAccounts) { account in
-                    AccountSettingsRow(provider: provider, descriptor: descriptor, account: account,
-                        row: AccountSettingsRowState(account: account, provider: provider, snapshot: quota.state, tracked: tracked))
+        // A monitored provider without accounts only has logins waiting in the attention section.
+        if !tracked || !visibleAccounts.isEmpty {
+            Section {
+                header.id(provider)
+                if tracked {
+                    ForEach(visibleAccounts) { account in
+                        AccountSettingsRow(provider: provider, descriptor: descriptor, account: account,
+                            row: AccountSettingsRowState(account: account, provider: provider, snapshot: quota.state, tracked: tracked))
+                    }
                 }
             }
         }
@@ -172,7 +175,8 @@ private struct UnidentifiedSourceRow: View {
     @Environment(QuotaFeatureController.self) private var controller
 
     var body: some View {
-        AttentionRow(provider: provider, title: providerName + " · " + source.title) {
+        let title = source.title.localizedCaseInsensitiveContains(providerName) ? source.title : providerName + " · " + source.title
+        AttentionRow(provider: provider, title: title) {
             RefreshButton(title: "action.retry".localized(), isRefreshing: quota.isRefreshing(provider: provider)) {
                 await controller.refresh(provider: provider)
             }
