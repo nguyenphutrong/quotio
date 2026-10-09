@@ -34,7 +34,6 @@ struct AccountsSettingsScreen: View {
                         Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
                     }
                 }
-                AccountsAttentionSection(states: list.connected)
                 if list.connected.isEmpty && query.isEmpty {
                     Section {
                         Text("settings.accounts.empty".localized()).foregroundStyle(.secondary)

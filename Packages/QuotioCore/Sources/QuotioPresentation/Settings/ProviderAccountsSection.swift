@@ -2,7 +2,8 @@ import QuotioApplication
 import QuotioDomain
 import SwiftUI
 
-/// A provider and its accounts. The header row carries the provider's actions in a context
+/// A provider and everything under it: logins waiting for access, provider-wide failures,
+/// and one row per account. The header row carries the provider's actions in a context
 /// menu and a `…` menu that appears while the pointer is over it.
 struct ProviderAccountsSection: View {
     let state: ProviderSettingsState
@@ -17,15 +18,23 @@ struct ProviderAccountsSection: View {
     private var tracked: Bool { controller.trackingPreferences.isEnabled(provider) }
 
     var body: some View {
-        // A monitored provider without accounts only has logins waiting in the attention section.
-        if !tracked || !visibleAccounts.isEmpty {
-            Section {
-                header.id(provider)
-                if tracked {
-                    ForEach(visibleAccounts) { account in
-                        AccountSettingsRow(provider: provider, descriptor: descriptor, account: account,
-                            row: AccountSettingsRowState(account: account, provider: provider, snapshot: quota.state, tracked: tracked))
+        Section {
+            header.id(provider)
+            if tracked {
+                ForEach(state.permissions) { source in
+                    PendingPermissionRow(source: source, descriptor: descriptor)
+                }
+                ForEach(state.accountsNeedingIdentification) { account in
+                    ForEach(account.sources) { source in
+                        UnidentifiedSourceRow(provider: provider, source: source)
                     }
+                }
+                if let issue = ProviderAccountsSummary(state: state, snapshot: quota.state, tracked: tracked).providerIssue {
+                    ProviderIssueRow(provider: provider, issue: issue)
+                }
+                ForEach(visibleAccounts) { account in
+                    AccountSettingsRow(provider: provider, descriptor: descriptor, account: account,
+                        row: AccountSettingsRowState(account: account, provider: provider, snapshot: quota.state, tracked: tracked))
                 }
             }
         }
@@ -81,50 +90,16 @@ struct ProviderAccountsSection: View {
     }
 }
 
-/// Provider-level problems collected from every monitored provider: logins waiting for
-/// Keychain access, logins that could not be identified, and provider-wide failures.
-/// Account-level problems stay on their account rows.
-struct AccountsAttentionSection: View {
-    let states: [ProviderSettingsState]
-    @Environment(QuotaScreenModel.self) private var quota
-    @Environment(QuotaFeatureController.self) private var controller
-
-    var body: some View {
-        let items = states.filter { controller.trackingPreferences.isEnabled($0.provider) }.map { state in
-            (state: state, issue: ProviderAccountsSummary(state: state, snapshot: quota.state, tracked: true).providerIssue)
-        }
-        if items.contains(where: { !$0.state.permissions.isEmpty || !$0.state.accountsNeedingIdentification.isEmpty || $0.issue != nil }) {
-            Section("connections.attention".localized()) {
-                ForEach(items, id: \.state.provider) { item in
-                    let provider = item.state.provider
-                    let descriptor = controller.providers.first { $0.id == provider }
-                    let name = descriptor?.displayName ?? provider.displayName
-                    ForEach(item.state.permissions) { source in
-                        PendingPermissionRow(source: source, descriptor: descriptor, providerName: name)
-                    }
-                    ForEach(item.state.accountsNeedingIdentification) { account in
-                        ForEach(account.sources) { source in
-                            UnidentifiedSourceRow(provider: provider, providerName: name, source: source)
-                        }
-                    }
-                    if let issue = item.issue {
-                        ProviderIssueRow(provider: provider, providerName: name, issue: issue)
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// One line in the attention section: provider icon, a single-line title, and trailing controls.
+/// One provider-level problem: an orange glyph, a single-line title, and trailing controls.
 private struct AttentionRow<Trailing: View>: View {
-    let provider: QuotaProvider
+    let systemImage: String
     let title: String
     @ViewBuilder let trailing: Trailing
 
     var body: some View {
         HStack(spacing: 8) {
-            ProviderIcon(provider: provider, size: 16)
+            Image(systemName: systemImage)
+                .foregroundStyle(.orange)
             Text(title)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -138,14 +113,13 @@ private struct AttentionRow<Trailing: View>: View {
 private struct PendingPermissionRow: View {
     let source: NativeSourcePermission
     let descriptor: MonitoringProvider?
-    let providerName: String
     @Environment(AccountsScreenModel.self) private var accounts
     @Environment(QuotaFeatureController.self) private var controller
     @Environment(AccountsSettingsScreenModel.self) private var model
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            AttentionRow(provider: source.provider, title: providerName + " · Keychain · " + source.keychainItemName) {
+            AttentionRow(systemImage: "lock.fill", title: "Keychain · " + source.keychainItemName) {
                 if accounts.authorizingNativeSourceID == source.id {
                     ProgressView().controlSize(.small)
                 }
@@ -169,14 +143,12 @@ private struct PendingPermissionRow: View {
 /// A login source whose owner could not be identified, so it is not counted as an account.
 private struct UnidentifiedSourceRow: View {
     let provider: QuotaProvider
-    let providerName: String
     let source: AccountLoginSource
     @Environment(QuotaScreenModel.self) private var quota
     @Environment(QuotaFeatureController.self) private var controller
 
     var body: some View {
-        let title = source.title.localizedCaseInsensitiveContains(providerName) ? source.title : providerName + " · " + source.title
-        AttentionRow(provider: provider, title: title) {
+        AttentionRow(systemImage: "exclamationmark.triangle.fill", title: source.title) {
             RefreshButton(title: "action.retry".localized(), isRefreshing: quota.isRefreshing(provider: provider)) {
                 await controller.refresh(provider: provider)
             }
@@ -190,13 +162,12 @@ private struct UnidentifiedSourceRow: View {
 /// A provider-wide refresh failure that no account refresh has superseded.
 private struct ProviderIssueRow: View {
     let provider: QuotaProvider
-    let providerName: String
     let issue: QuotaRefreshIssue
     @Environment(QuotaScreenModel.self) private var quota
     @Environment(QuotaFeatureController.self) private var controller
 
     var body: some View {
-        AttentionRow(provider: provider, title: providerName + " · " + issue.explanation) {
+        AttentionRow(systemImage: "exclamationmark.triangle.fill", title: issue.explanation) {
             RefreshButton(title: "action.retry".localized(), isRefreshing: quota.isRefreshing(provider: provider)) {
                 await controller.refresh(provider: provider)
             }
