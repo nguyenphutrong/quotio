@@ -7,6 +7,8 @@ pub struct ProviderDescriptor {
     pub id: Provider,
     pub display_name: &'static str,
     pub description: &'static str,
+    /// Logo asset name in the macOS app's `ProviderIcons` catalog; `None` has no logo.
+    pub icon: Option<&'static str>,
     pub enabled: bool,
     pub actions: Vec<crate::contract::Action>,
     pub capabilities: ProviderCapability,
@@ -79,11 +81,28 @@ impl ProviderDescriptor {
                 Provider::Catalog(_) => provider.catalog().expect("registered provider").name,
             },
             description: provider.description(),
+            icon: icon(provider),
             enabled: enabled.contains(&provider),
             actions,
             capabilities,
         }
     }
+}
+
+fn icon(provider: Provider) -> Option<&'static str> {
+    Some(match provider.id() {
+        "codex" => "openai",
+        "factory" => "factory-droid",
+        "kilo" => "kilocode",
+        "opencodego" => "opencode",
+        "ibmbob" => "ibm",
+        "azureopenai" => "azureai",
+        "alibabacodingplan" => "alibaba",
+        "devin-desktop" => "devin",
+        "mock" | "synthetic" | "aiand" | "clawrouter" | "codebuff" | "crof" | "deepgram"
+        | "litellm" | "llmproxy" | "neuralwatt" | "sub2api" | "warp" => return None,
+        id => id,
+    })
 }
 
 #[derive(Serialize)]

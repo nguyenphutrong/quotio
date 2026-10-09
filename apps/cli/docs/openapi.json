@@ -3762,6 +3762,7 @@
           "id",
           "description",
           "display_name",
+          "icon",
           "enabled",
           "capabilities",
           "actions"
@@ -3776,6 +3777,11 @@
           },
           "description": {
             "type": "string"
+          },
+          "icon": {
+            "type": ["string", "null"],
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Logo asset name, matching an SVG in the Quotio macOS ProviderIcons asset catalog. Logos use currentColor so clients can tint them. Null when the provider has no logo."
           },
           "enabled": {
             "type": "boolean"

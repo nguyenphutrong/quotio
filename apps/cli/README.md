@@ -107,7 +107,7 @@ cargo run -- usage --provider codex --provider amp --timeout 30
 cargo run -- usage --provider antigravity --provider factory --format json
 ```
 
-`providers --format json` emits the same versioned provider catalog as HTTP `/v2/providers`, using the selected configuration for enabled flags. Text output remains the default. Contract tests validate the runtime registry against OpenAPI and share an offline usage fixture with Swift.
+`providers --format json` emits the same versioned provider catalog as HTTP `/v2/providers`, using the selected configuration for enabled flags. Each provider's `icon` names its logo SVG in `apps/macos/Quotio/Assets.xcassets/ProviderIcons/<icon>.imageset/`, or is null when Quotio has no logo; every logo uses `currentColor`. Text output remains the default. Contract tests validate the runtime registry against OpenAPI and share an offline usage fixture with Swift.
 
 Repeated provider IDs are deduplicated, keeping the first occurrence. Timeout is
 an integer from 1 to 3600 seconds, default 10, applied separately to each provider.

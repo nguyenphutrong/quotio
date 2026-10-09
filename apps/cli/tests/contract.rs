@@ -62,6 +62,16 @@ fn every_registered_provider_conforms_to_the_public_contract() {
             .collect();
         assert_eq!(rows.len(), 1, "{}", provider.id());
         assert_eq!(rows[0]["id"], rows[0]["capabilities"]["provider"]);
+        let icons = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../macos/Quotio/Assets.xcassets/ProviderIcons");
+        let svg = |name: &str| icons.join(format!("{name}.imageset/{name}.svg"));
+        match rows[0]["icon"].as_str() {
+            Some(icon) => {
+                let logo = std::fs::read_to_string(svg(icon)).expect(icon);
+                assert!(logo.contains("currentColor"), "{icon} must be tintable");
+            }
+            None => assert!(!svg(provider.id()).exists(), "{} has a logo", provider.id()),
+        }
         assert!(
             rows[0]["capabilities"]["operations"]
                 .as_array()
