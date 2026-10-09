@@ -1,0 +1,18 @@
+#!/bin/sh
+# POSIX sh instead of Node so GUI apps and launchd jobs with a minimal PATH can run Quotio.
+set -e
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64) target=aarch64-apple-darwin ;;
+  Darwin-x86_64) target=x86_64-apple-darwin ;;
+  Linux-x86_64) target=x86_64-unknown-linux-gnu ;;
+  *) echo 'Quotio supports macOS arm64/x64 and Linux x64.' >&2; exit 1 ;;
+esac
+exec "$(dirname "$self")/../native/$target/quotio" "$@"

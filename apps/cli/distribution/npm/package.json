@@ -5,8 +5,7 @@
   "license": "MIT",
   "repository": {"type": "git", "url": "git+https://github.com/nguyenphutrong/quotio.git", "directory": "apps/cli"},
   "homepage": "https://github.com/nguyenphutrong/quotio/tree/master/apps/cli",
-  "engines": {"node": ">=22"},
-  "bin": {"quotio": "bin/quotio.cjs"},
+  "bin": {"quotio": "bin/quotio"},
   "files": ["bin", "native", "LICENSE", "THIRD-PARTY-NOTICES.md", "README.md"],
   "scripts": {"test": "node --test ../npm.test.cjs"},
   "publishConfig": {"access": "public"}

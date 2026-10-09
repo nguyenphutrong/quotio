@@ -22,7 +22,11 @@ GitHub releases contain three `.tar.gz` archives, an npm `.tgz`, a Homebrew form
 and `SHA256SUMS`. Each native archive contains the executable, MIT license and
 dependency notices. The npm package bundles all three executables: it needs no
 Rust compiler, install script or runtime download. This makes the npm download
-larger than a single-platform archive.
+larger than a single-platform archive. The package's `quotio` command is a POSIX
+`sh` launcher that `exec`s the bundled binary for the host platform. It does not
+need Node.js at run time, so GUI apps and launchd jobs with the minimal PATH
+`/usr/bin:/bin:/usr/sbin:/sbin` can run an npm or bun global install. The launcher
+also passes inherited file descriptors, such as `QUOTIO_VAULT_KEY_FD`, to the binary.
 
 ## Configure once
 

@@ -117,10 +117,10 @@ def assemble(args):
 
 Install with `npm install -g quotio`, then run `quotio --help`.
 This package bundles native binaries; it has no install script or runtime download.
+The `quotio` command is a POSIX shell launcher, so it runs without Node.js on PATH.
 Supports macOS Apple Silicon/Intel and Linux x64 (glibc 2.39 or newer).
 Saved accounts use macOS Keychain or an encrypted Linux vault. Linux requires an
-external master key through QUOTIO_VAULT_KEY_FILE. The npm launcher does not forward
-additional inherited file descriptors, so QUOTIO_VAULT_KEY_FD is native-binary only.
+external master key through QUOTIO_VAULT_KEY_FILE or QUOTIO_VAULT_KEY_FD.
 ''')
     name = 'quotio-beta.rb' if '-' in release else 'quotio.rb'
     (args.output / name).write_text(formula(release, args.repository, hashes))

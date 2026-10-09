@@ -40,7 +40,7 @@ class ReleaseTests(unittest.TestCase):
                 readme = tar.extractfile('package/README.md').read().decode()
                 self.assertIn('encrypted Linux vault', readme)
                 self.assertIn('QUOTIO_VAULT_KEY_FILE', readme)
-                self.assertIn('QUOTIO_VAULT_KEY_FD is native-binary only', readme)
+                self.assertIn('without Node.js on PATH', readme)
                 self.assertNotIn('Linux has no saved-account vault', readme)
             self.assertEqual(len((out / 'SHA256SUMS').read_text().splitlines()), 5)
             formula = (out / 'quotio.rb').read_text()
@@ -48,7 +48,8 @@ class ReleaseTests(unittest.TestCase):
             self.assertNotIn('no_check', formula)
             subprocess.run(['npm', 'install', '--prefix', str(root / 'install'), '--ignore-scripts', '--no-audit', '--no-fund', str(out / 'quotio-0.1.0.tgz')], check=True)
             binary = root / 'install/node_modules/.bin/quotio'
-            self.assertEqual(subprocess.check_output([str(binary), '--version'], text=True).strip(), 'quotio 0.1.0')
+            minimal = {'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'}
+            self.assertEqual(subprocess.check_output([str(binary), '--version'], text=True, env=minimal).strip(), 'quotio 0.1.0')
 
 
 if __name__ == '__main__':
