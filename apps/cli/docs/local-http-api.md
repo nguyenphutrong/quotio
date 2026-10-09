@@ -34,6 +34,11 @@ loopback. Ctrl-C or SIGTERM stops the host on Unix.
 | `--manage` | Off | Enable mutations; requires authentication |
 | `--public-url` | None | Exact external HTTPS origin behind a reverse proxy; requires authentication |
 | `--allow-origin` | None | Exact allowed browser origin; repeat for multiple origins |
+| `--cli-proxy-auth-dir` | `~/.cli-proxy-api/` | Absolute CLIProxyAPI auth directory, read without changes |
+| `--cli-proxy-config` | None | Absolute CLIProxyAPI YAML config for provider keys |
+| `--account-vault-namespace` | None | Separate app-owned vault named with 1-32 lowercase letters, digits or hyphens; requires `--manage`, `--parent-pipe` and `--account-data-dir` |
+| `--account-data-dir` | None | Absolute directory for that vault's locks and platform data |
+| `--parent-pipe` | Off | Native parent protocol; see [Native parent bootstrap](#native-parent-bootstrap) |
 
 Without overrides, the host uses `enabled_providers` minus `disabled_providers`.
 `automatically_discover_logins` controls native discovery at startup and before
@@ -313,7 +318,9 @@ after restarting `quotio serve`.
 
 Use `quotio devices add --label iPhone --public-url https://computer.example` to
 issue a read credential from the local CLI host. It reads `QUOTIO_SERVER_TOKEN`
-from the environment; `--api` may select another loopback port. Output is sensitive
+from the environment; `--api` may select another loopback port.
+`--expires-in-seconds` sets the grant lifetime: the default is 2592000 (30 days)
+and the maximum is one year. Output is sensitive
 pairing JSON with origin, host ID, client ID, expiration and token. If the origin
 matches any active direct companion listener, the command includes its CA and emits version
 2; otherwise it emits version 1 for a system-trusted HTTPS endpoint.

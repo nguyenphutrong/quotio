@@ -22,6 +22,22 @@ balance route without browser state. OpenCode Go is a separate, implemented prov
 
 Antigravity can use the running app's local service when direct API quota is unavailable.
 
+## Install
+
+Install one released build so that a single `quotio` command is on your PATH:
+
+```sh
+npm install -g quotio          # stable
+npm install -g quotio@next     # beta
+brew install nguyenphutrong/tap/quotio
+brew install nguyenphutrong/tap/quotio-beta
+```
+
+Each `cli-v*` GitHub release also has `.tar.gz` archives for macOS (Apple Silicon
+and Intel) and Linux x64, with `SHA256SUMS`. Windows has no release build. To run
+from source, use Rust 1.88 or later and replace `quotio` with `cargo run --` in the
+examples below. See [release channels](docs/release-channels.md) for details.
+
 ## Local REST API
 
 ```sh
@@ -216,7 +232,14 @@ disabled_providers = ["amp"] # excluded from automatic CLI discovery and host tr
 automatically_discover_logins = true # host scans tracked providers before scheduled refreshes
 enabled_providers = ["mock"] # server selection; mock always requires explicit CLI selection
 cache_ttl_seconds = 300 # optional; default is 5 minutes
+disabled_proxy_auth_files = ["claude-old.json"] # CLIProxyAPI auth file names to skip
+refresh_interval = 60 # serve only; seconds between refresh cycles, 0 = manual
+provider_timeout = 10 # serve only; per-provider deadline in seconds
 ```
+
+`serve --refresh-interval` and `serve --timeout` override the last two keys.
+`usage --timeout` does not read `provider_timeout`. A `[notifications]` table
+written by the earlier native app is accepted and preserved but has no effect.
 
 `--config` chooses an explicit file. Otherwise `directories::ProjectDirs` locates
 `quotio/config.toml` under the platform config directory. Typical locations are:
@@ -244,7 +267,7 @@ errors also omit input values; use `quotio usage --help` for valid syntax.
 Credentials are persisted only by explicit account commands in the protected vault; they are
 never printed or logged.
 
-## Add and manage accounts on macOS and Linux
+## Add and manage accounts
 
 ```sh
 # Codex opens the official sign-in page. No Codex CLI is required.
@@ -318,6 +341,10 @@ arguments, configuration, logs, or API requests. Missing/invalid keys and damage
 ciphertext report storage unavailable; they do not produce an empty account list
 or overwrite an existing vault. Restart the service after correcting key access.
 Use `--no-saved-accounts` explicitly to run usage without opening saved accounts.
+
+Windows has no release build. A source build stores accounts under
+`%LOCALAPPDATA%\quotio\data\vault`, encrypted with per-user DPAPI. It needs no
+master key and uses the same account commands.
 
 For Codex and Amp, `usage --provider <provider>` reads the available local account
 and all saved accounts, including inactive ones. Synthetic, OpenRouter, Z.ai and
@@ -655,6 +682,11 @@ incompatible changes require a new schema version.
 Ctrl-C cancels pending providers and emits a report with completed results. It uses
 the same success/partial/empty exit rules. Output write errors use code 3.
 
+Other commands exit 0 on success. `accounts` failures exit 2. `devices` and
+`sharing` request failures exit 3. `serve` exits 2 for a non-loopback listen address,
+config or security option, and 3 when it cannot bind or initialize.
+`migration-inspect` always exits 2, because migration stays blocked in this release.
+
 ## Code and extension points
 
 - `src/domain.rs`: renderer-independent identity, quota, provenance and report types.
@@ -742,10 +774,12 @@ symlinks or submodules. Build and runtime do not need the reference checkout.
   fallback requires the app to be running.
 - Z.ai monitor and other internal endpoints may change. MiniMax uses the documented
   global host; compatibility with actual subscription keys remains unverified.
-- Saved account storage uses Keychain on macOS and an encrypted file with an
-  externally supplied master key on Linux. Factory selects the active saved
+- Saved account storage uses Keychain on macOS, an encrypted file with an
+  externally supplied master key on Linux, and per-user DPAPI files on Windows
+  source builds. Factory selects the active saved
   account; the other managed providers support multiple saved accounts/keys.
-- Usage cache and REST polling are implemented; no TUI is included. Native Antigravity
+- Usage cache, REST polling and a line-based interactive prompt are implemented;
+  there is no full-screen TUI. Native Antigravity
   has a separate private access-token cache in Quotio's application data directory. Usage cache files
   never contain those tokens.
 - Dates without a timezone in Amp output have no invented reset instant.
@@ -760,8 +794,8 @@ own licenses; binary distributions also need the applicable third-party notices.
 
 ## Security checks
 
-The GitHub workflows run on pull requests and pushes to main, with manual dispatch
-available. They use read-only repository permissions, pinned action commits and no
+The GitHub workflows run on pull requests and pushes to `master` that touch
+`apps/cli/`, with manual dispatch available. They use read-only repository permissions, pinned action commits and no
 stored checkout credentials. No developer certificate or provider secret is needed.
 
 - Gitleaks scans full Git history with redacted findings.
