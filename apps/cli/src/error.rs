@@ -25,6 +25,8 @@ pub enum ProviderError {
     RateLimited,
     #[error("required local tool or service is unavailable")]
     Unavailable,
+    #[error("the provider's command-line tool was not found on PATH or in its install locations")]
+    CliNotFound,
     #[error("saved account storage is unavailable or invalid; check Keychain access")]
     CredentialStorage,
     #[error(

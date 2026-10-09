@@ -672,6 +672,20 @@ fn root_command_starts_interactive_cli() {
     };
 
     let config = ConfigFile::new("");
+    // CLI discovery also searches fixed install directories such as /opt/homebrew/bin,
+    // so disable the CLI-detected providers in the isolated HOME's default config.
+    // The vault refuses symlinked paths such as macOS's /var/folders temp directory.
+    let home = config.0.with_extension("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let home = std::fs::canonicalize(home).unwrap();
+    for directory in ["Library/Application Support/quotio", ".config/quotio"] {
+        std::fs::create_dir_all(home.join(directory)).unwrap();
+        std::fs::write(
+            home.join(directory).join("config.toml"),
+            r#"disabled_providers = ["codex", "amp"]"#,
+        )
+        .unwrap();
+    }
     let mut fds = [-1; 2];
     assert_eq!(
         unsafe {
@@ -693,7 +707,7 @@ fn root_command_starts_interactive_cli() {
     );
     let mut child = Command::new(env!("CARGO_BIN_EXE_quotio"))
         .env_clear()
-        .env("HOME", config.0.with_extension("home"))
+        .env("HOME", &home)
         .env("QUOTIO_CACHE_DIR", config.0.with_extension("cache"))
         .stdin(Stdio::from(slave.try_clone().unwrap()))
         .stdout(Stdio::from(slave.try_clone().unwrap()))

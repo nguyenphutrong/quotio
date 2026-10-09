@@ -1298,29 +1298,15 @@ fn retain_unsuppressed_defaults(
     });
 }
 fn executable_available(name: &str) -> bool {
-    std::env::var_os("PATH").is_some_and(|path| {
-        std::env::split_paths(&path).any(|dir| {
-            let path = dir.join(if cfg!(windows) {
-                format!("{name}.exe")
-            } else {
-                name.into()
-            });
-            path.metadata().is_ok_and(|m| {
-                if !m.is_file() {
-                    return false;
-                }
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    m.permissions().mode() & 0o111 != 0
-                }
-                #[cfg(not(unix))]
-                {
-                    true
-                }
-            })
+    crate::providers::process::resolve_program(std::path::Path::new(name)).is_some()
+}
+fn codex_auth_exists() -> bool {
+    std::env::var_os("CODEX_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".codex"))
         })
-    })
+        .is_some_and(|directory| directory.join("auth.json").is_file())
 }
 async fn local_sources(requested: &[Provider], timeout: std::time::Duration) -> Vec<Provider> {
     let mut sources: Vec<_> = requested
@@ -1356,7 +1342,11 @@ async fn local_sources(requested: &[Provider], timeout: std::time::Duration) -> 
             sources.push(provider);
         }
     }
-    if requested.contains(&Provider::Codex) && executable_available("codex") {
+    // A Codex login without a findable CLI still selects the local route, so collection
+    // reports `cli_not_found` instead of silently omitting Codex.
+    if requested.contains(&Provider::Codex)
+        && (executable_available("codex") || codex_auth_exists())
+    {
         sources.push(Provider::Codex);
     }
     if !requested.contains(&Provider::Amp) {

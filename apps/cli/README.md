@@ -367,7 +367,12 @@ cargo run -- usage --provider codex --account <saved-account-id>
 
 `--account` requires exactly one explicit provider and conflicts with
 `--no-saved-accounts`. An unknown or wrong-provider account ID is an argument error.
-When Codex is not installed, saved accounts still work without a local failure.
+Quotio finds provider CLIs on PATH and in their usual install locations, such as
+`~/.local/bin`, `~/.codex/packages/standalone/current/bin`, `~/.amp/bin`,
+`/opt/homebrew/bin` and `/usr/local/bin`, so a GUI app's minimal PATH still works.
+When Codex is not installed, saved accounts still work. A local Codex login
+(`auth.json`) whose `codex` CLI cannot be found reports the provider issue
+`cli_not_found` instead of omitting Codex.
 With no installed or saved account, the requested provider reports unavailable.
 
 Duplicate successful Codex results prefer the saved account. Matching uses provider

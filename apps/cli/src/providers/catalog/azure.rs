@@ -265,7 +265,7 @@ fn access_token(raw: &str) -> Result<Secret, ProviderError> {
 }
 
 async fn az_cli_token(subscription_id: &str) -> Result<Secret, ProviderError> {
-    let executable = az_executable().ok_or(ProviderError::Unavailable)?;
+    let executable = az_executable().ok_or(ProviderError::CliNotFound)?;
     let args = [
         "account",
         "get-access-token",
@@ -306,33 +306,9 @@ const AZ_EXECUTABLE_NAMES: &[&str] = &["az.exe", "az.cmd", "az.bat"];
 const AZ_EXECUTABLE_NAMES: &[&str] = &["az"];
 
 fn az_executable() -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .filter(|directory| !directory.as_os_str().is_empty())
-        .flat_map(|directory| {
-            AZ_EXECUTABLE_NAMES
-                .iter()
-                .map(move |name| directory.join(name))
-        })
-        .find(|candidate| executable(candidate))
-}
-
-fn executable(path: &Path) -> bool {
-    let Ok(metadata) = std::fs::metadata(path) else {
-        return false;
-    };
-    if !metadata.is_file() {
-        return false;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        metadata.permissions().mode() & 0o111 != 0
-    }
-    #[cfg(not(unix))]
-    {
-        true
-    }
+    AZ_EXECUTABLE_NAMES
+        .iter()
+        .find_map(|name| process::resolve_program(Path::new(name)))
 }
 
 struct CostContinuation {

@@ -10,7 +10,7 @@ use tokio::{
 pub(crate) const MAX_BYTES: usize = 1024 * 1024;
 
 pub(crate) fn spawn(program: &Path, args: &[&str]) -> Result<Child, ProviderError> {
-    Command::new(resolve_program(program))
+    Command::new(resolve_program(program).ok_or(ProviderError::CliNotFound)?)
         .args(args)
         .env("NO_COLOR", "1")
         .stdin(Stdio::piped())
@@ -21,12 +21,16 @@ pub(crate) fn spawn(program: &Path, args: &[&str]) -> Result<Child, ProviderErro
         .map_err(|_| ProviderError::Unavailable)
 }
 // Desktop launches often have a minimal PATH. Keep provider executable discovery in the host.
-fn resolve_program(program: &Path) -> PathBuf {
+pub(crate) fn resolve_program(program: &Path) -> Option<PathBuf> {
     if program.components().count() != 1 || program.is_absolute() {
-        return program.to_owned();
+        return Some(program.to_owned());
     }
     let mut directories: Vec<PathBuf> = std::env::var_os("PATH")
-        .map(|path| std::env::split_paths(&path).collect())
+        .map(|path| {
+            std::env::split_paths(&path)
+                .filter(|directory| !directory.as_os_str().is_empty())
+                .collect()
+        })
         .unwrap_or_default();
     #[cfg(unix)]
     {
@@ -35,6 +39,8 @@ fn resolve_program(program: &Path) -> PathBuf {
             directories.extend(
                 [
                     ".local/bin",
+                    ".codex/packages/standalone/current/bin",
+                    ".amp/bin",
                     ".cargo/bin",
                     ".bun/bin",
                     ".deno/bin",
@@ -67,7 +73,7 @@ fn resolve_program(program: &Path) -> PathBuf {
             }
         }
     }
-    find_program(program, &directories).unwrap_or_else(|| program.to_owned())
+    find_program(program, &directories)
 }
 fn find_program(program: &Path, directories: &[PathBuf]) -> Option<PathBuf> {
     directories
@@ -178,7 +184,10 @@ mod tests {
             find_program(Path::new("tool"), &directories),
             Some(second.join("tool"))
         );
-        assert_eq!(resolve_program(&first.join("tool")), first.join("tool"));
+        assert_eq!(
+            resolve_program(&first.join("tool")),
+            Some(first.join("tool"))
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
     #[tokio::test]
