@@ -1,6 +1,5 @@
 use super::*;
 use crate::domain::*;
-use time::macros::datetime;
 pub struct MockProvider;
 impl ProviderAdapter for MockProvider {
     fn id(&self) -> ProviderId {
@@ -9,9 +8,9 @@ impl ProviderAdapter for MockProvider {
     fn idempotent(&self) -> bool {
         true
     }
-    fn fetch<'a>(&'a self, _context: &'a ProviderContext) -> FetchFuture<'a> {
+    fn fetch<'a>(&'a self, context: &'a ProviderContext) -> FetchFuture<'a> {
         Box::pin(async move {
-            let fetched_at = datetime!(2026-01-01 0:00 UTC);
+            let fetched_at = context.clock.now();
             Ok(ProviderUsage {
                 reset_credits: None,
                 antigravity_subscription: None,
@@ -41,7 +40,7 @@ impl ProviderAdapter for MockProvider {
                     amounts: None,
                     label: label.into(),
                     quota: Quota::from_used(used),
-                    resets_at: used.map(|_| datetime!(2026-01-08 0:00 UTC)),
+                    resets_at: used.map(|_| fetched_at + time::Duration::days(7)),
                     provenance: Provenance {
                         source: "mock_fixture".into(),
                         confidence: Confidence::Exact,

@@ -666,8 +666,8 @@ that description instead of `reset unknown`; `resets_at` remains null. An exact
 timestamp takes precedence when present. Date-only billing ends are labeled with
 `timezone unspecified`. Relative descriptions refer to the observation time.
 
-The mock's fixed observation date is January 1, 2026. It is demo data, not fresh
-account usage. The report generation time uses the injected clock.
+The mock observes its demo data at the run time and resets limited windows seven
+days later, so clients render it as fresh. It is demo data, not account usage.
 
 Quota examples:
 

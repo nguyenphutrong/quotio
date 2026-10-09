@@ -164,7 +164,20 @@ fn json_contract_and_deduplication() {
     assert_eq!(windows[2]["quota"], serde_json::json!({"state":"unknown"}));
     assert!(windows[2]["resets_at"].is_null());
     assert_eq!(windows[0]["provenance"]["source"], "mock_fixture");
-    assert_eq!(windows[0]["fetched_at"], "2026-01-01T00:00:00Z");
+    let timestamp = |value: &serde_json::Value| {
+        time::OffsetDateTime::parse(
+            value.as_str().unwrap(),
+            &time::format_description::well_known::Rfc3339,
+        )
+        .unwrap()
+    };
+    let fetched_at = timestamp(&windows[0]["fetched_at"]);
+    assert!(fetched_at <= timestamp(&value["generated_at"]));
+    assert_eq!(
+        timestamp(&windows[0]["resets_at"]),
+        fetched_at + time::Duration::days(7)
+    );
+    assert_eq!(value["usage"][0]["freshness"], "fresh");
     assert!(value["usage"][0]["issue"].is_null());
     assert!(String::from_utf8_lossy(&result.stderr).contains("collecting provider usage"));
 }
