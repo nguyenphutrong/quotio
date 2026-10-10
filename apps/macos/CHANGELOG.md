@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Simplify Accounts settings. Each provider opens with its icon and name, and each account shows its name with a plan · source caption and a pin glyph when it is pinned to the menu bar. Account and provider actions move to a context menu and a … menu that appears on hover or keyboard focus. A provider with monitoring off reads Paused and keeps its … menu visible so monitoring can be resumed.
+- Show Keychain access requests, unidentified logins, and provider-wide failures inside their provider's section. Hover a truncated issue to read the full message.
+
+### Removed
+
+- Remove the per-account status dot, quota percentage, update time, and expandable login source list from Accounts settings.
+
 ### Fixed
 
 - Draw the Factory Droid icon in the menu bar's text color when the menu bar uses provider colors, so it stays visible on light and dark menu bars.
