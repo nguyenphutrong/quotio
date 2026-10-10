@@ -1,6 +1,6 @@
 use crate::{
-    contract::{Freshness, Metric, Snapshot},
-    domain::{Confidence, ProviderFailure, Quota},
+    contract::{Account, Freshness, Metric, Snapshot},
+    domain::{Confidence, ProviderFailure, Quota, ResetCredits},
 };
 use clap::ValueEnum;
 use std::{collections::BTreeMap, fmt::Write, io::IsTerminal};
@@ -30,17 +30,17 @@ impl Options {
 }
 
 // Provider metadata must not inject terminal commands, lines or bidi overrides.
-fn safe(value: &str) -> String {
+pub(super) fn safe(value: &str) -> String {
     value.chars().filter_map(|c| {
         if c.is_whitespace() { Some(' ') }
         else if c.is_control() || matches!(c, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}') { None }
         else { Some(c) }
     }).collect()
 }
-fn timestamp(value: OffsetDateTime) -> String {
+pub(super) fn timestamp(value: OffsetDateTime) -> String {
     value.format(&Rfc3339).unwrap_or_else(|_| "unknown".into())
 }
-fn duration(seconds: i64) -> String {
+pub(super) fn duration(seconds: i64) -> String {
     let seconds = seconds.max(0);
     if seconds < 60 {
         return format!("{seconds}s");
@@ -55,7 +55,7 @@ fn duration(seconds: i64) -> String {
     }
     format!("{}d {}h", hours / 24, hours % 24)
 }
-fn reset(metric: &Metric, now: OffsetDateTime) -> Option<String> {
+pub(super) fn reset(metric: &Metric, now: OffsetDateTime) -> Option<String> {
     if let Some(at) = metric.resets_at {
         let seconds = (at - now).whole_seconds();
         return Some(if seconds > 0 {
@@ -70,6 +70,134 @@ fn reset(metric: &Metric, now: OffsetDateTime) -> Option<String> {
         .filter(|s| !s.trim().is_empty())
         .map(|description| format!("reset {}", safe(description)))
 }
+pub(super) fn percent(quota: &Quota) -> Option<f64> {
+    match quota {
+        Quota::Available { used_percent, .. } | Quota::Exhausted { used_percent, .. } => {
+            Some(*used_percent)
+        }
+        _ => None,
+    }
+}
+pub(super) fn detail(metric: &Metric, now: OffsetDateTime) -> String {
+    let mut detail = match &metric.quota {
+        Quota::Available { used_percent, .. } | Quota::Exhausted { used_percent, .. } => {
+            format!("{used_percent:.1}% used")
+        }
+        Quota::Disabled => "disabled".into(),
+        Quota::Unlimited => "unlimited".into(),
+        Quota::Limit { amount, unit } => format!("limit {amount:.2} {}", safe(unit)),
+        Quota::Unknown if metric.amounts.is_some() || metric.consumption.is_some() => String::new(),
+        Quota::Unknown => "usage unknown".into(),
+    };
+    if let Some(value) = reset(metric, now) {
+        if !detail.is_empty() {
+            detail.push_str(" · ");
+        }
+        detail.push_str(&value);
+    }
+    detail
+}
+pub(super) fn amount(metric: &Metric) -> Option<String> {
+    if let Some(amounts) = &metric.amounts {
+        let unit = safe(&amounts.unit);
+        Some(if let Some(limit) = amounts.limit {
+            let used = metric
+                .consumption
+                .as_ref()
+                .map(|c| c.used)
+                .or_else(|| (limit >= amounts.remaining).then_some(limit - amounts.remaining));
+            match used {
+                Some(used) => format!(
+                    "{used:.2} / {limit:.2} {unit} used · {:.2} {unit} left",
+                    amounts.remaining
+                ),
+                None => format!(
+                    "{:.2} {unit} left · limit {limit:.2} {unit}",
+                    amounts.remaining
+                ),
+            }
+        } else {
+            format!("{:.2} {unit} left", amounts.remaining)
+        })
+    } else {
+        metric
+            .consumption
+            .as_ref()
+            .map(|amount| format!("{:.2} {} used", amount.used, safe(&amount.unit)))
+    }
+}
+pub(super) fn source(metric: &Metric) -> String {
+    format!(
+        "source {} · {:?} · fetched {}",
+        safe(&metric.provenance.source),
+        metric.provenance.confidence,
+        timestamp(metric.fetched_at)
+    )
+}
+pub(super) fn groups(snapshot: &Snapshot) -> BTreeMap<&str, Vec<&Account>> {
+    let mut groups: BTreeMap<&str, Vec<&Account>> = BTreeMap::new();
+    for account in &snapshot.accounts {
+        groups
+            .entry(&account.provider_id)
+            .or_default()
+            .push(account);
+    }
+    groups
+}
+pub(super) fn provider_heading(provider: &str, accounts: usize) -> String {
+    let name = crate::cli::Provider::from_str(provider, false)
+        .ok()
+        .map(|p| crate::providers::capabilities::ProviderDescriptor::new(p, &[]).display_name)
+        .unwrap_or(provider);
+    format!(
+        "{name} · {accounts} {}",
+        if accounts == 1 { "account" } else { "accounts" }
+    )
+}
+pub(super) fn freshness(freshness: &Freshness) -> Option<&'static str> {
+    match freshness {
+        Freshness::Fresh => None,
+        Freshness::Stale => Some("stale"),
+        Freshness::NotLoaded => Some("not loaded"),
+        Freshness::Unavailable => Some("unavailable"),
+    }
+}
+pub(super) fn fetched(at: OffsetDateTime, now: OffsetDateTime) -> String {
+    format!("fetched {} ago", duration((now - at).whole_seconds()))
+}
+pub(super) fn account_detail(account: &Account) -> String {
+    format!("account {} · {:?}", safe(&account.id), account.state)
+}
+pub(super) fn subscription(status: &str) -> String {
+    format!("subscription {}", safe(status))
+}
+pub(super) fn saved_resets(credits: &ResetCredits, now: OffsetDateTime) -> String {
+    let mut text = format!(
+        "{} saved {}",
+        credits.available_count,
+        if credits.available_count == 1 {
+            "reset"
+        } else {
+            "resets"
+        }
+    );
+    if let Some(at) = credits.earliest_expires_at {
+        let seconds = (at - now).whole_seconds();
+        let _ = write!(
+            text,
+            " · {}",
+            if seconds > 0 {
+                format!("soonest expires in {}", duration(seconds))
+            } else {
+                "expiry due".into()
+            }
+        );
+    }
+    text
+}
+pub(super) const NO_ACCOUNTS: &str = "No accounts returned usage.";
+pub(super) const NO_USAGE: &str = "No usage data.";
+pub(super) const NO_QUOTA: &str = "No quota reported.";
 
 struct Renderer {
     text: String,
@@ -106,36 +234,14 @@ impl Renderer {
     }
     fn metric(&mut self, metric: &Metric, label_width: usize) {
         let label = safe(&metric.display_name);
-        let percent = match metric.quota {
-            Quota::Available { used_percent, .. } | Quota::Exhausted { used_percent, .. } => {
-                Some(used_percent)
-            }
-            _ => None,
-        };
+        let percent = percent(&metric.quota);
         let style = match percent {
             Some(p) if p >= 100.0 => "31",
             Some(p) if p >= 80.0 => "33",
             Some(_) => "32",
             None => "2",
         };
-        let mut detail = match &metric.quota {
-            Quota::Available { used_percent, .. } | Quota::Exhausted { used_percent, .. } => {
-                format!("{used_percent:.1}% used")
-            }
-            Quota::Disabled => "disabled".into(),
-            Quota::Unlimited => "unlimited".into(),
-            Quota::Limit { amount, unit } => format!("limit {amount:.2} {}", safe(unit)),
-            Quota::Unknown if metric.amounts.is_some() || metric.consumption.is_some() => {
-                String::new()
-            }
-            Quota::Unknown => "usage unknown".into(),
-        };
-        if let Some(value) = reset(metric, self.options.now) {
-            if !detail.is_empty() {
-                detail.push_str(" · ");
-            }
-            detail.push_str(&value);
-        }
+        let detail = detail(metric, self.options.now);
         let bar = percent.map(|p| {
             let filled = (p.clamp(0.0, 100.0) / 100.0 * 16.0).round() as usize;
             format!("[{}{}]", "#".repeat(filled), "-".repeat(16 - filled))
@@ -155,33 +261,8 @@ impl Renderer {
             }
             self.line(6, &detail, style);
         }
-        if let Some(amounts) = &metric.amounts {
-            let unit = safe(&amounts.unit);
-            let amount = if let Some(limit) = amounts.limit {
-                let used =
-                    metric.consumption.as_ref().map(|c| c.used).or_else(|| {
-                        (limit >= amounts.remaining).then_some(limit - amounts.remaining)
-                    });
-                match used {
-                    Some(used) => format!(
-                        "{used:.2} / {limit:.2} {unit} used · {:.2} {unit} left",
-                        amounts.remaining
-                    ),
-                    None => format!(
-                        "{:.2} {unit} left · limit {limit:.2} {unit}",
-                        amounts.remaining
-                    ),
-                }
-            } else {
-                format!("{:.2} {unit} left", amounts.remaining)
-            };
+        if let Some(amount) = amount(metric) {
             self.line(6, &amount, "2");
-        } else if let Some(amount) = &metric.consumption {
-            self.line(
-                6,
-                &format!("{:.2} {} used", amount.used, safe(&amount.unit)),
-                "2",
-            );
         }
         if let Some(note) = &metric.note {
             self.line(6, note, "2");
@@ -190,16 +271,7 @@ impl Renderer {
             self.line(6, "estimated", "2");
         }
         if self.options.verbose {
-            self.line(
-                6,
-                &format!(
-                    "source {} · {:?} · fetched {}",
-                    safe(&metric.provenance.source),
-                    metric.provenance.confidence,
-                    timestamp(metric.fetched_at)
-                ),
-                "2",
-            );
+            self.line(6, &source(metric), "2");
         }
     }
 }
@@ -214,35 +286,13 @@ pub fn render_snapshot(snapshot: &Snapshot, options: Options) -> String {
         &format!("Usage · {}", timestamp(snapshot.generated_at)),
         "1",
     );
-    let mut groups: BTreeMap<&str, Vec<&crate::contract::Account>> = BTreeMap::new();
-    for account in &snapshot.accounts {
-        groups
-            .entry(&account.provider_id)
-            .or_default()
-            .push(account);
-    }
+    let groups = groups(snapshot);
     if groups.is_empty() {
-        renderer.line(0, "No accounts returned usage.", "2");
+        renderer.line(0, NO_ACCOUNTS, "2");
     }
     for (provider, accounts) in groups {
         renderer.text.push('\n');
-        let name = crate::cli::Provider::from_str(provider, false)
-            .ok()
-            .map(|p| crate::providers::capabilities::ProviderDescriptor::new(p, &[]).display_name)
-            .unwrap_or(provider);
-        renderer.line(
-            0,
-            &format!(
-                "{name} · {} {}",
-                accounts.len(),
-                if accounts.len() == 1 {
-                    "account"
-                } else {
-                    "accounts"
-                }
-            ),
-            "1;36",
-        );
+        renderer.line(0, &provider_heading(provider, accounts.len()), "1;36");
         let label_width = snapshot
             .usage
             .iter()
@@ -258,62 +308,29 @@ pub fn render_snapshot(snapshot: &Snapshot, options: Options) -> String {
                 if let Some(plan) = &usage.plan {
                     let _ = write!(header, " · plan {}", safe(plan));
                 }
-                let freshness = match usage.freshness {
-                    Freshness::Fresh => "",
-                    Freshness::Stale => " · stale",
-                    Freshness::NotLoaded => " · not loaded",
-                    Freshness::Unavailable => " · unavailable",
-                };
-                header.push_str(freshness);
+                if let Some(freshness) = freshness(&usage.freshness) {
+                    let _ = write!(header, " · {freshness}");
+                }
                 if let Some(at) = usage.fetched_at {
-                    let _ = write!(
-                        header,
-                        " · fetched {} ago",
-                        duration((options.now - at).whole_seconds())
-                    );
+                    let _ = write!(header, " · {}", fetched(at, options.now));
                 }
             }
             renderer.line(2, &header, "1");
             if options.verbose {
-                renderer.line(
-                    4,
-                    &format!("account {} · {:?}", safe(&account.id), account.state),
-                    "2",
-                );
+                renderer.line(4, &account_detail(account), "2");
             }
             let Some(usage) = usage else {
-                renderer.line(4, "No usage data.", "2");
+                renderer.line(4, NO_USAGE, "2");
                 continue;
             };
             if let Some(status) = &usage.subscription_status {
-                renderer.line(4, &format!("subscription {}", safe(status)), "2");
+                renderer.line(4, &subscription(status), "2");
             }
             if let Some(credits) = &usage.reset_credits {
-                let mut text = format!(
-                    "{} saved {}",
-                    credits.available_count,
-                    if credits.available_count == 1 {
-                        "reset"
-                    } else {
-                        "resets"
-                    }
-                );
-                if let Some(at) = credits.earliest_expires_at {
-                    let seconds = (at - options.now).whole_seconds();
-                    let _ = write!(
-                        text,
-                        " · {}",
-                        if seconds > 0 {
-                            format!("soonest expires in {}", duration(seconds))
-                        } else {
-                            "expiry due".into()
-                        }
-                    );
-                }
-                renderer.line(4, &text, "36");
+                renderer.line(4, &saved_resets(credits, options.now), "36");
             }
             if usage.metrics.is_empty() {
-                renderer.line(4, "No quota reported.", "2");
+                renderer.line(4, NO_QUOTA, "2");
             }
             for metric in &usage.metrics {
                 renderer.metric(metric, label_width);
