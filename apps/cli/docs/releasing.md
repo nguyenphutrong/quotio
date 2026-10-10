@@ -35,7 +35,7 @@ normal/build dependencies and their available license/notice files, excludes
 dev-only dependencies, refuses missing license text and never overwrites output.
 Review the notices for the release; generation is not a legal compliance audit.
 
-If a crates.io package omits its upstream license files, the generator uses reviewed texts in `distribution/licenses/<crate>-<version>/`. Supplements apply only to that exact crates.io package and version; other missing licenses still fail packaging. The `asn1-rs-impl` 0.2.0 supplement contains the upstream MIT and Apache texts from [commit a20e5f7319c896737ad0f2557037817b91ad854f](https://github.com/rusticata/asn1-rs/tree/a20e5f7319c896737ad0f2557037817b91ad854f), recorded in that crate's `.cargo_vcs_info.json`.
+If a crates.io package omits its upstream license files, the generator uses reviewed texts in `distribution/licenses/<crate>-<version>/`. Supplements apply only to that exact crates.io package and version; other missing licenses still fail packaging. The `asn1-rs-impl` 0.2.0 supplement contains the upstream MIT and Apache texts from [commit a20e5f7319c896737ad0f2557037817b91ad854f](https://github.com/rusticata/asn1-rs/tree/a20e5f7319c896737ad0f2557037817b91ad854f), recorded in that crate's `.cargo_vcs_info.json`. The `tern-sdk` 0.1.0 package was published from a private workspace, so its supplement is the MIT text from the public SDK repository at [commit d3485ad6159470bd301ee3a1345617cf5c6ad10c](https://github.com/stencil-hq/tern-sdk/blob/d3485ad6159470bd301ee3a1345617cf5c6ad10c/LICENSE).
 
 Use `x86_64-apple-darwin` only for an Intel build, and do not relabel an ARM binary.
 
