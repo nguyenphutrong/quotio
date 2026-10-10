@@ -257,7 +257,16 @@ fn cursor_wal_recovers_only_unlocked_owned_snapshots() {
     assert!(symlink.symlink_metadata().unwrap().file_type().is_symlink());
     assert!(symlink_target.exists());
     drop(lock);
-    recover_cursor_snapshots(&root).unwrap();
+    // A sibling test spawning a child briefly duplicates the released descriptor into that
+    // child, so one recovery pass can still find the lock held. Recovery is idempotent.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        recover_cursor_snapshots(&root).unwrap();
+        if !locked.exists() || std::time::Instant::now() >= deadline {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
     assert!(!locked.exists());
     drop(active);
     assert!(!active_directory.exists());
