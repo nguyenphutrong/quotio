@@ -21,47 +21,28 @@ pub async fn run(
 async fn authorize_native(
     vault: Vault,
     provider: Provider,
-    kind: &str,
     location: Option<String>,
 ) -> Result<String, AccountError> {
-    use super::{api::SourceInput, discovery};
-    let mut registry = discovery::Registry::default();
-    let inspected = registry.inspect(discovery::Request {
-        provider,
-        kind: kind.into(),
-        location,
-        domain: None,
-        inspect: true,
-    })?;
-    let candidates: Vec<_> = inspected["candidates"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter(|c| {
-            matches!(
-                c["status"].as_str(),
-                Some("available" | "permission_required")
-            )
-        })
-        .collect();
+    use super::api::SourceInput;
+    let mut registry = super::discovery::Registry::default();
+    let candidates = registry.native_candidates(provider, location)?;
     let candidate = match candidates.as_slice() {
         [] => return Err(AccountError::NotFound),
-        [candidate] => *candidate,
+        [candidate] => candidate,
         _ => {
+            let choices = candidates.iter().map(|c| {
+                let access = if c["status"] == "available" {
+                    "readable"
+                } else {
+                    "needs Keychain access"
+                };
+                format!(
+                    "{} ({access})",
+                    c["source"]["location"].as_str().unwrap_or("default")
+                )
+            });
             return Err(AccountError::AmbiguousSource(
-                candidates
-                    .iter()
-                    .map(|c| {
-                        let access = if c["status"] == "available" {
-                            "readable"
-                        } else {
-                            "needs Keychain access"
-                        };
-                        let location = c["source"]["location"].as_str().unwrap_or("default");
-                        format!("{location} ({access})")
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", "),
+                choices.collect::<Vec<_>>().join(", "),
             ));
         }
     };
@@ -77,10 +58,9 @@ async fn authorize_native(
         input => super::api::prepare_source(input).await?,
     };
     let id = super::api::register_source(vault, prepared).await?;
+    let provider = provider.id();
     Ok(format!(
-        "Local {} login registered: {id}. Run quotio usage --provider {}.\n",
-        crate::providers::capabilities::ProviderDescriptor::new(provider, &[]).display_name,
-        provider.id()
+        "Local {provider} login registered: {id}. Run quotio usage --provider {provider}.\n"
     ))
 }
 
@@ -98,11 +78,8 @@ async fn run_with_vault(
                         .into(),
                 )
             }
-            Provider::Catalog(name @ ("claude" | "copilot")) => {
-                authorize_native(vault, provider, &format!("{name}_native"), location).await
-            }
-            Provider::Factory => {
-                authorize_native(vault, provider, "factory_native", location).await
+            Provider::Catalog("claude" | "copilot") | Provider::Factory => {
+                authorize_native(vault, provider, location).await
             }
             _ => Err(AccountError::Unsupported),
         },

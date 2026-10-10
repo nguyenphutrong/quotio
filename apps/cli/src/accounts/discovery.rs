@@ -127,6 +127,33 @@ impl Registry {
     pub fn inspect(&mut self, request: Request) -> Result<Value, AccountError> {
         self.inspect_for("owner", request)
     }
+    /// Readable or Keychain-protected candidates for the provider's native login.
+    /// Inspection never prompts or returns a token.
+    pub(crate) fn native_candidates(
+        &mut self,
+        provider: Provider,
+        location: Option<String>,
+    ) -> Result<Vec<Value>, AccountError> {
+        let inspected = self.inspect(Request {
+            provider,
+            kind: format!("{}_native", provider.id()),
+            location,
+            domain: None,
+            inspect: true,
+        })?;
+        Ok(inspected["candidates"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|c| {
+                matches!(
+                    c["status"].as_str(),
+                    Some("available" | "permission_required")
+                )
+            })
+            .cloned()
+            .collect())
+    }
     pub(crate) fn inspect_for(
         &mut self,
         owner: &str,

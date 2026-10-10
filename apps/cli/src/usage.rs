@@ -193,7 +193,7 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
             collection.await
         }
     };
-    let exit_code = report.exit_code();
+    let mut exit_code = report.exit_code();
     let now = collector.context.clock.now();
     let ttl = time::Duration::seconds(config.cache_ttl_seconds.min(i64::MAX as u64) as i64);
     let resolved = if saved {
@@ -203,7 +203,13 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
             }
             Err(error) => Err(error),
         };
-        resolved.map_err(|error| storage_error = Some(error)).ok()
+        match resolved {
+            Ok(snapshot) => Some(snapshot),
+            Err(error) => {
+                storage_error = Some(error);
+                None
+            }
+        }
     } else {
         None
     };
@@ -242,12 +248,8 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
             .iter()
             .any(|account| account.id == usage.account_id)
     });
-    let exit_code = if storage_error.is_some() {
-        exit_code.max(1)
-    } else {
-        exit_code
-    };
     if let Some(error) = &storage_error {
+        exit_code = exit_code.max(1);
         diagnostics.push_str(&format!("saved accounts: {error}\n"));
         let reason = crate::server::management::account_code(error);
         for capability in ["account_read", "account_write_v2"] {

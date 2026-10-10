@@ -338,12 +338,8 @@ pub fn snapshot_failures(snapshot: &Snapshot) -> String {
     let mut text = String::new();
     for (provider, issue) in &snapshot.provider_issues {
         let _ = write!(text, "{}: {}", safe(provider), safe(&issue.code));
-        if issue.code == "local_credential_storage"
-            && matches!(
-                provider.as_str(),
-                "antigravity" | "claude" | "copilot" | "factory"
-            )
-        {
+        // Only app-owned logins that `accounts authorize` supports produce this code.
+        if issue.code == "local_credential_storage" {
             let _ = write!(
                 text,
                 " (run quotio accounts authorize --provider {provider})"
