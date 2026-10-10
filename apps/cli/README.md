@@ -488,14 +488,16 @@ Azure OpenAI also requires nonsecret `resource_id` metadata
 Resource Manager token through noninteractive `az account get-access-token`; it
 does not run `az login`, scan Azure credential files, or read browser state.
 
-To reuse a Claude Code login from the CLI, run
-`quotio accounts authorize --provider claude`. On macOS it asks Keychain for
-access to `Claude Code-credentials`; otherwise it uses
-`~/.claude/.credentials.json`. It then registers that login as a read-only source,
-so `quotio usage` reports Claude without the Quotio app. Running it again keeps the
-same account and restores a source you removed. Until then, a Claude Code login
-that Quotio may not read reports the provider issue `local_credential_storage`
-instead of omitting Claude; detection checks only that the login exists.
+To reuse a local Claude Code, GitHub Copilot or Factory login from the CLI, run
+`quotio accounts authorize --provider claude` (or `copilot`, `factory`). It finds
+the login, asks Keychain for access when the login is stored there, and registers
+it as a read-only source, so `quotio usage` reports it without the Quotio app.
+Running it again keeps the same account and restores a source you removed. When
+several logins exist, such as Factory's `v2_file` and `v2_login_keychain`, the
+command lists them; rerun it with `--location` to pick the one the provider's own
+tool still uses. Until then, a Claude Code login that Quotio may not read reports
+the provider issue `local_credential_storage` instead of omitting Claude; detection
+checks only that the login exists.
 
 The adapters do not read browser cookies. Claude, Gemini, Copilot, Cursor, and
 Grok reuse a valid native token without a Quotio login or refresh flow. Kiro and

@@ -260,10 +260,13 @@ pub struct AccountsArgs {
 }
 #[derive(Debug, Subcommand)]
 pub enum AccountCommand {
-    /// Allow Quotio to read the local Antigravity or Claude Code login
+    /// Allow Quotio to read a local Antigravity, Claude Code, GitHub Copilot or Factory login
     Authorize {
         #[arg(long, value_enum)]
         provider: Provider,
+        /// Login location to use when several exist, such as v2_login_keychain
+        #[arg(long)]
+        location: Option<String>,
     },
     /// Validate and save a new account in the OS credential store
     Add {
