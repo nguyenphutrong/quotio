@@ -34,9 +34,9 @@ final class AccountSettingsRowStateTests: XCTestCase {
         let workRow = AccountSettingsRowState(account: work, provider: provider, snapshot: snapshot, tracked: true)
         let personalRow = AccountSettingsRowState(account: personal, provider: provider, snapshot: snapshot, tracked: true)
 
-        XCTAssertEqual(workRow.tone, .attention)
+        XCTAssertTrue(workRow.needsAttention)
         XCTAssertEqual(workRow.issueSourceID, "work-vault")
-        XCTAssertEqual(personalRow.tone, .connected)
+        XCTAssertFalse(personalRow.needsAttention)
         XCTAssertNil(personalRow.issue)
 
         let state = ProviderSettingsState(provider: provider, accounts: [work, personal], permissions: [],
@@ -57,7 +57,7 @@ final class AccountSettingsRowStateTests: XCTestCase {
 
         let row = AccountSettingsRowState(account: work, provider: provider, snapshot: snapshot, tracked: true)
 
-        XCTAssertEqual(row.tone, .attention)
+        XCTAssertTrue(row.needsAttention)
         XCTAssertEqual(row.issue, issue)
         XCTAssertEqual(row.issueSourceID, "work-code")
         XCTAssertEqual(row.activeSourceID, "work-code")
@@ -73,9 +73,9 @@ final class AccountSettingsRowStateTests: XCTestCase {
             sourceIssues: [provider: ["paused-code": issue]]
         )
 
-        XCTAssertEqual(AccountSettingsRowState(account: paused, provider: provider, snapshot: snapshot, tracked: true).tone, .inactive)
+        XCTAssertFalse(AccountSettingsRowState(account: paused, provider: provider, snapshot: snapshot, tracked: true).needsAttention)
         let untracked = AccountSettingsRowState(account: active, provider: provider, snapshot: snapshot, tracked: false)
-        XCTAssertEqual(untracked.tone, .inactive)
+        XCTAssertFalse(untracked.needsAttention)
         XCTAssertNil(untracked.issue)
 
         let state = ProviderSettingsState(provider: provider, accounts: [paused, active], permissions: [],

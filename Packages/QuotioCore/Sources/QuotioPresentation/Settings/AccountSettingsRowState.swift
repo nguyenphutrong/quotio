@@ -5,14 +5,7 @@ import QuotioDomain
 /// Display state for one account row. Issues are resolved per account and per login
 /// source so that one failing login never marks sibling accounts as broken.
 struct AccountSettingsRowState: Equatable {
-    enum Tone: Equatable {
-        case connected
-        case attention
-        case inactive
-        case unchecked
-    }
-
-    let tone: Tone
+    let needsAttention: Bool
     let connection: ConnectionState
     let quota: QuotaRefreshState
     let issue: QuotaRefreshIssue?
@@ -21,8 +14,6 @@ struct AccountSettingsRowState: Equatable {
     let plan: String?
     /// Distinct kinds of the account's login sources, in source order.
     let sourceKinds: [AccountSource]
-
-    var needsAttention: Bool { tone == .attention }
 
     init(account: Account, provider: QuotaProvider, snapshot: QuotaSnapshot, tracked: Bool) {
         let id = QuotaAccountID(provider: provider, accountKey: account.accountKey)
@@ -39,7 +30,7 @@ struct AccountSettingsRowState: Equatable {
         }
 
         guard tracked, !account.isDisabled else {
-            tone = .inactive
+            needsAttention = false
             issue = nil
             issueSourceID = nil
             return
@@ -58,13 +49,11 @@ struct AccountSettingsRowState: Equatable {
         issueSourceID = latest?.sourceID
 
         if latest != nil || monitoring.connection == .permissionRequired || monitoring.connection == .reauthenticationRequired {
-            tone = .attention
+            needsAttention = true
         } else if case .failed = monitoring.quota {
-            tone = .attention
-        } else if monitoring.connection == .connected {
-            tone = .connected
+            needsAttention = true
         } else {
-            tone = .unchecked
+            needsAttention = false
         }
     }
 }

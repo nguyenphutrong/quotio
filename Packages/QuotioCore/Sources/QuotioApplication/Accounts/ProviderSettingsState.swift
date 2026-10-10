@@ -11,7 +11,6 @@ public struct ProviderSettingsState: Sendable {
     public let latestIssue: QuotaRefreshIssue?
     public let latestIssueAccountID: String?
     public let latestIssueSourceID: String?
-    public let sourceIssues: [String: QuotaRefreshIssue]
 
     public var needsAttention: Bool {
         connection != .disabled && (connection == .permissionRequired || connection == .reauthenticationRequired || !permissions.isEmpty || !accountsNeedingIdentification.isEmpty || latestIssue != nil)
@@ -37,7 +36,7 @@ public struct ProviderSettingsState: Sendable {
         let tracked = tracking.isEnabled(provider)
         var states: [String: AccountMonitoringState] = [:]
         var currentIssues: [(accountID: String?, sourceID: String?, issue: QuotaRefreshIssue)] = []
-        sourceIssues = quota.sourceIssues[provider] ?? [:]
+        let sourceIssues = quota.sourceIssues[provider] ?? [:]
         for account in providerAccounts {
             let id = QuotaAccountID(provider: provider, accountKey: account.accountKey)
             let issue = quota.accountIssues[id]

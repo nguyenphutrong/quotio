@@ -154,7 +154,7 @@ private final class SnapshotFixture {
                 permissions: [factoryPermission],
                 scannedAt: [.claude: now.addingTimeInterval(-3600), .factoryDroid: now.addingTimeInterval(-7200)],
                 failedProviders: [.kiro]),
-            storageAccessRequired: true)
+            storageProblem: .requiresAuthorization)
         accountService = service
         accounts = AccountsScreenModel(accountService: service)
 
@@ -215,19 +215,19 @@ private final class SnapshotFixture {
 private actor SnapshotAccountService: AccountManaging {
     let storedAccounts: [Account]
     private let discovery: NativeDiscoverySnapshot
-    private let storageAccessRequired: Bool
+    private let storageProblem: AccountStorageProblem?
 
-    init(accounts: [Account], discovery: NativeDiscoverySnapshot, storageAccessRequired: Bool) {
+    init(accounts: [Account], discovery: NativeDiscoverySnapshot, storageProblem: AccountStorageProblem?) {
         storedAccounts = accounts
         self.discovery = discovery
-        self.storageAccessRequired = storageAccessRequired
+        self.storageProblem = storageProblem
     }
 
     func registerDetectedNativeAccounts() {}
     func rescanNativeAccounts(for provider: QuotaProvider) {}
     func nativeDiscoverySnapshot() -> NativeDiscoverySnapshot { discovery }
     func authorizeNativeSource(_ source: NativeSourcePermission) {}
-    func accountStorageProblem() -> AccountStorageProblem? { storageAccessRequired ? .requiresAuthorization : nil }
+    func accountStorageProblem() -> AccountStorageProblem? { storageProblem }
     func accounts() -> [Account] { storedAccounts }
     func setDisabled(_ disabled: Bool, accountID: String) {}
     func delete(accountID: String) throws {}
