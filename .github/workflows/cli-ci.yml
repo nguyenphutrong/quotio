@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - 'apps/cli/**'
+      - 'apps/macos/Quotio/Assets.xcassets/ProviderIcons/**'
       - '.github/workflows/cli-ci.yml'
   push:
     branches: [master]
     paths:
       - 'apps/cli/**'
+      - 'apps/macos/Quotio/Assets.xcassets/ProviderIcons/**'
       - '.github/workflows/cli-ci.yml'
   workflow_dispatch:
 
