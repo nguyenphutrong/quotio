@@ -30,6 +30,16 @@ pub struct Error {
     pub exit_code: u8,
 }
 
+/// Only a vault that cannot be read falls back to environment sources. A transient
+/// error such as lock contention aborts instead of reporting saved accounts as absent.
+fn unreadable_storage(error: &crate::accounts::AccountError) -> bool {
+    use crate::accounts::AccountError;
+    matches!(
+        error,
+        AccountError::Storage | AccountError::Corrupt | AccountError::NewerFormat
+    )
+}
+
 pub async fn collect(request: Request) -> Result<Collected, Error> {
     let config = Config::load(request.config.as_deref()).map_err(|error| Error {
         message: error.to_string(),
@@ -99,7 +109,7 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
                 let timeout = Duration::from_secs(request.timeout);
                 match crate::accounts::service::detected_adapters(disabled.clone(), !request.no_saved_accounts, timeout).await {
                     // An unreadable vault must not hide environment sources.
-                    Err(error) if !request.no_saved_accounts => {
+                    Err(error) if !request.no_saved_accounts && unreadable_storage(&error) => {
                         storage_error = Some(error);
                         crate::accounts::service::detected_adapters(disabled, false, timeout)
                             .await
@@ -110,7 +120,7 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
             } else {
                 let timeout = Duration::from_secs(request.timeout);
                 match crate::accounts::service::adapters(selected.clone(), !request.no_saved_accounts, timeout, request.account.as_deref()).await {
-                    Err(error) if !request.no_saved_accounts && request.account.is_none() => {
+                    Err(error) if !request.no_saved_accounts && request.account.is_none() && unreadable_storage(&error) => {
                         storage_error = Some(error);
                         crate::accounts::service::adapters(selected, false, timeout, None)
                             .await
@@ -205,9 +215,15 @@ pub async fn collect(request: Request) -> Result<Collected, Error> {
         };
         match resolved {
             Ok(snapshot) => Some(snapshot),
-            Err(error) => {
+            Err(error) if unreadable_storage(&error) => {
                 storage_error = Some(error);
                 None
+            }
+            Err(error) => {
+                return Err(Error {
+                    message: error.to_string(),
+                    exit_code: 3,
+                });
             }
         }
     } else {
