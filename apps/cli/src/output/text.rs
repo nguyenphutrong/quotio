@@ -339,7 +339,10 @@ pub fn snapshot_failures(snapshot: &Snapshot) -> String {
     for (provider, issue) in &snapshot.provider_issues {
         let _ = write!(text, "{}: {}", safe(provider), safe(&issue.code));
         if issue.code == "local_credential_storage"
-            && matches!(provider.as_str(), "antigravity" | "claude")
+            && matches!(
+                provider.as_str(),
+                "antigravity" | "claude" | "copilot" | "factory"
+            )
         {
             let _ = write!(
                 text,

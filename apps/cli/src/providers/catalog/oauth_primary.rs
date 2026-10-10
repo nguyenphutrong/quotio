@@ -231,6 +231,8 @@ pub(crate) async fn native_keychain(
     )
     .await
     {
+        // Another app owns these items; `accounts authorize` asks Keychain for access.
+        Ok(Ok(Err(ProviderError::CredentialStorage))) => Err(ProviderError::LocalCredentialStorage),
         Ok(Ok(result)) => result,
         Ok(Err(_)) => Err(ProviderError::Internal),
         Err(_) => Err(ProviderError::CredentialStorage),
@@ -357,10 +359,6 @@ async fn native_claude_login() -> Result<ClaudeLogin, ProviderError> {
             Err(error) => retain_native_error(&mut last, error),
         },
         Ok(None) => (),
-        // Claude Code owns this item; `accounts authorize` asks Keychain for access.
-        Err(ProviderError::CredentialStorage) => {
-            retain_native_error(&mut last, ProviderError::LocalCredentialStorage)
-        }
         Err(error) => retain_native_error(&mut last, error),
     }
     if let Some(path) = home_dir().map(|home| home.join(".claude/.credentials.json")) {

@@ -495,9 +495,9 @@ it as a read-only source, so `quotio usage` reports it without the Quotio app.
 Running it again keeps the same account and restores a source you removed. When
 several logins exist, such as Factory's `v2_file` and `v2_login_keychain`, the
 command lists them; rerun it with `--location` to pick the one the provider's own
-tool still uses. Until then, a Claude Code login that Quotio may not read reports
-the provider issue `local_credential_storage` instead of omitting Claude; detection
-checks only that the login exists.
+tool still uses. Until then, these providers report an issue instead of vanishing
+when such a login exists, for example `local_credential_storage` when Keychain has
+not granted access. Detection uses the same probe and never reads the token.
 
 The adapters do not read browser cookies. Claude, Gemini, Copilot, Cursor, and
 Grok reuse a valid native token without a Quotio login or refresh flow. Kiro and

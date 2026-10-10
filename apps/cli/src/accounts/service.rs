@@ -1320,15 +1320,26 @@ fn codex_auth_exists() -> bool {
         })
         .is_some_and(|directory| directory.join("auth.json").is_file())
 }
-// Checks only that a login exists, so detection never prompts or reads the token.
-fn claude_code_login_exists() -> bool {
-    std::env::var_os("HOME").is_some_and(|home| {
-        std::path::Path::new(&home)
-            .join(".claude/.credentials.json")
-            .is_file()
-    }) || (cfg!(target_os = "macos")
-        && crate::providers::catalog::common::keychain_item_exists("Claude Code-credentials", None)
-            .is_ok_and(|exists| exists))
+// Uses the discovery probe, which never prompts or returns a token.
+fn native_login_exists(provider: Provider) -> bool {
+    super::discovery::Registry::default()
+        .inspect(super::discovery::Request {
+            provider,
+            kind: format!("{}_native", provider.id()),
+            location: None,
+            domain: None,
+            inspect: true,
+        })
+        .is_ok_and(|result| {
+            result["candidates"].as_array().is_some_and(|candidates| {
+                candidates.iter().any(|candidate| {
+                    matches!(
+                        candidate["status"].as_str(),
+                        Some("available" | "permission_required")
+                    )
+                })
+            })
+        })
 }
 async fn local_sources(requested: &[Provider], timeout: std::time::Duration) -> Vec<Provider> {
     let mut sources: Vec<_> = requested
@@ -1364,8 +1375,18 @@ async fn local_sources(requested: &[Provider], timeout: std::time::Duration) -> 
             sources.push(provider);
         }
     }
-    if requested.contains(&Provider::Catalog("claude")) && claude_code_login_exists() {
-        sources.push(Provider::Catalog("claude"));
+    // An unregistered or unauthorized login reports an issue instead of vanishing.
+    for provider in [
+        Provider::Catalog("claude"),
+        Provider::Catalog("copilot"),
+        Provider::Factory,
+    ] {
+        if requested.contains(&provider)
+            && !sources.contains(&provider)
+            && native_login_exists(provider)
+        {
+            sources.push(provider);
+        }
     }
     // A Codex login without a findable CLI still selects the local route, so collection
     // reports `cli_not_found` instead of silently omitting Codex.
