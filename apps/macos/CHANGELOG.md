@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Draw the Factory Droid icon in the menu bar's text color when the menu bar uses provider colors, so it stays visible on light and dark menu bars.
 - Show the status menu and Pair iPhone popover in the system Light or Dark appearance. A dark wallpaper no longer turns them dark while macOS is in Light mode.
 - Ask for Keychain access only when access is what blocks the account store. When the store can't be read, or was written by a newer Quotio, the accounts screen now says so instead of showing a Grant Access button that did nothing.
 

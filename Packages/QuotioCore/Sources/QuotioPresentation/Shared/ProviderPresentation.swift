@@ -135,7 +135,7 @@ public extension QuotaProvider {
         case .iflow: "iflow-menubar"
         case .vertex: "vertex-menubar"
         case .cursor: "cursor-menubar"
-        case .factoryDroid: "factory-droid"
+        case .factoryDroid: "factory-droid-menubar"
         case .amp: "amp-menubar"
         case .trae: "trae-menubar"
         case .glm: "glm-menubar"
