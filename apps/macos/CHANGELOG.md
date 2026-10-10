@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta.5] - 2026-10-10
+
 ### Changed
 
 - Simplify Accounts settings. Each provider opens with its icon and name, and each account shows its name with a plan · source caption and a pin glyph when it is pinned to the menu bar. Account and provider actions move to a context menu and a … menu that appears on hover or keyboard focus. A provider with monitoring off reads Paused and keeps its … menu visible so monitoring can be resumed.
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Draw the Factory Droid icon in the menu bar's text color when the menu bar uses provider colors, so it stays visible on light and dark menu bars.
 - Show the status menu and Pair iPhone popover in the system Light or Dark appearance. A dark wallpaper no longer turns them dark while macOS is in Light mode.
+- Detect GitHub Copilot editor logins saved under an OAuth client ID that contains a dot, such as `github.com:Iv1.…` in `apps.json`.
 - Ask for Keychain access only when access is what blocks the account store. When the store can't be read, or was written by a newer Quotio, the accounts screen now says so instead of showing a Grant Access button that did nothing.
 
 ## [1.0.0-beta.4] - 2026-10-08
