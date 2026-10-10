@@ -4,13 +4,15 @@ import SwiftUI
 
 /// A provider and everything under it: logins waiting for access, provider-wide failures,
 /// and one row per account. The header row carries the provider's actions in a context
-/// menu and a `…` menu that appears while the pointer is over it.
+/// menu and a `…` menu that shows while the pointer or keyboard focus is on it, and
+/// stays visible while monitoring is paused because it is the only way to resume.
 struct ProviderAccountsSection: View {
     let state: ProviderSettingsState
     let visibleAccounts: [Account]
     @Environment(QuotaScreenModel.self) private var quota
     @Environment(QuotaFeatureController.self) private var controller
     @State private var isHovering = false
+    @FocusState private var isMenuFocused: Bool
 
     private var provider: QuotaProvider { state.provider }
     private var descriptor: MonitoringProvider? { controller.providers.first { $0.id == provider } }
@@ -65,7 +67,8 @@ struct ProviderAccountsSection: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .opacity(isHovering ? 1 : 0)
+            .focused($isMenuFocused)
+            .opacity(isHovering || isMenuFocused || !tracked ? 1 : 0)
             .help("settings.providerActions".localized())
             .accessibilityLabel(Text("settings.providerActions".localized() + ": " + name))
         }
@@ -173,6 +176,6 @@ private struct ProviderIssueRow: View {
             }
             .controlSize(.small)
         }
-        .help(issue.reason == nil ? "settings.reasonMissing".localized() : issue.explanation)
+        .help(issue.reason == nil ? issue.explanation + "\n" + "settings.reasonMissing".localized() : issue.explanation)
     }
 }
