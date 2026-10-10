@@ -119,6 +119,8 @@ Rows wrap to the terminal width instead of truncating labels or amounts.
 Color is disabled for redirected output, `--no-color`, `NO_COLOR`, and `TERM=dumb`.
 `--verbose` includes account IDs, metric sources, confidence, and fetch timestamps
 in text reports, and sends diagnostic logs to stderr. Reports go to stdout.
+In a Tern pane, the text report draws as native cards and meters that stay in the
+scrollback. Set `TERN_TSP=0` to get the plain text report there instead.
 Use `--format json` for scripts; the schema-2 snapshot is unchanged.
 
 ## Interactive mode

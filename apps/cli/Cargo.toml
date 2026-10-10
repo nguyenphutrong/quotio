@@ -29,6 +29,7 @@ aes-gcm = { version = "0.10.3", default-features = false, features = ["aes", "al
 libc = "0.2"
 terminal_size = "0.4"
 unicode-width = "0.2"
+tern-sdk = "0.1.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "=3.5.1"

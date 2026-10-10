@@ -317,10 +317,22 @@ async fn run() -> ExitCode {
                 eprint!("{}", collected.diagnostics);
             }
             let text = match args.format {
-                Format::Text => output::text::render_snapshot(
-                    &collected.snapshot,
-                    output::text::Options::terminal(args.no_color, args.verbose),
-                ),
+                Format::Text => {
+                    let options = output::text::Options::terminal(args.no_color, args.verbose);
+                    let text = output::text::render_snapshot(&collected.snapshot, options);
+                    // The SDK probes any tty, which costs other terminals a DA1 round trip
+                    // and shows its query to terminals that don't parse APC.
+                    if std::env::var_os("TERM_PROGRAM").is_some_and(|name| name == "tern") {
+                        let view = output::tern::render_snapshot(&collected.snapshot, options);
+                        let print = tern_sdk::PrintOptions::new().fallback(text);
+                        if tern_sdk::print(view, print).is_err() {
+                            eprintln!("Could not write output.");
+                            return ExitCode::from(3);
+                        }
+                        return ExitCode::from(collected.exit_code);
+                    }
+                    text
+                }
                 Format::Json => match output::json::render(&collected.snapshot) {
                     Ok(json) => format!("{json}\n"),
                     Err(_) => {
