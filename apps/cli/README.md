@@ -495,7 +495,10 @@ it as a read-only source, so `quotio usage` reports it without the Quotio app.
 Running it again keeps the same account and restores a source you removed. When
 several logins exist, such as Factory's `v2_file` and `v2_login_keychain`, the
 command lists them; rerun it with `--location` to pick the one the provider's own
-tool still uses. Until then, these providers report an issue instead of vanishing
+tool still uses. A Copilot `apps.json` or `hosts.json` holds one entry per editor,
+keyed like `github.com:Iv1.xxxx`; the listing names each entry, so rerun with
+`--location apps --entry github.com:Iv1.xxxx` to pick one. Until then, these
+providers report an issue instead of vanishing
 when such a login exists, for example `local_credential_storage` when Keychain has
 not granted access. Detection uses the same probe and never reads the token.
 

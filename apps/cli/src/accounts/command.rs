@@ -16,16 +16,19 @@ pub async fn run(
 }
 
 /// Registers the provider's native login through the same inspection and Keychain
-/// authorization the HTTP API uses. Several logins require an explicit location, because
-/// inspection cannot tell which one the provider's own tool still refreshes.
+/// authorization the HTTP API uses. Several logins require an explicit location, and an
+/// entry when one file holds several, because inspection cannot tell which one the
+/// provider's own tool still refreshes.
 async fn authorize_native(
     vault: Vault,
     provider: Provider,
     location: Option<String>,
+    entry: Option<String>,
 ) -> Result<String, AccountError> {
     use super::api::SourceInput;
     let mut registry = super::discovery::Registry::default();
-    let candidates = registry.native_candidates(provider, location)?;
+    let mut candidates = registry.native_candidates(provider, location)?;
+    candidates.retain(|c| entry.as_deref().is_none_or(|entry| c["entry_key"] == entry));
     let candidate = match candidates.as_slice() {
         [] => return Err(AccountError::NotFound),
         [candidate] => candidate,
@@ -36,10 +39,14 @@ async fn authorize_native(
                 } else {
                     "needs Keychain access"
                 };
-                format!(
-                    "{} ({access})",
-                    c["source"]["location"].as_str().unwrap_or("default")
-                )
+                let location = c["source"]["location"]
+                    .as_str()
+                    .or(c["location"].as_str())
+                    .unwrap_or("default");
+                match c["entry_key"].as_str() {
+                    Some(entry) => format!("--location {location} --entry {entry} ({access})"),
+                    None => format!("--location {location} ({access})"),
+                }
             });
             return Err(AccountError::AmbiguousSource(
                 choices.collect::<Vec<_>>().join(", "),
@@ -70,7 +77,11 @@ async fn run_with_vault(
     vault: Vault,
 ) -> Result<String, AccountError> {
     match command {
-        AccountCommand::Authorize { provider, location } => match provider {
+        AccountCommand::Authorize {
+            provider,
+            location,
+            entry,
+        } => match provider {
             Provider::Antigravity if location.is_none() => {
                 crate::providers::antigravity_auth::authorize().await?;
                 Ok(
@@ -79,7 +90,7 @@ async fn run_with_vault(
                 )
             }
             Provider::Catalog("claude" | "copilot") | Provider::Factory => {
-                authorize_native(vault, provider, location).await
+                authorize_native(vault, provider, location, entry).await
             }
             _ => Err(AccountError::Unsupported),
         },

@@ -141,7 +141,7 @@ impl Registry {
             domain: None,
             inspect: true,
         })?;
-        Ok(inspected["candidates"]
+        let mut candidates: Vec<Value> = inspected["candidates"]
             .as_array()
             .into_iter()
             .flatten()
@@ -152,7 +152,19 @@ impl Registry {
                 )
             })
             .cloned()
-            .collect())
+            .collect();
+        // Discovery refs are opaque and expire; the CLI needs a selector the user can retype.
+        for candidate in &mut candidates {
+            let Some(id) = candidate["source"]["discovery_ref"].as_str() else {
+                continue;
+            };
+            if let Some((_, _, Reference::Copilot(source))) = self.entries.get(id) {
+                candidate["location"] =
+                    serde_json::to_value(source.location).map_err(|_| AccountError::Input)?;
+                candidate["entry_key"] = source.entry_key.clone().into();
+            }
+        }
+        Ok(candidates)
     }
     pub(crate) fn inspect_for(
         &mut self,
@@ -642,6 +654,43 @@ mod tests {
         std::os::unix::fs::symlink("login.json", &target).unwrap();
         assert!(!native_file_exists(&source.path));
         assert!(source.resolve().await.is_err());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn copilot_native_candidates_name_a_retypable_entry_per_oauth_client() {
+        let dir = std::env::temp_dir().join(super::super::random_string().unwrap());
+        std::fs::create_dir_all(dir.join(".config/github-copilot")).unwrap();
+        let home = dir.canonicalize().unwrap();
+        std::fs::write(
+            home.join(".config/github-copilot/apps.json"),
+            br#"{"github.com:Iv1.aaaa1111":{"oauth_token":"first"},"github.com:Iv1.bbbb2222":{"oauth_token":"second"}}"#,
+        )
+        .unwrap();
+        let mut registry = Registry {
+            home: Some(home),
+            ..Default::default()
+        };
+        let candidates = registry
+            .native_candidates(Provider::Catalog("copilot"), None)
+            .unwrap();
+        let mut selectors: Vec<_> = candidates
+            .iter()
+            .map(|c| (c["location"].clone(), c["entry_key"].clone()))
+            .collect();
+        selectors.sort_by_key(|(_, entry)| entry.to_string());
+        assert_eq!(
+            selectors,
+            [
+                (json!("apps"), json!("github.com:Iv1.aaaa1111")),
+                (json!("apps"), json!("github.com:Iv1.bbbb2222")),
+            ]
+        );
+        assert!(
+            !serde_json::to_string(&candidates)
+                .unwrap()
+                .contains("first")
+        );
         std::fs::remove_dir_all(dir).unwrap();
     }
 

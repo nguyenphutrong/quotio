@@ -267,6 +267,9 @@ pub enum AccountCommand {
         /// Login location to use when several exist, such as v2_login_keychain
         #[arg(long)]
         location: Option<String>,
+        /// Entry to use when that location holds several, such as github.com:Iv1.xxxx
+        #[arg(long, requires = "location")]
+        entry: Option<String>,
     },
     /// Validate and save a new account in the OS credential store
     Add {

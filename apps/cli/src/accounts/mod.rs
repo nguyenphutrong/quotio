@@ -53,7 +53,7 @@ pub enum AccountError {
     Unsupported,
     #[error("credential input is empty, too large, or invalid")]
     Input,
-    #[error("several local logins were found ({0}); rerun with --location")]
+    #[error("several local logins were found ({0}); rerun with one of them")]
     AmbiguousSource(String),
     #[error("enter the API key in a terminal without --token-stdin, or pipe it with --token-stdin")]
     InputMode,
