@@ -4414,6 +4414,107 @@ mod tests {
         cleanup(path);
     }
     #[tokio::test]
+    async fn claude_pending_refresh_reads_quota_without_replaying_refresh() {
+        struct PendingClaudeQuota {
+            authentication: bool,
+            quota_calls: AtomicUsize,
+            refreshes: AtomicUsize,
+        }
+        impl Operations for PendingClaudeQuota {
+            fn quota<'a>(
+                &'a self,
+                context: &'a ProviderContext,
+                provider: Provider,
+                credential: &'a Credential,
+            ) -> OperationFuture<'a, ProviderUsage> {
+                Box::pin(async move {
+                    self.quota_calls.fetch_add(1, Ordering::SeqCst);
+                    let scoped = scoped(context, provider, credential)?;
+                    assert_eq!(
+                        scoped
+                            .credentials
+                            .get("CLAUDE_OAUTH_ACCESS_TOKEN")
+                            .unwrap()
+                            .0,
+                        "still-valid"
+                    );
+                    if self.authentication {
+                        return Err(ProviderError::Authentication.into());
+                    }
+                    let mut usage = MockProvider.fetch(context).await?;
+                    usage.provider = provider.adapter().id();
+                    usage.account.label = "demo@example.com".into();
+                    Ok(usage)
+                })
+            }
+            fn refresh<'a>(
+                &'a self,
+                _: &'a ProviderContext,
+                _: &'a Credential,
+            ) -> OperationFuture<'a, Credential> {
+                Box::pin(async move {
+                    self.refreshes.fetch_add(1, Ordering::SeqCst);
+                    Err(ProviderError::Authentication.into())
+                })
+            }
+        }
+        for (expires_at, authentication, expected_quota_calls) in [
+            (3600, false, 1),
+            (1, false, 1),
+            (0, false, 0),
+            (3600, true, 1),
+        ] {
+            let (vault, fake, id, _, path) = setup(0, false, false, false);
+            let original = Credential::ClaudeOAuth {
+                access_token: "still-valid".into(),
+                refresh_token: "must-not-replay".into(),
+                account_id: "id".into(),
+                email: "demo@example.com".into(),
+                expires_at,
+                refresh_pending: true,
+            };
+            let mut tx = vault.begin().unwrap();
+            tx.document.accounts[0].provider = Provider::Catalog("claude");
+            tx.document.accounts[0].credential = original.clone();
+            tx.document.reserve_factory_refresh(&id, &original).unwrap();
+            tx.commit().unwrap();
+            let operations = Arc::new(PendingClaudeQuota {
+                authentication,
+                quota_calls: AtomicUsize::new(0),
+                refreshes: AtomicUsize::new(0),
+            });
+            let mut adapter = managed(vault.clone(), fake, id, Provider::Catalog("claude"));
+            adapter.operations = operations.clone();
+            let context = http::fixture::context();
+            let result = adapter.read(&context).await;
+            if expires_at > 0 && !authentication {
+                let usage = result.unwrap();
+                assert_eq!(usage.provider, Provider::Catalog("claude").adapter().id());
+                assert_eq!(usage.account.label, "demo@example.com");
+                assert_eq!(usage.windows.len(), 3);
+                assert_eq!(
+                    usage.windows[0].quota,
+                    crate::domain::Quota::from_used(Some(25.0))
+                );
+            } else {
+                assert!(matches!(
+                    result,
+                    Err(AccountError::Provider(ProviderError::Authentication))
+                ));
+            }
+            assert_eq!(
+                operations.quota_calls.load(Ordering::SeqCst),
+                expected_quota_calls
+            );
+            assert_eq!(operations.refreshes.load(Ordering::SeqCst), 0);
+            assert!(adapter.cache_identity(&context).await.is_none());
+            let tx = vault.begin().unwrap();
+            assert!(tx.document.accounts[0].credential == original);
+            drop(tx);
+            cleanup(path);
+        }
+    }
+    #[tokio::test]
     async fn claude_refresh_fence_survives_failure_restart_and_removal() {
         for failure in [false, true] {
             let (vault, fake, id, _, path) = setup(0, false, failure, false);
