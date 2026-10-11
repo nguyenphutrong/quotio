@@ -796,15 +796,35 @@ impl ManagedProvider {
             return Err(AccountError::SourceDisabled);
         }
         let credential = account.credential;
+        if let Credential::ClaudeOAuth {
+            refresh_pending: true,
+            expires_at,
+            ..
+        } = &credential
+        {
+            if *expires_at <= context.clock.now().unix_timestamp() {
+                return Err(ProviderError::Authentication.into());
+            }
+            // An uncertain refresh forbids replay, but its access token can still read quota.
+            let mut quota_credential = credential.clone();
+            if let Credential::ClaudeOAuth {
+                refresh_pending, ..
+            } = &mut quota_credential
+            {
+                *refresh_pending = false;
+            }
+            let usage = self
+                .operations
+                .quota(context, self.provider, &quota_credential)
+                .await?;
+            return self.verify_current(&credential, usage).await;
+        }
         if matches!(
             credential,
             Credential::GrokOAuth {
                 refresh_pending: true,
                 ..
             } | Credential::FactoryOAuth {
-                refresh_pending: true,
-                ..
-            } | Credential::ClaudeOAuth {
                 refresh_pending: true,
                 ..
             } | Credential::KiroOAuth {
@@ -4550,7 +4570,7 @@ mod tests {
             if failure {
                 assert!(matches!(
                     restarted.read(&http::fixture::context()).await,
-                    Err(AccountError::CommitUncertain)
+                    Err(AccountError::Provider(ProviderError::Authentication))
                 ));
                 assert!(
                     restarted
