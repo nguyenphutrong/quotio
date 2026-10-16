@@ -189,6 +189,9 @@ public struct AvailableModel: Identifiable, Codable, Hashable, Sendable {
         AvailableModel(id: "gemini-2.5-flash", name: "gemini-2.5-flash", provider: "google", isDefault: false),
         AvailableModel(id: "gemini-2.5-flash-lite", name: "gemini-2.5-flash-lite", provider: "google", isDefault: false),
         AvailableModel(id: "gemini-2.5-computer-use-preview-10-2025", name: "gemini-2.5-computer-use-preview-10-2025", provider: "google", isDefault: false),
+        // MiniMax models
+        AvailableModel(id: "MiniMax-M3", name: "MiniMax-M3", provider: "minimax", isDefault: false),
+        AvailableModel(id: "MiniMax-M2.7", name: "MiniMax-M2.7", provider: "minimax", isDefault: false),
         // GPT models
         AvailableModel(id: "gpt-5.3-codex", name: "gpt-5.3-codex", provider: "openai", isDefault: false),
         AvailableModel(id: "gpt-5.2", name: "gpt-5.2", provider: "openai", isDefault: false),
