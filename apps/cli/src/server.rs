@@ -1171,7 +1171,24 @@ async fn wait_for_next_refresh(state: &ApiState) {
     }
     state.status.lock().await.next_refresh_at = None;
 }
+/// Host running inside a native application process instead of a child process.
+/// The application supplies the management token, receives the bound address, and
+/// stops the host by sending on or dropping `stop`.
+pub struct Embedded {
+    pub token: String,
+    pub ready: tokio::sync::oneshot::Sender<std::net::SocketAddr>,
+    pub stop: tokio::sync::oneshot::Receiver<()>,
+}
 pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
+    serve(args, None).await
+}
+pub async fn run_embedded(args: ServeArgs, embedded: Embedded) -> Result<(), ServerError> {
+    if args.parent_pipe {
+        return Err(ServerError::Security);
+    }
+    serve(args, Some(embedded)).await
+}
+async fn serve(args: ServeArgs, mut embedded: Option<Embedded>) -> Result<(), ServerError> {
     if !args.listen.ip().is_loopback() {
         return Err(ServerError::Listen);
     }
@@ -1209,6 +1226,12 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
     .map_err(|_| ServerError::Config)?;
     let token = if let Some(parent) = &mut parent {
         Some(parent.take_token())
+    } else if let Some(embedded) = &mut embedded {
+        // Do not silently select between two credentials.
+        if std::env::var_os("QUOTIO_SERVER_TOKEN").is_some() {
+            return Err(ServerError::Security);
+        }
+        Some(std::mem::take(&mut embedded.token))
     } else {
         match std::env::var("QUOTIO_SERVER_TOKEN") {
             Ok(t) => Some(t),
@@ -1304,8 +1327,12 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
         vault,
         oauth,
     });
+    let mut embedded_stop = None;
     if args.parent_pipe {
         bootstrap::announce(address)?;
+    } else if let Some(Embedded { ready, stop, .. }) = embedded {
+        ready.send(address).map_err(|_| ServerError::Initialize)?;
+        embedded_stop = Some(stop);
     } else {
         eprintln!("Quotio API listening on http://{address}");
     }
@@ -1352,6 +1379,9 @@ pub async fn run(args: ServeArgs) -> Result<(), ServerError> {
         _=async {
             if let Some(parent) = &mut parent {
                 tokio::select! { _=shutdown_signal()=>(), _=parent.closed()=>() }
+            } else if let Some(stop) = &mut embedded_stop {
+                // The application owns process signals; a dropped sender also stops the host.
+                let _ = stop.await;
             } else {
                 shutdown_signal().await;
             }
