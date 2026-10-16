@@ -1,0 +1,33 @@
+[package]
+name = "quotio-desktop"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "quotio-desktop"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+directories = "6"
+env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
+futures = "0.3"
+gpui-kit = "=0.7.3"
+quotio = { path = "../cli" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+ring = "0.17"
+rust-embed = { version = "8.7", features = ["include-exclude"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+time = { version = "=0.3.47", features = ["serde", "serde-well-known", "formatting", "local-offset"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = { version = "0.3", default-features = false, features = ["tokio"] }
+raw-window-handle = "0.6"
+x11rb = "0.13"
+
+[target.'cfg(windows)'.dependencies]
+tray-icon = "0.26"
