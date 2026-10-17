@@ -17,6 +17,7 @@ use serde_json::{Value, json};
 
 use super::SettingsWindow;
 use super::connect::{ConnectFlow, Connected};
+use super::history::QuotaHistory;
 use crate::host::{HostError, Method};
 use crate::model::{AccountView, Fix, MetricView, Overview, ProviderGroup};
 use crate::theme::{Palette, palette};
@@ -618,19 +619,36 @@ impl SettingsWindow {
                     .flex()
                     .items_center()
                     .gap(px(4.))
-                    .child(
+                    .child({
+                        let target = account.clone();
                         div()
+                            .id(SharedString::from(format!("history-{}", account.id)))
                             .size(px(28.))
                             .flex()
                             .items_center()
                             .justify_center()
                             .rounded(px(8.))
                             .bg(p.bg_weak)
-                            .child(icon(IconName::ChartLine, 16., p.text_sub)),
-                    )
+                            .cursor_pointer()
+                            .child(icon(IconName::ChartLine, 16., p.text_sub))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.open_history(&target, window, cx)
+                            }))
+                    })
                     .child(self.account_menu(account, cx)),
             )
             .into_any_element()
+    }
+
+    fn open_history(&mut self, account: &AccountView, window: &mut Window, cx: &mut Context<Self>) {
+        let (host, offset) = {
+            let store = self.store.read(cx);
+            (store.host(), store.offset())
+        };
+        let view = cx.new(|cx| QuotaHistory::new(host, offset, account, cx));
+        window.open_dialog(cx, move |dialog, _, _| {
+            dialog.w(px(720.)).child(view.clone())
+        });
     }
 
     /// The row's "…" menu with everything the host allows for this account.

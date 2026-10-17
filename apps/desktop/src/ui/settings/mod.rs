@@ -5,6 +5,7 @@ mod accounts;
 mod cli_proxy;
 mod connect;
 mod general;
+mod history;
 mod iphone;
 mod menu_bar;
 mod notifications;

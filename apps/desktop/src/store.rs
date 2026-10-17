@@ -132,6 +132,11 @@ impl QuotaStore {
         self.host.clone()
     }
 
+    /// The local time zone, for times shown to the user.
+    pub fn offset(&self) -> UtcOffset {
+        self.offset
+    }
+
     /// Re-read the snapshot after an account change. The host re-collects quota in
     /// the background, so look again shortly after.
     pub fn reload(&mut self, cx: &mut Context<Self>) {
