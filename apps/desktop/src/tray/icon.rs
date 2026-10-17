@@ -4,16 +4,30 @@ use crate::model::{Tone, tone};
 
 pub const SIZE: u32 = 32;
 
+/// The user's tray choices: Tray → Color and Quota display.
+#[derive(Clone, Copy, Default)]
+pub struct Style {
+    /// Fill the ring with the used share instead of the remaining one.
+    pub used: bool,
+    pub monochrome: bool,
+}
+
 /// Returns straight (non-premultiplied) RGBA pixels, `SIZE` × `SIZE`.
-pub fn gauge(remaining: Option<f32>) -> Vec<u8> {
+pub fn gauge(remaining: Option<f32>, style: Style) -> Vec<u8> {
     const TRACK: [u8; 4] = [163, 163, 163, 110];
     let fill = match remaining.map(|r| tone(r as f64 * 100.)) {
+        None | Some(Tone::Neutral) => TRACK,
+        Some(_) if style.monochrome => [163, 163, 163, 255],
         Some(Tone::Good) => [29, 175, 97, 255],
         Some(Tone::Warning) => [246, 181, 30, 255],
         Some(Tone::Critical) => [251, 55, 72, 255],
-        Some(Tone::Neutral) | None => TRACK,
     };
-    let fraction = remaining.unwrap_or(0.).clamp(0., 1.);
+    let remaining = remaining.unwrap_or(0.).clamp(0., 1.);
+    let fraction = if style.used {
+        1. - remaining
+    } else {
+        remaining
+    };
     let center = SIZE as f32 / 2.;
     let (outer, inner) = (center - 1.5, center - 6.5);
     let mut pixels = vec![0u8; (SIZE * SIZE * 4) as usize];

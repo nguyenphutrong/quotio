@@ -509,7 +509,7 @@ fn metric_tile(metric: &MetricView, group: &SharedString, p: &Palette) -> impl I
                         .child(metric.value.clone()),
                 ),
         )
-        .child(progress(metric.remaining, metric.tone, px(4.), p))
+        .child(progress(metric.fill, metric.tone, px(4.), p))
         .when_some(metric.reset.clone(), |s, reset| {
             s.child(
                 div()

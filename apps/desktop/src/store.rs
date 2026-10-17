@@ -6,6 +6,7 @@ use time::{OffsetDateTime, UtcOffset};
 
 use crate::host::{HostClient, HostError};
 use crate::model::{self, Overview};
+use crate::prefs::{self, QuotaDisplay};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(15);
 
@@ -77,10 +78,8 @@ impl QuotaStore {
     ) {
         match result {
             Ok(snapshot) => {
-                let now = self.now();
-                self.overview = Some(model::overview(&snapshot, now, self.offset, false));
-                self.all = Some(model::overview(&snapshot, now, self.offset, true));
                 self.snapshot = Some(snapshot);
+                self.rebuild(cx);
                 self.error = None;
                 self.vault_locked = false;
             }
@@ -92,6 +91,19 @@ impl QuotaStore {
                 self.error = Some(format!("{error:#}").into());
             }
         }
+        cx.notify();
+    }
+
+    /// Recompute the views from the last snapshot, for instance after the user
+    /// switches between remaining and used percentages.
+    pub fn rebuild(&mut self, cx: &mut Context<Self>) {
+        let Some(snapshot) = &self.snapshot else {
+            return;
+        };
+        let now = self.now();
+        let used = prefs::get(cx).quota_display == QuotaDisplay::Used;
+        self.overview = Some(model::overview(snapshot, now, self.offset, false, used));
+        self.all = Some(model::overview(snapshot, now, self.offset, true, used));
         cx.notify();
     }
 

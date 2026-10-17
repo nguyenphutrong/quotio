@@ -31,6 +31,9 @@ pub struct MetricView {
     pub value: String,
     /// Remaining share in `0.0..=1.0`, when the quota is a percentage.
     pub remaining: Option<f32>,
+    /// Bar length in `0.0..=1.0`: the remaining share, or the used share when the
+    /// user shows percentages as used.
+    pub fill: Option<f32>,
     pub tone: Tone,
     /// Compact reset, such as `1h 42m` or `Mon 09:00`.
     pub reset: Option<String>,
@@ -143,12 +146,14 @@ impl Overview {
 }
 
 /// `with_paused` keeps paused accounts, for the settings window; the tray and its
-/// popup only show accounts that are being tracked.
+/// popup only show accounts that are being tracked. `used` shows percentages as
+/// used instead of remaining.
 pub fn overview(
     snapshot: &Snapshot,
     now: OffsetDateTime,
     offset: UtcOffset,
     with_paused: bool,
+    used: bool,
 ) -> Overview {
     let mut groups: Vec<ProviderGroup> = Vec::new();
     let accounts: Vec<&Account> = snapshot
@@ -162,7 +167,7 @@ pub fn overview(
             .iter()
             .filter(|a| a.provider_id == account.provider_id)
             .count();
-        let view = account_view(account, usage, siblings > 1, now, offset);
+        let view = account_view(account, usage, siblings > 1, now, offset, used);
         match groups
             .iter_mut()
             .find(|g| g.provider_id == account.provider_id)
@@ -188,6 +193,7 @@ fn account_view(
     has_siblings: bool,
     now: OffsetDateTime,
     offset: UtcOffset,
+    used: bool,
 ) -> AccountView {
     let issue = issue(account, usage, now);
     let metrics = match (&issue, usage) {
@@ -196,7 +202,7 @@ fn account_view(
         (None, Some(usage)) => usage
             .metrics
             .iter()
-            .map(|m| metric_view(m, now, offset))
+            .map(|m| metric_view(m, now, offset, used))
             .collect(),
         _ => Vec::new(),
     };
@@ -300,18 +306,23 @@ fn issue(account: &Account, usage: Option<&Usage>, now: OffsetDateTime) -> Optio
     }
 }
 
-fn metric_view(metric: &Metric, now: OffsetDateTime, offset: UtcOffset) -> MetricView {
+fn metric_view(metric: &Metric, now: OffsetDateTime, offset: UtcOffset, used: bool) -> MetricView {
     let (value, remaining, tone) = match &metric.quota {
         Quota::Available {
             remaining_percent, ..
         }
         | Quota::Exhausted {
             remaining_percent, ..
-        } => (
-            format!("{:.0}%", remaining_percent),
-            Some((*remaining_percent / 100.).clamp(0., 1.) as f32),
-            tone(*remaining_percent),
-        ),
+        } => {
+            let remaining = remaining_percent.clamp(0., 100.);
+            let shown = if used { 100. - remaining } else { remaining };
+            (
+                format!("{shown:.0}%"),
+                Some((remaining / 100.) as f32),
+                // Color follows what is left either way, as on macOS.
+                tone(remaining),
+            )
+        }
         Quota::Unlimited => ("Unlimited".into(), None, Tone::Neutral),
         Quota::Limit { amount, unit } => (format!("{amount} {unit}"), None, Tone::Neutral),
         Quota::Unknown => ("—".into(), None, Tone::Neutral),
@@ -325,6 +336,7 @@ fn metric_view(metric: &Metric, now: OffsetDateTime, offset: UtcOffset) -> Metri
         label: metric.display_name.clone(),
         value,
         remaining,
+        fill: remaining.map(|r| if used { 1. - r } else { r }),
         tone,
         reset,
     }

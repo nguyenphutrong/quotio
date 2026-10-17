@@ -90,7 +90,7 @@ impl Tray {
     ) -> Result<Self> {
         let item = Item {
             events,
-            pixmap: argb(&icon::gauge(None)),
+            pixmap: argb(&icon::gauge(None, icon::Style::default())),
             tooltip: String::new(),
         };
         let handle = runtime
@@ -103,9 +103,10 @@ impl Tray {
         })
     }
 
-    pub fn update(&self, remaining: Option<f32>, tooltip: String) {
+    /// `gauge` is RGBA pixels from `icon::gauge`.
+    pub fn update(&self, gauge: Vec<u8>, tooltip: String) {
         let handle = self.handle.clone();
-        let pixmap = argb(&icon::gauge(remaining));
+        let pixmap = argb(&gauge);
         self.runtime.spawn(async move {
             handle
                 .update(|item| {

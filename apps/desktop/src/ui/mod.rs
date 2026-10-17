@@ -68,18 +68,19 @@ pub fn provider_logo(provider_id: &str, size: f32, tint: Option<Hsla>, p: &Palet
     }
 }
 
-pub fn progress(remaining: Option<f32>, tone: Tone, height: Pixels, p: &Palette) -> Div {
+/// A bar filled to `fill`, a share in `0.0..=1.0`.
+pub fn progress(fill: Option<f32>, tone: Tone, height: Pixels, p: &Palette) -> Div {
     div()
         .w_full()
         .h(height)
         .rounded_full()
         .bg(p.stroke_soft)
         .overflow_hidden()
-        .when_some(remaining, |track, remaining| {
+        .when_some(fill, |track, fill| {
             track.child(
                 div()
                     .h_full()
-                    .w(relative(remaining))
+                    .w(relative(fill))
                     .rounded_full()
                     .bg(tone_color(tone, p)),
             )

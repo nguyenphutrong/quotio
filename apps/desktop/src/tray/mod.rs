@@ -31,5 +31,5 @@ impl Tray {
         anyhow::bail!("no tray on this platform")
     }
 
-    pub fn update(&self, _remaining: Option<f32>, _tooltip: String) {}
+    pub fn update(&self, _gauge: Vec<u8>, _tooltip: String) {}
 }

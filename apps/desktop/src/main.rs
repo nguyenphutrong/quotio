@@ -116,7 +116,13 @@ fn main() -> Result<()> {
             if let Some(tray) = tray {
                 cx.observe(&store, move |store, cx| {
                     if let Some(overview) = &store.read(cx).overview {
-                        tray.update(overview.lowest_remaining(), tooltip(overview));
+                        let prefs = prefs::get(cx);
+                        let style = tray::icon::Style {
+                            used: prefs.quota_display == prefs::QuotaDisplay::Used,
+                            monochrome: prefs.tray_icon == prefs::TrayIcon::Monochrome,
+                        };
+                        let gauge = tray::icon::gauge(overview.lowest_remaining(), style);
+                        tray.update(gauge, tooltip(overview));
                     }
                 })
                 .detach();

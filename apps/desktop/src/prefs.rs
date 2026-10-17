@@ -12,6 +12,26 @@ use crate::theme::Appearance;
 #[serde(default)]
 pub struct Prefs {
     pub appearance: Appearance,
+    pub quota_display: QuotaDisplay,
+    pub tray_icon: TrayIcon,
+}
+
+/// Whether percentages count what is left or what is used.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum QuotaDisplay {
+    #[default]
+    Remaining,
+    Used,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TrayIcon {
+    /// The gauge turns green, amber or red with the lowest quota.
+    #[default]
+    Colored,
+    Monochrome,
 }
 
 /// Where preferences are saved. `None` keeps changes in memory only: fixture mode

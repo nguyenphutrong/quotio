@@ -11,12 +11,8 @@ pub struct Tray {
     icon: TrayIcon,
 }
 
-fn bitmap(remaining: Option<f32>) -> Result<Icon> {
-    Ok(Icon::from_rgba(
-        icon::gauge(remaining),
-        icon::SIZE,
-        icon::SIZE,
-    )?)
+fn bitmap(pixels: Vec<u8>) -> Result<Icon> {
+    Ok(Icon::from_rgba(pixels, icon::SIZE, icon::SIZE)?)
 }
 
 impl Tray {
@@ -63,15 +59,16 @@ impl Tray {
         let icon = TrayIconBuilder::new()
             .with_id("quotio")
             .with_tooltip("Quotio")
-            .with_icon(bitmap(None)?)
+            .with_icon(bitmap(icon::gauge(None, icon::Style::default()))?)
             .with_menu(Box::new(menu))
             .with_menu_on_left_click(false)
             .build()?;
         Ok(Self { icon })
     }
 
-    pub fn update(&self, remaining: Option<f32>, tooltip: String) {
-        if let Ok(icon) = bitmap(remaining) {
+    /// `gauge` is RGBA pixels from `icon::gauge`.
+    pub fn update(&self, gauge: Vec<u8>, tooltip: String) {
+        if let Ok(icon) = bitmap(gauge) {
             let _ = self.icon.set_icon(Some(icon));
         }
         let _ = self.icon.set_tooltip(Some(tooltip));

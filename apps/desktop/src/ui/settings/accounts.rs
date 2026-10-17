@@ -1032,7 +1032,7 @@ fn metric_column(metric: &MetricView, p: &Palette) -> impl IntoElement {
                         .child(metric.value.clone()),
                 ),
         )
-        .child(progress(metric.remaining, metric.tone, px(6.), p))
+        .child(progress(metric.fill, metric.tone, px(6.), p))
         .when_some(metric.reset_sentence(), |s, reset| {
             s.child(
                 div()
