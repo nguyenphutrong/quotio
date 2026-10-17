@@ -2,6 +2,7 @@
 //! Wonder "Page - Quotio …" artboards.
 mod about;
 mod accounts;
+mod cli_proxy;
 mod connect;
 mod general;
 mod iphone;
@@ -14,8 +15,8 @@ use std::collections::HashSet;
 
 use gpui_kit::assets::IconName;
 use gpui_kit::{
-    AnyElement, AppContext as _, Context, Decorations, Entity, FontWeight, InteractiveElement,
-    IntoElement, ParentElement, Render, StatefulInteractiveElement, Styled, Subscription, Window,
+    AppContext as _, Context, Decorations, Entity, FontWeight, InteractiveElement, IntoElement,
+    ParentElement, Render, StatefulInteractiveElement, Styled, Subscription, Window,
     WindowControlArea, div, prelude::FluentBuilder as _, px, relative,
 };
 
@@ -330,23 +331,6 @@ impl SettingsWindow {
             .child(div().flex_1())
             .child(nav(Page::About, None, cx))
     }
-
-    fn placeholder_page(&self, cx: &mut Context<Self>) -> AnyElement {
-        let p = palette(cx).clone();
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(4.))
-            .text_size(px(14.))
-            .font_weight(FontWeight::MEDIUM)
-            .child(div().text_color(p.text_strong).child(self.page.title()))
-            .child(
-                div()
-                    .text_color(p.text_soft)
-                    .child("This page is not part of the desktop preview yet."),
-            )
-            .into_any_element()
-    }
 }
 
 impl Render for SettingsWindow {
@@ -359,10 +343,10 @@ impl Render for SettingsWindow {
             Page::General => self.general_page(cx),
             Page::IphoneSharing => self.iphone_page(cx),
             Page::About => self.about_page(cx),
+            Page::CliProxyApi => self.cli_proxy_page(cx),
             Page::MenuBar => self.menu_bar_page(cx),
             Page::Notifications => self.notifications_page(cx),
             Page::Privacy => self.privacy_page(cx),
-            _ => self.placeholder_page(cx),
         };
         // macOS draws traffic lights; X11 without a compositor falls back to the
         // window manager's title bar. Otherwise the app draws its own controls.
