@@ -1176,6 +1176,8 @@ async fn wait_for_next_refresh(state: &ApiState) {
 /// stops the host by sending on or dropping `stop`.
 pub struct Embedded {
     pub token: String,
+    /// First-run values, as a native parent sends them over its pipe.
+    pub preferences: Option<crate::settings::NativePreferences>,
     pub ready: tokio::sync::oneshot::Sender<std::net::SocketAddr>,
     pub stop: tokio::sync::oneshot::Receiver<()>,
 }
@@ -1216,10 +1218,12 @@ async fn serve(args: ServeArgs, mut embedded: Option<Embedded>) -> Result<(), Se
     } else {
         None
     };
-    let view = match parent
-        .as_mut()
-        .and_then(bootstrap::Parent::take_preferences)
-    {
+    let preferences = match (&mut parent, &mut embedded) {
+        (Some(parent), _) => parent.take_preferences(),
+        (None, Some(embedded)) => embedded.preferences.take(),
+        (None, None) => None,
+    };
+    let view = match preferences {
         Some(preferences) => store.import_native_preferences(preferences),
         None => store.load(),
     }

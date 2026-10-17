@@ -1379,7 +1379,8 @@ fn scan_summary(report: &Value) -> String {
     }
 }
 
-/// Connecting a provider the user paused turns tracking back on, as on macOS.
+/// Connecting a provider the user paused, or one the host does not track, turns
+/// tracking on, as on macOS.
 async fn ensure_tracked(host: &Arc<dyn HostClient>, provider: &str) -> Result<()> {
     let settings = host.call(Method::GET, "/v2/settings".into(), None).await?;
     let list = |key: &str| -> Vec<String> {
@@ -1391,12 +1392,16 @@ async fn ensure_tracked(host: &Arc<dyn HostClient>, provider: &str) -> Result<()
             .collect()
     };
     let mut disabled = list("disabled_providers");
-    if !disabled.iter().any(|p| p == provider) {
+    let mut enabled = list("enabled_providers");
+    let is_disabled = disabled.iter().any(|p| p == provider);
+    let is_enabled = enabled.iter().any(|p| p == provider);
+    if is_enabled && !is_disabled {
         return Ok(());
     }
     disabled.retain(|p| p != provider);
-    let mut enabled = list("enabled_providers");
-    enabled.push(provider.to_owned());
+    if !is_enabled {
+        enabled.push(provider.to_owned());
+    }
     let revision = settings["revision"]
         .as_str()
         .context("settings without revision")?;

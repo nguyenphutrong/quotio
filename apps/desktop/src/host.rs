@@ -9,6 +9,7 @@ use quotio::{
     cli::{Provider, ServeArgs},
     contract::Snapshot,
     server::{self, Embedded},
+    settings::NativePreferences,
 };
 pub use reqwest::Method;
 use serde_json::Value;
@@ -114,6 +115,7 @@ impl EmbeddedHost {
         let args = serve_args(&options)?;
         let embedded = Embedded {
             token: token.clone(),
+            preferences: (!options.demo).then(first_run_preferences),
             ready: ready_tx,
             stop: stop_rx,
         };
@@ -171,7 +173,8 @@ fn serve_args(options: &HostOptions) -> Result<ServeArgs> {
         parent_pipe: false,
         listen: SocketAddr::from(([127, 0, 0, 1], 0)),
         provider,
-        config: None,
+        // Its own settings too, apart from the command-line tool's `config.toml`.
+        config: Some(project_dirs()?.config_dir().join("host.toml")),
         refresh_interval: None,
         timeout: None,
         no_saved_accounts: options.demo,
@@ -185,10 +188,24 @@ fn serve_args(options: &HostOptions) -> Result<ServeArgs> {
     })
 }
 
+/// Settings the host saves the first time it starts with an empty config. It then
+/// tracks every provider, as the macOS app does on first launch.
+fn first_run_preferences() -> NativePreferences {
+    NativePreferences {
+        disabled_providers: Vec::new(),
+        disabled_proxy_auth_files: Vec::new(),
+        automatically_discover_logins: true,
+        quota_history_enabled: true,
+        refresh_interval: 600,
+    }
+}
+
+fn project_dirs() -> Result<directories::ProjectDirs> {
+    directories::ProjectDirs::from("app", "Quotio", "Quotio").context("no home directory")
+}
+
 fn account_data_dir() -> Result<PathBuf> {
-    let dirs =
-        directories::ProjectDirs::from("app", "Quotio", "Quotio").context("no home directory")?;
-    let dir = dirs.data_local_dir().join("accounts");
+    let dir = project_dirs()?.data_local_dir().join("accounts");
     let mut builder = std::fs::DirBuilder::new();
     builder.recursive(true);
     #[cfg(unix)]
