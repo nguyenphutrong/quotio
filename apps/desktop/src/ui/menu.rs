@@ -277,7 +277,7 @@ impl QuotaMenu {
                 item("pair-iphone", IconName::Smartphone, "Pair iPhone…", None).on_click(
                     |_, window, cx| {
                         window.remove_window();
-                        crate::app::open_settings(cx);
+                        crate::app::open_settings_at(crate::ui::settings::Page::IphoneSharing, cx);
                     },
                 ),
             )

@@ -30,7 +30,7 @@ use crate::store::QuotaStore;
 use crate::theme::{FONT_FAMILY, Palette, palette};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Page {
+pub enum Page {
     Accounts,
     IphoneSharing,
     CliProxyApi,
@@ -162,6 +162,18 @@ impl SettingsWindow {
         this
     }
 
+    pub fn show(&mut self, page: Page, cx: &mut Context<Self>) {
+        if self.page != page {
+            self.page = page;
+            // Pick up changes made in the config file or another client.
+            self.load_host_settings(cx);
+            if page == Page::IphoneSharing {
+                self.load_sharing(cx);
+            }
+        }
+        cx.notify();
+    }
+
     fn load_host_settings(&mut self, cx: &mut Context<Self>) {
         let host = self.store.read(cx).host();
         cx.spawn(async move |this, cx| {
@@ -269,17 +281,7 @@ impl SettingsWindow {
                             .child(n.to_string()),
                     )
                 })
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    if this.page != page {
-                        this.page = page;
-                        // Pick up changes made in the config file or another client.
-                        this.load_host_settings(cx);
-                        if page == Page::IphoneSharing {
-                            this.load_sharing(cx);
-                        }
-                    }
-                    cx.notify();
-                }))
+                .on_click(cx.listener(move |this, _, _, cx| this.show(page, cx)))
         };
         div()
             .w(px(240.))

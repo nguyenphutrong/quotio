@@ -3,12 +3,15 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::{
     AnyWindowHandle, App, AppContext as _, Bounds, Entity, Global, Pixels, Point, TitlebarOptions,
-    WindowBackgroundAppearance, WindowBounds, WindowDecorations, WindowKind, WindowOptions, point,
-    px, size,
+    WeakEntity, WindowBackgroundAppearance, WindowBounds, WindowDecorations, WindowKind,
+    WindowOptions, point, px, size,
 };
 
 use crate::store::QuotaStore;
-use crate::ui::{menu, settings::SettingsWindow};
+use crate::ui::{
+    menu,
+    settings::{Page, SettingsWindow},
+};
 
 const APP_ID: &str = "app.quotio.Quotio";
 const MENU_GAP: f32 = 8.;
@@ -17,6 +20,7 @@ struct Shell {
     store: Entity<QuotaStore>,
     menu: Option<AnyWindowHandle>,
     settings: Option<AnyWindowHandle>,
+    settings_view: Option<WeakEntity<SettingsWindow>>,
     menu_dismissed_at: Option<Instant>,
 }
 
@@ -27,6 +31,7 @@ pub fn init(store: Entity<QuotaStore>, cx: &mut App) {
         store,
         menu: None,
         settings: None,
+        settings_view: None,
         menu_dismissed_at: None,
     });
 }
@@ -164,11 +169,21 @@ pub fn open_settings(cx: &mut App) {
     match gpui_kit::open_window(options, cx, |window, cx| {
         cx.new(|cx| SettingsWindow::new(store, window, cx))
     }) {
-        Ok((handle, _)) => {
-            cx.global_mut::<Shell>().settings = Some(handle);
+        Ok((handle, view)) => {
+            let shell = cx.global_mut::<Shell>();
+            shell.settings = Some(handle);
+            shell.settings_view = Some(view.downgrade());
             cx.activate(true);
         }
         Err(error) => eprintln!("Could not open Quotio: {error:#}"),
+    }
+}
+
+/// Open the settings window at `page`, such as iPhone Sharing from the popup.
+pub fn open_settings_at(page: Page, cx: &mut App) {
+    open_settings(cx);
+    if let Some(view) = cx.global::<Shell>().settings_view.clone() {
+        let _ = view.update(cx, |view, cx| view.show(page, cx));
     }
 }
 
