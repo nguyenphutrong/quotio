@@ -1,6 +1,6 @@
 //! Projects a host `/v2` snapshot into render-ready rows. Pure functions only, so the
 //! wording and thresholds are testable without a window.
-use quotio::contract::{Account, ConnectionState, Freshness, Metric, Snapshot, Usage};
+use quotio::contract::{Account, Action, ConnectionState, Freshness, Metric, Snapshot, Usage};
 use quotio::domain::Quota;
 use time::{Duration, OffsetDateTime, UtcOffset};
 
@@ -48,11 +48,31 @@ impl MetricView {
     }
 }
 
+/// What the issue's button does.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Fix {
+    /// Sign in to the provider again.
+    SignIn,
+    /// Let Quotio read a login it found; carries the source to authorize.
+    Authorize(String),
+    /// Refresh the account.
+    Retry,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct IssueView {
     pub title: String,
     pub detail: String,
     pub action: String,
+    pub fix: Fix,
+}
+
+/// Changes the host allows for an account, from its `actions`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Allowed {
+    pub rename: bool,
+    pub set_enabled: bool,
+    pub remove: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -60,8 +80,15 @@ pub struct AccountView {
     pub id: String,
     pub provider_id: String,
     pub name: String,
+    /// Name the user chose, when it replaces the provider's.
+    pub user_label: Option<String>,
     pub plan: Option<String>,
     pub pinned: bool,
+    /// False when the account is paused.
+    pub enabled: bool,
+    pub allowed: Allowed,
+    /// The only API-key source, whose key can be replaced.
+    pub key_source: Option<String>,
     pub updated: Option<String>,
     pub metrics: Vec<MetricView>,
     pub issue: Option<IssueView>,
@@ -115,9 +142,20 @@ impl Overview {
     }
 }
 
-pub fn overview(snapshot: &Snapshot, now: OffsetDateTime, offset: UtcOffset) -> Overview {
+/// `with_paused` keeps paused accounts, for the settings window; the tray and its
+/// popup only show accounts that are being tracked.
+pub fn overview(
+    snapshot: &Snapshot,
+    now: OffsetDateTime,
+    offset: UtcOffset,
+    with_paused: bool,
+) -> Overview {
     let mut groups: Vec<ProviderGroup> = Vec::new();
-    let accounts: Vec<&Account> = snapshot.accounts.iter().filter(|a| a.enabled).collect();
+    let accounts: Vec<&Account> = snapshot
+        .accounts
+        .iter()
+        .filter(|a| with_paused || a.enabled)
+        .collect();
     for account in &accounts {
         let usage = snapshot.usage.iter().find(|u| u.account_id == account.id);
         let siblings = accounts
@@ -153,6 +191,7 @@ fn account_view(
 ) -> AccountView {
     let issue = issue(account, usage, now);
     let metrics = match (&issue, usage) {
+        _ if !account.enabled => Vec::new(),
         // A stale quota next to "sign in again" reads as current; hide it.
         (None, Some(usage)) => usage
             .metrics
@@ -161,12 +200,31 @@ fn account_view(
             .collect(),
         _ => Vec::new(),
     };
+    let allowed =
+        |actions: &[Action], kind: &str| actions.iter().any(|a| a.kind == kind && a.available);
+    let key_sources: Vec<&str> = account
+        .sources
+        .iter()
+        .filter(|s| allowed(&s.actions, "replace_api_key"))
+        .map(|s| s.id.as_str())
+        .collect();
     AccountView {
         id: account.id.clone(),
         provider_id: account.provider_id.clone(),
         name: account.display_name.clone(),
+        user_label: account.user_label.clone(),
         plan: usage.and_then(|u| u.plan.clone()),
         pinned: has_siblings && account.active,
+        enabled: account.enabled,
+        allowed: Allowed {
+            rename: allowed(&account.actions, "rename"),
+            set_enabled: allowed(&account.actions, "set_enabled"),
+            remove: allowed(&account.actions, "remove"),
+        },
+        key_source: match key_sources[..] {
+            [only] => Some(only.to_owned()),
+            _ => None,
+        },
         updated: usage
             .and_then(|u| u.fetched_at)
             .map(|at| compact_ago(now - at)),
@@ -186,18 +244,52 @@ fn issue(account: &Account, usage: Option<&Usage>, now: OffsetDateTime) -> Optio
             None => "The last refresh failed. Retrying won’t sign you out.".into(),
         },
         action: "Retry".into(),
+        fix: Fix::Retry,
     };
+    // The source that needs attention says how to fix it.
+    let source_fix = |kind: &str| {
+        account.sources.iter().find_map(|source| {
+            let action = source.issue.as_ref()?.action.as_ref()?;
+            (action.kind == kind && action.available).then(|| source.id.clone())
+        })
+    };
+    // Quotio's own logins are renewed here; borrowed ones in the provider's app.
+    let renew_here = source_fix("sign_in").is_some()
+        || account
+            .sources
+            .iter()
+            .any(|s| s.origin == quotio::domain::AccountOrigin::Owned);
     match account.state {
-        ConnectionState::NeedsLogin => Some(IssueView {
+        ConnectionState::NeedsLogin if renew_here => Some(IssueView {
             title: "Sign-in expired".into(),
             detail: "Quota is no longer updating.".into(),
             action: "Sign in again".into(),
+            fix: Fix::SignIn,
         }),
-        ConnectionState::NeedsAuthorization => Some(IssueView {
-            title: "Allow access to this login".into(),
-            detail: "Quotio found this login but can’t read it yet.".into(),
-            action: "Grant access".into(),
+        ConnectionState::NeedsLogin => Some(IssueView {
+            title: "Sign-in expired".into(),
+            detail: format!(
+                "Sign in again in {}, then retry.",
+                providers::display_name(&account.provider_id)
+            ),
+            action: "Retry".into(),
+            fix: Fix::Retry,
         }),
+        ConnectionState::NeedsAuthorization => Some(match source_fix("authorize") {
+            Some(source) => IssueView {
+                title: "Allow access to this login".into(),
+                detail: "Quotio found this login but can’t read it yet.".into(),
+                action: "Grant access".into(),
+                fix: Fix::Authorize(source),
+            },
+            None => IssueView {
+                title: "Allow access to this login".into(),
+                detail: "Quotio found this login but can’t read it yet.".into(),
+                action: "Retry".into(),
+                fix: Fix::Retry,
+            },
+        }),
+        ConnectionState::Disabled => None,
         ConnectionState::Unavailable => Some(refresh_failed(usage.and_then(|u| u.fetched_at))),
         _ => match usage {
             Some(u) if u.freshness == Freshness::Unavailable && u.issue.is_some() => {

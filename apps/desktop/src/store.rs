@@ -19,7 +19,11 @@ pub struct QuotaStore {
     host: Arc<dyn HostClient>,
     clock: Clock,
     offset: UtcOffset,
+    /// Tracked accounts, for the tray and popup.
     pub overview: Option<Overview>,
+    /// Every account including paused ones, for the settings window.
+    pub all: Option<Overview>,
+    snapshot: Option<quotio::contract::Snapshot>,
     pub error: Option<SharedString>,
     pub refreshing: bool,
 }
@@ -49,6 +53,8 @@ impl QuotaStore {
             clock,
             offset,
             overview: None,
+            all: None,
+            snapshot: None,
             error: None,
             refreshing: false,
         }
@@ -68,12 +74,47 @@ impl QuotaStore {
     ) {
         match result {
             Ok(snapshot) => {
-                self.overview = Some(model::overview(&snapshot, self.now(), self.offset));
+                let now = self.now();
+                self.overview = Some(model::overview(&snapshot, now, self.offset, false));
+                self.all = Some(model::overview(&snapshot, now, self.offset, true));
+                self.snapshot = Some(snapshot);
                 self.error = None;
             }
             Err(error) => self.error = Some(format!("{error:#}").into()),
         }
         cx.notify();
+    }
+
+    /// A login from the last snapshot, by source id.
+    pub fn source(&self, id: &str) -> Option<quotio::contract::Source> {
+        self.snapshot
+            .iter()
+            .flat_map(|s| &s.accounts)
+            .flat_map(|a| &a.sources)
+            .find(|s| s.id == id)
+            .cloned()
+    }
+
+    pub fn host(&self) -> Arc<dyn HostClient> {
+        self.host.clone()
+    }
+
+    /// Re-read the snapshot after an account change. The host re-collects quota in
+    /// the background, so look again shortly after.
+    pub fn reload(&mut self, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| {
+            for delay in [0, 2, 6] {
+                cx.background_executor()
+                    .timer(Duration::from_secs(delay))
+                    .await;
+                let Ok(fetch) = this.update(cx, |this, _| this.host.snapshot()) else {
+                    return;
+                };
+                let result = fetch.await;
+                let _ = this.update(cx, |this, cx| this.apply(result, cx));
+            }
+        })
+        .detach();
     }
 
     /// Ask the host to refresh, then pick up the result once providers have answered.

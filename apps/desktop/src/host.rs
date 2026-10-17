@@ -10,12 +10,68 @@ use quotio::{
     contract::Snapshot,
     server::{self, Embedded},
 };
+pub use reqwest::Method;
+use serde_json::Value;
 use tokio::{runtime::Runtime, sync::oneshot};
 
 pub trait HostClient: Send + Sync + 'static {
     fn snapshot(&self) -> BoxFuture<'static, Result<Snapshot>>;
     fn refresh(&self, provider: Option<String>) -> BoxFuture<'static, Result<()>>;
+    /// A write that the host runs as a background operation: send it, wait for the
+    /// operation to finish, and return its `result`.
+    fn mutate(
+        &self,
+        method: Method,
+        path: String,
+        body: Option<Value>,
+    ) -> BoxFuture<'static, Result<Value>>;
 }
+
+/// A host error code such as `duplicate_account`, with a sentence for people.
+#[derive(Debug)]
+pub struct HostError {
+    pub code: String,
+}
+
+impl std::fmt::Display for HostError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = match self.code.as_str() {
+            "credential_storage_unavailable" | "account_storage_disabled" => {
+                "the account vault is locked"
+            }
+            "duplicate_account" => "this account is already in Quotio",
+            "account_not_found" => "the account no longer exists",
+            "account_busy" => "the account is busy; try again in a moment",
+            "invalid_label" => "names must be 1–80 characters",
+            "invalid_credential" | "credential_validation_failed" => {
+                "the provider did not accept this credential"
+            }
+            "native_login_required" => "sign in with the provider’s own app first",
+            "unsupported_operation" => "this provider does not support that",
+            "oauth_failed" => "sign-in failed",
+            "oauth_expired_or_cancelled" | "expired" => "sign-in expired; start again",
+            "callback_port_unavailable" => {
+                "another app is using the sign-in port (1455); close it and retry"
+            }
+            "permission_required" => "Quotio needs permission to read this login",
+            "entry_required" => "choose which login to add",
+            "no_saved_accounts" => "demo mode does not save accounts",
+            "revision_conflict" | "settings_busy" => "settings changed elsewhere; try again",
+            "setting_overridden" => "this setting is fixed by a command-line option",
+            "share_port_unavailable" => "that port is already in use",
+            "network_address_unavailable" => "that network address is not available",
+            "invalid_share_address" => "enter an address like 192.168.1.24:6768",
+            "invalid_public_url" => "enter an https:// address",
+            "disable_sharing_before_changing_origin" => "turn sharing off before changing it",
+            "history_storage_unavailable" => "quota history is unavailable",
+            "operation_timeout" => "the host did not finish in time",
+            code => return write!(f, "the host returned {code}"),
+        };
+        f.write_str(message)
+    }
+}
+
+impl std::error::Error for HostError {}
 
 pub struct HostOptions {
     /// Run only the deterministic `mock` provider and skip saved accounts.
@@ -128,8 +184,12 @@ fn account_data_dir() -> Result<PathBuf> {
 }
 
 fn random_token() -> Result<String> {
+    random_hex::<32>()
+}
+
+fn random_hex<const N: usize>() -> Result<String> {
     use ring::rand::{SecureRandom, SystemRandom};
-    let mut bytes = [0u8; 32];
+    let mut bytes = [0u8; N];
     SystemRandom::new()
         .fill(&mut bytes)
         .map_err(|_| anyhow!("no secure random source"))?;
@@ -154,7 +214,77 @@ impl LoopbackClient {
     }
 }
 
+impl LoopbackClient {
+    fn request(&self, method: Method, path: &str, body: Option<Value>) -> reqwest::RequestBuilder {
+        let writes = method != Method::GET;
+        let mut request = self
+            .http
+            .request(method, format!("{}{path}", self.base))
+            .bearer_auth(&*self.token);
+        if writes && let Ok(key) = random_hex::<16>() {
+            request = request.header("Idempotency-Key", key);
+        }
+        match body {
+            Some(body) => request.json(&body),
+            None => request,
+        }
+    }
+}
+
+async fn body(response: reqwest::Response) -> Result<Value> {
+    let bytes = check(response).await?.bytes().await?;
+    Ok(if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes)?
+    })
+}
+
 impl HostClient for LoopbackClient {
+    fn mutate(
+        &self,
+        method: Method,
+        path: String,
+        body: Option<Value>,
+    ) -> BoxFuture<'static, Result<Value>> {
+        let request = self.request(method, &path, body);
+        let poll = {
+            let http = self.http.clone();
+            let base = self.base.clone();
+            let token = self.token.clone();
+            move |id: &str| {
+                http.get(format!("{base}/v2/operations/{id}"))
+                    .bearer_auth(&*token)
+            }
+        };
+        self.run(async move {
+            let mut operation = self::body(request.send().await?).await?;
+            // Discovery and keychain prompts can take minutes; most writes finish in
+            // well under a second.
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+            while operation["status"] == "running" {
+                if tokio::time::Instant::now() > deadline {
+                    bail!(HostError {
+                        code: "operation_timeout".into()
+                    });
+                }
+                tokio::time::sleep(Duration::from_millis(250)).await;
+                let id = operation["id"].as_str().context("operation without id")?;
+                operation = self::body(poll(id).send().await?).await?;
+            }
+            match operation["status"].as_str() {
+                Some("completed") => Ok(operation["result"].take()),
+                _ => Err(HostError {
+                    code: operation["error"]
+                        .as_str()
+                        .unwrap_or("operation_failed")
+                        .to_owned(),
+                }
+                .into()),
+            }
+        })
+    }
+
     fn snapshot(&self) -> BoxFuture<'static, Result<Snapshot>> {
         let request = self
             .http
@@ -191,10 +321,9 @@ async fn check(response: reqwest::Response) -> Result<reqwest::Response> {
     if status.is_success() {
         return Ok(response);
     }
-    let body: serde_json::Value = response.json().await.unwrap_or_default();
+    let body: Value = response.json().await.unwrap_or_default();
     match body["error"].as_str() {
-        Some("credential_storage_unavailable") => bail!("the account vault is locked"),
-        Some(code) => bail!("host returned {status} ({code})"),
+        Some(code) => Err(HostError { code: code.into() }.into()),
         None => bail!("host returned {status}"),
     }
 }
@@ -210,6 +339,10 @@ impl HostClient for FixtureClient {
 
     fn refresh(&self, _provider: Option<String>) -> BoxFuture<'static, Result<()>> {
         async { Ok(()) }.boxed()
+    }
+
+    fn mutate(&self, _: Method, _: String, _: Option<Value>) -> BoxFuture<'static, Result<Value>> {
+        async { bail!("changes are not available while showing a fixture") }.boxed()
     }
 }
 

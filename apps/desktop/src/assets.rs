@@ -14,7 +14,7 @@ icon_assets!(
     ExtraIcons,
     [
         Clock, Pin, Smartphone, Power, LayoutGrid, ChartLine, Users, Shield, AppWindow, CirclePlus,
-        KeyRound, PanelTop
+        KeyRound, PanelTop, Pencil, Trash
     ]
 );
 

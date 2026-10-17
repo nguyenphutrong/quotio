@@ -2,12 +2,16 @@
 //! Wonder "Page - Quotio …" artboards.
 mod accounts;
 
+use std::collections::HashSet;
+
 use gpui_kit::assets::IconName;
 use gpui_kit::{
-    AnyElement, Context, Decorations, Entity, FontWeight, InteractiveElement, IntoElement,
-    ParentElement, Render, StatefulInteractiveElement, Styled, Subscription, Window,
+    AnyElement, AppContext as _, Context, Decorations, Entity, FontWeight, InteractiveElement,
+    IntoElement, ParentElement, Render, StatefulInteractiveElement, Styled, Subscription, Window,
     WindowControlArea, div, prelude::FluentBuilder as _, px, relative,
 };
+
+use gpui_kit::component::input::{InputEvent, InputState};
 
 use super::icon;
 use crate::store::QuotaStore;
@@ -62,13 +66,24 @@ impl Page {
 pub struct SettingsWindow {
     store: Entity<QuotaStore>,
     page: Page,
+    search: Entity<InputState>,
+    /// Accounts with a change in flight; their rows are dimmed.
+    busy: HashSet<String>,
+    /// Events of the open dialog's field, replaced with each dialog.
+    dialog_events: Option<Subscription>,
     _subscriptions: Vec<Subscription>,
 }
 
 impl SettingsWindow {
     pub fn new(store: Entity<QuotaStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search accounts"));
         let subscriptions = vec![
             cx.observe(&store, |_, _, cx| cx.notify()),
+            cx.subscribe(&search, |_, _, event: &InputEvent, cx| {
+                if matches!(event, InputEvent::Change) {
+                    cx.notify();
+                }
+            }),
             cx.observe_window_appearance(window, |_, window, cx| {
                 crate::theme::system_changed(window.appearance(), cx)
             }),
@@ -76,6 +91,9 @@ impl SettingsWindow {
         Self {
             store,
             page: Page::Accounts,
+            search,
+            busy: HashSet::new(),
+            dialog_events: None,
             _subscriptions: subscriptions,
         }
     }
@@ -198,7 +216,7 @@ impl SettingsWindow {
 impl Render for SettingsWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = palette(cx).clone();
-        let overview = self.store.read(cx).overview.clone();
+        let overview = self.store.read(cx).all.clone();
         let attention = overview.as_ref().map_or(0, |o| o.attention().count());
         let page = match self.page {
             Page::Accounts => self.accounts_page(overview.as_ref(), cx),
