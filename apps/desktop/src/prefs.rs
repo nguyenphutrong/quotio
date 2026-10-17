@@ -15,6 +15,8 @@ pub struct Prefs {
     pub quota_display: QuotaDisplay,
     pub tray_icon: TrayIcon,
     pub notifications: Notifications,
+    /// Mask account names on screen, for screen sharing.
+    pub hide_names: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

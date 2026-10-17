@@ -117,6 +117,17 @@ impl QuotaStore {
             .cloned()
     }
 
+    /// Logins Quotio reads from other apps, with their account's provider.
+    pub fn borrowed_sources(&self) -> Vec<(String, quotio::contract::Source)> {
+        self.snapshot
+            .iter()
+            .flat_map(|s| &s.accounts)
+            .flat_map(|a| a.sources.iter().map(|s| (a.provider_id.clone(), s)))
+            .filter(|(_, s)| s.origin != quotio::domain::AccountOrigin::Owned)
+            .map(|(provider, s)| (provider, s.clone()))
+            .collect()
+    }
+
     pub fn host(&self) -> Arc<dyn HostClient> {
         self.host.clone()
     }

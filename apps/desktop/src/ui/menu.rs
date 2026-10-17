@@ -7,7 +7,7 @@ use gpui_kit::{
     relative, size,
 };
 
-use super::{icon, progress, provider_logo, value_color};
+use super::{icon, progress, provider_logo, shown_name, value_color};
 use crate::model::{AccountView, MetricView, Overview, ProviderGroup};
 use crate::store::QuotaStore;
 use crate::theme::{FONT_FAMILY, Palette, palette};
@@ -233,7 +233,7 @@ impl QuotaMenu {
                 group
                     .accounts
                     .iter()
-                    .map(|account| account_card(account, &p)),
+                    .map(|account| account_card(account, shown_name(&account.name, cx), &p)),
             )
             .into_any_element()
     }
@@ -373,7 +373,7 @@ impl Render for QuotaMenu {
     }
 }
 
-fn account_card(account: &AccountView, p: &Palette) -> AnyElement {
+fn account_card(account: &AccountView, name: String, p: &Palette) -> AnyElement {
     let group = SharedString::from(format!("card-{}", account.id));
     let mut card = div()
         .id(group.clone())
@@ -390,7 +390,7 @@ fn account_card(account: &AccountView, p: &Palette) -> AnyElement {
             window.remove_window();
             crate::app::open_settings(cx);
         })
-        .child(card_header(account, &group, p));
+        .child(card_header(account, name, &group, p));
     if let Some(issue) = &account.issue {
         card = card.child(
             div()
@@ -424,7 +424,12 @@ fn account_card(account: &AccountView, p: &Palette) -> AnyElement {
     card.into_any_element()
 }
 
-fn card_header(account: &AccountView, group: &SharedString, p: &Palette) -> impl IntoElement {
+fn card_header(
+    account: &AccountView,
+    name: String,
+    group: &SharedString,
+    p: &Palette,
+) -> impl IntoElement {
     div()
         .flex()
         .items_center()
@@ -436,7 +441,7 @@ fn card_header(account: &AccountView, group: &SharedString, p: &Palette) -> impl
                 .text_size(px(13.))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(p.text_strong)
-                .child(account.name.clone()),
+                .child(name),
         )
         .when(account.pinned, |s| {
             s.child(icon(IconName::Pin, 11., p.text_soft))

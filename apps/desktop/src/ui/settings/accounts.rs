@@ -19,12 +19,12 @@ use super::SettingsWindow;
 use super::connect::{ConnectFlow, Connected};
 use crate::host::{HostError, Method};
 use crate::model::{AccountView, Fix, MetricView, Overview, ProviderGroup};
-use crate::providers;
 use crate::theme::{Palette, palette};
 use crate::ui::{
     ButtonKind, button, button_with_icon, dialog_footer, field, icon, note, progress,
-    provider_logo, text_field, value_color,
+    provider_logo, shown_name, text_field, value_color,
 };
+use crate::{prefs, providers};
 
 /// Groups and accounts that match the search: a provider name match keeps the
 /// whole group, otherwise only accounts whose name matches stay.
@@ -160,7 +160,11 @@ impl SettingsWindow {
                                     .text_size(px(14.))
                                     .font_weight(FontWeight::MEDIUM)
                                     .text_color(p.text_strong)
-                                    .child(format!("{} · {}", issue.title, account.name)),
+                                    .child(format!(
+                                        "{} · {}",
+                                        issue.title,
+                                        shown_name(&account.name, cx)
+                                    )),
                             )
                             .child(
                                 div()
@@ -464,6 +468,13 @@ impl SettingsWindow {
         p: &Palette,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        // Hidden names show for a moment when clicked.
+        let masked = prefs::get(cx).hide_names && self.revealed.as_ref() != Some(&account.id);
+        let name = if masked {
+            crate::model::mask(&account.name)
+        } else {
+            account.name.clone()
+        };
         let identity = div()
             .w(px(220.))
             .flex_none()
@@ -477,6 +488,7 @@ impl SettingsWindow {
                     .gap(px(6.))
                     .child(
                         div()
+                            .id(SharedString::from(format!("name-{}", account.id)))
                             .min_w_0()
                             .truncate()
                             .text_size(px(14.))
@@ -486,7 +498,13 @@ impl SettingsWindow {
                             } else {
                                 p.text_soft
                             })
-                            .child(account.name.clone()),
+                            .child(name)
+                            .when(masked, |s| {
+                                let id = account.id.clone();
+                                s.cursor_pointer().on_click(
+                                    cx.listener(move |this, _, _, cx| this.reveal(id.clone(), cx)),
+                                )
+                            }),
                     )
                     .when(account.pinned, |s| {
                         s.child(icon(IconName::Pin, 14., p.text_soft))
@@ -657,6 +675,24 @@ impl SettingsWindow {
                         .item(item("Remove…", IconName::Trash, Action::Remove))
                 })
             })
+    }
+
+    /// Show a hidden account name for a few seconds.
+    fn reveal(&mut self, id: String, cx: &mut Context<Self>) {
+        self.revealed = Some(id.clone());
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(std::time::Duration::from_secs(3))
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                if this.revealed.as_ref() == Some(&id) {
+                    this.revealed = None;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     fn account_action(
@@ -897,7 +933,7 @@ impl SettingsWindow {
             "Replace {} API key",
             providers::display_name(&account.provider_id)
         );
-        let label = format!("New key for {}", account.name);
+        let label = format!("New key for {}", shown_name(&account.name, cx));
         let first = Cell::new(true);
         window.open_dialog(cx, move |dialog, window, cx| {
             if first.replace(false) {
@@ -961,7 +997,7 @@ impl SettingsWindow {
                 .child(note(
                     format!(
                         "{} and its quota history will be removed. Sign-ins kept by {} itself are not touched.",
-                        account.name,
+                        shown_name(&account.name, cx),
                         providers::display_name(&account.provider_id)
                     ),
                     p.text_sub,

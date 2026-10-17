@@ -132,7 +132,7 @@ fn main() -> Result<()> {
                             monochrome: prefs.tray_icon == prefs::TrayIcon::Monochrome,
                         };
                         let gauge = tray::icon::gauge(overview.lowest_remaining(), style);
-                        tray.update(gauge, tooltip(overview));
+                        tray.update(gauge, tooltip(overview, prefs.hide_names));
                     }
                 })
                 .detach();
@@ -165,7 +165,7 @@ fn main() -> Result<()> {
 }
 
 /// One line per account with its lowest quota, e.g. `Codex · phutrong.it@gmail.com 18%`.
-fn tooltip(overview: &model::Overview) -> String {
+fn tooltip(overview: &model::Overview, hide_names: bool) -> String {
     overview
         .groups
         .iter()
@@ -180,7 +180,12 @@ fn tooltip(overview: &model::Overview) -> String {
                         .min_by(|a, b| a.remaining.partial_cmp(&b.remaining).unwrap())
                         .map_or_else(|| "—".to_owned(), |m| m.value.clone()),
                 };
-                format!("{} · {} {level}", group.name, account.name)
+                let name = if hide_names {
+                    model::mask(&account.name)
+                } else {
+                    account.name.clone()
+                };
+                format!("{} · {name} {level}", group.name)
             })
         })
         .collect::<Vec<_>>()

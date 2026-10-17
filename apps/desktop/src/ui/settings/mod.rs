@@ -5,6 +5,7 @@ mod connect;
 mod general;
 mod menu_bar;
 mod notifications;
+mod privacy;
 mod widgets;
 
 use std::collections::HashSet;
@@ -89,6 +90,8 @@ pub struct SettingsWindow {
     discovery: Option<Value>,
     launch_at_login: bool,
     scanning: bool,
+    /// Account whose hidden name is shown for a moment.
+    revealed: Option<String>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -127,6 +130,7 @@ impl SettingsWindow {
             discovery: None,
             launch_at_login: crate::autostart::enabled(),
             scanning: false,
+            revealed: None,
             _subscriptions: subscriptions,
         };
         this.load_host_settings(cx);
@@ -324,6 +328,7 @@ impl Render for SettingsWindow {
             Page::General => self.general_page(cx),
             Page::MenuBar => self.menu_bar_page(cx),
             Page::Notifications => self.notifications_page(cx),
+            Page::Privacy => self.privacy_page(cx),
             _ => self.placeholder_page(cx),
         };
         // macOS draws traffic lights; X11 without a compositor falls back to the

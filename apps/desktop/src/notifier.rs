@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use gpui_kit::{App, Global, SystemNotification};
 
-use crate::model::{AccountView, MetricView, Overview};
+use crate::model::{AccountView, MetricView, Overview, mask};
 use crate::prefs;
 
 /// Tags of notifications already shown, so a lasting state is not repeated.
@@ -16,6 +16,7 @@ impl Global for Sent {}
 /// Compare the latest quota with the user's alert settings.
 pub fn check(overview: &Overview, cx: &mut App) {
     let settings = prefs::get(cx).notifications.clone();
+    let hide = prefs::get(cx).hide_names;
     if !settings.enabled {
         return;
     }
@@ -35,7 +36,7 @@ pub fn check(overview: &Overview, cx: &mut App) {
                     pending.push(SystemNotification {
                         tag: cooling.into(),
                         title: format!("{} {} limit reached", group.name, label(metric)).into(),
-                        body: body(account, metric).into(),
+                        body: body(account, metric, hide).into(),
                         actions: Vec::new(),
                     });
                 }
@@ -50,7 +51,7 @@ pub fn check(overview: &Overview, cx: &mut App) {
                         tag: low.into(),
                         title: format!("{} {} quota at {left:.0}%", group.name, label(metric))
                             .into(),
-                        body: body(account, metric).into(),
+                        body: body(account, metric, hide).into(),
                         actions: Vec::new(),
                     });
                 }
@@ -78,9 +79,14 @@ fn label(metric: &MetricView) -> String {
 }
 
 /// `phutrong.it@gmail.com · resets Thu 14:20`
-fn body(account: &AccountView, metric: &MetricView) -> String {
+fn body(account: &AccountView, metric: &MetricView, hide: bool) -> String {
+    let name = if hide {
+        mask(&account.name)
+    } else {
+        account.name.clone()
+    };
     match metric.reset_sentence() {
-        Some(reset) => format!("{} · r{}", account.name, &reset[1..]),
-        None => account.name.clone(),
+        Some(reset) => format!("{name} · r{}", &reset[1..]),
+        None => name,
     }
 }

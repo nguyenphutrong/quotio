@@ -364,6 +364,20 @@ pub fn compact_reset(at: OffsetDateTime, now: OffsetDateTime, offset: UtcOffset)
     )
 }
 
+/// `********@*****.com` for an email, stars otherwise, as the macOS app masks
+/// names when sensitive information is hidden.
+pub fn mask(name: &str) -> String {
+    let stars = |n: usize| "*".repeat(n);
+    if let Some((local, domain)) = name.split_once('@') {
+        let local = stars(local.chars().count().min(8));
+        return match domain.split_once('.') {
+            Some((host, rest)) => format!("{local}@{}.{rest}", stars(host.chars().count().min(5))),
+            None => format!("{local}@{}", stars(5)),
+        };
+    }
+    stars(name.chars().count().clamp(4, 12))
+}
+
 /// Card corner label: `now`, `2m`, `3h`, `2d`.
 pub fn compact_ago(elapsed: Duration) -> String {
     let minutes = elapsed.whole_minutes();

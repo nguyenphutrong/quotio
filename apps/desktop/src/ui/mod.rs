@@ -5,7 +5,7 @@ use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;
 use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::{
-    AnyElement, Div, ElementId, Entity, FontWeight, Hsla, InteractiveElement, IntoElement,
+    AnyElement, App, Div, ElementId, Entity, FontWeight, Hsla, InteractiveElement, IntoElement,
     ParentElement, Pixels, SharedString, Stateful, Styled, div, prelude::FluentBuilder as _, px,
     relative, svg,
 };
@@ -13,6 +13,16 @@ use gpui_kit::{
 use crate::model::Tone;
 use crate::providers;
 use crate::theme::Palette;
+
+/// An account name as the user wants it on screen: masked under Privacy → Hide
+/// account names.
+pub fn shown_name(name: &str, cx: &App) -> String {
+    if crate::prefs::get(cx).hide_names {
+        crate::model::mask(name)
+    } else {
+        name.to_owned()
+    }
+}
 
 pub fn tone_color(tone: Tone, p: &Palette) -> Hsla {
     match tone {
