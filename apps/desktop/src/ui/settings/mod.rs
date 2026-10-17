@@ -2,6 +2,8 @@
 //! Wonder "Page - Quotio …" artboards.
 mod accounts;
 mod connect;
+mod general;
+mod widgets;
 
 use std::collections::HashSet;
 
@@ -14,7 +16,12 @@ use gpui_kit::{
 
 use gpui_kit::component::input::{InputEvent, InputState};
 
+use gpui_kit::component::WindowExt as _;
+use gpui_kit::component::notification::Notification;
+use serde_json::Value;
+
 use super::icon;
+use crate::host::{HostError, Method};
 use crate::store::QuotaStore;
 use crate::theme::{FONT_FAMILY, Palette, palette};
 
@@ -74,6 +81,12 @@ pub struct SettingsWindow {
     dialog_events: Option<Subscription>,
     /// Connectable providers, once the host has listed them.
     catalog: Option<Vec<crate::catalog::Provider>>,
+    /// `GET /v2/settings`, updated as soon as the user changes something.
+    host_settings: Option<Value>,
+    /// `GET /v2/discovery`: when Quotio last looked for logins and what it found.
+    discovery: Option<Value>,
+    launch_at_login: bool,
+    scanning: bool,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -101,15 +114,83 @@ impl SettingsWindow {
                 crate::theme::system_changed(window.appearance(), cx)
             }),
         ];
-        Self {
+        let mut this = Self {
             store,
             page: Page::Accounts,
             search,
             busy: HashSet::new(),
             dialog_events: None,
             catalog: None,
+            host_settings: None,
+            discovery: None,
+            launch_at_login: crate::autostart::enabled(),
+            scanning: false,
             _subscriptions: subscriptions,
+        };
+        this.load_host_settings(cx);
+        this
+    }
+
+    fn load_host_settings(&mut self, cx: &mut Context<Self>) {
+        let host = self.store.read(cx).host();
+        cx.spawn(async move |this, cx| {
+            let settings = host.call(Method::GET, "/v2/settings".into(), None).await;
+            let discovery = host.call(Method::GET, "/v2/discovery".into(), None).await;
+            let _ = this.update(cx, |this, cx| {
+                this.host_settings = settings.ok();
+                this.discovery = discovery.ok();
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Change host-wide settings. The page shows the new values at once; if the
+    /// host refuses, it shows the error and the stored values again.
+    fn patch_settings(&mut self, change: Value, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(current) = self.host_settings.as_mut() else {
+            return;
+        };
+        for (key, value) in change.as_object().into_iter().flatten() {
+            current[key] = value.clone();
         }
+        cx.notify();
+        let host = self.store.read(cx).host();
+        cx.spawn_in(window, async move |this, cx| {
+            // Another client may have saved in between; a conflict re-reads once.
+            let mut attempts = 0;
+            let result = loop {
+                attempts += 1;
+                let attempt = async {
+                    let settings = host.call(Method::GET, "/v2/settings".into(), None).await?;
+                    let mut body = change.clone();
+                    body["revision"] = settings["revision"].clone();
+                    host.call(Method::PATCH, "/v2/settings".into(), Some(body))
+                        .await
+                }
+                .await;
+                match attempt {
+                    Err(error)
+                        if attempts < 2 && HostError::code(&error) == Some("revision_conflict") => {
+                    }
+                    result => break result,
+                }
+            };
+            let _ = this.update_in(cx, |this, window, cx| match result {
+                Ok(settings) => {
+                    this.host_settings = Some(settings);
+                    cx.notify();
+                }
+                Err(error) => {
+                    window.push_notification(
+                        Notification::error(format!("Couldn’t save the setting: {error:#}.")),
+                        cx,
+                    );
+                    this.load_host_settings(cx);
+                }
+            });
+        })
+        .detach();
     }
 
     fn sidebar(&self, attention: usize, cx: &mut Context<Self>) -> impl IntoElement {
@@ -158,7 +239,11 @@ impl SettingsWindow {
                     )
                 })
                 .on_click(cx.listener(move |this, _, _, cx| {
-                    this.page = page;
+                    if this.page != page {
+                        this.page = page;
+                        // Pick up changes made in the config file or another client.
+                        this.load_host_settings(cx);
+                    }
                     cx.notify();
                 }))
         };
@@ -234,6 +319,7 @@ impl Render for SettingsWindow {
         let attention = overview.as_ref().map_or(0, |o| o.attention().count());
         let page = match self.page {
             Page::Accounts => self.accounts_page(overview.as_ref(), cx),
+            Page::General => self.general_page(cx),
             _ => self.placeholder_page(cx),
         };
         // macOS draws traffic lights; X11 without a compositor falls back to the

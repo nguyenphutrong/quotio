@@ -2,6 +2,7 @@
 //! the Rust host from `apps/cli` running in this process.
 mod app;
 mod assets;
+mod autostart;
 mod catalog;
 mod host;
 mod model;
@@ -96,7 +97,7 @@ fn main() -> Result<()> {
             if let Err(error) = assets::load_fonts(cx) {
                 eprintln!("Could not load bundled fonts: {error:#}");
             }
-            cx.set_global(prefs::Store::load());
+            cx.set_global(prefs::Store::load(options.fixture.is_none()));
             let appearance = prefs::get(cx).appearance;
             theme::apply(appearance, cx.window_appearance(), cx);
 

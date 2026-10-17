@@ -1361,7 +1361,7 @@ fn expand_home(path: &str) -> String {
 }
 
 /// `{registered, failures}` from a discovery report, in words.
-fn scan_summary(report: &Value) -> String {
+pub(super) fn scan_summary(report: &Value) -> String {
     let count = |v: &Value| {
         v.as_array()
             .map_or_else(|| v.as_u64().unwrap_or(0) as usize, Vec::len)
