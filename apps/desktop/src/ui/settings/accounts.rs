@@ -811,6 +811,37 @@ impl SettingsWindow {
                 let work = self.authorize_source(&source, cx);
                 self.run(account, "grant access", work, window, cx);
             }
+            Fix::UnlockVault => {
+                let host = self.store.read(cx).host();
+                let refresh = json!({
+                    "providers": [account.provider_id],
+                    "account_id": account.id,
+                    "force": true,
+                });
+                // Access can be granted while the keyring itself stays locked; a
+                // refresh shows whether the sign-in opens now.
+                let work = Box::pin(async move {
+                    host.mutate(
+                        Method::POST,
+                        "/v2/account-vault/authorize".into(),
+                        Some(json!({})),
+                    )
+                    .await?;
+                    let result = host
+                        .mutate(Method::POST, "/v2/refresh".into(), Some(refresh))
+                        .await?;
+                    if result["failures"].as_u64().unwrap_or(0) > 0 {
+                        let hint = if cfg!(windows) {
+                            "check Windows Credential Manager"
+                        } else {
+                            "unlock your keyring"
+                        };
+                        anyhow::bail!("the saved sign-in is still locked; {hint}");
+                    }
+                    Ok(result)
+                });
+                self.run(account, "grant access", work, window, cx);
+            }
             Fix::SignIn => self.connect(Some(&account.provider_id), window, cx),
         }
     }

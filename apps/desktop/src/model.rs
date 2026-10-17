@@ -58,6 +58,8 @@ pub enum Fix {
     SignIn,
     /// Let Quotio read a login it found; carries the source to authorize.
     Authorize(String),
+    /// Let Quotio open its own store of saved sign-ins.
+    UnlockVault,
     /// Refresh the account.
     Retry,
 }
@@ -259,6 +261,11 @@ fn issue(account: &Account, usage: Option<&Usage>, now: OffsetDateTime) -> Optio
             (action.kind == kind && action.available).then(|| source.id.clone())
         })
     };
+    let vault_locked = account.sources.iter().any(|s| {
+        s.issue
+            .as_ref()
+            .is_some_and(|i| i.code == "credential_storage")
+    });
     // Quotio's own logins are renewed here; borrowed ones in the provider's app.
     let renew_here = source_fix("sign_in").is_some()
         || account
@@ -280,6 +287,14 @@ fn issue(account: &Account, usage: Option<&Usage>, now: OffsetDateTime) -> Optio
             ),
             action: "Retry".into(),
             fix: Fix::Retry,
+        }),
+        // `credential_storage` is Quotio's own store; `local_credential_storage`
+        // is the provider app's login, which needs the source authorized.
+        ConnectionState::NeedsAuthorization if vault_locked => Some(IssueView {
+            title: "Allow access to saved sign-ins".into(),
+            detail: "Quotio can’t open the sign-in it saved for this account.".into(),
+            action: "Grant access".into(),
+            fix: Fix::UnlockVault,
         }),
         ConnectionState::NeedsAuthorization => Some(match source_fix("authorize") {
             Some(source) => IssueView {
