@@ -17,6 +17,7 @@ pub struct Prefs {
     pub notifications: Notifications,
     /// Mask account names on screen, for screen sharing.
     pub hide_names: bool,
+    pub sharing: crate::sharing::Prefs,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

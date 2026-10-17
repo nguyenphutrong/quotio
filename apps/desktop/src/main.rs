@@ -9,6 +9,7 @@ mod model;
 mod notifier;
 mod prefs;
 mod providers;
+mod sharing;
 mod store;
 mod theme;
 mod tray;
@@ -104,6 +105,11 @@ fn main() -> Result<()> {
 
             let store = cx.new(|cx| QuotaStore::new(client, clock, offset, cx));
             app::init(store.clone(), cx);
+            if options.fixture.is_none() && !options.demo {
+                let host = store.read(cx).host();
+                let saved = prefs::get(cx).sharing.clone();
+                cx.background_spawn(sharing::restore(host, saved)).detach();
+            }
             // A fixture is a still picture; it should not raise alerts.
             if options.fixture.is_none() {
                 cx.observe(&store, |store, cx| {

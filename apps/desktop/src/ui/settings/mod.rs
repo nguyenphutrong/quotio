@@ -3,6 +3,7 @@
 mod accounts;
 mod connect;
 mod general;
+mod iphone;
 mod menu_bar;
 mod notifications;
 mod privacy;
@@ -92,6 +93,14 @@ pub struct SettingsWindow {
     scanning: bool,
     /// Account whose hidden name is shown for a moment.
     revealed: Option<String>,
+    /// `GET /v2/sharing` and the paired devices from `GET /v2/clients`.
+    sharing: Option<Value>,
+    devices: Option<Vec<Value>>,
+    /// The connection being turned on or off.
+    sharing_busy: Option<crate::sharing::Mode>,
+    sharing_advanced: bool,
+    share_port: Entity<InputState>,
+    share_proxy: Entity<InputState>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -119,6 +128,16 @@ impl SettingsWindow {
                 crate::theme::system_changed(window.appearance(), cx)
             }),
         ];
+        let saved = crate::prefs::get(cx).sharing.clone();
+        // The proxy connection lives under Advanced; keep it in view while it is on.
+        let sharing_advanced = saved.enabled.contains(&crate::sharing::Mode::Proxy);
+        let share_port =
+            cx.new(|cx| InputState::new(window, cx).default_value(saved.port.to_string()));
+        let share_proxy = cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("https://quotio.example.com")
+                .default_value(saved.proxy_url.unwrap_or_default())
+        });
         let mut this = Self {
             store,
             page: Page::Accounts,
@@ -131,6 +150,12 @@ impl SettingsWindow {
             launch_at_login: crate::autostart::enabled(),
             scanning: false,
             revealed: None,
+            sharing: None,
+            devices: None,
+            sharing_busy: None,
+            sharing_advanced,
+            share_port,
+            share_proxy,
             _subscriptions: subscriptions,
         };
         this.load_host_settings(cx);
@@ -249,6 +274,9 @@ impl SettingsWindow {
                         this.page = page;
                         // Pick up changes made in the config file or another client.
                         this.load_host_settings(cx);
+                        if page == Page::IphoneSharing {
+                            this.load_sharing(cx);
+                        }
                     }
                     cx.notify();
                 }))
@@ -326,6 +354,7 @@ impl Render for SettingsWindow {
         let page = match self.page {
             Page::Accounts => self.accounts_page(overview.as_ref(), cx),
             Page::General => self.general_page(cx),
+            Page::IphoneSharing => self.iphone_page(cx),
             Page::MenuBar => self.menu_bar_page(cx),
             Page::Notifications => self.notifications_page(cx),
             Page::Privacy => self.privacy_page(cx),
