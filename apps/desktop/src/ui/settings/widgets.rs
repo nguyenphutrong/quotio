@@ -13,27 +13,40 @@ use gpui_kit::{
 use crate::theme::Palette;
 
 pub fn page(title: &str, subtitle: &str, p: &Palette) -> Div {
+    page_with(title, subtitle, div(), p)
+}
+
+/// A page whose header carries a control on the right, such as a master switch.
+pub fn page_with(title: &str, subtitle: &str, trailing: impl IntoElement, p: &Palette) -> Div {
     div().flex().flex_col().gap(px(24.)).child(
         div()
             .flex()
-            .flex_col()
-            .gap(px(4.))
+            .items_center()
+            .gap(px(16.))
             .pb(px(20.))
             .border_b_1()
             .border_color(p.stroke_soft)
             .child(
                 div()
-                    .text_size(px(18.))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(p.text_strong)
-                    .child(title.to_owned()),
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .gap(px(4.))
+                    .child(
+                        div()
+                            .text_size(px(18.))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(p.text_strong)
+                            .child(title.to_owned()),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(14.))
+                            .text_color(p.text_sub)
+                            .child(subtitle.to_owned()),
+                    ),
             )
-            .child(
-                div()
-                    .text_size(px(14.))
-                    .text_color(p.text_sub)
-                    .child(subtitle.to_owned()),
-            ),
+            .child(trailing),
     )
 }
 

@@ -6,6 +6,7 @@ mod autostart;
 mod catalog;
 mod host;
 mod model;
+mod notifier;
 mod prefs;
 mod providers;
 mod store;
@@ -103,6 +104,15 @@ fn main() -> Result<()> {
 
             let store = cx.new(|cx| QuotaStore::new(client, clock, offset, cx));
             app::init(store.clone(), cx);
+            // A fixture is a still picture; it should not raise alerts.
+            if options.fixture.is_none() {
+                cx.observe(&store, |store, cx| {
+                    if let Some(overview) = store.read(cx).overview.clone() {
+                        notifier::check(&overview, cx);
+                    }
+                })
+                .detach();
+            }
 
             let (events, mut received) = futures::channel::mpsc::unbounded();
             let tray = match Tray::start(events, &runtime) {

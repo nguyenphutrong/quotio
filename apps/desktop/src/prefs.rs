@@ -14,6 +14,29 @@ pub struct Prefs {
     pub appearance: Appearance,
     pub quota_display: QuotaDisplay,
     pub tray_icon: TrayIcon,
+    pub notifications: Notifications,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Notifications {
+    pub enabled: bool,
+    pub quota_low: bool,
+    /// Percent left at or below which quota counts as low.
+    pub threshold: u8,
+    /// A limit is used up and the account waits for its reset.
+    pub cooling_down: bool,
+}
+
+impl Default for Notifications {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            quota_low: true,
+            threshold: 20,
+            cooling_down: true,
+        }
+    }
 }
 
 /// Whether percentages count what is left or what is used.

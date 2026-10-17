@@ -4,6 +4,7 @@ mod accounts;
 mod connect;
 mod general;
 mod menu_bar;
+mod notifications;
 mod widgets;
 
 use std::collections::HashSet;
@@ -322,6 +323,7 @@ impl Render for SettingsWindow {
             Page::Accounts => self.accounts_page(overview.as_ref(), cx),
             Page::General => self.general_page(cx),
             Page::MenuBar => self.menu_bar_page(cx),
+            Page::Notifications => self.notifications_page(cx),
             _ => self.placeholder_page(cx),
         };
         // macOS draws traffic lights; X11 without a compositor falls back to the
