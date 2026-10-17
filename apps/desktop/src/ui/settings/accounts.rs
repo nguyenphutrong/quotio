@@ -554,8 +554,11 @@ impl SettingsWindow {
                 }),
             Some(issue) => {
                 let target = account.clone();
+                // `min_w_0` lets a long message wrap instead of pushing the
+                // row's buttons out.
                 div()
                     .flex_1()
+                    .min_w_0()
                     .flex()
                     .items_center()
                     .gap(px(8.))
@@ -564,10 +567,11 @@ impl SettingsWindow {
                     .rounded(px(10.))
                     .bg(p.error_alpha)
                     .text_size(px(12.))
-                    .child(icon(IconName::CircleAlert, 16., p.error))
+                    .child(icon(IconName::CircleAlert, 16., p.error).flex_none())
                     .child(
                         div()
                             .flex_1()
+                            .min_w_0()
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(p.text_strong)
                             .child(format!("{}. {}", issue.title, issue.detail)),
@@ -575,6 +579,7 @@ impl SettingsWindow {
                     .child(
                         div()
                             .id(SharedString::from(format!("row-fix-{}", account.id)))
+                            .flex_none()
                             .cursor_pointer()
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(p.error)
