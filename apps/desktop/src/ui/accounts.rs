@@ -9,7 +9,7 @@ use gpui_kit::{
 use super::{icon, progress, provider_logo, value_color};
 use crate::model::{AccountView, MetricView, Overview, ProviderGroup};
 use crate::store::QuotaStore;
-use crate::theme::{self, FONT_FAMILY, Palette, palette};
+use crate::theme::{FONT_FAMILY, Palette, palette};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -64,8 +64,13 @@ pub struct SettingsWindow {
 }
 
 impl SettingsWindow {
-    pub fn new(store: Entity<QuotaStore>, cx: &mut Context<Self>) -> Self {
-        let subscriptions = vec![cx.observe(&store, |_, _, cx| cx.notify())];
+    pub fn new(store: Entity<QuotaStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let subscriptions = vec![
+            cx.observe(&store, |_, _, cx| cx.notify()),
+            cx.observe_window_appearance(window, |_, window, cx| {
+                crate::theme::system_changed(window.appearance(), cx)
+            }),
+        ];
         Self {
             store,
             page: Page::Accounts,
@@ -90,7 +95,7 @@ impl SettingsWindow {
                 .map(|s| {
                     if active {
                         s.bg(p.bg_white)
-                            .shadow(theme::raised())
+                            .shadow(p.raised())
                             .text_color(p.text_strong)
                     } else {
                         s.text_color(p.text_sub).hover(|s| s.bg(p.stroke_soft))
@@ -219,7 +224,7 @@ impl SettingsWindow {
                     .px(px(10.))
                     .rounded(px(10.))
                     .bg(p.bg_white)
-                    .shadow(theme::button())
+                    .shadow(p.button())
                     .cursor_pointer()
                     .when(refreshing, |s| s.opacity(0.5))
                     .text_size(px(14.))
@@ -258,7 +263,7 @@ impl SettingsWindow {
                     .py(px(10.))
                     .rounded(px(12.))
                     .bg(p.bg_white)
-                    .shadow(theme::raised())
+                    .shadow(p.raised())
                     .child(
                         div()
                             .size(px(32.))
@@ -435,7 +440,7 @@ impl Render for SettingsWindow {
                     .min_w_0()
                     .rounded(px(24.))
                     .bg(p.bg_white)
-                    .shadow(theme::panel())
+                    .shadow(p.panel())
                     .overflow_hidden()
                     .child(
                         div()

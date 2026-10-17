@@ -161,8 +161,8 @@ pub fn open_settings(cx: &mut App) {
         app_id: Some(APP_ID.into()),
         ..Default::default()
     };
-    match gpui_kit::open_window(options, cx, |_, cx| {
-        cx.new(|cx| SettingsWindow::new(store, cx))
+    match gpui_kit::open_window(options, cx, |window, cx| {
+        cx.new(|cx| SettingsWindow::new(store, window, cx))
     }) {
         Ok((handle, _)) => {
             cx.global_mut::<Shell>().settings = Some(handle);

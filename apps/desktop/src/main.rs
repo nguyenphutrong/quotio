@@ -4,6 +4,7 @@ mod app;
 mod assets;
 mod host;
 mod model;
+mod prefs;
 mod providers;
 mod store;
 mod theme;
@@ -94,7 +95,9 @@ fn main() -> Result<()> {
             if let Err(error) = assets::load_fonts(cx) {
                 eprintln!("Could not load bundled fonts: {error:#}");
             }
-            cx.set_global(theme::Palette::light());
+            cx.set_global(prefs::Store::load());
+            let appearance = prefs::get(cx).appearance;
+            theme::apply(appearance, cx.window_appearance(), cx);
 
             let store = cx.new(|cx| QuotaStore::new(client, clock, offset, cx));
             app::init(store.clone(), cx);

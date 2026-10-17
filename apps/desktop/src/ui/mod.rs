@@ -4,7 +4,7 @@ pub mod menu;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;
 use gpui_kit::{
-    AnyElement, Div, FontWeight, Hsla, IntoElement, ParentElement, Pixels, Styled, div, img,
+    AnyElement, Div, FontWeight, Hsla, IntoElement, ParentElement, Pixels, Styled, div,
     prelude::FluentBuilder as _, px, relative, svg,
 };
 
@@ -33,18 +33,18 @@ pub fn icon(name: IconName, size: f32, color: Hsla) -> Icon {
     Icon::new(name).size(px(size)).text_color(color)
 }
 
-/// Provider logo in full color, or tinted with one color like the design's chips and
-/// headers. Providers without artwork get a monogram.
+/// Provider logo in the strong text color, or tinted like the design's chips and
+/// headers. The artwork is single-color (`currentColor`), so it must follow the theme.
+/// Providers without artwork get a monogram.
 pub fn provider_logo(provider_id: &str, size: f32, tint: Option<Hsla>, p: &Palette) -> AnyElement {
-    match (providers::logo_path(provider_id), tint) {
-        (Some(path), Some(tint)) => svg()
+    match providers::logo_path(provider_id) {
+        Some(path) => svg()
             .path(path)
             .size(px(size))
             .flex_none()
-            .text_color(tint)
+            .text_color(tint.unwrap_or(p.text_strong))
             .into_any_element(),
-        (Some(path), None) => img(path).size(px(size)).flex_none().into_any_element(),
-        (None, _) => div()
+        None => div()
             .size(px(size))
             .flex_none()
             .rounded_full()

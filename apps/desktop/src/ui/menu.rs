@@ -28,6 +28,9 @@ impl QuotaMenu {
         window.focus(&focus, cx);
         let subscriptions = vec![
             cx.observe(&store, |_, _, cx| cx.notify()),
+            cx.observe_window_appearance(window, |_, window, cx| {
+                crate::theme::system_changed(window.appearance(), cx)
+            }),
             // Behave like a menu: clicking elsewhere dismisses it. A new window can
             // report "inactive" before the window manager focuses it, so wait for
             // the first activation.
