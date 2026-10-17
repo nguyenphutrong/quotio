@@ -1,5 +1,6 @@
 //! Settings window: sidebar navigation and one module per page, built from the
 //! Wonder "Page - Quotio …" artboards.
+mod about;
 mod accounts;
 mod connect;
 mod general;
@@ -357,6 +358,7 @@ impl Render for SettingsWindow {
             Page::Accounts => self.accounts_page(overview.as_ref(), cx),
             Page::General => self.general_page(cx),
             Page::IphoneSharing => self.iphone_page(cx),
+            Page::About => self.about_page(cx),
             Page::MenuBar => self.menu_bar_page(cx),
             Page::Notifications => self.notifications_page(cx),
             Page::Privacy => self.privacy_page(cx),
