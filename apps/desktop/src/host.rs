@@ -17,6 +17,14 @@ use tokio::{runtime::Runtime, sync::oneshot};
 pub trait HostClient: Send + Sync + 'static {
     fn snapshot(&self) -> BoxFuture<'static, Result<Snapshot>>;
     fn refresh(&self, provider: Option<String>) -> BoxFuture<'static, Result<()>>;
+    /// One request; the response body, or `Null` for an empty one. Writes carry an
+    /// `Idempotency-Key`, which the host requires for account changes.
+    fn call(
+        &self,
+        method: Method,
+        path: String,
+        body: Option<Value>,
+    ) -> BoxFuture<'static, Result<Value>>;
     /// A write that the host runs as a background operation: send it, wait for the
     /// operation to finish, and return its `result`.
     fn mutate(
@@ -31,6 +39,12 @@ pub trait HostClient: Send + Sync + 'static {
 #[derive(Debug)]
 pub struct HostError {
     pub code: String,
+}
+
+impl HostError {
+    pub fn code(error: &anyhow::Error) -> Option<&str> {
+        error.downcast_ref::<HostError>().map(|e| e.code.as_str())
+    }
 }
 
 impl std::fmt::Display for HostError {
@@ -241,6 +255,16 @@ async fn body(response: reqwest::Response) -> Result<Value> {
 }
 
 impl HostClient for LoopbackClient {
+    fn call(
+        &self,
+        method: Method,
+        path: String,
+        body: Option<Value>,
+    ) -> BoxFuture<'static, Result<Value>> {
+        let request = self.request(method, &path, body);
+        self.run(async move { self::body(request.send().await?).await })
+    }
+
     fn mutate(
         &self,
         method: Method,
@@ -339,6 +363,10 @@ impl HostClient for FixtureClient {
 
     fn refresh(&self, _provider: Option<String>) -> BoxFuture<'static, Result<()>> {
         async { Ok(()) }.boxed()
+    }
+
+    fn call(&self, _: Method, _: String, _: Option<Value>) -> BoxFuture<'static, Result<Value>> {
+        async { bail!("changes are not available while showing a fixture") }.boxed()
     }
 
     fn mutate(&self, _: Method, _: String, _: Option<Value>) -> BoxFuture<'static, Result<Value>> {

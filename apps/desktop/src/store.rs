@@ -4,7 +4,7 @@ use std::{sync::Arc, time::Duration};
 use gpui_kit::{Context, SharedString};
 use time::{OffsetDateTime, UtcOffset};
 
-use crate::host::HostClient;
+use crate::host::{HostClient, HostError};
 use crate::model::{self, Overview};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(15);
@@ -25,6 +25,8 @@ pub struct QuotaStore {
     pub all: Option<Overview>,
     snapshot: Option<quotio::contract::Snapshot>,
     pub error: Option<SharedString>,
+    /// True while the host cannot open its account vault; settings offers to unlock it.
+    pub vault_locked: bool,
     pub refreshing: bool,
 }
 
@@ -56,6 +58,7 @@ impl QuotaStore {
             all: None,
             snapshot: None,
             error: None,
+            vault_locked: false,
             refreshing: false,
         }
     }
@@ -79,8 +82,15 @@ impl QuotaStore {
                 self.all = Some(model::overview(&snapshot, now, self.offset, true));
                 self.snapshot = Some(snapshot);
                 self.error = None;
+                self.vault_locked = false;
             }
-            Err(error) => self.error = Some(format!("{error:#}").into()),
+            Err(error) => {
+                self.vault_locked = matches!(
+                    HostError::code(&error),
+                    Some("credential_storage_unavailable" | "account_storage_disabled")
+                );
+                self.error = Some(format!("{error:#}").into());
+            }
         }
         cx.notify();
     }

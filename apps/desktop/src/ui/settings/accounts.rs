@@ -16,7 +16,8 @@ use gpui_kit::{
 use serde_json::{Value, json};
 
 use super::SettingsWindow;
-use crate::host::Method;
+use super::connect::{ConnectFlow, Connected};
+use crate::host::{HostError, Method};
 use crate::model::{AccountView, Fix, MetricView, Overview, ProviderGroup};
 use crate::providers;
 use crate::theme::{Palette, palette};
@@ -64,6 +65,7 @@ impl SettingsWindow {
             (None, None) => "Loading…".into(),
         };
         let refreshing = store.refreshing;
+        let store_vault_locked = store.vault_locked;
         let query = self.search.read(cx).value().to_string();
         let header = div()
             .flex()
@@ -111,13 +113,16 @@ impl SettingsWindow {
                     this.store.update(cx, |store, cx| store.refresh(None, cx));
                 })),
             )
-            .child(button_with_icon(
-                "add-account",
-                IconName::Plus,
-                "Add account",
-                ButtonKind::Primary,
-                &p,
-            ));
+            .child(
+                button_with_icon(
+                    "add-account",
+                    IconName::Plus,
+                    "Add account",
+                    ButtonKind::Primary,
+                    &p,
+                )
+                .on_click(cx.listener(|this, _, window, cx| this.connect(None, window, cx))),
+            );
         let attention: Vec<AnyElement> = overview
             .into_iter()
             .flat_map(|o| o.attention())
@@ -175,6 +180,7 @@ impl SettingsWindow {
             })
             .collect();
         let attention_count = attention.len();
+        let vault_locked = store_vault_locked;
         let groups = overview.map(|o| filter(o, &query)).unwrap_or_default();
         let no_match = !query.trim().is_empty() && groups.is_empty();
         div()
@@ -182,6 +188,7 @@ impl SettingsWindow {
             .flex_col()
             .gap(px(24.))
             .child(header)
+            .when(vault_locked, |s| s.child(self.vault_banner(&p, cx)))
             .when(attention_count > 0, |s| {
                 s.child(
                     div()
@@ -234,12 +241,16 @@ impl SettingsWindow {
             )
             .child(
                 div()
+                    .id("connect-another")
                     .flex()
                     .items_center()
                     .gap(px(12.))
                     .px(px(16.))
                     .py(px(12.))
                     .rounded(px(16.))
+                    .cursor_pointer()
+                    .hover(|s| s.bg(p.bg_weak))
+                    .on_click(cx.listener(|this, _, window, cx| this.connect(None, window, cx)))
                     .border_1()
                     .border_dashed()
                     .border_color(p.stroke_soft)
@@ -261,12 +272,137 @@ impl SettingsWindow {
                                 div()
                                     .text_size(px(12.))
                                     .text_color(p.text_soft)
-                                    .child("Cursor, Copilot, Kiro, Warp and 39 more"),
+                                    .child(self.unconnected(overview)),
                             ),
                     )
                     .child(icon(IconName::ChevronRight, 18., p.text_soft)),
             )
             .into_any_element()
+    }
+
+    /// Open the add-account dialog, at `provider` when given.
+    fn connect(&mut self, provider: Option<&str>, window: &mut Window, cx: &mut Context<Self>) {
+        let catalog = self.catalog.clone();
+        let store = self.store.clone();
+        let flow = cx.new(|cx| ConnectFlow::new(store, catalog, provider, window, cx));
+        self.dialog_events = Some(cx.subscribe_in(
+            &flow,
+            window,
+            |_, _, _: &Connected, window, cx| window.close_dialog(cx),
+        ));
+        let first = Cell::new(true);
+        window.open_dialog(cx, move |dialog, window, cx| {
+            if first.replace(false) {
+                flow.update(cx, |flow, cx| flow.focus_search(window, cx));
+            }
+            let cancel = flow.clone();
+            dialog
+                .w(px(520.))
+                .child(flow.clone())
+                .on_close(move |_, _, cx| cancel.update(cx, |flow, cx| flow.cancel_session(cx)))
+        });
+    }
+
+    /// The host stores accounts in an encrypted vault; until it opens, nothing loads.
+    fn vault_banner(&self, p: &Palette, cx: &mut Context<Self>) -> impl IntoElement {
+        let help = if cfg!(target_os = "linux") {
+            "Quotio keeps sign-ins in your keyring. Unlock it, or set QUOTIO_VAULT_KEY_FILE."
+        } else {
+            "Quotio keeps sign-ins in Windows Credential Manager."
+        };
+        div()
+            .flex()
+            .items_center()
+            .gap(px(12.))
+            .px(px(12.))
+            .py(px(10.))
+            .rounded(px(12.))
+            .bg(p.bg_white)
+            .shadow(p.raised())
+            .child(
+                div()
+                    .size(px(32.))
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(8.))
+                    .bg(p.bg_weak)
+                    .child(icon(IconName::KeyRound, 16., p.text_sub)),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .gap(px(2.))
+                    .child(
+                        div()
+                            .text_size(px(14.))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(p.text_strong)
+                            .child("Allow Quotio to open its account store"),
+                    )
+                    .child(div().text_size(px(12.)).text_color(p.text_sub).child(help)),
+            )
+            .child(
+                button("unlock-vault", "Grant access", ButtonKind::Primary, p).on_click(
+                    cx.listener(|this, _, window, cx| {
+                        let host = this.store.read(cx).host();
+                        let work = this.mutate(
+                            Method::POST,
+                            "/v2/account-vault/authorize".into(),
+                            Some(json!({})),
+                            cx,
+                        );
+                        cx.spawn_in(window, async move |this, cx| {
+                            // Granting can succeed while the keyring itself stays locked.
+                            let result = match work.await {
+                                Ok(_) => host.snapshot().await.map(|_| ()).map_err(|error| {
+                                    match HostError::code(&error) {
+                                        Some("credential_storage_unavailable") => anyhow::anyhow!(
+                                            "the keyring is still locked or missing"
+                                        ),
+                                        _ => error,
+                                    }
+                                }),
+                                Err(error) => Err(error),
+                            };
+                            let _ = this.update_in(cx, |this, window, cx| {
+                                this.store.update(cx, |store, cx| store.reload(cx));
+                                if let Err(error) = result {
+                                    window.push_notification(
+                                        Notification::error(format!(
+                                            "Couldn’t open the account store: {error:#}."
+                                        )),
+                                        cx,
+                                    );
+                                }
+                            });
+                        })
+                        .detach();
+                    }),
+                ),
+            )
+    }
+
+    /// "Amp, Claude, Codex, Copilot and 36 more": providers without an account yet,
+    /// the ones with a browser sign-in or CLI login first.
+    fn unconnected(&self, overview: Option<&Overview>) -> String {
+        let Some(catalog) = &self.catalog else {
+            return "Browser sign-in, API keys and CLI logins".into();
+        };
+        let mut missing: Vec<&crate::catalog::Provider> = catalog
+            .iter()
+            .filter(|p| overview.is_none_or(|o| o.groups.iter().all(|g| g.provider_id != p.id)))
+            .collect();
+        missing.sort_by_key(|p| !(p.browser_sign_in() || p.scan() || p.local_login().is_some()));
+        let names: Vec<&str> = missing.iter().map(|p| p.display_name.as_str()).collect();
+        match names.len() {
+            0 => "Add more accounts for any provider".into(),
+            1..=4 => names.join(", "),
+            n => format!("{} and {} more", names[..4].join(", "), n - 4),
+        }
     }
 
     fn provider_group(
@@ -634,8 +770,7 @@ impl SettingsWindow {
                 let work = self.authorize_source(&source, cx);
                 self.run(account, "grant access", work, window, cx);
             }
-            // Until accounts can be added here, the closest fix is to try again.
-            Fix::SignIn => self.refresh_account(account, window, cx),
+            Fix::SignIn => self.connect(Some(&account.provider_id), window, cx),
         }
     }
 

@@ -1,6 +1,7 @@
 //! Settings window: sidebar navigation and one module per page, built from the
 //! Wonder "Page - Quotio …" artboards.
 mod accounts;
+mod connect;
 
 use std::collections::HashSet;
 
@@ -71,11 +72,23 @@ pub struct SettingsWindow {
     busy: HashSet<String>,
     /// Events of the open dialog's field, replaced with each dialog.
     dialog_events: Option<Subscription>,
+    /// Connectable providers, once the host has listed them.
+    catalog: Option<Vec<crate::catalog::Provider>>,
     _subscriptions: Vec<Subscription>,
 }
 
 impl SettingsWindow {
     pub fn new(store: Entity<QuotaStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let catalog = connect::load_catalog(store.read(cx).host());
+        cx.spawn(async move |this, cx| {
+            if let Ok(catalog) = catalog.await {
+                let _ = this.update(cx, |this, cx| {
+                    this.catalog = Some(catalog);
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search accounts"));
         let subscriptions = vec![
             cx.observe(&store, |_, _, cx| cx.notify()),
@@ -94,6 +107,7 @@ impl SettingsWindow {
             search,
             busy: HashSet::new(),
             dialog_events: None,
+            catalog: None,
             _subscriptions: subscriptions,
         }
     }

@@ -2,6 +2,7 @@
 //! the Rust host from `apps/cli` running in this process.
 mod app;
 mod assets;
+mod catalog;
 mod host;
 mod model;
 mod prefs;
