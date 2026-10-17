@@ -1,5 +1,5 @@
-pub mod accounts;
 pub mod menu;
+pub mod settings;
 
 use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;

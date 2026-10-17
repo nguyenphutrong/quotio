@@ -8,7 +8,7 @@ use gpui_kit::{
 };
 
 use crate::store::QuotaStore;
-use crate::ui::{accounts::SettingsWindow, menu};
+use crate::ui::{menu, settings::SettingsWindow};
 
 const APP_ID: &str = "app.quotio.Quotio";
 const MENU_GAP: f32 = 8.;
