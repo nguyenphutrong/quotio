@@ -20,7 +20,12 @@ access, IAM authorization, or subscription entitlement. Ollama Cloud and OpenCod
 Zen remain absent because the reviewed sources do not provide an API-key quota or
 balance route without browser state. OpenCode Go is a separate, implemented provider.
 
-Antigravity can use the running app's local service when direct API quota is unavailable.
+Antigravity quota refresh prefers the local `agy -p "/usage" --output-format json`
+command when `agy` 1.1.11 or newer is available on the Mac's PATH. That version
+introduced the read-only headless `/usage` command, which reads quota buckets
+without a model turn. If `agy` is not installed, Quotio retains the direct API and
+local-service fallbacks; an older installed version is rejected to avoid sending
+`/usage` as a model prompt.
 
 ## Install
 

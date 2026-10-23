@@ -77,6 +77,7 @@ impl AntigravityProvider {
                     "https://www.googleapis.com/oauth2/v2/userinfo",
                     expected,
                     store.clone(),
+                    true,
                 )
                 .await
             {
@@ -187,6 +188,7 @@ fn summary(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>, Provi
         .get("groups")
         .or_else(|| value.pointer("/response/groups"))
         .or_else(|| value.pointer("/summary/groups"))
+        .or_else(|| value.pointer("/command/data/groups"))
         .and_then(Value::as_array)
         .ok_or(ProviderError::InvalidData)?;
     let mut windows = Vec::new();
@@ -231,6 +233,50 @@ fn summary(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>, Provi
         return Err(ProviderError::InvalidData);
     }
     Ok(windows)
+}
+fn agy_usage(value: &Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>, ProviderError> {
+    let mut windows = summary(value, now)?;
+    for window in &mut windows {
+        window.provenance.source = "antigravity_agy_usage".into();
+    }
+    Ok(windows)
+}
+fn agy_supports_headless_usage(version: &[u8]) -> bool {
+    let Ok(version) = std::str::from_utf8(version) else {
+        return false;
+    };
+    let Some(version) = version
+        .split_whitespace()
+        .map(|part| part.trim_start_matches(|c: char| !c.is_ascii_digit()))
+        .find(|part| part.contains('.'))
+    else {
+        return false;
+    };
+    let mut parts = version.split(['.', '-']);
+    let Some(major) = parts.next().and_then(|part| part.parse::<u64>().ok()) else {
+        return false;
+    };
+    let Some(minor) = parts.next().and_then(|part| part.parse::<u64>().ok()) else {
+        return false;
+    };
+    let Some(patch) = parts.next().and_then(|part| part.parse::<u64>().ok()) else {
+        return false;
+    };
+    (major, minor, patch) >= (1, 1, 11)
+}
+async fn fetch_agy_usage(now: OffsetDateTime) -> Result<Vec<QuotaWindow>, ProviderError> {
+    let version = super::process::output(Path::new("agy"), &["--version"]).await?;
+    if !agy_supports_headless_usage(&version) {
+        // Older versions can send /usage to a model as a normal prompt.
+        return Err(ProviderError::Unavailable);
+    }
+    let output = super::process::output(
+        Path::new("agy"),
+        &["-p", "/usage", "--output-format", "json"],
+    )
+    .await?;
+    let value: Value = serde_json::from_slice(&output).map_err(|_| ProviderError::InvalidData)?;
+    agy_usage(&value, now)
 }
 fn models(value: Value, now: OffsetDateTime) -> Result<Vec<QuotaWindow>, ProviderError> {
     let models: BTreeMap<String, Value> = serde_json::from_value(
@@ -304,7 +350,7 @@ impl AntigravityProvider {
         base: &str,
         user_info: &str,
     ) -> Result<ProviderUsage, ProviderError> {
-        self.fetch_api_for_account(context, base, user_info, &mut None, None)
+        self.fetch_api_for_account(context, base, user_info, &mut None, None, false)
             .await
     }
     async fn fetch_api_for_account(
@@ -314,6 +360,7 @@ impl AntigravityProvider {
         user_info: &str,
         expected: &mut Option<Identity>,
         store: Option<std::sync::Arc<dyn super::antigravity_auth::Store>>,
+        use_agy: bool,
     ) -> Result<ProviderUsage, ProviderError> {
         let explicit = context
             .credentials
@@ -322,7 +369,14 @@ impl AntigravityProvider {
             || context.credentials.get("ANTIGRAVITY_AUTH_FILE").is_some();
         if explicit && store.is_none() {
             return self
-                .fetch_with_token(context, base, user_info, &self.token(context)?, expected)
+                .fetch_with_token(
+                    context,
+                    base,
+                    user_info,
+                    &self.token(context)?,
+                    expected,
+                    use_agy,
+                )
                 .await;
         }
         let mut session = super::antigravity_auth::Session::load(
@@ -331,12 +385,12 @@ impl AntigravityProvider {
         )
         .await?;
         let mut result = self
-            .fetch_with_token(context, base, user_info, &session.token, expected)
+            .fetch_with_token(context, base, user_info, &session.token, expected, use_agy)
             .await;
         if matches!(result, Err(ProviderError::Authentication)) {
             session.refresh(context).await?;
             result = self
-                .fetch_with_token(context, base, user_info, &session.token, expected)
+                .fetch_with_token(context, base, user_info, &session.token, expected, use_agy)
                 .await;
         }
         if result.is_ok() {
@@ -351,6 +405,7 @@ impl AntigravityProvider {
         user_info: &str,
         token: &Secret,
         expected: &mut Option<Identity>,
+        use_agy: bool,
     ) -> Result<ProviderUsage, ProviderError> {
         let authorization = http::sensitive(&format!("Bearer {}", token.0))?;
         let before: Result<Identity, _> = http::json(
@@ -435,51 +490,72 @@ impl AntigravityProvider {
         let payload = project
             .map(|p| json!({"project":p}))
             .unwrap_or_else(|| json!({}));
-        let attempts = if project.is_some() {
-            vec![payload.clone(), json!({})]
+        let windows = match if use_agy {
+            fetch_agy_usage(context.clock.now()).await
         } else {
-            vec![payload.clone()]
-        };
-        let mut selected = None;
-        for body in attempts {
-            let result: Result<Value, _> =
-                quota_json(post("retrieveUserQuotaSummary", body), context.clock.now()).await;
-            tracing::debug!(result = ?result.as_ref().map(|_| ()), "Antigravity quota summary response");
-            match result {
-                Ok(value) => {
-                    if let Ok(windows) = summary(&value, context.clock.now()) {
-                        selected = Some(windows);
-                        break;
+            Err(ProviderError::CliNotFound)
+        } {
+            Ok(windows) => windows,
+            // Keep the existing direct API route for installations without agy.
+            Err(ProviderError::CliNotFound) => {
+                let attempts = if project.is_some() {
+                    vec![payload.clone(), json!({})]
+                } else {
+                    vec![payload.clone()]
+                };
+                let mut selected = None;
+                for body in attempts {
+                    let result: Result<Value, _> =
+                        quota_json(post("retrieveUserQuotaSummary", body), context.clock.now())
+                            .await;
+                    tracing::debug!(result = ?result.as_ref().map(|_| ()), "Antigravity quota summary response");
+                    match result {
+                        Ok(value) => {
+                            if let Ok(windows) = summary(&value, context.clock.now()) {
+                                selected = Some(windows);
+                                break;
+                            }
+                        }
+                        Err(
+                            ProviderError::Unavailable
+                            | ProviderError::InvalidData
+                            | ProviderError::QuotaUnavailable,
+                        ) => (),
+                        Err(error) => return Err(error),
                     }
                 }
-                Err(
-                    ProviderError::Unavailable
-                    | ProviderError::InvalidData
-                    | ProviderError::QuotaUnavailable,
-                ) => (),
-                Err(error) => return Err(error),
-            }
-        }
-        let windows = match selected {
-            Some(windows) => windows,
-            None => {
-                let result = quota_json(
-                    post("fetchAvailableModels", payload.clone()),
-                    context.clock.now(),
-                )
-                .await;
-                let model_windows = match result {
-                    Ok(value) => Some(models(value, context.clock.now())?),
-                    Err(ProviderError::QuotaUnavailable | ProviderError::Unavailable) => None,
-                    Err(error) => return Err(error),
-                };
-                // The catalog can advertise every model as full even when quota
-                // access is denied. Require a quota response to corroborate it.
-                match model_windows {
-                    Some(windows) if windows.iter().any(|w| matches!(w.quota, Quota::Exhausted { used_percent, .. } | Quota::Available { used_percent, .. } if used_percent > 0.0)) => windows,
-                    _ => quota_buckets(quota_json(post("retrieveUserQuota", payload), context.clock.now()).await?, context.clock.now())?,
+                match selected {
+                    Some(windows) => windows,
+                    None => {
+                        let result = quota_json(
+                            post("fetchAvailableModels", payload.clone()),
+                            context.clock.now(),
+                        )
+                        .await;
+                        let model_windows = match result {
+                            Ok(value) => Some(models(value, context.clock.now())?),
+                            Err(ProviderError::QuotaUnavailable | ProviderError::Unavailable) => {
+                                None
+                            }
+                            Err(error) => return Err(error),
+                        };
+                        // The catalog can advertise every model as full even when quota
+                        // access is denied. Require a quota response to corroborate it.
+                        match model_windows {
+                            Some(windows) if windows.iter().any(|w| matches!(w.quota, Quota::Exhausted { used_percent, .. } | Quota::Available { used_percent, .. } if used_percent > 0.0)) => windows,
+                            _ => quota_buckets(
+                                quota_json(
+                                    post("retrieveUserQuota", payload),
+                                    context.clock.now(),
+                                )
+                                .await?,
+                                context.clock.now(),
+                            )?,
+                        }
+                    }
                 }
             }
+            Err(error) => return Err(error),
         };
         Ok(ProviderUsage {
             fresh_observation: false,
@@ -859,6 +935,23 @@ mod tests {
         assert_eq!(windows[0].quota, Quota::from_used(Some(75.0)));
         assert_eq!(windows[1].quota, Quota::from_used(Some(25.0)));
         assert_eq!(windows[2].quota, Quota::Unknown);
+    }
+    #[test]
+    fn agy_headless_usage_requires_a_zero_turn_capable_version() {
+        assert!(!agy_supports_headless_usage(b"agy 1.1.10"));
+        assert!(agy_supports_headless_usage(b"agy 1.1.11"));
+        assert!(agy_supports_headless_usage(b"agy v1.2.0"));
+        assert!(!agy_supports_headless_usage(b"unknown"));
+    }
+    #[test]
+    fn agy_json_envelope_reads_command_data_buckets_as_remaining_quota() {
+        let value = json!({"command":{"name":"usage","data":{"groups":[{"name":"Gemini Models","buckets":[{"id":"gemini-weekly","window":"weekly","remaining_fraction":0.07,"reset_time":"2026-10-28T00:00:00Z"},{"id":"gemini-5h","window":"5h","remaining_fraction":0.14,"reset_time":"2026-10-22T22:00:00Z"}]}]}}});
+        let windows = agy_usage(&value, OffsetDateTime::UNIX_EPOCH).unwrap();
+        assert_eq!(windows.len(), 2);
+        assert_eq!(windows[0].label, "Gemini Models gemini-weekly");
+        assert_eq!(windows[0].quota, Quota::from_used(Some(93.0)));
+        assert_eq!(windows[1].quota, Quota::from_used(Some(86.0)));
+        assert_eq!(windows[0].provenance.source, "antigravity_agy_usage");
     }
     #[test]
     fn model_fallback_preserves_missing_quota() {
