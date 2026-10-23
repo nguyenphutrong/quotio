@@ -51,7 +51,7 @@ final class RefreshButtonTests: XCTestCase {
         _ = NSApplication.shared
         let commands = StatusBarCommandDispatcher(handlers: StatusBarCommandHandlers(
             refreshAll: {}, refreshProvider: { _ in }, refreshAccount: { _ in }, selectProvider: { _ in },
-            pairIPhone: {}, openApp: {}, quit: {}, menuNeedsRebuild: {}
+            pairIPhone: {}, openApp: {}, openProviderSettings: { _ in }, quit: {}, menuNeedsRebuild: {}
         ))
         for loading in [false, true] {
             let snapshot = StatusBarMenuSnapshotMapper.makeSnapshot(
@@ -92,7 +92,7 @@ final class RefreshButtonTests: XCTestCase {
                 refreshAll: { calls.append("all"); await gate.wait() },
                 refreshProvider: { calls.append("provider:\($0.rawValue)"); await gate.wait() },
                 refreshAccount: { calls.append("account:\($0.provider.rawValue):\($0.accountKey)"); await gate.wait() },
-                selectProvider: { _ in }, pairIPhone: {}, openApp: {}, quit: {},
+                selectProvider: { _ in }, pairIPhone: {}, openApp: {}, openProviderSettings: { _ in }, quit: {},
                 menuNeedsRebuild: { manager.rebuildMenuInPlace() }
             ))
             manager.configureMenu(snapshotProvider: snapshot, commandDispatcher: commands)
@@ -182,7 +182,7 @@ final class RefreshButtonTests: XCTestCase {
                 refreshAll: { await refresh("all") },
                 refreshProvider: { await refresh("provider:\($0.rawValue)") },
                 refreshAccount: { await refresh("account:\($0.provider.rawValue):\($0.accountKey)") },
-                selectProvider: { _ in }, pairIPhone: {}, openApp: {}, quit: {},
+                selectProvider: { _ in }, pairIPhone: {}, openApp: {}, openProviderSettings: { _ in }, quit: {},
                 menuNeedsRebuild: { manager.rebuildMenuInPlace() }
             ))
             manager.configureMenu(snapshotProvider: {

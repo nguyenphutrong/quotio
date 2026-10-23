@@ -11,7 +11,7 @@ The workflow:
 1. Runs core package, host client, architecture, and app integration checks.
 2. Updates `CHANGELOG.md` and the Xcode version.
 3. When Apple credentials are configured, imports the Developer ID Application certificate into a temporary keychain.
-4. When signing is enabled, signs nested code and the app with Hardened Runtime, notarizes the app, and staples the ticket.
+4. When signing is enabled, signs the bundled CLI helper with identifier `dev.quotio.cli`, signs nested code and the app with Hardened Runtime, notarizes the app, and staples the ticket.
 5. Creates the universal app, ZIP, and DMG; signed builds also sign, notarize, and staple the DMG.
 6. Signs the final ZIP with Sparkle and creates the appcast: `appcast.xml` for stable releases, `appcast-beta.xml` for prereleases.
 7. Creates the tag and GitHub Release, including the matching version section from `CHANGELOG.md` and GitHub's generated pull request summary.
@@ -60,8 +60,9 @@ Versions matching `X.Y.Z-alpha-N`, `X.Y.Z-beta-N`, or `X.Y.Z-rc-N` (also accepti
 | Proxy auth files | `~/.cli-proxy-api/` | `~/Library/Application Support/app.bytrong.quotio.beta/auth/` |
 | Default proxy port | `8317` | `8318` |
 | App updates | Sparkle | Manual download and installation |
+| Accounts, quota history, and helper settings | Shared with the `quotio` CLI in `~/Library/Application Support/quotio/` | Shared with the `quotio` CLI in `~/Library/Application Support/quotio/` |
 
-App preferences, Quotio-owned Keychain services, helper data, helper vault namespace, and Antigravity profile backups are also scoped to the app identity. Beta does not import legacy production accounts or preferences. Beta only stops proxy processes it owns; an occupied port is an error, not permission to terminate another instance.
+App preferences, Quotio-owned Keychain services, and Antigravity profile backups are also scoped to the app identity. Stable and beta share one account vault with the standalone CLI only when the bundled helper is signed with Developer ID as `dev.quotio.cli`. On its first launch, such a build folds the identity's former private helper store (`<bundle identifier>/QuotioCLI` and `quotio-cli.toml`) into the shared vault, history, and `config.toml` once, and records completion in `QuotioCLI/accounts-<namespace>.adopted`. The former Keychain item trusts only the helper identifier that created it, so this first read shows one macOS Keychain prompt. If the user denies it, no marker is written and the next launch asks again. The former store stays in place. Ad-hoc and Debug builds keep a private helper store per identity. Beta does not import legacy production accounts or preferences. Beta only stops proxy processes it owns; an occupied port is an error, not permission to terminate another instance.
 
 Install `Quotio Beta.app` beside the stable app. Prereleases do not modify the stable appcast or update the Homebrew tap. They publish `appcast-beta.xml` to the rolling `macos-beta-appcast` GitHub release, which stays marked as a prerelease so `releases/latest` keeps resolving to the stable appcast. The beta bundle's `SUFeedURL` points at that file, so Quotio Beta updates itself through Sparkle to newer betas only. Betas published before this change have no feed; install the first auto-updating beta manually.
 

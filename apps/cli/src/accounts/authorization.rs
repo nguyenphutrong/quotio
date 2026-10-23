@@ -91,11 +91,11 @@ pub(crate) async fn authorize(mut input: SourceInput) -> Result<SourceInput, Acc
             dir.join("hosts.yml"),
         )
         .await?;
-        tokio::task::spawn_blocking(move || {
-            crate::providers::catalog::common::authorize_keychain("gh:github.com", Some(&account))
-        })
-        .await
-        .map_err(|_| AccountError::Storage)??;
+        crate::providers::catalog::common::authorize_security_tool_keychain(
+            "gh:github.com",
+            Some(&account),
+        )
+        .await?;
         return Ok(input);
     }
     if let SourceInput::CopilotNative {
@@ -118,6 +118,11 @@ pub(crate) async fn authorize(mut input: SourceInput) -> Result<SourceInput, Acc
         *entry_key = source.entry_key;
     }
     let (service, account) = target(&input)?;
+    use crate::providers::catalog::common;
+    if common::saved_by_security_tool(&service, account) {
+        common::authorize_security_tool_keychain(&service, account).await?;
+        return Ok(input);
+    }
     let account = account.map(str::to_owned);
     tokio::task::spawn_blocking(move || {
         use crate::providers::catalog::common;

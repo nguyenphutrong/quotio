@@ -302,6 +302,82 @@ pub fn read_keychain(
     }
 }
 
+/// Items whose owning tool saves them with `/usr/bin/security`. Each save resets the item's
+/// partition list to that tool (cursor-agent even recreates the item), dropping the access a
+/// user granted to Quotio. Reading through the same tool keeps working after every save.
+pub(crate) fn saved_by_security_tool(service: &str, account: Option<&str>) -> bool {
+    service.starts_with("Claude Code-credentials")
+        || service == "gh:github.com"
+        || service == super::oauth_editors::CURSOR_KEYCHAIN_SERVICE
+        || (service == "Factory CLI" && account == Some("auth-encryption-key-security-cli"))
+}
+
+pub(crate) async fn security_tool_password(
+    service: &str,
+    account: Option<&str>,
+    wait: std::time::Duration,
+) -> Result<Option<Vec<u8>>, ProviderError> {
+    #[cfg(target_os = "macos")]
+    {
+        let mut args = vec!["find-generic-password", "-s", service];
+        if let Some(account) = account {
+            args.extend(["-a", account]);
+        }
+        args.push("-w");
+        let (status, bytes) = tokio::time::timeout(
+            wait,
+            crate::providers::process::output_status(
+                std::path::Path::new("/usr/bin/security"),
+                &args,
+            ),
+        )
+        .await
+        .map_err(|_| ProviderError::CredentialStorage)?
+        .map_err(|_| ProviderError::CredentialStorage)?;
+        match status.code() {
+            Some(0) => Ok(Some(security_password(bytes))),
+            Some(44) => Ok(None),
+            _ => Err(ProviderError::CredentialStorage),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (service, account, wait);
+        Err(ProviderError::Unavailable)
+    }
+}
+
+/// `security -w` prints a value with any non-printable byte, including non-ASCII UTF-8, as hex.
+#[cfg(target_os = "macos")]
+fn security_password(bytes: Vec<u8>) -> Vec<u8> {
+    let raw = bytes.trim_ascii();
+    let hex = |byte: u8| (byte as char).to_digit(16).map(|digit| digit as u8);
+    if raw.is_empty()
+        || !raw.len().is_multiple_of(2)
+        || !raw.iter().all(|byte| hex(*byte).is_some())
+    {
+        return bytes;
+    }
+    raw.chunks(2)
+        .filter_map(|pair| Some(hex(pair[0])? << 4 | hex(pair[1])?))
+        .collect()
+}
+
+// Popups stay open until the user answers; ending `security` early would close one before
+// Always Allow is saved.
+const SECURITY_TOOL_PROMPT_WAIT: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
+// Only the explicit native-source authorization operation calls this function.
+pub(crate) async fn authorize_security_tool_keychain(
+    service: &str,
+    account: Option<&str>,
+) -> Result<(), ProviderError> {
+    match security_tool_password(service, account, SECURITY_TOOL_PROMPT_WAIT).await? {
+        Some(_) => Ok(()),
+        None => Err(ProviderError::Authentication),
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn authorization_options(
     service: &str,

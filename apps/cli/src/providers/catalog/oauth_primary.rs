@@ -224,6 +224,12 @@ pub(crate) async fn native_keychain(
     service: &str,
     account: Option<&str>,
 ) -> Result<Option<Vec<u8>>, ProviderError> {
+    if common::saved_by_security_tool(service, account) {
+        return match common::security_tool_password(service, account, NATIVE_READ_TIMEOUT).await {
+            Err(ProviderError::CredentialStorage) => Err(ProviderError::LocalCredentialStorage),
+            result => result,
+        };
+    }
     let service = service.to_owned();
     let account = account.map(str::to_owned);
     match tokio::time::timeout(

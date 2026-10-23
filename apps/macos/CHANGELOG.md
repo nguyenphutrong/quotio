@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta.10] - 2026-10-20
+
+### Fixed
+
+- Mark retained quota as out of date when the local host cannot read its snapshot. Menu bar accounts now show the refresh failure, the last successful update, and a retry or account-settings action instead of silently keeping a fresh status.
+- Preserve specific account-storage error codes and Keychain OSStatus in local diagnostics without recording credentials or forwarding general helper logs.
+
+## [1.0.0-beta.9] - 2026-10-19
+
+### Fixed
+
+- Keep reading Claude Code, GitHub CLI, Cursor agent and Factory logins after those tools renew them. Each renewal used to revoke Quotio's Keychain access, so Claude accounts showed "Quotio could not read the credential storage" again a few hours after Grant Access.
+
+## [1.0.0-beta.8] - 2026-10-18
+
+### Changed
+
+- Quotio and Quotio Beta now share accounts, quota history, and settings with the standalone `quotio` CLI. The first launch moves the app's existing accounts, history, and settings into the shared store once; an account that exists in both keeps the fresher sign-in. macOS asks once for permission to read the app's former accounts from the Keychain; allow it, or the move is retried on the next launch. Keep the CLI at least as new as the app.
+
 ## [1.0.0-beta.7] - 2026-10-16
 
 ### Added

@@ -976,8 +976,8 @@ pub async fn resolved_snapshot(
     now: time::OffsetDateTime,
     ttl: time::Duration,
 ) -> Result<crate::contract::Snapshot, AccountError> {
+    let mut tx = service::begin(vault).await?;
     tokio::task::spawn_blocking(move || {
-        let mut tx = vault.begin()?;
         tx.document.enable_resolved_accounts()?;
         report.providers.retain(|usage| {
             let record = usage.account_ref.as_ref().and_then(|reference| {

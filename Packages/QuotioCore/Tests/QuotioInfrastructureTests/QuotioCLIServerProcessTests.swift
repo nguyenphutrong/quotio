@@ -1,10 +1,57 @@
 import Foundation
 import QuotioInfrastructure
 import QuotioDomain
+import QuotioApplication
 import XCTest
 
 @MainActor
 final class QuotioCLIServerProcessTests: XCTestCase {
+    func testHelperDiagnosticsKeepOnlyKnownEventsAndBoundedOSStatus() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let helper = directory.appendingPathComponent("quotio-cli")
+        let script = """
+        #!/bin/sh
+        IFS= read -r token
+        printf '%s\\n' 'Bearer do-not-log' >&2
+        printf '%s\\n' '{"diagnostic_version":1,"event":"vault_keychain_read_failed","os_status":-25308,"token":"do-not-log"}' >&2
+        printf '%s\\n' '{"diagnostic_version":1,"event":"do-not-log","os_status":-1}' >&2
+        printf '%s\\n' '{"diagnostic_version":2,"event":"vault_keychain_read_failed","os_status":-1}' >&2
+        printf '%s\\n' '{"diagnostic_version":1,"event":"vault_keychain_write_failed","os_status":2147483648}' >&2
+        printf '%s' '\(String(repeating: "x", count: 1_100))' >&2
+        printf '%s\\n' '{"diagnostic_version":1,"event":"vault_keychain_read_failed","os_status":-1}' >&2
+        printf '%s' '{"diagnostic_version":1,"event":"vault_keychain_write_failed",' >&2
+        printf '%s\\n' '"os_status":-25293}' >&2
+        printf '%s\\n' '{"diagnostic_version":1,"event":"vault_keychain_authorize_failed","os_status":-128}' >&2
+        printf '{"bootstrap_version":2,"api_version":2,"pid":%s,"host":"127.0.0.1","port":43210}\\n' "$$"
+        cat >/dev/null
+        """
+        try Data(script.utf8).write(to: helper)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
+        let logger = HelperDiagnosticLogger()
+        let server = QuotioCLIServerProcess(
+            executableURL: helper,
+            storage: .isolated(.init(namespace: "quotio-macos-test", applicationSupportDirectoryName: "app.bytrong.quotio")),
+            configurationURL: directory.appendingPathComponent("config.toml"),
+            accountDataDirectory: directory.appendingPathComponent("accounts"),
+            logger: logger
+        )
+        _ = try await server.start()
+        for _ in 0..<100 {
+            if await logger.messages.count >= 3 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        await server.stop()
+        let messages = await logger.messages
+        XCTAssertEqual(messages.count, 3)
+        guard messages.count == 3 else { return }
+        XCTAssertTrue(messages[0].contains("vault_keychain_read_failed os_status=-25308"))
+        XCTAssertTrue(messages[1].contains("vault_keychain_write_failed os_status=-25293"))
+        XCTAssertTrue(messages[2].contains("vault_keychain_authorize_failed os_status=-128"))
+        XCTAssertFalse(messages.joined().contains("do-not-log"))
+    }
+
     func testStartsFromAuthenticatedBootstrapAndStopsOnParentEOF() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -35,12 +82,12 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         )
         let server = QuotioCLIServerProcess(
             executableURL: helper,
+            storage: .isolated(.init(namespace: "quotio-macos-test", applicationSupportDirectoryName: "app.bytrong.quotio")),
             configurationURL: directory.appendingPathComponent("config.toml"),
             accountDataDirectory: directory.appendingPathComponent("accounts"),
             proxyAuthDirectory: proxyAuthDirectory,
             proxyConfigurationURL: directory.appendingPathComponent("proxy.yaml"),
             initialPreferences: { (ProviderTrackingPreferences(disabledProviders: [.copilot], automaticallyDiscoverLogins: false), RefreshPreferences(cadence: .manual), ["disabled.json"]) },
-            accountVaultNamespace: "quotio-macos-test",
             proxyURL: { "http://proxy.example:8080" }
         )
 
@@ -80,6 +127,7 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
         let server = QuotioCLIServerProcess(
             executableURL: helper,
+            storage: .isolated(.init(namespace: "quotio-macos-test", applicationSupportDirectoryName: "app.bytrong.quotio")),
             configurationURL: directory.appendingPathComponent("config.toml"),
             accountDataDirectory: directory.appendingPathComponent("accounts")
         )
@@ -115,6 +163,7 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         )
         let server = QuotioCLIServerProcess(
             executableURL: helper,
+            storage: .isolated(.init(namespace: "quotio-macos-test", applicationSupportDirectoryName: "app.bytrong.quotio")),
             configurationURL: directory.appendingPathComponent("config.toml"),
             accountDataDirectory: directory.appendingPathComponent("accounts")
         )
@@ -125,5 +174,13 @@ final class QuotioCLIServerProcessTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? QuotioCLIServerError, .incompatibleBootstrap)
         }
+    }
+}
+
+private actor HelperDiagnosticLogger: ApplicationLogging {
+    private(set) var messages: [String] = []
+
+    func write(_ level: ApplicationLogLevel, message: String) {
+        messages.append(message)
     }
 }

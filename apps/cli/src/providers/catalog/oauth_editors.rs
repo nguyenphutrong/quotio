@@ -28,7 +28,7 @@ const CURSOR_SUMMARY_URL: &str = "https://api2.cursor.sh/auth/usage-summary";
 const GROK_SETTINGS_URL: &str = "https://cli-chat-proxy.grok.com/v1/settings";
 const GROK_CREDITS_URL: &str = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
 const KIMI_CODE_USAGE_URL: &str = "https://api.kimi.com/coding/v1/usages";
-const CURSOR_KEYCHAIN_SERVICE: &str = "cursor-access-token";
+pub(crate) const CURSOR_KEYCHAIN_SERVICE: &str = "cursor-access-token";
 #[cfg(any(target_os = "macos", all(test, unix)))]
 const CURSOR_STATE_QUERY: &str =
     "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken' LIMIT 1;";
@@ -669,7 +669,8 @@ async fn cursor_token(context: &ProviderContext) -> Result<Secret, ProviderError
         ) => (),
         Err(error) => return Err(error),
     }
-    let bytes = blocking(|| common::read_keychain(CURSOR_KEYCHAIN_SERVICE, None)).await?;
+    let bytes =
+        common::security_tool_password(CURSOR_KEYCHAIN_SERVICE, None, NATIVE_READ_TIMEOUT).await?;
     let bytes = bytes.ok_or(ProviderError::Authentication)?;
     secret_from_bytes(&bytes)
 }

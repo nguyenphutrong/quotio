@@ -3,8 +3,9 @@
 ## Project
 
 Quotio is a native macOS menu bar and window app for operating CLIProxyAPI. It manages
-the local proxy lifecycle, provider OAuth accounts, quota monitoring, CLI agent
-configuration, tunnels, and updates.
+the local proxy lifecycle, provider OAuth accounts, quota monitoring, tunnels, and updates.
+Legacy CLI agent configuration belongs to the `v0.x` branch, not `master`; see
+`CONTRIBUTING.md` at the repository root.
 
 - Swift 6 and SwiftUI, with targeted AppKit integration
 - Minimum deployment target: macOS 14.0
@@ -161,8 +162,6 @@ the repository root is not a Swift package.
   terminate Quotio's own process.
 - `FileProxyVersionRepository` stores versioned binaries behind a `current` symlink. Never
   remove the active version during cleanup.
-- Agent configuration changes must preserve user-owned keys/content and create
-  collision-safe timestamped backups without overwriting an existing backup.
 - Treat auth and token files as hostile input: validate names and contents, use atomic
   private writes, and never follow a symlink destination.
 - Never log or commit tokens, authorization headers, OAuth codes, cookies, API keys,
@@ -171,6 +170,7 @@ the repository root is not a Swift package.
   view task is created. Keep required startup work in the app lifecycle/composition path.
 - The app sandbox is intentionally disabled because Quotio manages local processes and
   CLI configuration. Do not enable it without auditing every filesystem/process flow.
+- The CLI helper shares the standalone CLI's vault and config only when its signature satisfies the `dev.quotio.cli` Developer ID requirement (`QuotioCLIHelperSignature`); Debug and ad-hoc helpers keep the isolated namespace and must never be pointed at the shared vault.
 - Guard APIs newer than macOS 14 with availability checks.
 - Build port labels as `Text("localhost:" + String(port))`, not interpolated numeric
   `Text`, to avoid locale-aware number formatting.

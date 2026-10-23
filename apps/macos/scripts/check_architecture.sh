@@ -107,9 +107,9 @@ report_matches \
     '^[[:space:]]*(@preconcurrency[[:space:]]+)?import[[:space:]]+QuotioPresentation([[:space:].]|$)' \
     "${infrastructure}"
 report_matches \
-    'Agent adapters depend on presentation localization' \
-    '\bAgentTextLocalizer\b|\blocalize[[:space:]]*:' \
-    "${application}/Agents" "${infrastructure}/Agents"
+    'Retired CLI agent configuration remains in production source' \
+    '\b(CLIAgent|AvailableModel|AgentSetupScreenModel|AgentConfigurationService|AgentBinaryInstallationProbe)\b' \
+    "${source_root}" "${app_root}"
 report_matches \
     'Presentation imported Infrastructure or a third-party infrastructure SDK' \
     '^[[:space:]]*(@preconcurrency[[:space:]]+)?import[[:space:]]+(QuotioInfrastructure|Security|Sparkle)([[:space:].]|$)' \

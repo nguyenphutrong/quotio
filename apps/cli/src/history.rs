@@ -138,6 +138,20 @@ pub struct Point {
     pub basis: String,
     pub observation: Observation,
 }
+pub struct Rewrite {
+    pub host: String,
+    pub account_renames: BTreeMap<String, String>,
+    pub epoch_renames: BTreeMap<String, String>,
+}
+impl Rewrite {
+    pub fn onto(host: String) -> Self {
+        Self {
+            host,
+            account_renames: BTreeMap::new(),
+            epoch_renames: BTreeMap::new(),
+        }
+    }
+}
 #[derive(Clone)]
 pub struct History {
     sender: mpsc::Sender<Job>,
@@ -273,6 +287,9 @@ impl History {
     /// providers that report when a limit resets but not how long its window is.
     pub async fn window_lengths(&self, host: String) -> Result<WindowLengths> {
         self.call(move |s| s.window_lengths(host)).await
+    }
+    pub async fn absorb(&self, source: PathBuf, rewrite: Rewrite) -> Result<u64> {
+        self.call(move |s| s.absorb(&source, &rewrite)).await
     }
     pub async fn events(
         &self,
@@ -857,6 +874,129 @@ impl Store {
             next_cursor,
         })
     }
+}
+impl Store {
+    fn absorb(&mut self, source: &Path, rewrite: &Rewrite) -> Result<u64> {
+        let attached = match std::fs::symlink_metadata(source) {
+            Ok(meta) if meta.is_file() => {
+                let path = source.to_str().ok_or(Error::Storage)?;
+                self.db.execute("ATTACH DATABASE ? AS adopted", [path])?;
+                true
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            _ => return Err(Error::Storage),
+        };
+        let result = absorb_rows(&mut self.db, attached, rewrite);
+        if attached {
+            let _ = self.db.execute("DETACH DATABASE adopted", []);
+        }
+        let rows = result?;
+        if rows > 0 {
+            self.revision
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.cursors.clear();
+        }
+        Ok(rows)
+    }
+}
+fn absorb_rows(db: &mut Connection, attached: bool, rewrite: &Rewrite) -> Result<u64> {
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let find = |account: &str, epoch: &str, metric: &str| -> Result<Option<String>> {
+        Ok(tx
+            .query_row(
+                "SELECT id FROM main.history_series WHERE host=? AND account=? AND epoch=? AND metric=?",
+                params![rewrite.host, account, epoch, metric],
+                |r| r.get(0),
+            )
+            .optional()?)
+    };
+    let mut rows = 0;
+    let foreign: Vec<(String, String, String, String)> = tx
+        .prepare("SELECT id,account,epoch,metric FROM main.history_series WHERE host<>?")?
+        .query_map([&rewrite.host], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    for (id, account, epoch, metric) in foreign {
+        match find(&account, &epoch, &metric)? {
+            Some(target) => {
+                copy_rows(&tx, "main", &id, &target)?;
+                tx.execute("DELETE FROM main.history_series WHERE id=?", [&id])?;
+            }
+            None => {
+                tx.execute(
+                    "UPDATE main.history_series SET host=? WHERE id=?",
+                    params![rewrite.host, id],
+                )?;
+            }
+        }
+        rows += 1;
+    }
+    let readable = attached
+        && {
+            let version: i64 = tx.query_row("PRAGMA adopted.user_version", [], |r| r.get(0))?;
+            if version > 2 {
+                return Err(Error::Storage);
+            }
+            tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM adopted.sqlite_master WHERE type='table' AND name='history_series')",
+            [],
+            |r| r.get(0),
+        )?
+        };
+    let adopted: Vec<(String, String, String, String, String)> = if readable {
+        tx.prepare("SELECT id,account,epoch,metric,metadata FROM adopted.history_series")?
+            .query_map([], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+            })?
+            .collect::<rusqlite::Result<_>>()?
+    } else {
+        Vec::new()
+    };
+    for (id, account, epoch, metric, metadata) in adopted {
+        let account = rewrite.account_renames.get(&account).unwrap_or(&account);
+        let epoch = rewrite.epoch_renames.get(&epoch).unwrap_or(&epoch);
+        let target = match find(account, epoch, &metric)? {
+            Some(target) => target,
+            None => {
+                let taken: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM main.history_series WHERE id=?)",
+                    [&id],
+                    |r| r.get(0),
+                )?;
+                let target = if taken {
+                    crate::accounts::random_string().map_err(|_| Error::Storage)?
+                } else {
+                    id.clone()
+                };
+                tx.execute(
+                    "INSERT INTO main.history_series(id,host,account,epoch,metric,metadata) VALUES(?,?,?,?,?,?)",
+                    params![target, rewrite.host, account, epoch, metric, metadata],
+                )?;
+                target
+            }
+        };
+        rows += copy_rows(&tx, "adopted", &id, &target)?;
+    }
+    if rows > 0 {
+        tx.execute(
+            "UPDATE main.history_recording_state SET revision=revision+1 WHERE account=''",
+            [],
+        )?;
+    }
+    tx.commit()?;
+    Ok(rows)
+}
+fn copy_rows(tx: &rusqlite::Transaction, schema: &str, from: &str, to: &str) -> Result<u64> {
+    let observations = tx.execute(
+        &format!("INSERT OR IGNORE INTO main.history_observations(series,at,payload) SELECT ?1,at,json_set(payload,'$.series_id',?1) FROM {schema}.history_observations WHERE series=?2 ORDER BY sequence"),
+        params![to, from],
+    )?;
+    let clocks = tx.execute(
+        &format!("INSERT OR IGNORE INTO main.history_clock_events(series,at,fetched_at,payload) SELECT ?1,at,fetched_at,payload FROM {schema}.history_clock_events WHERE series=?2 ORDER BY sequence"),
+        params![to, from],
+    )?;
+    Ok((observations + clocks) as u64)
 }
 fn aliases(account: &Account) -> String {
     serde_json::to_string(

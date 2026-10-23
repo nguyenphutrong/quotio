@@ -32,6 +32,7 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     private var menu: NSMenu?
     private var menuRenderer: StatusBarMenuRenderer?
     private var isMenuTracking = false
+    private weak var trackedMenu: NSMenu?
     private var pendingCompanionPresentation: (() -> Void)?
     private let companionPresenter = CompanionPopoverPresenter()
     private var menuContentVersion: Int = 0
@@ -207,7 +208,8 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     
     public func menuWillOpen(_ menu: NSMenu) {
         isMenuTracking = true
-        performMenuRebuild(using: menu)
+        trackedMenu = menu
+        if let menuSnapshotProvider { performMenuRebuild(using: menu, snapshot: menuSnapshotProvider()) }
     }
     
     public func menuDidClose(_ menu: NSMenu) {
@@ -240,10 +242,16 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
         }
     }
     
-    /// Update hosted content without replacing items that AppKit is tracking.
+    /// Update hosted content without replacing items that AppKit is tracking,
+    /// unless providers or accounts were added or removed.
     public func rebuildMenuInPlace() {
         guard isMenuTracking, let menuSnapshotProvider else { return }
-        menuRenderer?.update(snapshot: menuSnapshotProvider())
+        let snapshot = menuSnapshotProvider()
+        if let trackedMenu, menuRenderer?.layout != snapshot.layout {
+            performMenuRebuild(using: trackedMenu, snapshot: snapshot)
+        } else {
+            menuRenderer?.update(snapshot: snapshot)
+        }
     }
 
     /// Close the menu programmatically
@@ -251,12 +259,8 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
         menu?.cancelTracking()
     }
 
-    private func performMenuRebuild(using menu: NSMenu) {
-        guard let snapshotProvider = menuSnapshotProvider,
-              let commandDispatcher else {
-            return
-        }
-        let snapshot = snapshotProvider()
+    private func performMenuRebuild(using menu: NSMenu, snapshot: StatusBarMenuSnapshot) {
+        guard let commandDispatcher else { return }
         menu.removeAllItems()
 
         let renderer = StatusBarMenuRenderer(

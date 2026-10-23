@@ -10,7 +10,6 @@ public final class ProxyManagementScreenModel {
     let accounts: AccountsScreenModel
     let oauth: OAuthScreenModel
     let tunnel: TunnelScreenModel
-    public let agentSetup: AgentSetupScreenModel
 
     public private(set) var authFiles: [ManagedAuthFile] = []
     private(set) var usageStats: ProxyUsageStats?
@@ -42,7 +41,6 @@ public final class ProxyManagementScreenModel {
         accounts: AccountsScreenModel,
         oauth: OAuthScreenModel,
         tunnel: TunnelScreenModel,
-        agentSetup: AgentSetupScreenModel,
         authWorkaround: any AntigravityAuthFileWorkaroundApplying,
         authFileRepository: any AuthFileRepository,
         notifications: any NotificationRequesting,
@@ -56,7 +54,6 @@ public final class ProxyManagementScreenModel {
         self.accounts = accounts
         self.oauth = oauth
         self.tunnel = tunnel
-        self.agentSetup = agentSetup
         self.authFileRepository = authFileRepository
         self.authWorkaround = authWorkaround
         self.notifications = notifications

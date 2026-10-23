@@ -243,16 +243,16 @@ public final class QuotaFeatureController {
         if account.isDisabled { return ("disabled", nil) }
         let accountID = QuotaAccountID(provider: provider, accountKey: account.accountKey)
         let updated = QuotaPolicy.lastUpdated(for: accountID, in: quota.providerQuotas)
-        if let issue = quota.state.accountIssues[accountID] {
-            return (issue.kind == .partial ? "partial" : "failed", issue.explanation)
+        if let warning = StatusBarMenuQuotaWarning.resolve(accountID: accountID, in: quota.state) {
+            let issueMessage = warning.issue?.explanation
+            if warning.isStale, let updated {
+                let timestamp = String(format: "monitor.status.outdated".localized(),
+                                       updated.formatted(date: .abbreviated, time: .shortened))
+                return ("outdated", [issueMessage, timestamp].compactMap { $0 }.joined(separator: " "))
+            }
+            return (warning.issue?.kind == .partial ? "partial" : "failed", issueMessage)
         }
         guard let updated else { return (nil, nil) }
-        if quota.state.accountStates[accountID]?.quota == .stale {
-            return (
-                "outdated",
-                String(format: "monitor.status.outdated".localized(), updated.formatted(date: .abbreviated, time: .shortened))
-            )
-        }
         return (
             "ready",
             String(format: "monitor.status.updated".localized(), updated.formatted(date: .omitted, time: .shortened))

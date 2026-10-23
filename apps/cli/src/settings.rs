@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 #[derive(Clone, Default)]
@@ -126,98 +126,73 @@ impl SettingsStore {
         preferences: NativePreferences,
     ) -> Result<SettingsView, SettingsError> {
         use clap::ValueEnum;
-        let (_, revision, input) = self.read()?;
-        let fields: toml::Table = toml::from_str(&input).map_err(|_| SettingsError::Invalid)?;
-        if [
-            "enabled_providers",
-            "disabled_providers",
-            "disabled_proxy_auth_files",
-            "automatically_discover_logins",
-            "quota_history_enabled",
-            "refresh_interval",
-        ]
-        .iter()
-        .all(|key| fields.contains_key(*key))
-        {
-            return self.load();
+        let ids = |providers: &[Provider]| {
+            toml::Value::Array(providers.iter().map(|p| p.id().into()).collect())
+        };
+        let enabled: Vec<_> = Provider::value_variants()
+            .iter()
+            .copied()
+            .filter(|provider| *provider != Provider::Mock)
+            .collect();
+        let mut fields = toml::Table::from_iter([
+            ("enabled_providers".to_owned(), ids(&enabled)),
+            (
+                "disabled_providers".to_owned(),
+                ids(&preferences.disabled_providers),
+            ),
+            (
+                "disabled_proxy_auth_files".to_owned(),
+                preferences.disabled_proxy_auth_files.into(),
+            ),
+            (
+                "automatically_discover_logins".to_owned(),
+                preferences.automatically_discover_logins.into(),
+            ),
+            (
+                "refresh_interval".to_owned(),
+                i64::try_from(preferences.refresh_interval)
+                    .map_err(|_| SettingsError::Invalid)?
+                    .into(),
+            ),
+        ]);
+        if !preferences.quota_history_enabled {
+            fields.insert("quota_history_enabled".to_owned(), false.into());
         }
         // Preserve explicit host choices. Persist all fields once, so later app launches cannot overwrite them.
-        let store = Self::new(self.path.clone(), Overrides::default());
-        store.patch(SettingsPatch {
-            revision,
-            enabled_providers: (!fields.contains_key("enabled_providers")).then(|| {
-                Provider::value_variants()
-                    .iter()
-                    .copied()
-                    .filter(|provider| *provider != Provider::Mock)
-                    .collect()
-            }),
-            disabled_providers: (!fields.contains_key("disabled_providers"))
-                .then_some(preferences.disabled_providers),
-            disabled_proxy_auth_files: (!fields.contains_key("disabled_proxy_auth_files"))
-                .then_some(preferences.disabled_proxy_auth_files),
-            automatically_discover_logins: (!fields.contains_key("automatically_discover_logins"))
-                .then_some(preferences.automatically_discover_logins),
-            quota_history_enabled: (!fields.contains_key("quota_history_enabled"))
-                .then_some(preferences.quota_history_enabled),
-            refresh_interval: (!fields.contains_key("refresh_interval"))
-                .then_some(preferences.refresh_interval),
-            cache_ttl_seconds: None,
-            provider_timeout: None,
-        })?;
+        self.seed_missing(fields)?;
         self.load()
     }
-    pub fn patch(&self, patch: SettingsPatch) -> Result<SettingsView, SettingsError> {
-        let parent = self
-            .path
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or(std::path::Path::new("."));
-        #[cfg(not(windows))]
-        fs::create_dir_all(parent).map_err(|_| SettingsError::Storage)?;
-        #[cfg(windows)]
-        let _lock = crate::accounts::vault::acquire(&self.path.with_extension("toml.lock"))
-            .map_err(|error| {
-                if matches!(error, crate::accounts::AccountError::Busy) {
-                    SettingsError::Busy
-                } else {
-                    SettingsError::Storage
-                }
-            })?;
-        #[cfg(not(windows))]
-        let _lock = {
-            let mut options = OpenOptions::new();
-            options.create(true).read(true).write(true).truncate(false);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::OpenOptionsExt;
-                options
-                    .mode(0o600)
-                    .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
-            }
-            let lock = options
-                .open(self.path.with_extension("toml.lock"))
-                .map_err(|_| SettingsError::Storage)?;
-            if !lock
-                .metadata()
-                .map_err(|_| SettingsError::Storage)?
-                .is_file()
-            {
-                return Err(SettingsError::Storage);
-            }
-            #[cfg(unix)]
-            {
-                use std::os::fd::AsRawFd;
-                if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-                    return Err(SettingsError::Busy);
-                }
-            }
-            #[cfg(not(unix))]
-            {
-                return Err(SettingsError::Storage);
-            }
-            lock
+    pub fn seed_from_file(&self, source: &Path) -> Result<usize, SettingsError> {
+        let (_, _, input) = Self::new(source.to_owned(), Overrides::default()).read()?;
+        self.seed_missing(toml::from_str(&input).map_err(|_| SettingsError::Invalid)?)
+    }
+    fn seed_missing(&self, source: toml::Table) -> Result<usize, SettingsError> {
+        let missing = |input: &str| -> Result<(toml::Table, toml::Table), SettingsError> {
+            let current: toml::Table = toml::from_str(input).map_err(|_| SettingsError::Invalid)?;
+            let missing = source
+                .iter()
+                .filter(|(key, _)| !current.contains_key(*key))
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect();
+            Ok((current, missing))
         };
+        if missing(&self.read()?.2)?.1.is_empty() {
+            return Ok(0);
+        }
+        let _lock = self.lock()?;
+        let (mut table, missing) = missing(&self.read()?.2)?;
+        let seeded = missing.len();
+        if seeded == 0 {
+            return Ok(0);
+        }
+        table.extend(missing);
+        let text = toml::to_string(&table).map_err(|_| SettingsError::Invalid)?;
+        validate(&Config::parse(&text).map_err(|_| SettingsError::Invalid)?)?;
+        self.replace(&text)?;
+        Ok(seeded)
+    }
+    pub fn patch(&self, patch: SettingsPatch) -> Result<SettingsView, SettingsError> {
+        let _lock = self.lock()?;
         let (mut config, revision, _) = self.read()?;
         if patch.revision != revision {
             return Err(SettingsError::Conflict);
@@ -254,12 +229,69 @@ impl SettingsStore {
         }
         validate(&config)?;
         let mut table = toml::Table::try_from(&config).map_err(|_| SettingsError::Invalid)?;
-        // Omitted while enabled so the file stays readable by builds without history.
         if config.quota_history_enabled {
             table.remove("quota_history_enabled");
         }
         let text = toml::to_string(&table).map_err(|_| SettingsError::Invalid)?;
-        let temporary = parent.join(format!(
+        self.replace(&text)?;
+        Ok(self.effective(config, crate::cache::fingerprint(&[&text])))
+    }
+    fn parent(&self) -> &Path {
+        self.path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+    }
+    fn lock(&self) -> Result<impl Sized, SettingsError> {
+        #[cfg(not(windows))]
+        fs::create_dir_all(self.parent()).map_err(|_| SettingsError::Storage)?;
+        #[cfg(windows)]
+        let lock = crate::accounts::vault::acquire(&self.path.with_extension("toml.lock"))
+            .map_err(|error| {
+                if matches!(error, crate::accounts::AccountError::Busy) {
+                    SettingsError::Busy
+                } else {
+                    SettingsError::Storage
+                }
+            })?;
+        #[cfg(not(windows))]
+        let lock = {
+            let mut options = OpenOptions::new();
+            options.create(true).read(true).write(true).truncate(false);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options
+                    .mode(0o600)
+                    .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+            }
+            let lock = options
+                .open(self.path.with_extension("toml.lock"))
+                .map_err(|_| SettingsError::Storage)?;
+            if !lock
+                .metadata()
+                .map_err(|_| SettingsError::Storage)?
+                .is_file()
+            {
+                return Err(SettingsError::Storage);
+            }
+            #[cfg(unix)]
+            {
+                use std::os::fd::AsRawFd;
+                if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+                    return Err(SettingsError::Busy);
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                return Err(SettingsError::Storage);
+            }
+            lock
+        };
+        Ok(lock)
+    }
+    fn replace(&self, text: &str) -> Result<(), SettingsError> {
+        let temporary = self.parent().join(format!(
             ".quotio-settings-{}.tmp",
             crate::accounts::random_string().map_err(|_| SettingsError::Storage)?
         ));
@@ -282,14 +314,14 @@ impl SettingsStore {
             #[cfg(not(windows))]
             {
                 fs::rename(&temporary, &self.path)?;
-                File::open(parent)?.sync_all()
+                File::open(self.parent())?.sync_all()
             }
         })();
         if result.is_err() {
             let _ = fs::remove_file(&temporary);
             return Err(SettingsError::Storage);
         }
-        Ok(self.effective(config, crate::cache::fingerprint(&[&text])))
+        Ok(())
     }
 }
 fn validate(config: &Config) -> Result<(), SettingsError> {

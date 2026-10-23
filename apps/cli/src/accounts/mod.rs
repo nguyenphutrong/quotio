@@ -1,3 +1,4 @@
+pub mod adopt;
 pub mod api;
 pub(crate) mod authorization;
 pub(crate) mod clients;
@@ -714,6 +715,197 @@ impl Document {
                 &account.credential,
                 Credential::CopilotOAuth { host: Some(_), .. }
             )
+        })
+    }
+}
+
+pub struct Absorbed {
+    pub changed: bool,
+    pub added: usize,
+    pub refreshed: usize,
+    pub skipped: usize,
+    pub history: Option<crate::history::Rewrite>,
+}
+
+impl Credential {
+    fn expires_at(&self) -> Option<i64> {
+        match self {
+            Credential::ClaudeOAuth { expires_at, .. }
+            | Credential::AntigravityOAuth { expires_at, .. }
+            | Credential::KiroOAuth { expires_at, .. }
+            | Credential::FactoryOAuth { expires_at, .. }
+            | Credential::GrokOAuth { expires_at, .. }
+            | Credential::CodexOAuth { expires_at, .. } => Some(*expires_at),
+            Credential::AntigravityToken { expires_at, .. }
+            | Credential::KiroToken { expires_at, .. } => *expires_at,
+            _ => None,
+        }
+    }
+}
+
+impl Document {
+    fn has_pairing(&self) -> bool {
+        self.companion_identity.is_some() || !self.client_grants.is_empty()
+    }
+
+    fn has_refresh_reservations(&self) -> bool {
+        !self.factory_refresh_owners.is_empty()
+            || !self.claude_refresh_owners.is_empty()
+            || !self.kiro_refresh_owners.is_empty()
+            || !self.antigravity_refresh_owners.is_empty()
+    }
+
+    fn is_vacant(&self) -> bool {
+        self.accounts.is_empty()
+            && !self.has_pairing()
+            && !self.has_refresh_reservations()
+            && self.mutation_receipts.is_empty()
+            && self.resolved.as_ref().is_none_or(|registry| {
+                !registry.has_labels()
+                    && !registry.has_suppressions()
+                    && !registry.has_history_epochs()
+            })
+    }
+
+    pub fn absorb(&mut self, mut other: Document) -> Result<Absorbed, AccountError> {
+        if self.is_vacant() && !other.is_vacant() {
+            let added = other.accounts.len();
+            let history = other
+                .resolved
+                .as_ref()
+                .map(|registry| crate::history::Rewrite::onto(registry.host_id.clone()));
+            *self = other;
+            return Ok(Absorbed {
+                changed: true,
+                added,
+                refreshed: 0,
+                skipped: 0,
+                history,
+            });
+        }
+        let before = serde_json::to_vec(&*self).map_err(|_| AccountError::Corrupt)?;
+        if other.resolved.is_some() {
+            self.enable_resolved_accounts()?;
+        }
+        let (mut added, mut refreshed, mut skipped) = (0, 0, 0);
+        let mut id_map = std::collections::BTreeMap::new();
+        for mut account in std::mem::take(&mut other.accounts) {
+            if let Some(index) = self.accounts.iter().position(|existing| {
+                existing.provider == account.provider && existing.identity == account.identity
+            }) {
+                let id = self.accounts[index].id.clone();
+                id_map.insert(account.id, id.clone());
+                let current = &self.accounts[index].credential;
+                let fresher = std::mem::discriminant(current)
+                    == std::mem::discriminant(&account.credential)
+                    && current
+                        .expires_at()
+                        .is_some_and(|held| account.credential.expires_at() > Some(held));
+                if fresher
+                    && self
+                        .reserve_factory_refresh(&id, &account.credential)
+                        .is_ok()
+                {
+                    self.accounts[index].credential = account.credential;
+                    refreshed += 1;
+                }
+                continue;
+            }
+            let id = if self
+                .accounts
+                .iter()
+                .any(|existing| existing.id == account.id)
+            {
+                random_string()?
+            } else {
+                account.id.clone()
+            };
+            if let Err(error) = self.reserve_factory_refresh(&id, &account.credential) {
+                if matches!(error, AccountError::Duplicate) {
+                    skipped += 1;
+                    continue;
+                }
+                return Err(error);
+            }
+            let stem = account.label.clone();
+            let mut suffix = 1;
+            while self.accounts.iter().any(|existing| {
+                existing.provider == account.provider && existing.label == account.label
+            }) {
+                suffix += 1;
+                let tail = format!(" {suffix}");
+                let head: String = stem.chars().take(80 - tail.chars().count()).collect();
+                account.label = validate_label(&format!("{head}{tail}"))?;
+            }
+            account.active &= !self
+                .accounts
+                .iter()
+                .any(|existing| existing.provider == account.provider && existing.active);
+            id_map.insert(std::mem::replace(&mut account.id, id.clone()), id);
+            self.accounts.push(account);
+            added += 1;
+        }
+        let take_host = other.has_pairing() && !self.has_pairing();
+        let history = match (self.resolved.as_mut(), other.resolved.take()) {
+            (Some(mine), Some(theirs)) => {
+                if take_host {
+                    mine.host_id = theirs.host_id.clone();
+                } else if other.has_pairing() && mine.host_id != theirs.host_id {
+                    tracing::warn!("vault_adoption_pairing_dropped");
+                }
+                Some(mine.absorb(theirs, &id_map)?)
+            }
+            _ => None,
+        };
+        if take_host {
+            self.companion_identity = other.companion_identity.take();
+            self.client_grants = std::mem::take(&mut other.client_grants);
+        }
+        if self.native_discovery.is_none() {
+            self.native_discovery = other.native_discovery.take();
+        }
+        for (mine, theirs) in [
+            (
+                &mut self.factory_refresh_owners,
+                other.factory_refresh_owners,
+            ),
+            (&mut self.claude_refresh_owners, other.claude_refresh_owners),
+            (&mut self.kiro_refresh_owners, other.kiro_refresh_owners),
+            (
+                &mut self.antigravity_refresh_owners,
+                other.antigravity_refresh_owners,
+            ),
+        ] {
+            for (fingerprint, owner) in theirs {
+                mine.entry(fingerprint)
+                    .or_insert_with(|| id_map.get(&owner).cloned().unwrap_or(owner));
+            }
+        }
+        for (key, receipt) in other.mutation_receipts {
+            if self.mutation_receipts.contains_key(&key) {
+                continue;
+            }
+            if self.mutation_receipts.len() >= 4096 {
+                break;
+            }
+            self.mutation_receipts.insert(
+                key,
+                MutationReceipt {
+                    fingerprint: receipt.fingerprint,
+                    account_id: id_map
+                        .get(&receipt.account_id)
+                        .cloned()
+                        .unwrap_or(receipt.account_id),
+                },
+            );
+        }
+        self.version = self.version.max(other.version);
+        Ok(Absorbed {
+            changed: serde_json::to_vec(&*self).map_err(|_| AccountError::Corrupt)? != before,
+            added,
+            refreshed,
+            skipped,
+            history,
         })
     }
 }

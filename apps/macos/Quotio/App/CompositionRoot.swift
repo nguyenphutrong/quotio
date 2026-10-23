@@ -88,14 +88,22 @@ enum CompositionRoot {
             logger: OSApplicationLogger(subsystem: AppIdentity.bundleIdentifier, category: "NativeQuota"),
             localization: { (languageManager.bundle, languageManager.locale) }
         )
+        let quotioHelper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/quotio-cli")
+        let isolatedQuotioStore = QuotioCLIAccountStorage.IsolatedStore(
+            namespace: AppIdentity.quotioCLIVaultNamespace(),
+            applicationSupportDirectoryName: AppIdentity.bundleIdentifier
+        )
         let quotioServer = QuotioCLIServerProcess(
+            executableURL: quotioHelper,
+            storage: QuotioCLIHelperSignature.matchesStandaloneCLI(at: quotioHelper)
+                ? .shared(adopting: isolatedQuotioStore)
+                : .isolated(isolatedQuotioStore),
             proxyAuthDirectory: URL(fileURLWithPath: paths.authDirectoryPath, isDirectory: true),
             proxyConfigurationURL: URL(fileURLWithPath: paths.configPath),
             initialPreferences: {
                 (providerTrackingRepository.load(), UserDefaultsRefreshPreferencesRepository().load(), authFileState.disabledAuthFileNames())
             },
-            applicationSupportDirectoryName: AppIdentity.bundleIdentifier,
-            accountVaultNamespace: AppIdentity.quotioCLIVaultNamespace()
+            logger: OSApplicationLogger(subsystem: AppIdentity.bundleIdentifier, category: "NativeQuota")
         )
         let companionService = QuotioCompanionService()
         let reconnectQuotioServer: @MainActor @Sendable () async -> Bool = {
@@ -389,6 +397,12 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
                         statusBarManager?.closeMenu()
                     }
                     navigationScreenModel.currentPage = .general
+                    windowPresenter.showMainWindow()
+                },
+                openProviderSettings: { [weak statusBarManager, windowPresenter, navigationScreenModel] provider in
+                    statusBarManager?.closeMenu()
+                    if let provider { navigationScreenModel.selectProvider(provider) }
+                    else { navigationScreenModel.showProviders() }
                     windowPresenter.showMainWindow()
                 },
                 quit: { [applicationPlatform] in

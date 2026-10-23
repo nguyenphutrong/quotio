@@ -1,6 +1,7 @@
 import QuotioHostClient
 import Foundation
 import QuotioDomain
+import QuotioApplication
 import Security
 
 public enum QuotioCLIServerError: LocalizedError, Equatable {
@@ -36,45 +37,58 @@ public final class QuotioCLIServerProcess {
         let port: Int
     }
 
+    private struct Diagnostic: Decodable {
+        enum Event: String, Decodable {
+            case read = "vault_keychain_read_failed"
+            case write = "vault_keychain_write_failed"
+            case authorize = "vault_keychain_authorize_failed"
+        }
+        let diagnosticVersion: Int
+        let event: Event
+        let osStatus: Int32
+    }
+
     private let executableURL: URL
     private let configurationURL: URL?
     private let accountDataDirectory: URL?
     private let proxyAuthDirectory: URL?
     private let proxyConfigurationURL: URL?
     private let initialPreferences: @MainActor () -> (ProviderTrackingPreferences, RefreshPreferences, Set<String>)?
-    private let applicationSupportDirectoryName: String
-    private let accountVaultNamespace: String
+    private let storage: QuotioCLIAccountStorage
     private let proxyURL: @MainActor () -> String?
+    private let logger: (any ApplicationLogging)?
     private var isStarting = false
     private var process: Process?
     private var input: Pipe?
     private var output: Pipe?
+    private var diagnostics: Pipe?
+    private var diagnosticTask: Task<Void, Never>?
 
     public var onUnexpectedTermination: (@MainActor @Sendable () -> Void)?
 
     public init(
         executableURL: URL = Bundle.main.bundleURL
             .appendingPathComponent("Contents/Helpers/quotio-cli"),
+        storage: QuotioCLIAccountStorage,
         configurationURL: URL? = nil,
         accountDataDirectory: URL? = nil,
         proxyAuthDirectory: URL? = nil,
         proxyConfigurationURL: URL? = nil,
         initialPreferences: @escaping @MainActor () -> (ProviderTrackingPreferences, RefreshPreferences, Set<String>)? = { nil },
-        applicationSupportDirectoryName: String = "app.bytrong.quotio",
-        accountVaultNamespace: String = "quotio-macos",
         proxyURL: @escaping @MainActor () -> String? = {
             UserDefaults.standard.string(forKey: "proxyURL")
-        }
+        },
+        logger: (any ApplicationLogging)? = nil
     ) {
         self.executableURL = executableURL
+        self.storage = storage
         self.configurationURL = configurationURL
         self.accountDataDirectory = accountDataDirectory
         self.proxyAuthDirectory = proxyAuthDirectory
         self.proxyConfigurationURL = proxyConfigurationURL
         self.initialPreferences = initialPreferences
-        self.applicationSupportDirectoryName = applicationSupportDirectoryName
-        self.accountVaultNamespace = accountVaultNamespace
         self.proxyURL = proxyURL
+        self.logger = logger
     }
 
     public func start() async throws -> QuotioHostConnection {
@@ -86,20 +100,18 @@ public final class QuotioCLIServerProcess {
         isStarting = true
         defer { isStarting = false }
         let token = try makeToken()
-        let locations = try makeLocations()
+        let storageArguments = try makeStorageArguments()
         let process = Process()
         let input = Pipe()
         let output = Pipe()
+        let diagnostics = Pipe()
         process.executableURL = executableURL
         process.arguments = [
             "serve",
             "--manage",
             "--parent-pipe",
             "--listen", "127.0.0.1:0",
-            "--config", locations.configuration.path,
-            "--account-vault-namespace", accountVaultNamespace,
-            "--account-data-dir", locations.accounts.path,
-        ]
+        ] + storageArguments
         if let proxyAuthDirectory {
             process.arguments?.append(contentsOf: ["--cli-proxy-auth-dir", proxyAuthDirectory.path])
         }
@@ -130,8 +142,36 @@ public final class QuotioCLIServerProcess {
         process.environment = environment
         process.standardInput = input
         process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
+        process.standardError = diagnostics
         let stream = outputStream(from: output)
+        let diagnosticStream = outputStream(from: diagnostics)
+        diagnosticTask = Task { [logger] in
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            var line = Data()
+            var oversized = false
+            for await chunk in diagnosticStream {
+                guard !Task.isCancelled else { break }
+                for byte in chunk {
+                    if byte == 10 {
+                        if !oversized,
+                           let diagnostic = try? decoder.decode(Diagnostic.self, from: line),
+                           diagnostic.diagnosticVersion == 1 {
+                            await logger?.write(.warning, message: "Quotio helper \(diagnostic.event.rawValue) os_status=\(diagnostic.osStatus)")
+                        }
+                        line.removeAll(keepingCapacity: true)
+                        oversized = false
+                    } else if !oversized {
+                        if line.count < 1_024 {
+                            line.append(byte)
+                        } else {
+                            line.removeAll(keepingCapacity: true)
+                            oversized = true
+                        }
+                    }
+                }
+            }
+        }
         process.terminationHandler = { [weak self] terminated in
             let pid = terminated.processIdentifier
             Task { @MainActor [weak self] in
@@ -139,12 +179,17 @@ public final class QuotioCLIServerProcess {
                 self?.process = nil
                 self?.input = nil
                 self?.output = nil
+                self?.diagnostics?.fileHandleForReading.readabilityHandler = nil
+                self?.diagnostics = nil
+                self?.diagnosticTask?.cancel()
+                self?.diagnosticTask = nil
                 if self?.isStarting == false { self?.onUnexpectedTermination?() }
             }
         }
         self.process = process
         self.input = input
         self.output = output
+        self.diagnostics = diagnostics
 
         do {
             try process.run()
@@ -185,6 +230,10 @@ public final class QuotioCLIServerProcess {
         input = nil
         output?.fileHandleForReading.readabilityHandler = nil
         output = nil
+        diagnostics?.fileHandleForReading.readabilityHandler = nil
+        diagnostics = nil
+        diagnosticTask?.cancel()
+        diagnosticTask = nil
         guard let ownedProcess, ownedProcess.isRunning else { return }
         for _ in 0..<20 where ownedProcess.isRunning {
             try? await Task.sleep(for: .milliseconds(50))
@@ -202,17 +251,48 @@ public final class QuotioCLIServerProcess {
         return Data(bytes).base64EncodedString()
     }
 
-    private func makeLocations() throws -> (configuration: URL, accounts: URL) {
+    private func makeStorageArguments() throws -> [String] {
+        switch storage {
+        case .isolated(let store):
+            let locations = try makeLocations(for: store)
+            return [
+                "--config", locations.configuration.path,
+                "--account-vault-namespace", store.namespace,
+                "--account-data-dir", locations.accounts.path,
+            ]
+        case .shared(adopting: let store):
+            let locations = try locations(of: store)
+            var arguments = [
+                "--adopt-vault-namespace", store.namespace,
+                "--adopt-data-dir", locations.accounts.path,
+            ]
+            if FileManager.default.fileExists(atPath: locations.configuration.path) {
+                arguments += ["--adopt-config", locations.configuration.path]
+            }
+            return arguments
+        }
+    }
+
+    private func locations(
+        of store: QuotioCLIAccountStorage.IsolatedStore
+    ) throws -> (configuration: URL, accounts: URL) {
         let support = try FileManager.default.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
-        ).appendingPathComponent(applicationSupportDirectoryName, isDirectory: true)
-        let accounts = accountDataDirectory
-            ?? support.appendingPathComponent("QuotioCLI", isDirectory: true)
+        ).appendingPathComponent(store.applicationSupportDirectoryName, isDirectory: true)
+        return (
+            configurationURL ?? support.appendingPathComponent("quotio-cli.toml"),
+            accountDataDirectory ?? support.appendingPathComponent("QuotioCLI", isDirectory: true)
+        )
+    }
+
+    private func makeLocations(
+        for store: QuotioCLIAccountStorage.IsolatedStore
+    ) throws -> (configuration: URL, accounts: URL) {
+        let (configuration, accounts) = try locations(of: store)
         try FileManager.default.createDirectory(at: accounts, withIntermediateDirectories: true)
-        let configuration = configurationURL ?? support.appendingPathComponent("quotio-cli.toml")
         try FileManager.default.createDirectory(
             at: configuration.deletingLastPathComponent(),
             withIntermediateDirectories: true

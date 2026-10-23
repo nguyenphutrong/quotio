@@ -15,7 +15,7 @@ final class QuotaFeatureControllerTests: XCTestCase {
             accountKey: "person@example.com", source: .nativeCredential
         )
         let fixture = await makeFixture(
-            account: account, provider: .codex, lastUpdated: Date(),
+            account: account, provider: .codex, lastUpdated: Date(), quotaState: .fresh,
             issues: [.codex: .init(kind: .failed, occurredAt: Date().addingTimeInterval(10), reason: .authentication)]
         )
         XCTAssertEqual(fixture.controller.monitorStatus(for: account).status, "ready")
@@ -33,6 +33,36 @@ final class QuotaFeatureControllerTests: XCTestCase {
         XCTAssertEqual(fixture.controller.monitorStatus(for: account).status, "ready")
         await fixture.controller.shutdown()
     }
+    func testMonitorStatusRetainedFailureIsOutdatedRatherThanReady() async {
+        let account = Account.make(providerID: .init(rawValue: "claude"), accountKey: "work", source: .nativeCredential)
+        let issue = QuotaRefreshIssue(kind: .failed, occurredAt: Date(), reason: .credentialStorage, recoveryAction: .authorize)
+        let fixture = await makeFixture(account: account, provider: .claude, quotaState: .stale, accountIssue: issue)
+        let status = fixture.controller.monitorStatus(for: account)
+        XCTAssertEqual(status.status, "outdated")
+        XCTAssertNotNil(status.message)
+        await fixture.controller.shutdown()
+    }
+
+    func testMonitorStatusUsesProviderFailureWhenNoAccountReadingExists() async {
+        let account = Account.make(providerID: .init(rawValue: "claude"), accountKey: "work", source: .nativeCredential)
+        let fixture = await makeFixture(
+            account: account, provider: .claude, includeQuota: false,
+            issues: [.claude: .init(kind: .failed, occurredAt: Date(), reason: .credentialStorage)]
+        )
+        XCTAssertEqual(fixture.controller.monitorStatus(for: account).status, "failed")
+        await fixture.controller.shutdown()
+    }
+
+    func testMonitorStatusUsesProviderFailureForRetainedDataWithoutExplicitFreshState() async {
+        let account = Account.make(providerID: .init(rawValue: "claude"), accountKey: "work", source: .nativeCredential)
+        let fixture = await makeFixture(
+            account: account, provider: .claude,
+            issues: [.claude: .init(kind: .failed, occurredAt: Date(), reason: .timeout)]
+        )
+        XCTAssertEqual(fixture.controller.monitorStatus(for: account).status, "outdated")
+        await fixture.controller.shutdown()
+    }
+
 
     func testInitializeReadsHostStateWithoutDiscoveringNativeAccounts() async {
         let account = Account.make(
@@ -266,6 +296,9 @@ final class QuotaFeatureControllerTests: XCTestCase {
         hostID: String? = nil,
         canManageSettings: Bool = true,
         lastUpdated: Date = Date(timeIntervalSince1970: 1_000),
+        quotaState: QuotaRefreshState? = nil,
+        accountIssue: QuotaRefreshIssue? = nil,
+        includeQuota: Bool = true,
         issues: [QuotaProvider: QuotaRefreshIssue] = [:],
         oauthAuthorizer: QuotaFeatureOAuthAuthorizer = QuotaFeatureOAuthAuthorizer()
     ) async -> (
@@ -282,15 +315,22 @@ final class QuotaFeatureControllerTests: XCTestCase {
             snapshot: QuotaSnapshot(
                 hostID: hostID,
                 canManageSettings: canManageSettings,
-                quotas: [
+                accountStates: quotaState.map {
+                    [QuotaAccountID(provider: provider, accountKey: quotaAccountKey ?? account.accountKey):
+                        AccountMonitoringState(connection: .connected, quota: $0)]
+                } ?? [:],
+                quotas: includeQuota ? [
                 provider: [
                     quotaAccountKey ?? account.accountKey: ProviderQuota(
                         lastUpdated: lastUpdated
                     ),
                 ],
-                ],
+                ] : [:],
                 accountAliases: aliases.isEmpty ? [:] : [provider: aliases],
-                issues: issues
+                issues: issues,
+                accountIssues: accountIssue.map {
+                    [QuotaAccountID(provider: provider, accountKey: quotaAccountKey ?? account.accountKey): $0]
+                } ?? [:]
             )
         ))
         await quota.bootstrap(mode: .monitor)

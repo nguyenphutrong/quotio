@@ -46,7 +46,7 @@ impl VaultNamespace {
         format!("vault.{}", self.0)
     }
 
-    fn lock_name(&self) -> String {
+    pub(crate) fn lock_name(&self) -> String {
         format!("accounts-{}.lock", self.0)
     }
 
@@ -170,7 +170,14 @@ impl Backend for Keychain {
                     ),
                 )
             })
-            .map_err(|_| AccountError::Storage)?;
+            .map_err(|error| {
+                tracing::warn!(
+                    operation = "authorize",
+                    status = error.code(),
+                    "vault_keychain_authorize_failed"
+                );
+                AccountError::Storage
+            })?;
             self.read().map(|_| ())
         }
         #[cfg(not(target_os = "macos"))]
@@ -187,7 +194,11 @@ impl Backend for Keychain {
                 Ok(bytes) => Ok(Some(bytes)),
                 Err(e) if e.code() == -25300 => Ok(None),
                 Err(error) => {
-                    tracing::warn!(status = error.code(), "vault_keychain_read_failed");
+                    tracing::warn!(
+                        operation = "read",
+                        status = error.code(),
+                        "vault_keychain_read_failed"
+                    );
                     Err(AccountError::Storage)
                 }
             }
@@ -203,7 +214,14 @@ impl Backend for Keychain {
             crate::keychain::with_interaction(self.interactive, || {
                 security_framework::passwords::set_generic_password_options(bytes, self.options())
             })
-            .map_err(|_| AccountError::Storage)
+            .map_err(|error| {
+                tracing::warn!(
+                    operation = "write",
+                    status = error.code(),
+                    "vault_keychain_write_failed"
+                );
+                AccountError::Storage
+            })
         }
         #[cfg(not(target_os = "macos"))]
         {
@@ -292,10 +310,28 @@ impl Vault {
         namespace: &VaultNamespace,
         data_directory: &std::path::Path,
     ) -> Result<Self, AccountError> {
+        Self::isolated(false, namespace, data_directory)
+    }
+    /// Reads can wait on a Keychain prompt until the user answers it.
+    pub fn isolated_interactive(
+        namespace: &VaultNamespace,
+        data_directory: &std::path::Path,
+    ) -> Result<Self, AccountError> {
+        Self::isolated(true, namespace, data_directory)
+    }
+    fn isolated(
+        interactive: bool,
+        namespace: &VaultNamespace,
+        data_directory: &std::path::Path,
+    ) -> Result<Self, AccountError> {
         if !data_directory.is_absolute() {
             return Err(AccountError::Storage);
         }
-        Self::system_with_interaction(false, Some(namespace), Some(data_directory.to_owned()))
+        Self::system_with_interaction(
+            interactive,
+            Some(namespace),
+            Some(data_directory.to_owned()),
+        )
     }
     fn system_with_interaction(
         _interactive: bool,

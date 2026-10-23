@@ -477,6 +477,132 @@ impl Registry {
         })
     }
 
+    pub(crate) fn absorb(
+        &mut self,
+        other: Registry,
+        id_map: &BTreeMap<String, String>,
+    ) -> Result<crate::history::Rewrite, AccountError> {
+        let mut landed: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (source_id, binding) in &other.bindings {
+            let Some(id) = id_map.get(source_id) else {
+                continue;
+            };
+            let logical = match self.bindings.get(id) {
+                Some(existing) => {
+                    if let (None, Some(identity)) = (&existing.verified, &binding.verified) {
+                        self.observe(id, identity)?;
+                    }
+                    self.bindings[id].account_id.clone()
+                }
+                None => {
+                    let joined = binding.verified.as_ref().and_then(|identity| {
+                        self.bindings
+                            .values()
+                            .filter(|held| {
+                                held.provider == binding.provider
+                                    && held.verified.as_ref() == Some(identity)
+                            })
+                            .map(|held| held.account_id.clone())
+                            .min()
+                    });
+                    let logical = joined.unwrap_or_else(|| binding.account_id.clone());
+                    self.bindings.insert(
+                        id.clone(),
+                        Binding {
+                            account_id: logical.clone(),
+                            ..binding.clone()
+                        },
+                    );
+                    logical
+                }
+            };
+            landed
+                .entry(binding.account_id.clone())
+                .or_default()
+                .insert(logical);
+        }
+        let live: HashSet<String> = self
+            .bindings
+            .values()
+            .map(|binding| binding.account_id.clone())
+            .collect();
+        let accounts: BTreeMap<String, String> = landed
+            .iter()
+            .filter_map(|(old, targets)| {
+                let target = targets.first()?;
+                (targets.len() == 1 && target != old).then(|| (old.clone(), target.clone()))
+            })
+            .collect();
+        let mut epochs = BTreeMap::new();
+        for old in landed.keys() {
+            match accounts.get(old) {
+                Some(target) => {
+                    let (from, to) = (
+                        other.owned_history_epoch(old),
+                        self.owned_history_epoch(target),
+                    );
+                    if from != to {
+                        epochs.insert(from, to);
+                    }
+                }
+                None => {
+                    if let Some(epoch) = other.history_owned_epochs.get(old) {
+                        self.history_owned_epochs
+                            .entry(old.clone())
+                            .or_insert_with(|| epoch.clone());
+                    }
+                }
+            }
+        }
+        for (provider, identity, epoch) in other.history_verified_epochs {
+            match self
+                .history_verified_epochs
+                .iter()
+                .find(|(p, i, _)| *p == provider && *i == identity)
+            {
+                Some((_, _, held)) if *held != epoch => {
+                    epochs.insert(epoch, held.clone());
+                }
+                Some(_) => {}
+                None => self
+                    .history_verified_epochs
+                    .push((provider, identity, epoch)),
+            }
+        }
+        let resolve = |id: &String| accounts.get(id).unwrap_or(id).clone();
+        for (old, target) in accounts
+            .iter()
+            .map(|(old, target)| (old.clone(), target.clone()))
+            .chain(
+                other
+                    .redirects
+                    .iter()
+                    .map(|(old, target)| (old.clone(), resolve(target))),
+            )
+        {
+            if !live.contains(&old) && live.contains(&target) {
+                self.redirects.entry(old).or_insert(target);
+            }
+        }
+        for (id, label) in &other.labels {
+            self.labels
+                .entry(resolve(id))
+                .or_insert_with(|| label.clone());
+        }
+        for (provider, keys) in other.suppressed_sources {
+            self.suppressed_sources
+                .entry(provider)
+                .or_default()
+                .extend(keys);
+        }
+        self.revision = self.revision.max(other.revision);
+        Ok(crate::history::Rewrite {
+            host: self.host_id.clone(),
+            account_renames: accounts,
+            epoch_renames: epochs,
+        })
+    }
+
     pub fn synchronize(&mut self, accounts: &[Account]) -> Result<(), AccountError> {
         let ids: HashSet<_> = accounts.iter().map(|account| account.id.as_str()).collect();
         if ids.len() != accounts.len() {

@@ -38,6 +38,9 @@ loopback. Ctrl-C or SIGTERM stops the host on Unix.
 | `--cli-proxy-config` | None | Absolute CLIProxyAPI YAML config for provider keys |
 | `--account-vault-namespace` | None | Separate app-owned vault named with 1-32 lowercase letters, digits or hyphens; requires `--manage`, `--parent-pipe` and `--account-data-dir` |
 | `--account-data-dir` | None | Absolute directory for that vault's locks and platform data |
+| `--adopt-vault-namespace` | None | Fold this former app-owned vault, its history and config into the defaults once, then serve the default vault; requires `--manage`, `--parent-pipe` and `--adopt-data-dir` |
+| `--adopt-data-dir` | None | Absolute directory holding that vault's locks, history and completion marker |
+| `--adopt-config` | None | Absolute former config whose keys fill keys missing from the default config |
 | `--parent-pipe` | Off | Native parent protocol; see [Native parent bootstrap](#native-parent-bootstrap) |
 
 Without overrides, the host uses `enabled_providers` minus `disabled_providers`.
@@ -258,6 +261,20 @@ After initialization the helper emits one stdout record:
 Validate the version, owned child PID and loopback address, then authenticate
 `/v2/status`. The record means the listener is bound, not that quota has loaded.
 Keep stdin open: EOF, read failure or unexpected extra input ends the session.
+
+In parent-pipe mode, stderr carries LF-delimited JSON diagnostics for vault
+Keychain failures instead of general tracing output:
+
+```json
+{"diagnostic_version":1,"event":"vault_keychain_read_failed","os_status":-25308}
+```
+
+The event is limited to `vault_keychain_read_failed`, `vault_keychain_write_failed`
+or `vault_keychain_authorize_failed`; `os_status` is a signed 32-bit OSStatus.
+Parents must drain stderr, bound records, ignore unsupported versions/events and
+log only the validated event and numeric status, never a raw line. Diagnostics
+contain no credential values. HTTP storage error codes remain authoritative for
+user-facing recovery; an OSStatus record does not grant authorization.
 
 ## iPhone companion
 

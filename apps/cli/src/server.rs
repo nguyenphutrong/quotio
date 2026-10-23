@@ -1194,6 +1194,7 @@ async fn serve(args: ServeArgs, mut embedded: Option<Embedded>) -> Result<(), Se
     if !args.listen.ip().is_loopback() {
         return Err(ServerError::Listen);
     }
+    let adoption = args.adoption()?;
     let proxy_auth_directory = args
         .cli_proxy_auth_dir
         .or_else(crate::accounts::proxy::default_auth_directory);
@@ -1213,6 +1214,9 @@ async fn serve(args: ServeArgs, mut embedded: Option<Embedded>) -> Result<(), Se
             provider_timeout: args.timeout,
         },
     );
+    let config_adopted = adoption
+        .as_ref()
+        .is_none_or(|source| crate::accounts::adopt::config(source, &store));
     let mut parent = if args.parent_pipe {
         Some(bootstrap::Parent::open().await?)
     } else {
@@ -1224,8 +1228,12 @@ async fn serve(args: ServeArgs, mut embedded: Option<Embedded>) -> Result<(), Se
         (None, None) => None,
     };
     let view = match preferences {
-        Some(preferences) => store.import_native_preferences(preferences),
-        None => store.load(),
+        Some(preferences)
+            if config_adopted && adoption.as_ref().is_none_or(|source| !source.adopted()) =>
+        {
+            store.import_native_preferences(preferences)
+        }
+        _ => store.load(),
     }
     .map_err(|_| ServerError::Config)?;
     let token = if let Some(parent) = &mut parent {
@@ -1347,6 +1355,19 @@ async fn serve(args: ServeArgs, mut embedded: Option<Embedded>) -> Result<(), Se
     );
     let worker_state = state.clone();
     let mut worker = tokio::spawn(async move {
+        if let (Some(source), Some(vault)) = (&adoption, &worker_state.vault)
+            && let Ok(_guard) =
+                crate::accounts::service::mutation_guard(&worker_state.commit_guard).await
+            && crate::accounts::adopt::vault(
+                source,
+                vault,
+                worker_state.history.as_ref(),
+                config_adopted,
+            )
+            .await
+        {
+            worker_state.invalidate().await;
+        }
         loop {
             // Serve cached observations before discovery, which can take many seconds.
             let generation = worker_state.generation.load(Ordering::SeqCst);

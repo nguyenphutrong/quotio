@@ -134,8 +134,16 @@ pub(super) async fn account_context(
     let account_id = canonical.to_owned();
     let provider = account.provider_id.clone();
     let durable_vault = vault.clone();
+    let storage_error = |e: crate::accounts::AccountError| {
+        ApiError(
+            StatusCode::SERVICE_UNAVAILABLE,
+            management::account_code(&e),
+        )
+    };
+    let mut tx = crate::accounts::service::begin(vault)
+        .await
+        .map_err(storage_error)?;
     let (durable, owned_epoch) = tokio::task::spawn_blocking(move || {
-        let mut tx = vault.begin()?;
         tx.document.enable_resolved_accounts()?;
         let registry = tx.document.resolved.as_mut().expect("initialized");
         let identity = verified.or_else(|| {
@@ -161,12 +169,7 @@ pub(super) async fn account_context(
             "account_storage_unavailable",
         )
     })?
-    .map_err(|e| {
-        ApiError(
-            StatusCode::SERVICE_UNAVAILABLE,
-            management::account_code(&e),
-        )
-    })?;
+    .map_err(storage_error)?;
     let mut epochs = state.history_epochs.lock().await;
     let identity = raw.and_then(|value| value.history_identity.clone());
     let owned = account
@@ -196,8 +199,10 @@ pub(super) async fn account_context(
         if owned {
             let account_id = canonical.to_owned();
             let epoch = entry.1.clone();
+            let mut tx = crate::accounts::service::begin(durable_vault)
+                .await
+                .map_err(storage_error)?;
             tokio::task::spawn_blocking(move || {
-                let mut tx = durable_vault.begin()?;
                 tx.document
                     .resolved
                     .as_mut()
@@ -212,12 +217,7 @@ pub(super) async fn account_context(
                     "account_storage_unavailable",
                 )
             })?
-            .map_err(|e| {
-                ApiError(
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    management::account_code(&e),
-                )
-            })?;
+            .map_err(storage_error)?;
         }
     } else if identity.is_some() {
         entry.0 = identity;
@@ -515,8 +515,10 @@ pub(super) async fn purge(
             .await
             .map_err(|_| "history_storage_unavailable")?;
         if let Some(vault) = state.vault.clone() {
+            let mut tx = crate::accounts::service::begin(vault)
+                .await
+                .map_err(|error| management::account_code(&error))?;
             tokio::task::spawn_blocking(move || {
-                let mut tx = vault.begin()?;
                 if let Some(registry) = tx.document.resolved.as_mut()
                     && registry.forget_history_epoch(&epoch)
                 {

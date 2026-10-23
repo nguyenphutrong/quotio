@@ -67,6 +67,7 @@ public struct QuotaSnapshot: Equatable, Sendable {
     public var sourceIssues: [QuotaProvider: [String: QuotaRefreshIssue]]
     public var refreshingProviders: Set<QuotaProvider>
     public var lastUpdated: Date?
+    public var hostIssue: QuotaRefreshIssue?
 
     public init(
         hostID: String? = nil,
@@ -82,7 +83,8 @@ public struct QuotaSnapshot: Equatable, Sendable {
         accountIssues: [QuotaAccountID: QuotaRefreshIssue] = [:],
         sourceIssues: [QuotaProvider: [String: QuotaRefreshIssue]] = [:],
         refreshingProviders: Set<QuotaProvider> = [],
-        lastUpdated: Date? = nil
+        lastUpdated: Date? = nil,
+        hostIssue: QuotaRefreshIssue? = nil
     ) {
         self.hostID = hostID
         self.canRefresh = canRefresh
@@ -98,6 +100,7 @@ public struct QuotaSnapshot: Equatable, Sendable {
         self.sourceIssues = sourceIssues
         self.refreshingProviders = refreshingProviders
         self.lastUpdated = lastUpdated
+        self.hostIssue = hostIssue
     }
 }
 

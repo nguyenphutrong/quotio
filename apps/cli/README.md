@@ -327,6 +327,18 @@ sync fails after replacement, `credential_commit_uncertain` reports that the cha
 may already be present. Inspect accounts before attempting a new mutation. Listing
 prints metadata only.
 
+Quotio for macOS shares this vault, its quota history, and `config.toml` when its
+bundled helper is signed with Developer ID as `dev.quotio.cli`, like the npm CLI.
+The first launch of such a build folds the app's former private namespace into
+them once (`serve --adopt-vault-namespace <ns> --adopt-data-dir <dir>
+[--adopt-config <toml>]`). Accounts match by provider and identity, and the copy
+whose OAuth credential expires later wins. Config keys are copied only where
+`config.toml` has none, and history rows are appended. A failed step loses no data
+and runs again on the next launch. Completion is recorded in
+`<dir>/accounts-<ns>.adopted`, and the former store is left in place. Keep the CLI
+at least as new as the app: an older CLI refuses a vault written in a newer format
+(`credential_storage_newer_version`).
+
 On Linux, the same account commands and REST service use AES-256-GCM storage at
 `${XDG_DATA_HOME:-~/.local/share}/quotio/vault/accounts.enc`. The binary envelope
 has a version and authenticated header; each write uses a new random nonce.

@@ -9,6 +9,7 @@ enum StatusBarCommand: Equatable {
     case selectProvider(QuotaProvider?)
     case pairIPhone
     case openApp
+    case openProviderSettings(QuotaProvider?)
     case openHistory(QuotaAccountID)
     case quit
 }
@@ -21,6 +22,7 @@ public struct StatusBarCommandHandlers {
     fileprivate let selectProvider: (QuotaProvider?) -> Void
     fileprivate let pairIPhone: () -> Void
     fileprivate let openApp: () -> Void
+    fileprivate let openProviderSettings: (QuotaProvider?) -> Void
     fileprivate let quit: () -> Void
     fileprivate let menuNeedsRebuild: () -> Void
     fileprivate let openHistory: (QuotaAccountID) -> Void
@@ -33,6 +35,7 @@ public struct StatusBarCommandHandlers {
         selectProvider: @escaping (QuotaProvider?) -> Void,
         pairIPhone: @escaping () -> Void,
         openApp: @escaping () -> Void,
+        openProviderSettings: @escaping (QuotaProvider?) -> Void,
         quit: @escaping () -> Void,
         menuNeedsRebuild: @escaping () -> Void,
         openHistory: @escaping (QuotaAccountID) -> Void = { _ in },
@@ -44,6 +47,7 @@ public struct StatusBarCommandHandlers {
         self.selectProvider = selectProvider
         self.pairIPhone = pairIPhone
         self.openApp = openApp
+        self.openProviderSettings = openProviderSettings
         self.quit = quit
         self.menuNeedsRebuild = menuNeedsRebuild
         self.openHistory = openHistory
@@ -74,6 +78,8 @@ public final class StatusBarCommandDispatcher {
             handlers.pairIPhone()
         case .openApp:
             handlers.openApp()
+        case .openProviderSettings(let provider):
+            handlers.openProviderSettings(provider)
         case .openHistory(let account):
             handlers.openHistory(account)
         case .quit:

@@ -22,6 +22,7 @@ DISTRIBUTION=false
 SIGN_UPDATE=""
 TEMP_ROOT=""
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-Developer ID Application}"
+STANDALONE_CLI_IDENTIFIER="dev.quotio.cli"
 NOTARYTOOL_KEYCHAIN_PROFILE="${NOTARYTOOL_KEYCHAIN_PROFILE:-}"
 NOTARYTOOL_KEYCHAIN="${NOTARYTOOL_KEYCHAIN:-}"
 NOTARYTOOL_AUTH_ARGS=()
@@ -113,11 +114,27 @@ submit_for_notarization() {
     fi
 }
 
+sign_cli_helper() {
+    local identifier
+
+    codesign \
+        --force \
+        --sign "${SIGNING_IDENTITY}" \
+        --identifier "${STANDALONE_CLI_IDENTIFIER}" \
+        --options runtime \
+        --timestamp \
+        "${CLI_HELPER}"
+    identifier="$(codesign -d --verbose=2 "${CLI_HELPER}" 2>&1 | sed -n 's/^Identifier=//p')"
+    [ "${identifier}" = "${STANDALONE_CLI_IDENTIFIER}" ] \
+        || fail "CLI helper is signed as '${identifier}', expected ${STANDALONE_CLI_IDENTIFIER}"
+}
+
 sign_macho_files() {
     local binary_path
 
     while IFS= read -r binary_path; do
         if [ "${binary_path}" != "${APP_PATH}/Contents/MacOS/${APP_NAME}" ] \
+            && [ "${binary_path}" != "${CLI_HELPER}" ] \
             && file "${binary_path}" | grep -q "Mach-O"; then
             codesign \
                 --force \
@@ -158,6 +175,7 @@ sign_app_for_distribution() {
     local team_identifier
 
     log "Signing nested code with Developer ID"
+    sign_cli_helper
     sign_macho_files
     sign_nested_code_bundles
 

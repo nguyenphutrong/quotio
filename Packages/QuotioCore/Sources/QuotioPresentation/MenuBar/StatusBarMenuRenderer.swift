@@ -11,6 +11,7 @@
 //
 
 import AppKit
+import QuotioApplication
 import QuotioDomain
 import SwiftUI
 
@@ -90,7 +91,7 @@ final class StatusBarMenuHighlightController {
 /// keyboard navigation, key equivalents, and accessibility roles.
 @MainActor
 private final class StatusBarCommandMenuItem: NSMenuItem {
-    private let command: StatusBarCommand
+    private var command: StatusBarCommand
     private let commands: StatusBarCommandDispatcher
 
     init(
@@ -106,6 +107,12 @@ private final class StatusBarCommandMenuItem: NSMenuItem {
         target = self
         image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
     }
+    func update(title: String, symbolName: String, command: StatusBarCommand) {
+        self.title = title
+        image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+        self.command = command
+    }
+
 
     @available(*, unavailable)
     required init(coder: NSCoder) {
@@ -117,6 +124,16 @@ private final class StatusBarCommandMenuItem: NSMenuItem {
     }
 }
 
+private final class StatusBarMenuHostingView<Content: View>: NSHostingView<Content> {
+    override func layout() {
+        super.layout()
+        let height = intrinsicContentSize.height
+        guard height > 0, abs(frame.height - height) > 0.5 else { return }
+        setFrameSize(NSSize(width: frame.width, height: height))
+        enclosingMenuItem?.menu?.update()
+    }
+}
+
 // MARK: - Status Bar Menu Renderer
 
 @MainActor
@@ -124,6 +141,8 @@ private final class StatusBarCommandMenuItem: NSMenuItem {
 final class StatusBarMenuRenderer {
     private var snapshot: StatusBarMenuSnapshot
     @ObservationIgnored private weak var refreshItem: NSMenuItem?
+    @ObservationIgnored private weak var hostStatusItem: NSMenuItem?
+    @ObservationIgnored private var recoveryItems: [(item: StatusBarCommandMenuItem, separator: NSMenuItem, accountID: QuotaAccountID)] = []
     private let commands: StatusBarCommandDispatcher
     private let providerFilterController: StatusBarProviderFilterController
     private let highlightController = StatusBarMenuHighlightController()
@@ -150,6 +169,7 @@ final class StatusBarMenuRenderer {
     // MARK: - Build Menu
     
     func buildMenu() -> NSMenu {
+        recoveryItems.removeAll()
         let menu = makeMenu()
 
         // 1. Header
@@ -183,13 +203,17 @@ final class StatusBarMenuRenderer {
                 providerFilterController.register(headerItem, scope: .allProvidersOnly)
                 menu.addItem(headerItem)
 
+                if providerSnapshot.warning != nil {
+                    let warningItem = buildProviderWarningItem(providerSnapshot)
+                    providerFilterController.register(warningItem, scope: .provider(providerSnapshot.provider))
+                    menu.addItem(warningItem)
+                }
                 if providerSnapshot.accounts.isEmpty {
-                    let emptyItem = buildEmptyStateItem()
-                    providerFilterController.register(
-                        emptyItem,
-                        scope: .provider(providerSnapshot.provider)
-                    )
-                    menu.addItem(emptyItem)
+                    if providerSnapshot.warning == nil {
+                        let emptyItem = buildEmptyStateItem()
+                        providerFilterController.register(emptyItem, scope: .provider(providerSnapshot.provider))
+                        menu.addItem(emptyItem)
+                    }
                 } else {
                     for (accountIndex, account) in providerSnapshot.accounts.enumerated() {
                         if accountIndex > 0 && snapshot.displaySettings.quotaDisplayStyle != .compact {
@@ -219,7 +243,7 @@ final class StatusBarMenuRenderer {
 
             menu.addItem(NSMenuItem.separator())
         } else {
-            menu.addItem(buildEmptyStateItem())
+            menu.addItem(buildHostStatusItem())
             menu.addItem(NSMenuItem.separator())
         }
         
@@ -241,9 +265,27 @@ final class StatusBarMenuRenderer {
         highlightController.highlight(item)
     }
 
+    var layout: StatusBarMenuSnapshot.Layout { snapshot.layout }
+
     func update(snapshot: StatusBarMenuSnapshot) {
         self.snapshot = snapshot
         refreshItem?.isEnabled = snapshot.canRefresh && !snapshot.isLoadingQuotas
+        hostStatusItem?.identifier = hostIssueIdentifier
+        for recovery in recoveryItems {
+            let account = snapshot.providers.first { $0.provider == recovery.accountID.provider }?
+                .accounts.first { $0.id == recovery.accountID }
+            guard let warning = account?.warning,
+                  let action = recoveryCommand(warning: warning, provider: recovery.accountID.provider, accountID: recovery.accountID) else {
+                recovery.item.isEnabled = false
+                recovery.item.isHidden = true
+                recovery.separator.isHidden = true
+                continue
+            }
+            recovery.item.update(title: action.title.localized(), symbolName: action.symbol, command: action.command)
+            recovery.item.isHidden = false
+            recovery.separator.isHidden = false
+            recovery.item.isEnabled = warning.recoveryAction != .retry || account?.isRefreshBlocked == false
+        }
     }
 
     // MARK: - Header Item
@@ -268,22 +310,31 @@ final class StatusBarMenuRenderer {
         let itemID = ObjectIdentifier(item)
         let cardView = MenuContent {
             let current = self.snapshot.providers.first { $0.provider == provider }?
-                .accounts.first { $0.id == account.id } ?? account
-            return MenuAccountCardView(
-                email: current.email,
-                data: current.quota,
-                provider: provider,
-                subscriptionInfo: current.subscription,
-                isRefreshing: current.isRefreshing,
-                canRefresh: !current.isRefreshBlocked,
-                hasDetail: hasDetail,
-                itemID: itemID,
-                highlightController: self.highlightController,
-                settings: self.snapshot.displaySettings,
-                onRefresh: {
-                    await self.commands.dispatch(.refreshAccount(account.id))?.value
+                .accounts.first { $0.id == account.id }
+            return Group {
+                if let current, let data = current.quota {
+                    MenuAccountCardView(
+                        email: current.email, data: data, provider: provider, subscriptionInfo: current.subscription,
+                        warning: current.warning,
+                        onRecover: {
+                            if let warning = current.warning {
+                                self.recover(warning: warning, provider: provider, accountID: current.id)
+                            }
+                        },
+                        isRefreshing: current.isRefreshing, canRefresh: !current.isRefreshBlocked,
+                        hasDetail: hasDetail, itemID: itemID, highlightController: self.highlightController,
+                        settings: self.snapshot.displaySettings,
+                        onRefresh: { await self.commands.dispatch(.refreshAccount(account.id))?.value }
+                    )
+                } else if let current, let warning = current.warning {
+                    MenuAccountWarningView(
+                        email: current.email, provider: provider, warning: warning, hasDetail: hasDetail,
+                        settings: self.snapshot.displaySettings, canRetry: !current.isRefreshBlocked,
+                        isHighlighted: self.highlightController.highlightedItem == itemID,
+                        onRecover: { self.recover(warning: warning, provider: provider, accountID: current.id) }
+                    )
                 }
-            )
+            }
         }
         item.view = hostingView(for: cardView)
         return item
@@ -292,33 +343,53 @@ final class StatusBarMenuRenderer {
     /// Charts every limit beside the menu instead of inside it, so the menu
     /// stays short on small screens.
     private func buildAccountDetailSubmenu(_ account: StatusBarMenuAccountSnapshot) -> NSMenu? {
-        guard !account.quota.isForbidden, account.quota.models.contains(where: { !$0.isStandaloneMetric }) else {
-            return nil
-        }
+        guard account.hasDetail else { return nil }
         let submenu = makeMenu()
         submenu.addItem(viewItem(for: MenuContent {
             let current = self.snapshot.providers.first { $0.provider == account.id.provider }?
-                .accounts.first { $0.id == account.id } ?? account
-            return MenuAccountDetailView(
-                email: current.email,
-                data: current.quota,
-                provider: account.id.provider,
-                settings: self.snapshot.displaySettings,
-                loadHistory: { metricID, range in
-                    await self.commands.history(account: account.id, metricID: metricID, range: range)
+                .accounts.first { $0.id == account.id }
+            return Group {
+                if let current, let data = current.quota {
+                    MenuAccountDetailView(
+                        email: current.email, data: data, provider: account.id.provider, warning: current.warning,
+                        settings: self.snapshot.displaySettings,
+                        loadHistory: { metricID, range in
+                            await self.commands.history(account: account.id, metricID: metricID, range: range)
+                        }
+                    )
+                } else if let current, let warning = current.warning {
+                    MenuAccountWarningView(
+                        email: current.email, provider: account.id.provider, warning: warning, hasDetail: false,
+                        settings: self.snapshot.displaySettings, canRetry: false, isHighlighted: false, onRecover: nil
+                    )
                 }
-            )
+            }
         }, width: 380))
-        if account.id.provider == .codex, let analytics = account.quota.analytics, !analytics.isEmpty {
+        if account.id.provider == .codex, let analytics = account.quota?.analytics, !analytics.isEmpty {
             submenu.addItem(.separator())
             let analyticsItem = NSMenuItem(title: "quota.detail.analytics".localized(), action: nil, keyEquivalent: "")
             analyticsItem.image = NSImage(systemSymbolName: "chart.bar.xaxis", accessibilityDescription: nil)
             analyticsItem.submenu = buildCodexAnalyticsSubmenu(analytics: analytics, accountID: account.id)
             submenu.addItem(analyticsItem)
         }
-        submenu.addItem(.separator())
-        submenu.addItem(commandItem("quota.detail.openHistory", symbol: "clock.arrow.circlepath", key: "",
-                                    command: .openHistory(account.id)))
+        let recovery = account.warning.flatMap {
+            recoveryCommand(warning: $0, provider: account.id.provider, accountID: account.id)
+        }
+        let separator = NSMenuItem.separator()
+        separator.isHidden = recovery == nil
+        submenu.addItem(separator)
+        let item = commandItem(recovery?.title ?? "action.retry", symbol: recovery?.symbol ?? "arrow.clockwise",
+                               key: "", command: recovery?.command ?? .refreshAccount(account.id))
+        item.identifier = NSUserInterfaceItemIdentifier("quotaRecovery")
+        item.isHidden = recovery == nil
+        item.isEnabled = recovery != nil && (account.warning?.recoveryAction != .retry || !account.isRefreshBlocked)
+        recoveryItems.append((item, separator, account.id))
+        submenu.addItem(item)
+        if account.quota != nil {
+            submenu.addItem(.separator())
+            submenu.addItem(commandItem("quota.detail.openHistory", symbol: "clock.arrow.circlepath", key: "",
+                                        command: .openHistory(account.id)))
+        }
         return submenu
     }
 
@@ -326,7 +397,7 @@ final class StatusBarMenuRenderer {
         let submenu = makeMenu()
         submenu.addItem(viewItem(for: MenuContent {
             let current = self.snapshot.providers.first { $0.provider == accountID.provider }?
-                .accounts.first { $0.id == accountID }?.quota.analytics ?? analytics
+                .accounts.first { $0.id == accountID }?.quota?.analytics ?? analytics
             return AnalyticsDetailSection(analytics: current)
         }, width: 640))
         return submenu
@@ -335,9 +406,56 @@ final class StatusBarMenuRenderer {
     // MARK: - Empty State
     
     private func buildEmptyStateItem() -> NSMenuItem {
-        let emptyView = MenuEmptyStateView()
-        return viewItem(for: emptyView, title: "menubar.noData".localized())
+        viewItem(for: MenuEmptyStateView(), title: "menubar.noData".localized())
     }
+
+    private func buildHostStatusItem() -> NSMenuItem {
+        let item = viewItem(for: MenuContent {
+            Group {
+                if let warning = self.snapshot.hostWarning {
+                    MenuQuotaWarningView(
+                        warning: warning,
+                        canRetry: self.snapshot.canRefresh && !self.snapshot.isLoadingQuotas,
+                        onRecover: { self.recover(warning: warning, provider: nil) }
+                    )
+                    .padding(.horizontal, MenuItemMetrics.contentInset)
+                    .padding(.vertical, 8)
+                } else {
+                    MenuEmptyStateView()
+                }
+            }
+        }, title: "menubar.noData".localized())
+        item.identifier = hostIssueIdentifier
+        hostStatusItem = item
+        return item
+    }
+
+    private func buildProviderWarningItem(_ providerSnapshot: StatusBarMenuProviderSnapshot) -> NSMenuItem {
+        let item = viewItem(for: MenuContent {
+            let current = self.snapshot.providers.first { $0.provider == providerSnapshot.provider }
+            return Group {
+                if let current, let warning = current.warning {
+                    MenuQuotaWarningView(
+                        warning: warning,
+                        canRetry: current.supportsScopedRefresh && !current.isRefreshing,
+                        onRecover: {
+                            self.recover(warning: warning, provider: current.provider)
+                        }
+                    )
+                }
+            }
+            .padding(.horizontal, MenuItemMetrics.contentInset)
+            .padding(.vertical, 8)
+        }, title: providerSnapshot.displayName)
+        item.representedObject = providerSnapshot.provider.rawValue
+        item.identifier = NSUserInterfaceItemIdentifier("quotaProviderIssue")
+        return item
+    }
+
+    private var hostIssueIdentifier: NSUserInterfaceItemIdentifier? {
+        snapshot.hostWarning == nil ? nil : NSUserInterfaceItemIdentifier("quotaHostIssue")
+    }
+
     
     // MARK: - Action Items
 
@@ -371,13 +489,39 @@ final class StatusBarMenuRenderer {
     }
 
     // MARK: - Helpers
+    private func recoveryCommand(
+        warning: StatusBarMenuQuotaWarning,
+        provider: QuotaProvider?,
+        accountID: QuotaAccountID? = nil
+    ) -> (title: String, symbol: String, command: StatusBarCommand)? {
+        switch warning.recoveryAction {
+        case .retry:
+            let command = accountID.map(StatusBarCommand.refreshAccount)
+                ?? provider.map(StatusBarCommand.refreshProvider) ?? .refreshAll
+            return ("action.retry", "arrow.clockwise", command)
+        case .signIn, .authorize, .refreshInSourceApp:
+            return ("menubar.quota.reviewAccount", "gearshape", .openProviderSettings(provider))
+        case nil:
+            return nil
+        }
+    }
+
+    private func recover(warning: StatusBarMenuQuotaWarning, provider: QuotaProvider?, accountID: QuotaAccountID? = nil) {
+        guard let recovery = recoveryCommand(warning: warning, provider: provider, accountID: accountID) else { return }
+        if warning.recoveryAction == .retry {
+            guard snapshot.canRefresh,
+                  !snapshot.providers.contains(where: { (provider == nil || $0.provider == provider) && $0.isRefreshing }) else { return }
+        }
+        commands.dispatch(recovery.command)
+    }
+
 
     private func commandItem(
         _ titleKey: String,
         symbol: String,
         key: String,
         command: StatusBarCommand
-    ) -> NSMenuItem {
+    ) -> StatusBarCommandMenuItem {
         StatusBarCommandMenuItem(
             title: titleKey.localized(),
             symbolName: symbol,
@@ -407,7 +551,7 @@ final class StatusBarMenuRenderer {
         let rootView = view
             .frame(width: width ?? menuWidth)
             .environment(\.locale, snapshot.language.locale)
-        let hostingView = NSHostingView(rootView: rootView)
+        let hostingView = StatusBarMenuHostingView(rootView: rootView)
         hostingView.setFrameSize(hostingView.intrinsicContentSize)
         return hostingView
     }
@@ -567,11 +711,54 @@ private struct ProviderIconMono: View {
 
 // MARK: Account Card View
 
+private struct MenuAccountWarningView: View {
+    let email: String
+    let provider: QuotaProvider
+    let warning: StatusBarMenuQuotaWarning
+    let hasDetail: Bool
+    let settings: StatusBarMenuDisplaySettings
+    let canRetry: Bool
+    let isHighlighted: Bool
+    let onRecover: (@MainActor () -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                ProviderIconMono(provider: provider, size: 16)
+                    .foregroundStyle(.secondary)
+                SensitiveAccountText(value: email, isSensitive: settings.hideSensitiveInfo)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 4)
+                if hasDetail {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            MenuQuotaWarningView(warning: warning, canRetry: canRetry, onRecover: onRecover)
+        }
+        .padding(.horizontal, MenuItemMetrics.contentInset)
+        .padding(.vertical, settings.quotaDisplayStyle == .compact ? 6 : 8)
+        .background {
+            if isHighlighted {
+                RoundedRectangle(cornerRadius: MenuItemMetrics.highlightCornerRadius, style: .continuous)
+                    .fill(.fill.tertiary)
+                    .padding(.horizontal, MenuItemMetrics.highlightInset)
+            }
+        }
+    }
+}
+
 private struct MenuAccountCardView: View {
     let email: String
     let data: ProviderQuota
     let provider: QuotaProvider
     let subscriptionInfo: QuotaSubscriptionInfo?
+    let warning: StatusBarMenuQuotaWarning?
+    let onRecover: @MainActor () -> Void
     let isRefreshing: Bool
     let canRefresh: Bool
     let hasDetail: Bool
@@ -589,7 +776,7 @@ private struct MenuAccountCardView: View {
     }
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 6) {
             if settings.quotaDisplayStyle == .compact {
                 MenuCompactAccountRow(email: email, data: data, provider: provider,
                                       hasDetail: hasDetail, settings: settings)
@@ -598,6 +785,9 @@ private struct MenuAccountCardView: View {
                     headerSection
                     quotaContentSection
                 }
+            }
+            if let warning {
+                MenuQuotaWarningView(warning: warning, canRetry: canRefresh, onRecover: onRecover)
             }
         }
         .padding(.horizontal, MenuItemMetrics.contentInset)
@@ -705,6 +895,41 @@ private struct MenuAccountCardView: View {
     }
 }
 
+private struct MenuQuotaWarningView: View {
+    let warning: StatusBarMenuQuotaWarning
+    let canRetry: Bool
+    let onRecover: (@MainActor () -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Label(warning.issue?.explanation ?? "menubar.quota.stale".localized(),
+                      systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                if let onRecover, let action = warning.recoveryAction {
+                    Button(action == .retry ? "action.retry".localized() : "menubar.quota.reviewAccount".localized(),
+                           action: onRecover)
+                        .buttonStyle(.borderless)
+                        .disabled(action == .retry && !canRetry)
+                        .fixedSize()
+                }
+            }
+            if let updated = warning.lastSuccessfulUpdate {
+                Text(String(format: (warning.isStale ? "menubar.quota.staleTimestamp" : "menubar.quota.lastSuccess").localized(),
+                            updated.formatted(date: .abbreviated, time: .shortened)))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .font(.caption)
+        .accessibilityElement(children: .contain)
+    }
+}
+
 /// When the host fetches next, beside the Refresh command.
 private struct MenuRefreshScheduleText: View {
     let schedule: StatusBarRefreshSchedule
@@ -734,6 +959,7 @@ private struct MenuAccountDetailView: View {
     let email: String
     let data: ProviderQuota
     let provider: QuotaProvider
+    let warning: StatusBarMenuQuotaWarning?
     let settings: StatusBarMenuDisplaySettings
     let loadHistory: @MainActor (String, QuotaHistoryRange) async -> [QuotaHistoryPoint]
     @State private var history: [String: [QuotaHistoryPoint]] = [:]
@@ -758,6 +984,9 @@ private struct MenuAccountDetailView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+            }
+            if let warning {
+                MenuQuotaWarningView(warning: warning, canRetry: false, onRecover: nil)
             }
             ForEach(meters, id: \.metric.id) { meter in
                 if meter.isExhausted {

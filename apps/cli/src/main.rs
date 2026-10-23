@@ -13,6 +13,48 @@ use std::{
 };
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
 
+/// The native parent receives only allowlisted vault events, never general CLI logs.
+struct NativeVaultDiagnostics;
+
+impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for NativeVaultDiagnostics {
+    fn on_event(&self, event: &tracing::Event<'_>, _: tracing_subscriber::layer::Context<'_, S>) {
+        if event.metadata().target() != "quotio::accounts::vault" {
+            return;
+        }
+        #[derive(Default)]
+        struct Fields {
+            operation: Option<&'static str>,
+            status: Option<i32>,
+        }
+        impl tracing::field::Visit for Fields {
+            fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+                if field.name() == "operation" {
+                    self.operation = match value {
+                        "read" => Some("read"),
+                        "write" => Some("write"),
+                        "authorize" => Some("authorize"),
+                        _ => None,
+                    };
+                }
+            }
+            fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
+                if field.name() == "status" {
+                    self.status = i32::try_from(value).ok();
+                }
+            }
+            fn record_debug(&mut self, _: &tracing::field::Field, _: &dyn std::fmt::Debug) {}
+        }
+        let mut fields = Fields::default();
+        event.record(&mut fields);
+        if let (Some(operation), Some(status)) = (fields.operation, fields.status) {
+            let _ = writeln!(
+                io::stderr().lock(),
+                "{{\"diagnostic_version\":1,\"event\":\"vault_keychain_{operation}_failed\",\"os_status\":{status}}}"
+            );
+        }
+    }
+}
+
 fn account_timeout(command: &quotio::cli::AccountCommand) -> Option<Duration> {
     if matches!(
         command,
@@ -177,14 +219,23 @@ async fn run() -> ExitCode {
             }
         }
         Command::Serve(args) => {
-            tracing_subscriber::registry()
-                .with(
-                    tracing_subscriber::fmt::layer()
-                        .with_ansi(false)
-                        .with_writer(io::stderr),
-                )
-                .with(Targets::new().with_target("quotio", tracing::Level::INFO))
-                .init();
+            if args.parent_pipe {
+                tracing_subscriber::registry()
+                    .with(NativeVaultDiagnostics)
+                    .with(
+                        Targets::new().with_target("quotio::accounts::vault", tracing::Level::WARN),
+                    )
+                    .init();
+            } else {
+                tracing_subscriber::registry()
+                    .with(
+                        tracing_subscriber::fmt::layer()
+                            .with_ansi(false)
+                            .with_writer(io::stderr),
+                    )
+                    .with(Targets::new().with_target("quotio", tracing::Level::INFO))
+                    .init();
+            }
             return match quotio::server::run(args).await {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => {

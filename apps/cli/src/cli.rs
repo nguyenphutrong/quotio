@@ -336,6 +336,15 @@ pub struct ServeArgs {
     /// Store isolated account locks and platform vault data in this absolute directory
     #[arg(long, requires = "account_vault_namespace")]
     pub account_data_dir: Option<PathBuf>,
+    /// Fold this former app vault namespace into the default vault once, then serve the default vault
+    #[arg(long, requires_all = ["manage", "parent_pipe", "adopt_data_dir"], conflicts_with_all = ["account_vault_namespace", "no_saved_accounts"])]
+    pub adopt_vault_namespace: Option<crate::accounts::vault::VaultNamespace>,
+    /// Absolute directory holding that namespace's lock, history and adoption marker
+    #[arg(long, requires = "adopt_vault_namespace")]
+    pub adopt_data_dir: Option<PathBuf>,
+    /// Absolute former app config whose keys seed keys missing from the default config
+    #[arg(long, requires = "adopt_vault_namespace")]
+    pub adopt_config: Option<PathBuf>,
     /// Read supported CLIProxyAPI auth files without importing or modifying them
     #[arg(long)]
     pub cli_proxy_auth_dir: Option<PathBuf>,
@@ -351,6 +360,30 @@ pub struct ServeArgs {
     /// Allow this exact browser origin; repeat for multiple origins
     #[arg(long)]
     pub allow_origin: Vec<String>,
+}
+
+impl ServeArgs {
+    pub fn adoption(
+        &self,
+    ) -> Result<Option<crate::accounts::adopt::Source>, crate::server::ServerError> {
+        let (Some(namespace), Some(data_dir)) = (&self.adopt_vault_namespace, &self.adopt_data_dir)
+        else {
+            return Ok(None);
+        };
+        if !data_dir.is_absolute()
+            || self
+                .adopt_config
+                .as_ref()
+                .is_some_and(|path| !path.is_absolute())
+        {
+            return Err(crate::server::ServerError::Config);
+        }
+        Ok(Some(crate::accounts::adopt::Source {
+            namespace: namespace.clone(),
+            data_dir: data_dir.clone(),
+            config: self.adopt_config.clone(),
+        }))
+    }
 }
 
 #[derive(Debug, Args)]

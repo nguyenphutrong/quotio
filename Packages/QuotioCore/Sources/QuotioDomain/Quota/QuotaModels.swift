@@ -95,14 +95,6 @@ public struct QuotaProvider: RawRepresentable, CaseIterable, Codable, Hashable, 
     public var supportsLocalProxySetup: Bool {
         supportsManualAuth && !isQuotaTrackingOnly
     }
-
-    public var cliAgent: CLIAgent? {
-        switch self {
-        case .claude: .claudeCode
-        case .codex: .codexCLI
-        default: nil
-        }
-    }
 }
 
 public struct QuotaAccountID: Hashable, Sendable {

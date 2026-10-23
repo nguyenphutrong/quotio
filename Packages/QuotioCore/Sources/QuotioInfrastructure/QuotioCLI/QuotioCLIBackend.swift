@@ -47,6 +47,8 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
     private var client: QuotioHostHTTPClient?
     private var reportedAccounts: [Account] = []
     private var hostSnapshot: QuotioHostSnapshot?
+    /// Refresh failures the host snapshot does not report, kept until the host publishes a newer revision.
+    private var refreshFailures: [QuotaFailure] = []
     private var connectionID = UUID()
     private var snapshotRequestID = UUID()
     private var activeMode: QuotaOperatingMode = .monitor
@@ -153,7 +155,9 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         cancelHistoryRequests()
         connectionID = UUID()
         hostSnapshot = nil
+        refreshFailures = []
         discoveryState = nil
+        storageProblem = nil
         reportedAccounts = []
         snapshot = QuotaSnapshot()
         client = QuotioHostHTTPClient(connection: connection, session: session)
@@ -164,9 +168,10 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         cancelHistoryRequests()
         connectionID = UUID()
         client = nil
+        snapshot.canRefresh = false
         snapshot.historyAvailability = historyAvailability()
         publish()
-        markFailure(for: knownProviders)
+        markFailure(for: knownProviders, hostFailure: true)
     }
 
     public func states() -> AsyncStream<QuotaSnapshot> {
@@ -193,7 +198,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         if case .account(let accountKey) = request.scope {
             resolvedAccountID = await accountID(provider: provider, accountKey: accountKey)
             guard resolvedAccountID != nil else {
-                markFailure(for: [request.provider])
+                markFailure(for: [request.provider], accountKeys: [accountKey])
                 return snapshot
             }
         }
@@ -214,6 +219,11 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         force: Bool = false
     ) async -> QuotaSnapshot {
         selectMode(mode)
+        // After a failed first read the refresh capability is unknown, so retry the read instead.
+        guard hostSnapshot != nil || snapshot.hostIssue == nil else {
+            await loadSnapshot(mode: mode)
+            return snapshot
+        }
         let selected = providers?.map(\.rawValue) ?? []
         await performRefresh(providers: selected, accountID: nil, mode: mode, force: force)
         return snapshot
@@ -664,9 +674,13 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         importedAccounts: Set<String>? = nil
     ) async {
         guard let client, activeMode == mode else { return }
-        let domainProviders = providers.isEmpty ? knownProviders : Set(providers.compactMap(QuotaProvider.init(rawValue:)))
+        let domainProviders = providers.isEmpty
+            ? knownProviders.union(snapshot.providerNames.keys)
+            : Set(providers.compactMap(QuotaProvider.init(rawValue:)))
         guard domainProviders.isDisjoint(with: snapshot.refreshingProviders) else { return }
         let requestConnection = connectionID
+        let retryScope = accountID.map { Set([$0]) } ?? importedAccounts
+        refreshFailures = refreshFailures.compactMap { $0.retiring(domainProviders, accountKeys: retryScope) }
         snapshot.refreshingProviders.formUnion(domainProviders)
         publish()
         defer {
@@ -687,20 +701,32 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
                 body: body
             )
             let deadline = ContinuousClock.now + .seconds(180)
+            guard activeMode == mode, connectionID == requestConnection else { return }
             while operation.status == "running" {
                 guard ContinuousClock.now < deadline else { throw QuotioHostClientError.timeout }
                 try await Task.sleep(for: .milliseconds(300))
+                guard activeMode == mode, connectionID == requestConnection else { return }
                 operation = try await client.request("v2/operations/\(operation.id)")
+                guard activeMode == mode, connectionID == requestConnection else { return }
             }
             guard operation.status == "completed" else {
                 throw QuotioHostClientError.response(500, operation.error ?? operation.status)
             }
             await loadSnapshot(mode: mode, refreshedProviders: domainProviders, importedAccounts: importedAccounts)
         } catch {
+            guard activeMode == mode, connectionID == requestConnection else { return }
+            if let problem = Self.storageProblem(error) { storageProblem = problem }
+            let failure = QuotaFailure(
+                revision: hostSnapshot?.revision,
+                providers: providers.isEmpty ? knownProviders : domainProviders,
+                accountKeys: retryScope,
+                reason: Self.refreshFailureReason(error),
+                hostFailure: providers.isEmpty,
+                occurredAt: Date()
+            )
+            refreshFailures.append(failure)
+            if apply(failure) { publish() }
             await logger?.write(.warning, message: "Quota refresh failed=\(Self.failureCategory(error))")
-            guard activeMode == mode else { return }
-            snapshot.refreshingProviders.subtract(domainProviders)
-            markFailure(for: domainProviders)
         }
     }
 
@@ -710,7 +736,7 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         importedAccounts: Set<String>? = nil
     ) async {
         guard let client else {
-            markFailure(for: refreshedProviders ?? knownProviders)
+            markFailure(for: knownProviders.union(refreshedProviders ?? []), hostFailure: true)
             return
         }
         let requestConnection = connectionID
@@ -730,18 +756,26 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
             next.refreshingProviders = refreshing.subtracting(refreshedProviders ?? [])
             next.providerNames = snapshot.providerNames
             let accounts = frame.accounts.compactMap(Self.resolvedAccount)
-            let changed = snapshot != next || reportedAccounts != accounts
+            let previous = snapshot
             snapshot = next
             hostSnapshot = frame
             snapshot.historyAvailability = historyAvailability()
+            refreshFailures.removeAll { $0.revision != frame.revision }
+            for failure in refreshFailures { apply(failure) }
+            let changed = snapshot != previous || reportedAccounts != accounts
             reportedAccounts = accounts
             storageProblem = nil
             if changed { publish() }
         } catch {
             guard activeMode == mode, connectionID == requestConnection, snapshotRequestID == requestID else { return }
             if let problem = Self.storageProblem(error) { storageProblem = problem }
+            if hostSnapshot == nil { snapshot.canRefresh = true }
+            markFailure(
+                for: knownProviders.union(refreshedProviders ?? []),
+                reason: Self.refreshFailureReason(error),
+                hostFailure: true
+            )
             await logger?.write(.warning, message: "Quota snapshot failed=\(Self.failureCategory(error))")
-            markFailure(for: refreshedProviders ?? knownProviders)
         }
     }
 
@@ -821,14 +855,55 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         }
     }
 
-    private func markFailure(for providers: Set<QuotaProvider>) {
-        guard providers.contains(where: { snapshot.issues[$0]?.kind != .failed || snapshot.issues[$0]?.reason != nil || snapshot.refreshingProviders.contains($0) }) else { return }
-        let now = Date()
+    private func markFailure(
+        for providers: Set<QuotaProvider>,
+        accountKeys: Set<String>? = nil,
+        reason: QuotaRefreshFailureReason = .unavailable,
+        hostFailure: Bool = false
+    ) {
+        let failure = QuotaFailure(
+            revision: nil, providers: providers, accountKeys: accountKeys,
+            reason: reason, hostFailure: hostFailure, occurredAt: Date()
+        )
+        if apply(failure) { publish() }
+    }
+
+    @discardableResult
+    private func apply(_ failure: QuotaFailure) -> Bool {
+        let (providers, accountKeys, reason, hostFailure, now) = (
+            failure.providers, failure.accountKeys, failure.reason, failure.hostFailure, failure.occurredAt
+        )
+        var changed = !snapshot.refreshingProviders.isDisjoint(with: providers)
         snapshot.refreshingProviders.subtract(providers)
-        for provider in providers {
-            snapshot.issues[provider] = QuotaRefreshIssue(kind: .failed, occurredAt: now)
+        if hostFailure, snapshot.hostIssue?.kind != .failed || snapshot.hostIssue?.reason != reason {
+            snapshot.hostIssue = QuotaRefreshIssue(kind: .failed, occurredAt: now, reason: reason)
+            changed = true
         }
-        publish()
+        let activeAccounts = knownAccounts.filter { snapshot.accountStates[$0]?.connection != .disabled }
+        for account in activeAccounts where providers.contains(account.provider) {
+            guard accountKeys?.contains(account.accountKey) ?? true else { continue }
+            let previous = snapshot.accountStates[account]
+            let state = AccountMonitoringState(
+                connection: previous?.connection ?? .notConnected,
+                quota: snapshot.quotas[account.provider]?[account.accountKey] == nil ? .failed(reason) : .stale
+            )
+            if previous != state {
+                snapshot.accountStates[account] = state
+                changed = true
+            }
+            if snapshot.accountIssues[account]?.kind != .failed || snapshot.accountIssues[account]?.reason != reason {
+                snapshot.accountIssues[account] = QuotaRefreshIssue(kind: .failed, occurredAt: now, reason: reason)
+                changed = true
+            }
+        }
+        if accountKeys == nil {
+            let disabledOnly = Set(knownAccounts.map(\.provider)).subtracting(activeAccounts.map(\.provider))
+            for provider in providers.subtracting(disabledOnly) where snapshot.issues[provider]?.kind != .failed || snapshot.issues[provider]?.reason != reason {
+                snapshot.issues[provider] = QuotaRefreshIssue(kind: .failed, occurredAt: now, reason: reason)
+                changed = true
+            }
+        }
+        return changed
     }
 
     private func publish() {
@@ -851,9 +926,28 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         }
     }
 
+    private static func refreshFailureReason(_ error: Error) -> QuotaRefreshFailureReason {
+        if storageProblem(error) != nil { return .credentialStorage }
+        switch error {
+        case QuotioHostClientError.timeout: return .timeout
+        case QuotioHostClientError.disconnected: return .unavailable
+        case QuotioHostClientError.incompatible, is DecodingError: return .invalidData
+        case QuotioHostClientError.response(let status, let code):
+            if let reason = QuotaRefreshFailureReason(rawValue: code) { return reason }
+            switch status {
+            case 429: return .rateLimited
+            case 401, 403: return .authentication
+            case 500...: return .transient
+            default: return .unavailable
+            }
+        case let error as URLError: return error.code == .timedOut ? .timeout : .transient
+        default: return .unavailable
+        }
+    }
+
     private static func failureCategory(_ error: Error) -> String {
         switch error {
-        case _ where storageProblem(error) != nil: "account_storage"
+        case QuotioHostClientError.response(_, let code) where storageProblem(error) != nil: code
         case QuotioHostClientError.response(_, "duplicate_account"): "duplicate_account"
         case QuotioHostClientError.response(_, "credential_validation_failed"): "credential_validation"
         case QuotioHostClientError.response(let status, _): "http_\(status)"
@@ -875,10 +969,38 @@ public actor QuotioCLIBackend: AccountManaging, QuotaCoordinating, MonitoringSet
         }
     }
 
-    private var knownProviders: Set<QuotaProvider> {
-        Set(snapshot.providerNames.keys).union(snapshot.quotas.keys)
+    private var knownAccounts: Set<QuotaAccountID> {
+        Set(snapshot.accountStates.keys).union(snapshot.quotas.flatMap { provider, quotas in
+            quotas.keys.map { QuotaAccountID(provider: provider, accountKey: $0) }
+        })
     }
 
+    private var knownProviders: Set<QuotaProvider> {
+        Set(snapshot.issues.keys).union(knownAccounts.map(\.provider))
+    }
+
+}
+
+private struct QuotaFailure {
+    let revision: UInt64?
+    var providers: Set<QuotaProvider>
+    var accountKeys: Set<String>?
+    let reason: QuotaRefreshFailureReason
+    let hostFailure: Bool
+    let occurredAt: Date
+
+    /// What remains once a new refresh of `providers`, limited to `accountKeys` when set, retries part of it.
+    func retiring(_ providers: Set<QuotaProvider>, accountKeys retried: Set<String>?) -> Self? {
+        guard !self.providers.isDisjoint(with: providers) else { return self }
+        var rest = self
+        if let retried {
+            guard let keys = accountKeys else { return self }
+            rest.accountKeys = keys.subtracting(retried)
+            return rest.accountKeys?.isEmpty == true ? nil : rest
+        }
+        rest.providers.subtract(providers)
+        return rest.providers.isEmpty ? nil : rest
+    }
 }
 
 private extension JSONEncoder {

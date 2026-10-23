@@ -74,6 +74,57 @@ is up to $150.
       <a href="https://www.swiftproxy.net/?ref=quotio">Explore Swiftproxy →</a>
     </td>
   </tr>
+  <tr>
+    <td width="180" align="center">
+      <a href="https://88api.ai/sign-up?aff=OMpN">
+        <img src=".github/assets/sponsors/88api.jpg" alt="88API logo" width="160" />
+      </a>
+    </td>
+    <td>
+      <a href="https://88api.ai/sign-up?aff=OMpN">88API</a> is a Hong Kong-operated
+      multi-model AI API platform for developers, creators, and AI applications. It
+      provides a unified API for text, image, audio, and video models, supporting common
+      workflows such as AI coding, translation, content creation, voice generation, image
+      generation, and video generation. 88API can be added and switched directly in CC
+      Switch. It supports major international payment methods, can provide invoices, and
+      offers stable service for teams and individual developers. Users who register
+      through <a href="https://88api.ai/sign-up?aff=OMpN">this dedicated link</a> may
+      receive complimentary credits.
+      <br />
+      <a href="https://88api.ai/sign-up?aff=OMpN">Explore 88API →</a>
+    </td>
+  </tr>
+  <tr>
+    <td width="180" align="center">
+      <a href="https://proxy-seller.com/?partner=442060D973F44C90">
+        <img src=".github/assets/sponsors/proxy-seller.png" alt="Proxy-Seller logo" width="160" />
+      </a>
+    </td>
+    <td>
+      <a href="https://proxy-seller.com/?partner=442060D973F44C90">Proxy-Seller</a> gives you reliable proxy infrastructure for any
+      workflow: private residential, mobile (4G/5G/LTE), ISP, and datacenter IPv4/IPv6
+      proxies, all with HTTP(S) and SOCKS5 support. Tap into 47M+ residential IPs across
+      220+ locations, target exactly the country, city, or ISP you need, and count on
+      99.7% uptime backed by 24/7 support. Quotio users get 15% off with promo code
+      <strong>QUOTIO</strong>.
+      <br />
+      <a href="https://proxy-seller.com/?partner=442060D973F44C90">Explore Proxy-Seller →</a>
+    </td>
+  </tr>
+  <tr>
+    <td width="180" align="center">
+      <a href="https://x6.ai">
+        <img src=".github/assets/sponsors/x6ai.png" alt="x6.ai logo" width="160" />
+      </a>
+    </td>
+    <td>
+      <a href="https://x6.ai">x6.ai</a>: One API key for every major model. Official-key and proxy
+      channels, up to 90% off, free credits on sign-up. Pay with Alipay, Google Pay,
+      Apple Pay, Visa or Mastercard.
+      <br />
+      <a href="https://x6.ai">Explore x6.ai →</a>
+    </td>
+  </tr>
 </table>
 
 Interested in sponsoring Quotio? Contact
