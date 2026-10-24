@@ -33,7 +33,8 @@ icon_assets!(
         Tablet,
         Lock,
         ArrowUpRight,
-        Timer
+        Timer,
+        PinOff
     ]
 );
 

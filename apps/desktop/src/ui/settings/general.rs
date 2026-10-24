@@ -1,6 +1,6 @@
 //! General page, built from the Wonder artboard "Page - Quotio Settings General".
-//! Show in Dock is left out until macOS has a menu bar item to fall back on, and
-//! Language until the app is localized. "Show guide" opens the add-account dialog.
+//! Show in Dock is macOS only, and Language is left out until the app is localized.
+//! "Show guide" opens the add-account dialog.
 use gpui_kit::assets::IconName;
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::notification::Notification;
@@ -76,6 +76,27 @@ impl SettingsWindow {
             ),
             &p,
         );
+
+        // The Dock icon can be hidden only while the menu bar icon shows.
+        let menu_bar = &prefs::get(cx).menu_bar;
+        let dock = cfg!(target_os = "macos").then(|| {
+            row(
+                "Show in Dock",
+                Some("When off, Quotio is only in the menu bar.".into()),
+                toggle(
+                    "show-in-dock",
+                    menu_bar.show_in_dock || !menu_bar.show_icon,
+                    menu_bar.show_icon,
+                    &p,
+                    cx.listener(|this, on: &bool, _, cx| {
+                        let on = *on;
+                        prefs::update(cx, |prefs| prefs.menu_bar.show_in_dock = on);
+                        this.redraw_quota(cx);
+                    }),
+                ),
+                &p,
+            )
+        });
 
         let interval = settings
             .as_ref()
@@ -158,7 +179,7 @@ impl SettingsWindow {
                 "How Quotio starts and where it lives on {}.",
                 this_computer()
             ),
-            rows([launch], &p),
+            rows([launch].into_iter().chain(dock), &p),
             &p,
         ))
         .child(section(

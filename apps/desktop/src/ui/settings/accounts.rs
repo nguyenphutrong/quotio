@@ -692,6 +692,7 @@ impl SettingsWindow {
     /// The row's "…" menu with everything the host allows for this account.
     fn account_menu(&self, account: &AccountView, cx: &mut Context<Self>) -> impl IntoElement {
         let this = cx.entity().downgrade();
+        let in_menu_bar = self.menu_bar_ids(cx).contains(&account.id);
         let account = account.clone();
         Button::new(SharedString::from(format!("menu-{}", account.id)))
             .ghost()
@@ -730,6 +731,17 @@ impl SettingsWindow {
                 })
                 .when(a.set_enabled && !account.enabled, |m| {
                     m.item(item("Resume", IconName::Play, Action::Resume))
+                })
+                .when(cfg!(target_os = "macos"), |m| {
+                    m.item(if in_menu_bar {
+                        item(
+                            "Remove from menu bar",
+                            IconName::PinOff,
+                            Action::HideFromMenuBar,
+                        )
+                    } else {
+                        item("Show in menu bar", IconName::Pin, Action::ShowInMenuBar)
+                    })
                 })
                 .when(a.remove, |m| {
                     m.separator()
@@ -770,7 +782,75 @@ impl SettingsWindow {
             Action::Pause => self.set_enabled(account, false, window, cx),
             Action::Resume => self.set_enabled(account, true, window, cx),
             Action::Remove => self.confirm_remove(account, window, cx),
+            Action::ShowInMenuBar => self.pin_to_menu_bar(account, true, window, cx),
+            Action::HideFromMenuBar => self.pin_to_menu_bar(account, false, window, cx),
         }
+    }
+
+    /// Accounts pinned to the menu bar that still exist; until the user pins or unpins
+    /// one, the accounts shown there automatically.
+    fn menu_bar_ids(&self, cx: &App) -> Vec<String> {
+        let menu_bar = &prefs::get(cx).menu_bar;
+        let store = self.store.read(cx);
+        if menu_bar.user_modified {
+            let exists = |id: &String| {
+                store.all.as_ref().is_some_and(|all| {
+                    all.groups
+                        .iter()
+                        .flat_map(|group| &group.accounts)
+                        .any(|account| &account.id == id)
+                })
+            };
+            menu_bar
+                .accounts
+                .iter()
+                .filter(|id| exists(id))
+                .cloned()
+                .collect()
+        } else {
+            store.overview.as_ref().map_or_else(Vec::new, |overview| {
+                overview
+                    .menu_bar_accounts(menu_bar)
+                    .into_iter()
+                    .map(|(_, account)| account.id.clone())
+                    .collect()
+            })
+        }
+    }
+
+    /// Pinning also turns the menu bar icon and its quota on, as in the macOS app.
+    fn pin_to_menu_bar(
+        &mut self,
+        account: &AccountView,
+        pin: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let mut ids = self.menu_bar_ids(cx);
+        ids.retain(|id| id != &account.id);
+        if pin {
+            let max = prefs::get(cx).menu_bar.max_items.clamp(1, 10);
+            if ids.len() >= max as usize {
+                window.push_notification(
+                    Notification::warning(format!(
+                        "You can show up to {max} accounts in the menu bar. Raise the limit on the Menu Bar page."
+                    ))
+                    .title("Menu bar is full"),
+                    cx,
+                );
+                return;
+            }
+            ids.push(account.id.clone());
+        }
+        prefs::update(cx, |prefs| {
+            prefs.menu_bar.accounts = ids;
+            prefs.menu_bar.user_modified = true;
+            if pin {
+                prefs.menu_bar.show_icon = true;
+                prefs.menu_bar.show_quota = true;
+            }
+        });
+        self.redraw_quota(cx);
     }
 
     /// Run a host change for `account`, dim its row meanwhile, then re-read the
@@ -1130,6 +1210,8 @@ enum Action {
     Pause,
     Resume,
     Remove,
+    ShowInMenuBar,
+    HideFromMenuBar,
 }
 
 fn metric_column(metric: &MetricView, p: &Palette) -> impl IntoElement {
