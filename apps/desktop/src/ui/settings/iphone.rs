@@ -237,7 +237,19 @@ impl SettingsWindow {
     fn set_sharing(&mut self, mode: Mode, on: bool, window: &mut Window, cx: &mut Context<Self>) {
         let mut saved = prefs::get(cx).sharing.clone();
         if on {
+            let others_on = saved.enabled.iter().any(|m| *m != mode);
             match self.share_port.read(cx).value().trim().parse::<u16>() {
+                // Paired iPhones keep the old address; every connection shares one port.
+                Ok(port) if others_on && port != saved.port => {
+                    window.push_notification(
+                        Notification::error(format!(
+                            "Turn off every connection before changing the port, or use port {}.",
+                            saved.port
+                        )),
+                        cx,
+                    );
+                    return;
+                }
                 Ok(port) if port > 0 => saved.port = port,
                 _ => {
                     window.push_notification(
