@@ -1,15 +1,15 @@
-//! Privacy page, from the Wonder artboard "Page - Quotio Settings Privacy". The
-//! Keychain and YubiKey migration sections are macOS-only; this page lists the
-//! logins Quotio reads from other apps instead.
+//! Privacy page, from the Sheet frame "qt-sun". On macOS, logins kept in the
+//! Keychain get a section of their own. The YubiKey credential migration is left
+//! out: the host can only migrate credentials the old macOS app hands it.
 use gpui_kit::assets::IconName;
 use gpui_kit::{
-    AnyElement, Context, FontWeight, IntoElement, ParentElement, Styled, div,
-    prelude::FluentBuilder as _, px,
+    AnyElement, Context, Div, FontWeight, InteractiveElement, IntoElement, ParentElement,
+    StatefulInteractiveElement as _, Styled, div, prelude::FluentBuilder as _, px,
 };
 use quotio::contract::{ConnectionState, Source};
 
 use super::SettingsWindow;
-use super::widgets::{page, row, rows, section, toggle};
+use super::widgets::{page, row, section, this_computer, toggle};
 use crate::model::mask;
 use crate::prefs;
 use crate::providers;
@@ -20,16 +20,11 @@ impl SettingsWindow {
     pub(super) fn privacy_page(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = palette(cx).clone();
         let hide = prefs::get(cx).hide_names;
-        let computer = if cfg!(windows) {
-            "this PC"
-        } else {
-            "this computer"
-        };
 
         let store = self.store.clone();
         let hide_row = row(
             "Hide account names",
-            Some("Names and emails are masked everywhere. Click one on the Accounts page to show it for a moment.".into()),
+            Some("Names are masked everywhere. Click one on the Accounts page to reveal it for a moment.".into()),
             toggle("hide-names", hide, true, &p, move |on, _, cx| {
                 let on = *on;
                 prefs::update(cx, |prefs| prefs.hide_names = on);
@@ -43,13 +38,12 @@ impl SettingsWindow {
         let preview = div()
             .flex()
             .items_center()
-            .gap(px(10.))
-            .mb(px(12.))
+            .gap(px(12.))
             .px(px(12.))
             .py(px(10.))
             .rounded(px(12.))
             .bg(p.bg_weak)
-            .child(icon(IconName::CircleUser, 16., p.text_sub))
+            .child(provider_logo("claude", 14., providers::tint("claude"), &p))
             .child(
                 div()
                     .text_size(px(14.))
@@ -70,48 +64,103 @@ impl SettingsWindow {
                     .child("74%"),
             );
 
-        let sources = self.store.read(cx).borrowed_sources();
-        let logins = if sources.is_empty() {
-            div()
-                .py(px(12.))
+        let macos = cfg!(target_os = "macos");
+        let (keychain, others): (Vec<_>, Vec<_>) = self
+            .store
+            .read(cx)
+            .borrowed_sources()
+            .into_iter()
+            .partition(|(_, source)| {
+                macos
+                    && (source.keychain_account.is_some()
+                        || source
+                            .location
+                            .as_deref()
+                            .is_some_and(|l| l.ends_with("_keychain")))
+            });
+
+        let mut sections = vec![section(
+            "On screen",
+            "Useful when screen sharing or recording.",
+            div().flex().flex_col().child(hide_row).child(preview),
+            &p,
+        )];
+        if macos {
+            let open = div()
+                .id("open-keychain-access")
+                .flex()
+                .items_center()
+                .gap(px(6.))
+                .cursor_pointer()
                 .text_size(px(14.))
-                .text_color(p.text_soft)
-                .child("Quotio doesn’t read any logins from other apps yet.")
-                .into_any_element()
-        } else {
-            rows(
-                sources
-                    .iter()
-                    .map(|(provider, source)| login_row(provider, source, &p)),
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(p.text_sub)
+                .child("Open Keychain Access")
+                .child(icon(IconName::ExternalLink, 14., p.text_sub))
+                .on_click(|_, _, _| {
+                    let _ = std::process::Command::new("open")
+                        .args(["-a", "Keychain Access"])
+                        .spawn();
+                });
+            sections.push(section(
+                "Keychain access",
+                "Logins you allowed Quotio to read. To revoke, change the item’s Access Control in Keychain Access.",
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(12.))
+                    .child(logins(&keychain, "Quotio doesn’t read any Keychain items yet.", &p))
+                    .child(open),
                 &p,
-            )
-            .into_any_element()
-        };
+            ));
+        }
+        if !macos || !others.is_empty() {
+            sections.push(section(
+                "Logins Quotio can read",
+                "Sign-ins that belong to other apps, such as a CLI. To stop reading one, remove its account on the Accounts page.",
+                logins(&others, "Quotio doesn’t read any logins from other apps yet.", &p),
+                &p,
+            ));
+        }
+        if let Some(last) = sections.pop() {
+            sections.push(last.border_b_0());
+        }
 
         page(
             "Privacy",
             &format!(
-                "Credentials never leave {computer}. Here’s what Quotio can read, and how to hide it on screen."
+                "Credentials never leave {}. Here’s what Quotio can read, and how to hide it on screen.",
+                this_computer()
             ),
             &p,
         )
-        .child(section(
-            "On screen",
-            "Useful when screen sharing or recording.",
-            rows([hide_row, preview.into_any_element()], &p),
-            &p,
-        ))
-        .child(section(
-            "Logins Quotio can read",
-            "Sign-ins that belong to other apps, such as a CLI. To stop reading one, remove its account on the Accounts page.",
-            logins,
-            &p,
-        ))
+        .children(sections)
         .into_any_element()
     }
 }
 
-fn login_row(provider: &str, source: &Source, p: &Palette) -> AnyElement {
+/// A card of login rows separated by hairlines, or `empty` when there are none.
+fn logins(sources: &[(String, Source)], empty: &'static str, p: &Palette) -> Div {
+    if sources.is_empty() {
+        return div()
+            .py(px(12.))
+            .text_size(px(14.))
+            .text_color(p.text_soft)
+            .child(empty);
+    }
+    div()
+        .flex()
+        .flex_col()
+        .rounded(px(16.))
+        .border_1()
+        .border_color(p.stroke_soft)
+        .children(sources.iter().enumerate().map(|(i, (provider, source))| {
+            login_row(provider, source, p)
+                .when(i > 0, |s| s.border_t_1().border_color(p.stroke_soft))
+        }))
+}
+
+fn login_row(provider: &str, source: &Source, p: &Palette) -> Div {
     let allowed = source.state != ConnectionState::NeedsAuthorization;
     let detail = source
         .directory
@@ -120,15 +169,17 @@ fn login_row(provider: &str, source: &Source, p: &Palette) -> AnyElement {
         .or_else(|| source.keychain_account.clone())
         .or_else(|| source.location.clone())
         .unwrap_or_else(|| humanize(&source.kind));
-    let (badge, fg, bg) = if allowed {
-        ("Allowed", p.primary, p.bg_weak)
+    let (glyph, badge, fg) = if allowed {
+        (IconName::CircleCheck, "Allowed", p.primary)
     } else {
-        ("Needs access", p.error, p.error_alpha)
+        (IconName::CircleAlert, "Needs access", p.error)
     };
     div()
         .flex()
         .items_center()
         .gap(px(12.))
+        .px(px(16.))
+        .py(px(12.))
         .child(
             div()
                 .size(px(32.))
@@ -138,26 +189,49 @@ fn login_row(provider: &str, source: &Source, p: &Palette) -> AnyElement {
                 .justify_center()
                 .rounded(px(10.))
                 .bg(p.bg_weak)
-                .child(provider_logo(provider, 16., None, p)),
+                .child(provider_logo(provider, 15., providers::tint(provider), p)),
         )
         .child(
-            div().flex_1().min_w_0().child(row(
-                providers::display_name(provider),
-                Some(detail.into()),
-                div()
-                    .px(px(8.))
-                    .py(px(2.))
-                    .rounded(px(6.))
-                    .bg(bg)
-                    .text_size(px(12.))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(fg)
-                    .when(allowed, |s| s.border_1().border_color(p.stroke_soft))
-                    .child(badge),
-                p,
-            )),
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_w_0()
+                .gap(px(2.))
+                .child(
+                    div()
+                        .text_size(px(14.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(p.text_strong)
+                        .child(providers::display_name(provider)),
+                )
+                .child(
+                    div()
+                        .truncate()
+                        .font_family(if cfg!(target_os = "macos") {
+                            "Menlo"
+                        } else if cfg!(windows) {
+                            "Consolas"
+                        } else {
+                            "monospace"
+                        })
+                        .text_size(px(12.))
+                        .text_color(p.text_sub)
+                        .child(detail),
+                ),
         )
-        .into_any_element()
+        .child(
+            div()
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(4.))
+                .text_size(px(12.))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(fg)
+                .child(icon(glyph, 14., fg))
+                .child(badge),
+        )
 }
 
 /// `/home/me/.codex-work` → `~/.codex-work`.
