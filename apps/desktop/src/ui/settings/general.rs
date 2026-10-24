@@ -1,5 +1,6 @@
 //! General page, built from the Wonder artboard "Page - Quotio Settings General".
-//! Show in Dock, Language and the welcome guide are macOS-only and left out.
+//! Show in Dock is left out until macOS has a menu bar item to fall back on, and
+//! Language until the app is localized. "Show guide" opens the add-account dialog.
 use gpui_kit::assets::IconName;
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::notification::Notification;
@@ -12,7 +13,7 @@ use time::OffsetDateTime;
 
 use super::SettingsWindow;
 use super::connect::scan_summary;
-use super::widgets::{page, row, rows, section, select, toggle};
+use super::widgets::{page, row, rows, section, select, this_computer, toggle, tray_name};
 use crate::host::Method;
 use crate::model::ago_phrase;
 use crate::theme::{Appearance, Palette, palette};
@@ -43,11 +44,22 @@ impl SettingsWindow {
 
         let launch = row(
             "Launch at login",
-            Some("Start Quotio quietly in the tray when you sign in.".into()),
+            Some(
+                format!(
+                    "Start Quotio quietly in the {} when you {}.",
+                    tray_name(),
+                    if cfg!(target_os = "macos") {
+                        "log in"
+                    } else {
+                        "sign in"
+                    }
+                )
+                .into(),
+            ),
             toggle(
                 "launch-at-login",
                 self.launch_at_login,
-                cfg!(any(target_os = "linux", windows)),
+                cfg!(any(target_os = "linux", target_os = "macos", windows)),
                 &p,
                 cx.listener(|this, on: &bool, window, cx| {
                     if let Err(error) = autostart::set(*on) {
@@ -121,7 +133,7 @@ impl SettingsWindow {
             Some(self.last_scan().into()),
             button_with_icon(
                 "scan-all",
-                IconName::ScanSearch,
+                IconName::Search,
                 if self.scanning {
                     "Scanning…"
                 } else {
@@ -135,11 +147,6 @@ impl SettingsWindow {
             &p,
         );
 
-        let computer = if cfg!(windows) {
-            "this PC"
-        } else {
-            "this computer"
-        };
         page(
             "General",
             "Startup, appearance and how often quota refreshes.",
@@ -147,22 +154,29 @@ impl SettingsWindow {
         )
         .child(section(
             "Startup",
-            "How Quotio starts when you sign in.",
+            format!(
+                "How Quotio starts and where it lives on {}.",
+                this_computer()
+            ),
             rows([launch], &p),
             &p,
         ))
         .child(section(
             "Appearance",
-            format!("System follows {computer}’s appearance."),
+            format!("System follows {}’s appearance.", this_computer()),
             self.theme_options(&p, cx),
             &p,
         ))
         .child(section(
             "Refresh & logins",
-            format!("How often quota updates, and whether Quotio looks for logins already on {computer}."),
+            format!(
+                "How often quota updates, and whether Quotio looks for logins already on {}.",
+                this_computer()
+            ),
             rows([auto_refresh, detect, scan], &p),
             &p,
         ))
+        .child(welcome_guide(&p, cx))
         .into_any_element()
     }
 
@@ -273,4 +287,60 @@ impl SettingsWindow {
         })
         .detach();
     }
+}
+
+fn welcome_guide(p: &Palette, cx: &mut Context<SettingsWindow>) -> impl IntoElement {
+    div()
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .px(px(16.))
+        .py(px(12.))
+        .rounded(px(16.))
+        .bg(p.bg_weak)
+        .child(
+            div()
+                .size(px(32.))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(10.))
+                .bg(p.bg_white)
+                .shadow_sm()
+                .child(icon(IconName::BookOpen, 16., p.text_sub)),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .child(
+                    div()
+                        .text_size(px(14.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(p.text_strong)
+                        .child("Welcome guide"),
+                )
+                .child(
+                    div()
+                        .text_size(px(12.))
+                        .text_color(p.text_sub)
+                        .child("Walk through connecting providers and granting access again."),
+                ),
+        )
+        .child(
+            div()
+                .id("show-guide")
+                .flex_none()
+                .text_size(px(14.))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(p.text_strong)
+                .underline()
+                .cursor_pointer()
+                .child("Show guide")
+                .on_click(cx.listener(|this, _, window, cx| this.connect(None, window, cx))),
+        )
 }

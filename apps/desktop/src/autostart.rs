@@ -1,5 +1,5 @@
-//! Start Quotio when the user signs in: an XDG autostart entry on Linux, the
-//! per-user `Run` key on Windows.
+//! Start Quotio when the user signs in: a per-user LaunchAgent on macOS, an XDG
+//! autostart entry on Linux, the per-user `Run` key on Windows.
 use anyhow::Result;
 
 #[cfg(target_os = "linux")]
@@ -45,6 +45,45 @@ pub fn set(on: bool) -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn entry() -> Result<std::path::PathBuf> {
+    let dirs = directories::BaseDirs::new().ok_or_else(|| anyhow::anyhow!("no home directory"))?;
+    Ok(dirs
+        .home_dir()
+        .join("Library/LaunchAgents/app.quotio.Quotio.plist"))
+}
+
+#[cfg(target_os = "macos")]
+pub fn enabled() -> bool {
+    entry().is_ok_and(|path| path.exists())
+}
+
+#[cfg(target_os = "macos")]
+pub fn set(on: bool) -> Result<()> {
+    let path = entry()?;
+    if !on {
+        return match std::fs::remove_file(&path) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.into()),
+            _ => Ok(()),
+        };
+    }
+    let exe = std::env::current_exe()?.display().to_string();
+    let exe = exe
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;");
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(
+        &path,
+        format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>Label</key>\n\t<string>app.quotio.Quotio</string>\n\t<key>ProgramArguments</key>\n\t<array>\n\t\t<string>{exe}</string>\n\t</array>\n\t<key>RunAtLoad</key>\n\t<true/>\n</dict>\n</plist>\n"
+        ),
+    )?;
+    Ok(())
+}
+
 #[cfg(windows)]
 const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 
@@ -83,12 +122,12 @@ pub fn set(on: bool) -> Result<()> {
     Ok(())
 }
 
-#[cfg(not(any(target_os = "linux", windows)))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub fn enabled() -> bool {
     false
 }
 
-#[cfg(not(any(target_os = "linux", windows)))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub fn set(_: bool) -> Result<()> {
     anyhow::bail!("not supported on this platform")
 }
