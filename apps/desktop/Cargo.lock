@@ -5819,11 +5819,15 @@ name = "quotio-desktop"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "block2 0.6.2",
  "directories",
  "env_logger",
  "futures",
  "gpui-kit",
  "ksni",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "qrcode",
  "quotio",
  "raw-window-handle",

@@ -1,14 +1,17 @@
-//! Notification-area icon. tray-icon drives Shell_NotifyIcon from the thread that
-//! created it, which is GPUI's main thread and its Win32 message loop.
+//! Notification-area icon on Windows, status item on macOS. tray-icon drives
+//! Shell_NotifyIcon or NSStatusItem from the thread that created it, which is GPUI's
+//! main thread and its event loop.
 use anyhow::Result;
 use futures::channel::mpsc::UnboundedSender;
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
+#[cfg(target_os = "macos")]
+use super::macos::logical;
 use super::{TrayEvent, icon};
 
 pub struct Tray {
-    icon: TrayIcon,
+    pub(super) icon: TrayIcon,
 }
 
 fn bitmap(pixels: Vec<u8>) -> Result<Icon> {
@@ -38,9 +41,15 @@ impl Tray {
                 ..
             } = event
             {
-                // Anchor at the top centre of the icon; the popup opens above the taskbar.
+                // Anchor at the centre of the icon's edge that faces the screen: the
+                // top of a taskbar icon, the bottom of a menu bar item.
                 let x = rect.position.x + rect.size.width as f64 / 2.;
-                let (x, y) = logical(x, rect.position.y);
+                let y = if cfg!(windows) {
+                    rect.position.y
+                } else {
+                    rect.position.y + rect.size.height as f64
+                };
+                let (x, y) = logical(x, y);
                 let _ = clicks.unbounded_send(TrayEvent::Activate(Some((x as i32, y as i32))));
             }
         }));
@@ -75,6 +84,7 @@ impl Tray {
 
 /// tray-icon reports physical pixels; GPUI places windows in logical pixels,
 /// each display divided by its own scale.
+#[cfg(windows)]
 fn logical(x: f64, y: f64) -> (f64, f64) {
     use windows_sys::Win32::Foundation::POINT;
     use windows_sys::Win32::Graphics::Gdi::{MONITOR_DEFAULTTONEAREST, MonitorFromPoint};
