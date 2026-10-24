@@ -9,6 +9,7 @@ use gpui_kit::{
 
 use super::{icon, progress, provider_logo, shown_name, value_color};
 use crate::model::{AccountView, MetricView, Overview, ProviderGroup};
+use crate::prefs::Density;
 use crate::store::QuotaStore;
 use crate::theme::{FONT_FAMILY, Palette, palette};
 
@@ -191,6 +192,7 @@ impl QuotaMenu {
     fn group(&self, index: usize, group: &ProviderGroup, cx: &mut Context<Self>) -> AnyElement {
         let p = palette(cx).clone();
         let provider = group.provider_id.clone();
+        let density = crate::prefs::get(cx).density;
         div()
             .flex()
             .flex_col()
@@ -231,12 +233,14 @@ impl QuotaMenu {
                             })),
                     ),
             )
-            .children(
-                group
-                    .accounts
-                    .iter()
-                    .map(|account| account_card(account, shown_name(&account.name, cx), &p)),
-            )
+            .children(group.accounts.iter().map(|account| {
+                let name = shown_name(&account.name, cx);
+                match density {
+                    Density::Compact => compact_row(account, name, &p),
+                    Density::Comfortable => account_card(account, name, false, &p),
+                    Density::Detailed => account_card(account, name, true, &p),
+                }
+            }))
             .into_any_element()
     }
 
@@ -375,7 +379,8 @@ impl Render for QuotaMenu {
     }
 }
 
-fn account_card(account: &AccountView, name: String, p: &Palette) -> AnyElement {
+/// Comfortable shows the limits as tiles; Detailed gives each limit a full-width row.
+fn account_card(account: &AccountView, name: String, detailed: bool, p: &Palette) -> AnyElement {
     let group = SharedString::from(format!("card-{}", account.id));
     let mut card = div()
         .id(group.clone())
@@ -383,9 +388,13 @@ fn account_card(account: &AccountView, name: String, p: &Palette) -> AnyElement 
         .flex()
         .flex_col()
         .mx(px(4.))
-        .p(px(10.))
+        .p(px(if detailed { 12. } else { 10. }))
         .rounded(px(12.))
-        .gap(px(if account.issue.is_some() { 8. } else { 10. }))
+        .gap(px(match (detailed, account.issue.is_some()) {
+            (_, true) => 8.,
+            (true, false) => 12.,
+            (false, false) => 10.,
+        }))
         .cursor_pointer()
         .hover(|s| s.bg(p.bg_weak))
         .on_click(|_, window, cx| {
@@ -413,6 +422,8 @@ fn account_card(account: &AccountView, name: String, p: &Palette) -> AnyElement 
                         .child(issue.action.clone()),
                 ),
         );
+    } else if detailed {
+        card = card.children(account.metrics.iter().map(|m| metric_row(m, p)));
     } else if !account.metrics.is_empty() {
         let single = account.metrics.len() == 1;
         card = card.child(
@@ -531,11 +542,152 @@ fn metric_tile(metric: &MetricView, group: &SharedString, p: &Palette) -> impl I
         })
 }
 
+/// Detailed density: one limit across the card, with its reset in words.
+fn metric_row(metric: &MetricView, p: &Palette) -> impl IntoElement {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(6.))
+        .child(
+            div()
+                .flex()
+                .justify_between()
+                .items_baseline()
+                .gap(px(8.))
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .text_size(px(12.))
+                        .text_color(p.text_sub)
+                        .child(metric.label.clone()),
+                )
+                .child(
+                    div()
+                        .flex_none()
+                        .text_size(px(13.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(value_color(metric.tone, p))
+                        .child(metric.value.clone()),
+                ),
+        )
+        .child(progress(metric.fill, metric.tone, px(6.), p))
+        .when_some(metric.reset_sentence(), |s, reset| {
+            s.child(
+                div()
+                    .text_size(px(11.))
+                    .text_color(p.text_soft)
+                    .child(reset),
+            )
+        })
+}
+
+/// Compact density: one line per account, a mini bar for each of the two tightest
+/// limits, and the value of the limit that runs out first.
+fn compact_row(account: &AccountView, name: String, p: &Palette) -> AnyElement {
+    let left = |m: &MetricView| m.remaining.unwrap_or(1.);
+    let mut tightest: Vec<&MetricView> = account.metrics.iter().collect();
+    tightest.sort_by(|a, b| left(a).total_cmp(&left(b)));
+    let binding = tightest.first().copied();
+    tightest.truncate(2);
+    let out = binding.is_some_and(|m| m.remaining == Some(0.));
+    div()
+        .id(SharedString::from(format!("card-{}", account.id)))
+        .flex()
+        .items_center()
+        .gap(px(10.))
+        .mx(px(4.))
+        .px(px(10.))
+        .py(px(8.))
+        .rounded(px(9.))
+        .cursor_pointer()
+        .hover(|s| s.bg(p.bg_weak))
+        .on_click(|_, window, cx| {
+            window.remove_window();
+            crate::app::open_settings(cx);
+        })
+        .child(provider_logo(&account.provider_id, 13., None, p))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .text_size(px(13.))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(if out { p.text_soft } else { p.text_strong })
+                .child(name),
+        )
+        .map(|row| match (&account.issue, binding) {
+            (Some(issue), _) => row.child(
+                div()
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .gap(px(4.))
+                    .text_size(px(11.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(p.error)
+                    .child(icon(IconName::CircleAlert, 12., p.error))
+                    .child(issue.title.clone()),
+            ),
+            (None, Some(binding)) => row
+                .child(
+                    div()
+                        .flex_none()
+                        .w(px(56.))
+                        .flex()
+                        .flex_col()
+                        .gap(px(4.))
+                        .children(
+                            account
+                                .metrics
+                                .iter()
+                                .filter(|m| tightest.iter().any(|t| std::ptr::eq(*t, *m)))
+                                .map(|m| {
+                                    progress(m.fill, m.tone, px(4.), p)
+                                        .when(m.remaining == Some(0.), |s| s.bg(p.error_alpha))
+                                }),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex_none()
+                        .w(px(62.))
+                        .flex()
+                        .flex_col()
+                        .items_end()
+                        .child(
+                            div()
+                                .text_size(px(13.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(value_color(binding.tone, p))
+                                .child(binding.value.clone()),
+                        )
+                        .when_some(binding.reset.clone(), |s, reset| {
+                            let reset = if reset.starts_with(|c: char| c.is_ascii_digit()) {
+                                format!("in {reset}")
+                            } else {
+                                reset
+                            };
+                            s.child(
+                                div()
+                                    .whitespace_nowrap()
+                                    .text_size(px(10.))
+                                    .text_color(p.text_soft)
+                                    .child(reset),
+                            )
+                        }),
+                ),
+            (None, None) => row,
+        })
+        .into_any_element()
+}
+
 const CHROME_HEIGHT: f32 = 6. + 56. + 39. + 97. + 6.;
 
 /// Initial window height, close to the laid-out height so the popup does not jump
 /// when `render` fits the window to its content.
-pub fn preferred_height(overview: Option<&Overview>) -> f32 {
+pub fn preferred_height_for(overview: Option<&Overview>, density: Density) -> f32 {
     let Some(overview) = overview else {
         return CHROME_HEIGHT + 60.;
     };
@@ -546,14 +698,20 @@ pub fn preferred_height(overview: Option<&Overview>) -> f32 {
             36. + group
                 .accounts
                 .iter()
-                .map(|account| match (&account.issue, account.metrics.len()) {
-                    (Some(_), _) => 76.,
-                    (None, 0) => 40.,
-                    (None, n) => {
-                        let rows = n.div_ceil(2) as f32;
-                        50. + rows * 62. + (rows - 1.) * 8.
-                    }
-                })
+                .map(
+                    |account| match (density, &account.issue, account.metrics.len()) {
+                        (Density::Compact, None, n) if n > 0 => 49.,
+                        (Density::Compact, _, _) => 35.,
+                        (Density::Comfortable, Some(_), _) => 76.,
+                        (Density::Detailed, Some(_), _) => 80.,
+                        (Density::Comfortable, None, 0) => 40.,
+                        (Density::Detailed, None, n) => 46. + n as f32 * 65.,
+                        (Density::Comfortable, None, n) => {
+                            let rows = n.div_ceil(2) as f32;
+                            50. + rows * 62. + (rows - 1.) * 8.
+                        }
+                    },
+                )
                 .sum::<f32>()
         })
         .sum::<f32>()
