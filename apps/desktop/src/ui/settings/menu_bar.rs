@@ -449,7 +449,22 @@ impl SettingsWindow {
                             .when(stacked, |s| {
                                 s.px(px(6.)).py(px(2.)).rounded(px(5.)).bg(rgba(0x17171714))
                             })
-                            .child(div().size(px(6.)).rounded_full().bg(color(item.dot)))
+                            .child(
+                                if crate::providers::logo_path(&account.provider_id).is_some() {
+                                    crate::ui::provider_logo(
+                                        &account.provider_id,
+                                        14.,
+                                        Some(ink),
+                                        p,
+                                    )
+                                } else {
+                                    div()
+                                        .size(px(6.))
+                                        .rounded_full()
+                                        .bg(color(item.dot))
+                                        .into_any_element()
+                                },
+                            )
                             .children(item.lines.into_iter().enumerate().flat_map(
                                 |(i, (text, tone))| {
                                     let slash =

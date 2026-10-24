@@ -1,15 +1,18 @@
 //! Menu bar status item details tray-icon leaves to the app: Menu Bar preferences and
 //! the pinned quotas, drawn as one image like the Swift app's `StatusBarQuotaView`.
 use block2::RcBlock;
+use objc2::AllocAnyThread as _;
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Bool};
 use objc2_app_kit::{
     NSApplication, NSAttributedStringNSStringDrawing as _, NSAutoresizingMaskOptions, NSColor,
-    NSFont, NSFontAttributeName, NSFontWeightMedium, NSFontWeightSemibold,
-    NSForegroundColorAttributeName, NSImage,
+    NSCompositingOperation, NSFont, NSFontAttributeName, NSFontWeightMedium, NSFontWeightSemibold,
+    NSForegroundColorAttributeName, NSImage, NSRectFillUsingOperation,
 };
-use objc2_foundation::{NSAttributedString, NSDictionary, NSPoint, NSRect, NSSize, NSString};
+use objc2_foundation::{
+    NSAttributedString, NSData, NSDictionary, NSPoint, NSRect, NSSize, NSString,
+};
 
 use super::{Item, Tray, item};
 use crate::model::{Overview, Tone};
@@ -17,6 +20,7 @@ use crate::prefs::{Prefs, QuotaDisplay, TrayIcon};
 
 /// Height of the Swift app's quota image.
 const HEIGHT: f64 = 22.;
+const LOGO: f64 = 14.;
 
 impl Tray {
     /// Shows or hides the status item and draws its content per the Menu Bar
@@ -34,7 +38,10 @@ impl Tray {
             Some(overview) if menu_bar.show_quota => overview
                 .menu_bar_accounts(menu_bar)
                 .into_iter()
-                .map(|(_, account)| item(account, menu_bar.stack_paired, used))
+                .map(|(_, account)| {
+                    let logo = logo(&account.provider_id);
+                    (logo, item(account, menu_bar.stack_paired, used))
+                })
                 .collect(),
             _ => Vec::new(),
         };
@@ -62,7 +69,7 @@ impl Tray {
 
 /// Lays the items out left to right with Swift's spacing and fonts. Monochrome draws
 /// a template, which the menu bar tints for its appearance.
-fn quota_image(items: &[Item], monochrome: bool) -> Retained<NSImage> {
+fn quota_image(items: &[(Option<Retained<NSImage>>, Item)], monochrome: bool) -> Retained<NSImage> {
     let dot_font = NSFont::systemFontOfSize(9.);
     // SAFETY: AppKit's font weight constants.
     let (single, stacked) = unsafe {
@@ -72,12 +79,23 @@ fn quota_image(items: &[Item], monochrome: bool) -> Retained<NSImage> {
         )
     };
     let mut runs = Vec::new();
+    let mut logos = Vec::new();
     let mut x = 4.;
-    for item in items {
-        let dot = text("●", &dot_font, item.dot, monochrome);
-        let size = dot.size();
-        runs.push((dot, NSPoint::new(x, (HEIGHT - size.height) / 2.)));
-        x += size.width + 2.;
+    for (logo, item) in items {
+        // Swift shows the provider's 14 pt menu bar glyph; a dot stands in without one.
+        if let Some(logo) = logo {
+            let rect = NSRect::new(
+                NSPoint::new(x, (HEIGHT - LOGO) / 2.),
+                NSSize::new(LOGO, LOGO),
+            );
+            logos.push((logo.clone(), rect));
+            x += LOGO + 2.;
+        } else {
+            let dot = text("●", &dot_font, item.dot, monochrome);
+            let size = dot.size();
+            runs.push((dot, NSPoint::new(x, (HEIGHT - size.height) / 2.)));
+            x += size.width + 2.;
+        }
         let font = if item.lines.len() == 2 {
             &stacked
         } else {
@@ -99,6 +117,12 @@ fn quota_image(items: &[Item], monochrome: bool) -> Retained<NSImage> {
         x += width + 8.;
     }
     let draw = RcBlock::new(move |_: NSRect| {
+        for (logo, rect) in &logos {
+            logo.drawInRect(*rect);
+            // Tint the black artwork with the menu bar's text color, like a template.
+            NSColor::labelColor().set();
+            NSRectFillUsingOperation(*rect, NSCompositingOperation::SourceAtop);
+        }
         for (text, at) in &runs {
             text.drawAtPoint(*at);
         }
@@ -111,6 +135,13 @@ fn quota_image(items: &[Item], monochrome: bool) -> Retained<NSImage> {
     );
     image.setTemplate(monochrome);
     image
+}
+
+/// The provider's single-color SVG logo, or `None` when there is no artwork or the
+/// system can't read SVG.
+fn logo(provider_id: &str) -> Option<Retained<NSImage>> {
+    let file = crate::assets::AppFiles::get(&crate::providers::logo_path(provider_id)?)?;
+    NSImage::initWithData(NSImage::alloc(), &NSData::with_bytes(&file.data))
 }
 
 fn text(value: &str, font: &NSFont, tone: Tone, monochrome: bool) -> Retained<NSAttributedString> {
