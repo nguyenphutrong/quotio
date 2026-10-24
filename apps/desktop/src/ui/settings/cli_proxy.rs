@@ -14,7 +14,13 @@ use crate::ui::{ButtonKind, button_with_icon, icon};
 impl SettingsWindow {
     pub(super) fn cli_proxy_page(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = palette(cx).clone();
-        let system = if cfg!(windows) { "Windows" } else { "Linux" };
+        let system = if cfg!(target_os = "macos") {
+            "macOS"
+        } else if cfg!(windows) {
+            "Windows"
+        } else {
+            "Linux"
+        };
         let status = div()
             .flex()
             .items_center()
@@ -51,7 +57,7 @@ impl SettingsWindow {
                             .text_size(px(12.))
                             .text_color(p.text_sub)
                             .child(
-                                "Quotio for macOS can start, stop and update CLIProxyAPI for you. Here, run it yourself if your tools need it.",
+                                "The Quotio macOS app can start, stop and update CLIProxyAPI for you. Here, run it yourself if your tools need it.",
                             ),
                     ),
             );
@@ -74,12 +80,15 @@ impl SettingsWindow {
             &p,
         )
         .child(status)
-        .child(section(
-            "Run it yourself",
-            "Quota for accounts you add in Quotio keeps working either way.",
-            rows([project], &p),
-            &p,
-        ))
+        .child(
+            section(
+                "Run it yourself",
+                "Quota for accounts you add in Quotio keeps working either way.",
+                rows([project], &p),
+                &p,
+            )
+            .border_b_0(),
+        )
         .into_any_element()
     }
 }
